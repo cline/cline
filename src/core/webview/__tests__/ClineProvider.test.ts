@@ -340,6 +340,7 @@ describe("ClineProvider", () => {
 			uriScheme: "vscode",
 			soundEnabled: false,
 			diffEnabled: false,
+			checkpointsEnabled: false,
 			writeDelayMs: 1000,
 			browserViewportSize: "900x600",
 			fuzzyMatchThreshold: 1.0,
@@ -646,6 +647,7 @@ describe("ClineProvider", () => {
 			},
 			mode: "code",
 			diffEnabled: true,
+			checkpointsEnabled: false,
 			fuzzyMatchThreshold: 1.0,
 			experiments: experimentDefault,
 		} as any)
@@ -663,6 +665,7 @@ describe("ClineProvider", () => {
 			mockApiConfig,
 			modeCustomInstructions,
 			true,
+			false,
 			1.0,
 			"Test task",
 			undefined,
