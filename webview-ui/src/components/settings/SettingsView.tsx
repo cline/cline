@@ -34,6 +34,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setSoundVolume,
 		diffEnabled,
 		setDiffEnabled,
+		checkpointsEnabled,
+		setCheckpointsEnabled,
 		browserViewportSize,
 		setBrowserViewportSize,
 		openRouterModels,
@@ -86,6 +88,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
 			vscode.postMessage({ type: "soundVolume", value: soundVolume })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
+			vscode.postMessage({ type: "checkpointsEnabled", bool: checkpointsEnabled })
 			vscode.postMessage({ type: "browserViewportSize", text: browserViewportSize })
 			vscode.postMessage({ type: "fuzzyMatchThreshold", value: fuzzyMatchThreshold ?? 1.0 })
 			vscode.postMessage({ type: "writeDelayMs", value: writeDelayMs })
@@ -698,6 +701,25 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									}
 								/>
 							))}
+					</div>
+
+					<div style={{ marginBottom: 15 }}>
+						<VSCodeCheckbox
+							checked={checkpointsEnabled}
+							onChange={(e: any) => {
+								setCheckpointsEnabled(e.target.checked)
+							}}>
+							<span style={{ fontWeight: "500" }}>Enable checkpoints</span>
+						</VSCodeCheckbox>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							When enabled, Roo will be save a workspace checkpoint after each tool execution if a file in
+							the workspace is modified, added or deleted.
+						</p>
 					</div>
 				</div>
 
