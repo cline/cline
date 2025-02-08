@@ -30,7 +30,7 @@ Conheça o Cline: um assistente de IA que pode usar seu **CLI** e **Editor**.
 
 Graças às [habilidades avançadas do Claude 3.5 Sonnet](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf), o Cline pode lidar com tarefas complexas de desenvolvimento de software passo a passo. Com ferramentas que permitem criar e editar arquivos, explorar grandes projetos, usar o navegador e executar comandos no terminal (com sua aprovação), ele pode ajudar você de maneiras que vão além da inclusão de código ou suporte técnico. O Cline pode é capaz inclusive de usar o Model Context Protocol (MCP) para criar novas ferramentas e expandir seus próprios recursos. Embora os scripts de IA autônomas tradicionalmente sejam executados em ambientes isolados, esta extensão oferece uma GUI com um humano no circuito para aprovar cada alteração de arquivo e comando de terminal, fornecendo uma maneira segura e acessível de explorar todo o potencial da IA.
 
-1. Insira sua tarefa e adicione imagens para transformar mockups em aplicativos funcionais ou corrigir erros atráves de capturas de tela.
+1. Insira sua tarefa e adicione imagens para transformar mockups em aplicativos funcionais ou corrigir erros através de capturas de tela.
 
 2. O Cline começará analisando a estrutura do seu arquivo e os ASTs do código-fonte, fazendo pesquisas com Regex e lendo arquivos relevantes para se orientar em projetos existentes. Ao gerenciar cuidadosamente as informações agregadas, o Cline pode fornecer assistência valiosa mesmo em projetos grandes e complexos, sem sobrecarregar a janela de contexto.
 3. Assim que ele tiver as informações necessárias, o Cline poderá:
@@ -61,7 +61,7 @@ A extensão também rastreia o uso total de tokens e os custos da API para todo 
 
 Graças às novas [atualizações de integração do Shell no VSCode v1.93](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api), o Cline pode executar comandos diretamente no seu terminal e receber o resultado. Isso permite que você execute uma variedade de tarefas, desde instalar pacotes e executar build scripts para fazer deploy de aplicações, gerenciar bancos de dados e executar testes, adaptando-se ao seu ambiente de desenvolvimento e ferramentas para fazer o trabalho corretamente.
 
-Para processos de longa duração, como servidores de desenvolvimento, use o botão "Continuar durante a execução" para permitir que o Cline continue a tarefa enquanto o comando é executado em segundo plano. Enquanto Cline trabalha, voce será notificado sobre novas saídas do terminal, para que possa responder a problemas que possam surgir, como erros de compilação ao editar arquivos.
+Para processos de longa duração, como servidores de desenvolvimento, use o botão "Continuar durante a execução" para permitir que o Cline continue a tarefa enquanto o comando é executado em segundo plano. Enquanto Cline trabalha, você será notificado sobre novas saídas do terminal, para que possa responder a problemas que possam surgir, como erros de compilação ao editar arquivos.
 
 <!-- Pixel transparente para criar uma quebra de linha após a imagem flutuante -->
 
@@ -93,7 +93,7 @@ Tente pedir a Cline para "testar o aplicativo" e observe enquanto o Cline execut
 
 <img align="right" width="350" src="https://github.com/user-attachments/assets/ac0efa14-5c1f-4c26-a42d-9d7c56f5fadd">
 
-### "adicione uma ferramente que..."
+### "adicione uma ferramenta que..."
 
 Graças ao [Model Context Protocol](https://github.com/modelcontextprotocol), o Cline pode expandir seus recursos por meio de ferramentas personalizadas. Embora você possa usar [servidores criados pela comunidade](https://github.com/modelcontextprotocol/servers), Cline pode criar e instalar ferramentas especificamente para seu fluxo de trabalho. Basta pedir ao Cline para "adicionar uma ferramenta" e ele cuidará de tudo, desde a criação de um novo servidor MCP até a instalação na extensão. Essas ferramentas personalizadas se tornam parte do conjunto de ferramentas da Cline e estão prontas para serem usadas em tarefas futuras.
 
@@ -138,13 +138,13 @@ Por exemplo, se estiver trabalhando com um servidor web local, você pode usar '
 Para contribuir com o projeto, comece com nosso [Guia de Contribuição](CONTRIBUTING.md) para aprender o básico. Você também pode entrar no nosso [Discord](https://discord.gg/cline) para bater papo com outros colaboradores no canal `#contributors`. Se você está procurando um emprego de período integral, confira nossas vagas em aberto na nossa [página de carreiras](https://cline.bot/join-us).
 
 <details>
-<summary>Instrucoes para desenvolvimento local</summary>
+<summary>Instruções para desenvolvimento local</summary>
 
-1. Clone o repositorio _(Necessario [git-lfs](https://git-lfs.com/))_:
+1. Clone o repositório _(Necessário [git-lfs](https://git-lfs.com/))_:
                 ```bash
                 git clone https://github.com/cline/cline.git
                 ```
-2. Abra o projecto no VSCode:
+2. Abra o projeto no VSCode:
                 ```bash
                 code cline
                 ```
