@@ -32,7 +32,7 @@ export class OllamaHandler implements ApiHandler, SingleCompletionHandler {
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
 			messages: openAiMessages,
-			temperature: this.options.modelTemperature ?? DEFAULT_TEMPERATURE,
+			temperature: this.options.modelTemperature ?? OLLAMA_DEFAULT_TEMPERATURE,
 			stream: true,
 		})
 		for await (const chunk of stream) {
