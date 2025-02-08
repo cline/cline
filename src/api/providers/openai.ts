@@ -57,7 +57,7 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 			}
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
 				model: modelId,
-				temperature: 0,
+				temperature: this.options.modelTemperature ?? (deepseekReasoner ? 0.6 : 0),
 				messages: deepseekReasoner
 					? convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 					: [systemMessage, ...convertToOpenAiMessages(messages)],

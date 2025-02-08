@@ -60,6 +60,7 @@ export interface ApiHandlerOptions {
 	includeMaxTokens?: boolean
 	unboundApiKey?: string
 	unboundModelId?: string
+	modelTemperature?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

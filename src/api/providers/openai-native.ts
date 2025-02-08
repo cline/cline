@@ -88,7 +88,7 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 	): ApiStream {
 		const stream = await this.client.chat.completions.create({
 			model: modelId,
-			temperature: 0,
+			temperature: this.options.modelTemperature ?? 0,
 			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
 			stream_options: { include_usage: true },
@@ -189,7 +189,7 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 		return {
 			model: modelId,
 			messages: [{ role: "user", content: prompt }],
-			temperature: 0,
+			temperature: this.options.modelTemperature ?? 0,
 		}
 	}
 }

@@ -30,7 +30,7 @@ export class MistralHandler implements ApiHandler {
 		const stream = await this.client.chat.stream({
 			model: this.getModel().id,
 			// max_completion_tokens: this.getModel().info.maxTokens,
-			temperature: 0,
+			temperature: this.options.modelTemperature ?? 0,
 			messages: [{ role: "system", content: systemPrompt }, ...convertToMistralMessages(messages)],
 			stream: true,
 		})

@@ -23,7 +23,7 @@ export class GeminiHandler implements ApiHandler, SingleCompletionHandler {
 			contents: messages.map(convertAnthropicMessageToGemini),
 			generationConfig: {
 				// maxOutputTokens: this.getModel().info.maxTokens,
-				temperature: 0,
+				temperature: this.options.modelTemperature ?? 0,
 			},
 		})
 
@@ -60,7 +60,7 @@ export class GeminiHandler implements ApiHandler, SingleCompletionHandler {
 			const result = await model.generateContent({
 				contents: [{ role: "user", parts: [{ text: prompt }] }],
 				generationConfig: {
-					temperature: 0,
+					temperature: this.options.modelTemperature ?? 0,
 				},
 			})
 

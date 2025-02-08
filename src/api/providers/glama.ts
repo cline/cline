@@ -79,7 +79,7 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 		}
 
 		if (this.supportsTemperature()) {
-			requestOptions.temperature = 0
+			requestOptions.temperature = this.options.modelTemperature ?? 0
 		}
 
 		const { data: completion, response } = await this.client.chat.completions
@@ -172,7 +172,7 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 			}
 
 			if (this.supportsTemperature()) {
-				requestOptions.temperature = 0
+				requestOptions.temperature = this.options.modelTemperature ?? 0
 			}
 
 			if (this.getModel().id.startsWith("anthropic/")) {

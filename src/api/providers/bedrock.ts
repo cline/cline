@@ -104,7 +104,7 @@ export class AwsBedrockHandler implements ApiHandler, SingleCompletionHandler {
 			system: [{ text: systemPrompt }],
 			inferenceConfig: {
 				maxTokens: modelConfig.info.maxTokens || 5000,
-				temperature: 0.3,
+				temperature: this.options.modelTemperature ?? 0.3,
 				topP: 0.1,
 				...(this.options.awsUsePromptCache
 					? {
@@ -262,7 +262,7 @@ export class AwsBedrockHandler implements ApiHandler, SingleCompletionHandler {
 				]),
 				inferenceConfig: {
 					maxTokens: modelConfig.info.maxTokens || 5000,
-					temperature: 0.3,
+					temperature: this.options.modelTemperature ?? 0.3,
 					topP: 0.1,
 				},
 			}

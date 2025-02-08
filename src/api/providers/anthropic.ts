@@ -44,7 +44,7 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 					{
 						model: modelId,
 						max_tokens: this.getModel().info.maxTokens || 8192,
-						temperature: 0,
+						temperature: this.options.modelTemperature ?? 0,
 						system: [{ text: systemPrompt, type: "text", cache_control: { type: "ephemeral" } }], // setting cache breakpoint for system prompt so new tasks can reuse it
 						messages: messages.map((message, index) => {
 							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
@@ -96,7 +96,7 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 				stream = (await this.client.messages.create({
 					model: modelId,
 					max_tokens: this.getModel().info.maxTokens || 8192,
-					temperature: 0,
+					temperature: this.options.modelTemperature ?? 0,
 					system: [{ text: systemPrompt, type: "text" }],
 					messages,
 					// tools,
@@ -179,7 +179,7 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 			const response = await this.client.messages.create({
 				model: this.getModel().id,
 				max_tokens: this.getModel().info.maxTokens || 8192,
-				temperature: 0,
+				temperature: this.options.modelTemperature ?? 0,
 				messages: [{ role: "user", content: prompt }],
 				stream: false,
 			})

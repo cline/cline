@@ -22,7 +22,7 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		const stream = await this.client.messages.create({
 			model: this.getModel().id,
 			max_tokens: this.getModel().info.maxTokens || 8192,
-			temperature: 0,
+			temperature: this.options.modelTemperature ?? 0,
 			system: systemPrompt,
 			messages,
 			stream: true,
@@ -89,7 +89,7 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 			const response = await this.client.messages.create({
 				model: this.getModel().id,
 				max_tokens: this.getModel().info.maxTokens || 8192,
-				temperature: 0,
+				temperature: this.options.modelTemperature ?? 0,
 				messages: [{ role: "user", content: prompt }],
 				stream: false,
 			})
