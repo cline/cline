@@ -2,8 +2,6 @@ import { OpenAiHandler } from "./openai"
 import { ApiHandlerOptions, ModelInfo } from "../../shared/api"
 import { deepSeekModels, deepSeekDefaultModelId } from "../../shared/api"
 
-export const DEEP_SEEK_DEFAULT_TEMPERATURE = 0.6
-
 export class DeepSeekHandler extends OpenAiHandler {
 	constructor(options: ApiHandlerOptions) {
 		super({

@@ -5,7 +5,7 @@ import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../..
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
-import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./deepseek"
+import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./openai"
 
 const OLLAMA_DEFAULT_TEMPERATURE = 0
 

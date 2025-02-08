@@ -11,7 +11,8 @@ import { ApiHandler, SingleCompletionHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
-import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./deepseek"
+
+export const DEEP_SEEK_DEFAULT_TEMPERATURE = 0.6
 const OPENAI_DEFAULT_TEMPERATURE = 0
 
 export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {

@@ -6,7 +6,7 @@ import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefau
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
 import delay from "delay"
-import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./deepseek"
+import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./openai"
 
 const OPENROUTER_DEFAULT_TEMPERATURE = 0
 
