@@ -3,6 +3,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { memo } from "react"
 import { formatLargeNumber } from "../../utils/format"
+import { useCopyToClipboard } from "../../utils/clipboard"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
@@ -10,6 +11,7 @@ type HistoryPreviewProps = {
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	const { taskHistory } = useExtensionState()
+	const { showCopyFeedback, copyWithFeedback } = useCopyToClipboard()
 	const handleHistorySelect = (id: string) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
 	}
@@ -31,8 +33,30 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 
 	return (
 		<div style={{ flexShrink: 0 }}>
+			{showCopyFeedback && <div className="copy-modal">Prompt Copied to Clipboard</div>}
 			<style>
 				{`
+					.copy-modal {
+						position: fixed;
+						top: 50%;
+						left: 50%;
+						transform: translate(-50%, -50%);
+						background-color: var(--vscode-notifications-background);
+						color: var(--vscode-notifications-foreground);
+						padding: 12px 20px;
+						border-radius: 4px;
+						box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+						z-index: 1000;
+						transition: opacity 0.2s ease-in-out;
+					}
+					.copy-button {
+						opacity: 0;
+						pointer-events: none;
+					}
+					.history-preview-item:hover .copy-button {
+						opacity: 1;
+						pointer-events: auto;
+					}
 					.history-preview-item {
 						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
 						border-radius: 4px;
@@ -79,8 +103,14 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 							key={item.id}
 							className="history-preview-item"
 							onClick={() => handleHistorySelect(item.id)}>
-							<div style={{ padding: "12px" }}>
-								<div style={{ marginBottom: "8px" }}>
+							<div style={{ padding: "12px", position: "relative" }}>
+								<div
+									style={{
+										marginBottom: "8px",
+										display: "flex",
+										justifyContent: "space-between",
+										alignItems: "center",
+									}}>
 									<span
 										style={{
 											color: "var(--vscode-descriptionForeground)",
@@ -90,6 +120,14 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										}}>
 										{formatDate(item.ts)}
 									</span>
+									<button
+										title="Copy Prompt"
+										aria-label="Copy Prompt"
+										className="copy-button"
+										data-appearance="icon"
+										onClick={(e) => copyWithFeedback(item.task, e)}>
+										<span className="codicon codicon-copy"></span>
+									</button>
 								</div>
 								<div
 									style={{
