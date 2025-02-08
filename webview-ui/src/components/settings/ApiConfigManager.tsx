@@ -49,6 +49,18 @@ const ApiConfigManager = ({
 		return null
 	}
 
+	const resetCreateState = () => {
+		setIsCreating(false)
+		setNewProfileName("")
+		setError(null)
+	}
+
+	const resetRenameState = () => {
+		setIsRenaming(false)
+		setInputValue("")
+		setError(null)
+	}
+
 	// Focus input when entering rename mode
 	useEffect(() => {
 		if (isRenaming) {
@@ -67,17 +79,13 @@ const ApiConfigManager = ({
 
 	// Reset state when current profile changes
 	useEffect(() => {
-		setIsRenaming(false)
-		setIsCreating(false)
-		setInputValue("")
-		setNewProfileName("")
-		setError(null)
+		resetCreateState()
+		resetRenameState()
 	}, [currentApiConfigName])
 
 	const handleAdd = () => {
+		resetCreateState()
 		setIsCreating(true)
-		setNewProfileName("")
-		setError(null)
 	}
 
 	const handleStartRename = () => {
@@ -87,9 +95,7 @@ const ApiConfigManager = ({
 	}
 
 	const handleCancel = () => {
-		setIsRenaming(false)
-		setInputValue("")
-		setError(null)
+		resetRenameState()
 	}
 
 	const handleSave = () => {
@@ -103,17 +109,13 @@ const ApiConfigManager = ({
 
 		if (isRenaming && currentApiConfigName) {
 			if (currentApiConfigName === trimmedValue) {
-				setIsRenaming(false)
-				setInputValue("")
-				setError(null)
+				resetRenameState()
 				return
 			}
 			onRenameConfig(currentApiConfigName, trimmedValue)
 		}
 
-		setIsRenaming(false)
-		setInputValue("")
-		setError(null)
+		resetRenameState()
 	}
 
 	const handleNewProfileSave = () => {
@@ -126,9 +128,7 @@ const ApiConfigManager = ({
 		}
 
 		onUpsertConfig(trimmedValue)
-		setIsCreating(false)
-		setNewProfileName("")
-		setError(null)
+		resetCreateState()
 	}
 
 	const handleDelete = () => {
@@ -293,9 +293,7 @@ const ApiConfigManager = ({
 							setNewProfileName("")
 							setError(null)
 						} else {
-							setIsCreating(false)
-							setNewProfileName("")
-							setError(null)
+							resetCreateState()
 						}
 					}}
 					aria-labelledby="new-profile-title">
@@ -303,14 +301,7 @@ const ApiConfigManager = ({
 						<h2 id="new-profile-title" className="text-lg font-semibold mb-4">
 							New Configuration Profile
 						</h2>
-						<button
-							className="absolute right-4 top-4"
-							aria-label="Close dialog"
-							onClick={() => {
-								setIsCreating(false)
-								setNewProfileName("")
-								setError(null)
-							}}>
+						<button className="absolute right-4 top-4" aria-label="Close dialog" onClick={resetCreateState}>
 							<span className="codicon codicon-close" />
 						</button>
 						<VSCodeTextField
@@ -328,9 +319,7 @@ const ApiConfigManager = ({
 								if (event.key === "Enter" && newProfileName.trim()) {
 									handleNewProfileSave()
 								} else if (event.key === "Escape") {
-									setIsCreating(false)
-									setNewProfileName("")
-									setError(null)
+									resetCreateState()
 								}
 							}}
 						/>
@@ -340,13 +329,7 @@ const ApiConfigManager = ({
 							</p>
 						)}
 						<div className="flex justify-end gap-2 mt-4">
-							<VSCodeButton
-								appearance="secondary"
-								onClick={() => {
-									setIsCreating(false)
-									setNewProfileName("")
-									setError(null)
-								}}>
+							<VSCodeButton appearance="secondary" onClick={resetCreateState}>
 								Cancel
 							</VSCodeButton>
 							<VSCodeButton
