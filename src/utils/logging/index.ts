@@ -6,7 +6,7 @@
 import { CompactLogger } from "./CompactLogger"
 
 /**
- * No-operation logger implementation for test environments
+ * No-operation logger implementation for production environments
  */
 const noopLogger = {
 	debug: () => {},

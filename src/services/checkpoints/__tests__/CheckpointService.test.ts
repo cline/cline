@@ -291,6 +291,7 @@ describe("CheckpointService", () => {
 			const baseDir = path.join(os.tmpdir(), `checkpoint-service-test2-${Date.now()}`)
 			await fs.mkdir(baseDir)
 			const newTestFile = path.join(baseDir, "test.txt")
+			await fs.writeFile(newTestFile, "Hello, world!")
 
 			const newGit = simpleGit(baseDir)
 			const initSpy = jest.spyOn(newGit, "init")
@@ -300,7 +301,6 @@ describe("CheckpointService", () => {
 			expect(initSpy).toHaveBeenCalled()
 
 			// Save a checkpoint: Hello, world!
-			await fs.writeFile(newTestFile, "Hello, world!")
 			const commit1 = await newService.saveCheckpoint("Hello, world!")
 			expect(commit1?.commit).toBeTruthy()
 			expect(await fs.readFile(newTestFile, "utf-8")).toBe("Hello, world!")

@@ -21,6 +21,7 @@ import Thumbnails from "../common/Thumbnails"
 import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
 import { highlightMentions } from "./TaskHeader"
+import { CheckpointSaved } from "./checkpoints/CheckpointSaved"
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -80,7 +81,7 @@ export const ChatRowContent = ({
 	isLast,
 	isStreaming,
 }: ChatRowContentProps) => {
-	const { mcpServers, alwaysAllowMcp } = useExtensionState()
+	const { mcpServers, alwaysAllowMcp, currentCheckpoint } = useExtensionState()
 	const [reasoningCollapsed, setReasoningCollapsed] = useState(false)
 
 	// Auto-collapse reasoning when new messages arrive
@@ -754,6 +755,14 @@ export const ChatRowContent = ({
 								/>
 							</div>
 						</>
+					)
+				case "checkpoint_saved":
+					return (
+						<CheckpointSaved
+							ts={message.ts!}
+							commitHash={message.text!}
+							currentCheckpointHash={currentCheckpoint}
+						/>
 					)
 				default:
 					return (
