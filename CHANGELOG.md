@@ -1,5 +1,14 @@
 # Roo Code Changelog
 
+## 3.3.15
+
+### Patch Changes
+
+- Add a copy button to the recent tasks
+- Improve the user experience for adding a new configuration profile
+- Style and copy updates to advanced settings
+- v3.3.15
+
 ## [3.3.14]
 
 - Should have skipped floor 13 like an elevator. This fixes the broken 3.3.13 release by reverting some changes to the deployment scripts.
