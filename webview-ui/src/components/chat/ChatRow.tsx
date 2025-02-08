@@ -1025,7 +1025,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								<div>
 									Cline tried to access <code>{message.text}</code> which is blocked by the{" "}
 									<code>.clineignore</code>
-									file settings.
+									file.
 								</div>
 							</div>
 						</>
