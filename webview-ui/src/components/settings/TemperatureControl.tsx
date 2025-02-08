@@ -1,4 +1,4 @@
-import { Checkbox } from "vscrui"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 
 interface TemperatureControlProps {
@@ -16,57 +16,53 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 	}, [value])
 
 	return (
-		<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-			<Checkbox
+		<div
+			style={{
+				marginTop: 10,
+				marginBottom: 15,
+				paddingLeft: 10,
+				borderLeft: "2px solid var(--vscode-button-background)",
+			}}>
+			<VSCodeCheckbox
 				checked={isCustomTemperature}
-				onChange={(checked: boolean) => {
-					setIsCustomTemperature(checked)
-					if (!checked) {
+				onChange={(e: any) => {
+					setIsCustomTemperature(e.target.checked)
+					if (!e.target.checked) {
 						onChange(undefined) // Reset to provider default
 					} else {
 						onChange(0) // Set initial value when enabling
 					}
 				}}>
-				<span style={{ fontWeight: 500 }}>Use custom temperature</span>
-			</Checkbox>
+				<span style={{ fontWeight: "500" }}>Use custom temperature</span>
+			</VSCodeCheckbox>
+
+			<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
+				Controls randomness in the model's responses. Higher values make output more random, lower values make
+				it more deterministic.
+			</p>
 
 			{isCustomTemperature && (
-				<>
-					<i
-						className="codicon codicon-info"
-						title={`Controls randomness in the model's responses. Higher values (e.g. 0.8) make output more random, lower values (e.g. 0.2) make it more deterministic. Range: 0-${maxValue}`}
-						style={{
-							fontSize: "12px",
-							color: "var(--vscode-descriptionForeground)",
-							cursor: "help",
-						}}
-					/>
-					<input
-						type="range"
-						min="0"
-						max={maxValue}
-						step="0.05"
-						value={value}
-						onChange={(e) => {
-							const newValue = parseFloat(e.target.value)
-							onChange(isNaN(newValue) ? undefined : newValue)
-						}}
-						style={{
-							flexGrow: 1,
-							accentColor: "var(--vscode-button-background)",
-							height: "2px",
-						}}
-					/>
-					<span
-						style={{
-							fontSize: "12px",
-							color: "var(--vscode-descriptionForeground)",
-							minWidth: "36px",
-							textAlign: "right",
-						}}>
-						{value?.toFixed(2)}
-					</span>
-				</>
+				<div>
+					<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+						<input
+							type="range"
+							min="0"
+							max={maxValue}
+							step="0.05"
+							value={value}
+							onChange={(e) => {
+								const newValue = parseFloat(e.target.value)
+								onChange(isNaN(newValue) ? undefined : newValue)
+							}}
+							style={{
+								flexGrow: 1,
+								accentColor: "var(--vscode-button-background)",
+								height: "2px",
+							}}
+						/>
+						<span style={{ minWidth: "45px", textAlign: "left" }}>{value?.toFixed(2)}</span>
+					</div>
+				</div>
 			)}
 		</div>
 	)
