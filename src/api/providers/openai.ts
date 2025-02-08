@@ -1,7 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI, { AzureOpenAI } from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo, openAiModelInfoSaneDefaults, OpenAiNativeModelId, openAiNativeModels } from "../../shared/api"
+import {
+	ApiHandlerOptions,
+	azureOpenAiDefaultApiVersion,
+	ModelInfo,
+	openAiModelInfoSaneDefaults,
+	OpenAiNativeModelId,
+	openAiNativeModels,
+} from "../../shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -29,7 +36,9 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	private modelSupportsTemperature(modelId: string): boolean {
-		return !(modelId in openAiNativeModels) || openAiNativeModels[modelId as OpenAiNativeModelId].supportsTemperature !== false;
+		return (
+			!(modelId in openAiNativeModels) || openAiNativeModels[modelId as OpenAiNativeModelId].supportsTemperature !== false
+		)
 	}
 
 	@withRetry()
