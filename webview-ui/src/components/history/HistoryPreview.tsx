@@ -122,6 +122,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 									</span>
 									<button
 										title="Copy Prompt"
+										aria-label="Copy Prompt"
 										className="copy-button"
 										data-appearance="icon"
 										onClick={(e) => copyWithFeedback(item.task, e)}>
