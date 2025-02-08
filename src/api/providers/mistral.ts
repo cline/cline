@@ -14,6 +14,8 @@ import {
 import { convertToMistralMessages } from "../transform/mistral-format"
 import { ApiStream } from "../transform/stream"
 
+const MISTRAL_DEFAULT_TEMPERATURE = 0
+
 export class MistralHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: Mistral
@@ -30,7 +32,7 @@ export class MistralHandler implements ApiHandler {
 		const stream = await this.client.chat.stream({
 			model: this.getModel().id,
 			// max_completion_tokens: this.getModel().info.maxTokens,
-			temperature: this.options.modelTemperature ?? 0,
+			temperature: this.options.modelTemperature ?? MISTRAL_DEFAULT_TEMPERATURE,
 			messages: [{ role: "system", content: systemPrompt }, ...convertToMistralMessages(messages)],
 			stream: true,
 		})

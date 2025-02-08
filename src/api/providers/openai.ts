@@ -11,6 +11,8 @@ import { ApiHandler, SingleCompletionHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
+import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./deepseek"
+const OPENAI_DEFAULT_TEMPERATURE = 0
 
 export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 	protected options: ApiHandlerOptions
@@ -57,7 +59,9 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 			}
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
 				model: modelId,
-				temperature: this.options.modelTemperature ?? (deepseekReasoner ? 0.6 : 0),
+				temperature:
+					this.options.modelTemperature ??
+					(deepseekReasoner ? DEEP_SEEK_DEFAULT_TEMPERATURE : OPENAI_DEFAULT_TEMPERATURE),
 				messages: deepseekReasoner
 					? convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 					: [systemMessage, ...convertToOpenAiMessages(messages)],

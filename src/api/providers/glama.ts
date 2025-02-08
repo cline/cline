@@ -5,7 +5,8 @@ import { ApiHandler, SingleCompletionHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, glamaDefaultModelId, glamaDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-import delay from "delay"
+
+const GLAMA_DEFAULT_TEMPERATURE = 0
 
 export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions
@@ -79,7 +80,7 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 		}
 
 		if (this.supportsTemperature()) {
-			requestOptions.temperature = this.options.modelTemperature ?? 0
+			requestOptions.temperature = this.options.modelTemperature ?? GLAMA_DEFAULT_TEMPERATURE
 		}
 
 		const { data: completion, response } = await this.client.chat.completions
@@ -172,7 +173,7 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 			}
 
 			if (this.supportsTemperature()) {
-				requestOptions.temperature = this.options.modelTemperature ?? 0
+				requestOptions.temperature = this.options.modelTemperature ?? GLAMA_DEFAULT_TEMPERATURE
 			}
 
 			if (this.getModel().id.startsWith("anthropic/")) {
