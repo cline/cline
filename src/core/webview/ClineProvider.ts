@@ -6,6 +6,8 @@ import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
+import simpleGit from "simple-git"
+
 import { buildApiHandler } from "../../api"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
@@ -18,7 +20,7 @@ import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { ApiConfigMeta, ExtensionMessage } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
-import { WebviewMessage } from "../../shared/WebviewMessage"
+import { checkoutDiffPayloadSchema, checkoutRestorePayloadSchema, WebviewMessage } from "../../shared/WebviewMessage"
 import { Mode, CustomModePrompts, PromptComponent, defaultModeSlug } from "../../shared/modes"
 import { SYSTEM_PROMPT } from "../prompts/system"
 import { fileExistsAtPath } from "../../utils/fs"
@@ -96,6 +98,7 @@ type GlobalStateKey =
 	| "soundEnabled"
 	| "soundVolume"
 	| "diffEnabled"
+	| "checkpointsEnabled"
 	| "browserViewportSize"
 	| "screenshotQuality"
 	| "fuzzyMatchThreshold"
@@ -391,6 +394,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			apiConfiguration,
 			customModePrompts,
 			diffEnabled,
+			checkpointsEnabled,
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
@@ -405,6 +409,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			apiConfiguration,
 			effectiveInstructions,
 			diffEnabled,
+			checkpointsEnabled,
 			fuzzyMatchThreshold,
 			task,
 			images,
@@ -415,10 +420,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	public async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
+
 		const {
 			apiConfiguration,
 			customModePrompts,
 			diffEnabled,
+			checkpointsEnabled,
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
@@ -433,6 +440,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			apiConfiguration,
 			effectiveInstructions,
 			diffEnabled,
+			checkpointsEnabled,
 			fuzzyMatchThreshold,
 			undefined,
 			undefined,
@@ -825,25 +833,37 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "openMention":
 						openMention(message.text)
 						break
-					case "cancelTask":
-						if (this.cline) {
-							const { historyItem } = await this.getTaskWithId(this.cline.taskId)
-							this.cline.abortTask()
-							await pWaitFor(() => this.cline === undefined || this.cline.didFinishAborting, {
-								timeout: 3_000,
-							}).catch((error) => {
-								this.outputChannel.appendLine(
-									`Failed to abort task ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
-								)
-							})
-							if (this.cline) {
-								// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
-								this.cline.abandoned = true
-							}
-							await this.initClineWithHistoryItem(historyItem) // clears task again, so we need to abortTask manually above
-							// await this.postStateToWebview() // new Cline instance will post state when it's ready. having this here sent an empty messages array to webview leading to virtuoso having to reload the entire list
+					case "checkpointDiff":
+						const result = checkoutDiffPayloadSchema.safeParse(message.payload)
+
+						if (result.success) {
+							await this.cline?.checkpointDiff(result.data)
 						}
 
+						break
+					case "checkpointRestore": {
+						const result = checkoutRestorePayloadSchema.safeParse(message.payload)
+
+						if (result.success) {
+							await this.cancelTask()
+
+							try {
+								await pWaitFor(() => this.cline?.isInitialized === true, { timeout: 3_000 })
+							} catch (error) {
+								vscode.window.showErrorMessage("Timed out when attempting to restore checkpoint.")
+							}
+
+							try {
+								await this.cline?.checkpointRestore(result.data)
+							} catch (error) {
+								vscode.window.showErrorMessage("Failed to restore checkpoint.")
+							}
+						}
+
+						break
+					}
+					case "cancelTask":
+						await this.cancelTask()
 						break
 					case "allowedCommands":
 						await this.context.globalState.update("allowedCommands", message.commands)
@@ -930,6 +950,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "diffEnabled":
 						const diffEnabled = message.bool ?? true
 						await this.updateGlobalState("diffEnabled", diffEnabled)
+						await this.postStateToWebview()
+						break
+					case "checkpointsEnabled":
+						const checkpointsEnabled = message.bool ?? false
+						await this.updateGlobalState("checkpointsEnabled", checkpointsEnabled)
 						await this.postStateToWebview()
 						break
 					case "browserViewportSize":
@@ -1583,6 +1608,39 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
+	async cancelTask() {
+		if (this.cline) {
+			const { historyItem } = await this.getTaskWithId(this.cline.taskId)
+			this.cline.abortTask()
+
+			await pWaitFor(
+				() =>
+					this.cline === undefined ||
+					this.cline.isStreaming === false ||
+					this.cline.didFinishAbortingStream ||
+					// If only the first chunk is processed, then there's no
+					// need to wait for graceful abort (closes edits, browser,
+					// etc).
+					this.cline.isWaitingForFirstChunk,
+				{
+					timeout: 3_000,
+				},
+			).catch(() => {
+				console.error("Failed to abort task")
+			})
+
+			if (this.cline) {
+				// 'abandoned' will prevent this Cline instance from affecting
+				// future Cline instances. This may happen if its hanging on a
+				// streaming request.
+				this.cline.abandoned = true
+			}
+
+			// Clears task again, so we need to abortTask manually above.
+			await this.initClineWithHistoryItem(historyItem)
+		}
+	}
+
 	async updateCustomInstructions(instructions?: string) {
 		// User may be clearing the field
 		await this.updateGlobalState("customInstructions", instructions || undefined)
@@ -2029,6 +2087,21 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await fs.unlink(legacyMessagesFilePath)
 		}
 		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
+
+		const { checkpointsEnabled } = await this.getState()
+		const baseDir = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+		const branch = `roo-code-checkpoints-${id}`
+
+		if (checkpointsEnabled && baseDir) {
+			try {
+				await simpleGit(baseDir).branch(["-D", branch])
+				console.log(`[deleteTaskWithId] Deleted branch ${branch}`)
+			} catch (err) {
+				console.error(
+					`[deleteTaskWithId] Error deleting branch ${branch}: ${err instanceof Error ? err.message : String(err)}`,
+				)
+			}
+		}
 	}
 
 	async deleteTaskFromState(id: string) {
@@ -2059,6 +2132,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowModeSwitch,
 			soundEnabled,
 			diffEnabled,
+			checkpointsEnabled,
 			taskHistory,
 			soundVolume,
 			browserViewportSize,
@@ -2101,6 +2175,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				.sort((a: HistoryItem, b: HistoryItem) => b.ts - a.ts),
 			soundEnabled: soundEnabled ?? false,
 			diffEnabled: diffEnabled ?? true,
+			checkpointsEnabled: checkpointsEnabled ?? false,
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			allowedCommands,
 			soundVolume: soundVolume ?? 0.5,
@@ -2229,6 +2304,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			allowedCommands,
 			soundEnabled,
 			diffEnabled,
+			checkpointsEnabled,
 			soundVolume,
 			browserViewportSize,
 			fuzzyMatchThreshold,
@@ -2303,6 +2379,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("allowedCommands") as Promise<string[] | undefined>,
 			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("diffEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("checkpointsEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("soundVolume") as Promise<number | undefined>,
 			this.getGlobalState("browserViewportSize") as Promise<string | undefined>,
 			this.getGlobalState("fuzzyMatchThreshold") as Promise<number | undefined>,
@@ -2398,6 +2475,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			allowedCommands,
 			soundEnabled: soundEnabled ?? false,
 			diffEnabled: diffEnabled ?? true,
+			checkpointsEnabled: checkpointsEnabled ?? false,
 			soundVolume,
 			browserViewportSize: browserViewportSize ?? "900x600",
 			screenshotQuality: screenshotQuality ?? 75,
@@ -2549,6 +2627,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 		await this.postStateToWebview()
 		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+	}
+
+	// logging
+
+	public log(message: string) {
+		this.outputChannel.appendLine(message)
 	}
 
 	// integration tests

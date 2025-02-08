@@ -9,12 +9,6 @@ if (process.env.NODE_ENV !== "test") {
 	debug.enable("simple-git")
 }
 
-export interface Checkpoint {
-	hash: string
-	message: string
-	timestamp?: Date
-}
-
 export type CheckpointServiceOptions = {
 	taskId: string
 	git?: SimpleGit
@@ -60,6 +54,16 @@ export type CheckpointServiceOptions = {
  */
 
 export class CheckpointService {
+	private _currentCheckpoint?: string
+
+	public get currentCheckpoint() {
+		return this._currentCheckpoint
+	}
+
+	private set currentCheckpoint(value: string | undefined) {
+		this._currentCheckpoint = value
+	}
+
 	constructor(
 		public readonly taskId: string,
 		private readonly git: SimpleGit,
@@ -217,6 +221,8 @@ export class CheckpointService {
 				await this.popStash()
 			}
 
+			this.currentCheckpoint = commit.commit
+
 			return commit
 		} catch (err) {
 			this.log(`[saveCheckpoint] Failed to save checkpoint: ${err instanceof Error ? err.message : String(err)}`)
@@ -237,6 +243,7 @@ export class CheckpointService {
 		await this.ensureBranch(this.mainBranch)
 		await this.git.clean([CleanOptions.FORCE, CleanOptions.RECURSIVE])
 		await this.git.raw(["restore", "--source", commitHash, "--worktree", "--", "."])
+		this.currentCheckpoint = commitHash
 	}
 
 	public static async create({ taskId, git, baseDir, log = console.log }: CheckpointServiceOptions) {
@@ -291,7 +298,7 @@ export class CheckpointService {
 			// the checkpoint (i.e. the `git restore` command doesn't work
 			// for empty commits).
 			await fs.writeFile(path.join(baseDir, ".gitkeep"), "")
-			await git.add(".")
+			await git.add(".gitkeep")
 			const commit = await git.commit("Initial commit")
 
 			if (!commit.commit) {
