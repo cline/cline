@@ -5,11 +5,26 @@ import * as path from "path"
 import { arePathsEqual } from "../../utils/path"
 
 export function getDirsToIgnore(): string[] {
-	const configuration = vscode.workspace.getConfiguration("cline")
+	const dirsToIgnore = [
+		"node_modules",
+		"__pycache__",
+		"env",
+		"venv",
+		"target/dependency",
+		"build/dependencies",
+		"dist",
+		"out",
+		"bundle",
+		"vendor",
+		"tmp",
+		"temp",
+		"deps",
+		"pkg",
+		"Pods",
+		".*", // '!**/.*' excludes hidden directories, while '!**/.*/**' excludes only their contents. This way we are at least aware of the existence of hidden directories.
+	].map((dir) => `**/${dir}/**`)
 
-	let contextExclude = configuration.get<string[]>("contextExclude") || []
-
-	return contextExclude.map((dir) => `**/${dir}/**`)
+	return dirsToIgnore.map((dir) => `**/${dir}/**`)
 }
 
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {

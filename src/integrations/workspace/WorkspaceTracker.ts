@@ -48,8 +48,7 @@ class WorkspaceTracker {
 			return
 		}
 
-		const configuration = vscode.workspace.getConfiguration("cline")
-		const maxContextFiles = configuration.get<number>("maximumContextFiles") || 1_000
+		const maxContextFiles = 1_000 // TODO: get from configuration?
 
 		this.filePaths.clear()
 		const [files, _] = await listFiles(cwd, true, maxContextFiles)
@@ -174,9 +173,7 @@ class WorkspaceTracker {
 			return
 		}
 
-		// Fetch the maximum context files limit from configuration
-		const configuration = vscode.workspace.getConfiguration("cline")
-		const maxContextFiles = configuration.get<number>("maximumContextFiles") || 1_000
+		const maxContextFiles = 1_000 // TODO: get from configuration???
 
 		this.providerRef.deref()?.postMessageToWebview({
 			type: "workspaceUpdated",
@@ -205,7 +202,7 @@ class WorkspaceTracker {
 				this.needReInit = true
 			}
 
-			this.detectGitignoreChanges(filePath)
+			// TODO: detect .gitignore changes???
 
 			this.filePaths.add(pathWithSlash)
 			return pathWithSlash
@@ -224,7 +221,7 @@ class WorkspaceTracker {
 			this.needReInit = true
 		}
 
-		this.detectGitignoreChanges(filePath)
+		// TODO: detect .gitignore changes???
 
 		// if the file delete did not succeed, try the dir delete
 		return isFile || this.filePaths.delete(normalizedPath + "/")
@@ -232,14 +229,6 @@ class WorkspaceTracker {
 
 	private incrementEventAndDetectFlood(): void {
 		if (this.eventCount++ > WorkspaceTracker.EVENT_FLOOD_SZ) {
-			this.needReInit = true
-		}
-	}
-
-	private detectGitignoreChanges(filePath: string): void {
-		if (filePath.includes(".gitignore")) {
-			// detect changes to .gitignore and reset the cache
-			this.gitignoreContentCache = null
 			this.needReInit = true
 		}
 	}

@@ -161,38 +161,6 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Enables extension to save checkpoints of workspace throughout the task."
-				},
-				"cline.contextExclude": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
-					"default": [
-						"**/node_modules/**",
-						"**/__pycache__/**",
-						"**/env/**",
-						"**/venv/**",
-						"**/target/dependency/**",
-						"**/build/dependencies/**",
-						"**/dist/**",
-						"**/out/**",
-						"**/bundle/**",
-						"**/vendor/**",
-						"**/tmp/**",
-						"**/temp/**",
-						"**/deps/**",
-						"**/pkg/**",
-						"**/Pods/**",
-						"**/.*"
-					],
-					"description": "Configure paths or glob patterns to exclude in addition to the root .gitignore.  Patterns excluded by file.watcherExclude are also ignored."
-				},
-				"cline.maximumContextFiles": {
-					"type": "integer",
-					"minimum": 1000,
-					"maximum": 100000,
-					"default": 1000,
-					"description": "Maximum number of context files tracked. Adjust to control memory and performance."
 				}
 			}
 		}
