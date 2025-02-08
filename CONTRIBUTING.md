@@ -31,6 +31,16 @@ If you're planning to work on a bigger feature, please create a [feature request
     - Run `npm run test` to run tests locally
     - Before submitting PR, run `npm run format:fix` to format your code
 
+3. **Linux-specific Setup**
+    If you're developing on Linux, you'll need to install additional system libraries required for running VSCode extension tests:
+    ```bash
+    sudo apt-get install -y \
+      libatk1.0-0 libatk-bridge2.0-0 libxkbfile1 libx11-xcb1 \
+      libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+      libdrm2 libgtk-3-0 dbus xvfb
+    ```
+    These libraries provide necessary GUI components and system services for the test environment.
+
 ## Writing and Submitting Code
 
 Anyone can contribute code to Cline, but we ask that you follow these guidelines to ensure your contributions can be smoothly integrated:
