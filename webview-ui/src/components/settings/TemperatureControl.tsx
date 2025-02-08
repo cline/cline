@@ -12,7 +12,8 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 
 	// Sync internal state with prop changes when switching profiles
 	useEffect(() => {
-		setIsCustomTemperature(value !== undefined)
+		const hasCustomTemperature = value !== undefined
+		setIsCustomTemperature(hasCustomTemperature)
 	}, [value])
 
 	return (
@@ -26,11 +27,12 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 			<VSCodeCheckbox
 				checked={isCustomTemperature}
 				onChange={(e: any) => {
-					setIsCustomTemperature(e.target.checked)
-					if (!e.target.checked) {
-						onChange(undefined) // Reset to provider default
-					} else {
-						onChange(0) // Set initial value when enabling
+					const isChecked = e.target.checked
+					setIsCustomTemperature(isChecked)
+					if (!isChecked) {
+						onChange(undefined) // Unset the temperature
+					} else if (value !== undefined) {
+						onChange(value) // Use the value from apiConfiguration, if set
 					}
 				}}>
 				<span style={{ fontWeight: "500" }}>Use custom temperature</span>
