@@ -1244,7 +1244,7 @@ export class Cline {
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
 		if (clineIgnoreContent) {
-			clineIgnoreInstructions = `# .clineignore\n\nThe following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.\n\n${clineIgnoreContent}`
+			clineIgnoreInstructions = `# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${clineIgnoreContent}\n.clineignore`
 		}
 
 		if (settingsCustomInstructions || clineRulesFileInstructions) {
@@ -1835,6 +1835,11 @@ export class Cline {
 											`${newProblemsMessage}`,
 									)
 								}
+
+								if (!fileExists) {
+									this.providerRef.deref()?.workspaceTracker?.populateFilePaths()
+								}
+
 								await this.diffViewProvider.reset()
 								await this.saveCheckpoint()
 								break
@@ -2387,6 +2392,10 @@ export class Cline {
 								if (userRejected) {
 									this.didRejectTool = true
 								}
+
+								// Re-populate file paths in case the command modified the workspace (vscode listeners do not trigger unless the user manually creates/deletes files)
+								this.providerRef.deref()?.workspaceTracker?.populateFilePaths()
+
 								pushToolResult(result)
 								await this.saveCheckpoint()
 								break

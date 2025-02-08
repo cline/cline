@@ -16,7 +16,7 @@ class WorkspaceTracker {
 		this.registerListeners()
 	}
 
-	async initializeFilePaths() {
+	async populateFilePaths() {
 		// should not auto get filepaths for desktop since it would immediately show permission popup before cline ever creates a file
 		if (!cwd) {
 			return

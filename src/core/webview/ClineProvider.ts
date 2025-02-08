@@ -17,7 +17,7 @@ import { McpHub } from "../../services/mcp/McpHub"
 import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
-import { ExtensionMessage, ExtensionState } from "../../shared/ExtensionMessage"
+import { ExtensionMessage, ExtensionState, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
@@ -102,7 +102,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private cline?: Cline
-	private workspaceTracker?: WorkspaceTracker
+	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	private authManager: FirebaseAuthManager
 	private latestAnnouncementId = "jan-20-2025" // update to some unique identifier when we add a new announcement
@@ -379,7 +379,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				switch (message.type) {
 					case "webviewDidLaunch":
 						this.postStateToWebview()
-						this.workspaceTracker?.initializeFilePaths() // don't await
+						this.workspaceTracker?.populateFilePaths() // don't await
 						getTheme().then((theme) =>
 							this.postMessageToWebview({
 								type: "theme",
@@ -1306,6 +1306,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+			platform: process.platform as Platform,
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
