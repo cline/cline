@@ -9,6 +9,7 @@ export type ApiProvider =
 	| "gemini"
 	| "openai-native"
 	| "requesty"
+	| "together"
 	| "deepseek"
 	| "qwen"
 	| "mistral"
@@ -45,10 +46,13 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	requestyApiKey?: string
 	requestyModelId?: string
+	togetherApiKey?: string
+	togetherModelId?: string
 	qwenApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
+	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 }
 
