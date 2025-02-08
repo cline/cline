@@ -34,12 +34,15 @@ If you're planning to work on a bigger feature, please create a [feature request
 3. **Linux-specific Setup**
     If you're developing on Linux, you'll need to install additional system libraries required for running VSCode extension tests:
     ```bash
-    sudo apt-get install -y \
+    sudo apt update
+    sudo apt install -y \
       libatk1.0-0 libatk-bridge2.0-0 libxkbfile1 libx11-xcb1 \
       libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
       libdrm2 libgtk-3-0 dbus xvfb
     ```
     These libraries provide necessary GUI components and system services for the test environment.
+
+    - Run `npm run test:dev` to run tests locally
 
 ## Writing and Submitting Code
 

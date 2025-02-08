@@ -59,4 +59,4 @@ jobs:
               run: npm run format
 
             - name: Extension Tests
-              run: xvfb-run -a npm run test
+              run: npm run test:dev
