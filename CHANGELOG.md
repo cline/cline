@@ -6,8 +6,7 @@
 - Add a copy button to the recent tasks (thanks @hannesrudolph!)
 - Improve the user experience for adding a new API profile
 - Another significant fix to API profile switching on the settings screen
-
-- And one more thing... if you want to try out a first version of checkpoints, there's a surprise for you in the Advanced Settings! Please share your feedback in the Discord.
+- Opt-in experimental version of checkpoints
 
 ## [3.3.14]
 
