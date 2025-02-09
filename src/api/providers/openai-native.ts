@@ -27,10 +27,28 @@ export class OpenAiNativeHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		switch (this.getModel().id) {
-			case "o1":
+			//o1-series doesnt support streaming, non-1 temp
+			case "o1": {
+				// o1 suggests changing message role from 'system' to 'developer' 
+				const response = await this.client.chat.completions.create({
+					model: this.getModel().id,
+					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+					reasoning_effort: (this.options.oSeriesReasoningEffortLevel as ChatCompletionReasoningEffort) || "medium",
+				})
+				yield {
+					type: "text",
+					text: response.choices[0]?.message.content || "",
+				}
+				yield {
+					type: "usage",
+					inputTokens: response.usage?.prompt_tokens || 0,
+					outputTokens: response.usage?.completion_tokens || 0,
+				}
+				break
+			}
 			case "o1-preview":
 			case "o1-mini": {
-				// o1 doesnt support streaming, non-1 temp, or system prompt
+				// o1-preview and o1-mini doesnt suppor system prompt and 'Reasoning effort'
 				const response = await this.client.chat.completions.create({
 					model: this.getModel().id,
 					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
@@ -47,6 +65,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				break
 			}
 			case "o3-mini": {
+				// o3-mini suggests changing message role from 'system' to 'developer' 
 				const stream = await this.client.chat.completions.create({
 					model: this.getModel().id,
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
