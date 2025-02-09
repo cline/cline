@@ -4,7 +4,7 @@
 
 - Support Volcano Ark platform through the OpenAI-compatible provider
 - Fix jumpiness while entering API config by updating on blur instead of input
-- Fix an issue where checkpoints were overwriting existing git name/email settings
+- Add tooltips on checkpoint actions and fix an issue where checkpoints were overwriting existing git name/email settings - thanks for the feedback!
 
 ## [3.3.15]
 
