@@ -171,6 +171,11 @@
 					],
 					"default": "medium",
 					"description": "Controls the reasoning effort when using the o3-mini model. Higher values may result in more thorough but slower responses."
+				},
+				"cline.chromeExecutablePath": {
+					"type": "string",
+					"default": null,
+					"description": "Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find or download it automatically."
 				}
 			}
 		}
