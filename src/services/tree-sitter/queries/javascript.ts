@@ -4,11 +4,20 @@
 - named function declarations
 - arrow functions and function expressions assigned to variables
 */
+
+// Query for finding imports
+export const importQuery = `
+(import_statement 
+  source: (string (string_fragment) @module)
+  (import_clause (named_imports (import_specifier name: (identifier) @import)))?)
+`
+
+// Query for finding definitions
 export default `
 (
   (comment)* @doc
   .
-  (method_definition
+(method_definition
     name: (property_identifier) @name) @definition.method
   (#not-eq? @name "constructor")
   (#strip! @doc "^[\\s\\*/]+|^[\\s\\*/]$")
@@ -21,7 +30,7 @@ export default `
   [
     (class
       name: (_) @name)
-    (class_declaration
+(class_declaration
       name: (_) @name)
   ] @definition.class
   (#strip! @doc "^[\\s\\*/]+|^[\\s\\*/]$")

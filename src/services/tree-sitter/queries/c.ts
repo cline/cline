@@ -4,6 +4,14 @@
 - function declarations
 - typedef declarations
 */
+
+// Query for finding imports/includes
+export const importQuery = `
+(preproc_include path: (string_literal) @module)
+(preproc_include path: (system_lib_string) @module)
+`
+
+// Query for finding definitions
 export default `
 (struct_specifier name: (type_identifier) @name.definition.class body:(_)) @definition.class
 

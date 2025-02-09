@@ -4,6 +4,14 @@
 - property declarations
 - function declarations
 */
+
+// Query for finding imports
+export const importQuery = `
+(import_declaration (identifier) @module)
+(import_declaration (identifier) @module (identifier) @import)
+`
+
+// Query for finding definitions
 export default `
 (class_declaration
   name: (type_identifier) @name) @definition.class

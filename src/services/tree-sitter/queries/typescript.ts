@@ -5,6 +5,52 @@
 - class declarations (including abstract classes)
 - module declarations
 */
+
+// Query for finding imports
+export const importQuery = `
+[
+  ; Regular named imports
+  (import_statement 
+    source: (string (string_fragment) @module)
+    (import_clause 
+      (named_imports 
+        (import_specifier 
+          name: (identifier) @import))))
+  
+  ; Type-only imports
+  (import_statement
+    source: (string (string_fragment) @module)
+    (import_clause
+      "type"
+      (named_imports
+        (import_specifier
+          name: (identifier) @import))))
+  
+  ; Namespace imports
+  (import_statement
+    source: (string (string_fragment) @module)
+    (import_clause
+      (namespace_import
+        name: (identifier) @import)))
+  
+  ; Re-exports
+  (export_statement
+    source: (string (string_fragment) @module)
+    (export_clause
+      (export_specifier
+        name: (identifier) @import)))
+  
+  ; Type-only re-exports
+  (export_statement
+    "type"
+    source: (string (string_fragment) @module)
+    (export_clause
+      (export_specifier
+        name: (identifier) @import)))
+]
+`
+
+// Query for finding definitions
 export default `
 (function_signature
   name: (identifier) @name.definition.function) @definition.function

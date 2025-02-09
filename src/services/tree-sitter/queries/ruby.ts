@@ -3,6 +3,14 @@
 - class definitions (including singleton classes, with associated comments)
 - module definitions
 */
+
+// Query for finding imports
+export const importQuery = `
+(call method: (identifier) @import argument: (string (string_content) @module))
+(call method: (identifier) @import argument: (string_array (string (string_content) @module)))
+`
+
+// Query for finding definitions
 export default `
 (
   (comment)* @doc
