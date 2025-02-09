@@ -4,6 +4,7 @@ import * as path from "path"
 import { listFiles } from "../glob/list-files"
 import { LanguageParser, loadRequiredLanguageParsers, CodeDefinition, FileAnalysis, ImportInfo } from "./languageParser"
 import { fileExistsAtPath } from "../../utils/fs"
+import { ClineIgnoreController } from "../../core/ignore/ClineIgnoreController"
 
 // Configuration for repository analysis
 const CONFIG = {
@@ -163,7 +164,7 @@ async function getFileTimestamp(filePath: string): Promise<number> {
 
 function estimateTokenCount(content: string): number {
 	// Split into potential tokens using common code separators
-	const tokens = content.split(/[\s{}()\[\]<>:;,=+\-*/%!&|^~?]/).filter((token) => token.length > 0) // Remove empty tokens
+	const tokens = content.split(/[\s{}()\[\]<>:;,=+\-*/%!&|^~?]/).filter((token) => token.length > 0)
 
 	// Count string literals (both single and double quoted)
 	const stringLiterals = (content.match(/(['"])(?:(?!\1).)*\1/g) || []).length
@@ -253,23 +254,6 @@ function separateFiles(allFiles: string[]): {
 	return { filesToParse, remainingFiles }
 }
 
-/*
-Parsing files using tree-sitter
-
-1. Parse the file content into an AST (Abstract Syntax Tree) using the appropriate language grammar (set of rules that define how the components of a language like keywords, expressions, and statements can be combined to create valid programs).
-2. Create a query using a language-specific query string, and run it against the AST's root node to capture specific syntax elements.
-    - We use tag queries to identify named entities in a program, and then use a syntax capture to label the entity and its name. A notable example of this is GitHub's search-based code navigation.
-	- Our custom tag queries are based on tree-sitter's default tag queries, but modified to only capture definitions.
-3. Sort the captures by their position in the file, output the name of the definition, and format by i.e. adding "|----\n" for gaps between captured sections.
-
-This approach allows us to focus on the most relevant parts of the code (defined by our language-specific queries) and provides a concise yet informative view of the file's structure and key elements.
-
-- https://github.com/tree-sitter/node-tree-sitter/blob/master/test/query_test.js
-- https://github.com/tree-sitter/tree-sitter/blob/master/lib/binding_web/test/query-test.js
-- https://github.com/tree-sitter/tree-sitter/blob/master/lib/binding_web/test/helper.js
-- https://tree-sitter.github.io/tree-sitter/code-navigation-systems
-*/
-
 function calculateComplexity(def: CodeDefinition, lines: string[]): number {
 	const content = lines.slice(def.startLine, def.endLine + 1).join("\n")
 	// Simple complexity metrics:
@@ -296,7 +280,15 @@ function calculateRank(def: CodeDefinition): number {
 	return referenceScore + importScore + complexityScore
 }
 
-async function parseFile(filePath: string, languageParsers: LanguageParser): Promise<string | undefined> {
+async function parseFile(
+	filePath: string,
+	languageParsers: LanguageParser,
+	clineIgnoreController?: ClineIgnoreController,
+): Promise<string | null> {
+	if (clineIgnoreController && !clineIgnoreController.validateAccess(filePath)) {
+		return null
+	}
+
 	const fileContent = await fs.readFile(filePath, "utf8")
 	const ext = path.extname(filePath).toLowerCase().slice(1)
 	const lines = fileContent.split("\n")
@@ -311,6 +303,8 @@ async function parseFile(filePath: string, languageParsers: LanguageParser): Pro
 		imports: [],
 		exportedSymbols: [],
 	}
+
+	let formattedOutput = ""
 
 	try {
 		const tree = parser.parse(fileContent)
@@ -400,7 +394,6 @@ async function parseFile(filePath: string, languageParsers: LanguageParser): Pro
 		analysis.definitions = definitions.sort((a, b) => b.rank - a.rank)
 
 		// Format output with ranking information
-		let formattedOutput = ""
 		analysis.definitions.forEach((def) => {
 			formattedOutput += `│${def.name} (${def.type}) [rank: ${def.rank.toFixed(1)}]\n`
 			if (def.references.length > 0) {
@@ -422,7 +415,7 @@ async function parseFile(filePath: string, languageParsers: LanguageParser): Pro
 		console.error(`Error parsing file ${filePath}:`, error)
 	}
 
-	return undefined
+	return null
 }
 
 // Export these functions for testing
@@ -431,6 +424,7 @@ export { parseFile, calculateComplexity, calculateRank }
 export async function parseSourceCodeForDefinitionsTopLevel(
 	dirPath: string,
 	tokenBudget: number = CONFIG.DEFAULT_TOKEN_BUDGET,
+	clineIgnoreController?: ClineIgnoreController,
 ): Promise<string> {
 	const dirExists = await fileExistsAtPath(path.resolve(dirPath))
 	if (!dirExists) {
@@ -444,14 +438,17 @@ export async function parseSourceCodeForDefinitionsTopLevel(
 	const optimizedFileSet = await findOptimalFileSet(eligibleFiles, tokenBudget)
 	const languageParsers = await loadRequiredLanguageParsers(optimizedFileSet)
 
-	for (const file of optimizedFileSet) {
+	// Filter filepaths for access if controller is provided
+	const allowedFiles = clineIgnoreController ? clineIgnoreController.filterPaths(optimizedFileSet) : optimizedFileSet
+
+	for (const file of allowedFiles) {
 		const cachedDefs = await definitionsCache.get(file)
 		if (cachedDefs) {
 			result += `${path.relative(dirPath, file).toPosix()}\n${cachedDefs}\n`
 			continue
 		}
 
-		const definitions = await parseFile(file, languageParsers)
+		const definitions = await parseFile(file, languageParsers, clineIgnoreController)
 		if (definitions) {
 			definitionsCache.set(file, {
 				definitions,

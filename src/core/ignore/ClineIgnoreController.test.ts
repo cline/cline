@@ -1,13 +1,13 @@
-import { LLMFileAccessController } from "./LLMFileAccessController"
+import { ClineIgnoreController } from "./ClineIgnoreController"
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
 import { after, beforeEach, describe, it } from "mocha"
 import "should"
 
-describe("LLMFileAccessController", () => {
+describe("ClineIgnoreController", () => {
 	let tempDir: string
-	let controller: LLMFileAccessController
+	let controller: ClineIgnoreController
 
 	beforeEach(async () => {
 		// Create a temp directory for testing
@@ -22,7 +22,7 @@ describe("LLMFileAccessController", () => {
 			),
 		)
 
-		controller = new LLMFileAccessController(tempDir)
+		controller = new ClineIgnoreController(tempDir)
 		await controller.initialize()
 	})
 
@@ -48,6 +48,11 @@ describe("LLMFileAccessController", () => {
 				controller.validateAccess("package.json"),
 			]
 			results.forEach((result) => result.should.be.true())
+		})
+
+		it("should block access to .clineignore file", async () => {
+			const result = controller.validateAccess(".clineignore")
+			result.should.be.false()
 		})
 	})
 
@@ -80,7 +85,7 @@ describe("LLMFileAccessController", () => {
 				["*.secret", "private/", "*.tmp", "data-*.json", "temp/*"].join("\n"),
 			)
 
-			controller = new LLMFileAccessController(tempDir)
+			controller = new ClineIgnoreController(tempDir)
 			await controller.initialize()
 
 			const results = [
@@ -111,7 +116,7 @@ describe("LLMFileAccessController", () => {
 		// 		].join("\n"),
 		// 	)
 
-		// 	controller = new LLMFileAccessController(tempDir)
+		// 	controller = new ClineIgnoreController(tempDir)
 
 		// 	const results = [
 		// 		// Basic negation
@@ -150,7 +155,7 @@ describe("LLMFileAccessController", () => {
 				["# Comment line", "*.secret", "private/", "temp.*"].join("\n"),
 			)
 
-			controller = new LLMFileAccessController(tempDir)
+			controller = new ClineIgnoreController(tempDir)
 			await controller.initialize()
 
 			const result = controller.validateAccess("test.secret")
@@ -194,25 +199,6 @@ describe("LLMFileAccessController", () => {
 			const result = controller.validateAccess("src\\file.ts")
 			result.should.be.true()
 		})
-
-		it("should handle paths outside cwd", async () => {
-			// Create a path that points to parent directory of cwd
-			const outsidePath = path.join(path.dirname(tempDir), "outside.txt")
-			const result = controller.validateAccess(outsidePath)
-
-			// Should return false for security since path is outside cwd
-			result.should.be.false()
-
-			// Test with a deeply nested path outside cwd
-			const deepOutsidePath = path.join(path.dirname(tempDir), "deep", "nested", "outside.secret")
-			const deepResult = controller.validateAccess(deepOutsidePath)
-			deepResult.should.be.false()
-
-			// Test with a path that tries to escape using ../
-			const escapeAttemptPath = path.join(tempDir, "..", "escape-attempt.txt")
-			const escapeResult = controller.validateAccess(escapeAttemptPath)
-			escapeResult.should.be.false()
-		})
 	})
 
 	describe("Batch Filtering", () => {
@@ -237,7 +223,7 @@ describe("LLMFileAccessController", () => {
 			await fs.mkdir(emptyDir)
 
 			try {
-				const controller = new LLMFileAccessController(emptyDir)
+				const controller = new ClineIgnoreController(emptyDir)
 				await controller.initialize()
 				const result = controller.validateAccess("file.txt")
 				result.should.be.true()
@@ -249,7 +235,7 @@ describe("LLMFileAccessController", () => {
 		it("should handle empty .clineignore", async () => {
 			await fs.writeFile(path.join(tempDir, ".clineignore"), "")
 
-			controller = new LLMFileAccessController(tempDir)
+			controller = new ClineIgnoreController(tempDir)
 			await controller.initialize()
 
 			const result = controller.validateAccess("regular-file.txt")

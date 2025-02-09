@@ -17,7 +17,7 @@ import { McpHub } from "../../services/mcp/McpHub"
 import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
-import { ExtensionMessage, ExtensionState } from "../../shared/ExtensionMessage"
+import { ExtensionMessage, ExtensionState, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
@@ -46,6 +46,7 @@ type SecretKey =
 	| "openAiNativeApiKey"
 	| "deepSeekApiKey"
 	| "requestyApiKey"
+	| "togetherApiKey"
 	| "qwenApiKey"
 	| "mistralApiKey"
 	| "authToken"
@@ -84,6 +85,7 @@ type GlobalStateKey =
 	| "liteLlmModelId"
 	| "qwenApiLine"
 	| "requestyModelId"
+	| "togetherModelId"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -100,7 +102,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private cline?: Cline
-	private workspaceTracker?: WorkspaceTracker
+	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	private authManager: FirebaseAuthManager
 	private latestAnnouncementId = "jan-20-2025" // update to some unique identifier when we add a new announcement
@@ -377,7 +379,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				switch (message.type) {
 					case "webviewDidLaunch":
 						this.postStateToWebview()
-						this.workspaceTracker?.initializeFilePaths() // don't await
+						this.workspaceTracker?.populateFilePaths() // don't await
 						getTheme().then((theme) =>
 							this.postMessageToWebview({
 								type: "theme",
@@ -450,6 +452,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								deepSeekApiKey,
 								requestyApiKey,
 								requestyModelId,
+								togetherApiKey,
+								togetherModelId,
 								qwenApiKey,
 								mistralApiKey,
 								azureApiVersion,
@@ -485,6 +489,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
 							await this.storeSecret("deepSeekApiKey", deepSeekApiKey)
 							await this.storeSecret("requestyApiKey", requestyApiKey)
+							await this.storeSecret("togetherApiKey", togetherApiKey)
 							await this.storeSecret("qwenApiKey", qwenApiKey)
 							await this.storeSecret("mistralApiKey", mistralApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
@@ -495,6 +500,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
 							await this.updateGlobalState("qwenApiLine", qwenApiLine)
 							await this.updateGlobalState("requestyModelId", requestyModelId)
+							await this.updateGlobalState("togetherModelId", togetherModelId)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -1300,6 +1306,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
+			platform: process.platform as Platform,
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
@@ -1387,6 +1394,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			deepSeekApiKey,
 			requestyApiKey,
 			requestyModelId,
+			togetherApiKey,
+			togetherModelId,
 			qwenApiKey,
 			mistralApiKey,
 			azureApiVersion,
@@ -1434,6 +1443,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
 			this.getSecret("requestyApiKey") as Promise<string | undefined>,
 			this.getGlobalState("requestyModelId") as Promise<string | undefined>,
+			this.getSecret("togetherApiKey") as Promise<string | undefined>,
+			this.getGlobalState("togetherModelId") as Promise<string | undefined>,
 			this.getSecret("qwenApiKey") as Promise<string | undefined>,
 			this.getSecret("mistralApiKey") as Promise<string | undefined>,
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
@@ -1470,6 +1481,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
+		const o3MiniReasoningEffort = vscode.workspace
+			.getConfiguration("cline.modelSettings.o3Mini")
+			.get("reasoningEffort", "medium")
+
 		return {
 			apiConfiguration: {
 				apiProvider,
@@ -1498,6 +1513,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				deepSeekApiKey,
 				requestyApiKey,
 				requestyModelId,
+				togetherApiKey,
+				togetherModelId,
 				qwenApiKey,
 				qwenApiLine,
 				mistralApiKey,
@@ -1505,6 +1522,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openRouterModelId,
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
+				o3MiniReasoningEffort,
 				liteLlmBaseUrl,
 				liteLlmModelId,
 			},
@@ -1596,6 +1614,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"openAiNativeApiKey",
 			"deepSeekApiKey",
 			"requestyApiKey",
+			"togetherApiKey",
 			"qwenApiKey",
 			"mistralApiKey",
 			"authToken",
