@@ -24,15 +24,15 @@ const SCORING = {
 	IMPORT_WEIGHT: 3,
 	COMPLEXITY_WEIGHT: 1,
 	SIZE_WEIGHT: 1,
-	
+
 	// Conversation context weights
 	MENTION_WEIGHT: 4,
 	VIEW_WEIGHT: 2.5,
 	RECENCY_WEIGHT: 1.5,
-	
+
 	// Time constants
 	HOUR_MS: 3600000,
-	
+
 	calculateRecencyScore(timestamp: number): number {
 		if (!timestamp) {
 			return 0
@@ -40,22 +40,16 @@ const SCORING = {
 		const now = Date.now()
 		return Math.exp(-Math.max(0, now - timestamp) / this.HOUR_MS)
 	},
-	
-	calculateContextScore(metrics: {
-		mentions: number,
-		lastMentionedTs: number,
-		views: number,
-		lastViewedTs: number
-	}): number {
+
+	calculateContextScore(metrics: { mentions: number; lastMentionedTs: number; views: number; lastViewedTs: number }): number {
 		const mentionScore = metrics.mentions * this.MENTION_WEIGHT
 		const viewScore = metrics.views * this.VIEW_WEIGHT
-		const recencyScore = (
-			this.calculateRecencyScore(metrics.lastMentionedTs) + 
-			this.calculateRecencyScore(metrics.lastViewedTs)
-		) * this.RECENCY_WEIGHT
-		
+		const recencyScore =
+			(this.calculateRecencyScore(metrics.lastMentionedTs) + this.calculateRecencyScore(metrics.lastViewedTs)) *
+			this.RECENCY_WEIGHT
+
 		return mentionScore + viewScore + recencyScore
-	}
+	},
 }
 
 interface CacheEntry {
@@ -198,12 +192,15 @@ class DefinitionsCache {
 const definitionsCache = new DefinitionsCache()
 
 class ConversationContext {
-	private fileMetrics: Map<string, {
-		mentions: number,
-		lastMentionedTs: number,
-		views: number,
-		lastViewedTs: number
-	}> = new Map()
+	private fileMetrics: Map<
+		string,
+		{
+			mentions: number
+			lastMentionedTs: number
+			views: number
+			lastViewedTs: number
+		}
+	> = new Map()
 
 	recordMention(filePath: string) {
 		const now = Date.now()
@@ -211,7 +208,7 @@ class ConversationContext {
 			mentions: 0,
 			lastMentionedTs: 0,
 			views: 0,
-			lastViewedTs: 0
+			lastViewedTs: 0,
 		}
 		metrics.mentions++
 		metrics.lastMentionedTs = now
@@ -224,7 +221,7 @@ class ConversationContext {
 			mentions: 0,
 			lastMentionedTs: 0,
 			views: 0,
-			lastViewedTs: 0
+			lastViewedTs: 0,
 		}
 		metrics.views++
 		metrics.lastViewedTs = now
@@ -232,12 +229,14 @@ class ConversationContext {
 	}
 
 	getMetrics(filePath: string) {
-		return this.fileMetrics.get(filePath) || {
-			mentions: 0,
-			lastMentionedTs: 0,
-			views: 0,
-			lastViewedTs: 0
-		}
+		return (
+			this.fileMetrics.get(filePath) || {
+				mentions: 0,
+				lastMentionedTs: 0,
+				views: 0,
+				lastViewedTs: 0,
+			}
+		)
 	}
 
 	clear() {
@@ -293,18 +292,18 @@ async function findOptimalFileSet(files: string[], tokenBudget: number): Promise
 		files.map(async (file) => {
 			const stats = await fs.stat(file)
 			const contextMetrics = conversationContext.getMetrics(file)
-			
+
 			// Normalize file size (log scale to prevent large files from dominating)
 			const normalizedSize = Math.log(stats.size + 1) / Math.log(1024 * 1024) // Normalize to MB scale
 			const sizeScore = normalizedSize * SCORING.SIZE_WEIGHT
-			
+
 			// Get context score using shared scoring
 			const contextScore = SCORING.calculateContextScore(contextMetrics)
-			
-			return { 
+
+			return {
 				file,
 				size: stats.size,
-				importanceScore: sizeScore + contextScore
+				importanceScore: sizeScore + contextScore,
 			}
 		}),
 	)
@@ -385,15 +384,15 @@ function calculateRank(def: CodeDefinition): number {
 	const referenceScore = def.metrics.referenceCount * SCORING.REFERENCE_WEIGHT
 	const importScore = def.metrics.importCount * SCORING.IMPORT_WEIGHT
 	const complexityScore = Math.log(def.metrics.complexity + 1) * SCORING.COMPLEXITY_WEIGHT
-	
+
 	// Context scores using shared scoring
 	const contextScore = SCORING.calculateContextScore({
 		mentions: def.metrics.conversationMentions,
 		lastMentionedTs: def.metrics.lastMentionedTs,
 		views: def.metrics.recentViewCount,
-		lastViewedTs: def.metrics.lastViewedTs
+		lastViewedTs: def.metrics.lastViewedTs,
 	})
-	
+
 	return referenceScore + importScore + complexityScore + contextScore
 }
 
@@ -491,7 +490,7 @@ async function parseFile(
 						conversationMentions: contextMetrics.mentions,
 						lastMentionedTs: contextMetrics.lastMentionedTs,
 						recentViewCount: contextMetrics.views,
-						lastViewedTs: contextMetrics.lastViewedTs
+						lastViewedTs: contextMetrics.lastViewedTs,
 					},
 				}
 
