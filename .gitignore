@@ -8,3 +8,6 @@ tmp
 .DS_Store
 
 pnpm-lock.yaml
+
+# Tree-sitter WASM files (copied during build)
+src/services/tree-sitter/wasm/*.wasm
