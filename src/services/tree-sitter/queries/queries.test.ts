@@ -2,11 +2,12 @@ import * as assert from "assert"
 import * as path from "path"
 import Parser from "web-tree-sitter"
 import * as queries from "./index"
+import { before, after, describe, it } from "mocha"
 
 describe("Tree-Sitter Query Tests", () => {
 	let parser: Parser
 
-	beforeAll(async () => {
+	before(async () => {
 		await Parser.init()
 	})
 
@@ -14,7 +15,7 @@ describe("Tree-Sitter Query Tests", () => {
 		describe(name, () => {
 			let language: Parser.Language
 
-			beforeAll(async () => {
+			before(async () => {
 				language = await Parser.Language.load(path.join(__dirname, wasmFile))
 				parser = new Parser()
 				parser.setLanguage(language)
@@ -38,7 +39,7 @@ describe("Tree-Sitter Query Tests", () => {
 				})
 			}
 
-			afterAll(() => {
+			after(() => {
 				parser.delete()
 			})
 		})
