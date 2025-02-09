@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## [3.3.15]
+
+- Improvements to MCP initialization and server restarts (thanks @MuriloFP and @hannesrudolph!)
+- Add a copy button to the recent tasks (thanks @hannesrudolph!)
+- Improve the user experience for adding a new API profile
+- Another significant fix to API profile switching on the settings screen
+- Opt-in experimental version of checkpoints in the advanced settings
+
 ## [3.3.14]
 
 - Should have skipped floor 13 like an elevator. This fixes the broken 3.3.13 release by reverting some changes to the deployment scripts.
