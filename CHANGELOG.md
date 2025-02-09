@@ -1,12 +1,10 @@
 # Roo Code Changelog
 
-## 3.3.16
+## [3.3.16]
 
-### Patch Changes
-
-- Support Volcano Ark platform through OpenAI compatible
+- Support Volcano Ark platform through the OpenAI-compatible provider
 - Fix jumpiness while entering API config by updating on blur instead of input
-- v3.3.16
+- Fix an issue where checkpoints were overwriting existing git name/email settings
 
 ## [3.3.15]
 
