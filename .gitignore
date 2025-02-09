@@ -22,4 +22,9 @@ docs/_site/
 
 # Dotenv
 .env.integration
+
+#Local lint config
 .eslintrc.local.json
+
+#Logging
+logs
