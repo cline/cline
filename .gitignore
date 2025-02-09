@@ -11,3 +11,4 @@ pnpm-lock.yaml
 
 # Tree-sitter WASM files (copied during build)
 src/services/tree-sitter/wasm/*.wasm
+out/services/tree-sitter/wasm/*.wasm
