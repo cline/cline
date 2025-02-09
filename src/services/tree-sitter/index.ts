@@ -18,6 +18,46 @@ const CONFIG = {
 	MAX_CACHE_TTL: 30 * 60 * 1000, // Maximum cache TTL (30 minutes)
 }
 
+const SCORING = {
+	// Base weights
+	REFERENCE_WEIGHT: 2,
+	IMPORT_WEIGHT: 3,
+	COMPLEXITY_WEIGHT: 1,
+	SIZE_WEIGHT: 1,
+	
+	// Conversation context weights
+	MENTION_WEIGHT: 4,
+	VIEW_WEIGHT: 2.5,
+	RECENCY_WEIGHT: 1.5,
+	
+	// Time constants
+	HOUR_MS: 3600000,
+	
+	calculateRecencyScore(timestamp: number): number {
+		if (!timestamp) {
+			return 0
+		}
+		const now = Date.now()
+		return Math.exp(-Math.max(0, now - timestamp) / this.HOUR_MS)
+	},
+	
+	calculateContextScore(metrics: {
+		mentions: number,
+		lastMentionedTs: number,
+		views: number,
+		lastViewedTs: number
+	}): number {
+		const mentionScore = metrics.mentions * this.MENTION_WEIGHT
+		const viewScore = metrics.views * this.VIEW_WEIGHT
+		const recencyScore = (
+			this.calculateRecencyScore(metrics.lastMentionedTs) + 
+			this.calculateRecencyScore(metrics.lastViewedTs)
+		) * this.RECENCY_WEIGHT
+		
+		return mentionScore + viewScore + recencyScore
+	}
+}
+
 interface CacheEntry {
 	timestamp: number
 	definitions: string
@@ -157,6 +197,60 @@ class DefinitionsCache {
 // Create a singleton instance of the cache
 const definitionsCache = new DefinitionsCache()
 
+class ConversationContext {
+	private fileMetrics: Map<string, {
+		mentions: number,
+		lastMentionedTs: number,
+		views: number,
+		lastViewedTs: number
+	}> = new Map()
+
+	recordMention(filePath: string) {
+		const now = Date.now()
+		const metrics = this.fileMetrics.get(filePath) || {
+			mentions: 0,
+			lastMentionedTs: 0,
+			views: 0,
+			lastViewedTs: 0
+		}
+		metrics.mentions++
+		metrics.lastMentionedTs = now
+		this.fileMetrics.set(filePath, metrics)
+	}
+
+	recordView(filePath: string) {
+		const now = Date.now()
+		const metrics = this.fileMetrics.get(filePath) || {
+			mentions: 0,
+			lastMentionedTs: 0,
+			views: 0,
+			lastViewedTs: 0
+		}
+		metrics.views++
+		metrics.lastViewedTs = now
+		this.fileMetrics.set(filePath, metrics)
+	}
+
+	getMetrics(filePath: string) {
+		return this.fileMetrics.get(filePath) || {
+			mentions: 0,
+			lastMentionedTs: 0,
+			views: 0,
+			lastViewedTs: 0
+		}
+	}
+
+	clear() {
+		this.fileMetrics.clear()
+	}
+}
+
+// Create singleton instance
+const conversationContext = new ConversationContext()
+
+// Export for use in other modules
+export { conversationContext }
+
 async function getFileTimestamp(filePath: string): Promise<number | null> {
 	try {
 		const stats = await fs.stat(filePath)
@@ -194,22 +288,37 @@ function sampleFileContent(content: string): string {
 }
 
 async function findOptimalFileSet(files: string[], tokenBudget: number): Promise<string[]> {
-	// Sort files by importance (currently using file size as a proxy)
+	// Calculate importance score for each file
 	const fileStats = await Promise.all(
 		files.map(async (file) => {
 			const stats = await fs.stat(file)
-			return { file, size: stats.size }
+			const contextMetrics = conversationContext.getMetrics(file)
+			
+			// Normalize file size (log scale to prevent large files from dominating)
+			const normalizedSize = Math.log(stats.size + 1) / Math.log(1024 * 1024) // Normalize to MB scale
+			const sizeScore = normalizedSize * SCORING.SIZE_WEIGHT
+			
+			// Get context score using shared scoring
+			const contextScore = SCORING.calculateContextScore(contextMetrics)
+			
+			return { 
+				file,
+				size: stats.size,
+				importanceScore: sizeScore + contextScore
+			}
 		}),
 	)
 
-	// Sort by size descending (assuming larger files are more important)
-	fileStats.sort((a, b) => b.size - a.size)
+	// Sort by importance score descending
+	fileStats.sort((a, b) => b.importanceScore - a.importanceScore)
 
 	let totalTokens = 0
 	const selectedFiles: string[] = []
 
 	for (const { file } of fileStats) {
-		if (selectedFiles.length >= CONFIG.MAX_FILES) break
+		if (selectedFiles.length >= CONFIG.MAX_FILES) {
+			break
+		}
 
 		const content = await fs.readFile(file, "utf8")
 		const sampleContent = sampleFileContent(content)
@@ -272,16 +381,20 @@ function calculateComplexity(def: CodeDefinition, lines: string[]): number {
 }
 
 function calculateRank(def: CodeDefinition): number {
-	// Weight factors for different metrics
-	const REFERENCE_WEIGHT = 2
-	const IMPORT_WEIGHT = 3
-	const COMPLEXITY_WEIGHT = 1
-
-	const referenceScore = def.metrics.referenceCount * REFERENCE_WEIGHT
-	const importScore = def.metrics.importCount * IMPORT_WEIGHT
-	const complexityScore = Math.log(def.metrics.complexity + 1) * COMPLEXITY_WEIGHT
-
-	return referenceScore + importScore + complexityScore
+	// Base scores
+	const referenceScore = def.metrics.referenceCount * SCORING.REFERENCE_WEIGHT
+	const importScore = def.metrics.importCount * SCORING.IMPORT_WEIGHT
+	const complexityScore = Math.log(def.metrics.complexity + 1) * SCORING.COMPLEXITY_WEIGHT
+	
+	// Context scores using shared scoring
+	const contextScore = SCORING.calculateContextScore({
+		mentions: def.metrics.conversationMentions,
+		lastMentionedTs: def.metrics.lastMentionedTs,
+		views: def.metrics.recentViewCount,
+		lastViewedTs: def.metrics.lastViewedTs
+	})
+	
+	return referenceScore + importScore + complexityScore + contextScore
 }
 
 async function parseFile(
@@ -292,6 +405,9 @@ async function parseFile(
 	if (clineIgnoreController && !clineIgnoreController.validateAccess(filePath)) {
 		return null
 	}
+
+	// Record file view when parsing
+	conversationContext.recordView(filePath)
 
 	const fileContent = await fs.readFile(filePath, "utf8")
 	const ext = path.extname(filePath).toLowerCase().slice(1)
@@ -355,6 +471,9 @@ async function parseFile(
 								? "interface"
 								: "module"
 
+				// Get conversation metrics for the file
+				const contextMetrics = conversationContext.getMetrics(filePath)
+
 				const def: CodeDefinition = {
 					name: defName,
 					type,
@@ -369,6 +488,10 @@ async function parseFile(
 						referenceCount: 0,
 						importCount: 0,
 						complexity: 0,
+						conversationMentions: contextMetrics.mentions,
+						lastMentionedTs: contextMetrics.lastMentionedTs,
+						recentViewCount: contextMetrics.views,
+						lastViewedTs: contextMetrics.lastViewedTs
 					},
 				}
 

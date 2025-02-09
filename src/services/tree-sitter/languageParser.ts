@@ -16,6 +16,10 @@ export interface CodeDefinition {
 		referenceCount: number // How many times it's referenced
 		importCount: number // How many files import it
 		complexity: number // Rough measure of definition complexity
+		conversationMentions: number // Number of times mentioned in conversation
+		lastMentionedTs: number // Timestamp of last mention in conversation
+		recentViewCount: number // Number of times file was viewed recently
+		lastViewedTs: number // Timestamp of last view
 	}
 }
 
