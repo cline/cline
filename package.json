@@ -167,7 +167,7 @@
 					"default": false,
 					"description": "Disables extension from spawning browser session."
 				},
-				"cline.modelSettings.o3Mini.reasoningEffort": {
+				"cline.modelSettings.o-series.reasoningEffort": {
 					"type": "string",
 					"enum": [
 						"low",

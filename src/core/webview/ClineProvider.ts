@@ -1783,8 +1783,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			}
 		}
 
-		const o3MiniReasoningEffort = vscode.workspace
-			.getConfiguration("cline.modelSettings.o3Mini")
+		const oSeriesReasoningEffort = vscode.workspace
+			.getConfiguration("cline.modelSettings.o-series")
 			.get("reasoningEffort", "medium")
 
 		const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
@@ -1828,7 +1828,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				openRouterModelId,
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
-				o3MiniReasoningEffort,
+				oSeriesReasoningEffort,
 				liteLlmBaseUrl,
 				liteLlmModelId,
 				liteLlmApiKey,

@@ -55,7 +55,7 @@ export interface ApiHandlerOptions {
 	azureApiVersion?: string
 	isReasoningModel?: boolean
 	vsCodeLmModelSelector?: any
-	o3MiniReasoningEffort?: string
+	oSeriesReasoningEffortLevel?: string
 	qwenApiLine?: string
 }
 
