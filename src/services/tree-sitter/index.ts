@@ -1,4 +1,5 @@
 import * as fs from "fs/promises"
+import * as fsSync from "fs"
 import * as path from "path"
 import { listFiles } from "../glob/list-files"
 import { LanguageParser, loadRequiredLanguageParsers, CodeDefinition, FileAnalysis, ImportInfo } from "./languageParser"
@@ -10,6 +11,10 @@ const CONFIG = {
 	MAX_FILES: 50, // Maximum number of files to analyze
 	MIN_FILES: 5, // Minimum number of files to analyze
 	SAMPLE_SIZE: 100, // Number of lines to sample for token estimation
+	CACHE_TTL: 5 * 60 * 1000, // Cache TTL in milliseconds (5 minutes)
+	MAX_CACHE_ENTRIES: 1000, // Maximum number of entries in cache
+	MIN_CACHE_TTL: 30 * 1000, // Minimum cache TTL (30 seconds)
+	MAX_CACHE_TTL: 30 * 60 * 1000, // Maximum cache TTL (30 minutes)
 }
 
 interface CacheEntry {
@@ -17,29 +22,143 @@ interface CacheEntry {
 	definitions: string
 	analysis: FileAnalysis // Store the full analysis for relationship tracking
 	tokenCount: number // Store token count for budget management
+	lastAccessed: number // Track when the entry was last accessed
 }
 
-const definitionsCache: Map<string, CacheEntry> = new Map()
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+interface CacheConfig {
+	ttl: number // Time to live in milliseconds
+	maxEntries: number // Maximum number of entries
+	watchFiles: boolean // Whether to watch files for changes
+}
+
+class DefinitionsCache {
+	private cache: Map<string, CacheEntry> = new Map()
+	private fileWatchers: Map<string, fsSync.FSWatcher> = new Map()
+	private config: CacheConfig
+
+	constructor(config?: Partial<CacheConfig>) {
+		this.config = {
+			ttl: CONFIG.CACHE_TTL,
+			maxEntries: CONFIG.MAX_CACHE_ENTRIES,
+			watchFiles: true,
+			...config,
+		}
+
+		// Validate TTL bounds
+		this.config.ttl = Math.max(CONFIG.MIN_CACHE_TTL, Math.min(CONFIG.MAX_CACHE_TTL, this.config.ttl))
+	}
+
+	async get(filePath: string): Promise<string | null> {
+		const cached = this.cache.get(filePath)
+		if (!cached) {
+			return null
+		}
+
+		const currentTimestamp = await getFileTimestamp(filePath)
+		const now = Date.now()
+
+		// Check if cache is valid
+		if (currentTimestamp > cached.timestamp || now - cached.timestamp > this.config.ttl) {
+			this.delete(filePath)
+			return null
+		}
+
+		// Update last accessed time
+		cached.lastAccessed = now
+		return cached.definitions
+	}
+
+	set(filePath: string, entry: Omit<CacheEntry, "lastAccessed" | "timestamp">): void {
+		// Ensure we don't exceed max entries
+		if (this.cache.size >= this.config.maxEntries) {
+			this.removeOldestEntry()
+		}
+
+		const now = Date.now()
+		this.cache.set(filePath, {
+			...entry,
+			timestamp: now,
+			lastAccessed: now,
+		})
+
+		// Set up file watcher if enabled
+		if (this.config.watchFiles) {
+			this.watchFile(filePath)
+		}
+	}
+
+	delete(filePath: string): void {
+		this.cache.delete(filePath)
+		this.unwatchFile(filePath)
+	}
+
+	clear(): void {
+		this.cache.clear()
+		this.unwatchAllFiles()
+	}
+
+	private removeOldestEntry(): void {
+		let oldestTime = Date.now()
+		let oldestKey: string | null = null
+
+		for (const [key, entry] of this.cache.entries()) {
+			if (entry.lastAccessed < oldestTime) {
+				oldestTime = entry.lastAccessed
+				oldestKey = key
+			}
+		}
+
+		if (oldestKey) {
+			this.delete(oldestKey)
+		}
+	}
+
+	private watchFile(filePath: string): void {
+		// Don't create duplicate watchers
+		if (this.fileWatchers.has(filePath)) {
+			return
+		}
+
+		try {
+			const watcher = fsSync.watch(filePath, (eventType) => {
+				if (eventType === "change") {
+					this.delete(filePath)
+				}
+			})
+
+			this.fileWatchers.set(filePath, watcher)
+
+			// Handle watcher errors
+			watcher.on("error", (error) => {
+				console.error(`Error watching file ${filePath}:`, error)
+				this.unwatchFile(filePath)
+			})
+		} catch (error) {
+			console.error(`Failed to set up watcher for ${filePath}:`, error)
+		}
+	}
+
+	private unwatchFile(filePath: string): void {
+		const watcher = this.fileWatchers.get(filePath)
+		if (watcher) {
+			watcher.close()
+			this.fileWatchers.delete(filePath)
+		}
+	}
+
+	private unwatchAllFiles(): void {
+		for (const [filePath] of this.fileWatchers) {
+			this.unwatchFile(filePath)
+		}
+	}
+}
+
+// Create a singleton instance of the cache
+const definitionsCache = new DefinitionsCache()
 
 async function getFileTimestamp(filePath: string): Promise<number> {
 	const stats = await fs.stat(filePath)
 	return stats.mtimeMs
-}
-
-async function getCachedDefinitions(filePath: string): Promise<string | null> {
-	const cached = definitionsCache.get(filePath)
-	if (!cached) {
-		return null
-	}
-
-	const currentTimestamp = await getFileTimestamp(filePath)
-	if (currentTimestamp > cached.timestamp || Date.now() - cached.timestamp > CACHE_TTL) {
-		definitionsCache.delete(filePath)
-		return null
-	}
-
-	return cached.definitions
 }
 
 function estimateTokenCount(content: string): number {
@@ -326,7 +445,7 @@ export async function parseSourceCodeForDefinitionsTopLevel(
 	const languageParsers = await loadRequiredLanguageParsers(optimizedFileSet)
 
 	for (const file of optimizedFileSet) {
-		const cachedDefs = await getCachedDefinitions(file)
+		const cachedDefs = await definitionsCache.get(file)
 		if (cachedDefs) {
 			result += `${path.relative(dirPath, file).toPosix()}\n${cachedDefs}\n`
 			continue
@@ -335,7 +454,6 @@ export async function parseSourceCodeForDefinitionsTopLevel(
 		const definitions = await parseFile(file, languageParsers)
 		if (definitions) {
 			definitionsCache.set(file, {
-				timestamp: Date.now(),
 				definitions,
 				analysis: {
 					definitions: [],
