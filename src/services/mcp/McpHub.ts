@@ -67,6 +67,11 @@ export class McpHub {
 		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
 	}
 
+	getAllServers(): McpServer[] {
+		// Return all servers regardless of state
+		return this.connections.map((conn) => conn.server)
+	}
+
 	async getMcpServersPath(): Promise<string> {
 		const provider = this.providerRef.deref()
 		if (!provider) {
