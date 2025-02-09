@@ -990,9 +990,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
 			vscode.window.showErrorMessage("Failed to log in to Cline")
-			// Clean up stored tokens on failure
-			await this.storeSecret("authToken", undefined)
-			await this.storeSecret("clineApiKey", undefined)
+			// Even on login failure, we preserve any existing tokens
+			// Only clear tokens on explicit logout
 		}
 	}
 
