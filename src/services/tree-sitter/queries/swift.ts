@@ -7,8 +7,22 @@
 
 // Query for finding imports
 export const importQuery = `
-(import_declaration (identifier) @module)
-(import_declaration (identifier) @module (identifier) @import)
+[
+  ; Basic imports
+  (import_declaration 
+    (identifier) @module)
+  
+  ; Specific imports
+  (import_declaration 
+    (identifier) @module
+    (import_list 
+      (identifier) @import))
+  
+  ; Scoped imports
+  (import_declaration
+    (identifier) @module
+    (identifier) @import)
+]
 `
 
 // Query for finding definitions

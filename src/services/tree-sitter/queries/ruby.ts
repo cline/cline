@@ -6,8 +6,12 @@
 
 // Query for finding imports
 export const importQuery = `
-(call method: (identifier) @import argument: (string (string_content) @module))
-(call method: (identifier) @import argument: (string_array (string (string_content) @module)))
+(call 
+  method: (identifier) @import_method 
+  argument: (string (string_content) @module @import))
+(call 
+  method: (identifier) @import_method 
+  argument: (string_array (string (string_content) @module @import)))
 `
 
 // Query for finding definitions

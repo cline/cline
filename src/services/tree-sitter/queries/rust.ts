@@ -6,7 +6,10 @@
 
 // Query for finding imports
 export const importQuery = `
-(use_declaration path: (scoped_identifier name: (identifier) @import path: (identifier) @module))
+(use_declaration 
+  path: (scoped_identifier 
+    path: (identifier) @module
+    name: (identifier) @import))
 (extern_crate_declaration name: (identifier) @module)
 `
 
