@@ -38,13 +38,14 @@ export class OpenAiHandler implements ApiHandler {
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-
-		if (isDeepseekReasoner || isVolcEngine) {
+		if (isDeepseekReasoner) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
+		const newModelId = isVolcEngine ? modelId.replace("-deepseek-reasoner", "") : modelId
+
 		const stream = await this.client.chat.completions.create({
-			model: modelId,
+			model: newModelId,
 			messages: openAiMessages,
 			temperature: 0,
 			stream: true,
