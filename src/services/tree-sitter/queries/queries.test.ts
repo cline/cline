@@ -16,7 +16,8 @@ describe("Tree-Sitter Query Tests", () => {
 			let language: Parser.Language
 
 			before(async () => {
-				language = await Parser.Language.load(path.join(__dirname, wasmFile))
+				// Go up one directory to load from the tree-sitter directory where the WASM files are
+				language = await Parser.Language.load(path.join(__dirname, "..", wasmFile))
 				parser = new Parser()
 				parser.setLanguage(language)
 			})
