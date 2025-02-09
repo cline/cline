@@ -58,8 +58,8 @@ class DefinitionsCache {
 		const currentTimestamp = await getFileTimestamp(filePath)
 		const now = Date.now()
 
-		// Check if cache is valid
-		if (currentTimestamp > cached.timestamp || now - cached.timestamp > this.config.ttl) {
+		// Check if cache is valid - invalidate if file is inaccessible or modified
+		if (currentTimestamp === null || currentTimestamp > cached.timestamp || now - cached.timestamp > this.config.ttl) {
 			this.delete(filePath)
 			return null
 		}
@@ -157,9 +157,13 @@ class DefinitionsCache {
 // Create a singleton instance of the cache
 const definitionsCache = new DefinitionsCache()
 
-async function getFileTimestamp(filePath: string): Promise<number> {
-	const stats = await fs.stat(filePath)
-	return stats.mtimeMs
+async function getFileTimestamp(filePath: string): Promise<number | null> {
+	try {
+		const stats = await fs.stat(filePath)
+		return stats.mtimeMs
+	} catch (error) {
+		return null
+	}
 }
 
 function estimateTokenCount(content: string): number {
@@ -434,7 +438,7 @@ export async function parseSourceCodeForDefinitionsTopLevel(
 	const [allFiles, _] = await listFiles(dirPath, false, 200)
 	let result = ""
 
-	const { filesToParse: eligibleFiles, remainingFiles } = separateFiles(allFiles)
+	const { filesToParse: eligibleFiles } = separateFiles(allFiles)
 	const optimizedFileSet = await findOptimalFileSet(eligibleFiles, tokenBudget)
 	const languageParsers = await loadRequiredLanguageParsers(optimizedFileSet)
 
