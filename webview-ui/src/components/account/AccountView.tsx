@@ -1,6 +1,6 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+import { useFirebaseAuth } from "../../context/FirebaseAuthContext"
 import { vscode } from "../../utils/vscode"
 
 type AccountViewProps = {
@@ -8,14 +8,17 @@ type AccountViewProps = {
 }
 
 const AccountView = ({ onDone }: AccountViewProps) => {
-	const { isLoggedIn, userInfo } = useExtensionState()
+	const { user, handleSignOut } = useFirebaseAuth()
 
 	const handleLogin = () => {
 		vscode.postMessage({ type: "accountLoginClicked" })
 	}
 
 	const handleLogout = () => {
+		// First notify extension to clear API keys and state
 		vscode.postMessage({ type: "accountLogoutClicked" })
+		// Then sign out of Firebase
+		handleSignOut()
 	}
 
 	return (
@@ -51,11 +54,11 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 					flexDirection: "column",
 				}}>
 				<div style={{ marginBottom: 5 }}>
-					{isLoggedIn ? (
+					{user ? (
 						<>
-							{userInfo?.photoURL && (
+							{user.photoURL && (
 								<img
-									src={userInfo.photoURL}
+									src={user.photoURL}
 									alt="Profile"
 									style={{
 										width: 48,
@@ -66,8 +69,8 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 								/>
 							)}
 							<div style={{ fontSize: "14px", marginBottom: 10 }}>
-								{userInfo?.displayName && <div>{userInfo.displayName}</div>}
-								{userInfo?.email && <div>{userInfo.email}</div>}
+								{user.displayName && <div>{user.displayName}</div>}
+								{user.email && <div>{user.email}</div>}
 							</div>
 							<VSCodeButton onClick={handleLogout}>Log out</VSCodeButton>
 						</>
