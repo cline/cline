@@ -23,7 +23,7 @@ describe("CheckpointService", () => {
 		git = simpleGit(baseDir)
 		await git.init()
 		await git.addConfig("user.name", "Roo Code")
-		await git.addConfig("user.email", "support@roo.vet")
+		await git.addConfig("user.email", "support@roocode.com")
 
 		// Create test file.
 		testFile = path.join(baseDir, "test.txt")
