@@ -185,9 +185,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								marginBottom: "-1.5px",
 							}}></span>
 					),
-					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						{message.type === "ask" ? "Cline wants to execute this command:" : "Cline executed this command:"}
-					</span>,
+					<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to execute this command:</span>,
 				]
 			case "use_mcp_server":
 				const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
@@ -203,17 +201,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							}}></span>
 					),
 					<span style={{ color: normalColor, fontWeight: "bold" }}>
-						{message.type === "ask" ? (
-							<>
-								Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
-								<code>{mcpServerUse.serverName}</code> MCP server:
-							</>
-						) : (
-							<>
-								Cline {mcpServerUse.type === "use_mcp_tool" ? "used a tool" : "accessed a resource"} on the{" "}
-								<code>{mcpServerUse.serverName}</code> MCP server:
-							</>
-						)}
+						Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
+						<code>{mcpServerUse.serverName}</code> MCP server:
 					</span>,
 				]
 			case "completion_result":
@@ -298,16 +287,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 			default:
 				return [null, null]
 		}
-	}, [
-		type,
-		cost,
-		apiRequestFailedMessage,
-		isCommandExecuting,
-		apiReqCancelReason,
-		isMcpServerResponding,
-		message.text,
-		message.type,
-	])
+	}, [type, cost, apiRequestFailedMessage, isCommandExecuting, apiReqCancelReason, isMcpServerResponding, message.text])
 
 	const headerStyle: React.CSSProperties = {
 		display: "flex",
@@ -346,9 +326,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("edit")}
-							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? "Cline wants to edit this file:" : "Cline is editing this file:"}
-							</span>
+							<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
 						</div>
 						<CodeAccordian
 							// isLoading={message.partial}
@@ -364,9 +342,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("new-file")}
-							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? "Cline wants to create a new file:" : "Cline is creating a new file:"}
-							</span>
+							<span style={{ fontWeight: "bold" }}>Cline wants to create a new file:</span>
 						</div>
 						<CodeAccordian
 							isLoading={message.partial}
@@ -383,7 +359,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? "Cline wants to read this file:" : "Cline read this file:"}
+								{/* {message.type === "ask" ? "" : "Cline read this file:"} */}
+								Cline wants to read this file:
 							</span>
 						</div>
 						{/* <CodeAccordian
@@ -505,15 +482,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						<div style={headerStyle}>
 							{toolIcon("search")}
 							<span style={{ fontWeight: "bold" }}>
-								{message.type === "ask" ? (
-									<>
-										Cline wants to search this directory for <code>{tool.regex}</code>:
-									</>
-								) : (
-									<>
-										Cline searched this directory for <code>{tool.regex}</code>:
-									</>
-								)}
+								Cline wants to search this directory for <code>{tool.regex}</code>:
 							</span>
 						</div>
 						<CodeAccordian
