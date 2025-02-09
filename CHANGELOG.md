@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## 3.3.16
+
+### Patch Changes
+
+- Support Volcano Ark platform through OpenAI compatible
+- Fix jumpiness while entering API config by updating on blur instead of input
+- v3.3.16
+
 ## [3.3.15]
 
 - Improvements to MCP initialization and server restarts (thanks @MuriloFP and @hannesrudolph!)
