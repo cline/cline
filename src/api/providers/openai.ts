@@ -34,13 +34,51 @@ export class OpenAiHandler implements ApiHandler {
 		const modelId = this.options.openAiModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 
-		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
-		]
+		var openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] 
 
 		if (isDeepseekReasoner) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		}
+		else {
+			switch (modelId) {
+				case "o1": 
+				case "o3-mini": {
+					// o1 and o3-mini suggests changing message role from 'system' to 'developer'
+					openAiMessages = [
+						{ role: "developer", content: systemPrompt },
+						...convertToOpenAiMessages(messages),
+					]
+					break
+				}
+				case "o1-preview":
+				case "o1-mini": {
+					// o1-preview and o1-mini doesnt support system prompt, reasoning effort, non-1 temp, and streaming
+					openAiMessages = [
+						{ role: "user", content: systemPrompt },
+						...convertToOpenAiMessages(messages),
+					]
+					const response = await this.client.chat.completions.create({
+						model: modelId,
+						messages: openAiMessages,
+					})
+					yield {
+						type: "text",
+						text: response.choices[0]?.message.content || "",
+					}
+					yield {
+						type: "usage",
+						inputTokens: response.usage?.prompt_tokens || 0,
+						outputTokens: response.usage?.completion_tokens || 0,
+					}
+					return
+				}
+				default: {
+					openAiMessages =  [{ role: "system", content: systemPrompt },
+						...convertToOpenAiMessages(messages),
+					]
+					break
+				}
+			}
 		}
 
 		const stream = await this.client.chat.completions.create({
