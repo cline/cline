@@ -15,9 +15,6 @@ export class ClineHandler implements ApiHandler {
 		this.client = new OpenAI({
 			baseURL: "https://api.cline.bot/v1",
 			apiKey: this.options.clineApiKey || "",
-			defaultHeaders: {
-				"X-Firebase-Token": this.options.authToken || "",
-			},
 		})
 	}
 

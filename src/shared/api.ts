@@ -21,7 +21,6 @@ export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
 	clineApiKey?: string
-	authToken?: string // firebase auth token for cline provider
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
 	anthropicBaseUrl?: string

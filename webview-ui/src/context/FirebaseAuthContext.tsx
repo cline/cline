@@ -53,19 +53,6 @@ export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 		return () => unsubscribe()
 	}, [auth])
 
-	// Listen for auth callback from extension
-	useEffect(() => {
-		const handleMessage = (event: MessageEvent) => {
-			const message = event.data
-			if (message.type === "authCallback" && message.customToken) {
-				signInWithToken(message.customToken)
-			}
-		}
-
-		window.addEventListener("message", handleMessage)
-		return () => window.removeEventListener("message", handleMessage)
-	}, [])
-
 	const signInWithToken = useCallback(
 		async (token: string) => {
 			try {
@@ -78,6 +65,19 @@ export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 		},
 		[auth],
 	)
+
+	// Listen for auth callback from extension
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			const message = event.data
+			if (message.type === "authCallback" && message.customToken) {
+				signInWithToken(message.customToken)
+			}
+		}
+
+		window.addEventListener("message", handleMessage)
+		return () => window.removeEventListener("message", handleMessage)
+	}, [signInWithToken])
 
 	const handleSignOut = useCallback(async () => {
 		try {

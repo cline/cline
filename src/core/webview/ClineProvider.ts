@@ -50,7 +50,6 @@ type SecretKey =
 	| "togetherApiKey"
 	| "qwenApiKey"
 	| "mistralApiKey"
-	| "authToken"
 	| "authNonce"
 type GlobalStateKey =
 	| "apiProvider"
@@ -147,7 +146,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// Auth methods
 	async handleSignOut() {
 		try {
-			await this.storeSecret("authToken", undefined)
 			await this.storeSecret("clineApiKey", undefined)
 			await this.updateGlobalState("apiProvider", "openrouter")
 			await this.postStateToWebview()
@@ -155,10 +153,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		} catch (error) {
 			vscode.window.showErrorMessage("Logout failed")
 		}
-	}
-
-	async setAuthToken(token?: string) {
-		await this.storeSecret("authToken", token)
 	}
 
 	async setUserInfo(info?: { displayName: string | null; email: string | null; photoURL: string | null }) {
@@ -1005,7 +999,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				...apiConfiguration,
 				apiProvider: clineProvider,
 				clineApiKey: apiKey,
-				authToken: customToken,
 			}
 
 			if (this.cline) {
@@ -1322,7 +1315,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings,
 			chatSettings,
 			userInfo,
-			authToken,
 		} = await this.getState()
 
 		return {
@@ -1339,7 +1331,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
-			isLoggedIn: !!authToken,
 			userInfo,
 		}
 	}
@@ -1441,7 +1432,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			liteLlmBaseUrl,
 			liteLlmModelId,
 			userInfo,
-			authToken,
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
@@ -1491,7 +1481,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("liteLlmBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("liteLlmModelId") as Promise<string | undefined>,
 			this.getGlobalState("userInfo") as Promise<UserInfo | undefined>,
-			this.getSecret("authToken") as Promise<string | undefined>,
 			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
@@ -1554,7 +1543,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openRouterModelId,
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
-				authToken,
 				o3MiniReasoningEffort,
 				liteLlmBaseUrl,
 				liteLlmModelId,
@@ -1566,7 +1554,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
 			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 			userInfo,
-			authToken,
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
@@ -1650,7 +1637,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"togetherApiKey",
 			"qwenApiKey",
 			"mistralApiKey",
-			"authToken",
 			"clineApiKey",
 		]
 		for (const key of secretKeys) {
