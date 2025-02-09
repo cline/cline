@@ -423,8 +423,8 @@ export { parseFile, calculateComplexity, calculateRank }
 
 export async function parseSourceCodeForDefinitionsTopLevel(
 	dirPath: string,
-	tokenBudget: number = CONFIG.DEFAULT_TOKEN_BUDGET,
 	clineIgnoreController?: ClineIgnoreController,
+	tokenBudget: number = CONFIG.DEFAULT_TOKEN_BUDGET,
 ): Promise<string> {
 	const dirExists = await fileExistsAtPath(path.resolve(dirPath))
 	if (!dirExists) {
