@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import axios from "axios"
+import axios from "xior"
 import delay from "delay"
 import OpenAI from "openai"
 import { withRetry } from "../retry"

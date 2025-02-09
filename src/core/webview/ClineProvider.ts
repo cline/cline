@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import axios from "axios"
+import axios from "xior"
 import fs from "fs/promises"
 import os from "os"
 import crypto from "crypto"
@@ -824,17 +824,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.postMessageToWebview({ type: "emailSubscribed" })
 		// Currently ignoring errors to this endpoint, but after accounts we'll remove this anyways
 		try {
-			const response = await axios.post(
-				"https://app.cline.bot/api/mailing-list",
-				{
-					email: email,
-				},
-				{
-					headers: {
-						"Content-Type": "application/json",
-					},
-				},
-			)
+			const response = await axios.post("https://app.cline.bot/api/mailing-list", {
+				email,
+			})
 			console.log("Email subscribed successfully. Response:", response.data)
 		} catch (error) {
 			console.error("Failed to subscribe email:", error)
