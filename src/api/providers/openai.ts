@@ -10,6 +10,7 @@ import {
 import { ApiHandler, SingleCompletionHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
+import { convertToSimpleMessages } from "../transform/simple-format"
 import { ApiStream } from "../transform/stream"
 
 export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
@@ -46,21 +47,31 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelInfo = this.getModel().info
+		const modelUrl = this.options.openAiBaseUrl ?? ""
 		const modelId = this.options.openAiModelId ?? ""
 
 		const deepseekReasoner = modelId.includes("deepseek-reasoner")
+		const ark = modelUrl.includes(".volces.com")
 
 		if (this.options.openAiStreamingEnabled ?? true) {
 			const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
 				role: "system",
 				content: systemPrompt,
 			}
+
+			let convertedMessages
+			if (deepseekReasoner) {
+				convertedMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+			} else if (ark) {
+				convertedMessages = [systemMessage, ...convertToSimpleMessages(messages)]
+			} else {
+				convertedMessages = [systemMessage, ...convertToOpenAiMessages(messages)]
+			}
+
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
 				model: modelId,
 				temperature: 0,
-				messages: deepseekReasoner
-					? convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-					: [systemMessage, ...convertToOpenAiMessages(messages)],
+				messages: convertedMessages,
 				stream: true as const,
 				stream_options: { include_usage: true },
 			}
