@@ -9,42 +9,21 @@
 // Query for finding imports
 export const importQuery = `
 [
-  ; Regular named imports
   (import_statement 
-    source: (string (string_fragment) @module)
-    (import_clause 
+    source: (string_literal) @module
+    clause: (import_clause 
       (named_imports 
         (import_specifier 
           name: (identifier) @import))))
-  
-  ; Type-only imports
+
   (import_statement
-    source: (string (string_fragment) @module)
-    (import_clause
-      "type"
-      (named_imports
-        (import_specifier
-          name: (identifier) @import))))
-  
-  ; Namespace imports
-  (import_statement
-    source: (string (string_fragment) @module)
-    (import_clause
-      (namespace_import
-        name: (identifier) @import)))
-  
-  ; Re-exports
+    source: (string_literal) @module
+    clause: (import_clause
+      (namespace_import (identifier) @import)))
+
   (export_statement
-    source: (string (string_fragment) @module)
-    (export_clause
-      (export_specifier
-        name: (identifier) @import)))
-  
-  ; Type-only re-exports
-  (export_statement
-    "type"
-    source: (string (string_fragment) @module)
-    (export_clause
+    source: (string_literal) @module
+    clause: (export_clause
       (export_specifier
         name: (identifier) @import)))
 ]

@@ -8,25 +8,30 @@
 
 // Query for finding imports
 export const importQuery = `
-(using_directive name: (qualified_name) @module)
-(using_directive (name_equals (identifier) @import) name: (qualified_name) @module)
+[
+  (using_directive
+    name: (qualified_name) @module)
+
+  (using_directive
+    name: (identifier) @module)
+
+  (using_directive
+    alias: (identifier) @import
+    name: (qualified_name) @module)
+]
 `
 
 // Query for finding definitions
 export default `
+(method_declaration
+  name: (identifier) @name.definition.method) @definition.method
+
 (class_declaration
- name: (identifier) @name.definition.class
-) @definition.class
+  name: (identifier) @name.definition.class) @definition.class
 
 (interface_declaration
- name: (identifier) @name.definition.interface
-) @definition.interface
-
-(method_declaration
- name: (identifier) @name.definition.method
-) @definition.method
+  name: (identifier) @name.definition.class) @definition.class
 
 (namespace_declaration
- name: (identifier) @name.definition.module
-) @definition.module
+  name: (qualified_name) @name.definition.module) @definition.module
 `

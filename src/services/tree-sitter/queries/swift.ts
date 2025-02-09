@@ -8,82 +8,27 @@
 // Query for finding imports
 export const importQuery = `
 [
-  ; Basic imports
-  (import_declaration 
-    (identifier) @module)
-  
-  ; Specific imports
-  (import_declaration 
-    (identifier) @module
-    (import_list 
+  (import_declaration
+    path: (identifier) @module)
+
+  (import_declaration
+    path: (identifier) @module
+    (import_list
       (identifier) @import))
-  
-  ; Scoped imports
-  (import_declaration
-    (identifier) @module
-    (identifier) @import)
-
-  ; Testable imports
-  (import_declaration
-    "@testable"
-    (identifier) @module)
-
-  ; Conditional imports
-  (if_directive
-    (import_declaration
-      (identifier) @module))
-
-  ; Qualified imports
-  (import_declaration
-    (identifier) @module
-    "." @separator
-    (identifier) @import)
-
-  ; Type-specific imports
-  (import_declaration
-    (identifier) @module
-    (import_kind) @kind
-    (identifier) @import)
 ]
 `
 
 // Query for finding definitions
 export default `
+(function_declaration
+  name: (simple_identifier) @name.definition.function) @definition.function
+
 (class_declaration
-  name: (type_identifier) @name) @definition.class
+  name: (simple_identifier) @name.definition.class) @definition.class
 
 (protocol_declaration
-  name: (type_identifier) @name) @definition.interface
+  name: (simple_identifier) @name.definition.class) @definition.class
 
-(class_declaration
-    (class_body
-        [
-            (function_declaration
-                name: (simple_identifier) @name
-            )
-            (subscript_declaration
-                (parameter (simple_identifier) @name)
-            )
-            (init_declaration "init" @name)
-            (deinit_declaration "deinit" @name)
-        ]
-    )
-) @definition.method
-
-(class_declaration
-    (class_body
-        [
-            (property_declaration
-                (pattern (simple_identifier) @name)
-            )
-        ]
-    )
-) @definition.property
-
-(property_declaration
-    (pattern (simple_identifier) @name)
-) @definition.property
-
-(function_declaration
-    name: (simple_identifier) @name) @definition.function
+(struct_declaration
+  name: (simple_identifier) @name.definition.class) @definition.class
 `
