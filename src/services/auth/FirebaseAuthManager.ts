@@ -200,16 +200,22 @@ export class FirebaseAuthManager {
 	}
 
 	private async restoreSession() {
-		console.log("Attempting to restore session")
+		console.log("[restoreSession] Attempting to restore session")
 		const provider = this.providerRef.deref()
 		if (!provider) {
-			console.log("Provider reference lost during session restore")
+			console.log("[restoreSession] Provider reference lost during session restore")
 			return
 		}
 
-		// If no active session, try to sign in with stored custom token
-		const storedToken = await provider.getSecret("authToken")
-		if (storedToken) {
+		// Get the auth state from the provider's state, which is loaded when the webview launches
+		const { apiConfiguration } = await provider.getState()
+		const storedToken = apiConfiguration?.authToken
+		console.log("[restoreSession] Auth state from provider:", {
+			hasToken: !!storedToken,
+			hasClineApiKey: !!apiConfiguration?.clineApiKey,
+		})
+
+		if (storedToken && apiConfiguration?.clineApiKey) {
 			console.log("Found stored custom token, attempting to restore session")
 			try {
 				await this.retryWithBackoff(async () => {

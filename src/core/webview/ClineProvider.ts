@@ -1003,6 +1003,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				...apiConfiguration,
 				apiProvider: clineProvider,
 				clineApiKey: apiKey,
+				authToken: customToken,
 			}
 
 			if (this.cline) {
