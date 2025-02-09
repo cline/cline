@@ -10,32 +10,51 @@ import { CheckpointService } from "../CheckpointService"
 
 describe("CheckpointService", () => {
 	const taskId = "test-task"
+
 	let git: SimpleGit
 	let testFile: string
 	let service: CheckpointService
 
-	beforeEach(async () => {
+	const initRepo = async ({
+		baseDir,
+		userName = "Roo Code",
+		userEmail = "support@roocode.com",
+		testFileName = "test.txt",
+		textFileContent = "Hello, world!",
+	}: {
+		baseDir: string
+		userName?: string
+		userEmail?: string
+		testFileName?: string
+		textFileContent?: string
+	}) => {
 		// Create a temporary directory for testing.
-		const baseDir = path.join(os.tmpdir(), `checkpoint-service-test-${Date.now()}`)
 		await fs.mkdir(baseDir)
 
 		// Initialize git repo.
-		git = simpleGit(baseDir)
+		const git = simpleGit(baseDir)
 		await git.init()
-		await git.addConfig("user.name", "Roo Code")
-		await git.addConfig("user.email", "support@roocode.com")
+		await git.addConfig("user.name", userName)
+		await git.addConfig("user.email", userEmail)
 
 		// Create test file.
-		testFile = path.join(baseDir, "test.txt")
-		await fs.writeFile(testFile, "Hello, world!")
+		const testFile = path.join(baseDir, testFileName)
+		await fs.writeFile(testFile, textFileContent)
 
 		// Create initial commit.
 		await git.add(".")
 		await git.commit("Initial commit")!
 
-		// Create service instance.
-		const log = () => {}
-		service = await CheckpointService.create({ taskId, git, baseDir, log })
+		return { git, testFile }
+	}
+
+	beforeEach(async () => {
+		const baseDir = path.join(os.tmpdir(), `checkpoint-service-test-${Date.now()}`)
+		const repo = await initRepo({ baseDir })
+
+		git = repo.git
+		testFile = repo.testFile
+		service = await CheckpointService.create({ taskId, git, baseDir, log: () => {} })
 	})
 
 	afterEach(async () => {
@@ -332,6 +351,21 @@ describe("CheckpointService", () => {
 			await expect(fs.access(newTestFile)).rejects.toThrow()
 
 			await fs.rm(newService.baseDir, { recursive: true, force: true })
+		})
+
+		it("respects existing git user configuration", async () => {
+			const baseDir = path.join(os.tmpdir(), `checkpoint-service-test-config2-${Date.now()}`)
+			const userName = "Custom User"
+			const userEmail = "custom@example.com"
+			const repo = await initRepo({ baseDir, userName, userEmail })
+			const newGit = repo.git
+
+			await CheckpointService.create({ taskId, git: newGit, baseDir, log: () => {} })
+
+			expect((await newGit.getConfig("user.name")).value).toBe(userName)
+			expect((await newGit.getConfig("user.email")).value).toBe(userEmail)
+
+			await fs.rm(baseDir, { recursive: true, force: true })
 		})
 	})
 })
