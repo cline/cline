@@ -50,7 +50,7 @@ export class OpenAiHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 			reasoning_effort: this.options.isReasoningModel
-				? (this.options.o3MiniReasoningEffort as ChatCompletionReasoningEffort) || "medium"
+				? (this.options.oSeriesReasoningEffortLevel as ChatCompletionReasoningEffort) || "medium"
 				: undefined,
 		})
 		for await (const chunk of stream) {
