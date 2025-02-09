@@ -9,8 +9,29 @@
 
 // Query for finding imports/includes
 export const importQuery = `
-(preproc_include 
-  path: [(string_literal) (system_lib_string)] @module @import)
+[
+  ; Standard includes with angle brackets
+  (preproc_include 
+    path: (system_lib_string) @module @import)
+
+  ; Local includes with quotes
+  (preproc_include 
+    path: (string_literal) @module @import)
+
+  ; Include with macro expansion
+  (preproc_include
+    path: (identifier) @module @import)
+
+  ; Include with path concatenation
+  (preproc_include
+    path: (concatenated_string) @module @import)
+
+  ; Include with conditional compilation
+  (if_statement 
+    condition: (condition) @condition
+    (preproc_include 
+      path: [(string_literal) (system_lib_string)] @module @import))
+]
 `
 
 // Query for finding definitions

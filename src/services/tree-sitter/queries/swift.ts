@@ -22,6 +22,28 @@ export const importQuery = `
   (import_declaration
     (identifier) @module
     (identifier) @import)
+
+  ; Testable imports
+  (import_declaration
+    "@testable"
+    (identifier) @module)
+
+  ; Conditional imports
+  (if_directive
+    (import_declaration
+      (identifier) @module))
+
+  ; Qualified imports
+  (import_declaration
+    (identifier) @module
+    "." @separator
+    (identifier) @import)
+
+  ; Type-specific imports
+  (import_declaration
+    (identifier) @module
+    (import_kind) @kind
+    (identifier) @import)
 ]
 `
 

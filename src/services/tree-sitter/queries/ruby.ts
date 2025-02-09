@@ -6,12 +6,40 @@
 
 // Query for finding imports
 export const importQuery = `
-(call 
-  method: (identifier) @import_method 
-  argument: (string (string_content) @module @import))
-(call 
-  method: (identifier) @import_method 
-  argument: (string_array (string (string_content) @module @import)))
+[
+  ; Basic require
+  (call 
+    method: (identifier) @import_method 
+    argument: (string (string_content) @module @import)
+    (#match? @import_method "^(require|require_relative)$"))
+
+  ; Array of requires
+  (call 
+    method: (identifier) @import_method 
+    argument: (string_array 
+      (string (string_content) @module @import))
+    (#match? @import_method "^(require|require_relative)$"))
+
+  ; Conditional require
+  (if_modifier
+    condition: (_)
+    (call
+      method: (identifier) @import_method
+      argument: (string (string_content) @module @import)
+      (#match? @import_method "^(require|require_relative)$")))
+
+  ; Require with interpolation
+  (call
+    method: (identifier) @import_method
+    argument: (string_embexpr) @module @import
+    (#match? @import_method "^(require|require_relative)$"))
+
+  ; Load statements
+  (call
+    method: (identifier) @import_method
+    argument: (string (string_content) @module @import)
+    (#match? @import_method "^load$"))
+]
 `
 
 // Query for finding definitions
