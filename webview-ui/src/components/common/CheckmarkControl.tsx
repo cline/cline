@@ -149,7 +149,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 					Compare
 				</CustomButton>
 				<DottedLine small $isCheckedOut={isCheckpointCheckedOut} />
-				<div ref={refs.setReference} style={{ position: "relative" }}>
+				<div ref={refs.setReference} style={{ position: "relative", marginTop: -2 }}>
 					<CustomButton
 						$isCheckedOut={isCheckpointCheckedOut}
 						isActive={showRestoreConfirm}
