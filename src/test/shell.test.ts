@@ -78,6 +78,11 @@ describe("Shell Detection Tests", () => {
 			expect(getShell()).to.equal("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
 		})
 
+		it("handles undefined shell profile gracefully", () => {
+			mockVsCodeConfig("windows", "NonExistentProfile", {})
+			expect(getShell()).to.equal("C:\\Windows\\System32\\cmd.exe")
+		})
+
 		it("uses WSL bash when profile indicates WSL source", () => {
 			mockVsCodeConfig("windows", "WSL", {
 				WSL: { source: "WSL" },

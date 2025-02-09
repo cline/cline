@@ -48,6 +48,10 @@ export interface ExtensionMessage {
 	mcpServers?: McpServer[]
 }
 
+export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
+
+export const DEFAULT_PLATFORM = "unknown"
+
 export interface ExtensionState {
 	version: string
 	apiConfiguration?: ApiConfiguration
@@ -62,6 +66,7 @@ export interface ExtensionState {
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
 	isLoggedIn: boolean
+	platform: Platform
 	userInfo?: {
 		displayName: string | null
 		email: string | null
@@ -121,6 +126,7 @@ export type ClineSay =
 	| "use_mcp_server"
 	| "diff_error"
 	| "deleted_api_reqs"
+	| "clineignore_error"
 
 export interface ClineSayTool {
 	tool:

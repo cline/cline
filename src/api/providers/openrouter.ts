@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import delay from "delay"
 import OpenAI from "openai"
+import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { streamOpenRouterFormatRequest } from "../transform/openrouter-stream"
@@ -23,8 +24,16 @@ export class OpenRouterHandler implements ApiHandler {
 		})
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const genId = yield* streamOpenRouterFormatRequest(this.client, systemPrompt, messages, this.getModel())
+		const model = this.getModel()
+		const genId = yield* streamOpenRouterFormatRequest(
+			this.client,
+			systemPrompt,
+			messages,
+			model,
+			this.options.o3MiniReasoningEffort,
+		)
 
 		await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
 

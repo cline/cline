@@ -10,6 +10,7 @@ export async function* streamOpenRouterFormatRequest(
 	systemPrompt: string,
 	messages: Anthropic.Messages.MessageParam[],
 	model: { id: string; info: ModelInfo },
+	o3MiniReasoningEffort?: string,
 ): AsyncGenerator<ApiStreamChunk, string | undefined, unknown> {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -112,6 +113,7 @@ export async function* streamOpenRouterFormatRequest(
 		stream: true,
 		transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		include_reasoning: true,
+		...(model.id === "openai/o3-mini" ? { reasoning_effort: o3MiniReasoningEffort || "medium" } : {}),
 	})
 
 	let genId: string | undefined
