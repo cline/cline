@@ -721,7 +721,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								let modelInfo = apiConfiguration?.openAiModelInfo
 									? apiConfiguration.openAiModelInfo
 									: { ...openAiModelInfoSaneDefaults }
-								modelInfo.contextWindow = input.target.value
+								modelInfo.contextWindow = Number(input.target.value)
 								setApiConfiguration({
 									...apiConfiguration,
 									openAiModelInfo: modelInfo,
