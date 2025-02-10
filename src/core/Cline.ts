@@ -2575,6 +2575,9 @@ export class Cline {
 												if (item.type === "text") {
 													return item.text
 												}
+												if (item.type === "image") {
+													return ` data:${item.mimeType};base64,${item.data} `
+												}
 												if (item.type === "resource") {
 													const { blob, ...rest } = item.resource
 													return JSON.stringify(rest, null, 2)
@@ -2584,7 +2587,12 @@ export class Cline {
 											.filter(Boolean)
 											.join("\n\n") || "(No response)"
 								await this.say("mcp_server_response", toolResultPretty)
-								pushToolResult(formatResponse.toolResult(toolResultPretty))
+								if (toolResult?.isError) {
+									pushToolResult(formatResponse.toolResult(toolResultPretty))
+								} else {
+									const supportsImages = this.api.getModel().info.supportsImages ?? true
+									pushToolResult(formatResponse.mcpToolResult(toolResult, supportsImages))
+								}
 
 								await this.saveCheckpoint()
 
