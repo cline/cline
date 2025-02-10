@@ -694,6 +694,101 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
 						/>
 					)}
+					<VSCodeCheckbox
+						checked={apiConfiguration?.openAiModelInfo?.supportsImages}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							let modelInfo = apiConfiguration?.openAiModelInfo
+								? apiConfiguration.openAiModelInfo
+								: { ...openAiModelInfoSaneDefaults }
+							modelInfo.supportsImages = isChecked
+							setApiConfiguration({
+								...apiConfiguration,
+								openAiModelInfo: modelInfo,
+							})
+						}}>
+						Supports Images
+					</VSCodeCheckbox>
+					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
+						<VSCodeTextField
+							value={
+								apiConfiguration?.openAiModelInfo?.contextWindow
+									? apiConfiguration.openAiModelInfo.contextWindow.toString()
+									: openAiModelInfoSaneDefaults.contextWindow?.toString()
+							}
+							style={{ flex: 1 }}
+							onInput={(input: any) => {
+								let modelInfo = apiConfiguration?.openAiModelInfo
+									? apiConfiguration.openAiModelInfo
+									: { ...openAiModelInfoSaneDefaults }
+								modelInfo.contextWindow = input.target.value
+								setApiConfiguration({
+									...apiConfiguration,
+									openAiModelInfo: modelInfo,
+								})
+							}}>
+							<span style={{ fontWeight: 500 }}>Context Window Size</span>
+						</VSCodeTextField>
+						<VSCodeTextField
+							value={
+								apiConfiguration?.openAiModelInfo?.maxTokens
+									? apiConfiguration.openAiModelInfo.maxTokens.toString()
+									: openAiModelInfoSaneDefaults.maxTokens?.toString()
+							}
+							style={{ flex: 1 }}
+							onInput={(input: any) => {
+								let modelInfo = apiConfiguration?.openAiModelInfo
+									? apiConfiguration.openAiModelInfo
+									: { ...openAiModelInfoSaneDefaults }
+								modelInfo.maxTokens = input.target.value
+								setApiConfiguration({
+									...apiConfiguration,
+									openAiModelInfo: modelInfo,
+								})
+							}}>
+							<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
+						</VSCodeTextField>
+					</div>
+					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
+						<VSCodeTextField
+							value={
+								apiConfiguration?.openAiModelInfo?.inputPrice
+									? apiConfiguration.openAiModelInfo.inputPrice.toString()
+									: openAiModelInfoSaneDefaults.inputPrice?.toString()
+							}
+							style={{ flex: 1 }}
+							onInput={(input: any) => {
+								let modelInfo = apiConfiguration?.openAiModelInfo
+									? apiConfiguration.openAiModelInfo
+									: { ...openAiModelInfoSaneDefaults }
+								modelInfo.inputPrice = input.target.value
+								setApiConfiguration({
+									...apiConfiguration,
+									openAiModelInfo: modelInfo,
+								})
+							}}>
+							<span style={{ fontWeight: 500 }}>Input Price / 1M tokens</span>
+						</VSCodeTextField>
+						<VSCodeTextField
+							value={
+								apiConfiguration?.openAiModelInfo?.outputPrice
+									? apiConfiguration.openAiModelInfo.outputPrice.toString()
+									: openAiModelInfoSaneDefaults.outputPrice?.toString()
+							}
+							style={{ flex: 1 }}
+							onInput={(input: any) => {
+								let modelInfo = apiConfiguration?.openAiModelInfo
+									? apiConfiguration.openAiModelInfo
+									: { ...openAiModelInfoSaneDefaults }
+								modelInfo.outputPrice = input.target.value
+								setApiConfiguration({
+									...apiConfiguration,
+									openAiModelInfo: modelInfo,
+								})
+							}}>
+							<span style={{ fontWeight: 500 }}>Output Price / 1M tokens</span>
+						</VSCodeTextField>
+					</div>
 					<p
 						style={{
 							fontSize: "12px",
