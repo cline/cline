@@ -25,10 +25,10 @@ import { ModelInfoView } from "./ModelInfoView"
 
 interface ModelPickerProps {
 	defaultModelId: string
-	modelsKey: "glamaModels" | "openRouterModels" | "unboundModels"
-	configKey: "glamaModelId" | "openRouterModelId" | "unboundModelId"
-	infoKey: "glamaModelInfo" | "openRouterModelInfo" | "unboundModelInfo"
-	refreshMessageType: "refreshGlamaModels" | "refreshOpenRouterModels" | "refreshUnboundModels"
+	modelsKey: "glamaModels" | "openRouterModels" | "unboundModels" | "requestyModels"
+	configKey: "glamaModelId" | "openRouterModelId" | "unboundModelId" | "requestyModelId"
+	infoKey: "glamaModelInfo" | "openRouterModelInfo" | "unboundModelInfo" | "requestyModelInfo"
+	refreshMessageType: "refreshGlamaModels" | "refreshOpenRouterModels" | "refreshUnboundModels" | "refreshRequestyModels"
 	serviceName: string
 	serviceUrl: string
 	recommendedModel: string

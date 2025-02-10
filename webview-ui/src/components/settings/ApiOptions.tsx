@@ -42,7 +42,7 @@ import { GlamaModelPicker } from "./GlamaModelPicker"
 import { UnboundModelPicker } from "./UnboundModelPicker"
 import { ModelInfoView } from "./ModelInfoView"
 import { DROPDOWN_Z_INDEX } from "./styles"
-import RequestyModelPicker from "./RequestyModelPicker"
+import { RequestyModelPicker } from "./RequestyModelPicker"
 
 interface ApiOptionsProps {
 	apiErrorMessage?: string
