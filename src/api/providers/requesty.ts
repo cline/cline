@@ -60,11 +60,23 @@ export class RequestyHandler implements ApiHandler {
 				}
 			}
 
+			// Requesty usage includes an extra field for Anthropic use cases.
+			// Safely cast the prompt token details section to the appropriate structure.
+			interface RequestyUsage extends OpenAI.CompletionUsage {
+				prompt_tokens_details?: {
+					caching_tokens?: number
+					cached_tokens?: number
+				}
+			}
+
 			if (chunk.usage) {
+				const usage = chunk.usage as RequestyUsage
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
+					inputTokens: usage.prompt_tokens || 0,
+					outputTokens: usage.completion_tokens || 0,
+					cacheWriteTokens: usage.prompt_tokens_details?.caching_tokens || undefined,
+					cacheReadTokens: usage.prompt_tokens_details?.cached_tokens || undefined,
 				}
 			}
 		}
