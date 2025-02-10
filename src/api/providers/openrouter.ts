@@ -185,31 +185,35 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 			// }
 		}
 
-		await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
+		// retry fetching generation details
+		let attempt = 0
+		while (attempt++ < 10) {
+			await delay(200) // FIXME: necessary delay to ensure generation endpoint is ready
+			try {
+				const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
+					headers: {
+						Authorization: `Bearer ${this.options.openRouterApiKey}`,
+					},
+					timeout: 5_000, // this request hangs sometimes
+				})
 
-		try {
-			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
-				headers: {
-					Authorization: `Bearer ${this.options.openRouterApiKey}`,
-				},
-				timeout: 5_000, // this request hangs sometimes
-			})
-
-			const generation = response.data?.data
-			console.log("OpenRouter generation details:", response.data)
-			yield {
-				type: "usage",
-				// cacheWriteTokens: 0,
-				// cacheReadTokens: 0,
-				// openrouter generation endpoint fails often
-				inputTokens: generation?.native_tokens_prompt || 0,
-				outputTokens: generation?.native_tokens_completion || 0,
-				totalCost: generation?.total_cost || 0,
-				fullResponseText,
-			} as OpenRouterApiStreamUsageChunk
-		} catch (error) {
-			// ignore if fails
-			console.error("Error fetching OpenRouter generation details:", error)
+				const generation = response.data?.data
+				console.log("OpenRouter generation details:", response.data)
+				yield {
+					type: "usage",
+					// cacheWriteTokens: 0,
+					// cacheReadTokens: 0,
+					// openrouter generation endpoint fails often
+					inputTokens: generation?.native_tokens_prompt || 0,
+					outputTokens: generation?.native_tokens_completion || 0,
+					totalCost: generation?.total_cost || 0,
+					fullResponseText,
+				} as OpenRouterApiStreamUsageChunk
+				return
+			} catch (error) {
+				// ignore if fails
+				console.error("Error fetching OpenRouter generation details:", error)
+			}
 		}
 	}
 	getModel(): { id: string; info: ModelInfo } {
