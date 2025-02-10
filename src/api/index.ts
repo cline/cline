@@ -15,6 +15,7 @@ import { MistralHandler } from "./providers/mistral"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { ApiStream } from "./transform/stream"
 import { UnboundHandler } from "./providers/unbound"
+import { RequestyHandler } from "./providers/requesty"
 
 export interface SingleCompletionHandler {
 	completePrompt(prompt: string): Promise<string>
@@ -56,6 +57,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new MistralHandler(options)
 		case "unbound":
 			return new UnboundHandler(options)
+		case "requesty":
+			return new RequestyHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}

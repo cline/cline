@@ -1,9 +1,9 @@
-import { OpenAiHandler } from "./openai"
-import { ApiHandlerOptions, ModelInfo } from "../../shared/api"
+import { OpenAiHandler, OpenAiHandlerOptions } from "./openai"
+import { ModelInfo } from "../../shared/api"
 import { deepSeekModels, deepSeekDefaultModelId } from "../../shared/api"
 
 export class DeepSeekHandler extends OpenAiHandler {
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: OpenAiHandlerOptions) {
 		super({
 			...options,
 			openAiApiKey: options.deepSeekApiKey ?? "not-provided",

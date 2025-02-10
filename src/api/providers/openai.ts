@@ -11,16 +11,20 @@ import { ApiHandler, SingleCompletionHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { convertToSimpleMessages } from "../transform/simple-format"
-import { ApiStream } from "../transform/stream"
+import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+
+export interface OpenAiHandlerOptions extends ApiHandlerOptions {
+	defaultHeaders?: Record<string, string>
+}
 
 export const DEEP_SEEK_DEFAULT_TEMPERATURE = 0.6
 const OPENAI_DEFAULT_TEMPERATURE = 0
 
 export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
-	protected options: ApiHandlerOptions
+	protected options: OpenAiHandlerOptions
 	private client: OpenAI
 
-	constructor(options: ApiHandlerOptions) {
+	constructor(options: OpenAiHandlerOptions) {
 		this.options = options
 
 		const baseURL = this.options.openAiBaseUrl ?? "https://api.openai.com/v1"
@@ -44,7 +48,7 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
 			})
 		} else {
-			this.client = new OpenAI({ baseURL, apiKey })
+			this.client = new OpenAI({ baseURL, apiKey, defaultHeaders: this.options.defaultHeaders })
 		}
 	}
 
@@ -103,11 +107,7 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 					}
 				}
 				if (chunk.usage) {
-					yield {
-						type: "usage",
-						inputTokens: chunk.usage.prompt_tokens || 0,
-						outputTokens: chunk.usage.completion_tokens || 0,
-					}
+					yield this.processUsageMetrics(chunk.usage)
 				}
 			}
 		} else {
@@ -130,11 +130,15 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 				type: "text",
 				text: response.choices[0]?.message.content || "",
 			}
-			yield {
-				type: "usage",
-				inputTokens: response.usage?.prompt_tokens || 0,
-				outputTokens: response.usage?.completion_tokens || 0,
-			}
+			yield this.processUsageMetrics(response.usage)
+		}
+	}
+
+	protected processUsageMetrics(usage: any): ApiStreamUsageChunk {
+		return {
+			type: "usage",
+			inputTokens: usage?.prompt_tokens || 0,
+			outputTokens: usage?.completion_tokens || 0,
 		}
 	}
 

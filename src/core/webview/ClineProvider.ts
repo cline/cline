@@ -59,6 +59,7 @@ type SecretKey =
 	| "deepSeekApiKey"
 	| "mistralApiKey"
 	| "unboundApiKey"
+	| "requestyApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -122,6 +123,8 @@ type GlobalStateKey =
 	| "autoApprovalEnabled"
 	| "customModes" // Array of custom modes
 	| "unboundModelId"
+	| "requestyModelId"
+	| "requestyModelInfo"
 	| "unboundModelInfo"
 	| "modelTemperature"
 
@@ -130,6 +133,7 @@ export const GlobalFileNames = {
 	uiMessages: "ui_messages.json",
 	glamaModels: "glama_models.json",
 	openRouterModels: "openrouter_models.json",
+	requestyModels: "requesty_models.json",
 	mcpSettings: "cline_mcp_settings.json",
 	unboundModels: "unbound_models.json",
 }
@@ -686,6 +690,25 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							}
 						})
 
+						this.readRequestyModels().then((requestyModels) => {
+							if (requestyModels) {
+								this.postMessageToWebview({ type: "requestyModels", requestyModels })
+							}
+						})
+						this.refreshRequestyModels().then(async (requestyModels) => {
+							if (requestyModels) {
+								// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+								const { apiConfiguration } = await this.getState()
+								if (apiConfiguration.requestyModelId) {
+									await this.updateGlobalState(
+										"requestyModelInfo",
+										requestyModels[apiConfiguration.requestyModelId],
+									)
+									await this.postStateToWebview()
+								}
+							}
+						})
+
 						this.configManager
 							.listConfig()
 							.then(async (listApiConfig) => {
@@ -847,6 +870,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "refreshUnboundModels":
 						await this.refreshUnboundModels()
+						break
+					case "refreshRequestyModels":
+						if (message?.values?.apiKey) {
+							const requestyModels = await this.refreshRequestyModels(message?.values?.apiKey)
+							this.postMessageToWebview({ type: "requestyModels", requestyModels: requestyModels })
+						}
 						break
 					case "openImage":
 						openImage(message.text!)
@@ -1588,6 +1617,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			unboundApiKey,
 			unboundModelId,
 			unboundModelInfo,
+			requestyApiKey,
+			requestyModelId,
+			requestyModelInfo,
 			modelTemperature,
 		} = apiConfiguration
 		await this.updateGlobalState("apiProvider", apiProvider)
@@ -1630,6 +1662,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("unboundApiKey", unboundApiKey)
 		await this.updateGlobalState("unboundModelId", unboundModelId)
 		await this.updateGlobalState("unboundModelInfo", unboundModelInfo)
+		await this.storeSecret("requestyApiKey", requestyApiKey)
+		await this.updateGlobalState("requestyModelId", requestyModelId)
+		await this.updateGlobalState("requestyModelInfo", requestyModelInfo)
 		await this.updateGlobalState("modelTemperature", modelTemperature)
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
@@ -1771,6 +1806,93 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		} catch (error) {
 			return []
 		}
+	}
+
+	// Requesty
+	async readRequestyModels(): Promise<Record<string, ModelInfo> | undefined> {
+		const requestyModelsFilePath = path.join(
+			await this.ensureCacheDirectoryExists(),
+			GlobalFileNames.requestyModels,
+		)
+		const fileExists = await fileExistsAtPath(requestyModelsFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(requestyModelsFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	}
+
+	async refreshRequestyModels(apiKey?: string) {
+		const requestyModelsFilePath = path.join(
+			await this.ensureCacheDirectoryExists(),
+			GlobalFileNames.requestyModels,
+		)
+
+		const models: Record<string, ModelInfo> = {}
+		try {
+			const config: Record<string, any> = {}
+			if (!apiKey) {
+				apiKey = (await this.getSecret("requestyApiKey")) as string
+			}
+			if (apiKey) {
+				config["headers"] = { Authorization: `Bearer ${apiKey}` }
+			}
+
+			const response = await axios.get("https://router.requesty.ai/v1/models", config)
+			/*
+				{
+					"id": "anthropic/claude-3-5-sonnet-20240620",
+					"object": "model",
+					"created": 1738243330,
+					"owned_by": "system",
+					"input_price": 0.000003,
+					"caching_price": 0.00000375,
+					"cached_price": 3E-7,
+					"output_price": 0.000015,
+					"max_output_tokens": 8192,
+					"context_window": 200000,
+					"supports_caching": true,
+					"description": "Anthropic's most intelligent model. Highest level of intelligence and capability"
+					},
+				}
+			*/
+			if (response.data) {
+				const rawModels = response.data.data
+				const parsePrice = (price: any) => {
+					if (price) {
+						return parseFloat(price) * 1_000_000
+					}
+					return undefined
+				}
+				for (const rawModel of rawModels) {
+					const modelInfo: ModelInfo = {
+						maxTokens: rawModel.max_output_tokens,
+						contextWindow: rawModel.context_window,
+						supportsImages: rawModel.support_image,
+						supportsComputerUse: rawModel.support_computer_use,
+						supportsPromptCache: rawModel.supports_caching,
+						inputPrice: parsePrice(rawModel.input_price),
+						outputPrice: parsePrice(rawModel.output_price),
+						description: rawModel.description,
+						cacheWritesPrice: parsePrice(rawModel.caching_price),
+						cacheReadsPrice: parsePrice(rawModel.cached_price),
+					}
+
+					models[rawModel.id] = modelInfo
+				}
+			} else {
+				this.outputChannel.appendLine("Invalid response from Requesty API")
+			}
+			await fs.writeFile(requestyModelsFilePath, JSON.stringify(models))
+			this.outputChannel.appendLine(`Requesty models fetched and saved: ${JSON.stringify(models, null, 2)}`)
+		} catch (error) {
+			this.outputChannel.appendLine(
+				`Error fetching Requesty models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+			)
+		}
+
+		await this.postMessageToWebview({ type: "requestyModels", requestyModels: models })
+		return models
 	}
 
 	// OpenRouter
@@ -2391,6 +2513,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			unboundApiKey,
 			unboundModelId,
 			unboundModelInfo,
+			requestyApiKey,
+			requestyModelId,
+			requestyModelInfo,
 			modelTemperature,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -2468,6 +2593,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getSecret("unboundApiKey") as Promise<string | undefined>,
 			this.getGlobalState("unboundModelId") as Promise<string | undefined>,
 			this.getGlobalState("unboundModelInfo") as Promise<ModelInfo | undefined>,
+			this.getSecret("requestyApiKey") as Promise<string | undefined>,
+			this.getGlobalState("requestyModelId") as Promise<string | undefined>,
+			this.getGlobalState("requestyModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("modelTemperature") as Promise<number | undefined>,
 		])
 
@@ -2527,6 +2655,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				unboundApiKey,
 				unboundModelId,
 				unboundModelInfo,
+				requestyApiKey,
+				requestyModelId,
+				requestyModelInfo,
 				modelTemperature,
 			},
 			lastShownAnnouncementId,
@@ -2681,6 +2812,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"deepSeekApiKey",
 			"mistralApiKey",
 			"unboundApiKey",
+			"requestyApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
