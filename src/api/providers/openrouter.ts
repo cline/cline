@@ -6,6 +6,9 @@ import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefau
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
 import delay from "delay"
+import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./openai"
+
+const OPENROUTER_DEFAULT_TEMPERATURE = 0
 
 // Add custom interface for OpenRouter params
 type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
@@ -115,7 +118,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 				break
 		}
 
-		let temperature = 0
+		let defaultTemperature = OPENROUTER_DEFAULT_TEMPERATURE
 		let topP: number | undefined = undefined
 
 		// Handle models based on deepseek-r1
@@ -124,9 +127,8 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 			this.getModel().id === "perplexity/sonar-reasoning"
 		) {
 			// Recommended temperature for DeepSeek reasoning models
-			temperature = 0.6
-			// DeepSeek highly recommends using user instead of system
-			// role
+			defaultTemperature = DEEP_SEEK_DEFAULT_TEMPERATURE
+			// DeepSeek highly recommends using user instead of system role
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 			// Some provider support topP and 0.95 is value that Deepseek used in their benchmarks
 			topP = 0.95
@@ -137,7 +139,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
 			max_tokens: maxTokens,
-			temperature: temperature,
+			temperature: this.options.modelTemperature ?? defaultTemperature,
 			top_p: topP,
 			messages: openAiMessages,
 			stream: true,
@@ -224,7 +226,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 			const response = await this.client.chat.completions.create({
 				model: this.getModel().id,
 				messages: [{ role: "user", content: prompt }],
-				temperature: 0,
+				temperature: this.options.modelTemperature ?? OPENROUTER_DEFAULT_TEMPERATURE,
 				stream: false,
 			})
 
