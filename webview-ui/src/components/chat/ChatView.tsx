@@ -919,7 +919,7 @@ const ScrollToBottomButton = styled.div`
 	justify-content: center;
 	align-items: center;
 	flex: 1;
-	height: 24px;
+	height: 25px;
 
 	&:hover {
 		background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 90%, transparent);
