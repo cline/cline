@@ -439,7 +439,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</p>
 				</div>
 			)}
-			
+
 			{selectedProvider === "vortn" && (
 				<div>
 					<VSCodeTextField
@@ -451,10 +451,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						<span style={{ fontWeight: 500 }}>Vortn API Key</span>
 					</VSCodeTextField>
 					{!apiConfiguration?.vortnApiKey && (
-						<VSCodeButtonLink
-							href={'https://vortn.com/apis'}
-							style={{ margin: "5px 0 0 0" }}
-							appearance="secondary">
+						<VSCodeButtonLink href={"https://vortn.com/apis"} style={{ margin: "5px 0 0 0" }} appearance="secondary">
 							Get Vortn API Key
 						</VSCodeButtonLink>
 					)}

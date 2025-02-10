@@ -211,8 +211,7 @@ export const vortnDefaultModelInfo: ModelInfo = {
 	supportsPromptCache: false,
 	inputPrice: 0,
 	outputPrice: 0,
-	description:
-		"Vortn is using predefined model as defined in space options.",
+	description: "Vortn is using predefined model as defined in space options.",
 }
 
 // Vertex AI

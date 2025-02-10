@@ -35,7 +35,7 @@ export class VortnHandler implements ApiHandler {
 			temperature: 0,
 			messages: openAiMessages,
 			stream: true,
-			stream_options: {"include_usage": true}
+			stream_options: { include_usage: true },
 		})
 
 		for await (const chunk of stream) {
@@ -53,7 +53,7 @@ export class VortnHandler implements ApiHandler {
 					text: delta.content,
 				}
 			}
-			
+
 			if (chunk.usage) {
 				yield {
 					type: "usage",
@@ -62,10 +62,9 @@ export class VortnHandler implements ApiHandler {
 					totalCost: chunk.usage.total_tokens || 0,
 				}
 			}
-			
 		}
 	}
-	
+
 	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.vortnModelId
 		const modelInfo = this.options.vortnModelInfo
