@@ -423,7 +423,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									</span>
 								</div>
 							)}
-							{ContextWindowComponent}
+							{/* {ContextWindowComponent} */}
 							{isCostAvailable && (
 								<div
 									style={{

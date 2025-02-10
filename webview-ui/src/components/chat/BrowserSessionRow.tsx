@@ -1,17 +1,16 @@
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
+import styled from "styled-components"
+import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
 import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "../../../../src/shared/ExtensionMessage"
+import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
+import { BrowserSettingsMenu } from "../browser/BrowserSettingsMenu"
+import { CheckpointControls } from "../common/CheckpointControls"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { ChatRowContent, ProgressIndicator } from "./ChatRow"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import styled from "styled-components"
-import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
-import { findLast } from "../../../../src/shared/array"
-import { BrowserSettingsMenu } from "../browser/BrowserSettingsMenu"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -144,10 +143,10 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		return launchMessage?.say === "browser_action_launch"
 	}, [messages])
 
-	const lastCheckpointMessageTs = useMemo(() => {
-		const lastCheckpointMessage = findLast(messages, (m) => m.lastCheckpointHash !== undefined)
-		return lastCheckpointMessage?.ts
-	}, [messages])
+	// const lastCheckpointMessageTs = useMemo(() => {
+	// 	const lastCheckpointMessage = findLast(messages, (m) => m.lastCheckpointHash !== undefined)
+	// 	return lastCheckpointMessage?.ts
+	// }, [messages])
 
 	// Find the latest available URL and screenshot
 	const latestState = useMemo(() => {
@@ -231,10 +230,10 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	// Use latest click position while browsing, otherwise use display state
 	const mousePosition = isBrowsing ? latestClickPosition || displayState.mousePosition : displayState.mousePosition
 
-	let shouldShowCheckpoints = true
-	if (isLast) {
-		shouldShowCheckpoints = lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
-	}
+	// let shouldShowCheckpoints = true
+	// if (isLast) {
+	// 	shouldShowCheckpoints = lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
+	// }
 
 	const shouldShowSettings = useMemo(() => {
 		const lastMessage = messages[messages.length - 1]
@@ -423,7 +422,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				</div>
 			)}
 
-			{shouldShowCheckpoints && <CheckpointOverlay messageTs={lastCheckpointMessageTs} />}
+			{/* {shouldShowCheckpoints && <CheckpointOverlay messageTs={lastCheckpointMessageTs} />} */}
 		</BrowserSessionRowContainer>,
 	)
 
