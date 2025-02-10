@@ -9,12 +9,7 @@ interface ExperimentalFeatureProps {
 
 const ExperimentalFeature = ({ name, description, enabled, onChange }: ExperimentalFeatureProps) => {
 	return (
-		<div
-			style={{
-				marginTop: 10,
-				paddingLeft: 10,
-				borderLeft: "2px solid var(--vscode-button-background)",
-			}}>
+		<div>
 			<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
 				<span style={{ color: "var(--vscode-errorForeground)" }}>⚠️</span>
 				<VSCodeCheckbox checked={enabled} onChange={(e: any) => onChange(e.target.checked)}>

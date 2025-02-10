@@ -5,6 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"lint": "eslint src --ext ts,tsx",
+		"lint-fix": "eslint src --ext ts,tsx --fix",
 		"check-types": "tsc --noEmit",
 		"test": "jest",
 		"dev": "vite",
@@ -19,6 +20,7 @@
 		"@radix-ui/react-icons": "^1.3.2",
 		"@radix-ui/react-popover": "^1.1.6",
 		"@radix-ui/react-slot": "^1.1.1",
+		"@radix-ui/react-tooltip": "^1.1.8",
 		"@tailwindcss/vite": "^4.0.0",
 		"@vscode/webview-ui-toolkit": "^1.4.0",
 		"class-variance-authority": "^0.7.1",

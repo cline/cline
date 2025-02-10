@@ -60,6 +60,7 @@ export interface ApiHandlerOptions {
 	includeMaxTokens?: boolean
 	unboundApiKey?: string
 	unboundModelId?: string
+	unboundModelInfo?: ModelInfo
 	modelTemperature?: number
 }
 
@@ -651,12 +652,14 @@ export const mistralModels = {
 } as const satisfies Record<string, ModelInfo>
 
 // Unbound Security
-export type UnboundModelId = keyof typeof unboundModels
-export const unboundDefaultModelId = "openai/gpt-4o"
-export const unboundModels = {
-	"anthropic/claude-3-5-sonnet-20241022": anthropicModels["claude-3-5-sonnet-20241022"],
-	"openai/gpt-4o": openAiNativeModels["gpt-4o"],
-	"deepseek/deepseek-chat": deepSeekModels["deepseek-chat"],
-	"deepseek/deepseek-reasoner": deepSeekModels["deepseek-reasoner"],
-	"mistral/codestral-latest": mistralModels["codestral-latest"],
-} as const satisfies Record<string, ModelInfo>
+export const unboundDefaultModelId = "anthropic/claude-3-5-sonnet-20241022"
+export const unboundDefaultModelInfo: ModelInfo = {
+	maxTokens: 8192,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
+}

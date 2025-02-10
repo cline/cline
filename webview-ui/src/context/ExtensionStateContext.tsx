@@ -8,6 +8,8 @@ import {
 	glamaDefaultModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
+	unboundDefaultModelId,
+	unboundDefaultModelInfo,
 } from "../../../src/shared/api"
 import { vscode } from "../utils/vscode"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
@@ -24,8 +26,10 @@ export interface ExtensionStateContextType extends ExtensionState {
 	theme: any
 	glamaModels: Record<string, ModelInfo>
 	openRouterModels: Record<string, ModelInfo>
+	unboundModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	mcpServers: McpServer[]
+	currentCheckpoint?: string
 	filePaths: string[]
 	openedTabs: Array<{ label: string; isActive: boolean; path?: string }>
 	setApiConfiguration: (config: ApiConfiguration) => void
@@ -41,6 +45,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setSoundEnabled: (value: boolean) => void
 	setSoundVolume: (value: number) => void
 	setDiffEnabled: (value: boolean) => void
+	setCheckpointsEnabled: (value: boolean) => void
 	setBrowserViewportSize: (value: string) => void
 	setFuzzyMatchThreshold: (value: number) => void
 	preferredLanguage: string
@@ -88,6 +93,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		soundEnabled: false,
 		soundVolume: 0.5,
 		diffEnabled: false,
+		checkpointsEnabled: false,
 		fuzzyMatchThreshold: 1.0,
 		preferredLanguage: "English",
 		writeDelayMs: 1000,
@@ -121,9 +127,13 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
+	const [unboundModels, setUnboundModels] = useState<Record<string, ModelInfo>>({
+		[unboundDefaultModelId]: unboundDefaultModelInfo,
+	})
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
+	const [currentCheckpoint, setCurrentCheckpoint] = useState<string>()
 
 	const setListApiConfigMeta = useCallback(
 		(value: ApiConfigMeta[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })),
@@ -235,8 +245,17 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 					setOpenAiModels(updatedModels)
 					break
 				}
+				case "unboundModels": {
+					const updatedModels = message.unboundModels ?? {}
+					setUnboundModels(updatedModels)
+					break
+				}
 				case "mcpServers": {
 					setMcpServers(message.mcpServers ?? [])
+					break
+				}
+				case "currentCheckpointUpdated": {
+					setCurrentCheckpoint(message.text)
 					break
 				}
 				case "listApiConfig": {
@@ -262,7 +281,9 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		glamaModels,
 		openRouterModels,
 		openAiModels,
+		unboundModels,
 		mcpServers,
+		currentCheckpoint,
 		filePaths,
 		openedTabs,
 		soundVolume: state.soundVolume,
@@ -288,6 +309,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setSoundEnabled: (value) => setState((prevState) => ({ ...prevState, soundEnabled: value })),
 		setSoundVolume: (value) => setState((prevState) => ({ ...prevState, soundVolume: value })),
 		setDiffEnabled: (value) => setState((prevState) => ({ ...prevState, diffEnabled: value })),
+		setCheckpointsEnabled: (value) => setState((prevState) => ({ ...prevState, checkpointsEnabled: value })),
 		setBrowserViewportSize: (value: string) =>
 			setState((prevState) => ({ ...prevState, browserViewportSize: value })),
 		setFuzzyMatchThreshold: (value) => setState((prevState) => ({ ...prevState, fuzzyMatchThreshold: value })),
