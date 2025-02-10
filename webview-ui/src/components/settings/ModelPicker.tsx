@@ -23,17 +23,19 @@ import { vscode } from "../../utils/vscode"
 import { normalizeApiConfiguration } from "./ApiOptions"
 import { ModelInfoView } from "./ModelInfoView"
 
-interface ModelPickerProps {
+type ModelProvider = "glama" | "openRouter" | "unbound" | "requesty" | "openAi"
+
+type ModelKeys<T extends ModelProvider> = `${T}Models`
+type ConfigKeys<T extends ModelProvider> = `${T}ModelId`
+type InfoKeys<T extends ModelProvider> = `${T}ModelInfo`
+type RefreshMessageType<T extends ModelProvider> = `refresh${Capitalize<T>}Models`
+
+interface ModelPickerProps<T extends ModelProvider = ModelProvider> {
 	defaultModelId: string
-	modelsKey: "glamaModels" | "openRouterModels" | "unboundModels" | "requestyModels" | "openAiModels"
-	configKey: "glamaModelId" | "openRouterModelId" | "unboundModelId" | "requestyModelId" | "openAiModelId"
-	infoKey: "glamaModelInfo" | "openRouterModelInfo" | "unboundModelInfo" | "requestyModelInfo" | "openAiModelInfo"
-	refreshMessageType:
-		| "refreshGlamaModels"
-		| "refreshOpenRouterModels"
-		| "refreshUnboundModels"
-		| "refreshRequestyModels"
-		| "refreshOpenAiModels"
+	modelsKey: ModelKeys<T>
+	configKey: ConfigKeys<T>
+	infoKey: InfoKeys<T>
+	refreshMessageType: RefreshMessageType<T>
 	refreshValues?: Record<string, any>
 	serviceName: string
 	serviceUrl: string
