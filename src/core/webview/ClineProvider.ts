@@ -628,7 +628,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						if (this.mcpHub) {
 							this.postMessageToWebview({
 								type: "mcpServers",
-								mcpServers: this.mcpHub.getServers(),
+								mcpServers: this.mcpHub.getAllServers(),
 							})
 						}
 
@@ -2256,7 +2256,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
 			customModes: await this.customModesManager.getCustomModes(),
 			experiments: experiments ?? experimentDefault,
-			mcpServers: this.mcpHub?.getServers() ?? [],
+			mcpServers: this.mcpHub?.getAllServers() ?? [],
 		}
 	}
 
