@@ -19,6 +19,9 @@ import Thumbnails from "../common/Thumbnails"
 import ApiOptions, { normalizeApiConfiguration } from "../settings/ApiOptions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
+import { useShortcut } from "../../utils/hooks"
+import Tooltip from "../common/Tooltip"
+import { useMetaKeyDetection } from "../../utils/hooks"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -210,7 +213,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration, openRouterModels } = useExtensionState()
+		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -231,6 +234,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const buttonRef = useRef<HTMLDivElement>(null)
 		const [arrowPosition, setArrowPosition] = useState(0)
 		const [menuPosition, setMenuPosition] = useState(0)
+
+		const [, metaKeyChar] = useMetaKeyDetection(platform)
 
 		// Add a ref to track previous menu state
 		const prevShowModelSelector = useRef(showModelSelector)
@@ -619,6 +624,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}, changeModeDelay)
 		}, [chatSettings.mode, showModelSelector, submitApiConfig])
 
+		useShortcut("Meta+Shift+a", onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
+
 		const handleContextButtonClick = useCallback(() => {
 			if (textAreaDisabled) return
 
@@ -695,6 +702,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return `openai-compat:${selectedModelId}`
 				case "vscode-lm":
 					return `vscode-lm:${apiConfiguration.vsCodeLmModelSelector ? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}` : unknownModel}`
+				case "together":
+					return `${selectedProvider}:${apiConfiguration.togetherModelId}`
+				case "lmstudio":
+					return `${selectedProvider}:${apiConfiguration.lmStudioModelId}`
+				case "ollama":
+					return `${selectedProvider}:${apiConfiguration.ollamaModelId}`
+				case "litellm":
+					return `${selectedProvider}:${apiConfiguration.liteLlmModelId}`
+				case "requesty":
+					return `${selectedProvider}:${apiConfiguration.requestyModelId}`
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}
@@ -1067,12 +1084,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							)}
 						</ModelContainer>
 					</ButtonGroup>
-
-					<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
-						<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
-						<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
-						<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
-					</SwitchContainer>
+					<Tooltip
+						tipText={`In ${chatSettings.mode === "act" ? "Act" : "Plan"}  mode, Cline will ${chatSettings.mode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
+						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
+						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+							<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
+							<SwitchOption isActive={chatSettings.mode === "plan"}>Plan</SwitchOption>
+							<SwitchOption isActive={chatSettings.mode === "act"}>Act</SwitchOption>
+						</SwitchContainer>
+					</Tooltip>
 				</ControlsContainer>
 			</div>
 		)

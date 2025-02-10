@@ -38,6 +38,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "qwen":
+				if (!apiConfiguration.qwenApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "mistral":
 				if (!apiConfiguration.mistralApiKey) {
 					return "You must provide a valid API key or choose a different provider."
@@ -46,6 +51,16 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 			case "openai":
 				if (!apiConfiguration.openAiBaseUrl || !apiConfiguration.openAiApiKey || !apiConfiguration.openAiModelId) {
 					return "You must provide a valid base URL, API key, and model ID."
+				}
+				break
+			case "requesty":
+				if (!apiConfiguration.requestyApiKey || !apiConfiguration.requestyModelId) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
+			case "together":
+				if (!apiConfiguration.togetherApiKey || !apiConfiguration.togetherModelId) {
+					return "You must provide a valid API key or choose a different provider."
 				}
 				break
 			case "ollama":

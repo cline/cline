@@ -8,13 +8,19 @@ export type ApiProvider =
 	| "lmstudio"
 	| "gemini"
 	| "openai-native"
+	| "requesty"
+	| "together"
 	| "deepseek"
+	| "qwen"
 	| "mistral"
 	| "vscode-lm"
+	| "litellm"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
+	liteLlmBaseUrl?: string
+	liteLlmModelId?: string
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
@@ -24,6 +30,8 @@ export interface ApiHandlerOptions {
 	awsSessionToken?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
+	awsUseProfile?: boolean
+	awsProfile?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
@@ -36,9 +44,16 @@ export interface ApiHandlerOptions {
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
+	requestyApiKey?: string
+	requestyModelId?: string
+	togetherApiKey?: string
+	togetherModelId?: string
+	qwenApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
+	o3MiniReasoningEffort?: string
+	qwenApiLine?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -166,7 +181,7 @@ export const bedrockModels = {
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export const openRouterDefaultModelId = "anthropic/claude-3.5-sonnet:beta" // will always exist in openRouterModels
+export const openRouterDefaultModelId = "anthropic/claude-3.5-sonnet" // will always exist in openRouterModels
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
@@ -178,7 +193,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description:
-		"The new Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: New Sonnet scores ~49% on SWE-Bench Verified, higher than the last best score, and without any fancy prompt scaffolding\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal\n\n_This is a faster endpoint, made available in collaboration with Anthropic, that is self-moderated: response moderation happens on the provider's side instead of OpenRouter's. For requests that pass moderation, it's identical to the [Standard](/anthropic/claude-3.5-sonnet) variant._",
+		"The new Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: New Sonnet scores ~49% on SWE-Bench Verified, higher than the last best score, and without any fancy prompt scaffolding\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal",
 }
 
 // Vertex AI
@@ -241,10 +256,34 @@ export const openAiModelInfoSaneDefaults: ModelInfo = {
 // Gemini
 // https://ai.google.dev/gemini-api/docs/models/gemini
 export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-thinking-exp-1219"
+export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-001"
 export const geminiModels = {
+	"gemini-2.0-flash-001": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-flash-lite-preview-02-05": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-pro-exp-02-05": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
-		maxTokens: 65536,
+		maxTokens: 65_536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
@@ -262,14 +301,6 @@ export const geminiModels = {
 	"gemini-2.0-flash-exp": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-exp-1206": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -315,6 +346,14 @@ export const geminiModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
+	"gemini-exp-1206": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // OpenAI Native
@@ -352,16 +391,16 @@ export const openAiNativeModels = {
 		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3,
-		outputPrice: 12,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
 	},
 	"gpt-4o": {
 		maxTokens: 4_096,
 		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 5,
-		outputPrice: 15,
+		inputPrice: 2.5,
+		outputPrice: 10,
 	},
 	"gpt-4o-mini": {
 		maxTokens: 16_384,
@@ -405,13 +444,164 @@ export const deepSeekModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
+// Qwen
+// https://bailian.console.aliyun.com/
+export type QwenModelId = keyof typeof qwenModels
+export const qwenDefaultModelId: QwenModelId = "qwen-coder-plus-latest"
+export const qwenModels = {
+	"qwen-coder-plus-latest": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0035,
+		outputPrice: 0.007,
+		cacheWritesPrice: 0.0035,
+		cacheReadsPrice: 0.007,
+	},
+	"qwen-plus-latest": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0008,
+		outputPrice: 0.002,
+		cacheWritesPrice: 0.0004,
+		cacheReadsPrice: 0.001,
+	},
+	"qwen-turbo-latest": {
+		maxTokens: 1_000_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0003,
+		outputPrice: 0.0006,
+		cacheWritesPrice: 0.00015,
+		cacheReadsPrice: 0.0003,
+	},
+	"qwen-max-latest": {
+		maxTokens: 30_720,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0112,
+		outputPrice: 0.0448,
+		cacheWritesPrice: 0.0056,
+		cacheReadsPrice: 0.0224,
+	},
+	"qwen-coder-plus": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0035,
+		outputPrice: 0.007,
+		cacheWritesPrice: 0.0035,
+		cacheReadsPrice: 0.007,
+	},
+	"qwen-plus": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0008,
+		outputPrice: 0.002,
+		cacheWritesPrice: 0.0004,
+		cacheReadsPrice: 0.001,
+	},
+	"qwen-turbo": {
+		maxTokens: 1_000_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0003,
+		outputPrice: 0.0006,
+		cacheWritesPrice: 0.00015,
+		cacheReadsPrice: 0.0003,
+	},
+	"qwen-max": {
+		maxTokens: 30_720,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0112,
+		outputPrice: 0.0448,
+		cacheWritesPrice: 0.0056,
+		cacheReadsPrice: 0.0224,
+	},
+} as const satisfies Record<string, ModelInfo>
+
 // Mistral
 // https://docs.mistral.ai/getting-started/models/models_overview/
 export type MistralModelId = keyof typeof mistralModels
-export const mistralDefaultModelId: MistralModelId = "codestral-latest"
+export const mistralDefaultModelId: MistralModelId = "codestral-2501"
 export const mistralModels = {
-	"codestral-latest": {
-		maxTokens: 32_768,
+	"mistral-large-2411": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+	},
+	"pixtral-large-2411": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+	},
+	"ministral-3b-2410": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.04,
+		outputPrice: 0.04,
+	},
+	"ministral-8b-2410": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.1,
+	},
+	"mistral-small-2501": {
+		maxTokens: 32_000,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"pixtral-12b-2409": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+	},
+	"open-mistral-nemo-2407": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+	},
+	"open-codestral-mamba": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+	},
+	"codestral-2501": {
+		maxTokens: 256_000,
 		contextWindow: 256_000,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -419,3 +609,16 @@ export const mistralModels = {
 		outputPrice: 0.9,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// LiteLLM
+// https://docs.litellm.ai/docs/
+export type LiteLLMModelId = string
+export const liteLlmDefaultModelId = "gpt-3.5-turbo"
+export const liteLlmModelInfoSaneDefaults: ModelInfo = {
+	maxTokens: 4096,
+	contextWindow: 8192,
+	supportsImages: false,
+	supportsPromptCache: false,
+	inputPrice: 0,
+	outputPrice: 0,
+}
