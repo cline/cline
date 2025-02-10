@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.3.17
-
-### Patch Changes
+## [3.3.17]
 
 - v3.3.17
 
