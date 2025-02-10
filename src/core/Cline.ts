@@ -2978,6 +2978,12 @@ export class Cline {
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
 		const previousApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 
+		// Save checkpoint if this is the first API request
+		const isFirstRequest = this.clineMessages.filter((m) => m.say === "api_req_started").length === 0
+		if (isFirstRequest) {
+			await this.say("checkpoint_created") // no hash since we need to wait for CheckpointTracker to be initialized
+		}
+
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
 		await this.say(
@@ -2998,6 +3004,16 @@ export class Cline {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 				this.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+			}
+		}
+
+		// Now that checkpoint tracker is initialized, update the dummy checkpoint_created message with the commit hash. (This is necessary since we use the API request loading as an opportunity to initialize the checkpoint tracker, which can take some time)
+		if (isFirstRequest) {
+			const commitHash = await this.checkpointTracker?.commit()
+			const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
+			if (lastCheckpointMessage) {
+				lastCheckpointMessage.lastCheckpointHash = commitHash
+				await this.saveClineMessages()
 			}
 		}
 
