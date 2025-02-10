@@ -1,5 +1,4 @@
-import React from "react"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import SettingsView from "../SettingsView"
 import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext"
 import { vscode } from "../../../utils/vscode"
@@ -14,14 +13,7 @@ jest.mock("../../../utils/vscode", () => ({
 // Mock ApiConfigManager component
 jest.mock("../ApiConfigManager", () => ({
 	__esModule: true,
-	default: ({
-		currentApiConfigName,
-		listApiConfigMeta,
-		onSelectConfig,
-		onDeleteConfig,
-		onRenameConfig,
-		onUpsertConfig,
-	}: any) => (
+	default: ({ currentApiConfigName }: any) => (
 		<div data-testid="api-config-management">
 			<span>Current config: {currentApiConfigName}</span>
 		</div>
@@ -134,7 +126,7 @@ describe("SettingsView - Sound Settings", () => {
 		expect(screen.queryByRole("slider", { name: /volume/i })).not.toBeInTheDocument()
 	})
 
-	it("toggles sound setting and sends message to VSCode", () => {
+	it("toggles sound setting and sends message to VSCode", async () => {
 		renderSettingsView()
 
 		const soundCheckbox = screen.getByRole("checkbox", {
@@ -149,12 +141,14 @@ describe("SettingsView - Sound Settings", () => {
 		const doneButton = screen.getByText("Done")
 		fireEvent.click(doneButton)
 
-		expect(vscode.postMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "soundEnabled",
-				bool: true,
-			}),
-		)
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "soundEnabled",
+					bool: true,
+				}),
+			)
+		})
 	})
 
 	it("shows volume slider when sound is enabled", () => {
@@ -172,7 +166,7 @@ describe("SettingsView - Sound Settings", () => {
 		expect(volumeSlider).toHaveValue("0.5")
 	})
 
-	it("updates volume and sends message to VSCode when slider changes", () => {
+	it("updates volume and sends message to VSCode when slider changes", async () => {
 		renderSettingsView()
 
 		// Enable sound
@@ -190,9 +184,11 @@ describe("SettingsView - Sound Settings", () => {
 		fireEvent.click(doneButton)
 
 		// Verify message sent to VSCode
-		expect(vscode.postMessage).toHaveBeenCalledWith({
-			type: "soundVolume",
-			value: 0.75,
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith({
+				type: "soundVolume",
+				value: 0.75,
+			})
 		})
 	})
 })
@@ -309,7 +305,7 @@ describe("SettingsView - Allowed Commands", () => {
 		expect(commands).toHaveLength(1)
 	})
 
-	it("saves allowed commands when clicking Done", () => {
+	it("saves allowed commands when clicking Done", async () => {
 		const { onDone } = renderSettingsView()
 
 		// Enable always allow execute
@@ -329,12 +325,14 @@ describe("SettingsView - Allowed Commands", () => {
 		fireEvent.click(doneButton)
 
 		// Verify VSCode messages were sent
-		expect(vscode.postMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				type: "allowedCommands",
-				commands: ["npm test"],
-			}),
-		)
-		expect(onDone).toHaveBeenCalled()
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "allowedCommands",
+					commands: ["npm test"],
+				}),
+			)
+			expect(onDone).toHaveBeenCalled()
+		})
 	})
 })
