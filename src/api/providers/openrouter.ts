@@ -184,9 +184,9 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		}
 
 		// retry fetching generation details
-		let retries = 0
-		while (retries < 3) {
-			await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
+		let attempt = 0
+		while (attempt++ < 10) {
+			await delay(200) // FIXME: necessary delay to ensure generation endpoint is ready
 			try {
 				const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
 					headers: {
@@ -207,6 +207,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 					totalCost: generation?.total_cost || 0,
 					fullResponseText,
 				} as OpenRouterApiStreamUsageChunk
+				return
 			} catch (error) {
 				// ignore if fails
 				console.error("Error fetching OpenRouter generation details:", error)
