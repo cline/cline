@@ -161,6 +161,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Enables extension to save checkpoints of workspace throughout the task."
+				},
+				"cline.enableBrowserSession": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enables extension to spawn a browser session."
 				}
 			}
 		}

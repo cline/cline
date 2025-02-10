@@ -34,4 +34,15 @@ describe("Extension Tests", function () {
 		await vscode.commands.executeCommand("cline.historyButtonClicked")
 		// Success if no error thrown
 	})
+
+	it("should handle advanced settings configuration", async () => {
+		const config = vscode.workspace.getConfiguration("cline");
+
+		// Test browser session setting
+		await vscode.workspace.getConfiguration().update("cline.enableBrowserSession", true, true);
+		expect(config.get("enableBrowserSession")).to.be.true;
+
+		// Reset settings
+		await vscode.workspace.getConfiguration().update("cline.enableBrowserSession", undefined, true);
+	})
 })
