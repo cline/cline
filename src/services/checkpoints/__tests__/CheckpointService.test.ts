@@ -4,7 +4,7 @@ import fs from "fs/promises"
 import path from "path"
 import os from "os"
 
-import { simpleGit, SimpleGit } from "simple-git"
+import { simpleGit, SimpleGit, SimpleGitTaskCallback } from "simple-git"
 
 import { CheckpointService } from "../CheckpointService"
 
@@ -364,6 +364,48 @@ describe("CheckpointService", () => {
 
 			expect((await newGit.getConfig("user.name")).value).toBe(userName)
 			expect((await newGit.getConfig("user.email")).value).toBe(userEmail)
+
+			await fs.rm(baseDir, { recursive: true, force: true })
+		})
+
+		it("removes local git config if it matches default and global exists", async () => {
+			const baseDir = path.join(os.tmpdir(), `checkpoint-service-test-config2-${Date.now()}`)
+			const repo = await initRepo({ baseDir })
+			const newGit = repo.git
+
+			const originalGetConfig = newGit.getConfig.bind(newGit)
+
+			jest.spyOn(newGit, "getConfig").mockImplementation(
+				(
+					key: string,
+					scope?: "system" | "global" | "local" | "worktree",
+					callback?: SimpleGitTaskCallback<string>,
+				) => {
+					if (scope === "global") {
+						if (key === "user.email") {
+							return Promise.resolve({ value: "global@example.com" }) as any
+						}
+						if (key === "user.name") {
+							return Promise.resolve({ value: "Global User" }) as any
+						}
+					}
+
+					return originalGetConfig(key, scope, callback)
+				},
+			)
+
+			await CheckpointService.create({ taskId, git: newGit, baseDir, log: () => {} })
+
+			// Verify local config was removed and global config is used.
+			const localName = await newGit.getConfig("user.name", "local")
+			const localEmail = await newGit.getConfig("user.email", "local")
+			const globalName = await newGit.getConfig("user.name", "global")
+			const globalEmail = await newGit.getConfig("user.email", "global")
+
+			expect(localName.value).toBeNull() // Local config should be removed.
+			expect(localEmail.value).toBeNull()
+			expect(globalName.value).toBe("Global User") // Global config should remain.
+			expect(globalEmail.value).toBe("global@example.com")
 
 			await fs.rm(baseDir, { recursive: true, force: true })
 		})
