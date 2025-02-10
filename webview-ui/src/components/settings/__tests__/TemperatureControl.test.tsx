@@ -8,7 +8,7 @@ describe("TemperatureControl", () => {
 
 		const checkbox = screen.getByRole("checkbox")
 		expect(checkbox).not.toBeChecked()
-		expect(screen.queryByRole("slider")).not.toBeInTheDocument()
+		expect(screen.queryByRole("textbox")).not.toBeInTheDocument()
 	})
 
 	it("renders with custom temperature enabled", () => {
@@ -18,9 +18,9 @@ describe("TemperatureControl", () => {
 		const checkbox = screen.getByRole("checkbox")
 		expect(checkbox).toBeChecked()
 
-		const slider = screen.getByRole("slider")
-		expect(slider).toBeInTheDocument()
-		expect(slider).toHaveValue("0.7")
+		const input = screen.getByRole("textbox")
+		expect(input).toBeInTheDocument()
+		expect(input).toHaveValue("0.7")
 	})
 
 	it("updates when checkbox is toggled", () => {
@@ -38,12 +38,13 @@ describe("TemperatureControl", () => {
 		expect(onChange).toHaveBeenCalledWith(0.7)
 	})
 
-	it("updates temperature when slider changes", () => {
+	it("updates temperature when input loses focus", () => {
 		const onChange = jest.fn()
 		render(<TemperatureControl value={0.7} onChange={onChange} />)
 
-		const slider = screen.getByRole("slider")
-		fireEvent.change(slider, { target: { value: "0.8" } })
+		const input = screen.getByRole("textbox")
+		fireEvent.change(input, { target: { value: "0.8" } })
+		fireEvent.blur(input)
 
 		expect(onChange).toHaveBeenCalledWith(0.8)
 	})
@@ -52,8 +53,18 @@ describe("TemperatureControl", () => {
 		const onChange = jest.fn()
 		render(<TemperatureControl value={1.5} onChange={onChange} maxValue={2} />)
 
-		const slider = screen.getByRole("slider")
-		expect(slider).toHaveAttribute("max", "2")
+		const input = screen.getByRole("textbox")
+
+		// Valid value within max
+		fireEvent.change(input, { target: { value: "1.8" } })
+		fireEvent.blur(input)
+		expect(onChange).toHaveBeenCalledWith(1.8)
+
+		// Invalid value above max
+		fireEvent.change(input, { target: { value: "2.5" } })
+		fireEvent.blur(input)
+		expect(input).toHaveValue("1.5") // Should revert to original value
+		expect(onChange).toHaveBeenCalledTimes(1) // Should not call onChange for invalid value
 	})
 
 	it("syncs checkbox state when value prop changes", () => {
