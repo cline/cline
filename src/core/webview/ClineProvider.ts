@@ -1910,7 +1910,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				this.outputChannel.appendLine("Invalid response from Glama API")
 			}
 			await fs.writeFile(glamaModelsFilePath, JSON.stringify(models))
-			this.outputChannel.appendLine(`Glama models fetched and saved: ${JSON.stringify(models, null, 2)}`)
 		} catch (error) {
 			this.outputChannel.appendLine(
 				`Error fetching Glama models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
@@ -2026,7 +2025,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				this.outputChannel.appendLine("Invalid response from OpenRouter API")
 			}
 			await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
-			this.outputChannel.appendLine(`OpenRouter models fetched and saved: ${JSON.stringify(models, null, 2)}`)
 		} catch (error) {
 			this.outputChannel.appendLine(
 				`Error fetching OpenRouter models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
@@ -2066,7 +2064,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 			}
 			await fs.writeFile(unboundModelsFilePath, JSON.stringify(models))
-			this.outputChannel.appendLine(`Unbound models fetched and saved: ${JSON.stringify(models, null, 2)}`)
 		} catch (error) {
 			this.outputChannel.appendLine(
 				`Error fetching Unbound models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
