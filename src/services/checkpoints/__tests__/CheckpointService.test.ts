@@ -14,6 +14,7 @@ describe("CheckpointService", () => {
 	let git: SimpleGit
 	let testFile: string
 	let service: CheckpointService
+	let originalPlatform: string
 
 	const initRepo = async ({
 		baseDir,
@@ -47,6 +48,19 @@ describe("CheckpointService", () => {
 
 		return { git, testFile }
 	}
+
+	beforeAll(() => {
+		originalPlatform = process.platform
+		Object.defineProperty(process, "platform", {
+			value: "darwin",
+		})
+	})
+
+	afterAll(() => {
+		Object.defineProperty(process, "platform", {
+			value: originalPlatform,
+		})
+	})
 
 	beforeEach(async () => {
 		const baseDir = path.join(os.tmpdir(), `checkpoint-service-test-${Date.now()}`)
