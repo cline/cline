@@ -1,7 +1,5 @@
 import { OpenAiHandler } from "../openai"
 import { ApiHandlerOptions } from "../../../shared/api"
-import { ApiStream } from "../../transform/stream"
-import OpenAI from "openai"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 // Mock OpenAI client

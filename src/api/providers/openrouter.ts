@@ -6,6 +6,9 @@ import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefau
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
 import delay from "delay"
+import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./openai"
+
+const OPENROUTER_DEFAULT_TEMPERATURE = 0
 
 // Add custom interface for OpenRouter params
 type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
@@ -115,7 +118,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 				break
 		}
 
-		let temperature = 0
+		let defaultTemperature = OPENROUTER_DEFAULT_TEMPERATURE
 		let topP: number | undefined = undefined
 
 		// Handle models based on deepseek-r1
@@ -124,9 +127,8 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 			this.getModel().id === "perplexity/sonar-reasoning"
 		) {
 			// Recommended temperature for DeepSeek reasoning models
-			temperature = 0.6
-			// DeepSeek highly recommends using user instead of system
-			// role
+			defaultTemperature = DEEP_SEEK_DEFAULT_TEMPERATURE
+			// DeepSeek highly recommends using user instead of system role
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 			// Some provider support topP and 0.95 is value that Deepseek used in their benchmarks
 			topP = 0.95
@@ -137,7 +139,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
 			max_tokens: maxTokens,
-			temperature: temperature,
+			temperature: this.options.modelTemperature ?? defaultTemperature,
 			top_p: topP,
 			messages: openAiMessages,
 			stream: true,
@@ -183,31 +185,35 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 			// }
 		}
 
-		await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
+		// retry fetching generation details
+		let attempt = 0
+		while (attempt++ < 10) {
+			await delay(200) // FIXME: necessary delay to ensure generation endpoint is ready
+			try {
+				const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
+					headers: {
+						Authorization: `Bearer ${this.options.openRouterApiKey}`,
+					},
+					timeout: 5_000, // this request hangs sometimes
+				})
 
-		try {
-			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
-				headers: {
-					Authorization: `Bearer ${this.options.openRouterApiKey}`,
-				},
-				timeout: 5_000, // this request hangs sometimes
-			})
-
-			const generation = response.data?.data
-			console.log("OpenRouter generation details:", response.data)
-			yield {
-				type: "usage",
-				// cacheWriteTokens: 0,
-				// cacheReadTokens: 0,
-				// openrouter generation endpoint fails often
-				inputTokens: generation?.native_tokens_prompt || 0,
-				outputTokens: generation?.native_tokens_completion || 0,
-				totalCost: generation?.total_cost || 0,
-				fullResponseText,
-			} as OpenRouterApiStreamUsageChunk
-		} catch (error) {
-			// ignore if fails
-			console.error("Error fetching OpenRouter generation details:", error)
+				const generation = response.data?.data
+				console.log("OpenRouter generation details:", response.data)
+				yield {
+					type: "usage",
+					// cacheWriteTokens: 0,
+					// cacheReadTokens: 0,
+					// openrouter generation endpoint fails often
+					inputTokens: generation?.native_tokens_prompt || 0,
+					outputTokens: generation?.native_tokens_completion || 0,
+					totalCost: generation?.total_cost || 0,
+					fullResponseText,
+				} as OpenRouterApiStreamUsageChunk
+				return
+			} catch (error) {
+				// ignore if fails
+				console.error("Error fetching OpenRouter generation details:", error)
+			}
 		}
 	}
 	getModel(): { id: string; info: ModelInfo } {
@@ -224,7 +230,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 			const response = await this.client.chat.completions.create({
 				model: this.getModel().id,
 				messages: [{ role: "user", content: prompt }],
-				temperature: 0,
+				temperature: this.options.modelTemperature ?? OPENROUTER_DEFAULT_TEMPERATURE,
 				stream: false,
 			})
 

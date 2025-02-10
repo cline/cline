@@ -2,7 +2,6 @@ import fs from "fs/promises"
 import { existsSync } from "fs"
 import path from "path"
 
-import debug from "debug"
 import simpleGit, { SimpleGit, CleanOptions } from "simple-git"
 
 export type CheckpointServiceOptions = {
@@ -246,15 +245,11 @@ export class CheckpointService {
 	}
 
 	public static async create({ taskId, git, baseDir, log = console.log }: CheckpointServiceOptions) {
-		git =
-			git ||
-			simpleGit({
-				baseDir,
-				binary: "git",
-				maxConcurrentProcesses: 1,
-				config: [],
-				trimmed: true,
-			})
+		if (process.platform === "win32") {
+			throw new Error("Checkpoints are not supported on Windows.")
+		}
+
+		git = git || simpleGit({ baseDir })
 
 		const version = await git.version()
 

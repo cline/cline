@@ -126,6 +126,7 @@ type GlobalStateKey =
 	| "requestyModelId"
 	| "requestyModelInfo"
 	| "unboundModelInfo"
+	| "modelTemperature"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -1619,6 +1620,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestyApiKey,
 			requestyModelId,
 			requestyModelInfo,
+			modelTemperature,
 		} = apiConfiguration
 		await this.updateGlobalState("apiProvider", apiProvider)
 		await this.updateGlobalState("apiModelId", apiModelId)
@@ -1663,6 +1665,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("requestyApiKey", requestyApiKey)
 		await this.updateGlobalState("requestyModelId", requestyModelId)
 		await this.updateGlobalState("requestyModelInfo", requestyModelInfo)
+		await this.updateGlobalState("modelTemperature", modelTemperature)
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
 		}
@@ -2513,6 +2516,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestyApiKey,
 			requestyModelId,
 			requestyModelInfo,
+			modelTemperature,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -2592,6 +2596,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getSecret("requestyApiKey") as Promise<string | undefined>,
 			this.getGlobalState("requestyModelId") as Promise<string | undefined>,
 			this.getGlobalState("requestyModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("modelTemperature") as Promise<number | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2653,6 +2658,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				requestyApiKey,
 				requestyModelId,
 				requestyModelInfo,
+				modelTemperature,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

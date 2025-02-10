@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
 import { Checkbox, Dropdown, Pane, type DropdownOption } from "vscrui"
 import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { TemperatureControl } from "./TemperatureControl"
 import * as vscodemodels from "vscode"
 
 import {
@@ -1389,6 +1390,18 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 						/>
 					</>
 				)}
+
+			<div style={{ marginTop: "10px" }}>
+				<TemperatureControl
+					value={apiConfiguration?.modelTemperature}
+					onChange={(value) => {
+						handleInputChange("modelTemperature")({
+							target: { value },
+						})
+					}}
+					maxValue={2}
+				/>
+			</div>
 
 			{modelIdErrorMessage && (
 				<p

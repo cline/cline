@@ -65,6 +65,7 @@ export interface ApiHandlerOptions {
 	requestyApiKey?: string
 	requestyModelId?: string
 	requestyModelInfo?: ModelInfo
+	modelTemperature?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

@@ -17,6 +17,9 @@ export interface OpenAiHandlerOptions extends ApiHandlerOptions {
 	defaultHeaders?: Record<string, string>
 }
 
+export const DEEP_SEEK_DEFAULT_TEMPERATURE = 0.6
+const OPENAI_DEFAULT_TEMPERATURE = 0
+
 export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 	protected options: OpenAiHandlerOptions
 	private client: OpenAI
@@ -74,7 +77,9 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
 				model: modelId,
-				temperature: 0,
+				temperature:
+					this.options.modelTemperature ??
+					(deepseekReasoner ? DEEP_SEEK_DEFAULT_TEMPERATURE : OPENAI_DEFAULT_TEMPERATURE),
 				messages: convertedMessages,
 				stream: true as const,
 				stream_options: { include_usage: true },
