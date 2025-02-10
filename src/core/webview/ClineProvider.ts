@@ -1834,6 +1834,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			if (!apiKey) {
 				apiKey = (await this.getSecret("requestyApiKey")) as string
 			}
+
+			if (!apiKey) {
+				this.outputChannel.appendLine("No Requesty API key found")
+				return models
+			}
+
 			if (apiKey) {
 				config["headers"] = { Authorization: `Bearer ${apiKey}` }
 			}
@@ -1884,7 +1890,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				this.outputChannel.appendLine("Invalid response from Requesty API")
 			}
 			await fs.writeFile(requestyModelsFilePath, JSON.stringify(models))
-			this.outputChannel.appendLine(`Requesty models fetched and saved: ${JSON.stringify(models, null, 2)}`)
 		} catch (error) {
 			this.outputChannel.appendLine(
 				`Error fetching Requesty models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,

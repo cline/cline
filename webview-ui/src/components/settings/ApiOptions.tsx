@@ -252,7 +252,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.requestyApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onInput={handleInputChange("requestyApiKey")}
+						onBlur={handleInputChange("requestyApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Requesty API Key</span>
 					</VSCodeTextField>
