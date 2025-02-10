@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.3.2]
+
+-   Fix bug where OpenRouter requests would periodically not return cost/token stats, leading to context window limit errors
+-   Make checkpoints more visible and keep track of restored checkpoints 
+
 ## [3.3.0]
 
 -   Add .clineignore to block Cline from accessing specified file patterns
