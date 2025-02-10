@@ -68,7 +68,13 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [commandInput, setCommandInput] = useState("")
 
-	const handleSubmit = () => {
+	const handleSubmit = async () => {
+		// Focus the active element's parent to trigger blur
+		document.activeElement?.parentElement?.focus()
+
+		// Small delay to let blur events complete
+		await new Promise((resolve) => setTimeout(resolve, 50))
+
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, glamaModels, openRouterModels)
 
