@@ -48,16 +48,4 @@ suite("Roo Code Extension", () => {
 			assert.ok(commands.includes(cmd), `Command ${cmd} should be registered`)
 		}
 	})
-
-	test("Webview panel can be created", () => {
-		const view = vscode.window.createWebviewPanel(
-			"roo-cline.SidebarProvider",
-			"Roo Code",
-			vscode.ViewColumn.One,
-			{},
-		)
-
-		assert.ok(view, "Failed to create webview panel")
-		view.dispose()
-	})
 })

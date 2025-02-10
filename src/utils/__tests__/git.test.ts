@@ -107,7 +107,7 @@ describe("git utils", () => {
 				{ cwd },
 				expect.any(Function),
 			)
-		}, 20000)
+		})
 
 		it("should return empty array when git is not installed", async () => {
 			exec.mockImplementation((command: string, options: { cwd?: string }, callback: Function) => {
