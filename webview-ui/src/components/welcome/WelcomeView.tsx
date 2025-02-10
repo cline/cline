@@ -38,15 +38,7 @@ const WelcomeView = () => {
 					<VSCodeButton onClick={handleSubmit} style={{ marginTop: "3px" }}>
 						Let's go!
 					</VSCodeButton>
-					{errorMessage && (
-						<span
-							style={{
-								color: "var(--vscode-errorForeground)",
-								fontSize: "12px",
-							}}>
-							{errorMessage}
-						</span>
-					)}
+					{errorMessage && <span className="text-destructive">{errorMessage}</span>}
 				</div>
 			</div>
 		</div>
