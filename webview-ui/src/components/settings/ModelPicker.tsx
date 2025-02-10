@@ -25,10 +25,16 @@ import { ModelInfoView } from "./ModelInfoView"
 
 interface ModelPickerProps {
 	defaultModelId: string
-	modelsKey: "glamaModels" | "openRouterModels" | "unboundModels" | "requestyModels"
-	configKey: "glamaModelId" | "openRouterModelId" | "unboundModelId" | "requestyModelId"
-	infoKey: "glamaModelInfo" | "openRouterModelInfo" | "unboundModelInfo" | "requestyModelInfo"
-	refreshMessageType: "refreshGlamaModels" | "refreshOpenRouterModels" | "refreshUnboundModels" | "refreshRequestyModels"
+	modelsKey: "glamaModels" | "openRouterModels" | "unboundModels" | "requestyModels" | "openAiModels"
+	configKey: "glamaModelId" | "openRouterModelId" | "unboundModelId" | "requestyModelId" | "openAiModelId"
+	infoKey: "glamaModelInfo" | "openRouterModelInfo" | "unboundModelInfo" | "requestyModelInfo" | "openAiModelInfo"
+	refreshMessageType:
+		| "refreshGlamaModels"
+		| "refreshOpenRouterModels"
+		| "refreshUnboundModels"
+		| "refreshRequestyModels"
+		| "refreshOpenAiModels"
+	refreshValues?: Record<string, any>
 	serviceName: string
 	serviceUrl: string
 	recommendedModel: string
@@ -40,6 +46,7 @@ export const ModelPicker = ({
 	configKey,
 	infoKey,
 	refreshMessageType,
+	refreshValues,
 	serviceName,
 	serviceUrl,
 	recommendedModel,
@@ -49,7 +56,10 @@ export const ModelPicker = ({
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const { apiConfiguration, setApiConfiguration, [modelsKey]: models, onUpdateApiConfig } = useExtensionState()
-	const modelIds = useMemo(() => Object.keys(models).sort((a, b) => a.localeCompare(b)), [models])
+	const modelIds = useMemo(
+		() => (Array.isArray(models) ? models : Object.keys(models)).sort((a, b) => a.localeCompare(b)),
+		[models],
+	)
 
 	const { selectedModelId, selectedModelInfo } = useMemo(
 		() => normalizeApiConfiguration(apiConfiguration),
@@ -58,7 +68,10 @@ export const ModelPicker = ({
 
 	const onSelect = useCallback(
 		(modelId: string) => {
-			const apiConfig = { ...apiConfiguration, [configKey]: modelId, [infoKey]: models[modelId] }
+			const modelInfo = Array.isArray(models)
+				? { id: modelId } // For OpenAI models which are just strings
+				: models[modelId] // For other models that have full info objects
+			const apiConfig = { ...apiConfiguration, [configKey]: modelId, [infoKey]: modelInfo }
 			setApiConfiguration(apiConfig)
 			onUpdateApiConfig(apiConfig)
 			setValue(modelId)
@@ -68,8 +81,14 @@ export const ModelPicker = ({
 	)
 
 	const debouncedRefreshModels = useMemo(
-		() => debounce(() => vscode.postMessage({ type: refreshMessageType }), 50),
-		[refreshMessageType],
+		() =>
+			debounce(() => {
+				const message = refreshValues
+					? { type: refreshMessageType, values: refreshValues }
+					: { type: refreshMessageType }
+				vscode.postMessage(message)
+			}, 50),
+		[refreshMessageType, refreshValues],
 	)
 
 	useMount(() => {
