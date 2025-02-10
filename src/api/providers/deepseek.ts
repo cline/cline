@@ -1,9 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, DeepSeekModelId, ModelInfo, deepSeekDefaultModelId, deepSeekModels } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { convertToR1Format } from "../transform/r1-format"
 
 export class DeepSeekHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -17,14 +19,29 @@ export class DeepSeekHandler implements ApiHandler {
 		})
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.getModel()
+
+		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")
+
+		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+			{ role: "system", content: systemPrompt },
+			...convertToOpenAiMessages(messages),
+		]
+
+		if (isDeepseekReasoner) {
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		}
+
 		const stream = await this.client.chat.completions.create({
-			model: this.getModel().id,
-			max_completion_tokens: this.getModel().info.maxTokens,
-			temperature: 0,
-			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+			model: model.id,
+			max_completion_tokens: model.info.maxTokens,
+			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
+			// Only set temperature for non-reasoner models
+			...(model.id === "deepseek-reasoner" ? {} : { temperature: 0 }),
 		})
 
 		for await (const chunk of stream) {
@@ -33,6 +50,13 @@ export class DeepSeekHandler implements ApiHandler {
 				yield {
 					type: "text",
 					text: delta.content,
+				}
+			}
+
+			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
+				yield {
+					type: "reasoning",
+					reasoning: (delta.reasoning_content as string | undefined) || "",
 				}
 			}
 

@@ -1,11 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
+import delay from "delay"
 import OpenAI from "openai"
+import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-import delay from "delay"
+import { convertToR1Format } from "../transform/r1-format"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -23,16 +25,19 @@ export class OpenRouterHandler implements ApiHandler {
 		})
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.getModel()
+
 		// Convert Anthropic messages to OpenAI format
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
 
 		// prompt caching: https://openrouter.ai/docs/prompt-caching
 		// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
-		switch (this.getModel().id) {
+		switch (model.id) {
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet-20240620":
@@ -83,7 +88,7 @@ export class OpenRouterHandler implements ApiHandler {
 		// Not sure how openrouter defaults max tokens when no value is provided, but the anthropic api requires this value and since they offer both 4096 and 8192 variants, we should ensure 8192.
 		// (models usually default to max tokens allowed)
 		let maxTokens: number | undefined
-		switch (this.getModel().id) {
+		switch (model.id) {
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet-20240620":
@@ -96,21 +101,36 @@ export class OpenRouterHandler implements ApiHandler {
 				break
 		}
 
+		let temperature = 0
+		let topP: number | undefined = undefined
+		// Handle models based on deepseek-r1
+		if (this.getModel().id.startsWith("deepseek/deepseek-r1") || this.getModel().id === "perplexity/sonar-reasoning") {
+			// Recommended temperature for DeepSeek reasoning models
+			temperature = 0.6
+			// DeepSeek highly recommends using user instead of system role
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+			// Some provider support topP and 0.95 is value that Deepseek used in their benchmarks
+			topP = 0.95
+		}
+
 		// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
-		let shouldApplyMiddleOutTransform = !this.getModel().info.supportsPromptCache
+		let shouldApplyMiddleOutTransform = !model.info.supportsPromptCache
 		// except for deepseek (which we set supportsPromptCache to true for), where because the context window is so small our truncation algo might miss and we should use openrouter's middle-out transform as a fallback to ensure we don't exceed the context window (FIXME: once we have a more robust token estimator we should not rely on this)
-		if (this.getModel().id === "deepseek/deepseek-chat") {
+		if (model.id === "deepseek/deepseek-chat") {
 			shouldApplyMiddleOutTransform = true
 		}
 
 		// @ts-ignore-next-line
 		const stream = await this.client.chat.completions.create({
-			model: this.getModel().id,
+			model: model.id,
 			max_tokens: maxTokens,
-			temperature: 0,
+			temperature: temperature,
+			top_p: topP,
 			messages: openAiMessages,
 			stream: true,
 			transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
+			include_reasoning: true,
+			...(model.id === "openai/o3-mini" ? { reasoning_effort: this.options.o3MiniReasoningEffort || "medium" } : {}),
 		})
 
 		let genId: string | undefined
@@ -134,6 +154,37 @@ export class OpenRouterHandler implements ApiHandler {
 					text: delta.content,
 				}
 			}
+
+			// Reasoning tokens are returned separately from the content
+			if ("reasoning" in delta && delta.reasoning) {
+				// console.log("reasoning", delta.reasoning)
+				yield {
+					type: "reasoning",
+					// @ts-ignore-next-line
+					reasoning: delta.reasoning,
+				}
+
+				// if (didStreamThinkTagInReasoning) {
+				// 	yield {
+				// 		type: "text",
+				// 		// @ts-ignore-next-line
+				// 		text: delta.reasoning,
+				// 	}
+				// } else {
+				// 	yield {
+				// 		type: "reasoning",
+				// 		// @ts-ignore-next-line
+				// 		text: delta.reasoning,
+				// 	}
+
+				// 	// @ts-ignore-next-line
+				// 	reasoningResponse += delta.reasoning
+				// 	if (reasoningResponse.includes("</think>")) {
+				// 		didStreamThinkTagInReasoning = true
+				// 		console.log("did hit think tag", reasoningResponse)
+				// 	}
+				// }
+			}
 			// if (chunk.usage) {
 			// 	yield {
 			// 		type: "usage",
@@ -143,8 +194,31 @@ export class OpenRouterHandler implements ApiHandler {
 			// }
 		}
 
-		await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
+		if (genId) {
+			await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
+			try {
+				const generationIterator = this.fetchGenerationDetails(genId)
+				const generation = (await generationIterator.next()).value
+				// console.log("OpenRouter generation details:", generation)
+				yield {
+					type: "usage",
+					// cacheWriteTokens: 0,
+					// cacheReadTokens: 0,
+					// openrouter generation endpoint fails often
+					inputTokens: generation?.native_tokens_prompt || 0,
+					outputTokens: generation?.native_tokens_completion || 0,
+					totalCost: generation?.total_cost || 0,
+				}
+			} catch (error) {
+				// ignore if fails
+				console.error("Error fetching OpenRouter generation details:", error)
+			}
+		}
+	}
 
+	@withRetry({ maxRetries: 4, baseDelay: 250, maxDelay: 1000, retryAllErrors: true })
+	async *fetchGenerationDetails(genId: string) {
+		// console.log("Fetching generation details for:", genId)
 		try {
 			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
 				headers: {
@@ -152,21 +226,11 @@ export class OpenRouterHandler implements ApiHandler {
 				},
 				timeout: 5_000, // this request hangs sometimes
 			})
-
-			const generation = response.data?.data
-			console.log("OpenRouter generation details:", response.data)
-			yield {
-				type: "usage",
-				// cacheWriteTokens: 0,
-				// cacheReadTokens: 0,
-				// openrouter generation endpoint fails often
-				inputTokens: generation?.native_tokens_prompt || 0,
-				outputTokens: generation?.native_tokens_completion || 0,
-				totalCost: generation?.total_cost || 0,
-			}
+			yield response.data?.data
 		} catch (error) {
 			// ignore if fails
 			console.error("Error fetching OpenRouter generation details:", error)
+			throw error
 		}
 	}
 
@@ -176,9 +240,6 @@ export class OpenRouterHandler implements ApiHandler {
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}
-		return {
-			id: openRouterDefaultModelId,
-			info: openRouterDefaultModelInfo,
-		}
+		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 }
