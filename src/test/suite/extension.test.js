@@ -36,13 +36,12 @@ describe("Extension Tests", function () {
 	})
 
 	it("should handle advanced settings configuration", async () => {
-		const config = vscode.workspace.getConfiguration("cline");
-
 		// Test browser session setting
-		await vscode.workspace.getConfiguration().update("cline.enableBrowserSession", true, true);
-		expect(config.get("enableBrowserSession")).to.be.true;
+		await vscode.workspace.getConfiguration().update("cline.disableBrowserTool", true, true)
+		const updatedConfig = vscode.workspace.getConfiguration("cline")
+		expect(updatedConfig.get("disableBrowserTool")).to.be.true
 
 		// Reset settings
-		await vscode.workspace.getConfiguration().update("cline.enableBrowserSession", undefined, true);
+		await vscode.workspace.getConfiguration().update("cline.disableBrowserTool", undefined, true)
 	})
 })
