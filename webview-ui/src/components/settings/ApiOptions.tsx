@@ -48,9 +48,10 @@ import { RequestyModelPicker } from "./RequestyModelPicker"
 interface ApiOptionsProps {
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
+	fromWelcomeView?: boolean
 }
 
-const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) => {
+const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: ApiOptionsProps) => {
 	const { apiConfiguration, uriScheme, handleInputChange } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
@@ -1391,17 +1392,19 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage }: ApiOptionsProps) =
 					</>
 				)}
 
-			<div style={{ marginTop: "10px" }}>
-				<TemperatureControl
-					value={apiConfiguration?.modelTemperature}
-					onChange={(value) => {
-						handleInputChange("modelTemperature")({
-							target: { value },
-						})
-					}}
-					maxValue={2}
-				/>
-			</div>
+			{!fromWelcomeView && (
+				<div style={{ marginTop: "10px" }}>
+					<TemperatureControl
+						value={apiConfiguration?.modelTemperature}
+						onChange={(value) => {
+							handleInputChange("modelTemperature")({
+								target: { value },
+							})
+						}}
+						maxValue={2}
+					/>
+				</div>
+			)}
 
 			{modelIdErrorMessage && (
 				<p
