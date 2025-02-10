@@ -38,9 +38,12 @@ export async function run(): Promise<void> {
 			? globalThis.extension.exports
 			: await globalThis.extension.activate()
 		globalThis.provider = globalThis.api.sidebarProvider
-		globalThis.provider.storeSecret("openRouterApiKey", process.env.OPENROUTER_API_KEY || "sk-or-v1-fake-api-key")
 		await globalThis.provider.updateGlobalState("apiProvider", "openrouter")
 		await globalThis.provider.updateGlobalState("openRouterModelId", "anthropic/claude-3.5-sonnet")
+		await globalThis.provider.storeSecret(
+			"openRouterApiKey",
+			process.env.OPENROUTER_API_KEY || "sk-or-v1-fake-api-key",
+		)
 
 		globalThis.panel = vscode.window.createWebviewPanel(
 			"roo-cline.SidebarProvider",
