@@ -2,7 +2,8 @@
 
 ## [3.3.17]
 
-- v3.3.17
+- Fix the restore checkpoint popover
+- Unset git config that was previously set incorrectly by the checkpoints feature
 
 ## [3.3.16]
 
