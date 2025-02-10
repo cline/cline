@@ -151,7 +151,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			vscode.postMessage({
 				type: "upsertApiConfiguration",
 				text: currentState.currentApiConfigName,
-				apiConfiguration: apiConfig,
+				apiConfiguration: { ...currentState.apiConfiguration, ...apiConfig },
 			})
 			return currentState // No state update needed
 		})

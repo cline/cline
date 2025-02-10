@@ -1,6 +1,6 @@
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
-import { useMemo, useState, useCallback, useEffect } from "react"
+import { useMemo, useState, useCallback, useEffect, useRef } from "react"
 import { useMount } from "react-use"
 import { CaretSortIcon, CheckIcon } from "@radix-ui/react-icons"
 
@@ -54,8 +54,10 @@ export const ModelPicker = ({
 	const [open, setOpen] = useState(false)
 	const [value, setValue] = useState(defaultModelId)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+	const prevRefreshValuesRef = useRef<Record<string, any> | undefined>()
 
-	const { apiConfiguration, setApiConfiguration, [modelsKey]: models, onUpdateApiConfig } = useExtensionState()
+	const { apiConfiguration, [modelsKey]: models, onUpdateApiConfig, setApiConfiguration } = useExtensionState()
+
 	const modelIds = useMemo(
 		() => (Array.isArray(models) ? models : Object.keys(models)).sort((a, b) => a.localeCompare(b)),
 		[models],
@@ -80,21 +82,41 @@ export const ModelPicker = ({
 		[apiConfiguration, configKey, infoKey, models, onUpdateApiConfig, setApiConfiguration],
 	)
 
-	const debouncedRefreshModels = useMemo(
-		() =>
-			debounce(() => {
-				const message = refreshValues
-					? { type: refreshMessageType, values: refreshValues }
-					: { type: refreshMessageType }
-				vscode.postMessage(message)
-			}, 50),
-		[refreshMessageType, refreshValues],
-	)
+	const debouncedRefreshModels = useMemo(() => {
+		return debounce(() => {
+			const message = refreshValues
+				? { type: refreshMessageType, values: refreshValues }
+				: { type: refreshMessageType }
+			vscode.postMessage(message)
+		}, 100)
+	}, [refreshMessageType, refreshValues])
 
 	useMount(() => {
 		debouncedRefreshModels()
 		return () => debouncedRefreshModels.clear()
 	})
+
+	useEffect(() => {
+		if (!refreshValues) {
+			prevRefreshValuesRef.current = undefined
+			return
+		}
+
+		// Check if all values in refreshValues are truthy
+		if (Object.values(refreshValues).some((value) => !value)) {
+			prevRefreshValuesRef.current = undefined
+			return
+		}
+
+		// Compare with previous values
+		const prevValues = prevRefreshValuesRef.current
+		if (prevValues && JSON.stringify(prevValues) === JSON.stringify(refreshValues)) {
+			return
+		}
+
+		prevRefreshValuesRef.current = refreshValues
+		debouncedRefreshModels()
+	}, [debouncedRefreshModels, refreshValues])
 
 	useEffect(() => setValue(selectedModelId), [selectedModelId])
 
