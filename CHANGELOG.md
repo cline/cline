@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.3.17
+
+### Patch Changes
+
+- v3.3.17
+
 ## [3.3.16]
 
 - Support Volcano Ark platform through the OpenAI-compatible provider
