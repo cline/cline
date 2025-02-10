@@ -50,6 +50,9 @@ export type CheckpointServiceOptions = {
  */
 
 export class CheckpointService {
+	private static readonly USER_NAME = "Roo Code"
+	private static readonly USER_EMAIL = "support@roocode.com"
+
 	private _currentCheckpoint?: string
 
 	public get currentCheckpoint() {
@@ -273,6 +276,7 @@ export class CheckpointService {
 		log(
 			`[CheckpointService] taskId = ${taskId}, baseDir = ${baseDir}, currentBranch = ${currentBranch}, currentSha = ${currentSha}, hiddenBranch = ${hiddenBranch}`,
 		)
+
 		return new CheckpointService(taskId, git, baseDir, currentBranch, currentSha, hiddenBranch, log)
 	}
 
@@ -284,16 +288,33 @@ export class CheckpointService {
 			log(`[initRepo] Initialized new Git repository at ${baseDir}`)
 		}
 
-		// Only set user config if not already configured
-		const userName = await git.getConfig("user.name")
-		const userEmail = await git.getConfig("user.email")
+		const globalUserName = await git.getConfig("user.name", "global")
+		const localUserName = await git.getConfig("user.name", "local")
+		const userName = localUserName.value || globalUserName.value
 
-		if (!userName.value) {
-			await git.addConfig("user.name", "Roo Code")
+		const globalUserEmail = await git.getConfig("user.email", "global")
+		const localUserEmail = await git.getConfig("user.email", "local")
+		const userEmail = localUserEmail.value || globalUserEmail.value
+
+		// Prior versions of this service indiscriminately set the local user
+		// config, and it should not override the global config. To address
+		// this we remove the local user config if it matches the default
+		// user name and email and there's a global config.
+		if (globalUserName.value && localUserName.value === CheckpointService.USER_NAME) {
+			await git.raw(["config", "--unset", "--local", "user.name"])
 		}
 
-		if (!userEmail.value) {
-			await git.addConfig("user.email", "support@roocode.com")
+		if (globalUserEmail.value && localUserEmail.value === CheckpointService.USER_EMAIL) {
+			await git.raw(["config", "--unset", "--local", "user.email"])
+		}
+
+		// Only set user config if not already configured.
+		if (!userName) {
+			await git.addConfig("user.name", CheckpointService.USER_NAME)
+		}
+
+		if (!userEmail) {
+			await git.addConfig("user.email", CheckpointService.USER_EMAIL)
 		}
 
 		if (!isExistingRepo) {
