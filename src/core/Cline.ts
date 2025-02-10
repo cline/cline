@@ -143,7 +143,7 @@ export class Cline {
 		this.fuzzyMatchThreshold = fuzzyMatchThreshold ?? 1.0
 		this.providerRef = new WeakRef(provider)
 		this.diffViewProvider = new DiffViewProvider(cwd)
-		this.checkpointsEnabled = enableCheckpoints ?? false
+		this.checkpointsEnabled = process.platform !== "win32" && !!enableCheckpoints
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -3240,6 +3240,7 @@ export class Cline {
 			this.checkpointService = await CheckpointService.create({
 				taskId: this.taskId,
 				baseDir: vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? "",
+				log: (message) => this.providerRef.deref()?.log(message),
 			})
 		}
 
