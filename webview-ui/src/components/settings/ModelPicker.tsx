@@ -40,6 +40,7 @@ interface ModelPickerProps<T extends ModelProvider = ModelProvider> {
 	serviceName: string
 	serviceUrl: string
 	recommendedModel: string
+	allowCustomModel?: boolean
 }
 
 export const ModelPicker = ({
@@ -52,7 +53,10 @@ export const ModelPicker = ({
 	serviceName,
 	serviceUrl,
 	recommendedModel,
+	allowCustomModel = false,
 }: ModelPickerProps) => {
+	const [customModelId, setCustomModelId] = useState("")
+	const [isCustomModel, setIsCustomModel] = useState(false)
 	const [open, setOpen] = useState(false)
 	const [value, setValue] = useState(defaultModelId)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
@@ -68,6 +72,20 @@ export const ModelPicker = ({
 	const { selectedModelId, selectedModelInfo } = useMemo(
 		() => normalizeApiConfiguration(apiConfiguration),
 		[apiConfiguration],
+	)
+
+	const onSelectCustomModel = useCallback(
+		(modelId: string) => {
+			setCustomModelId(modelId)
+			const modelInfo = { id: modelId }
+			const apiConfig = { ...apiConfiguration, [configKey]: modelId, [infoKey]: modelInfo }
+			setApiConfiguration(apiConfig)
+			onUpdateApiConfig(apiConfig)
+			setValue(modelId)
+			setOpen(false)
+			setIsCustomModel(false)
+		},
+		[apiConfiguration, configKey, infoKey, onUpdateApiConfig, setApiConfiguration],
 	)
 
 	const onSelect = useCallback(
@@ -147,6 +165,17 @@ export const ModelPicker = ({
 									</CommandItem>
 								))}
 							</CommandGroup>
+							{allowCustomModel && (
+								<CommandGroup heading="Custom">
+									<CommandItem
+										onSelect={() => {
+											setIsCustomModel(true)
+											setOpen(false)
+										}}>
+										+ Add custom model
+									</CommandItem>
+								</CommandGroup>
+							)}
 						</CommandList>
 					</Command>
 				</PopoverContent>
@@ -168,6 +197,28 @@ export const ModelPicker = ({
 				<VSCodeLink onClick={() => onSelect(recommendedModel)}>{recommendedModel}.</VSCodeLink>
 				You can also try searching "free" for no-cost options currently available.
 			</p>
+			{allowCustomModel && isCustomModel && (
+				<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+					<div className="bg-[var(--vscode-editor-background)] p-6 rounded-lg w-96">
+						<h3 className="text-lg font-semibold mb-4">Add Custom Model</h3>
+						<input
+							type="text"
+							className="w-full p-2 mb-4 bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded"
+							placeholder="Enter model ID"
+							value={customModelId}
+							onChange={(e) => setCustomModelId(e.target.value)}
+						/>
+						<div className="flex justify-end gap-2">
+							<Button variant="secondary" onClick={() => setIsCustomModel(false)}>
+								Cancel
+							</Button>
+							<Button onClick={() => onSelectCustomModel(customModelId)} disabled={!customModelId.trim()}>
+								Add
+							</Button>
+						</div>
+					</div>
+				</div>
+			)}
 		</>
 	)
 }

@@ -19,6 +19,7 @@ const OpenAiModelPicker: React.FC = () => {
 			serviceName="OpenAI"
 			serviceUrl="https://platform.openai.com"
 			recommendedModel="gpt-4-turbo-preview"
+			allowCustomModel={true}
 		/>
 	)
 }
