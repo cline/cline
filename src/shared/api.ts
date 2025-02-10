@@ -61,6 +61,7 @@ export interface ApiHandlerOptions {
 	unboundApiKey?: string
 	unboundModelId?: string
 	unboundModelInfo?: ModelInfo
+	modelTemperature?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
