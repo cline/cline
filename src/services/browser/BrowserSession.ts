@@ -121,8 +121,8 @@ export class BrowserSession {
 	async launchBrowser() {
 		console.log("launch browser called")
 		// Check if browser sessions are disabled in VS Code settings
-		const enableBrowserSession = vscode.workspace.getConfiguration("cline").get<boolean>("enableBrowserSession") ?? true
-		if (!enableBrowserSession) {
+		const disableBrowserTool = vscode.workspace.getConfiguration("cline").get<boolean>("disableBrowserTool") ?? false
+		if (disableBrowserTool) {
 			return undefined // Don't create browser session when disabled
 		}
 		if (this.browser) {
