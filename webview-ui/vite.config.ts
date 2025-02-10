@@ -33,4 +33,7 @@ export default defineConfig({
 			allowedHeaders: "*",
 		},
 	},
+	define: {
+		"process.platform": JSON.stringify(process.platform),
+	},
 })
