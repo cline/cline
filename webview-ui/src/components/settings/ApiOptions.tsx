@@ -28,6 +28,8 @@ import {
 	openAiNativeModels,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
+	vortnDefaultModelId,
+	vortnDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
 } from "../../../../src/shared/api"
@@ -141,6 +143,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 						zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX + 1,
 					}}>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
+					<VSCodeOption value="vortn">Vortn</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
 					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
@@ -335,6 +338,35 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 								limits, prompt caching, and wider selection of models.)
 							</span>
 						)} */}
+					</p>
+				</div>
+			)}
+			
+			{selectedProvider === "vortn" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.vortnApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("vortnApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Vortn API Key</span>
+					</VSCodeTextField>
+					{!apiConfiguration?.vortnApiKey && (
+						<VSCodeButtonLink
+							href={'https://vortn.com/apis'}
+							style={{ margin: "5px 0 0 0" }}
+							appearance="secondary">
+							Get Vortn API Key
+						</VSCodeButtonLink>
+					)}
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.{" "}
 					</p>
 				</div>
 			)}
@@ -935,6 +967,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
 				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
+			}
+		case "vortn":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.vortnModelId || vortnDefaultModelId,
+				selectedModelInfo: apiConfiguration?.vortnModelInfo || vortnDefaultModelInfo,
 			}
 		case "openai":
 			return {
