@@ -804,7 +804,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									const existingPrompt = customModePrompts?.[mode] as PromptComponent
 									updateAgentPrompt(mode, {
 										...existingPrompt,
-										customInstructions: value.trim() || undefined,
+										customInstructions: value.trim(),
 									})
 								}
 							}}
