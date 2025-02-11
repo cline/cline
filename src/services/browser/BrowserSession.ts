@@ -120,7 +120,6 @@ export class BrowserSession {
 
 	async launchBrowser() {
 		console.log("launch browser called")
-		
 		if (this.browser) {
 			// throw new Error("Browser already launched")
 			await this.closeBrowser() // this may happen when the model launches a browser again after having used it already before
