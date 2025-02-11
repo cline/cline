@@ -88,12 +88,21 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 	)
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
-		if (message.type === "ollamaModels" && message.ollamaModels) {
-			setOllamaModels(message.ollamaModels)
-		} else if (message.type === "lmStudioModels" && message.lmStudioModels) {
-			setLmStudioModels(message.lmStudioModels)
-		} else if (message.type === "vsCodeLmModels" && message.vsCodeLmModels) {
-			setVsCodeLmModels(message.vsCodeLmModels)
+		if (message.type === "ollamaModels" && Array.isArray(message.ollamaModels)) {
+			const newModels = message.ollamaModels
+			setOllamaModels((prevModels) => {
+				return JSON.stringify(prevModels) === JSON.stringify(newModels) ? prevModels : newModels
+			})
+		} else if (message.type === "lmStudioModels" && Array.isArray(message.lmStudioModels)) {
+			const newModels = message.lmStudioModels
+			setLmStudioModels((prevModels) => {
+				return JSON.stringify(prevModels) === JSON.stringify(newModels) ? prevModels : newModels
+			})
+		} else if (message.type === "vsCodeLmModels" && Array.isArray(message.vsCodeLmModels)) {
+			const newModels = message.vsCodeLmModels
+			setVsCodeLmModels((prevModels) => {
+				return JSON.stringify(prevModels) === JSON.stringify(newModels) ? prevModels : newModels
+			})
 		}
 	}, [])
 	useEvent("message", handleMessage)
