@@ -162,6 +162,11 @@
 					"default": true,
 					"description": "Enables extension to save checkpoints of workspace throughout the task."
 				},
+				"cline.disableBrowserTool": {
+					"type": "boolean",
+					"default": false,
+					"description": "Disables extension from spawning browser session."
+				},
 				"cline.modelSettings.o3Mini.reasoningEffort": {
 					"type": "string",
 					"enum": [
