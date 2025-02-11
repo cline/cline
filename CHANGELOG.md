@@ -1,5 +1,15 @@
 # Roo Code Changelog
 
+## 3.3.18
+
+### Patch Changes
+
+- v3.3.18
+- Make sure that we fire the onBlur for edited fields when the user hits Done in settings
+- Fix issue where Ollama/LMStudio URLs would flicker back to previous while entering
+- Fix logic error in retry delays
+- Hide advanced openrouter config in the welcome view
+
 ## [3.3.17]
 
 - Fix the restore checkpoint popover
