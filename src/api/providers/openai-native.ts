@@ -29,7 +29,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		switch (this.getModel().id) {
 			//o1-series doesnt support streaming, non-1 temp
 			case "o1": {
-				// o1 suggests changing message role from 'system' to 'developer' 
+				// o1 suggests changing message role from 'system' to 'developer'
 				const response = await this.client.chat.completions.create({
 					model: this.getModel().id,
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
@@ -65,7 +65,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 				break
 			}
 			case "o3-mini": {
-				// o3-mini suggests changing message role from 'system' to 'developer' 
+				// o3-mini suggests changing message role from 'system' to 'developer'
 				const stream = await this.client.chat.completions.create({
 					model: this.getModel().id,
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
