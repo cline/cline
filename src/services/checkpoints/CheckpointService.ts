@@ -23,11 +23,11 @@ export type CheckpointServiceOptions = {
  *  - A hidden branch for storing checkpoints.
  *
  * Saving a checkpoint:
- *  - Current changes are stashed (including untracked files).
+ *  - A temporary branch is created to store the current state.
+ *  - All changes (including untracked files) are staged and committed on the temp branch.
  *  - The hidden branch is reset to match main.
- *  - Stashed changes are applied and committed as a checkpoint on the hidden
- *    branch.
- *  - We return to the main branch with the original state restored.
+ *  - The temporary branch commit is cherry-picked onto the hidden branch.
+ *  - The workspace is restored to its original state and the temp branch is deleted.
  *
  * Restoring a checkpoint:
  *  - The workspace is restored to the state of the specified checkpoint using
@@ -37,6 +37,7 @@ export type CheckpointServiceOptions = {
  *  - Non-destructive version control (main branch remains untouched).
  *  - Preservation of the full history of checkpoints.
  *  - Safe restoration to any previous checkpoint.
+ *  - Atomic checkpoint operations with proper error recovery.
  *
  * NOTES
  *
@@ -51,6 +52,8 @@ export type CheckpointServiceOptions = {
 export class CheckpointService {
 	private static readonly USER_NAME = "Roo Code"
 	private static readonly USER_EMAIL = "support@roocode.com"
+	private static readonly CHECKPOINT_BRANCH = "roo-code-checkpoints"
+	private static readonly STASH_BRANCH = "roo-code-stash"
 
 	private _currentCheckpoint?: string
 
@@ -71,39 +74,6 @@ export class CheckpointService {
 		public readonly hiddenBranch: string,
 		private readonly log: (message: string) => void,
 	) {}
-
-	private async pushStash() {
-		const status = await this.git.status()
-
-		if (status.files.length > 0) {
-			await this.git.stash(["-u"]) // Includes tracked and untracked files.
-			return true
-		}
-
-		return false
-	}
-
-	private async applyStash() {
-		const stashList = await this.git.stashList()
-
-		if (stashList.all.length > 0) {
-			await this.git.stash(["apply"]) // Applies the most recent stash only.
-			return true
-		}
-
-		return false
-	}
-
-	private async popStash() {
-		const stashList = await this.git.stashList()
-
-		if (stashList.all.length > 0) {
-			await this.git.stash(["pop", "--index"]) // Pops the most recent stash only.
-			return true
-		}
-
-		return false
-	}
 
 	private async ensureBranch(expectedBranch: string) {
 		const branch = await this.git.revparse(["--abbrev-ref", "HEAD"])
@@ -153,88 +123,185 @@ export class CheckpointService {
 		return result
 	}
 
+	private async restoreMain({
+		branch,
+		stashSha,
+		force = false,
+	}: {
+		branch: string
+		stashSha: string
+		force?: boolean
+	}) {
+		if (force) {
+			await this.git.checkout(["-f", this.mainBranch])
+		} else {
+			await this.git.checkout(this.mainBranch)
+		}
+
+		if (stashSha) {
+			this.log(`[restoreMain] applying stash ${stashSha}`)
+			await this.git.raw(["stash", "apply", "--index", stashSha])
+		}
+
+		this.log(`[restoreMain] restoring from ${branch}`)
+		await this.git.raw(["restore", "--source", branch, "--worktree", "--", "."])
+	}
+
 	public async saveCheckpoint(message: string) {
 		await this.ensureBranch(this.mainBranch)
 
-		// Attempt to stash pending changes (including untracked files).
-		const pendingChanges = await this.pushStash()
+		const stashSha = (await this.git.raw(["stash", "create"])).trim()
+		const latestSha = await this.git.revparse([this.hiddenBranch])
 
-		// Get the latest commit on the hidden branch before we reset it.
-		const latestHash = await this.git.revparse([this.hiddenBranch])
+		/**
+		 * PHASE: Create stash
+		 * Mutations:
+		 *   - Create branch
+		 *   - Change branch
+		 */
+		const stashBranch = `${CheckpointService.STASH_BRANCH}-${Date.now()}`
+		await this.git.checkout(["-b", stashBranch])
+		this.log(`[saveCheckpoint] created and checked out ${stashBranch}`)
 
-		// Check if there is any diff relative to the latest commit.
-		if (!pendingChanges) {
-			const diff = await this.git.diff([latestHash])
+		/**
+		 * Phase: Stage stash
+		 * Mutations: None
+		 * Recovery:
+		 *   - UNDO: Create branch
+		 *   - UNDO: Change branch
+		 */
+		try {
+			await this.git.add(["-A"])
+			const status = await this.git.status()
+			this.log(`[saveCheckpoint] status: ${JSON.stringify(status)}`)
+		} catch (err) {
+			await this.git.checkout(["-f", this.mainBranch])
+			await this.git.branch(["-D", stashBranch]).catch(() => {})
 
-			if (!diff) {
-				this.log(`[saveCheckpoint] No changes detected, giving up`)
-				return undefined
-			}
+			throw new Error(
+				`[saveCheckpoint] Failed in stage stash phase: ${err instanceof Error ? err.message : String(err)}`,
+			)
 		}
 
-		await this.git.checkout(this.hiddenBranch)
+		/**
+		 * Phase: Commit stash
+		 * Mutations:
+		 *   - Commit stash
+		 *   - Change branch
+		 * Recovery:
+		 *   - UNDO: Create branch
+		 *   - UNDO: Change branch
+		 */
+		try {
+			// TODO: Add a test to see if empty commits break this.
+			const tempCommit = await this.git.commit(message, undefined, { "--no-verify": null })
+			this.log(`[saveCheckpoint] tempCommit: ${message} -> ${JSON.stringify(tempCommit)}`)
+		} catch (err) {
+			await this.git.checkout(["-f", this.mainBranch])
+			await this.git.branch(["-D", stashBranch]).catch(() => {})
 
-		const reset = async () => {
-			await this.git.reset(["HEAD", "."])
-			await this.git.clean([CleanOptions.FORCE, CleanOptions.RECURSIVE])
-			await this.git.reset(["--hard", latestHash])
-			await this.git.checkout(this.mainBranch)
-			await this.popStash()
+			throw new Error(
+				`[saveCheckpoint] Failed in stash commit phase: ${err instanceof Error ? err.message : String(err)}`,
+			)
 		}
+
+		/**
+		 * PHASE: Diff
+		 * Mutations:
+		 *   - Checkout hidden branch
+		 * Recovery:
+		 *   - UNDO: Create branch
+		 *   - UNDO: Change branch
+		 *   - UNDO: Commit stash
+		 */
+		let diff
 
 		try {
-			// Reset hidden branch to match main and apply the pending changes.
-			await this.git.reset(["--hard", this.mainBranch])
-
-			if (pendingChanges) {
-				await this.applyStash()
-			}
-
-			// Using "-A" ensures that deletions are staged as well.
-			await this.git.add(["-A"])
-			const diff = await this.git.diff([latestHash])
-
-			if (!diff) {
-				this.log(`[saveCheckpoint] No changes detected, resetting and giving up`)
-				await reset()
-				return undefined
-			}
-
-			// Otherwise, commit the changes.
-			const status = await this.git.status()
-			this.log(`[saveCheckpoint] Changes detected, committing ${JSON.stringify(status)}`)
-
-			// Allow empty commits in order to correctly handle deletion of
-			// untracked files (see unit tests for an example of this).
-			// Additionally, skip pre-commit hooks so that they don't slow
-			// things down or tamper with the contents of the commit.
-			const commit = await this.git.commit(message, undefined, {
-				"--allow-empty": null,
-				"--no-verify": null,
-			})
-
-			await this.git.checkout(this.mainBranch)
-
-			if (pendingChanges) {
-				await this.popStash()
-			}
-
-			this.currentCheckpoint = commit.commit
-
-			return commit
+			diff = await this.git.diff([latestSha, stashBranch])
 		} catch (err) {
-			this.log(`[saveCheckpoint] Failed to save checkpoint: ${err instanceof Error ? err.message : String(err)}`)
+			await this.restoreMain({ branch: stashBranch, stashSha, force: true })
+			await this.git.branch(["-D", stashBranch]).catch(() => {})
 
-			// If we're not on the main branch then we need to trigger a reset
-			// to return to the main branch and restore it's previous state.
-			const currentBranch = await this.git.revparse(["--abbrev-ref", "HEAD"])
+			throw new Error(
+				`[saveCheckpoint] Failed in diff phase: ${err instanceof Error ? err.message : String(err)}`,
+			)
+		}
 
-			if (currentBranch.trim() !== this.mainBranch) {
-				await reset()
+		if (!diff) {
+			this.log("[saveCheckpoint] no diff")
+			await this.restoreMain({ branch: stashBranch, stashSha })
+			await this.git.branch(["-D", stashBranch])
+			return undefined
+		}
+
+		/**
+		 * PHASE: Reset
+		 * Mutations:
+		 *   - Reset hidden branch
+		 * Recovery:
+		 *   - UNDO: Create branch
+		 *   - UNDO: Change branch
+		 *   - UNDO: Commit stash
+		 */
+		try {
+			await this.git.checkout(this.hiddenBranch)
+			this.log(`[saveCheckpoint] checked out ${this.hiddenBranch}`)
+			await this.git.reset(["--hard", this.mainBranch])
+			this.log(`[saveCheckpoint] reset ${this.hiddenBranch}`)
+		} catch (err) {
+			await this.restoreMain({ branch: stashBranch, stashSha, force: true })
+			await this.git.branch(["-D", stashBranch]).catch(() => {})
+
+			throw new Error(
+				`[saveCheckpoint] Failed in reset phase: ${err instanceof Error ? err.message : String(err)}`,
+			)
+		}
+
+		/**
+		 * PHASE: Cherry pick
+		 * Mutations:
+		 *   - Hidden commit (NOTE: reset on hidden branch no longer needed in
+		 *     success scenario.)
+		 * Recovery:
+		 *   - UNDO: Create branch
+		 *   - UNDO: Change branch
+		 *   - UNDO: Commit stash
+		 *   - UNDO: Reset hidden branch
+		 */
+		let commit = ""
+
+		try {
+			try {
+				await this.git.raw(["cherry-pick", stashBranch])
+			} catch (err) {
+				// Check if we're in the middle of a cherry-pick.
+				// If the cherry-pick resulted in an empty commit (e.g., only
+				// deletions) then complete it with --allow-empty.
+				// Otherwise, rethrow the error.
+				if (existsSync(path.join(this.baseDir, ".git/CHERRY_PICK_HEAD"))) {
+					await this.git.raw(["commit", "--allow-empty", "--no-edit"])
+				} else {
+					throw err
+				}
 			}
 
-			throw err
+			commit = await this.git.revparse(["HEAD"])
+			this.currentCheckpoint = commit
+			this.log(`[saveCheckpoint] cherry-pick commit = ${commit}`)
+		} catch (err) {
+			await this.git.reset(["--hard", latestSha]).catch(() => {})
+			await this.restoreMain({ branch: stashBranch, stashSha, force: true })
+			await this.git.branch(["-D", stashBranch]).catch(() => {})
+
+			throw new Error(
+				`[saveCheckpoint] Failed in cherry pick phase: ${err instanceof Error ? err.message : String(err)}`,
+			)
 		}
+
+		await this.restoreMain({ branch: stashBranch, stashSha })
+		await this.git.branch(["-D", stashBranch])
+
+		return { commit }
 	}
 
 	public async restoreCheckpoint(commitHash: string) {
@@ -332,12 +399,12 @@ export class CheckpointService {
 		const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
 		const currentSha = await git.revparse(["HEAD"])
 
-		const hiddenBranch = `roo-code-checkpoints-${taskId}`
+		const hiddenBranch = `${CheckpointService.CHECKPOINT_BRANCH}-${taskId}`
 		const branchSummary = await git.branch()
 
 		if (!branchSummary.all.includes(hiddenBranch)) {
-			await git.checkoutBranch(hiddenBranch, currentBranch) // git checkout -b <hiddenBranch> <currentBranch>
-			await git.checkout(currentBranch) // git checkout <currentBranch>
+			await git.checkoutBranch(hiddenBranch, currentBranch)
+			await git.checkout(currentBranch)
 		}
 
 		return { currentBranch, currentSha, hiddenBranch }
