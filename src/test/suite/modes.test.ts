@@ -51,6 +51,14 @@ suite("Roo Code Modes", () => {
 				assert.fail("No messages received")
 			}
 
+			//Log the messages to the console
+			globalThis.provider.messages.forEach(({ type, text }) => {
+				if (type === "say") {
+					console.log(text)
+				}
+			})
+
+			//Start Grading Portion of test to grade the response from 1 to 10
 			await globalThis.provider.updateGlobalState("mode", "Ask")
 			let output = globalThis.provider.messages.map(({ type, text }) => (type === "say" ? text : "")).join("\n")
 			await globalThis.api.startNewTask(
@@ -84,7 +92,6 @@ suite("Roo Code Modes", () => {
 			const grade = globalThis.provider.messages.find(
 				({ type, text }) => type === "say" && !text?.includes("Grade: (1-10)") && text?.includes("Grade:"),
 			)?.text
-			console.log("THIS IS THE GRADE", grade)
 			assert.ok(
 				grade?.includes("Grade: 10") ||
 					grade?.includes("Grade: 9") ||
