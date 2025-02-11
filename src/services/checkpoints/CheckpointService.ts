@@ -152,7 +152,7 @@ export class CheckpointService {
 					)
 
 					// Escalate to a forced checkout if we can't checkout the
-					// main branch under nor
+					// main branch under normal circumstances.
 					currentBranch = await this.git.revparse(["--abbrev-ref", "HEAD"])
 
 					if (currentBranch !== this.mainBranch) {
