@@ -64,7 +64,12 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 		case "litellm":
 			return new LiteLlmHandler(options)
 		case "cursor":
-			return new CursorHandler(options)
+			return new CursorHandler(options, async (accessToken: string, refreshToken: string) => {
+				// Store the refreshed tokens in the configuration
+				options.cursorAccessToken = accessToken
+				options.cursorRefreshToken = refreshToken
+				options.cursorTokenExpiry = Date.now() + 3600000 // 1 hour from now
+			})
 		default:
 			return new AnthropicHandler(options)
 	}
