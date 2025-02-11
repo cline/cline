@@ -31,15 +31,15 @@ export class AwsBedrockHandler implements ApiHandler {
 					credentials = await fromIni({
 						profile: this.options.awsProfile,
 						ignoreCache: true,
-					}) ()
+					})()
 				} else {
 					credentials = await fromIni({
 						ignoreCache: true,
-					}) ()
+					})()
 				}
-				clientConfig.awsAccessKey = credentials.accessKeyId;
-				clientConfig.awsSecretKey = credentials.secretAccessKey;
-				clientConfig.awsSessionToken = credentials.sessionToken;
+				clientConfig.awsAccessKey = credentials.accessKeyId
+				clientConfig.awsSecretKey = credentials.secretAccessKey
+				clientConfig.awsSessionToken = credentials.sessionToken
 			} else if (this.options.awsAccessKey && this.options.awsSecretKey) {
 				// Use direct credentials if provided
 				clientConfig.awsAccessKey = this.options.awsAccessKey
