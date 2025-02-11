@@ -139,22 +139,19 @@ export class CheckpointService {
 		}
 
 		if (stashSha) {
-			console.log(`[restoreMain] applying stash ${stashSha}`)
+			this.log(`[restoreMain] applying stash ${stashSha}`)
 			await this.git.raw(["stash", "apply", "--index", stashSha])
 		}
 
-		console.log(`[restoreMain] restoring from ${branch}`)
+		this.log(`[restoreMain] restoring from ${branch}`)
 		await this.git.raw(["restore", "--source", branch, "--worktree", "--", "."])
 	}
 
 	public async saveCheckpoint(message: string) {
 		await this.ensureBranch(this.mainBranch)
 
-		const status = await this.git.status()
-		console.log(`[saveCheckpoint] status: ${JSON.stringify(status)}`)
 		const stashSha = (await this.git.raw(["stash", "create"])).trim()
-		console.log(`[saveCheckpoint] stashSha: ${stashSha}`)
-		const latestHash = await this.git.revparse([this.hiddenBranch])
+		const latestSha = await this.git.revparse([this.hiddenBranch])
 
 		/**
 		 * PHASE: Create stash
@@ -220,7 +217,7 @@ export class CheckpointService {
 		let diff
 
 		try {
-			diff = await this.git.diff([latestHash, stashBranch])
+			diff = await this.git.diff([latestSha, stashBranch])
 		} catch (err) {
 			await this.restoreMain({ branch: stashBranch, stashSha, force: true })
 			await this.git.branch(["-D", stashBranch]).catch(() => {})
@@ -292,7 +289,7 @@ export class CheckpointService {
 			this.currentCheckpoint = commit
 			this.log(`[saveCheckpoint] cherry-pick commit = ${commit}`)
 		} catch (err) {
-			await this.git.reset(["--hard", latestHash]).catch(() => {})
+			await this.git.reset(["--hard", latestSha]).catch(() => {})
 			await this.restoreMain({ branch: stashBranch, stashSha, force: true })
 			await this.git.branch(["-D", stashBranch]).catch(() => {})
 
