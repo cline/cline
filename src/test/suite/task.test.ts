@@ -32,10 +32,9 @@ suite("Roo Code Task", () => {
 			startTime = Date.now()
 
 			while (Date.now() - startTime < timeout) {
-				const state = await globalThis.provider.getState()
-				const task = state.taskHistory?.[0]
+				const messages = globalThis.provider.messages
 
-				if (task && task.tokensOut > 0) {
+				if (messages.some(({ type, text }) => type === "say" && text?.includes("My name is Roo"))) {
 					break
 				}
 
