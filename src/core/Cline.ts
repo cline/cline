@@ -822,29 +822,21 @@ export class Cline {
 		const { mcpEnabled, alwaysApproveResubmit, requestDelaySeconds, rateLimitSeconds } =
 			(await this.providerRef.deref()?.getState()) ?? {}
 
-		let finalDelay = 0
+		let rateLimitDelay = 0
 
 		// Only apply rate limiting if this isn't the first request
 		if (this.lastApiRequestTime) {
 			const now = Date.now()
 			const timeSinceLastRequest = now - this.lastApiRequestTime
 			const rateLimit = rateLimitSeconds || 0
-			const rateLimitDelay = Math.max(0, rateLimit * 1000 - timeSinceLastRequest)
-			finalDelay = rateLimitDelay
+			rateLimitDelay = Math.ceil(Math.max(0, rateLimit * 1000 - timeSinceLastRequest) / 1000)
 		}
 
-		// Add exponential backoff delay for retries
-		if (retryAttempt > 0) {
-			const baseDelay = requestDelaySeconds || 5
-			const exponentialDelay = Math.ceil(baseDelay * Math.pow(2, retryAttempt)) * 1000
-			finalDelay = Math.max(finalDelay, exponentialDelay)
-		}
-
-		if (finalDelay > 0) {
+		// Only show rate limiting message if we're not retrying. If retrying, we'll include the delay there.
+		if (rateLimitDelay > 0 && retryAttempt === 0) {
 			// Show countdown timer
-			for (let i = Math.ceil(finalDelay / 1000); i > 0; i--) {
-				const delayMessage =
-					retryAttempt > 0 ? `Retrying in ${i} seconds...` : `Rate limiting for ${i} seconds...`
+			for (let i = rateLimitDelay; i > 0; i--) {
+				const delayMessage = `Rate limiting for ${i} seconds...`
 				await this.say("api_req_retry_delayed", delayMessage, undefined, true)
 				await delay(1000)
 			}
@@ -959,9 +951,11 @@ export class Cline {
 				const errorMsg = error.message ?? "Unknown error"
 				const baseDelay = requestDelaySeconds || 5
 				const exponentialDelay = Math.ceil(baseDelay * Math.pow(2, retryAttempt))
+				// Wait for the greater of the exponential delay or the rate limit delay
+				const finalDelay = Math.max(exponentialDelay, rateLimitDelay)
 
 				// Show countdown timer with exponential backoff
-				for (let i = exponentialDelay; i > 0; i--) {
+				for (let i = finalDelay; i > 0; i--) {
 					await this.say(
 						"api_req_retry_delayed",
 						`${errorMsg}\n\nRetry attempt ${retryAttempt + 1}\nRetrying in ${i} seconds...`,
