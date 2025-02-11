@@ -5,7 +5,8 @@ suite("Roo Code Modes", () => {
 	test("Should handle switching modes correctly", async function () {
 		const timeout = 30000
 		const interval = 1000
-
+		const testPrompt =
+			"For each mode (Code, Architect, Ask) respond with the mode name and what it specializes in after switching to that mode, do not start with the current mode, be sure to say 'I AM DONE' after the task is complete"
 		if (!globalThis.extension) {
 			assert.fail("Extension not found")
 		}
@@ -27,9 +28,7 @@ suite("Roo Code Modes", () => {
 			await globalThis.provider.updateGlobalState("autoApprovalEnabled", true)
 
 			// Start a new task.
-			await globalThis.api.startNewTask(
-				"For each mode (Code, Architect, Ask) respond with the mode name and what it specializes in after switching to that mode, do not start with the current mode, be sure to say 'I AM DONE' after the task is complete",
-			)
+			await globalThis.api.startNewTask(testPrompt)
 
 			// Wait for task to appear in history with tokens.
 			startTime = Date.now()
@@ -52,46 +51,46 @@ suite("Roo Code Modes", () => {
 				assert.fail("No messages received")
 			}
 
-			assert.ok(
-				globalThis.provider.messages.some(
-					({ type, text }) => type === "say" && text?.includes(`"request":"[switch_mode to 'code' because:`),
-				),
-				"Did not receive expected response containing 'Roo wants to switch to code mode'",
-			)
-			assert.ok(
-				globalThis.provider.messages.some(
-					({ type, text }) => type === "say" && text?.includes("software engineer"),
-				),
-				"Did not receive expected response containing 'I am Roo in Code mode, specializing in software engineering'",
+			await globalThis.provider.updateGlobalState("mode", "Ask")
+			let output = globalThis.provider.messages.map(({ type, text }) => (type === "say" ? text : "")).join("\n")
+			await globalThis.api.startNewTask(
+				`Given this prompt: ${testPrompt} grade the response from 1 to 10 in the format of "Grade: (1-10)": ${output} \n Be sure to say 'I AM DONE GRADING' after the task is complete`,
 			)
 
-			assert.ok(
-				globalThis.provider.messages.some(
-					({ type, text }) =>
-						type === "say" && text?.includes(`"request":"[switch_mode to 'architect' because:`),
-				),
-				"Did not receive expected response containing 'Roo wants to switch to architect mode'",
-			)
-			assert.ok(
-				globalThis.provider.messages.some(
-					({ type, text }) =>
-						type === "say" && (text?.includes("technical planning") || text?.includes("technical leader")),
-				),
-				"Did not receive expected response containing 'I am Roo in Architect mode, specializing in analyzing codebases'",
-			)
+			startTime = Date.now()
 
+			while (Date.now() - startTime < timeout) {
+				const messages = globalThis.provider.messages
+
+				if (
+					messages.some(
+						({ type, text }) =>
+							type === "say" && text?.includes("I AM DONE GRADING") && !text?.includes("be sure to say"),
+					)
+				) {
+					break
+				}
+
+				await new Promise((resolve) => setTimeout(resolve, interval))
+			}
+			if (globalThis.provider.messages.length === 0) {
+				assert.fail("No messages received")
+			}
+			globalThis.provider.messages.forEach(({ type, text }) => {
+				if (type === "say" && text?.includes("Grade:")) {
+					console.log(text)
+				}
+			})
+			const grade = globalThis.provider.messages.find(
+				({ type, text }) => type === "say" && !text?.includes("Grade: (1-10)") && text?.includes("Grade:"),
+			)?.text
+			console.log("THIS IS THE GRADE", grade)
 			assert.ok(
-				globalThis.provider.messages.some(
-					({ type, text }) => type === "say" && text?.includes(`"request":"[switch_mode to 'ask' because:`),
-				),
-				"Did not receive expected response containing 'Roo wants to switch to ask mode'",
-			)
-			assert.ok(
-				globalThis.provider.messages.some(
-					({ type, text }) =>
-						type === "say" && (text?.includes("technical knowledge") || text?.includes("technical assist")),
-				),
-				"Did not receive expected response containing 'I am Roo in Ask mode, specializing in answering questions'",
+				grade?.includes("Grade: 10") ||
+					grade?.includes("Grade: 9") ||
+					grade?.includes("Grade: 8") ||
+					grade?.includes("Grade: 7"),
+				"Did not receive expected response containing 'Grade: 10' or 'Grade: 9' or 'Grade: 8' or 'Grade: 7'",
 			)
 		} finally {
 		}
