@@ -26,6 +26,8 @@ export interface ExtensionMessage {
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
 		| "emailSubscribed"
+		| "cursorAuthSuccess"
+		| "cursorAuthError"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -46,6 +48,9 @@ export interface ExtensionMessage {
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
+	access_token?: string
+	refresh_token?: string
+	error?: string
 }
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"

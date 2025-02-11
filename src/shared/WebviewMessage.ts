@@ -42,7 +42,11 @@ export interface WebviewMessage {
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "subscribeEmail"
-	// | "relaunchChromeDebugMode"
+		| "cursorAuthSuccess"
+		| "cursorAuthError"
+		| "openExternalUrl"
+		| "pollCursorAuth"
+		| "log"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
@@ -53,6 +57,12 @@ export interface WebviewMessage {
 	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
+	access_token?: string
+	refresh_token?: string
+	error?: string
+	url?: string
+	uuid?: string
+	verifier?: string
 
 	// For toggleToolAutoApprove
 	serverName?: string

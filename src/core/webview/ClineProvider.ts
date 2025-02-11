@@ -51,6 +51,8 @@ type SecretKey =
 	| "mistralApiKey"
 	| "authToken"
 	| "authNonce"
+	| "cursorAccessToken"
+	| "cursorRefreshToken"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -378,7 +380,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			async (message: WebviewMessage) => {
 				switch (message.type) {
 					case "webviewDidLaunch":
-						this.postStateToWebview()
+						await this.postStateToWebview()
 						this.workspaceTracker?.populateFilePaths() // don't await
 						getTheme().then((theme) =>
 							this.postMessageToWebview({
@@ -800,6 +802,75 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							"workbench.action.openSettings",
 							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
 						)
+						break
+					}
+					case "openExternalUrl":
+						if (message.url) {
+							vscode.env.openExternal(vscode.Uri.parse(message.url))
+						}
+						break
+					case "log":
+						if (message.text) {
+							this.outputChannel.appendLine(message.text)
+						}
+						break
+					case "pollCursorAuth": {
+						if (!message.uuid || !message.verifier) {
+							this.postMessageToWebview({
+								type: "cursorAuthError",
+								error: "Missing UUID or verifier",
+							})
+							return
+						}
+
+						try {
+							const maxAttempts = 30 // 30 seconds at 1 second intervals
+							for (let attempt = 0; attempt < maxAttempts; attempt++) {
+								try {
+									const url = `https://api2.cursor.sh/auth/poll?uuid=${encodeURIComponent(message.uuid)}&verifier=${encodeURIComponent(message.verifier)}`
+									const response = await fetch(url, {
+										headers: {
+											Accept: "application/json",
+											"Content-Type": "application/json",
+										},
+									})
+
+									if (response.status === 404) {
+										// Not authenticated yet, continue polling
+										await new Promise((resolve) => setTimeout(resolve, 1000))
+										continue
+									}
+
+									if (!response.ok) {
+										throw new Error(`HTTP error! status: ${response.status}`)
+									}
+
+									const result = await response.json()
+									if (result.accessToken && result.refreshToken) {
+										// Store the tokens in the extension's secure storage
+										await this.storeSecret("cursorAccessToken", result.accessToken)
+										await this.storeSecret("cursorRefreshToken", result.refreshToken)
+
+										this.postMessageToWebview({
+											type: "cursorAuthSuccess",
+											access_token: result.accessToken,
+											refresh_token: result.refreshToken,
+										})
+										return
+									}
+								} catch (error) {
+									// Log error but continue polling
+									this.outputChannel.appendLine(`Polling error (attempt ${attempt + 1}): ${error}`)
+									await new Promise((resolve) => setTimeout(resolve, 1000))
+								}
+							}
+							throw new Error("Authentication polling timeout")
+						} catch (error) {
+							this.postMessageToWebview({
+								type: "cursorAuthError",
+								error: error instanceof Error ? error.message : "Authentication failed",
+							})
+						}
 						break
 					}
 					// Add more switch case statements here as more webview message commands
@@ -1270,7 +1341,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
-		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
 		await this.updateGlobalState("taskHistory", updatedTaskHistory)
 
@@ -1307,9 +1378,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			platform: process.platform as Platform,
-			autoApprovalSettings,
-			browserSettings,
-			chatSettings,
+			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
+			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
+			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 			isLoggedIn: !!authToken,
 			userInfo,
 		}
@@ -1416,6 +1487,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeModelId,
 			previousModeModelInfo,
 			qwenApiLine,
+			cursorAccessToken,
+			cursorRefreshToken,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1465,6 +1538,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
+			this.getSecret("cursorAccessToken") as Promise<string | undefined>,
+			this.getSecret("cursorRefreshToken") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1525,6 +1600,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				o3MiniReasoningEffort,
 				liteLlmBaseUrl,
 				liteLlmModelId,
+				cursorAccessToken,
+				cursorRefreshToken,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

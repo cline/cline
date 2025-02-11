@@ -6,6 +6,7 @@ import {
 	VSCodeRadio,
 	VSCodeRadioGroup,
 	VSCodeTextField,
+	VSCodeButton,
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
@@ -73,6 +74,41 @@ declare module "vscode" {
 	}
 }
 
+// Helper function for generating PKCE verifier
+function generateVerifier(): string {
+	const array = new Uint8Array(32)
+	crypto.getRandomValues(array)
+	const base64 = window.btoa(
+		Array.from(array)
+			.map((b) => String.fromCharCode(b))
+			.join(""),
+	)
+	return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+}
+
+// Helper function for generating PKCE challenge from verifier
+async function generatePKCEChallenge(verifier: string): Promise<string> {
+	// Convert verifier string to Uint8Array
+	const encoder = new TextEncoder()
+	const verifierBytes = encoder.encode(verifier)
+
+	// Generate SHA256 hash
+	const hashBuffer = await crypto.subtle.digest("SHA-256", verifierBytes)
+
+	// Convert to base64URL
+	const base64 = window.btoa(
+		Array.from(new Uint8Array(hashBuffer))
+			.map((b) => String.fromCharCode(b))
+			.join(""),
+	)
+	return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+}
+
+// Helper function for logging that will show up in VSCode's output
+function log(message: string) {
+	vscode.postMessage({ type: "log", text: message })
+}
+
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup }: ApiOptionsProps) => {
 	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
@@ -81,6 +117,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+	const [isAuthenticating, setIsAuthenticating] = useState(false)
+
+	// Add immediate log to verify logging works
+	useEffect(() => {
+		log("🔍 DEBUG: ApiOptions component mounted")
+	}, [])
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({
@@ -163,6 +205,81 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		)
 	}
 
+	const handleCursorLogin = async () => {
+		log("🔐 [CURSOR AUTH] ========== AUTH FLOW STARTED ==========")
+		try {
+			setIsAuthenticating(true)
+			const pkceVerifier = generateVerifier()
+			const pkceChallenge = await generatePKCEChallenge(pkceVerifier)
+			const uuid = crypto.randomUUID()
+
+			log("🔐 [CURSOR AUTH] Generated PKCE parameters:")
+			log(`🔐 [CURSOR AUTH] UUID: ${uuid}`)
+			log(`🔐 [CURSOR AUTH] Verifier length: ${pkceVerifier.length}`)
+			log(`🔐 [CURSOR AUTH] Challenge length: ${pkceChallenge.length}`)
+
+			const loginUrl = `https://cursor.sh/loginDeepControl?challenge=${encodeURIComponent(pkceChallenge)}&uuid=${encodeURIComponent(uuid)}`
+			log(`🔐 [CURSOR AUTH] Opening login URL: ${loginUrl}`)
+
+			// Use VSCode's command to open external URL
+			vscode.postMessage({
+				type: "openExternalUrl",
+				url: loginUrl,
+			})
+
+			log("🔐 [CURSOR AUTH] Starting polling...")
+			log("🔐 [CURSOR AUTH] ----------------------------------------")
+
+			// Set a timeout to reset authentication state if no response is received
+			const authTimeout = setTimeout(() => {
+				setIsAuthenticating(false)
+				log("🔐 [CURSOR AUTH] ========== AUTH FLOW TIMED OUT ==========")
+				log("🔐 [CURSOR AUTH] No response received - user may have cancelled")
+				window.removeEventListener("message", handleAuthResult)
+			}, 30000) // 30 second timeout
+
+			// Instead of polling directly, we'll ask the extension to do it
+			vscode.postMessage({
+				type: "pollCursorAuth",
+				uuid,
+				verifier: pkceVerifier,
+			})
+
+			// Set up a one-time message handler for the auth result
+			const handleAuthResult = (event: MessageEvent) => {
+				const message = event.data
+				if (message.type === "cursorAuthSuccess" && message.access_token && message.refresh_token) {
+					clearTimeout(authTimeout)
+					window.removeEventListener("message", handleAuthResult)
+					setApiConfiguration({
+						...apiConfiguration,
+						apiProvider: "cursor", // Ensure provider is set to cursor
+						cursorAccessToken: message.access_token,
+						cursorRefreshToken: message.refresh_token,
+						cursorTokenExpiry: Date.now() + 3600000, // 1 hour from now
+					})
+					setIsAuthenticating(false)
+					log("🔐 [CURSOR AUTH] ========== AUTH FLOW COMPLETED ==========")
+				} else if (message.type === "cursorAuthError") {
+					clearTimeout(authTimeout)
+					window.removeEventListener("message", handleAuthResult)
+					setIsAuthenticating(false)
+					log("🔐 [CURSOR AUTH] ========== AUTH FLOW FAILED ==========")
+					log("🔐 [CURSOR AUTH] Error: " + message.error)
+				}
+			}
+			window.addEventListener("message", handleAuthResult)
+		} catch (error) {
+			setIsAuthenticating(false)
+			log("🔐 [CURSOR AUTH] ========== AUTH FLOW FAILED ==========")
+			log("🔐 [CURSOR AUTH] Error: " + error)
+			vscode.postMessage({
+				type: "cursorAuthError",
+				error: error instanceof Error ? error.message : "Authentication failed",
+			})
+		}
+	}
+
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
 			<DropdownContainer className="dropdown-container">
@@ -177,6 +294,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						minWidth: 130,
 						position: "relative",
 					}}>
+					<VSCodeOption value="cursor" onClick={() => console.debug("Cursor provider selected")}>
+						Cursor
+					</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
@@ -195,6 +315,54 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
+
+			{selectedProvider === "cursor" && (
+				<div>
+					{!apiConfiguration?.cursorAccessToken ? (
+						<>
+							<VSCodeButton
+								onClick={handleCursorLogin}
+								style={{ margin: "5px 0 0 0" }}
+								appearance="secondary"
+								disabled={isAuthenticating}>
+								{isAuthenticating ? "Authenticating..." : "Sign in with Cursor"}
+							</VSCodeButton>
+							<p
+								style={{
+									fontSize: "12px",
+									marginTop: "5px",
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								{isAuthenticating
+									? "Please complete authentication in the opened browser window..."
+									: "Sign in with your Cursor account to use the Cursor API."}
+							</p>
+						</>
+					) : (
+						<>
+							<p
+								style={{
+									fontSize: "12px",
+									marginTop: "5px",
+									color: "var(--vscode-charts-green)",
+								}}>
+								✓ Signed in to Cursor
+							</p>
+							<VSCodeButton
+								appearance="secondary"
+								onClick={() => {
+									setApiConfiguration({
+										...apiConfiguration,
+										cursorAccessToken: undefined,
+										cursorRefreshToken: undefined,
+									})
+								}}>
+								Sign Out
+							</VSCodeButton>
+						</>
+					)}
+				</div>
+			)}
 
 			{selectedProvider === "anthropic" && (
 				<div>

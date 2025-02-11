@@ -15,6 +15,7 @@ export type ApiProvider =
 	| "mistral"
 	| "vscode-lm"
 	| "litellm"
+	| "cursor"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -54,6 +55,10 @@ export interface ApiHandlerOptions {
 	vsCodeLmModelSelector?: any
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
+	// Cursor OAuth options
+	cursorAccessToken?: string
+	cursorRefreshToken?: string
+	cursorTokenExpiry?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -642,3 +647,20 @@ export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	inputPrice: 0,
 	outputPrice: 0,
 }
+
+// Cursor
+export type CursorModelId = keyof typeof cursorModels
+export const cursorDefaultModelId: CursorModelId = "cursor-3.5-sonnet"
+export const cursorModels = {
+	"cursor-3.5-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsComputerUse: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+} as const satisfies Record<string, ModelInfo>
