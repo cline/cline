@@ -11,12 +11,6 @@ export type CheckpointServiceOptions = {
 	log?: (message: string) => void
 }
 
-export type StagedFile = {
-	path: string
-	isStaged: boolean
-	isPartiallyStaged: boolean
-}
-
 /**
  * The CheckpointService provides a mechanism for storing a snapshot of the
  * current VSCode workspace each time a Roo Code tool is executed. It uses Git
