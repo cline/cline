@@ -355,30 +355,6 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 							</VSCodeButtonLink>
 						</p>
 					)}
-					<Checkbox
-						checked={openRouterBaseUrlSelected}
-						onChange={(checked: boolean) => {
-							setOpenRouterBaseUrlSelected(checked)
-							if (!checked) {
-								handleInputChange("openRouterBaseUrl")({
-									target: {
-										value: "",
-									},
-								})
-							}
-						}}>
-						Use custom base URL
-					</Checkbox>
-
-					{openRouterBaseUrlSelected && (
-						<VSCodeTextField
-							value={apiConfiguration?.openRouterBaseUrl || ""}
-							style={{ width: "100%", marginTop: 3 }}
-							type="url"
-							onBlur={handleInputChange("openRouterBaseUrl")}
-							placeholder="Default: https://openrouter.ai/api/v1"
-						/>
-					)}
 					<p
 						style={{
 							fontSize: "12px",
@@ -386,24 +362,45 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						This key is stored locally and only used to make API requests from this extension.{" "}
-						{/* {!apiConfiguration?.openRouterApiKey && (
-							<span style={{ color: "var(--vscode-charts-green)" }}>
-								(<span style={{ fontWeight: 500 }}>Note:</span> OpenRouter is recommended for high rate
-								limits, prompt caching, and wider selection of models.)
-							</span>
-						)} */}
 					</p>
-					<Checkbox
-						checked={apiConfiguration?.openRouterUseMiddleOutTransform || false}
-						onChange={(checked: boolean) => {
-							handleInputChange("openRouterUseMiddleOutTransform")({
-								target: { value: checked },
-							})
-						}}>
-						Compress prompts and message chains to the context size (
-						<a href="https://openrouter.ai/docs/transforms">OpenRouter Transforms</a>)
-					</Checkbox>
-					<br />
+					{!fromWelcomeView && (
+						<>
+							<Checkbox
+								checked={openRouterBaseUrlSelected}
+								onChange={(checked: boolean) => {
+									setOpenRouterBaseUrlSelected(checked)
+									if (!checked) {
+										handleInputChange("openRouterBaseUrl")({
+											target: {
+												value: "",
+											},
+										})
+									}
+								}}>
+								Use custom base URL
+							</Checkbox>
+
+							{openRouterBaseUrlSelected && (
+								<VSCodeTextField
+									value={apiConfiguration?.openRouterBaseUrl || ""}
+									style={{ width: "100%", marginTop: 3 }}
+									type="url"
+									onBlur={handleInputChange("openRouterBaseUrl")}
+									placeholder="Default: https://openrouter.ai/api/v1"
+								/>
+							)}
+							<Checkbox
+								checked={apiConfiguration?.openRouterUseMiddleOutTransform || false}
+								onChange={(checked: boolean) => {
+									handleInputChange("openRouterUseMiddleOutTransform")({
+										target: { value: checked },
+									})
+								}}>
+								Compress prompts and message chains to the context size (
+								<a href="https://openrouter.ai/docs/transforms">OpenRouter Transforms</a>)
+							</Checkbox>
+						</>
+					)}
 				</div>
 			)}
 
