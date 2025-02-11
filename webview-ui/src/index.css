@@ -319,6 +319,11 @@ vscode-dropdown::part(listbox) {
 	max-height: unset !important;
 }
 
+.vscrui-checkbox svg {
+	min-width: 16px;
+	min-height: 16px;
+}
+
 /**
  * @shadcn/ui Overrides / Hacks
  */
