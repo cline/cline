@@ -218,7 +218,7 @@ export class CheckpointService {
 			this.log(
 				`[saveCheckpoint] failed in stage stash phase: ${err instanceof Error ? err.message : String(err)}`,
 			)
-			await this.git.checkout(["-f", this.mainBranch])
+			await this.restoreMain({ branch: stashBranch, stashSha, force: true })
 			await this.git.branch(["-D", stashBranch]).catch(() => {})
 			throw err
 		}
@@ -232,17 +232,25 @@ export class CheckpointService {
 		 *   - UNDO: Create branch
 		 *   - UNDO: Change branch
 		 */
+		let stashCommit
+
 		try {
-			// TODO: Add a test to see if empty commits break this.
-			const stashCommit = await this.git.commit(message, undefined, { "--no-verify": null })
+			stashCommit = await this.git.commit(message, undefined, { "--no-verify": null })
 			this.log(`[saveCheckpoint] stashCommit: ${message} -> ${JSON.stringify(stashCommit)}`)
 		} catch (err) {
 			this.log(
 				`[saveCheckpoint] failed in stash commit phase: ${err instanceof Error ? err.message : String(err)}`,
 			)
-			await this.git.checkout(["-f", this.mainBranch])
+			await this.restoreMain({ branch: stashBranch, stashSha, force: true })
 			await this.git.branch(["-D", stashBranch]).catch(() => {})
 			throw err
+		}
+
+		if (!stashCommit) {
+			this.log("[saveCheckpoint] no stash commit")
+			await this.restoreMain({ branch: stashBranch, stashSha })
+			await this.git.branch(["-D", stashBranch])
+			return undefined
 		}
 
 		/**
