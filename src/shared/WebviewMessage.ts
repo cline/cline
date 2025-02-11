@@ -81,6 +81,7 @@ export interface WebviewMessage {
 		| "updateSupportPrompt"
 		| "resetSupportPrompt"
 		| "getSystemPrompt"
+		| "copySystemPrompt"
 		| "systemPrompt"
 		| "enhancementApiConfigId"
 		| "updateExperimental"

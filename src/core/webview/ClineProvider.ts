@@ -1265,53 +1265,26 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "getSystemPrompt":
 						try {
-							const {
-								apiConfiguration,
-								customModePrompts,
-								customInstructions,
-								preferredLanguage,
-								browserViewportSize,
-								diffEnabled,
-								mcpEnabled,
-								fuzzyMatchThreshold,
-								experiments,
-								enableMcpServerCreation,
-							} = await this.getState()
-
-							// Create diffStrategy based on current model and settings
-							const diffStrategy = getDiffStrategy(
-								apiConfiguration.apiModelId || apiConfiguration.openRouterModelId || "",
-								fuzzyMatchThreshold,
-								Experiments.isEnabled(experiments, EXPERIMENT_IDS.DIFF_STRATEGY),
-							)
-							const cwd =
-								vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || ""
-
-							const mode = message.mode ?? defaultModeSlug
-							const customModes = await this.customModesManager.getCustomModes()
-
-							const systemPrompt = await SYSTEM_PROMPT(
-								this.context,
-								cwd,
-								apiConfiguration.openRouterModelInfo?.supportsComputerUse ?? false,
-								mcpEnabled ? this.mcpHub : undefined,
-								diffStrategy,
-								browserViewportSize ?? "900x600",
-								mode,
-								customModePrompts,
-								customModes,
-								customInstructions,
-								preferredLanguage,
-								diffEnabled,
-								experiments,
-								enableMcpServerCreation,
-							)
+							const systemPrompt = await generateSystemPrompt(message)
 
 							await this.postMessageToWebview({
 								type: "systemPrompt",
 								text: systemPrompt,
 								mode: message.mode,
 							})
+						} catch (error) {
+							this.outputChannel.appendLine(
+								`Error getting system prompt:  ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+							)
+							vscode.window.showErrorMessage("Failed to get system prompt")
+						}
+						break
+					case "copySystemPrompt":
+						try {
+							const systemPrompt = await generateSystemPrompt(message)
+
+							await vscode.env.clipboard.writeText(systemPrompt)
+							await vscode.window.showInformationMessage("System prompt successfully copied to clipboard")
 						} catch (error) {
 							this.outputChannel.appendLine(
 								`Error getting system prompt:  ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
@@ -1524,6 +1497,50 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables,
 		)
+
+		const generateSystemPrompt = async (message: WebviewMessage) => {
+			const {
+				apiConfiguration,
+				customModePrompts,
+				customInstructions,
+				preferredLanguage,
+				browserViewportSize,
+				diffEnabled,
+				mcpEnabled,
+				fuzzyMatchThreshold,
+				experiments,
+				enableMcpServerCreation,
+			} = await this.getState()
+
+			// Create diffStrategy based on current model and settings
+			const diffStrategy = getDiffStrategy(
+				apiConfiguration.apiModelId || apiConfiguration.openRouterModelId || "",
+				fuzzyMatchThreshold,
+				Experiments.isEnabled(experiments, EXPERIMENT_IDS.DIFF_STRATEGY),
+			)
+			const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || ""
+
+			const mode = message.mode ?? defaultModeSlug
+			const customModes = await this.customModesManager.getCustomModes()
+
+			const systemPrompt = await SYSTEM_PROMPT(
+				this.context,
+				cwd,
+				apiConfiguration.openRouterModelInfo?.supportsComputerUse ?? false,
+				mcpEnabled ? this.mcpHub : undefined,
+				diffStrategy,
+				browserViewportSize ?? "900x600",
+				mode,
+				customModePrompts,
+				customModes,
+				customInstructions,
+				preferredLanguage,
+				diffEnabled,
+				experiments,
+				enableMcpServerCreation,
+			)
+			return systemPrompt
+		}
 	}
 
 	/**
