@@ -11,8 +11,12 @@ import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { ApiStream } from "./transform/stream"
 import { DeepSeekHandler } from "./providers/deepseek"
+import { RequestyHandler } from "./providers/requesty"
+import { TogetherHandler } from "./providers/together"
+import { QwenHandler } from "./providers/qwen"
 import { MistralHandler } from "./providers/mistral"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
+import { LiteLlmHandler } from "./providers/litellm"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -46,10 +50,18 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new OpenAiNativeHandler(options)
 		case "deepseek":
 			return new DeepSeekHandler(options)
+		case "requesty":
+			return new RequestyHandler(options)
+		case "together":
+			return new TogetherHandler(options)
+		case "qwen":
+			return new QwenHandler(options)
 		case "mistral":
 			return new MistralHandler(options)
 		case "vscode-lm":
 			return new VsCodeLmHandler(options)
+		case "litellm":
+			return new LiteLlmHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
