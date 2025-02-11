@@ -772,10 +772,8 @@ describe("Cline", () => {
 					false,
 				)
 
-				// Calculate expected delay calls based on exponential backoff
-				const exponentialDelay = Math.ceil(baseDelay * Math.pow(2, 1)) // retryAttempt = 1
-				const rateLimitDelay = baseDelay // Initial rate limit delay
-				const totalExpectedDelays = exponentialDelay + rateLimitDelay
+				// Calculate expected delay calls for countdown
+				const totalExpectedDelays = baseDelay // One delay per second for countdown
 				expect(mockDelay).toHaveBeenCalledTimes(totalExpectedDelays)
 				expect(mockDelay).toHaveBeenCalledWith(1000)
 
@@ -783,6 +781,122 @@ describe("Cline", () => {
 				const errorMessage = saySpy.mock.calls.find((call) => call[1]?.includes(mockError.message))?.[1]
 				expect(errorMessage).toBe(
 					`${mockError.message}\n\nRetry attempt 1\nRetrying in ${baseDelay} seconds...`,
+				)
+			})
+
+			it("should not apply retry delay twice", async () => {
+				const cline = new Cline(mockProvider, mockApiConfig, undefined, false, false, undefined, "test task")
+
+				// Mock delay to track countdown timing
+				const mockDelay = jest.fn().mockResolvedValue(undefined)
+				jest.spyOn(require("delay"), "default").mockImplementation(mockDelay)
+
+				// Mock say to track messages
+				const saySpy = jest.spyOn(cline, "say")
+
+				// Create a stream that fails on first chunk
+				const mockError = new Error("API Error")
+				const mockFailedStream = {
+					async *[Symbol.asyncIterator]() {
+						throw mockError
+					},
+					async next() {
+						throw mockError
+					},
+					async return() {
+						return { done: true, value: undefined }
+					},
+					async throw(e: any) {
+						throw e
+					},
+					async [Symbol.asyncDispose]() {
+						// Cleanup
+					},
+				} as AsyncGenerator<ApiStreamChunk>
+
+				// Create a successful stream for retry
+				const mockSuccessStream = {
+					async *[Symbol.asyncIterator]() {
+						yield { type: "text", text: "Success" }
+					},
+					async next() {
+						return { done: true, value: { type: "text", text: "Success" } }
+					},
+					async return() {
+						return { done: true, value: undefined }
+					},
+					async throw(e: any) {
+						throw e
+					},
+					async [Symbol.asyncDispose]() {
+						// Cleanup
+					},
+				} as AsyncGenerator<ApiStreamChunk>
+
+				// Mock createMessage to fail first then succeed
+				let firstAttempt = true
+				jest.spyOn(cline.api, "createMessage").mockImplementation(() => {
+					if (firstAttempt) {
+						firstAttempt = false
+						return mockFailedStream
+					}
+					return mockSuccessStream
+				})
+
+				// Set alwaysApproveResubmit and requestDelaySeconds
+				mockProvider.getState = jest.fn().mockResolvedValue({
+					alwaysApproveResubmit: true,
+					requestDelaySeconds: 3,
+				})
+
+				// Mock previous API request message
+				cline.clineMessages = [
+					{
+						ts: Date.now(),
+						type: "say",
+						say: "api_req_started",
+						text: JSON.stringify({
+							tokensIn: 100,
+							tokensOut: 50,
+							cacheWrites: 0,
+							cacheReads: 0,
+							request: "test request",
+						}),
+					},
+				]
+
+				// Trigger API request
+				const iterator = cline.attemptApiRequest(0)
+				await iterator.next()
+
+				// Verify delay is only applied for the countdown
+				const baseDelay = 3 // from requestDelaySeconds
+				const expectedDelayCount = baseDelay // One delay per second for countdown
+				expect(mockDelay).toHaveBeenCalledTimes(expectedDelayCount)
+				expect(mockDelay).toHaveBeenCalledWith(1000) // Each delay should be 1 second
+
+				// Verify countdown messages were only shown once
+				const retryMessages = saySpy.mock.calls.filter(
+					(call) => call[0] === "api_req_retry_delayed" && call[1]?.includes("Retrying in"),
+				)
+				expect(retryMessages).toHaveLength(baseDelay)
+
+				// Verify the retry message sequence
+				for (let i = baseDelay; i > 0; i--) {
+					expect(saySpy).toHaveBeenCalledWith(
+						"api_req_retry_delayed",
+						expect.stringContaining(`Retrying in ${i} seconds`),
+						undefined,
+						true,
+					)
+				}
+
+				// Verify final retry message
+				expect(saySpy).toHaveBeenCalledWith(
+					"api_req_retry_delayed",
+					expect.stringContaining("Retrying now"),
+					undefined,
+					false,
 				)
 			})
 
