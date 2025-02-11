@@ -132,22 +132,64 @@ export class CheckpointService {
 		stashSha: string
 		force?: boolean
 	}) {
-		if (force) {
-			await this.git.checkout(["-f", this.mainBranch])
-		} else {
-			await this.git.checkout(this.mainBranch)
+		let currentBranch = await this.git.revparse(["--abbrev-ref", "HEAD"])
+
+		if (currentBranch !== this.mainBranch) {
+			if (force) {
+				try {
+					await this.git.checkout(["-f", this.mainBranch])
+				} catch (err) {
+					this.log(
+						`[restoreMain] failed to force checkout ${this.mainBranch}: ${err instanceof Error ? err.message : String(err)}`,
+					)
+				}
+			} else {
+				try {
+					await this.git.checkout(this.mainBranch)
+				} catch (err) {
+					this.log(
+						`[restoreMain] failed to checkout ${this.mainBranch}: ${err instanceof Error ? err.message : String(err)}`,
+					)
+
+					// Escalate to a forced checkout if we can't checkout the
+					// main branch under normal circumstances.
+					currentBranch = await this.git.revparse(["--abbrev-ref", "HEAD"])
+
+					if (currentBranch !== this.mainBranch) {
+						await this.git.checkout(["-f", this.mainBranch]).catch(() => {})
+					}
+				}
+			}
+		}
+
+		currentBranch = await this.git.revparse(["--abbrev-ref", "HEAD"])
+
+		if (currentBranch !== this.mainBranch) {
+			throw new Error(`Unable to restore ${this.mainBranch}`)
 		}
 
 		if (stashSha) {
 			this.log(`[restoreMain] applying stash ${stashSha}`)
-			await this.git.raw(["stash", "apply", "--index", stashSha])
+
+			try {
+				await this.git.raw(["stash", "apply", "--index", stashSha])
+			} catch (err) {
+				this.log(`[restoreMain] Failed to apply stash: ${err instanceof Error ? err.message : String(err)}`)
+			}
 		}
 
-		this.log(`[restoreMain] restoring from ${branch}`)
-		await this.git.raw(["restore", "--source", branch, "--worktree", "--", "."])
+		this.log(`[restoreMain] restoring from ${branch} branch`)
+
+		try {
+			await this.git.raw(["restore", "--source", branch, "--worktree", "--", "."])
+		} catch (err) {
+			this.log(`[restoreMain] Failed to restore branch: ${err instanceof Error ? err.message : String(err)}`)
+		}
 	}
 
 	public async saveCheckpoint(message: string) {
+		const startTime = Date.now()
+
 		await this.ensureBranch(this.mainBranch)
 
 		const stashSha = (await this.git.raw(["stash", "create"])).trim()
@@ -172,15 +214,13 @@ export class CheckpointService {
 		 */
 		try {
 			await this.git.add(["-A"])
-			const status = await this.git.status()
-			this.log(`[saveCheckpoint] status: ${JSON.stringify(status)}`)
 		} catch (err) {
-			await this.git.checkout(["-f", this.mainBranch])
-			await this.git.branch(["-D", stashBranch]).catch(() => {})
-
-			throw new Error(
-				`[saveCheckpoint] Failed in stage stash phase: ${err instanceof Error ? err.message : String(err)}`,
+			this.log(
+				`[saveCheckpoint] failed in stage stash phase: ${err instanceof Error ? err.message : String(err)}`,
 			)
+			await this.restoreMain({ branch: stashBranch, stashSha, force: true })
+			await this.git.branch(["-D", stashBranch]).catch(() => {})
+			throw err
 		}
 
 		/**
@@ -192,17 +232,25 @@ export class CheckpointService {
 		 *   - UNDO: Create branch
 		 *   - UNDO: Change branch
 		 */
-		try {
-			// TODO: Add a test to see if empty commits break this.
-			const tempCommit = await this.git.commit(message, undefined, { "--no-verify": null })
-			this.log(`[saveCheckpoint] tempCommit: ${message} -> ${JSON.stringify(tempCommit)}`)
-		} catch (err) {
-			await this.git.checkout(["-f", this.mainBranch])
-			await this.git.branch(["-D", stashBranch]).catch(() => {})
+		let stashCommit
 
-			throw new Error(
-				`[saveCheckpoint] Failed in stash commit phase: ${err instanceof Error ? err.message : String(err)}`,
+		try {
+			stashCommit = await this.git.commit(message, undefined, { "--no-verify": null })
+			this.log(`[saveCheckpoint] stashCommit: ${message} -> ${JSON.stringify(stashCommit)}`)
+		} catch (err) {
+			this.log(
+				`[saveCheckpoint] failed in stash commit phase: ${err instanceof Error ? err.message : String(err)}`,
 			)
+			await this.restoreMain({ branch: stashBranch, stashSha, force: true })
+			await this.git.branch(["-D", stashBranch]).catch(() => {})
+			throw err
+		}
+
+		if (!stashCommit) {
+			this.log("[saveCheckpoint] no stash commit")
+			await this.restoreMain({ branch: stashBranch, stashSha })
+			await this.git.branch(["-D", stashBranch])
+			return undefined
 		}
 
 		/**
@@ -219,12 +267,10 @@ export class CheckpointService {
 		try {
 			diff = await this.git.diff([latestSha, stashBranch])
 		} catch (err) {
+			this.log(`[saveCheckpoint] failed in diff phase: ${err instanceof Error ? err.message : String(err)}`)
 			await this.restoreMain({ branch: stashBranch, stashSha, force: true })
 			await this.git.branch(["-D", stashBranch]).catch(() => {})
-
-			throw new Error(
-				`[saveCheckpoint] Failed in diff phase: ${err instanceof Error ? err.message : String(err)}`,
-			)
+			throw err
 		}
 
 		if (!diff) {
@@ -249,12 +295,10 @@ export class CheckpointService {
 			await this.git.reset(["--hard", this.mainBranch])
 			this.log(`[saveCheckpoint] reset ${this.hiddenBranch}`)
 		} catch (err) {
+			this.log(`[saveCheckpoint] failed in reset phase: ${err instanceof Error ? err.message : String(err)}`)
 			await this.restoreMain({ branch: stashBranch, stashSha, force: true })
 			await this.git.branch(["-D", stashBranch]).catch(() => {})
-
-			throw new Error(
-				`[saveCheckpoint] Failed in reset phase: ${err instanceof Error ? err.message : String(err)}`,
-			)
+			throw err
 		}
 
 		/**
@@ -289,25 +333,33 @@ export class CheckpointService {
 			this.currentCheckpoint = commit
 			this.log(`[saveCheckpoint] cherry-pick commit = ${commit}`)
 		} catch (err) {
+			this.log(
+				`[saveCheckpoint] failed in cherry pick phase: ${err instanceof Error ? err.message : String(err)}`,
+			)
 			await this.git.reset(["--hard", latestSha]).catch(() => {})
 			await this.restoreMain({ branch: stashBranch, stashSha, force: true })
 			await this.git.branch(["-D", stashBranch]).catch(() => {})
-
-			throw new Error(
-				`[saveCheckpoint] Failed in cherry pick phase: ${err instanceof Error ? err.message : String(err)}`,
-			)
+			throw err
 		}
 
 		await this.restoreMain({ branch: stashBranch, stashSha })
 		await this.git.branch(["-D", stashBranch])
 
+		// We've gotten reports that checkpoints can be slow in some cases, so
+		// we'll log the duration of the checkpoint save.
+		const duration = Date.now() - startTime
+		this.log(`[saveCheckpoint] saved checkpoint ${commit} in ${duration}ms`)
+
 		return { commit }
 	}
 
 	public async restoreCheckpoint(commitHash: string) {
+		const startTime = Date.now()
 		await this.ensureBranch(this.mainBranch)
 		await this.git.clean([CleanOptions.FORCE, CleanOptions.RECURSIVE])
 		await this.git.raw(["restore", "--source", commitHash, "--worktree", "--", "."])
+		const duration = Date.now() - startTime
+		this.log(`[restoreCheckpoint] restored checkpoint ${commitHash} in ${duration}ms`)
 		this.currentCheckpoint = commitHash
 	}
 

@@ -370,7 +370,13 @@ export class Cline {
 		this.askResponseImages = images
 	}
 
-	async say(type: ClineSay, text?: string, images?: string[], partial?: boolean): Promise<undefined> {
+	async say(
+		type: ClineSay,
+		text?: string,
+		images?: string[],
+		partial?: boolean,
+		checkpoint?: Record<string, unknown>,
+	): Promise<undefined> {
 		if (this.abort) {
 			throw new Error("Roo Code instance aborted")
 		}
@@ -423,7 +429,7 @@ export class Cline {
 			// this is a new non-partial message, so add it like normal
 			const sayTs = Date.now()
 			this.lastMessageTs = sayTs
-			await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images })
+			await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images, checkpoint })
 			await this.providerRef.deref()?.postStateToWebview()
 		}
 	}
@@ -2747,6 +2753,13 @@ export class Cline {
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
 		const previousApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 
+		// Save checkpoint if this is the first API request.
+		const isFirstRequest = this.clineMessages.filter((m) => m.say === "api_req_started").length === 0
+
+		if (isFirstRequest) {
+			await this.checkpointSave()
+		}
+
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
 		await this.say(
@@ -3288,12 +3301,7 @@ export class Cline {
 				]),
 			)
 		} catch (err) {
-			this.providerRef
-				.deref()
-				?.log(
-					`[checkpointDiff] Encountered unexpected error: $${err instanceof Error ? err.message : String(err)}`,
-				)
-
+			this.providerRef.deref()?.log("[checkpointDiff] disabling checkpoints for this task")
 			this.checkpointsEnabled = false
 		}
 	}
@@ -3304,6 +3312,7 @@ export class Cline {
 		}
 
 		try {
+			const isFirst = !this.checkpointService
 			const service = await this.getCheckpointService()
 			const commit = await service.saveCheckpoint(`Task: ${this.taskId}, Time: ${Date.now()}`)
 
@@ -3312,15 +3321,17 @@ export class Cline {
 					.deref()
 					?.postMessageToWebview({ type: "currentCheckpointUpdated", text: service.currentCheckpoint })
 
-				await this.say("checkpoint_saved", commit.commit)
+				// Checkpoint metadata required by the UI.
+				const checkpoint = {
+					isFirst,
+					from: service.baseCommitHash,
+					to: commit.commit,
+				}
+
+				await this.say("checkpoint_saved", commit.commit, undefined, undefined, checkpoint)
 			}
 		} catch (err) {
-			this.providerRef
-				.deref()
-				?.log(
-					`[checkpointSave] Encountered unexpected error: $${err instanceof Error ? err.message : String(err)}`,
-				)
-
+			this.providerRef.deref()?.log("[checkpointSave] disabling checkpoints for this task")
 			this.checkpointsEnabled = false
 		}
 	}
@@ -3390,12 +3401,7 @@ export class Cline {
 			// Cline instance.
 			this.providerRef.deref()?.cancelTask()
 		} catch (err) {
-			this.providerRef
-				.deref()
-				?.log(
-					`[restoreCheckpoint] Encountered unexpected error: $${err instanceof Error ? err.message : String(err)}`,
-				)
-
+			this.providerRef.deref()?.log("[checkpointRestore] disabling checkpoints for this task")
 			this.checkpointsEnabled = false
 		}
 	}

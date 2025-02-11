@@ -210,9 +210,12 @@ describe("CheckpointService", () => {
 		})
 
 		it("does not create a checkpoint if there are no pending changes", async () => {
+			const commit0 = await service.saveCheckpoint("Zeroth checkpoint")
+			expect(commit0?.commit).toBeFalsy()
+
 			await fs.writeFile(testFile, "Ahoy, world!")
-			const commit = await service.saveCheckpoint("First checkpoint")
-			expect(commit?.commit).toBeTruthy()
+			const commit1 = await service.saveCheckpoint("First checkpoint")
+			expect(commit1?.commit).toBeTruthy()
 
 			const commit2 = await service.saveCheckpoint("Second checkpoint")
 			expect(commit2?.commit).toBeFalsy()
