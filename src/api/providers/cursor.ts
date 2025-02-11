@@ -40,11 +40,13 @@ export class CursorHandler implements ApiHandler {
 	private readonly MAX_MESSAGE_SIZE = 4294967296 // 4GB (2^32 bytes) per spec
 	private readonly CLIENT_ID = "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB"
 	private onTokensRefreshed?: (accessToken: string, refreshToken: string) => Promise<void>
+	private sessionId: string
 
 	constructor(options: ApiHandlerOptions, onTokensRefreshed?: (accessToken: string, refreshToken: string) => Promise<void>) {
 		this.options = options
 		this.lastTokenRefresh = Date.now()
 		this.onTokensRefreshed = onTokensRefreshed
+		this.sessionId = crypto.randomUUID()
 	}
 
 	private log(message: string) {
@@ -119,6 +121,7 @@ export class CursorHandler implements ApiHandler {
 	private convertAnthropicToCursorMessages(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): CursorMessage[] {
 		const cursorMessages: CursorMessage[] = []
 
+		// Add system prompt as a separate message
 		if (systemPrompt) {
 			cursorMessages.push({
 				type: "MESSAGE_TYPE_AI",
@@ -127,6 +130,7 @@ export class CursorHandler implements ApiHandler {
 			})
 		}
 
+		// Process each message
 		for (const message of messages) {
 			let text: string
 			if (typeof message.content === "string") {
@@ -297,12 +301,6 @@ export class CursorHandler implements ApiHandler {
 		throw new Error(errorMessage)
 	}
 
-	private isFilledPrompt(obj: unknown): obj is IFilledPrompt {
-		if (!obj || typeof obj !== "object") return false
-		const keys = Object.keys(obj as object)
-		return keys.length === 1 && keys[0] === "text" && typeof (obj as any).text === "string"
-	}
-
 	private parseMessageContent(data: string): MessageContent | null {
 		try {
 			const content = JSON.parse(data)
@@ -342,7 +340,7 @@ export class CursorHandler implements ApiHandler {
 			},
 			modelDetails: {
 				name: this.getModel().id,
-				enableGhostMode: true,
+				enableGhostMode: false, // Changed to false to enable planning mode
 				apiKey: undefined,
 			},
 			workspaceRootPath: "",
@@ -379,6 +377,13 @@ export class CursorHandler implements ApiHandler {
 				Authorization: `Bearer ${this.options.cursorAccessToken}`,
 				"User-Agent":
 					"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Cursor/0.45.11 Chrome/128.0.6613.186 Electron/32.2.6 Safari/537.36",
+				"x-cursor-client-key": "2a02d8cd9b5af7a8db6e143e201164e47faa7cba6574524e4e4aafe6655f18cf",
+				"x-cursor-checksum":
+					"LwoMGZe259957470509b69c0a477232e090cae43695725138dedbcc7625a2b36573caa58/deb3cac1988ff56ea6fabce72eefd291235ab451eef8173567d7521126673b73",
+				"x-cursor-client-version": "0.45.11",
+				"x-cursor-timezone": "Europe/Amsterdam",
+				"x-ghost-mode": "false",
+				"x-session-id": this.sessionId,
 			},
 			body: fullRequestBody,
 		})
@@ -440,8 +445,11 @@ export class CursorHandler implements ApiHandler {
 							this.log("🏁 End of stream marker received")
 							if (data.length > 0) {
 								const errorMessage = this.parseErrorMessage(data)
-								this.log(`❌ Error in end-of-stream marker: ${errorMessage}`)
-								throw new Error(errorMessage)
+								if (errorMessage !== "{}") {
+									// Don't treat empty object as error
+									this.log(`❌ Error in end-of-stream marker: ${errorMessage}`)
+									throw new Error(errorMessage)
+								}
 							}
 							sawEndMarker = true
 							return
@@ -464,14 +472,6 @@ export class CursorHandler implements ApiHandler {
 							}
 
 							try {
-								// First try to parse as prompt like Rust's FilledPrompt
-								const parsed = JSON.parse(messageText)
-								if (this.isFilledPrompt(parsed)) {
-									this.log(`📝 Skipping prompt: ${parsed.text}`)
-									continue
-								}
-
-								// Then try to parse as MessageContent
 								const content = this.parseMessageContent(messageText)
 								if (content) {
 									this.log(`✏️ Yielding text: ${content.text}`)
