@@ -143,7 +143,7 @@ export class Cline {
 		this.fuzzyMatchThreshold = fuzzyMatchThreshold ?? 1.0
 		this.providerRef = new WeakRef(provider)
 		this.diffViewProvider = new DiffViewProvider(cwd)
-		this.checkpointsEnabled = process.platform !== "win32" && !!enableCheckpoints
+		this.checkpointsEnabled = enableCheckpoints ?? false
 
 		if (historyItem) {
 			this.taskId = historyItem.id

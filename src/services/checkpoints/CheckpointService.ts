@@ -312,10 +312,6 @@ export class CheckpointService {
 	}
 
 	public static async create({ taskId, git, baseDir, log = console.log }: CheckpointServiceOptions) {
-		if (process.platform === "win32") {
-			throw new Error("Checkpoints are not supported on Windows.")
-		}
-
 		git = git || simpleGit({ baseDir })
 
 		const version = await git.version()
