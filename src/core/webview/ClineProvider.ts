@@ -51,6 +51,7 @@ type SecretKey =
 	| "mistralApiKey"
 	| "authToken"
 	| "authNonce"
+	| "difyApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -78,6 +79,8 @@ type GlobalStateKey =
 	| "chatSettings"
 	| "vsCodeLmModelSelector"
 	| "userInfo"
+	| "browserSettings"
+	| "difyBaseUrl"
 	| "previousModeApiProvider"
 	| "previousModeModelId"
 	| "previousModeModelInfo"
@@ -463,6 +466,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								liteLlmBaseUrl,
 								liteLlmModelId,
 								qwenApiLine,
+								difyApiKey,
+								difyBaseUrl,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -501,6 +506,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("qwenApiLine", qwenApiLine)
 							await this.updateGlobalState("requestyModelId", requestyModelId)
 							await this.updateGlobalState("togetherModelId", togetherModelId)
+							await this.storeSecret("difyApiKey", difyApiKey)
+							await this.updateGlobalState("difyBaseUrl", difyBaseUrl)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -1411,6 +1418,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			liteLlmBaseUrl,
 			liteLlmModelId,
 			userInfo,
+			difyApiKey,
+			difyBaseUrl,
 			authToken,
 			previousModeApiProvider,
 			previousModeModelId,
@@ -1460,6 +1469,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("liteLlmBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("liteLlmModelId") as Promise<string | undefined>,
 			this.getGlobalState("userInfo") as Promise<UserInfo | undefined>,
+			this.getSecret("difyApiKey") as Promise<string | undefined>,
+			this.getGlobalState("difyBaseUrl") as Promise<string | undefined>,
 			this.getSecret("authToken") as Promise<string | undefined>,
 			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
@@ -1525,6 +1536,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				o3MiniReasoningEffort,
 				liteLlmBaseUrl,
 				liteLlmModelId,
+				difyApiKey,
+				difyBaseUrl,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -1618,6 +1631,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"qwenApiKey",
 			"mistralApiKey",
 			"authToken",
+			"difyApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
