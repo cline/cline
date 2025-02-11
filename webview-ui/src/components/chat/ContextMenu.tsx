@@ -48,6 +48,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 		switch (option.type) {
 			case ContextMenuOptionType.Problems:
 				return <span>Problems</span>
+			case ContextMenuOptionType.EditorSelection:
+				return <span>Editor Selection</span>
 			case ContextMenuOptionType.URL:
 				return <span>Paste URL to fetch contents</span>
 			case ContextMenuOptionType.NoResults:
@@ -79,6 +81,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
 	const getIconForOption = (option: ContextMenuQueryItem): string => {
 		switch (option.type) {
+			case ContextMenuOptionType.EditorSelection:
+				return "list-selection"
 			case ContextMenuOptionType.File:
 				return "file"
 			case ContextMenuOptionType.Folder:

@@ -46,6 +46,7 @@ export enum ContextMenuOptionType {
 	File = "file",
 	Folder = "folder",
 	Problems = "problems",
+	EditorSelection = "editorSelection",
 	URL = "url",
 	NoResults = "noResults",
 }
@@ -82,6 +83,7 @@ export function getContextMenuOptions(
 		}
 
 		return [
+			{ type: ContextMenuOptionType.EditorSelection, value: "editorSelection" },
 			{ type: ContextMenuOptionType.URL },
 			{ type: ContextMenuOptionType.Problems },
 			{ type: ContextMenuOptionType.Folder },

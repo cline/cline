@@ -242,6 +242,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const queryItems = useMemo(() => {
 			return [
+				{ type: ContextMenuOptionType.EditorSelection, value: "editorSelection" },
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
 				...filePaths
 					.map((file) => "/" + file)

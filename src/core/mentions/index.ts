@@ -46,6 +46,8 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 				: `'${mentionPath}' (see below for file content)`
 		} else if (mention === "problems") {
 			return `Workspace Problems (see below for diagnostics)`
+		} else if (mention === "editorSelection") {
+			return `Editor Selection (see below for editor selection content)`
 		}
 		return match
 	})
@@ -98,6 +100,15 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 				parsedText += `\n\n<workspace_diagnostics>\n${problems}\n</workspace_diagnostics>`
 			} catch (error) {
 				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
+			}
+		} else if (mention === "editorSelection") {
+			const editor = vscode.window.activeTextEditor
+			if (editor) {
+				const selection = editor.selection
+				const selectedText = editor.document.getText(selection)
+				parsedText += `\n\n<editor_selection_content>\n${selectedText}\n</editor_selection_content>`
+			} else {
+				parsedText += `\n\n<editor_selection_content>\nNo editor is active.\n</editor_selection_content>`
 			}
 		}
 	}
