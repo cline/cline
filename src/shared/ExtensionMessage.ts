@@ -49,6 +49,10 @@ export interface ExtensionMessage {
 	mcpServers?: McpServer[]
 }
 
+export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
+
+export const DEFAULT_PLATFORM = "unknown"
+
 export interface ExtensionState {
 	version: string
 	apiConfiguration?: ApiConfiguration
@@ -64,6 +68,7 @@ export interface ExtensionState {
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
 	isLoggedIn: boolean
+	platform: Platform
 	userInfo?: {
 		displayName: string | null
 		email: string | null
@@ -81,6 +86,7 @@ export interface ClineMessage {
 	images?: string[]
 	partial?: boolean
 	lastCheckpointHash?: string
+	isCheckpointCheckedOut?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 }
@@ -123,6 +129,8 @@ export type ClineSay =
 	| "use_mcp_server"
 	| "diff_error"
 	| "deleted_api_reqs"
+	| "clineignore_error"
+	| "checkpoint_created"
 
 export interface ClineSayTool {
 	tool:

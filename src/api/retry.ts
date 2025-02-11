@@ -2,16 +2,18 @@ interface RetryOptions {
 	maxRetries?: number
 	baseDelay?: number
 	maxDelay?: number
+	retryAllErrors?: boolean
 }
 
 const DEFAULT_OPTIONS: Required<RetryOptions> = {
 	maxRetries: 3,
 	baseDelay: 1_000,
 	maxDelay: 10_000,
+	retryAllErrors: false,
 }
 
 export function withRetry(options: RetryOptions = {}) {
-	const { maxRetries, baseDelay, maxDelay } = { ...DEFAULT_OPTIONS, ...options }
+	const { maxRetries, baseDelay, maxDelay, retryAllErrors } = { ...DEFAULT_OPTIONS, ...options }
 
 	return function (_target: any, _propertyKey: string, descriptor: PropertyDescriptor) {
 		const originalMethod = descriptor.value
@@ -25,7 +27,7 @@ export function withRetry(options: RetryOptions = {}) {
 					const isRateLimit = error?.status === 429
 					const isLastAttempt = attempt === maxRetries - 1
 
-					if (!isRateLimit || isLastAttempt) {
+					if ((!isRateLimit && !retryAllErrors) || isLastAttempt) {
 						throw error
 					}
 

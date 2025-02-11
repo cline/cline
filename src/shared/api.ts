@@ -9,6 +9,7 @@ export type ApiProvider =
 	| "gemini"
 	| "openai-native"
 	| "requesty"
+	| "together"
 	| "deepseek"
 	| "qwen"
 	| "mistral"
@@ -45,10 +46,13 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	requestyApiKey?: string
 	requestyModelId?: string
+	togetherApiKey?: string
+	togetherModelId?: string
 	qwenApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
+	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 }
 
@@ -524,6 +528,26 @@ export const qwenModels = {
 		outputPrice: 0.0448,
 		cacheWritesPrice: 0.0056,
 		cacheReadsPrice: 0.0224,
+	},
+	"deepseek-v3": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0.28,
+		cacheWritesPrice: 0.14,
+		cacheReadsPrice: 0.014,
+	},
+	"deepseek-r1": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 2.19,
+		cacheWritesPrice: 0.55,
+		cacheReadsPrice: 0.14,
 	},
 } as const satisfies Record<string, ModelInfo>
 
