@@ -4,6 +4,7 @@ import { ApiHandlerOptions, cursorDefaultModelId, cursorModels, CursorModelId } 
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 import { Logger } from "../../services/logging/Logger"
+import { convertToCursorMessages } from "../transform/cursor-format"
 
 // Message envelope flags per API spec
 const enum EnvelopeFlag {
@@ -112,45 +113,6 @@ export class CursorHandler implements ApiHandler {
 		if (timeSinceLastRefresh >= this.TOKEN_REFRESH_INTERVAL) {
 			await this.refreshToken()
 		}
-	}
-
-	private convertRoleToCursorMessageType(role: "user" | "assistant"): "MESSAGE_TYPE_HUMAN" | "MESSAGE_TYPE_AI" {
-		return role === "user" ? "MESSAGE_TYPE_HUMAN" : "MESSAGE_TYPE_AI"
-	}
-
-	private convertAnthropicToCursorMessages(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): CursorMessage[] {
-		const cursorMessages: CursorMessage[] = []
-
-		// Add system prompt as a separate message
-		if (systemPrompt) {
-			cursorMessages.push({
-				type: "MESSAGE_TYPE_AI",
-				text: systemPrompt,
-				attached_code_chunks: [],
-			})
-		}
-
-		// Process each message
-		for (const message of messages) {
-			let text: string
-			if (typeof message.content === "string") {
-				text = message.content
-			} else {
-				// For array content, concatenate text blocks and ignore other types
-				text = message.content
-					.filter((block) => block.type === "text")
-					.map((block) => (block as Anthropic.Messages.TextBlockParam).text)
-					.join("\n")
-			}
-
-			cursorMessages.push({
-				type: this.convertRoleToCursorMessageType(message.role),
-				text,
-				attached_code_chunks: [],
-			})
-		}
-
-		return cursorMessages
 	}
 
 	private validateEnvelope(buffer: Uint8Array): { isComplete: boolean; totalLength: number; messageLength: number } {
@@ -321,7 +283,7 @@ export class CursorHandler implements ApiHandler {
 
 		await this.validateAndRefreshToken()
 
-		const cursorMessages = this.convertAnthropicToCursorMessages(systemPrompt, messages)
+		const cursorMessages = convertToCursorMessages(systemPrompt, messages)
 
 		this.log("📤 Sending request with messages:")
 		this.log(JSON.stringify(cursorMessages, null, 2))
