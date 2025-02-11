@@ -650,9 +650,9 @@ export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 
 // Cursor
 export type CursorModelId = keyof typeof cursorModels
-export const cursorDefaultModelId: CursorModelId = "cursor-3.5-sonnet"
+export const cursorDefaultModelId: CursorModelId = "claude-3.5-sonnet"
 export const cursorModels = {
-	"cursor-3.5-sonnet": {
+	"claude-3.5-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,

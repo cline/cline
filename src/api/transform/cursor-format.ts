@@ -19,10 +19,10 @@ interface CursorMessage {
 export function convertToCursorMessages(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): CursorMessage[] {
 	const cursorMessages: CursorMessage[] = []
 
-	// Add system prompt as first user message
+	// Add system prompt as a separate message
 	if (systemPrompt) {
 		cursorMessages.push({
-			type: "MESSAGE_TYPE_HUMAN",
+			type: "MESSAGE_TYPE_AI",
 			text: systemPrompt,
 			attached_code_chunks: [],
 		})
@@ -38,19 +38,13 @@ export function convertToCursorMessages(systemPrompt: string, messages: Anthropi
 			text = message.content
 				.map((block) => {
 					if (block.type === "text") {
-						return (block as Anthropic.Messages.TextBlockParam).text
-					} else if (block.type === "tool_use") {
-						// Format tool calls in XML-style structure
-						const toolUse = block as Anthropic.Messages.ToolUseBlock
-						const params = Object.entries(toolUse.input || {})
-							.map(([key, value]) => `<${key}>${JSON.stringify(value)}</${key}>`)
-							.join("\n")
-						return `<${toolUse.name}>\n${params}\n</${toolUse.name}>`
+						return block.text
 					}
+					// Tool calls are handled as part of the text content
 					return ""
 				})
 				.filter(Boolean)
-				.join("\n")
+				.join("\n\n")
 		}
 
 		cursorMessages.push({

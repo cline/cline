@@ -13,21 +13,6 @@ const enum EnvelopeFlag {
 	ERROR = 0x04,
 }
 
-interface CursorMessage {
-	type: "MESSAGE_TYPE_HUMAN" | "MESSAGE_TYPE_AI"
-	text: string
-	attached_code_chunks: Array<{
-		relativeWorkspacePath: string
-		startLineNumber: number
-		lines: string[]
-	}>
-}
-
-// Match Rust's FilledPrompt type
-interface IFilledPrompt {
-	text: string
-}
-
 interface MessageContent {
 	text: string
 }
@@ -291,18 +276,18 @@ export class CursorHandler implements ApiHandler {
 		const requestBody = {
 			query: cursorMessages[cursorMessages.length - 1].text,
 			currentFile: {
-				content: "",
+				contents: "",
 				languageId: "typescript",
 				relativeWorkspacePath: "",
 				selection: {
-					start: { line: 0, character: 0 },
-					end: { line: 0, character: 0 },
+					startPosition: { line: 0, character: 0 },
+					endPosition: { line: 0, character: 0 },
 				},
-				cursor: { line: 0, character: 0 },
+				cursorPosition: { line: 0, character: 0 },
 			},
 			modelDetails: {
-				name: this.getModel().id,
-				enableGhostMode: false, // Changed to false to enable planning mode
+				modelName: this.getModel().id,
+				enableGhostMode: false,
 				apiKey: undefined,
 			},
 			workspaceRootPath: "",
