@@ -739,9 +739,9 @@ export class Cline {
 		this.urlContentFetcher.closeBrowser()
 		this.browserSession.closeBrowser()
 
+		// If we're not streaming then `abortStream` (which reverts the diff
+		// view changes) won't be called, so we need to revert the changes here.
 		if (this.isStreaming && this.diffViewProvider.isEditing) {
-			// Need to await for when we want to make sure directories/files are
-			// reverted before re-starting the task from a checkpoint.
 			await this.diffViewProvider.revertChanges()
 		}
 	}
