@@ -56,6 +56,7 @@ type SecretKey =
 	| "liteLlmApiKey"
 	| "authToken"
 	| "authNonce"
+	| "arkApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -93,6 +94,8 @@ type GlobalStateKey =
 	| "requestyModelId"
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
+	| "arkBaseUrl"
+	| "arkEpId"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -488,6 +491,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								liteLlmModelId,
 								liteLlmApiKey,
 								qwenApiLine,
+								arkBaseUrl,
+								arkApiKey,
+								arkEpId,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -528,6 +534,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("qwenApiLine", qwenApiLine)
 							await this.updateGlobalState("requestyModelId", requestyModelId)
 							await this.updateGlobalState("togetherModelId", togetherModelId)
+							await this.updateGlobalState("arkBaseUrl", arkBaseUrl)
+							await this.storeSecret("arkApiKey", arkApiKey)
+							await this.updateGlobalState("arkEpId", arkEpId)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -855,6 +864,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			case "bedrock":
 			case "vertex":
 			case "gemini":
+			case "ark":
 				await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
 				break
 			case "openrouter":
@@ -887,6 +897,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				case "bedrock":
 				case "vertex":
 				case "gemini":
+				case "ark":
 					await this.updateGlobalState("apiModelId", newModelId)
 					break
 				case "openrouter":
@@ -1711,6 +1722,9 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelInfo,
 			qwenApiLine,
 			liteLlmApiKey,
+			arkBaseUrl,
+			arkApiKey,
+			arkEpId,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1762,6 +1776,9 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
+			this.getGlobalState("arkBaseUrl") as Promise<string | undefined>,
+			this.getSecret("arkApiKey") as Promise<string | undefined>,
+			this.getGlobalState("arkEpId") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1826,6 +1843,9 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				liteLlmBaseUrl,
 				liteLlmModelId,
 				liteLlmApiKey,
+				arkBaseUrl,
+				arkApiKey,
+				arkEpId,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -1921,6 +1941,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			"mistralApiKey",
 			"liteLlmApiKey",
 			"authToken",
+			"arkApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
