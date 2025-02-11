@@ -3288,12 +3288,7 @@ export class Cline {
 				]),
 			)
 		} catch (err) {
-			this.providerRef
-				.deref()
-				?.log(
-					`[checkpointDiff] Encountered unexpected error: $${err instanceof Error ? err.message : String(err)}`,
-				)
-
+			this.providerRef.deref()?.log("[checkpointDiff] disabling checkpoints for this task")
 			this.checkpointsEnabled = false
 		}
 	}
@@ -3315,12 +3310,7 @@ export class Cline {
 				await this.say("checkpoint_saved", commit.commit)
 			}
 		} catch (err) {
-			this.providerRef
-				.deref()
-				?.log(
-					`[checkpointSave] Encountered unexpected error: $${err instanceof Error ? err.message : String(err)}`,
-				)
-
+			this.providerRef.deref()?.log("[checkpointSave] disabling checkpoints for this task")
 			this.checkpointsEnabled = false
 		}
 	}
@@ -3390,12 +3380,7 @@ export class Cline {
 			// Cline instance.
 			this.providerRef.deref()?.cancelTask()
 		} catch (err) {
-			this.providerRef
-				.deref()
-				?.log(
-					`[restoreCheckpoint] Encountered unexpected error: $${err instanceof Error ? err.message : String(err)}`,
-				)
-
+			this.providerRef.deref()?.log("[checkpointRestore] disabling checkpoints for this task")
 			this.checkpointsEnabled = false
 		}
 	}
