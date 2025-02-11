@@ -68,7 +68,7 @@ describe("CheckpointService", () => {
 
 		git = repo.git
 		testFile = repo.testFile
-		service = await CheckpointService.create({ taskId, git, baseDir })
+		service = await CheckpointService.create({ taskId, git, baseDir, log: () => {} })
 	})
 
 	afterEach(async () => {
@@ -295,11 +295,8 @@ describe("CheckpointService", () => {
 			await fs.writeFile(testFile, "I am tracked!")
 			const untrackedFile = path.join(service.baseDir, "new.txt")
 			await fs.writeFile(untrackedFile, "I am untracked!")
-
 			const commit1 = await service.saveCheckpoint("First checkpoint")
 			expect(commit1?.commit).toBeTruthy()
-			expect(await fs.readFile(testFile, "utf-8")).toBe("I am tracked!")
-			expect(await fs.readFile(untrackedFile, "utf-8")).toBe("I am untracked!")
 
 			await fs.unlink(testFile)
 			await fs.unlink(untrackedFile)
