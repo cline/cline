@@ -354,9 +354,12 @@ export class CheckpointService {
 	}
 
 	public async restoreCheckpoint(commitHash: string) {
+		const startTime = Date.now()
 		await this.ensureBranch(this.mainBranch)
 		await this.git.clean([CleanOptions.FORCE, CleanOptions.RECURSIVE])
 		await this.git.raw(["restore", "--source", commitHash, "--worktree", "--", "."])
+		const duration = Date.now() - startTime
+		this.log(`[restoreCheckpoint] restored checkpoint ${commitHash} in ${duration}ms`)
 		this.currentCheckpoint = commitHash
 	}
 
