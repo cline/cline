@@ -188,6 +188,8 @@ export class CheckpointService {
 	}
 
 	public async saveCheckpoint(message: string) {
+		const startTime = Date.now()
+
 		await this.ensureBranch(this.mainBranch)
 
 		const stashSha = (await this.git.raw(["stash", "create"])).trim()
@@ -334,7 +336,11 @@ export class CheckpointService {
 
 		await this.restoreMain({ branch: stashBranch, stashSha })
 		await this.git.branch(["-D", stashBranch])
-		this.log(`[saveCheckpoint] saved checkpoint ${commit}`)
+
+		// We've gotten reports that checkpoints can be slow in some cases, so
+		// we'll log the duration of the checkpoint save.
+		const duration = Date.now() - startTime
+		this.log(`[saveCheckpoint] saved checkpoint ${commit} in ${duration}ms`)
 
 		return { commit }
 	}
