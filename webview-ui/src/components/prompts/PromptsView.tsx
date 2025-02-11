@@ -852,23 +852,35 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						paddingBottom: "40px",
 						marginBottom: "20px",
 						borderBottom: "1px solid var(--vscode-input-border)",
-						display: "flex",
-						justifyContent: "flex-start",
 					}}>
-					<VSCodeButton
-						appearance="primary"
-						onClick={() => {
-							const currentMode = getCurrentMode()
-							if (currentMode) {
+					<div style={{ display: "flex", gap: "8px" }}>
+						<VSCodeButton
+							appearance="primary"
+							onClick={() => {
+								const currentMode = getCurrentMode()
+								if (currentMode) {
+									vscode.postMessage({
+										type: "getSystemPrompt",
+										mode: currentMode.slug,
+									})
+								}
+							}}
+							data-testid="preview-prompt-button">
+							Preview System Prompt
+						</VSCodeButton>
+						<VSCodeButton
+							appearance="icon"
+							title="Copy system prompt to clipboard"
+							onClick={() => {
 								vscode.postMessage({
-									type: "getSystemPrompt",
-									mode: currentMode.slug,
+									type: "copySystemPrompt",
+									text: selectedPromptContent,
 								})
-							}
-						}}
-						data-testid="preview-prompt-button">
-						Preview System Prompt
-					</VSCodeButton>
+							}}
+							data-testid="copy-prompt-button">
+							<span className="codicon codicon-copy"></span>
+						</VSCodeButton>
+					</div>
 				</div>
 
 				<div
