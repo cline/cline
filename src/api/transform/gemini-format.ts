@@ -19,6 +19,7 @@ export function convertAnthropicContentToGemini(
 				| Anthropic.Messages.ImageBlockParam
 				| Anthropic.Messages.ToolUseBlockParam
 				| Anthropic.Messages.ToolResultBlockParam
+				| Anthropic.Messages.ContentBlockParam
 		  >,
 ): Part[] {
 	if (typeof content === "string") {
