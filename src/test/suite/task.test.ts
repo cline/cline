@@ -22,6 +22,10 @@ suite("Roo Code Task", () => {
 				await new Promise((resolve) => setTimeout(resolve, interval))
 			}
 
+			await globalThis.provider.updateGlobalState("mode", "Code")
+			await globalThis.provider.updateGlobalState("alwaysAllowModeSwitch", true)
+			await globalThis.provider.updateGlobalState("autoApprovalEnabled", true)
+
 			await globalThis.api.startNewTask("Hello world, what is your name? Respond with 'My name is ...'")
 
 			// Wait for task to appear in history with tokens.
