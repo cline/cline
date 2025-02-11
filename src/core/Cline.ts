@@ -1542,7 +1542,9 @@ export class Cline {
 				const askApproval = async (type: ClineAsk, partialMessage?: string) => {
 					const { response, text, images } = await this.ask(type, partialMessage, false)
 					if (response !== "yesButtonClicked") {
+						// User did NOT approve (rejected)
 						if (response === "messageResponse") {
+							// Rejection WITH feedback
 							await this.say("user_feedback", text, images)
 							pushToolResult(formatResponse.toolResult(formatResponse.toolDeniedWithFeedback(text), images))
 							// this.userMessageContent.push({
@@ -1560,15 +1562,24 @@ export class Cline {
 							this.didRejectTool = true
 							return false
 						}
+						// Rejection WITHOUT explicit feedback
 						pushToolResult(formatResponse.toolDenied())
 						// this.toolResults.push({
 						// 	type: "tool_result",
 						// 	tool_use_id: toolUseId,
 						// 	content: await this.formatToolDenied(),
 						// })
-						this.didRejectTool = true
+						this.didRejectTool = true // Prevent further tool uses in this message
 						return false
 					}
+
+					// Handle yesButtonClicked with text (Acceptance WITH feedback)
+					if (text) {
+						await this.say("user_feedback", text, images)
+						pushToolResult(formatResponse.toolResult(formatResponse.toolApprovedWithFeedback(text), images)) // Structured feedback to model on approval
+					}
+
+					// User approved without feedback
 					return true
 				}
 
