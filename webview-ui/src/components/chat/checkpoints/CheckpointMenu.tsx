@@ -1,17 +1,19 @@
 import { useState, useEffect, useCallback } from "react"
 import { CheckIcon, Cross2Icon } from "@radix-ui/react-icons"
 
-import { vscode } from "../../../utils/vscode"
-
 import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui"
+
+import { vscode } from "../../../utils/vscode"
+import { Checkpoint } from "./schema"
 
 type CheckpointMenuProps = {
 	ts: number
 	commitHash: string
+	checkpoint?: Checkpoint
 	currentCheckpointHash?: string
 }
 
-export const CheckpointMenu = ({ ts, commitHash, currentCheckpointHash }: CheckpointMenuProps) => {
+export const CheckpointMenu = ({ ts, commitHash, checkpoint, currentCheckpointHash }: CheckpointMenuProps) => {
 	const [portalContainer, setPortalContainer] = useState<HTMLElement>()
 	const [isOpen, setIsOpen] = useState(false)
 	const [isConfirming, setIsConfirming] = useState(false)
@@ -43,9 +45,11 @@ export const CheckpointMenu = ({ ts, commitHash, currentCheckpointHash }: Checkp
 
 	return (
 		<div className="flex flex-row gap-1">
-			<Button variant="ghost" size="icon" onClick={onCheckpointDiff} title="View Diff">
-				<span className="codicon codicon-diff-single" />
-			</Button>
+			{!checkpoint?.isFirst && (
+				<Button variant="ghost" size="icon" onClick={onCheckpointDiff} title="View Diff">
+					<span className="codicon codicon-diff-single" />
+				</Button>
+			)}
 			<Popover
 				open={isOpen}
 				onOpenChange={(open) => {
