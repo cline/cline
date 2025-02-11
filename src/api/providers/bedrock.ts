@@ -17,11 +17,10 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	private async initializeClient() {
+		let clientConfig: any = {
+			awsRegion: this.options.awsRegion || "us-east-1",
+		}
 		try {
-			var clientConfig: any = {
-				awsRegion: this.options.awsRegion || "us-east-1",
-			}
-
 			if (this.options.awsUseProfile) {
 				// Use profile-based credentials if enabled
 				// Use named profile, defaulting to 'default' if not specified
