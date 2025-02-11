@@ -1,5 +1,16 @@
 # Roo Code Changelog
 
+## [3.3.18]
+
+- Add a per-API-configuration model temperature setting (thanks @joemanley201!)
+- Add retries for fetching usage stats from OpenRouter (thanks @jcbdev!)
+- Fix bug where disabled MCP servers would not show up in the settings on initialization (thanks @MuriloFP!)
+- Add the Requesty provider and clean up a lot of shared model picker code (thanks @samhvw8!)
+- Add a button on the Prompts tab to copy the full system prompt to the clipboard (thanks @mamertofabian!)
+- Fix issue where Ollama/LMStudio URLs would flicker back to previous while entering them in settings
+- Fix logic error where automatic retries were waiting twice as long as intended
+- Rework the checkpoints code to avoid conflicts with file locks on Windows (sorry for the hassle!)
+
 ## [3.3.17]
 
 - Fix the restore checkpoint popover
