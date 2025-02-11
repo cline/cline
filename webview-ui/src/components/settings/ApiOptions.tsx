@@ -43,6 +43,8 @@ import {
 	askSageDefaultURL,
 	xaiDefaultModelId,
 	xaiModels,
+	arkModels,
+	arkDefaultModelId,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -207,6 +209,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">X AI</VSCodeOption>
+					<VSCodeOption value="ark">Volcengine Ark</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -1242,12 +1245,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.xaiApiKey && (
-							<VSCodeLink href="https://x.ai" style={{ display: "inline", fontSize: "inherit" }}>
-								You can get an X AI API key by signing up here.
-							</VSCodeLink>
-						)}
+					<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
 					</p>
 					{/* Note: To fully implement this, you would need to add a handler in ClineProvider.ts */}
 					{/* {apiConfiguration?.xaiApiKey && (
@@ -1263,6 +1264,47 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							Fetch Available Models
 						</button>
 					)} */}
+				</div>
+			)}
+			
+			{selectedProvider === "ark" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.arkBaseUrl || ""}
+						style={{ width: "100%" }}
+						type="url"
+						onInput={handleInputChange("arkBaseUrl")}
+						placeholder={"Enter base URL..."}>
+						<span style={{ fontWeight: 500 }}>Base URL</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.arkApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("arkApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>API Key</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.arkEpId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("arkEpId")}
+						placeholder={"Enter Endpoint ID..."}>
+						<span style={{ fontWeight: 500 }}>Endpoint Id</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.xaiApiKey && (
+							<VSCodeLink href="https://x.ai" style={{ display: "inline", fontSize: "inherit" }}>
+								You can get an X AI API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
 				</div>
 			)}
 
@@ -1304,6 +1346,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
+							{selectedProvider === "ark" && createDropdown(arkModels)}
 						</DropdownContainer>
 
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
@@ -1527,6 +1570,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(mistralModels, mistralDefaultModelId)
 		case "asksage":
 			return getProviderData(askSageModels, askSageDefaultModelId)
+		case "ark":
+			return getProviderData(arkModels, arkDefaultModelId)
 		case "openrouter":
 			return {
 				selectedProvider: provider,

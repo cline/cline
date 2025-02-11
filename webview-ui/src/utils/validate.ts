@@ -92,6 +92,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				if (!apiConfiguration.asksageApiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
+				break;
+			case "ark":
+				if (!apiConfiguration.arkBaseUrl || !apiConfiguration.arkApiKey || !apiConfiguration.arkEpId) {
+					return "You must provide a valid base URL, API key, EP ID, and model."
+				}
 				break
 		}
 	}

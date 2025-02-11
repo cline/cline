@@ -18,6 +18,7 @@ export type ApiProvider =
 	| "litellm"
 	| "asksage"
 	| "xai"
+	| "ark"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -66,6 +67,9 @@ export interface ApiHandlerOptions {
 	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
+	arkApiKey?: string
+	arkBaseUrl?: string
+	arkEpId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -1258,3 +1262,51 @@ export const xaiModels = {
 		description: "X AI's Grok Beta model (legacy) with 131K context window",
 	},
 } as const satisfies Record<string, ModelInfo>
+// Ark
+// https://www.volcengine.com/docs/82379/1302004
+export type ArkModelId = keyof typeof arkModels
+export const arkDefaultModelId: ArkModelId = "doubao-1.5-pro-32k"
+export const arkModels = {
+	"doubao-1.5-pro-256k": {
+		maxTokens: 12_288,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.68,
+		outputPrice: 1.23,
+		// tool
+	},
+	"doubao-1.5-pro-32k": {
+		maxTokens: 12_288,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.11,
+		outputPrice: 0.27,
+		// tool
+	},
+	"doubao-1.5-vision-pro-32k": {
+		maxTokens: 12_288,
+		contextWindow: 32_768,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.41,
+		outputPrice: 1.23,
+	},
+	"deepseek-r1": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.54,
+		outputPrice: 2.19,
+	},
+	"deepseek-v3": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+	},
+}
