@@ -1,16 +1,19 @@
 import { ExtensionContext } from "vscode"
 import { refreshCursorToken } from "../../../../webview-ui/src/utils/cursor/auth"
 import { CursorConfig } from "../../../shared/config/cursor"
+import { Logger } from "../../../services/logging/Logger"
 import crypto from "crypto"
 
 export class CursorTokenError extends Error {
 	constructor(
 		message: string,
-		public readonly type: "expired" | "invalid" | "network" | "unknown" = "unknown",
+		public readonly type: "expired" | "invalid" | "network" | "storage" | "unknown" = "unknown",
 		public readonly shouldLogout: boolean = false,
+		public readonly details?: unknown,
 	) {
 		super(message)
 		this.name = "CursorTokenError"
+		Object.setPrototypeOf(this, CursorTokenError.prototype)
 	}
 }
 
@@ -31,14 +34,21 @@ export class CursorTokenManager {
 		this.loadTokenState()
 	}
 
+	private log(message: string, error?: Error | unknown) {
+		const timestamp = new Date().toISOString()
+		if (error) {
+			Logger.log(`[CURSOR TOKEN ${timestamp}] ${message}: ${error instanceof Error ? error.stack : String(error)}`)
+		} else {
+			Logger.log(`[CURSOR TOKEN ${timestamp}] ${message}`)
+		}
+	}
+
 	private generateClientKey(): string {
-		// Generate a SHA-256 hash of a random UUID
 		const uuid = crypto.randomUUID()
 		return crypto.createHash("sha256").update(uuid).digest("hex")
 	}
 
 	private initializeConfig(): void {
-		// Modify the CursorConfig to use our generated key
 		;(CursorConfig as any).CLIENT_KEY = this.clientKey
 	}
 
@@ -59,9 +69,14 @@ export class CursorTokenManager {
 					refreshToken,
 					expiryTime: Date.now() + CursorConfig.TOKEN_VALIDITY,
 				}
+				this.log("Token state loaded successfully")
+			} else {
+				this.log("No existing tokens found in storage")
 			}
-		} catch {
+		} catch (error) {
+			this.log("Failed to load token state", error)
 			this.tokenState = null
+			throw new CursorTokenError("Failed to load token state", "storage", false, error)
 		}
 	}
 
@@ -72,11 +87,13 @@ export class CursorTokenManager {
 					this.context.secrets.store(CursorConfig.STORAGE_KEYS.ACCESS_TOKEN, this.tokenState.accessToken),
 					this.context.secrets.store(CursorConfig.STORAGE_KEYS.REFRESH_TOKEN, this.tokenState.refreshToken),
 				])
+				this.log("Token state saved successfully")
 			} else {
 				await this.clearTokenState()
 			}
-		} catch {
-			throw new CursorTokenError("Failed to save token state", "unknown")
+		} catch (error) {
+			this.log("Failed to save token state", error)
+			throw new CursorTokenError("Failed to save token state", "storage", false, error)
 		}
 	}
 
@@ -87,8 +104,10 @@ export class CursorTokenManager {
 				this.context.secrets.delete(CursorConfig.STORAGE_KEYS.REFRESH_TOKEN),
 			])
 			this.tokenState = null
-		} catch {
-			// Ignore clear errors
+			this.log("Token state cleared successfully")
+		} catch (error) {
+			this.log("Failed to clear token state", error)
+			// Don't throw here as this is cleanup
 		}
 	}
 
@@ -99,10 +118,12 @@ export class CursorTokenManager {
 			expiryTime: Date.now() + CursorConfig.TOKEN_VALIDITY,
 		}
 		await this.saveTokenState()
+		this.log("New tokens set successfully")
 	}
 
 	public async getAccessToken(): Promise<string> {
 		if (!this.tokenState) {
+			this.log("No token available")
 			throw new CursorTokenError("No token available", "expired", true)
 		}
 
@@ -110,11 +131,13 @@ export class CursorTokenManager {
 
 		// If token is expired, throw error
 		if (timeUntilExpiry <= 0) {
+			this.log("Token expired")
 			throw new CursorTokenError("Token expired", "expired", true)
 		}
 
 		// If token needs refresh
 		if (timeUntilExpiry <= CursorConfig.TOKEN_REFRESH_THRESHOLD) {
+			this.log("Token requires refresh")
 			await this.refreshToken()
 		}
 
@@ -124,16 +147,19 @@ export class CursorTokenManager {
 	private async refreshToken(): Promise<void> {
 		// If already refreshing, wait for that to complete
 		if (this.refreshPromise) {
+			this.log("Token refresh already in progress, waiting...")
 			await this.refreshPromise
 			return
 		}
 
 		if (!this.tokenState?.refreshToken) {
+			this.log("No refresh token available")
 			throw new CursorTokenError("No refresh token available", "expired", true)
 		}
 
 		try {
 			this.refreshPromise = (async () => {
+				this.log("Starting token refresh")
 				const { access_token } = await refreshCursorToken(this.tokenState!.refreshToken)
 
 				this.tokenState = {
@@ -143,12 +169,25 @@ export class CursorTokenManager {
 				}
 
 				await this.saveTokenState()
+				this.log("Token refresh completed successfully")
 			})()
 
 			await this.refreshPromise
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Failed to refresh token"
-			throw new CursorTokenError(message, "network")
+			this.log("Token refresh failed", error)
+
+			// Determine error type based on error details
+			let errorType: "network" | "invalid" | "unknown" = "unknown"
+			if (error instanceof Error) {
+				if (error.message.includes("network") || error.message.includes("timeout")) {
+					errorType = "network"
+				} else if (error.message.includes("invalid") || error.message.includes("expired")) {
+					errorType = "invalid"
+				}
+			}
+
+			throw new CursorTokenError(message, errorType, errorType === "invalid", error)
 		} finally {
 			this.refreshPromise = null
 		}
