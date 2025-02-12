@@ -50,6 +50,7 @@ export class CursorHandler implements ApiHandler {
 		}
 
 		this.refreshPromise = (async () => {
+			this.log("🔄 Starting token refresh")
 			try {
 				const response = await fetch("https://cursor.us.auth0.com/oauth/token", {
 					method: "POST",
@@ -64,21 +65,37 @@ export class CursorHandler implements ApiHandler {
 				})
 
 				if (!response.ok) {
-					const error = await response.text()
-					throw new Error(`Token refresh failed: ${response.status} ${error}`)
+					const errorData = await response.json().catch(() => null)
+					this.log(`❌ Token refresh failed: ${response.status} ${JSON.stringify(errorData)}`)
+
+					// Handle specific Auth0 error cases
+					if (response.status === 401) {
+						throw new Error("Authentication failed. Please sign in again.")
+					} else if (response.status === 403) {
+						throw new Error("Refresh token is invalid or expired. Please sign in again.")
+					} else {
+						throw new Error(
+							`Token refresh failed: ${response.status} ${errorData?.error_description || errorData?.error || "Unknown error"}`,
+						)
+					}
 				}
 
 				const data = await response.json()
 				if (!data.access_token) {
+					this.log("❌ Invalid response from refresh endpoint - no access token")
 					throw new Error("Invalid response from refresh endpoint")
 				}
 
+				this.log("✅ Token refresh successful")
 				this.options.cursorAccessToken = data.access_token
 				this.lastTokenRefresh = Date.now()
 
 				if (this.onTokensRefreshed) {
 					await this.onTokensRefreshed(data.access_token, this.options.cursorRefreshToken!)
 				}
+			} catch (error) {
+				this.log(`❌ Token refresh error: ${error}`)
+				throw error
 			} finally {
 				this.refreshPromise = null
 			}
@@ -92,10 +109,12 @@ export class CursorHandler implements ApiHandler {
 		const timeSinceLastRefresh = now - this.lastTokenRefresh
 
 		if (timeSinceLastRefresh >= this.TOKEN_EXPIRY) {
+			this.log("⚠️ Access token has expired")
 			throw new Error("Access token has expired. Please sign in again.")
 		}
 
 		if (timeSinceLastRefresh >= this.TOKEN_REFRESH_INTERVAL) {
+			this.log("🔄 Token refresh needed")
 			await this.refreshToken()
 		}
 	}
