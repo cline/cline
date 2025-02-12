@@ -1,5 +1,6 @@
 import { ExtensionContext } from "vscode"
 import { refreshCursorToken } from "../../../../webview-ui/src/utils/cursor/auth"
+import { CursorConfig } from "../../../shared/config/cursor"
 
 export class CursorTokenError extends Error {
 	constructor(
@@ -21,8 +22,6 @@ interface TokenState {
 export class CursorTokenManager {
 	private tokenState: TokenState | null = null
 	private refreshPromise: Promise<void> | null = null
-	private static readonly TOKEN_REFRESH_THRESHOLD = 300000 // 5 minutes in milliseconds
-	private static readonly TOKEN_VALIDITY = 3600000 // 1 hour in milliseconds
 
 	constructor(private readonly context: ExtensionContext) {
 		this.loadTokenState()
@@ -31,19 +30,18 @@ export class CursorTokenManager {
 	private async loadTokenState(): Promise<void> {
 		try {
 			const [accessToken, refreshToken] = await Promise.all([
-				this.context.secrets.get("cursorAccessToken"),
-				this.context.secrets.get("cursorRefreshToken"),
+				this.context.secrets.get(CursorConfig.STORAGE_KEYS.ACCESS_TOKEN),
+				this.context.secrets.get(CursorConfig.STORAGE_KEYS.REFRESH_TOKEN),
 			])
 
 			if (accessToken && refreshToken) {
 				this.tokenState = {
 					accessToken,
 					refreshToken,
-					expiryTime: Date.now() + CursorTokenManager.TOKEN_VALIDITY,
+					expiryTime: Date.now() + CursorConfig.TOKEN_VALIDITY,
 				}
 			}
-		} catch (error) {
-			console.error("Failed to load token state:", error)
+		} catch {
 			this.tokenState = null
 		}
 	}
@@ -52,14 +50,13 @@ export class CursorTokenManager {
 		try {
 			if (this.tokenState) {
 				await Promise.all([
-					this.context.secrets.store("cursorAccessToken", this.tokenState.accessToken),
-					this.context.secrets.store("cursorRefreshToken", this.tokenState.refreshToken),
+					this.context.secrets.store(CursorConfig.STORAGE_KEYS.ACCESS_TOKEN, this.tokenState.accessToken),
+					this.context.secrets.store(CursorConfig.STORAGE_KEYS.REFRESH_TOKEN, this.tokenState.refreshToken),
 				])
 			} else {
 				await this.clearTokenState()
 			}
-		} catch (error) {
-			console.error("Failed to save token state:", error)
+		} catch {
 			throw new CursorTokenError("Failed to save token state", "unknown")
 		}
 	}
@@ -67,12 +64,12 @@ export class CursorTokenManager {
 	private async clearTokenState(): Promise<void> {
 		try {
 			await Promise.all([
-				this.context.secrets.delete("cursorAccessToken"),
-				this.context.secrets.delete("cursorRefreshToken"),
+				this.context.secrets.delete(CursorConfig.STORAGE_KEYS.ACCESS_TOKEN),
+				this.context.secrets.delete(CursorConfig.STORAGE_KEYS.REFRESH_TOKEN),
 			])
 			this.tokenState = null
-		} catch (error) {
-			console.error("Failed to clear token state:", error)
+		} catch {
+			// Ignore clear errors
 		}
 	}
 
@@ -80,7 +77,7 @@ export class CursorTokenManager {
 		this.tokenState = {
 			accessToken,
 			refreshToken,
-			expiryTime: Date.now() + CursorTokenManager.TOKEN_VALIDITY,
+			expiryTime: Date.now() + CursorConfig.TOKEN_VALIDITY,
 		}
 		await this.saveTokenState()
 	}
@@ -98,7 +95,7 @@ export class CursorTokenManager {
 		}
 
 		// If token needs refresh
-		if (timeUntilExpiry <= CursorTokenManager.TOKEN_REFRESH_THRESHOLD) {
+		if (timeUntilExpiry <= CursorConfig.TOKEN_REFRESH_THRESHOLD) {
 			await this.refreshToken()
 		}
 
@@ -118,17 +115,15 @@ export class CursorTokenManager {
 
 		try {
 			this.refreshPromise = (async () => {
-				console.log("Refreshing Cursor token...")
 				const { access_token } = await refreshCursorToken(this.tokenState!.refreshToken)
 
 				this.tokenState = {
 					accessToken: access_token,
 					refreshToken: this.tokenState!.refreshToken,
-					expiryTime: Date.now() + CursorTokenManager.TOKEN_VALIDITY,
+					expiryTime: Date.now() + CursorConfig.TOKEN_VALIDITY,
 				}
 
 				await this.saveTokenState()
-				console.log("Successfully refreshed Cursor token")
 			})()
 
 			await this.refreshPromise

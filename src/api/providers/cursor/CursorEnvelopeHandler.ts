@@ -1,4 +1,4 @@
-import { Logger } from "../../../services/logging/Logger"
+import { CursorConfig } from "../../../shared/config/cursor"
 
 export class CursorEnvelopeError extends Error {
 	constructor(
@@ -19,14 +19,7 @@ export const enum EnvelopeFlag {
 }
 
 export class CursorEnvelopeHandler {
-	private readonly MAX_MESSAGE_SIZE = 4294967296 // 4GB (2^32 bytes) per spec
-
 	constructor() {}
-
-	private log(message: string) {
-		const timestamp = new Date().toISOString()
-		Logger.log(`[CURSOR ENVELOPE ${timestamp}] ${message}`)
-	}
 
 	/**
 	 * Validates an envelope buffer and checks if it contains a complete message
@@ -43,29 +36,12 @@ export class CursorEnvelopeHandler {
 			const messageLength = new DataView(buffer.buffer, buffer.byteOffset + 1, 4).getUint32(0, false)
 			const totalLength = messageLength + 5
 
-			// Log the actual size details for debugging
-			this.log(`📏 Envelope details:`)
-			this.log(`   Flag: 0x${flag.toString(16)}`)
-			this.log(`   Message length: ${messageLength} bytes`)
-			this.log(`   Total length with header: ${totalLength} bytes`)
-			this.log(`   Current buffer size: ${buffer.length} bytes`)
-			this.log(
-				`   Raw header: ${Array.from(buffer.slice(0, 5))
-					.map((b) => b.toString(16).padStart(2, "0"))
-					.join(" ")}`,
-			)
-			this.log(
-				`   Raw data: ${Array.from(buffer)
-					.map((b) => b.toString(16).padStart(2, "0"))
-					.join(" ")}`,
-			)
-
 			// Validate length before checking completeness
-			if (messageLength > this.MAX_MESSAGE_SIZE) {
+			if (messageLength > CursorConfig.MAX_MESSAGE_SIZE) {
 				throw new CursorEnvelopeError(
-					`Message size ${messageLength} exceeds maximum allowed size ${this.MAX_MESSAGE_SIZE}`,
+					`Message size ${messageLength} exceeds maximum allowed size ${CursorConfig.MAX_MESSAGE_SIZE}`,
 					"size",
-					{ messageLength, maxSize: this.MAX_MESSAGE_SIZE },
+					{ messageLength, maxSize: CursorConfig.MAX_MESSAGE_SIZE },
 				)
 			}
 
@@ -111,11 +87,11 @@ export class CursorEnvelopeHandler {
 			}
 
 			// Validate length before returning data
-			if (messageLength > this.MAX_MESSAGE_SIZE) {
+			if (messageLength > CursorConfig.MAX_MESSAGE_SIZE) {
 				throw new CursorEnvelopeError(
-					`Message size ${messageLength} exceeds maximum allowed size ${this.MAX_MESSAGE_SIZE}`,
+					`Message size ${messageLength} exceeds maximum allowed size ${CursorConfig.MAX_MESSAGE_SIZE}`,
 					"size",
-					{ messageLength, maxSize: this.MAX_MESSAGE_SIZE },
+					{ messageLength, maxSize: CursorConfig.MAX_MESSAGE_SIZE },
 				)
 			}
 
@@ -153,11 +129,11 @@ export class CursorEnvelopeHandler {
 			}
 
 			// Validate length before creating envelope
-			if (dataBytes.length > this.MAX_MESSAGE_SIZE) {
+			if (dataBytes.length > CursorConfig.MAX_MESSAGE_SIZE) {
 				throw new CursorEnvelopeError(
-					`Message size ${dataBytes.length} exceeds maximum allowed size ${this.MAX_MESSAGE_SIZE}`,
+					`Message size ${dataBytes.length} exceeds maximum allowed size ${CursorConfig.MAX_MESSAGE_SIZE}`,
 					"size",
-					{ messageLength: dataBytes.length, maxSize: this.MAX_MESSAGE_SIZE },
+					{ messageLength: dataBytes.length, maxSize: CursorConfig.MAX_MESSAGE_SIZE },
 				)
 			}
 
@@ -184,17 +160,14 @@ export class CursorEnvelopeHandler {
 	public parseErrorMessage(data: Uint8Array): string {
 		try {
 			const errorText = new TextDecoder().decode(data)
-			this.log(`🔍 Raw error text: ${errorText}`)
 			const errorJson = JSON.parse(errorText)
-			// Match Rust's error handling order exactly
 			if (errorJson.error?.message) {
 				return errorJson.error.message
 			} else if (errorJson.error?.code && errorJson.error?.message) {
 				return `${errorJson.error.code}: ${errorJson.error.message}`
 			}
 			return errorText
-		} catch (error) {
-			this.log(`⚠️ Failed to parse error JSON: ${error}`)
+		} catch {
 			return new TextDecoder().decode(data)
 		}
 	}

@@ -1,4 +1,5 @@
 import { vscode } from "../../utils/vscode"
+import { CursorConfig } from "../../../../src/shared/config/cursor"
 
 export class CursorAuthError extends Error {
 	type: "auth_error" | "network_error" | "timeout_error" | "unknown_error"
@@ -136,51 +137,21 @@ export async function initiateCursorAuth(
  * @returns The new access token and refresh token
  * @throws {CursorAuthError} If the refresh fails
  */
-export async function refreshCursorToken(refreshToken: string): Promise<{ access_token: string; refresh_token: string }> {
-	try {
-		const response = await fetch("https://cursor.us.auth0.com/oauth/token", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				client_id: CLIENT_ID,
-				grant_type: "refresh_token",
-				refresh_token: refreshToken,
-			}),
-		})
+export async function refreshCursorToken(refreshToken: string): Promise<{ access_token: string }> {
+	const response = await fetch(CursorConfig.TOKEN_REFRESH_ENDPOINT, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"User-Agent": CursorConfig.USER_AGENT,
+			"x-cursor-client-key": CursorConfig.CLIENT_KEY,
+			"x-cursor-client-version": CursorConfig.CLIENT_VERSION,
+		},
+		body: JSON.stringify({ refreshToken }),
+	})
 
-		if (!response.ok) {
-			const errorData = await response.json().catch(() => null)
-			vscode.postMessage({ type: "log", text: `❌ Token refresh failed: ${response.status} ${JSON.stringify(errorData)}` })
-
-			if (response.status === 401) {
-				throw new CursorAuthError("Authentication failed. Please sign in again.", "auth_error", errorData)
-			} else if (response.status === 403) {
-				throw new CursorAuthError("Refresh token is invalid or expired. Please sign in again.", "auth_error", errorData)
-			} else {
-				throw new CursorAuthError(
-					`Token refresh failed: ${response.status} ${errorData?.error_description || errorData?.error || "Unknown error"}`,
-					"network_error",
-					errorData,
-				)
-			}
-		}
-
-		const data = await response.json()
-		if (!data.access_token) {
-			throw new CursorAuthError("Invalid response from refresh endpoint", "unknown_error", data)
-		}
-
-		vscode.postMessage({ type: "log", text: "✅ Token refresh successful" })
-		return {
-			access_token: data.access_token,
-			refresh_token: refreshToken, // Keep the same refresh token
-		}
-	} catch (error) {
-		if (error instanceof CursorAuthError) {
-			throw error
-		}
-		throw new CursorAuthError(error instanceof Error ? error.message : "Token refresh failed", "unknown_error", error)
+	if (!response.ok) {
+		throw new Error(`Failed to refresh token: ${response.status} ${response.statusText}`)
 	}
+
+	return response.json()
 }
