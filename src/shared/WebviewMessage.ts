@@ -2,6 +2,7 @@ import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
+import { UserInfo } from "./UserInfo"
 
 export interface WebviewMessage {
 	type:
@@ -42,6 +43,8 @@ export interface WebviewMessage {
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "subscribeEmail"
+		| "authStateChanged"
+		| "authCallback"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -58,6 +61,10 @@ export interface WebviewMessage {
 	serverName?: string
 	toolName?: string
 	autoApprove?: boolean
+
+	// For auth
+	user?: UserInfo | null
+	customToken?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
