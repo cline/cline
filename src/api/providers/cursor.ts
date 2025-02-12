@@ -5,6 +5,8 @@ import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 import { Logger } from "../../services/logging/Logger"
 import { convertToCursorMessages } from "../transform/cursor-format"
+import { CursorTokenManager, CursorTokenError } from "./cursor/CursorTokenManager"
+import { ExtensionContext } from "vscode"
 
 // Message envelope flags per API spec
 const enum EnvelopeFlag {
@@ -19,104 +21,27 @@ interface MessageContent {
 
 export class CursorHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private refreshPromise: Promise<void> | null = null
-	private lastTokenRefresh: number = 0
-	private readonly TOKEN_REFRESH_INTERVAL = 3300000 // 55 minutes in milliseconds
-	private readonly TOKEN_EXPIRY = 3600000 // 1 hour in milliseconds
 	private readonly MAX_MESSAGE_SIZE = 4294967296 // 4GB (2^32 bytes) per spec
 	private readonly CLIENT_ID = "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB"
-	private onTokensRefreshed?: (accessToken: string, refreshToken: string) => Promise<void>
 	private sessionId: string
+	private tokenManager: CursorTokenManager
 
-	constructor(options: ApiHandlerOptions, onTokensRefreshed?: (accessToken: string, refreshToken: string) => Promise<void>) {
+	constructor(options: ApiHandlerOptions, context: ExtensionContext) {
 		this.options = options
-		this.lastTokenRefresh = Date.now()
-		this.onTokensRefreshed = onTokensRefreshed
 		this.sessionId = crypto.randomUUID()
+		this.tokenManager = new CursorTokenManager(context)
+
+		// Initialize token manager if we have tokens
+		if (options.cursorAccessToken && options.cursorRefreshToken) {
+			this.tokenManager.setTokens(options.cursorAccessToken, options.cursorRefreshToken).catch((error) => {
+				this.log(`Failed to initialize token manager: ${error}`)
+			})
+		}
 	}
 
 	private log(message: string) {
 		const timestamp = new Date().toISOString()
 		Logger.log(`[CURSOR ${timestamp}] ${message}`)
-	}
-
-	private async refreshToken(): Promise<void> {
-		if (!this.options.cursorRefreshToken) {
-			throw new Error("No refresh token available")
-		}
-
-		if (this.refreshPromise) {
-			return this.refreshPromise
-		}
-
-		this.refreshPromise = (async () => {
-			this.log("🔄 Starting token refresh")
-			try {
-				const response = await fetch("https://cursor.us.auth0.com/oauth/token", {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({
-						client_id: this.CLIENT_ID,
-						grant_type: "refresh_token",
-						refresh_token: this.options.cursorRefreshToken,
-					}),
-				})
-
-				if (!response.ok) {
-					const errorData = await response.json().catch(() => null)
-					this.log(`❌ Token refresh failed: ${response.status} ${JSON.stringify(errorData)}`)
-
-					// Handle specific Auth0 error cases
-					if (response.status === 401) {
-						throw new Error("Authentication failed. Please sign in again.")
-					} else if (response.status === 403) {
-						throw new Error("Refresh token is invalid or expired. Please sign in again.")
-					} else {
-						throw new Error(
-							`Token refresh failed: ${response.status} ${errorData?.error_description || errorData?.error || "Unknown error"}`,
-						)
-					}
-				}
-
-				const data = await response.json()
-				if (!data.access_token) {
-					this.log("❌ Invalid response from refresh endpoint - no access token")
-					throw new Error("Invalid response from refresh endpoint")
-				}
-
-				this.log("✅ Token refresh successful")
-				this.options.cursorAccessToken = data.access_token
-				this.lastTokenRefresh = Date.now()
-
-				if (this.onTokensRefreshed) {
-					await this.onTokensRefreshed(data.access_token, this.options.cursorRefreshToken!)
-				}
-			} catch (error) {
-				this.log(`❌ Token refresh error: ${error}`)
-				throw error
-			} finally {
-				this.refreshPromise = null
-			}
-		})()
-
-		return this.refreshPromise
-	}
-
-	private async validateAndRefreshToken(): Promise<void> {
-		const now = Date.now()
-		const timeSinceLastRefresh = now - this.lastTokenRefresh
-
-		if (timeSinceLastRefresh >= this.TOKEN_EXPIRY) {
-			this.log("⚠️ Access token has expired")
-			throw new Error("Access token has expired. Please sign in again.")
-		}
-
-		if (timeSinceLastRefresh >= this.TOKEN_REFRESH_INTERVAL) {
-			this.log("🔄 Token refresh needed")
-			await this.refreshToken()
-		}
 	}
 
 	private validateEnvelope(buffer: Uint8Array): { isComplete: boolean; totalLength: number; messageLength: number } {
@@ -281,11 +206,21 @@ export class CursorHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		if (!this.options.cursorAccessToken) {
+		if (!this.tokenManager.isAuthenticated()) {
 			throw new Error("Cursor access token is required. Please sign in with your Cursor account.")
 		}
 
-		await this.validateAndRefreshToken()
+		let accessToken: string
+		try {
+			accessToken = await this.tokenManager.getAccessToken()
+		} catch (error) {
+			if (error instanceof CursorTokenError && error.shouldLogout) {
+				// Clear tokens from options to trigger re-auth
+				this.options.cursorAccessToken = undefined
+				this.options.cursorRefreshToken = undefined
+			}
+			throw error
+		}
 
 		const cursorMessages = convertToCursorMessages(systemPrompt, messages)
 
@@ -340,7 +275,7 @@ export class CursorHandler implements ApiHandler {
 			headers: {
 				Accept: "*/*",
 				"Content-Type": "application/connect+json",
-				Authorization: `Bearer ${this.options.cursorAccessToken}`,
+				Authorization: `Bearer ${accessToken}`,
 				"User-Agent":
 					"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Cursor/0.45.11 Chrome/128.0.6613.186 Electron/32.2.6 Safari/537.36",
 				"x-cursor-client-key": "2a02d8cd9b5af7a8db6e143e201164e47faa7cba6574524e4e4aafe6655f18cf",
@@ -474,6 +409,14 @@ export class CursorHandler implements ApiHandler {
 		return {
 			id: cursorDefaultModelId,
 			info: cursorModels[cursorDefaultModelId],
+		}
+	}
+
+	public async dispose() {
+		try {
+			await this.tokenManager.clearTokens()
+		} catch (error) {
+			this.log(`Error during disposal: ${error}`)
 		}
 	}
 }

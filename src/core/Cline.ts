@@ -59,6 +59,8 @@ import { formatResponse } from "./prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
+import { ExtensionContext } from "vscode"
+import crypto from "crypto"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -69,7 +71,7 @@ type UserContent = Array<
 
 export class Cline {
 	readonly taskId: string
-	api: ApiHandler
+	public api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
 	browserSession: BrowserSession
@@ -112,24 +114,28 @@ export class Cline {
 	private didAlreadyUseTool = false
 	private didCompleteReadingStream = false
 	private didAutomaticallyRetryFailedApiRequest = false
+	private abortController: AbortController | undefined
 
 	constructor(
-		provider: ClineProvider,
 		apiConfiguration: ApiConfiguration,
+		context: ExtensionContext,
+		provider: ClineProvider,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
 		chatSettings: ChatSettings,
-		customInstructions?: string,
+		taskId: string = crypto.randomUUID(),
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
+		customInstructions?: string,
 	) {
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.clineIgnoreController.initialize().catch((error) => {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 		})
+		this.taskId = taskId
 		this.providerRef = new WeakRef(provider)
-		this.api = buildApiHandler(apiConfiguration)
+		this.api = buildApiHandler(apiConfiguration, context)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context, browserSettings)
@@ -138,15 +144,14 @@ export class Cline {
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
+
 		if (historyItem) {
-			this.taskId = historyItem.id
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
 			this.resumeTaskFromHistory()
 		} else if (task || images) {
-			this.taskId = Date.now().toString()
 			this.startTask(task, images)
 		} else {
-			throw new Error("Either historyItem or task/images must be provided")
+			this.startTask()
 		}
 	}
 

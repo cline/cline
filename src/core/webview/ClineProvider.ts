@@ -256,37 +256,50 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.outputChannel.appendLine("Webview view resolved")
 	}
 
-	async initClineWithTask(task?: string, images?: string[]) {
-		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
-			await this.getState()
-		this.cline = new Cline(
-			this,
-			apiConfiguration,
-			autoApprovalSettings,
-			browserSettings,
-			chatSettings,
-			customInstructions,
-			task,
-			images,
-		)
+	private async initClineWithTask(task?: string, images?: string[]) {
+		try {
+			const { apiConfiguration, autoApprovalSettings, browserSettings, chatSettings, customInstructions } =
+				await this.getState()
+			this.cline = new Cline(
+				apiConfiguration,
+				this.context,
+				this,
+				autoApprovalSettings,
+				browserSettings,
+				chatSettings,
+				crypto.randomUUID(),
+				task,
+				images,
+				undefined,
+				customInstructions,
+			)
+		} catch (error) {
+			console.error("Failed to init new cline instance:", error)
+			throw error
+		}
 	}
 
-	async initClineWithHistoryItem(historyItem: HistoryItem) {
-		await this.clearTask()
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
-			await this.getState()
-		this.cline = new Cline(
-			this,
-			apiConfiguration,
-			autoApprovalSettings,
-			browserSettings,
-			chatSettings,
-			customInstructions,
-			undefined,
-			undefined,
-			historyItem,
-		)
+	private async initClineWithHistoryItem(historyItem: HistoryItem) {
+		try {
+			const { apiConfiguration, autoApprovalSettings, browserSettings, chatSettings, customInstructions } =
+				await this.getState()
+			this.cline = new Cline(
+				apiConfiguration,
+				this.context,
+				this,
+				autoApprovalSettings,
+				browserSettings,
+				chatSettings,
+				historyItem.id,
+				undefined,
+				undefined,
+				historyItem,
+				customInstructions,
+			)
+		} catch (error) {
+			console.error("Failed to init new cline instance:", error)
+			throw error
+		}
 	}
 
 	// Send any JSON serializable data to the react app
@@ -504,7 +517,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("requestyModelId", requestyModelId)
 							await this.updateGlobalState("togetherModelId", togetherModelId)
 							if (this.cline) {
-								this.cline.api = buildApiHandler(message.apiConfiguration)
+								this.cline.api = buildApiHandler(message.apiConfiguration, this.context)
 							}
 						}
 						await this.postStateToWebview()
@@ -605,7 +618,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 								if (this.cline) {
 									const { apiConfiguration: updatedApiConfiguration } = await this.getState()
-									this.cline.api = buildApiHandler(updatedApiConfiguration)
+									this.cline.api = buildApiHandler(updatedApiConfiguration, this.context)
 								}
 							}
 
@@ -1116,10 +1129,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.storeSecret("openRouterApiKey", apiKey)
 		await this.postStateToWebview()
 		if (this.cline) {
-			this.cline.api = buildApiHandler({
-				apiProvider: openrouter,
-				openRouterApiKey: apiKey,
-			})
+			this.cline.api = buildApiHandler(
+				{
+					apiProvider: openrouter,
+					openRouterApiKey: apiKey,
+				},
+				this.context,
+			)
 		}
 		// await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
 	}
