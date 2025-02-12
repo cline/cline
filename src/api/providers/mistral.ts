@@ -21,9 +21,12 @@ export class MistralHandler implements ApiHandler {
 	private client: Mistral
 
 	constructor(options: ApiHandlerOptions) {
+		if (!options.mistralApiKey) {
+			throw new Error("Mistral API key is required")
+		}
+
 		this.options = options
 		const baseUrl = this.getBaseUrl()
-		// OR Option 2: Using the built-in debug logger
 		console.debug(`[Roo Code] MistralHandler using baseUrl: ${baseUrl}`)
 		this.client = new Mistral({
 			serverURL: baseUrl,
