@@ -1,4 +1,5 @@
 import {
+	VSCodeButton,
 	VSCodeCheckbox,
 	VSCodeDropdown,
 	VSCodeLink,
@@ -6,14 +7,16 @@ import {
 	VSCodeRadio,
 	VSCodeRadioGroup,
 	VSCodeTextField,
-	VSCodeButton,
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent, useInterval } from "react-use"
+import styled from "styled-components"
+
+import type * as vscodemodels from "vscode"
 import {
-	ApiConfiguration,
-	ApiProvider,
-	ModelInfo,
+	type ApiConfiguration,
+	type ApiProvider,
+	type ModelInfo,
 	anthropicDefaultModelId,
 	anthropicModels,
 	azureOpenAiDefaultApiVersion,
@@ -38,10 +41,9 @@ import {
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
+import { initiateCursorAuth, type CursorAuthError } from "../../utils/cursor/auth"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
-import styled from "styled-components"
-import * as vscodemodels from "vscode"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -72,36 +74,6 @@ declare module "vscode" {
 		version?: string
 		id?: string
 	}
-}
-
-// Helper function for generating PKCE verifier
-function generateVerifier(): string {
-	const array = new Uint8Array(32)
-	crypto.getRandomValues(array)
-	const base64 = window.btoa(
-		Array.from(array)
-			.map((b) => String.fromCharCode(b))
-			.join(""),
-	)
-	return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
-}
-
-// Helper function for generating PKCE challenge from verifier
-async function generatePKCEChallenge(verifier: string): Promise<string> {
-	// Convert verifier string to Uint8Array
-	const encoder = new TextEncoder()
-	const verifierBytes = encoder.encode(verifier)
-
-	// Generate SHA256 hash
-	const hashBuffer = await crypto.subtle.digest("SHA-256", verifierBytes)
-
-	// Convert to base64URL
-	const base64 = window.btoa(
-		Array.from(new Uint8Array(hashBuffer))
-			.map((b) => String.fromCharCode(b))
-			.join(""),
-	)
-	return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
 }
 
 // Helper function for logging that will show up in VSCode's output
@@ -217,73 +189,29 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	}
 
 	const handleCursorLogin = async () => {
-		log("🔐 [CURSOR AUTH] ========== AUTH FLOW STARTED ==========")
 		try {
 			setIsAuthenticating(true)
-			const pkceVerifier = generateVerifier()
-			const pkceChallenge = await generatePKCEChallenge(pkceVerifier)
-			const uuid = crypto.randomUUID()
-
-			log("🔐 [CURSOR AUTH] Generated PKCE parameters:")
-			log(`🔐 [CURSOR AUTH] UUID: ${uuid}`)
-			log(`🔐 [CURSOR AUTH] Verifier length: ${pkceVerifier.length}`)
-			log(`🔐 [CURSOR AUTH] Challenge length: ${pkceChallenge.length}`)
-
-			const loginUrl = `https://cursor.sh/loginDeepControl?challenge=${encodeURIComponent(pkceChallenge)}&uuid=${encodeURIComponent(uuid)}`
-			log(`🔐 [CURSOR AUTH] Opening login URL: ${loginUrl}`)
-
-			// Use VSCode's command to open external URL
-			vscode.postMessage({
-				type: "openExternalUrl",
-				url: loginUrl,
-			})
-
-			log("🔐 [CURSOR AUTH] Starting polling...")
-			log("🔐 [CURSOR AUTH] ----------------------------------------")
-
-			// Set a timeout to reset authentication state if no response is received
-			const authTimeout = setTimeout(() => {
-				setIsAuthenticating(false)
-				log("🔐 [CURSOR AUTH] ========== AUTH FLOW TIMED OUT ==========")
-				log("🔐 [CURSOR AUTH] No response received - user may have cancelled")
-				window.removeEventListener("message", handleAuthResult)
-			}, 30000) // 30 second timeout
-
-			// Instead of polling directly, we'll ask the extension to do it
-			vscode.postMessage({
-				type: "pollCursorAuth",
-				uuid,
-				verifier: pkceVerifier,
-			})
-
-			// Set up a one-time message handler for the auth result
-			const handleAuthResult = (event: MessageEvent) => {
-				const message = event.data
-				if (message.type === "cursorAuthSuccess" && message.access_token && message.refresh_token) {
-					clearTimeout(authTimeout)
-					window.removeEventListener("message", handleAuthResult)
+			await initiateCursorAuth(
+				(accessToken, refreshToken) => {
 					setApiConfiguration({
 						...apiConfiguration,
-						apiProvider: "cursor", // Ensure provider is set to cursor
-						cursorAccessToken: message.access_token,
-						cursorRefreshToken: message.refresh_token,
-						cursorTokenExpiry: Date.now() + 3600000, // 1 hour from now
+						apiProvider: "cursor",
+						cursorAccessToken: accessToken,
+						cursorRefreshToken: refreshToken,
+						cursorTokenExpiry: Date.now() + 3600000,
 					})
 					setIsAuthenticating(false)
-					log("🔐 [CURSOR AUTH] ========== AUTH FLOW COMPLETED ==========")
-				} else if (message.type === "cursorAuthError") {
-					clearTimeout(authTimeout)
-					window.removeEventListener("message", handleAuthResult)
+				},
+				(error: CursorAuthError) => {
 					setIsAuthenticating(false)
-					log("🔐 [CURSOR AUTH] ========== AUTH FLOW FAILED ==========")
-					log("🔐 [CURSOR AUTH] Error: " + message.error)
-				}
-			}
-			window.addEventListener("message", handleAuthResult)
+					vscode.postMessage({
+						type: "cursorAuthError",
+						error: error.message,
+					})
+				},
+			)
 		} catch (error) {
 			setIsAuthenticating(false)
-			log("🔐 [CURSOR AUTH] ========== AUTH FLOW FAILED ==========")
-			log("🔐 [CURSOR AUTH] Error: " + error)
 			vscode.postMessage({
 				type: "cursorAuthError",
 				error: error instanceof Error ? error.message : "Authentication failed",
