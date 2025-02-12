@@ -8,6 +8,8 @@ import { CursorTokenManager, CursorTokenError } from "./cursor/CursorTokenManage
 import { CursorEnvelopeHandler, EnvelopeFlag, CursorEnvelopeError } from "./cursor/CursorEnvelopeHandler"
 import { ExtensionContext } from "vscode"
 import { CursorConfig } from "../../shared/config/cursor"
+import * as vscode from "vscode"
+import * as path from "path"
 
 interface MessageContent {
 	text: string
@@ -67,32 +69,42 @@ export class CursorHandler implements ApiHandler {
 
 		const cursorMessages = convertToCursorMessages(systemPrompt, messages)
 
+		const editor = vscode.window.activeTextEditor
+		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || ""
+
 		const requestBody = {
-			query: cursorMessages[cursorMessages.length - 1].text,
 			currentFile: {
-				contents: "",
-				languageId: "typescript",
-				relativeWorkspacePath: "",
+				contents: editor?.document.getText() || "",
+				languageId: editor?.document.languageId || "",
+				relativeWorkspacePath: editor ? path.relative(workspaceRoot, editor.document.uri.fsPath) : "",
 				selection: {
-					startPosition: { line: 0, character: 0 },
-					endPosition: { line: 0, character: 0 },
+					startPosition: {
+						line: editor?.selection.start.line || 0,
+						column: editor?.selection.start.character || 0,
+					},
+					endPosition: {
+						line: editor?.selection.end.line || 0,
+						column: editor?.selection.end.character || 0,
+					},
 				},
-				cursorPosition: { line: 0, character: 0 },
+				cursorPosition: {
+					line: editor?.selection.active.line || 0,
+					column: editor?.selection.active.character || 0,
+				},
 			},
 			modelDetails: {
 				modelName: this.getModel().id,
-				enableGhostMode: false,
+				enableGhostMode: true,
 				apiKey: undefined,
 			},
-			workspaceRootPath: "",
-			explicitContext: {},
+			rootPath: workspaceRoot,
+			context: {},
 			requestId: crypto.randomUUID(),
 			conversation: cursorMessages,
 		}
 
-		// Create request envelope like Rust implementation
-		const requestEnvelope = this.envelopeHandler.encodeEnvelope(requestBody) // Pass object directly to match Rust's serialization
-		const endMarker = this.envelopeHandler.encodeEnvelope(new Uint8Array(0), EnvelopeFlag.END_STREAM) // Empty array for end marker
+		const requestEnvelope = this.envelopeHandler.encodeEnvelope(requestBody)
+		const endMarker = this.envelopeHandler.encodeEnvelope(new Uint8Array(0), EnvelopeFlag.END_STREAM)
 
 		// Combine envelopes exactly like Rust
 		const fullRequestBody = new Uint8Array(requestEnvelope.length + endMarker.length)
