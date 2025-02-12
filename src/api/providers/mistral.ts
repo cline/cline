@@ -22,22 +22,31 @@ export class MistralHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+		const baseUrl = this.getBaseUrl()
+		console.log("MistralHandler: baseUrl", baseUrl)
 		this.client = new Mistral({
-			serverURL: "https://codestral.mistral.ai",
+			serverURL: baseUrl,
 			apiKey: this.options.mistralApiKey,
 		})
 	}
 
+	private getBaseUrl(): string {
+		const modelId = this.options.apiModelId
+		if (modelId?.startsWith("codestral-")) {
+			return this.options.mistralCodestralUrl || "https://codestral.mistral.ai"
+		}
+		return "https://api.mistral.ai"
+	}
+
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const stream = await this.client.chat.stream({
-			model: this.getModel().id,
-			// max_completion_tokens: this.getModel().info.maxTokens,
+		const response = await this.client.chat.stream({
+			model: this.options.apiModelId || mistralDefaultModelId,
+			messages: convertToMistralMessages(messages),
+			maxTokens: this.options.includeMaxTokens ? this.getModel().info.maxTokens : undefined,
 			temperature: this.options.modelTemperature ?? MISTRAL_DEFAULT_TEMPERATURE,
-			messages: [{ role: "system", content: systemPrompt }, ...convertToMistralMessages(messages)],
-			stream: true,
 		})
 
-		for await (const chunk of stream) {
+		for await (const chunk of response) {
 			const delta = chunk.data.choices[0]?.delta
 			if (delta?.content) {
 				let content: string = ""

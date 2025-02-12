@@ -52,6 +52,7 @@ export interface ApiHandlerOptions {
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	mistralApiKey?: string
+	mistralCodestralUrl?: string // New option for Codestral URL
 	azureApiVersion?: string
 	openRouterUseMiddleOutTransform?: boolean
 	openAiStreamingEnabled?: boolean
