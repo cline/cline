@@ -70,6 +70,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.deepSeekApiKey,
 							config.requestyApiKey,
 							config.togetherApiKey,
+							config.fireworksApiKey,
 							config.qwenApiKey,
 							config.mistralApiKey,
 							config.vsCodeLmModelSelector,
