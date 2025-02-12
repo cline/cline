@@ -873,6 +873,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "clearCursorTokens": {
+						await this.storeSecret("cursorAccessToken", undefined)
+						await this.storeSecret("cursorRefreshToken", undefined)
+						break
+					}
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}

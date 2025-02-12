@@ -46,6 +46,7 @@ export interface WebviewMessage {
 		| "cursorAuthError"
 		| "openExternalUrl"
 		| "pollCursorAuth"
+		| "clearCursorTokens"
 		| "log"
 	text?: string
 	disabled?: boolean

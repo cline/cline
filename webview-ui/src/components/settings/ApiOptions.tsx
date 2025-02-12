@@ -205,6 +205,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		)
 	}
 
+	const handleCursorSignOut = () => {
+		setApiConfiguration({
+			...apiConfiguration,
+			cursorAccessToken: undefined,
+			cursorRefreshToken: undefined,
+		})
+		vscode.postMessage({
+			type: "clearCursorTokens",
+		})
+	}
+
 	const handleCursorLogin = async () => {
 		log("🔐 [CURSOR AUTH] ========== AUTH FLOW STARTED ==========")
 		try {
@@ -348,15 +359,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								}}>
 								✓ Signed in to Cursor
 							</p>
-							<VSCodeButton
-								appearance="secondary"
-								onClick={() => {
-									setApiConfiguration({
-										...apiConfiguration,
-										cursorAccessToken: undefined,
-										cursorRefreshToken: undefined,
-									})
-								}}>
+							<VSCodeButton appearance="secondary" onClick={handleCursorSignOut}>
 								Sign Out
 							</VSCodeButton>
 						</>
