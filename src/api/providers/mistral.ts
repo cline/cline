@@ -23,7 +23,8 @@ export class MistralHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		const baseUrl = this.getBaseUrl()
-		console.log("MistralHandler: baseUrl", baseUrl)
+		// OR Option 2: Using the built-in debug logger
+		console.debug(`[Roo Code] MistralHandler using baseUrl: ${baseUrl}`)
 		this.client = new Mistral({
 			serverURL: baseUrl,
 			apiKey: this.options.mistralApiKey,
