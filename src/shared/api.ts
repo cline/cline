@@ -655,12 +655,10 @@ export const cursorModels = {
 	"claude-3.5-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
-		supportsImages: true,
-		supportsComputerUse: true,
+		supportsImages: false,
+		supportsComputerUse: false,
 		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
+		inputPrice: 0,
+		outputPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>

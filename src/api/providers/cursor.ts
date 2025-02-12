@@ -3,7 +3,6 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, cursorDefaultModelId, cursorModels, CursorModelId } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
-import { Logger } from "../../services/logging/Logger"
 import { convertToCursorMessages } from "../transform/cursor-format"
 import { CursorTokenManager, CursorTokenError } from "./cursor/CursorTokenManager"
 import { CursorEnvelopeHandler, EnvelopeFlag, CursorEnvelopeError } from "./cursor/CursorEnvelopeHandler"
@@ -132,7 +131,7 @@ export class CursorHandler implements ApiHandler {
 				// Use the default error message if JSON parsing fails
 			}
 
-			throw new Error(errorMessage)
+			throw new CursorEnvelopeError(errorMessage, "request_error", { status: response.status, body: errorText })
 		}
 
 		const reader = response.body?.getReader()
@@ -176,7 +175,7 @@ export class CursorHandler implements ApiHandler {
 							if (data.length > 0) {
 								const errorMessage = this.envelopeHandler.parseErrorMessage(data)
 								if (errorMessage !== "{}") {
-									throw new Error(errorMessage)
+									throw new CursorEnvelopeError(errorMessage, "end_stream_error", { data })
 								}
 							}
 							sawEndMarker = true
@@ -185,7 +184,7 @@ export class CursorHandler implements ApiHandler {
 
 						if (flag === EnvelopeFlag.ERROR) {
 							const errorMessage = this.envelopeHandler.parseErrorMessage(data)
-							throw new Error(errorMessage)
+							throw new CursorEnvelopeError(errorMessage, "envelope_error", { data })
 						}
 
 						if (flag === EnvelopeFlag.NORMAL) {
@@ -206,7 +205,11 @@ export class CursorHandler implements ApiHandler {
 									}
 								}
 							} catch (error) {
-								throw new Error(`Failed to parse message: ${error}`)
+								throw new CursorEnvelopeError(
+									`Failed to parse message: ${error instanceof Error ? error.message : String(error)}`,
+									"parse_error",
+									{ messageText },
+								)
 							}
 						}
 					} catch (error) {

@@ -1,13 +1,26 @@
 import { CursorConfig } from "../../../shared/config/cursor"
 
 export class CursorEnvelopeError extends Error {
+	type: "validation" | "protocol" | "size" | "unknown" | "request_error" | "end_stream_error" | "envelope_error" | "parse_error"
+	details?: unknown
+
 	constructor(
 		message: string,
-		public readonly type: "validation" | "protocol" | "size" | "unknown" = "unknown",
-		public readonly details?: unknown,
+		type:
+			| "validation"
+			| "protocol"
+			| "size"
+			| "unknown"
+			| "request_error"
+			| "end_stream_error"
+			| "envelope_error"
+			| "parse_error" = "unknown",
+		details?: unknown,
 	) {
 		super(message)
 		this.name = "CursorEnvelopeError"
+		this.type = type
+		this.details = details
 		Object.setPrototypeOf(this, CursorEnvelopeError.prototype)
 	}
 }

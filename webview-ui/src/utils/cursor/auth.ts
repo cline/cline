@@ -14,11 +14,6 @@ export class CursorAuthError extends Error {
 	}
 }
 
-// Constants for token refresh timing
-export const TOKEN_REFRESH_INTERVAL = 3300000 // 55 minutes in milliseconds
-export const TOKEN_EXPIRY = 3600000 // 1 hour in milliseconds
-export const CLIENT_ID = "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB"
-
 /**
  * Generates a PKCE verifier string
  * @returns A random base64URL-encoded string for PKCE verification
@@ -75,24 +70,13 @@ export async function initiateCursorAuth(
 		const pkceChallenge = await generatePKCEChallenge(pkceVerifier)
 		const uuid = crypto.randomUUID()
 
-		// Log auth flow start for debugging
-		vscode.postMessage({ type: "log", text: "🔐 [CURSOR AUTH] ========== AUTH FLOW STARTED ==========" })
-		vscode.postMessage({ type: "log", text: `🔐 [CURSOR AUTH] UUID: ${uuid}` })
-		vscode.postMessage({ type: "log", text: `🔐 [CURSOR AUTH] Verifier length: ${pkceVerifier.length}` })
-		vscode.postMessage({ type: "log", text: `🔐 [CURSOR AUTH] Challenge length: ${pkceChallenge.length}` })
-
 		const loginUrl = `https://cursor.sh/loginDeepControl?challenge=${encodeURIComponent(pkceChallenge)}&uuid=${encodeURIComponent(uuid)}`
-		vscode.postMessage({ type: "log", text: `🔐 [CURSOR AUTH] Opening login URL: ${loginUrl}` })
 
 		// Open login URL
 		vscode.postMessage({
 			type: "openExternalUrl",
 			url: loginUrl,
 		})
-
-		// Start polling
-		vscode.postMessage({ type: "log", text: "🔐 [CURSOR AUTH] Starting polling..." })
-		vscode.postMessage({ type: "log", text: "🔐 [CURSOR AUTH] ----------------------------------------" })
 
 		vscode.postMessage({
 			type: "pollCursorAuth",
@@ -105,12 +89,9 @@ export async function initiateCursorAuth(
 			const message = event.data
 			if (message.type === "cursorAuthSuccess" && message.access_token && message.refresh_token) {
 				window.removeEventListener("message", handleAuthResult)
-				vscode.postMessage({ type: "log", text: "🔐 [CURSOR AUTH] ========== AUTH FLOW COMPLETED ==========" })
 				onSuccess(message.access_token, message.refresh_token)
 			} else if (message.type === "cursorAuthError") {
 				window.removeEventListener("message", handleAuthResult)
-				vscode.postMessage({ type: "log", text: "🔐 [CURSOR AUTH] ========== AUTH FLOW FAILED ==========" })
-				vscode.postMessage({ type: "log", text: "🔐 [CURSOR AUTH] Error: " + message.error })
 				onError(new CursorAuthError(message.error || "Authentication failed", "auth_error", message.error))
 			}
 		}
@@ -120,13 +101,9 @@ export async function initiateCursorAuth(
 		// Set timeout for auth flow
 		setTimeout(() => {
 			window.removeEventListener("message", handleAuthResult)
-			vscode.postMessage({ type: "log", text: "🔐 [CURSOR AUTH] ========== AUTH FLOW TIMED OUT ==========" })
-			vscode.postMessage({ type: "log", text: "🔐 [CURSOR AUTH] No response received - user may have cancelled" })
 			onError(new CursorAuthError("Authentication timed out", "timeout_error"))
 		}, 30000) // 30 second timeout
 	} catch (error) {
-		vscode.postMessage({ type: "log", text: "🔐 [CURSOR AUTH] ========== AUTH FLOW FAILED ==========" })
-		vscode.postMessage({ type: "log", text: "🔐 [CURSOR AUTH] Error: " + error })
 		onError(new CursorAuthError(error instanceof Error ? error.message : "Authentication failed", "unknown_error", error))
 	}
 }
