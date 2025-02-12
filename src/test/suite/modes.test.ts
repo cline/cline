@@ -89,9 +89,10 @@ suite("Roo Code Modes", () => {
 					console.log(text)
 				}
 			})
-			const grade = globalThis.provider.messages.find(
+			const gradeMessage = globalThis.provider.messages.find(
 				({ type, text }) => type === "say" && !text?.includes("Grade: (1-10)") && text?.includes("Grade:"),
 			)?.text
+			const grade = gradeMessage?.match(`Grade: (10|[1-9])`)
 			assert.ok(
 				grade?.includes("Grade: 10") ||
 					grade?.includes("Grade: 9") ||
