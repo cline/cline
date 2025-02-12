@@ -783,7 +783,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							if (!value) {
 								return
 							}
-							const num = parseInt(value)
+							const num = parseInt(value, 10)
 							if (isNaN(num)) {
 								return
 							}
