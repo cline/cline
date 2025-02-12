@@ -77,7 +77,9 @@ export class ShadowCheckpointService implements CheckpointService {
 						.map((line) => line.split(" ")[0].trim())
 				}
 			} catch (error) {
-				console.warn(`Failed to read .gitattributes: ${error instanceof Error ? error.message : String(error)}`)
+				this.log(
+					`[initShadowGit] failed to read .gitattributes: ${error instanceof Error ? error.message : String(error)}`,
+				)
 			}
 
 			// Add basic excludes directly in git config, while respecting any
@@ -101,7 +103,7 @@ export class ShadowCheckpointService implements CheckpointService {
 		try {
 			await this.git.add(".")
 		} catch (error) {
-			console.error(`Failed to add files to git: ${error instanceof Error ? error.message : String(error)}`)
+			this.log(`[stageAll] failed to add files to git: ${error instanceof Error ? error.message : String(error)}`)
 		} finally {
 			await this.renameNestedGitRepos(false)
 		}
@@ -149,7 +151,7 @@ export class ShadowCheckpointService implements CheckpointService {
 			try {
 				this.shadowGitConfigWorktree = (await this.git.getConfig("core.worktree")).value || undefined
 			} catch (error) {
-				console.error(
+				this.log(
 					`[getShadowGitConfigWorktree] failed to get core.worktree: ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
@@ -172,7 +174,7 @@ export class ShadowCheckpointService implements CheckpointService {
 				return undefined
 			}
 		} catch (error) {
-			console.error(
+			this.log(
 				`[saveCheckpoint] failed to create checkpoint: ${error instanceof Error ? error.message : String(error)}`,
 			)
 
@@ -209,7 +211,7 @@ export class ShadowCheckpointService implements CheckpointService {
 
 			const after = to
 				? await this.git.show([`${to}:${relPath}`]).catch(() => "")
-				: await fs.readFile(relPath, "utf8").catch(() => "")
+				: await fs.readFile(absPath, "utf8").catch(() => "")
 
 			result.push({ paths: { relative: relPath, absolute: absPath }, content: { before, after } })
 		}
