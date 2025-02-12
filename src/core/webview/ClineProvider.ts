@@ -66,6 +66,7 @@ type GlobalStateKey =
 	| "taskHistory"
 	| "openAiBaseUrl"
 	| "openAiModelId"
+	| "openAiModelInfo"
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
 	| "lmStudioModelId"
@@ -443,6 +444,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openAiBaseUrl,
 								openAiApiKey,
 								openAiModelId,
+								openAiModelInfo,
 								ollamaModelId,
 								ollamaBaseUrl,
 								lmStudioModelId,
@@ -482,6 +484,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
 							await this.storeSecret("openAiApiKey", openAiApiKey)
 							await this.updateGlobalState("openAiModelId", openAiModelId)
+							await this.updateGlobalState("openAiModelInfo", openAiModelInfo)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
 							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
 							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
@@ -561,6 +564,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									break
 								case "openai":
 									await this.updateGlobalState("previousModeModelId", apiConfiguration.openAiModelId)
+									await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openAiModelInfo)
 									break
 								case "ollama":
 									await this.updateGlobalState("previousModeModelId", apiConfiguration.ollamaModelId)
@@ -592,6 +596,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 										break
 									case "openai":
 										await this.updateGlobalState("openAiModelId", newModelId)
+										await this.updateGlobalState("openAiModelInfo", newModelInfo)
 										break
 									case "ollama":
 										await this.updateGlobalState("ollamaModelId", newModelId)
@@ -1387,6 +1392,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openAiBaseUrl,
 			openAiApiKey,
 			openAiModelId,
+			openAiModelInfo,
 			ollamaModelId,
 			ollamaBaseUrl,
 			lmStudioModelId,
@@ -1437,6 +1443,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
 			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
+			this.getGlobalState("openAiModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
@@ -1508,6 +1515,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openAiBaseUrl,
 				openAiApiKey,
 				openAiModelId,
+				openAiModelInfo,
 				ollamaModelId,
 				ollamaBaseUrl,
 				lmStudioModelId,
