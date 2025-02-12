@@ -6,14 +6,8 @@ import { withRetry } from "../retry"
 import { Logger } from "../../services/logging/Logger"
 import { convertToCursorMessages } from "../transform/cursor-format"
 import { CursorTokenManager, CursorTokenError } from "./cursor/CursorTokenManager"
+import { CursorEnvelopeHandler, EnvelopeFlag, CursorEnvelopeError } from "./cursor/CursorEnvelopeHandler"
 import { ExtensionContext } from "vscode"
-
-// Message envelope flags per API spec
-const enum EnvelopeFlag {
-	NORMAL = 0x00,
-	END_STREAM = 0x02,
-	ERROR = 0x04,
-}
 
 interface MessageContent {
 	text: string
@@ -25,11 +19,13 @@ export class CursorHandler implements ApiHandler {
 	private readonly CLIENT_ID = "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB"
 	private sessionId: string
 	private tokenManager: CursorTokenManager
+	private envelopeHandler: CursorEnvelopeHandler
 
 	constructor(options: ApiHandlerOptions, context: ExtensionContext) {
 		this.options = options
 		this.sessionId = crypto.randomUUID()
 		this.tokenManager = new CursorTokenManager(context)
+		this.envelopeHandler = new CursorEnvelopeHandler()
 
 		// Initialize token manager if we have tokens
 		if (options.cursorAccessToken && options.cursorRefreshToken) {
@@ -42,97 +38,6 @@ export class CursorHandler implements ApiHandler {
 	private log(message: string) {
 		const timestamp = new Date().toISOString()
 		Logger.log(`[CURSOR ${timestamp}] ${message}`)
-	}
-
-	private validateEnvelope(buffer: Uint8Array): { isComplete: boolean; totalLength: number; messageLength: number } {
-		if (buffer.length < 5) {
-			return { isComplete: false, totalLength: 0, messageLength: 0 }
-		}
-
-		const flag = buffer[0]
-		// Read length as unsigned 32-bit integer in big-endian format
-		const messageLength = new DataView(buffer.buffer, buffer.byteOffset + 1, 4).getUint32(0, false)
-		const totalLength = messageLength + 5
-
-		// Log the actual size details for debugging
-		this.log(`📏 Envelope details:`)
-		this.log(`   Flag: 0x${flag.toString(16)}`)
-		this.log(`   Message length: ${messageLength} bytes`)
-		this.log(`   Total length with header: ${totalLength} bytes`)
-		this.log(`   Current buffer size: ${buffer.length} bytes`)
-		this.log(
-			`   Raw header: ${Array.from(buffer.slice(0, 5))
-				.map((b) => b.toString(16).padStart(2, "0"))
-				.join(" ")}`,
-		)
-		this.log(
-			`   Raw data: ${Array.from(buffer)
-				.map((b) => b.toString(16).padStart(2, "0"))
-				.join(" ")}`,
-		)
-
-		// Validate length before checking completeness
-		if (messageLength > this.MAX_MESSAGE_SIZE) {
-			throw new Error(`Message size ${messageLength} exceeds maximum allowed size ${this.MAX_MESSAGE_SIZE}`)
-		}
-
-		// Check if we have enough data for the complete message
-		return {
-			isComplete: buffer.length >= totalLength,
-			totalLength,
-			messageLength,
-		}
-	}
-
-	private decodeEnvelope(buffer: Uint8Array): { flag: number; data: Uint8Array } {
-		if (buffer.length < 5) {
-			throw new Error("Invalid data length: too short")
-		}
-
-		const flag = buffer[0]
-		const messageLength = new DataView(buffer.buffer, buffer.byteOffset + 1, 4).getUint32(0, false)
-		const totalLength = messageLength + 5
-
-		// Validate exact length like Rust implementation
-		if (buffer.length !== totalLength) {
-			throw new Error(
-				`Protocol error: promised ${messageLength} bytes in enveloped message, got ${buffer.length - 5} bytes`,
-			)
-		}
-
-		// Validate length before returning data
-		if (messageLength > this.MAX_MESSAGE_SIZE) {
-			throw new Error(`Message size ${messageLength} exceeds maximum allowed size ${this.MAX_MESSAGE_SIZE}`)
-		}
-
-		return {
-			flag,
-			data: buffer.slice(5, totalLength), // Ensure we only take the message length
-		}
-	}
-
-	private encodeEnvelope(data: Uint8Array | string | object, flag: number = EnvelopeFlag.NORMAL): Uint8Array {
-		let dataBytes: Uint8Array
-		if (typeof data === "string") {
-			dataBytes = new TextEncoder().encode(data)
-		} else if (data instanceof Uint8Array) {
-			dataBytes = data
-		} else {
-			// For objects, we want to match Rust's serde_json behavior exactly
-			const jsonString = JSON.stringify(data)
-			dataBytes = new TextEncoder().encode(jsonString)
-		}
-
-		// Validate length before creating envelope
-		if (dataBytes.length > this.MAX_MESSAGE_SIZE) {
-			throw new Error(`Message size ${dataBytes.length} exceeds maximum allowed size ${this.MAX_MESSAGE_SIZE}`)
-		}
-
-		const result = new Uint8Array(5 + dataBytes.length)
-		result[0] = flag
-		new DataView(result.buffer).setUint32(1, dataBytes.length, false) // false = big-endian
-		result.set(dataBytes, 5)
-		return result
 	}
 
 	private async processMessageChunk(chunk: Uint8Array): Promise<Uint8Array> {
@@ -153,43 +58,6 @@ export class CursorHandler implements ApiHandler {
 		}
 
 		return chunk
-	}
-
-	private parseErrorMessage(data: Uint8Array): string {
-		try {
-			const errorText = new TextDecoder().decode(data)
-			this.log(`🔍 Raw error text: ${errorText}`)
-			const errorJson = JSON.parse(errorText)
-			// Match Rust's error handling order exactly
-			if (errorJson.error?.message) {
-				return errorJson.error.message
-			} else if (errorJson.error?.code && errorJson.error?.message) {
-				return `${errorJson.error.code}: ${errorJson.error.message}`
-			}
-			return errorText
-		} catch (error) {
-			this.log(`⚠️ Failed to parse error JSON: ${error}`)
-			return new TextDecoder().decode(data)
-		}
-	}
-
-	private async handleErrorResponse(response: Response): Promise<never> {
-		const errorText = await response.text()
-		let errorMessage = `Server returned status code ${response.status}`
-
-		try {
-			const errorJson = JSON.parse(errorText)
-			// Match Rust's error handling order exactly
-			if (errorJson.error?.message) {
-				errorMessage = errorJson.error.message
-			} else if (errorJson.error?.code && errorJson.error?.message) {
-				errorMessage = `${errorJson.error.code}: ${errorJson.error.message}`
-			}
-		} catch {
-			// Use the default error message if JSON parsing fails
-		}
-
-		throw new Error(errorMessage)
 	}
 
 	private parseMessageContent(data: string): MessageContent | null {
@@ -254,8 +122,8 @@ export class CursorHandler implements ApiHandler {
 		this.log(JSON.stringify(requestBody, null, 2))
 
 		// Create request envelope like Rust implementation
-		const requestEnvelope = this.encodeEnvelope(requestBody) // Pass object directly to match Rust's serialization
-		const endMarker = this.encodeEnvelope(new Uint8Array(0), EnvelopeFlag.END_STREAM) // Empty array for end marker
+		const requestEnvelope = this.envelopeHandler.encodeEnvelope(requestBody) // Pass object directly to match Rust's serialization
+		const endMarker = this.envelopeHandler.encodeEnvelope(new Uint8Array(0), EnvelopeFlag.END_STREAM) // Empty array for end marker
 
 		// Combine envelopes exactly like Rust
 		const fullRequestBody = new Uint8Array(requestEnvelope.length + endMarker.length)
@@ -296,7 +164,22 @@ export class CursorHandler implements ApiHandler {
 		})
 
 		if (!response.ok) {
-			await this.handleErrorResponse(response)
+			const errorText = await response.text()
+			let errorMessage = `Server returned status code ${response.status}`
+
+			try {
+				const errorJson = JSON.parse(errorText)
+				// Match Rust's error handling order exactly
+				if (errorJson.error?.message) {
+					errorMessage = errorJson.error.message
+				} else if (errorJson.error?.code && errorJson.error?.message) {
+					errorMessage = `${errorJson.error.code}: ${errorJson.error.message}`
+				}
+			} catch {
+				// Use the default error message if JSON parsing fails
+			}
+
+			throw new Error(errorMessage)
 		}
 
 		const reader = response.body?.getReader()
@@ -328,7 +211,7 @@ export class CursorHandler implements ApiHandler {
 
 				// Process complete messages
 				while (buffer.length >= 5) {
-					const { isComplete, totalLength } = this.validateEnvelope(buffer)
+					const { isComplete, totalLength } = this.envelopeHandler.validateEnvelope(buffer)
 					if (!isComplete) {
 						this.log(`⏳ Waiting for more data. Have ${buffer.length}, need ${totalLength}`)
 						break
@@ -339,13 +222,13 @@ export class CursorHandler implements ApiHandler {
 					buffer = buffer.slice(totalLength)
 
 					try {
-						const { flag, data } = this.decodeEnvelope(completeMessage)
+						const { flag, data } = this.envelopeHandler.decodeEnvelope(completeMessage)
 						this.log(`🏷️ Message envelope - Flag: 0x${flag.toString(16)}, Length: ${data.length}`)
 
 						if (flag === EnvelopeFlag.END_STREAM) {
 							this.log("🏁 End of stream marker received")
 							if (data.length > 0) {
-								const errorMessage = this.parseErrorMessage(data)
+								const errorMessage = this.envelopeHandler.parseErrorMessage(data)
 								if (errorMessage !== "{}") {
 									// Don't treat empty object as error
 									this.log(`❌ Error in end-of-stream marker: ${errorMessage}`)
@@ -357,7 +240,7 @@ export class CursorHandler implements ApiHandler {
 						}
 
 						if (flag === EnvelopeFlag.ERROR) {
-							const errorMessage = this.parseErrorMessage(data)
+							const errorMessage = this.envelopeHandler.parseErrorMessage(data)
 							this.log(`❌ Error message received: ${errorMessage}`)
 							throw new Error(errorMessage)
 						}
@@ -390,8 +273,14 @@ export class CursorHandler implements ApiHandler {
 							}
 						}
 					} catch (error) {
+						if (error instanceof CursorEnvelopeError) {
+							this.log(`❌ Envelope error: ${error.message} (${error.type})`)
+							if (error.details) {
+								this.log(`   Details: ${JSON.stringify(error.details)}`)
+							}
+						}
 						this.log(`❌ Error processing message: ${error}`)
-						throw new Error(`Error processing message: ${error}`)
+						throw error
 					}
 				}
 			}
