@@ -11,11 +11,14 @@ export type ApiProvider =
 	| "deepseek"
 	| "mistral"
 	| "vscode-lm"
+	| "litellm"
 	| "sapaicore"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
+	liteLlmBaseUrl?: string
+	liteLlmModelId?: string
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
@@ -247,10 +250,34 @@ export const openAiModelInfoSaneDefaults: ModelInfo = {
 // Gemini
 // https://ai.google.dev/gemini-api/docs/models/gemini
 export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-thinking-exp-1219"
+export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-001"
 export const geminiModels = {
+	"gemini-2.0-flash-001": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-flash-lite-preview-02-05": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-pro-exp-02-05": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
-		maxTokens: 65536,
+		maxTokens: 65_536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
@@ -268,14 +295,6 @@ export const geminiModels = {
 	"gemini-2.0-flash-exp": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-exp-1206": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -321,6 +340,14 @@ export const geminiModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
+	"gemini-exp-1206": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // OpenAI Native
@@ -358,16 +385,16 @@ export const openAiNativeModels = {
 		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 3,
-		outputPrice: 12,
+		inputPrice: 1.1,
+		outputPrice: 4.4,
 	},
 	"gpt-4o": {
 		maxTokens: 4_096,
 		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 5,
-		outputPrice: 15,
+		inputPrice: 2.5,
+		outputPrice: 10,
 	},
 	"gpt-4o-mini": {
 		maxTokens: 16_384,
@@ -414,10 +441,74 @@ export const deepSeekModels = {
 // Mistral
 // https://docs.mistral.ai/getting-started/models/models_overview/
 export type MistralModelId = keyof typeof mistralModels
-export const mistralDefaultModelId: MistralModelId = "codestral-latest"
+export const mistralDefaultModelId: MistralModelId = "codestral-2501"
 export const mistralModels = {
-	"codestral-latest": {
-		maxTokens: 32_768,
+	"mistral-large-2411": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+	},
+	"pixtral-large-2411": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 6.0,
+	},
+	"ministral-3b-2410": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.04,
+		outputPrice: 0.04,
+	},
+	"ministral-8b-2410": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.1,
+	},
+	"mistral-small-2501": {
+		maxTokens: 32_000,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
+	},
+	"pixtral-12b-2409": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+	},
+	"open-mistral-nemo-2407": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+	},
+	"open-codestral-mamba": {
+		maxTokens: 256_000,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.15,
+	},
+	"codestral-2501": {
+		maxTokens: 256_000,
 		contextWindow: 256_000,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -425,6 +516,19 @@ export const mistralModels = {
 		outputPrice: 0.9,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// LiteLLM
+// https://docs.litellm.ai/docs/
+export type LiteLLMModelId = string
+export const liteLlmDefaultModelId = "gpt-3.5-turbo"
+export const liteLlmModelInfoSaneDefaults: ModelInfo = {
+	maxTokens: 4096,
+	contextWindow: 8192,
+	supportsImages: false,
+	supportsPromptCache: false,
+	inputPrice: 0,
+	outputPrice: 0,
+}
 
 // SAP AI Core
 export type SapAiCoreModelId = keyof typeof sapAiCoreModels

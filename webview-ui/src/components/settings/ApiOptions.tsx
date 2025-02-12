@@ -189,6 +189,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
+					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="sapaicore">SAP AI Core</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
@@ -742,6 +743,38 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
+			{selectedProvider === "litellm" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.liteLlmBaseUrl || ""}
+						style={{ width: "100%" }}
+						type="url"
+						onInput={handleInputChange("liteLlmBaseUrl")}
+						placeholder={"Default: http://localhost:4000"}>
+						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.liteLlmModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("liteLlmModelId")}
+						placeholder={"e.g. gpt-4"}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						LiteLLM provides a unified interface to access various LLM providers' models. See their{" "}
+						<VSCodeLink href="https://docs.litellm.ai/docs/" style={{ display: "inline", fontSize: "inherit" }}>
+							quickstart guide
+						</VSCodeLink>{" "}
+						for more information.
+					</p>
+				</div>
+			)}
+
 			{selectedProvider === "ollama" && (
 				<div>
 					<VSCodeTextField
@@ -1128,6 +1161,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 					...openAiModelInfoSaneDefaults,
 					supportsImages: false, // VSCode LM API currently doesn't support images
 				},
+			}
+		case "litellm":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.liteLlmModelId || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		case "sapaicore":
 			return getProviderData(sapAiCoreModels, sapAiCoreDefaultModelId)

@@ -102,4 +102,4 @@ The **Problems** section in VS Code shows any errors or warnings in your code. Y
 
 ## Next Steps
 
-After installing these tools, you'll be ready to start coding! Return to the [Getting Started with Cline for New Coders](getting-started-new-coders.md) guide to continue your journey.
+After installing these tools, you'll be ready to start coding! Return to the [Getting Started with Cline for New Coders](../getting-started-new-coders/README.md) guide to continue your journey.
