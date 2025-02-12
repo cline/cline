@@ -12,7 +12,7 @@ export class CursorMessageError extends Error {
 	}
 }
 
-interface CursorMessage {
+export interface CursorMessage {
 	type: "MESSAGE_TYPE_HUMAN" | "MESSAGE_TYPE_AI"
 	text: string
 	attached_code_chunks: Array<{

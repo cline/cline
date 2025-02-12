@@ -3,8 +3,7 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, cursorDefaultModelId, cursorModels, CursorModelId } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
-import { Logger } from "../../services/logging/Logger"
-import { convertToCursorMessages } from "../transform/cursor-format"
+import { convertToCursorMessages, CursorMessage } from "../transform/cursor-format"
 import { CursorTokenManager, CursorTokenError } from "./cursor/CursorTokenManager"
 import { CursorEnvelopeHandler, EnvelopeFlag, CursorEnvelopeError } from "./cursor/CursorEnvelopeHandler"
 import { ExtensionContext } from "vscode"
@@ -12,6 +11,29 @@ import { CursorConfig } from "../../shared/config/cursor"
 
 interface MessageContent {
 	text: string
+}
+
+interface RequestBody {
+	query: string
+	currentFile: {
+		contents: string
+		languageId: string
+		relativeWorkspacePath: string
+		selection: {
+			startPosition: { line: number; character: number }
+			endPosition: { line: number; character: number }
+		}
+		cursorPosition: { line: number; character: number }
+	}
+	modelDetails: {
+		modelName: string
+		enableGhostMode: boolean
+		apiKey: undefined
+	}
+	workspaceRootPath: string
+	explicitContext: Record<string, unknown>
+	requestId: string
+	conversation: CursorMessage[]
 }
 
 export class CursorHandler implements ApiHandler {
@@ -26,49 +48,30 @@ export class CursorHandler implements ApiHandler {
 		this.tokenManager = new CursorTokenManager(context)
 		this.envelopeHandler = new CursorEnvelopeHandler()
 
-		// Initialize token manager if we have tokens
 		if (options.cursorAccessToken && options.cursorRefreshToken) {
 			this.tokenManager.setTokens(options.cursorAccessToken, options.cursorRefreshToken).catch(() => {})
 		}
 	}
 
-	private async processMessageChunk(chunk: Uint8Array): Promise<Uint8Array> {
-		return chunk
-	}
-
-	private parseMessageContent(data: string): MessageContent | null {
-		try {
-			const content = JSON.parse(data)
-			if (content && typeof content.text === "string") {
-				return content as MessageContent
-			}
-			return null
-		} catch {
-			return null
-		}
-	}
-
-	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	private async getValidAccessToken(): Promise<string> {
 		if (!this.tokenManager.isAuthenticated()) {
 			throw new Error("Cursor access token is required. Please sign in with your Cursor account.")
 		}
 
-		let accessToken: string
 		try {
-			accessToken = await this.tokenManager.getAccessToken()
+			return await this.tokenManager.getAccessToken()
 		} catch (error) {
 			if (error instanceof CursorTokenError && error.shouldLogout) {
-				// Clear tokens from options to trigger re-auth
 				this.options.cursorAccessToken = undefined
 				this.options.cursorRefreshToken = undefined
 			}
 			throw error
 		}
+	}
 
+	private createRequestBody(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): RequestBody {
 		const cursorMessages = convertToCursorMessages(systemPrompt, messages)
-
-		const requestBody = {
+		return {
 			query: cursorMessages[cursorMessages.length - 1].text,
 			currentFile: {
 				contents: "",
@@ -90,16 +93,19 @@ export class CursorHandler implements ApiHandler {
 			requestId: crypto.randomUUID(),
 			conversation: cursorMessages,
 		}
+	}
 
-		// Create request envelope like Rust implementation
-		const requestEnvelope = this.envelopeHandler.encodeEnvelope(requestBody) // Pass object directly to match Rust's serialization
-		const endMarker = this.envelopeHandler.encodeEnvelope(new Uint8Array(0), EnvelopeFlag.END_STREAM) // Empty array for end marker
+	private createRequestEnvelope(requestBody: RequestBody): Uint8Array {
+		const requestEnvelope = this.envelopeHandler.encodeEnvelope(requestBody)
+		const endMarker = this.envelopeHandler.encodeEnvelope(new Uint8Array(0), EnvelopeFlag.END_STREAM)
 
-		// Combine envelopes exactly like Rust
 		const fullRequestBody = new Uint8Array(requestEnvelope.length + endMarker.length)
 		fullRequestBody.set(requestEnvelope)
 		fullRequestBody.set(endMarker, requestEnvelope.length)
+		return fullRequestBody
+	}
 
+	private async makeRequest(accessToken: string, requestBody: Uint8Array): Promise<Response> {
 		const response = await fetch(CursorConfig.API_ENDPOINT, {
 			method: "POST",
 			headers: {
@@ -114,26 +120,122 @@ export class CursorHandler implements ApiHandler {
 				"x-ghost-mode": "false",
 				"x-session-id": this.sessionId,
 			},
-			body: fullRequestBody,
+			body: requestBody,
 		})
 
 		if (!response.ok) {
-			const errorText = await response.text()
-			let errorMessage = `Server returned status code ${response.status}`
+			throw await this.handleRequestError(response)
+		}
+
+		return response
+	}
+
+	private async handleRequestError(response: Response): Promise<Error> {
+		const errorText = await response.text()
+		let errorMessage = `Server returned status code ${response.status}`
+
+		try {
+			const errorJson = JSON.parse(errorText)
+			if (errorJson.error?.message) {
+				errorMessage = errorJson.error.message
+			} else if (errorJson.error?.code && errorJson.error?.message) {
+				errorMessage = `${errorJson.error.code}: ${errorJson.error.message}`
+			}
+		} catch {
+			// Use default error message if JSON parsing fails
+		}
+
+		return new Error(errorMessage)
+	}
+
+	private parseMessageContent(data: string): MessageContent | null {
+		try {
+			const content = JSON.parse(data)
+			if (content && typeof content.text === "string") {
+				return content as MessageContent
+			}
+			return null
+		} catch {
+			return null
+		}
+	}
+
+	private async *processResponseStream(reader: ReadableStreamDefaultReader<Uint8Array>): ApiStream {
+		let buffer = new Uint8Array(0)
+
+		while (true) {
+			const { done, value } = await reader.read()
+			if (done) break
+
+			buffer = await this.appendToBuffer(buffer, value)
+			yield* this.processBuffer(buffer)
+		}
+	}
+
+	private async appendToBuffer(buffer: Uint8Array, chunk: Uint8Array): Promise<Uint8Array> {
+		const newBuffer = new Uint8Array(buffer.length + chunk.length)
+		newBuffer.set(buffer)
+		newBuffer.set(chunk, buffer.length)
+		return newBuffer
+	}
+
+	private async *processBuffer(buffer: Uint8Array): ApiStream {
+		while (buffer.length >= 5) {
+			const { isComplete, totalLength } = this.envelopeHandler.validateEnvelope(buffer)
+			if (!isComplete) break
+
+			const completeMessage = buffer.slice(0, totalLength)
+			buffer = buffer.slice(totalLength)
 
 			try {
-				const errorJson = JSON.parse(errorText)
-				if (errorJson.error?.message) {
-					errorMessage = errorJson.error.message
-				} else if (errorJson.error?.code && errorJson.error?.message) {
-					errorMessage = `${errorJson.error.code}: ${errorJson.error.message}`
-				}
-			} catch {
-				// Use the default error message if JSON parsing fails
+				yield* this.processMessage(completeMessage)
+			} catch (error) {
+				throw error
 			}
-
-			throw new Error(errorMessage)
 		}
+	}
+
+	private async *processMessage(message: Uint8Array): ApiStream {
+		const { flag, data } = this.envelopeHandler.decodeEnvelope(message)
+
+		if (flag === EnvelopeFlag.END_STREAM) {
+			if (data.length > 0) {
+				const errorMessage = this.envelopeHandler.parseErrorMessage(data)
+				if (errorMessage !== "{}") {
+					throw new Error(errorMessage)
+				}
+			}
+			return
+		}
+
+		if (flag === EnvelopeFlag.ERROR) {
+			throw new Error(this.envelopeHandler.parseErrorMessage(data))
+		}
+
+		if (flag === EnvelopeFlag.NORMAL) {
+			const messageText = new TextDecoder().decode(data)
+			if (messageText.length === 0) return
+
+			try {
+				const content = this.parseMessageContent(messageText)
+				if (content) {
+					yield {
+						type: "text",
+						text: content.text,
+					}
+				}
+			} catch (error) {
+				throw new Error(`Failed to parse message: ${error}`)
+			}
+		}
+	}
+
+	@withRetry()
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const accessToken = await this.getValidAccessToken()
+		const requestBody = this.createRequestBody(systemPrompt, messages)
+		const envelope = this.createRequestEnvelope(requestBody)
+		const response = await this.makeRequest(accessToken, envelope)
 
 		const reader = response.body?.getReader()
 		if (!reader) {
@@ -141,79 +243,7 @@ export class CursorHandler implements ApiHandler {
 		}
 
 		try {
-			let buffer = new Uint8Array(0)
-			let sawEndMarker = false
-
-			while (true) {
-				const { done, value } = await reader.read()
-				if (done) {
-					break
-				}
-
-				const processedChunk = await this.processMessageChunk(value)
-
-				// Append new data to buffer
-				const newBuffer = new Uint8Array(buffer.length + processedChunk.length)
-				newBuffer.set(buffer)
-				newBuffer.set(processedChunk, buffer.length)
-				buffer = newBuffer
-
-				// Process complete messages
-				while (buffer.length >= 5) {
-					const { isComplete, totalLength } = this.envelopeHandler.validateEnvelope(buffer)
-					if (!isComplete) {
-						break
-					}
-
-					// Extract and decode the complete message
-					const completeMessage = buffer.slice(0, totalLength)
-					buffer = buffer.slice(totalLength)
-
-					try {
-						const { flag, data } = this.envelopeHandler.decodeEnvelope(completeMessage)
-
-						if (flag === EnvelopeFlag.END_STREAM) {
-							if (data.length > 0) {
-								const errorMessage = this.envelopeHandler.parseErrorMessage(data)
-								if (errorMessage !== "{}") {
-									throw new Error(errorMessage)
-								}
-							}
-							sawEndMarker = true
-							return
-						}
-
-						if (flag === EnvelopeFlag.ERROR) {
-							const errorMessage = this.envelopeHandler.parseErrorMessage(data)
-							throw new Error(errorMessage)
-						}
-
-						if (flag === EnvelopeFlag.NORMAL) {
-							const messageText = new TextDecoder().decode(data)
-
-							// Skip empty messages like Rust
-							if (messageText.length === 0) {
-								continue
-							}
-
-							try {
-								const content = this.parseMessageContent(messageText)
-								if (content) {
-									// Convert to Anthropic format for our history
-									yield {
-										type: "text",
-										text: content.text,
-									}
-								}
-							} catch (error) {
-								throw new Error(`Failed to parse message: ${error}`)
-							}
-						}
-					} catch (error) {
-						throw error
-					}
-				}
-			}
+			yield* this.processResponseStream(reader)
 		} finally {
 			reader.releaseLock()
 		}
