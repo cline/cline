@@ -21,6 +21,7 @@ export interface ApiHandlerOptions {
 	apiKey?: string // anthropic
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
+	liteLlmApiKey?: string
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
