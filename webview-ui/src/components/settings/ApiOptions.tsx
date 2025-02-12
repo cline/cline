@@ -41,7 +41,7 @@ import {
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
-import { initiateCursorAuth, type CursorAuthError } from "../../utils/cursor/auth"
+import { useCursorAuth } from "../../hooks/useCursorAuth"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
 
@@ -89,7 +89,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
-	const [isAuthenticating, setIsAuthenticating] = useState(false)
+
+	// Replace Cursor auth state with hook
+	const { isAuthenticated, isAuthenticating, handleLogin, handleLogout, error } = useCursorAuth()
 
 	// Add immediate log to verify logging works
 	useEffect(() => {
@@ -177,48 +179,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		)
 	}
 
-	const handleCursorSignOut = () => {
-		setApiConfiguration({
-			...apiConfiguration,
-			cursorAccessToken: undefined,
-			cursorRefreshToken: undefined,
-		})
-		vscode.postMessage({
-			type: "clearCursorTokens",
-		})
-	}
-
-	const handleCursorLogin = async () => {
-		try {
-			setIsAuthenticating(true)
-			await initiateCursorAuth(
-				(accessToken, refreshToken) => {
-					setApiConfiguration({
-						...apiConfiguration,
-						apiProvider: "cursor",
-						cursorAccessToken: accessToken,
-						cursorRefreshToken: refreshToken,
-						cursorTokenExpiry: Date.now() + 3600000,
-					})
-					setIsAuthenticating(false)
-				},
-				(error: CursorAuthError) => {
-					setIsAuthenticating(false)
-					vscode.postMessage({
-						type: "cursorAuthError",
-						error: error.message,
-					})
-				},
-			)
-		} catch (error) {
-			setIsAuthenticating(false)
-			vscode.postMessage({
-				type: "cursorAuthError",
-				error: error instanceof Error ? error.message : "Authentication failed",
-			})
-		}
-	}
-
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
 			<DropdownContainer className="dropdown-container">
@@ -257,10 +217,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{selectedProvider === "cursor" && (
 				<div>
-					{!apiConfiguration?.cursorAccessToken ? (
+					{!isAuthenticated ? (
 						<>
 							<VSCodeButton
-								onClick={handleCursorLogin}
+								onClick={handleLogin}
 								style={{ margin: "5px 0 0 0" }}
 								appearance="secondary"
 								disabled={isAuthenticating}>
@@ -287,10 +247,20 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								}}>
 								✓ Signed in to Cursor
 							</p>
-							<VSCodeButton appearance="secondary" onClick={handleCursorSignOut}>
+							<VSCodeButton appearance="secondary" onClick={handleLogout}>
 								Sign Out
 							</VSCodeButton>
 						</>
+					)}
+					{error && (
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-errorForeground)",
+							}}>
+							{error}
+						</p>
 					)}
 				</div>
 			)}
