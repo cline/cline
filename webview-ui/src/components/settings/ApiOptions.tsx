@@ -905,7 +905,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						style={{ width: "100%" }}
 						type="password"
 						onInput={handleInputChange("liteLlmApiKey")}
-						placeholder="Enter API Key...">
+						placeholder="Default: noop">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
 					<VSCodeTextField
