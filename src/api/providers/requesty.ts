@@ -5,7 +5,6 @@ import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../..
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-import { convertToR1Format } from "../transform/r1-format"
 
 export class RequestyHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -26,16 +25,11 @@ export class RequestyHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelId = this.options.requestyModelId ?? ""
-		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-
-		if (isDeepseekReasoner) {
-			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-		}
 
 		const stream = await this.client.chat.completions.create({
 			model: modelId,
