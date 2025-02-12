@@ -915,6 +915,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={"e.g. gpt-4"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.liteLlmApiKey || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("liteLlmApiKey")}
+						placeholder={"Enter API Key...(Optional)"}>
+						<span style={{ fontWeight: 500 }}>ApiKey</span>
+					</VSCodeTextField>
 					<p
 						style={{
 							fontSize: "12px",

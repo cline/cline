@@ -83,6 +83,7 @@ type GlobalStateKey =
 	| "previousModeModelInfo"
 	| "liteLlmBaseUrl"
 	| "liteLlmModelId"
+	| "liteLlmApiKey"
 	| "qwenApiLine"
 	| "requestyModelId"
 	| "togetherModelId"
@@ -462,6 +463,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								vsCodeLmModelSelector,
 								liteLlmBaseUrl,
 								liteLlmModelId,
+								liteLlmApiKey,
 								qwenApiLine,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
@@ -498,6 +500,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
 							await this.updateGlobalState("liteLlmBaseUrl", liteLlmBaseUrl)
 							await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
+							await this.updateGlobalState("liteLlmApiKey", liteLlmApiKey)
 							await this.updateGlobalState("qwenApiLine", qwenApiLine)
 							await this.updateGlobalState("requestyModelId", requestyModelId)
 							await this.updateGlobalState("togetherModelId", togetherModelId)
@@ -1410,6 +1413,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			vsCodeLmModelSelector,
 			liteLlmBaseUrl,
 			liteLlmModelId,
+			liteLlmApiKey,
 			userInfo,
 			authToken,
 			previousModeApiProvider,
@@ -1459,6 +1463,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 			this.getGlobalState("liteLlmBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("liteLlmModelId") as Promise<string | undefined>,
+			this.getGlobalState("liteLlmApiKey") as Promise<string | undefined>,
 			this.getGlobalState("userInfo") as Promise<UserInfo | undefined>,
 			this.getSecret("authToken") as Promise<string | undefined>,
 			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
@@ -1525,6 +1530,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				o3MiniReasoningEffort,
 				liteLlmBaseUrl,
 				liteLlmModelId,
+				liteLlmApiKey,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
