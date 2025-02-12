@@ -1542,33 +1542,29 @@ export class Cline {
 				const askApproval = async (type: ClineAsk, partialMessage?: string) => {
 					const { response, text, images } = await this.ask(type, partialMessage, false)
 					if (response !== "yesButtonClicked") {
+						// User did NOT approve (rejected)
 						if (response === "messageResponse") {
+							// Rejection WITH feedback
 							await this.say("user_feedback", text, images)
 							pushToolResult(formatResponse.toolResult(formatResponse.toolDeniedWithFeedback(text), images))
-							// this.userMessageContent.push({
-							// 	type: "text",
-							// 	text: `${toolDescription()}`,
-							// })
-							// this.toolResults.push({
-							// 	type: "tool_result",
-							// 	tool_use_id: toolUseId,
-							// 	content: this.formatToolResponseWithImages(
-							// 		await this.formatToolDeniedFeedback(text),
-							// 		images
-							// 	),
-							// })
+
 							this.didRejectTool = true
 							return false
 						}
+						// Rejection WITHOUT explicit feedback
 						pushToolResult(formatResponse.toolDenied())
-						// this.toolResults.push({
-						// 	type: "tool_result",
-						// 	tool_use_id: toolUseId,
-						// 	content: await this.formatToolDenied(),
-						// })
-						this.didRejectTool = true
+
+						this.didRejectTool = true // Prevent further tool uses in this message
 						return false
 					}
+
+					// Handle yesButtonClicked with text (Acceptance WITH feedback)
+					if (text) {
+						await this.say("user_feedback", text, images)
+						pushToolResult(formatResponse.toolResult(formatResponse.toolApprovedWithFeedback(text), images)) // Structured feedback to model on approval
+					}
+
+					// User approved without feedback
 					return true
 				}
 
@@ -1808,11 +1804,14 @@ export class Cline {
 									let didApprove = true
 									const { response, text, images } = await this.ask("tool", completeMessage, false)
 									if (response !== "yesButtonClicked") {
+										// User did NOT approve (rejected)
+
 										// TODO: add similar context for other tool denial responses, to emphasize ie that a command was not run
 										const fileDeniedNote = fileExists
 											? "The file was not updated, and maintains its original contents."
 											: "The file was not created."
 										if (response === "messageResponse") {
+											// Rejection WITH feedback
 											await this.say("user_feedback", text, images)
 											pushToolResult(
 												formatResponse.toolResult(
@@ -1826,6 +1825,16 @@ export class Cline {
 											pushToolResult(`The user denied this operation. ${fileDeniedNote}`)
 											this.didRejectTool = true
 											didApprove = false
+										}
+									} else {
+										// User approved
+
+										// Handle yesButtonClicked with text (Acceptance WITH feedback)
+										if (text) {
+											await this.say("user_feedback", text, images)
+											pushToolResult(
+												formatResponse.toolResult(formatResponse.toolApprovedWithFeedback(text), images),
+											)
 										}
 									}
 
