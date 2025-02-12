@@ -1,6 +1,7 @@
 import { ExtensionContext } from "vscode"
 import { refreshCursorToken } from "../../../../webview-ui/src/utils/cursor/auth"
 import { CursorConfig } from "../../../shared/config/cursor"
+import crypto from "crypto"
 
 export class CursorTokenError extends Error {
 	constructor(
@@ -22,9 +23,27 @@ interface TokenState {
 export class CursorTokenManager {
 	private tokenState: TokenState | null = null
 	private refreshPromise: Promise<void> | null = null
+	private clientKey: string
 
 	constructor(private readonly context: ExtensionContext) {
+		this.clientKey = this.generateClientKey()
+		this.initializeConfig()
 		this.loadTokenState()
+	}
+
+	private generateClientKey(): string {
+		// Generate a SHA-256 hash of a random UUID
+		const uuid = crypto.randomUUID()
+		return crypto.createHash("sha256").update(uuid).digest("hex")
+	}
+
+	private initializeConfig(): void {
+		// Modify the CursorConfig to use our generated key
+		;(CursorConfig as any).CLIENT_KEY = this.clientKey
+	}
+
+	public getClientKey(): string {
+		return this.clientKey
 	}
 
 	private async loadTokenState(): Promise<void> {

@@ -12,7 +12,7 @@ export const CursorConfig = {
 	API_ENDPOINT: "https://api2.cursor.sh/aiserver.v1.AiService/StreamChat",
 	TOKEN_REFRESH_ENDPOINT: "https://cursor.sh/api/refresh",
 	CLIENT_ID: "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB",
-	CLIENT_KEY: "2a02d8cd9b5af7a8db6e143e201164e47faa7cba6574524e4e4aafe6655f18cf",
+	CLIENT_KEY: "", // Will be set dynamically at extension startup
 	CLIENT_CHECKSUM:
 		"LwoMGZe259957470509b69c0a477232e090cae43695725138dedbcc7625a2b36573caa58/deb3cac1988ff56ea6fabce72eefd291235ab451eef8173567d7521126673b73",
 	CLIENT_VERSION: "0.45.11",
