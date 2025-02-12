@@ -64,6 +64,7 @@ export class RequestyHandler implements ApiHandler {
 					caching_tokens?: number
 					cached_tokens?: number
 				}
+				total_cost?: number
 			}
 
 			if (chunk.usage) {
@@ -74,6 +75,7 @@ export class RequestyHandler implements ApiHandler {
 					outputTokens: usage.completion_tokens || 0,
 					cacheWriteTokens: usage.prompt_tokens_details?.caching_tokens || undefined,
 					cacheReadTokens: usage.prompt_tokens_details?.cached_tokens || undefined,
+					totalCost: usage.total_cost || undefined,
 				}
 			}
 		}
