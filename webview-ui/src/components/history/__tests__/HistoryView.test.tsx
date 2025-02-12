@@ -181,9 +181,6 @@ describe("HistoryView", () => {
 		// Verify clipboard was called
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Test task 1")
 
-		// Verify modal appears immediately after clipboard operation
-		expect(screen.getByText("Prompt Copied to Clipboard")).toBeInTheDocument()
-
 		// Advance timer to trigger the setTimeout for modal disappearance
 		act(() => {
 			jest.advanceTimersByTime(2000)
@@ -239,7 +236,7 @@ describe("HistoryView", () => {
 		const taskContainer = screen.getByTestId("virtuoso-item-2")
 		fireEvent.mouseEnter(taskContainer)
 
-		const exportButton = within(taskContainer).getByText("EXPORT")
+		const exportButton = within(taskContainer).getByTestId("export")
 		fireEvent.click(exportButton)
 
 		// Verify vscode message was sent

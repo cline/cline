@@ -1,44 +1,50 @@
-// npx jest src/services/checkpoints/__tests__/CheckpointService.test.ts
+// npx jest src/services/checkpoints/__tests__/ShadowCheckpointService.test.ts
 
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
 
-import { simpleGit, SimpleGit, SimpleGitTaskCallback } from "simple-git"
+import { simpleGit, SimpleGit } from "simple-git"
 
-import { CheckpointService } from "../CheckpointService"
+import { ShadowCheckpointService } from "../ShadowCheckpointService"
+import { CheckpointServiceFactory } from "../CheckpointServiceFactory"
 
-describe("CheckpointService", () => {
+jest.mock("globby", () => ({
+	globby: jest.fn().mockResolvedValue([]),
+}))
+
+describe("ShadowCheckpointService", () => {
 	const taskId = "test-task"
 
-	let git: SimpleGit
+	let workspaceGit: SimpleGit
+	let shadowGit: SimpleGit
 	let testFile: string
-	let service: CheckpointService
+	let service: ShadowCheckpointService
 
 	const initRepo = async ({
-		baseDir,
+		workspaceDir,
 		userName = "Roo Code",
 		userEmail = "support@roocode.com",
 		testFileName = "test.txt",
 		textFileContent = "Hello, world!",
 	}: {
-		baseDir: string
+		workspaceDir: string
 		userName?: string
 		userEmail?: string
 		testFileName?: string
 		textFileContent?: string
 	}) => {
 		// Create a temporary directory for testing.
-		await fs.mkdir(baseDir)
+		await fs.mkdir(workspaceDir)
 
 		// Initialize git repo.
-		const git = simpleGit(baseDir)
+		const git = simpleGit(workspaceDir)
 		await git.init()
 		await git.addConfig("user.name", userName)
 		await git.addConfig("user.email", userEmail)
 
 		// Create test file.
-		const testFile = path.join(baseDir, testFileName)
+		const testFile = path.join(workspaceDir, testFileName)
 		await fs.writeFile(testFile, textFileContent)
 
 		// Create initial commit.
@@ -49,16 +55,26 @@ describe("CheckpointService", () => {
 	}
 
 	beforeEach(async () => {
-		const baseDir = path.join(os.tmpdir(), `checkpoint-service-test-${Date.now()}`)
-		const repo = await initRepo({ baseDir })
+		jest.mocked(require("globby").globby).mockClear().mockResolvedValue([])
 
-		git = repo.git
+		const shadowDir = path.join(os.tmpdir(), `shadow-${Date.now()}`)
+		const workspaceDir = path.join(os.tmpdir(), `workspace-${Date.now()}`)
+		const repo = await initRepo({ workspaceDir })
+
 		testFile = repo.testFile
-		service = await CheckpointService.create({ taskId, git, baseDir, log: () => {} })
+
+		service = await CheckpointServiceFactory.create({
+			strategy: "shadow",
+			options: { taskId, shadowDir, workspaceDir, log: () => {} },
+		})
+
+		workspaceGit = repo.git
+		shadowGit = service.git
 	})
 
 	afterEach(async () => {
-		await fs.rm(service.baseDir, { recursive: true, force: true })
+		await fs.rm(service.shadowDir, { recursive: true, force: true })
+		await fs.rm(service.workspaceDir, { recursive: true, force: true })
 		jest.restoreAllMocks()
 	})
 
@@ -95,7 +111,7 @@ describe("CheckpointService", () => {
 		})
 
 		it("handles new files in diff", async () => {
-			const newFile = path.join(service.baseDir, "new.txt")
+			const newFile = path.join(service.workspaceDir, "new.txt")
 			await fs.writeFile(newFile, "New file content")
 			const commit = await service.saveCheckpoint("Add new file")
 			expect(commit?.commit).toBeTruthy()
@@ -108,7 +124,7 @@ describe("CheckpointService", () => {
 		})
 
 		it("handles deleted files in diff", async () => {
-			const fileToDelete = path.join(service.baseDir, "new.txt")
+			const fileToDelete = path.join(service.workspaceDir, "new.txt")
 			await fs.writeFile(fileToDelete, "New file content")
 			const commit1 = await service.saveCheckpoint("Add file")
 			expect(commit1?.commit).toBeTruthy()
@@ -130,16 +146,16 @@ describe("CheckpointService", () => {
 			await fs.writeFile(testFile, "Ahoy, world!")
 			const commit1 = await service.saveCheckpoint("First checkpoint")
 			expect(commit1?.commit).toBeTruthy()
-			const details1 = await git.show([commit1!.commit])
-			expect(details1).toContain("-Hello, world!")
-			expect(details1).toContain("+Ahoy, world!")
+			const details1 = await service.getDiff({ to: commit1!.commit })
+			expect(details1[0].content.before).toContain("Hello, world!")
+			expect(details1[0].content.after).toContain("Ahoy, world!")
 
 			await fs.writeFile(testFile, "Hola, world!")
 			const commit2 = await service.saveCheckpoint("Second checkpoint")
 			expect(commit2?.commit).toBeTruthy()
-			const details2 = await git.show([commit2!.commit])
-			expect(details2).toContain("-Hello, world!")
-			expect(details2).toContain("+Hola, world!")
+			const details2 = await service.getDiff({ from: commit1!.commit, to: commit2!.commit })
+			expect(details2[0].content.before).toContain("Ahoy, world!")
+			expect(details2[0].content.after).toContain("Hola, world!")
 
 			// Switch to checkpoint 1.
 			await service.restoreCheckpoint(commit1!.commit)
@@ -150,30 +166,31 @@ describe("CheckpointService", () => {
 			expect(await fs.readFile(testFile, "utf-8")).toBe("Hola, world!")
 
 			// Switch back to initial commit.
-			await service.restoreCheckpoint(service.baseCommitHash)
+			expect(service.baseHash).toBeTruthy()
+			await service.restoreCheckpoint(service.baseHash!)
 			expect(await fs.readFile(testFile, "utf-8")).toBe("Hello, world!")
 		})
 
 		it("preserves workspace and index state after saving checkpoint", async () => {
 			// Create three files with different states: staged, unstaged, and mixed.
-			const unstagedFile = path.join(service.baseDir, "unstaged.txt")
-			const stagedFile = path.join(service.baseDir, "staged.txt")
-			const mixedFile = path.join(service.baseDir, "mixed.txt")
+			const unstagedFile = path.join(service.workspaceDir, "unstaged.txt")
+			const stagedFile = path.join(service.workspaceDir, "staged.txt")
+			const mixedFile = path.join(service.workspaceDir, "mixed.txt")
 
 			await fs.writeFile(unstagedFile, "Initial unstaged")
 			await fs.writeFile(stagedFile, "Initial staged")
 			await fs.writeFile(mixedFile, "Initial mixed")
-			await git.add(["."])
-			const result = await git.commit("Add initial files")
+			await workspaceGit.add(["."])
+			const result = await workspaceGit.commit("Add initial files")
 			expect(result?.commit).toBeTruthy()
 
 			await fs.writeFile(unstagedFile, "Modified unstaged")
 
 			await fs.writeFile(stagedFile, "Modified staged")
-			await git.add([stagedFile])
+			await workspaceGit.add([stagedFile])
 
 			await fs.writeFile(mixedFile, "Modified mixed - staged")
-			await git.add([mixedFile])
+			await workspaceGit.add([mixedFile])
 			await fs.writeFile(mixedFile, "Modified mixed - unstaged")
 
 			// Save checkpoint.
@@ -181,7 +198,7 @@ describe("CheckpointService", () => {
 			expect(commit?.commit).toBeTruthy()
 
 			// Verify workspace state is preserved.
-			const status = await git.status()
+			const status = await workspaceGit.status()
 
 			// All files should be modified.
 			expect(status.modified).toContain("unstaged.txt")
@@ -199,12 +216,12 @@ describe("CheckpointService", () => {
 			expect(await fs.readFile(mixedFile, "utf-8")).toBe("Modified mixed - unstaged")
 
 			// Verify staged changes (--cached shows only staged changes).
-			const stagedDiff = await git.diff(["--cached", "mixed.txt"])
+			const stagedDiff = await workspaceGit.diff(["--cached", "mixed.txt"])
 			expect(stagedDiff).toContain("-Initial mixed")
 			expect(stagedDiff).toContain("+Modified mixed - staged")
 
 			// Verify unstaged changes (shows working directory changes).
-			const unstagedDiff = await git.diff(["mixed.txt"])
+			const unstagedDiff = await workspaceGit.diff(["mixed.txt"])
 			expect(unstagedDiff).toContain("-Modified mixed - staged")
 			expect(unstagedDiff).toContain("+Modified mixed - unstaged")
 		})
@@ -223,7 +240,7 @@ describe("CheckpointService", () => {
 
 		it("includes untracked files in checkpoints", async () => {
 			// Create an untracked file.
-			const untrackedFile = path.join(service.baseDir, "untracked.txt")
+			const untrackedFile = path.join(service.workspaceDir, "untracked.txt")
 			await fs.writeFile(untrackedFile, "I am untracked!")
 
 			// Save a checkpoint with the untracked file.
@@ -231,8 +248,9 @@ describe("CheckpointService", () => {
 			expect(commit1?.commit).toBeTruthy()
 
 			// Verify the untracked file was included in the checkpoint.
-			const details = await git.show([commit1!.commit])
-			expect(details).toContain("+I am untracked!")
+			const details = await service.getDiff({ to: commit1!.commit })
+			expect(details[0].content.before).toContain("")
+			expect(details[0].content.after).toContain("I am untracked!")
 
 			// Create another checkpoint with a different state.
 			await fs.writeFile(testFile, "Changed tracked file")
@@ -251,38 +269,9 @@ describe("CheckpointService", () => {
 			expect(await fs.readFile(testFile, "utf-8")).toBe("Changed tracked file")
 		})
 
-		it("throws if we're on the wrong branch", async () => {
-			// Create and switch to a feature branch.
-			await git.checkoutBranch("feature", service.mainBranch)
-
-			// Attempt to save checkpoint from feature branch.
-			await expect(service.saveCheckpoint("test")).rejects.toThrow(
-				`Git branch mismatch: expected '${service.mainBranch}' but found 'feature'`,
-			)
-
-			// Attempt to restore checkpoint from feature branch.
-			await expect(service.restoreCheckpoint(service.baseCommitHash)).rejects.toThrow(
-				`Git branch mismatch: expected '${service.mainBranch}' but found 'feature'`,
-			)
-		})
-
-		it("cleans up staged files if a commit fails", async () => {
-			await fs.writeFile(testFile, "Changed content")
-
-			// Mock git commit to simulate failure.
-			jest.spyOn(git, "commit").mockRejectedValue(new Error("Simulated commit failure"))
-
-			// Attempt to save checkpoint.
-			await expect(service.saveCheckpoint("test")).rejects.toThrow("Simulated commit failure")
-
-			// Verify files are unstaged.
-			const status = await git.status()
-			expect(status.staged).toHaveLength(0)
-		})
-
 		it("handles file deletions correctly", async () => {
 			await fs.writeFile(testFile, "I am tracked!")
-			const untrackedFile = path.join(service.baseDir, "new.txt")
+			const untrackedFile = path.join(service.workspaceDir, "new.txt")
 			await fs.writeFile(untrackedFile, "I am untracked!")
 			const commit1 = await service.saveCheckpoint("First checkpoint")
 			expect(commit1?.commit).toBeTruthy()
@@ -310,107 +299,36 @@ describe("CheckpointService", () => {
 
 	describe("create", () => {
 		it("initializes a git repository if one does not already exist", async () => {
-			const baseDir = path.join(os.tmpdir(), `checkpoint-service-test2-${Date.now()}`)
-			await fs.mkdir(baseDir)
-			const newTestFile = path.join(baseDir, "test.txt")
-			await fs.writeFile(newTestFile, "Hello, world!")
+			const shadowDir = path.join(os.tmpdir(), `shadow2-${Date.now()}`)
+			const workspaceDir = path.join(os.tmpdir(), `workspace2-${Date.now()}`)
+			await fs.mkdir(workspaceDir)
 
-			const newGit = simpleGit(baseDir)
-			const initSpy = jest.spyOn(newGit, "init")
-			const newService = await CheckpointService.create({ taskId, git: newGit, baseDir, log: () => {} })
+			const newTestFile = path.join(workspaceDir, "test.txt")
+			await fs.writeFile(newTestFile, "Hello, world!")
+			expect(await fs.readFile(newTestFile, "utf-8")).toBe("Hello, world!")
 
 			// Ensure the git repository was initialized.
-			expect(initSpy).toHaveBeenCalled()
-
-			// Save a checkpoint: Hello, world!
-			const commit1 = await newService.saveCheckpoint("Hello, world!")
-			expect(commit1?.commit).toBeTruthy()
-			expect(await fs.readFile(newTestFile, "utf-8")).toBe("Hello, world!")
-
-			// Restore initial commit; the file should no longer exist.
-			await newService.restoreCheckpoint(newService.baseCommitHash)
-			await expect(fs.access(newTestFile)).rejects.toThrow()
-
-			// Restore to checkpoint 1; the file should now exist.
-			await newService.restoreCheckpoint(commit1!.commit)
-			expect(await fs.readFile(newTestFile, "utf-8")).toBe("Hello, world!")
+			const gitDir = path.join(shadowDir, "tasks", taskId, "checkpoints", ".git")
+			await expect(fs.stat(gitDir)).rejects.toThrow()
+			const newService = await ShadowCheckpointService.create({ taskId, shadowDir, workspaceDir, log: () => {} })
+			expect(await fs.stat(gitDir)).toBeTruthy()
 
 			// Save a new checkpoint: Ahoy, world!
 			await fs.writeFile(newTestFile, "Ahoy, world!")
-			const commit2 = await newService.saveCheckpoint("Ahoy, world!")
-			expect(commit2?.commit).toBeTruthy()
+			const commit1 = await newService.saveCheckpoint("Ahoy, world!")
+			expect(commit1?.commit).toBeTruthy()
 			expect(await fs.readFile(newTestFile, "utf-8")).toBe("Ahoy, world!")
 
 			// Restore "Hello, world!"
-			await newService.restoreCheckpoint(commit1!.commit)
+			await newService.restoreCheckpoint(newService.baseHash!)
 			expect(await fs.readFile(newTestFile, "utf-8")).toBe("Hello, world!")
 
 			// Restore "Ahoy, world!"
-			await newService.restoreCheckpoint(commit2!.commit)
+			await newService.restoreCheckpoint(commit1!.commit)
 			expect(await fs.readFile(newTestFile, "utf-8")).toBe("Ahoy, world!")
 
-			// Restore initial commit.
-			await newService.restoreCheckpoint(newService.baseCommitHash)
-			await expect(fs.access(newTestFile)).rejects.toThrow()
-
-			await fs.rm(newService.baseDir, { recursive: true, force: true })
-		})
-
-		it("respects existing git user configuration", async () => {
-			const baseDir = path.join(os.tmpdir(), `checkpoint-service-test-config2-${Date.now()}`)
-			const userName = "Custom User"
-			const userEmail = "custom@example.com"
-			const repo = await initRepo({ baseDir, userName, userEmail })
-			const newGit = repo.git
-
-			await CheckpointService.create({ taskId, git: newGit, baseDir, log: () => {} })
-
-			expect((await newGit.getConfig("user.name")).value).toBe(userName)
-			expect((await newGit.getConfig("user.email")).value).toBe(userEmail)
-
-			await fs.rm(baseDir, { recursive: true, force: true })
-		})
-
-		it("removes local git config if it matches default and global exists", async () => {
-			const baseDir = path.join(os.tmpdir(), `checkpoint-service-test-config2-${Date.now()}`)
-			const repo = await initRepo({ baseDir })
-			const newGit = repo.git
-
-			const originalGetConfig = newGit.getConfig.bind(newGit)
-
-			jest.spyOn(newGit, "getConfig").mockImplementation(
-				(
-					key: string,
-					scope?: "system" | "global" | "local" | "worktree",
-					callback?: SimpleGitTaskCallback<string>,
-				) => {
-					if (scope === "global") {
-						if (key === "user.email") {
-							return Promise.resolve({ value: "global@example.com" }) as any
-						}
-						if (key === "user.name") {
-							return Promise.resolve({ value: "Global User" }) as any
-						}
-					}
-
-					return originalGetConfig(key, scope, callback)
-				},
-			)
-
-			await CheckpointService.create({ taskId, git: newGit, baseDir, log: () => {} })
-
-			// Verify local config was removed and global config is used.
-			const localName = await newGit.getConfig("user.name", "local")
-			const localEmail = await newGit.getConfig("user.email", "local")
-			const globalName = await newGit.getConfig("user.name", "global")
-			const globalEmail = await newGit.getConfig("user.email", "global")
-
-			expect(localName.value).toBeNull() // Local config should be removed.
-			expect(localEmail.value).toBeNull()
-			expect(globalName.value).toBe("Global User") // Global config should remain.
-			expect(globalEmail.value).toBe("global@example.com")
-
-			await fs.rm(baseDir, { recursive: true, force: true })
+			await fs.rm(newService.shadowDir, { recursive: true, force: true })
+			await fs.rm(newService.workspaceDir, { recursive: true, force: true })
 		})
 	})
 })

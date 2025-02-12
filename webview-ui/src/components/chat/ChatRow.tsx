@@ -761,8 +761,8 @@ export const ChatRowContent = ({
 						<CheckpointSaved
 							ts={message.ts!}
 							commitHash={message.text!}
+							currentHash={currentCheckpoint}
 							checkpoint={message.checkpoint}
-							currentCheckpointHash={currentCheckpoint}
 						/>
 					)
 				default:

@@ -107,6 +107,7 @@ export interface ExtensionState {
 	requestDelaySeconds: number
 	rateLimitSeconds: number // Minimum time between successive requests (0 = disabled)
 	uriScheme?: string
+	currentTaskItem?: HistoryItem
 	allowedCommands?: string[]
 	soundEnabled?: boolean
 	soundVolume?: number

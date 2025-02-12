@@ -2277,35 +2277,55 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		await this.deleteTaskFromState(id)
 
-		// Delete the task files
+		// Delete the task files.
 		const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
+
 		if (apiConversationHistoryFileExists) {
 			await fs.unlink(apiConversationHistoryFilePath)
 		}
+
 		const uiMessagesFileExists = await fileExistsAtPath(uiMessagesFilePath)
+
 		if (uiMessagesFileExists) {
 			await fs.unlink(uiMessagesFilePath)
 		}
+
 		const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
+
 		if (await fileExistsAtPath(legacyMessagesFilePath)) {
 			await fs.unlink(legacyMessagesFilePath)
 		}
-		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
 
 		const { checkpointsEnabled } = await this.getState()
 		const baseDir = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-		const branch = `roo-code-checkpoints-${id}`
 
+		// Delete checkpoints branch.
 		if (checkpointsEnabled && baseDir) {
+			const branchSummary = await simpleGit(baseDir)
+				.branch(["-D", `roo-code-checkpoints-${id}`])
+				.catch(() => undefined)
+
+			if (branchSummary) {
+				console.log(`[deleteTaskWithId${id}] deleted checkpoints branch`)
+			}
+		}
+
+		// Delete checkpoints directory
+		const checkpointsDir = path.join(taskDirPath, "checkpoints")
+
+		if (await fileExistsAtPath(checkpointsDir)) {
 			try {
-				await simpleGit(baseDir).branch(["-D", branch])
-				console.log(`[deleteTaskWithId] Deleted branch ${branch}`)
-			} catch (err) {
+				await fs.rm(checkpointsDir, { recursive: true, force: true })
+				console.log(`[deleteTaskWithId${id}] removed checkpoints repo`)
+			} catch (error) {
 				console.error(
-					`[deleteTaskWithId] Error deleting branch ${branch}: ${err instanceof Error ? err.message : String(err)}`,
+					`[deleteTaskWithId${id}] failed to remove checkpoints repo: ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
 		}
+
+		// Succeeds if the dir is empty.
+		await fs.rmdir(taskDirPath)
 	}
 
 	async deleteTaskFromState(id: string) {
@@ -2373,6 +2393,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowMcp: alwaysAllowMcp ?? false,
 			alwaysAllowModeSwitch: alwaysAllowModeSwitch ?? false,
 			uriScheme: vscode.env.uriScheme,
+			currentTaskItem: this.cline?.taskId
+				? (taskHistory || []).find((item) => item.id === this.cline?.taskId)
+				: undefined,
 			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || [])
 				.filter((item: HistoryItem) => item.ts && item.task)

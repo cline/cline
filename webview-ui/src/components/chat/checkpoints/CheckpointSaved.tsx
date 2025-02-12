@@ -3,15 +3,17 @@ import { useMemo } from "react"
 import { CheckpointMenu } from "./CheckpointMenu"
 import { checkpointSchema } from "./schema"
 
+const REQUIRED_VERSION = 1
+
 type CheckpointSavedProps = {
 	ts: number
 	commitHash: string
+	currentHash?: string
 	checkpoint?: Record<string, unknown>
-	currentCheckpointHash?: string
 }
 
 export const CheckpointSaved = ({ checkpoint, ...props }: CheckpointSavedProps) => {
-	const isCurrent = props.currentCheckpointHash === props.commitHash
+	const isCurrent = props.currentHash === props.commitHash
 
 	const metadata = useMemo(() => {
 		if (!checkpoint) {
@@ -19,16 +21,23 @@ export const CheckpointSaved = ({ checkpoint, ...props }: CheckpointSavedProps) 
 		}
 
 		const result = checkpointSchema.safeParse(checkpoint)
-		return result.success ? result.data : undefined
+
+		if (!result.success || result.data.version < REQUIRED_VERSION) {
+			return undefined
+		}
+
+		return result.data
 	}, [checkpoint])
 
-	const isFirst = !!metadata?.isFirst
+	if (!metadata) {
+		return null
+	}
 
 	return (
 		<div className="flex items-center justify-between">
 			<div className="flex gap-2">
 				<span className="codicon codicon-git-commit text-blue-400" />
-				<span className="font-bold">{isFirst ? "Initial Checkpoint" : "Checkpoint"}</span>
+				<span className="font-bold">{metadata.isFirst ? "Initial Checkpoint" : "Checkpoint"}</span>
 				{isCurrent && <span className="text-muted text-sm">Current</span>}
 			</div>
 			<CheckpointMenu {...props} checkpoint={metadata} />
