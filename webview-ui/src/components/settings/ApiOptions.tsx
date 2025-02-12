@@ -732,6 +732,51 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with models
+							such as accounts/fireworks/models/deepseek-r1 or accounts/fireworks/models/deepseek-v3
+						</span>
+					</p>
+					<VSCodeTextField
+						value={apiConfiguration?.fireworksModelMaxCompletionTokens || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("fireworksModelMaxCompletionTokens")}
+						placeholder={"2000"}>
+						<span style={{ fontWeight: 500 }}>Max Completion Tokens</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.fireworksModelMaxTokens || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("fireworksModelMaxTokens")}
+						placeholder={"4000"}>
+						<span style={{ fontWeight: 500 }}>Max Context Tokens</span>
+					</VSCodeTextField>
+				</div>
+			)}
+
+			{selectedProvider === "fireworks" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.fireworksApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("fireworksApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>API Key</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.fireworksModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("fireworksModelId")}
+						placeholder={"Enter Model ID..."}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
 							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
 							models. Less capable models may not work as expected.)
 						</span>

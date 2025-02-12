@@ -47,6 +47,7 @@ type SecretKey =
 	| "deepSeekApiKey"
 	| "requestyApiKey"
 	| "togetherApiKey"
+	| "fireworksApiKey"
 	| "qwenApiKey"
 	| "mistralApiKey"
 	| "authToken"
@@ -86,6 +87,9 @@ type GlobalStateKey =
 	| "qwenApiLine"
 	| "requestyModelId"
 	| "togetherModelId"
+	| "fireworksModelId"
+	| "fireworksModelMaxCompletionTokens"
+	| "fireworksModelMaxTokens"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -454,6 +458,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								requestyModelId,
 								togetherApiKey,
 								togetherModelId,
+								fireworksApiKey,
+								fireworksModelId,
+								fireworksModelMaxCompletionTokens,
+								fireworksModelMaxTokens,
 								qwenApiKey,
 								mistralApiKey,
 								azureApiVersion,
@@ -490,6 +498,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("deepSeekApiKey", deepSeekApiKey)
 							await this.storeSecret("requestyApiKey", requestyApiKey)
 							await this.storeSecret("togetherApiKey", togetherApiKey)
+							await this.storeSecret("fireworksApiKey", fireworksApiKey)
+							await this.updateGlobalState("fireworksModelId", fireworksModelId)
+							await this.updateGlobalState("fireworksModelMaxCompletionTokens", fireworksModelMaxCompletionTokens)
+							await this.updateGlobalState("fireworksModelMaxTokens", fireworksModelMaxTokens)
 							await this.storeSecret("qwenApiKey", qwenApiKey)
 							await this.storeSecret("mistralApiKey", mistralApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
@@ -1396,6 +1408,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestyModelId,
 			togetherApiKey,
 			togetherModelId,
+			fireworksApiKey,
+			fireworksModelId,
+			fireworksModelMaxCompletionTokens,
+			fireworksModelMaxTokens,
 			qwenApiKey,
 			mistralApiKey,
 			azureApiVersion,
@@ -1445,6 +1461,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("requestyModelId") as Promise<string | undefined>,
 			this.getSecret("togetherApiKey") as Promise<string | undefined>,
 			this.getGlobalState("togetherModelId") as Promise<string | undefined>,
+			this.getSecret("fireworksApiKey") as Promise<string | undefined>,
+			this.getGlobalState("fireworksModelId") as Promise<string | undefined>,
+			this.getGlobalState("fireworksModelMaxCompletionTokens") as Promise<number | undefined>,
+			this.getGlobalState("fireworksModelMaxTokens") as Promise<number | undefined>,
 			this.getSecret("qwenApiKey") as Promise<string | undefined>,
 			this.getSecret("mistralApiKey") as Promise<string | undefined>,
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
@@ -1515,6 +1535,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				requestyModelId,
 				togetherApiKey,
 				togetherModelId,
+				fireworksApiKey,
+				fireworksModelId,
+				fireworksModelMaxCompletionTokens,
+				fireworksModelMaxTokens,
 				qwenApiKey,
 				qwenApiLine,
 				mistralApiKey,
@@ -1615,6 +1639,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"deepSeekApiKey",
 			"requestyApiKey",
 			"togetherApiKey",
+			"fireworksApiKey",
 			"qwenApiKey",
 			"mistralApiKey",
 			"authToken",
