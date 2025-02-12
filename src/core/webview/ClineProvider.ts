@@ -279,7 +279,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
-	private async initClineWithHistoryItem(historyItem: HistoryItem) {
+	public async initClineWithHistoryItem(historyItem: HistoryItem) {
 		try {
 			const { apiConfiguration, autoApprovalSettings, browserSettings, chatSettings, customInstructions } =
 				await this.getState()
