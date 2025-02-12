@@ -13,7 +13,7 @@ export class LiteLlmHandler implements ApiHandler {
 		this.options = options
 		this.client = new OpenAI({
 			baseURL: this.options.liteLlmBaseUrl || "http://localhost:4000",
-			apiKey: this.options.liteLlmApiKey || "",
+			apiKey: this.options.liteLlmApiKey || "noop",
 		})
 	}
 
