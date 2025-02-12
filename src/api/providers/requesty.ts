@@ -31,13 +31,16 @@ export class RequestyHandler implements ApiHandler {
 			...convertToOpenAiMessages(messages),
 		]
 
+		// @ts-ignore-next-line
 		const stream = await this.client.chat.completions.create({
 			model: modelId,
 			messages: openAiMessages,
 			temperature: 0,
 			stream: true,
 			stream_options: { include_usage: true },
+			...(modelId === "openai/o3-mini" ? { reasoning_effort: this.options.o3MiniReasoningEffort || "medium" } : {}),
 		})
+
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
