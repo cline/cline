@@ -59,7 +59,7 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				}
 				break
 			case "fireworks":
-				if (!apiConfiguration.fireworksApiKey || !apiConfiguration.fireworksApiKey) {
+				if (!apiConfiguration.fireworksApiKey || !apiConfiguration.fireworksModelId) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
