@@ -216,6 +216,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
+				},
+				"cline.editor.skipDiffAnimation": {
+					"type": "boolean",
+					"default": true,
+					"description": "Skip the animation when applying diffs in the editor. Useful for faster updates, especially with remote repositories."
 				}
 			}
 		}
