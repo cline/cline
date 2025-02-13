@@ -13,7 +13,7 @@ import {
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-export class DeepSeekHandler implements ApiHandler {
+export class FireworksHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
 
