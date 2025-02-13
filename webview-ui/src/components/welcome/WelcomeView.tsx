@@ -112,6 +112,19 @@ const WelcomeView = () => {
 						Let's go!
 					</VSCodeButton>
 				</div>
+				<div style={{ marginTop: "15px" }}>
+					<span>
+						In order to continuously improve Cline, we collect error logging & telemetry using PostHog. Our tracking
+						is completely anonymous and we do not collect personal information. Feel free to{" "}
+					</span>
+					<VSCodeLink onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}>
+						opt out of telemetry
+					</VSCodeLink>
+					<span> if you prefer. See our privacy policy</span>
+					<VSCodeLink href="https://github.com/cline/cline/blob/main/docs/PRIVACY.md" style={{ display: "inline" }}>
+						here.
+					</VSCodeLink>
+				</div>
 			</div>
 		</div>
 	)

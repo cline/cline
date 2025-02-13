@@ -1,6 +1,7 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "../../utils/vscStyles"
+import { vscode } from "../../utils/vscode"
 
 interface AnnouncementProps {
 	version: string
@@ -30,26 +31,17 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>Plan/Act mode toggle:</b> Plan mode turns Cline into an architect that gathers information, asks clarifying
-					questions, and designs a solution. Switch back to Act mode to let him execute the plan!{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1881761978986934582" style={{ display: "inline" }}>
-						See a demo here.
+					<b>Telemetry: </b>
+					<span>
+						In our efforts to continuously improve Cline, we've added support for error logging & telemetry using
+						PostHog. Our tracking is completely anonymous and we do not collect personal information. Please{" "}
+					</span>
+					<VSCodeLink onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}>
+						opt in to telemetry
 					</VSCodeLink>
-				</li>
-				<li>
-					<b>Quick API/model switching</b> with a new popup menu under the chat field
-				</li>
-				<li>
-					<b>VS Code LM API</b> lets you use models from other extensions like GitHub Copilot
-				</li>
-				<li>
-					<b>MCP server improvements:</b> On/off toggle to disable servers when not in use, and Auto-approve option for
-					individual tools
-				</li>
-				<li>
-					In case you missed it, Cline now supports Checkpoints!{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
-						See it in action here.
+					<span> to help us resolve issues and improve the product. See our privacy policy</span>
+					<VSCodeLink href="https://github.com/cline/cline/blob/main/docs/PRIVACY.md" style={{ display: "inline" }}>
+						here.
 					</VSCodeLink>
 				</li>
 			</ul>
