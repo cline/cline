@@ -25,9 +25,6 @@ export async function run(): Promise<void> {
 		// Find all test files
 		const files = await glob("**/**.test.js", { cwd: testsRoot })
 
-		//If you want to run a specific test, comment out the above line and uncomment the following line and add the test file to the array
-		//const files = ["suite/modes.test.js"]
-
 		// Add files to the test suite
 		files.forEach((f: string) => mocha.addFile(path.resolve(testsRoot, f)))
 

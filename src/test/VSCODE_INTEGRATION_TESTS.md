@@ -75,6 +75,8 @@ declare global {
 npm run test:integration
 ```
 
+3. If you want to run a specific test, you can use the `test.only` function in the test file. This will run only the test you specify and ignore the others.
+
 The tests will:
 
 - Download and launch a clean VSCode instance
@@ -88,13 +90,7 @@ When writing new integration tests:
 
 1. Create a new test file in `src/test/suite/` with the `.test.ts` extension
 
-2. Add the test file to the `files` array in `suite/index.ts` (you can temporarily comment out the other tests to run just the new test):
-
-```typescript
-const files = ["suite/modes.test.js", "suite/tasks.test.js", "suite/extension.test.js", "suite/your-new-test.test.js"]
-```
-
-3. Structure your tests using the TDD interface:
+2. Structure your tests using the TDD interface:
 
 ```typescript
 import * as assert from "assert"
@@ -107,7 +103,7 @@ suite("Your Test Suite Name", () => {
 })
 ```
 
-4. Use the global objects (`api`, `provider`, `extension`, `panel`) to interact with the extension
+3. Use the global objects (`api`, `provider`, `extension`, `panel`) to interact with the extension
 
 ### Best Practices
 

@@ -92,14 +92,9 @@ suite("Roo Code Modes", () => {
 			const gradeMessage = globalThis.provider.messages.find(
 				({ type, text }) => type === "say" && !text?.includes("Grade: (1-10)") && text?.includes("Grade:"),
 			)?.text
-			const grade = gradeMessage?.match(/Grade: (10|[1-9])/)
-			assert.ok(
-				grade?.includes("Grade: 10") ||
-					grade?.includes("Grade: 9") ||
-					grade?.includes("Grade: 8") ||
-					grade?.includes("Grade: 7"),
-				"Did not receive expected response containing 'Grade: 10' or 'Grade: 9' or 'Grade: 8' or 'Grade: 7'",
-			)
+			const gradeMatch = gradeMessage?.match(/Grade: (\d+)/)
+			const gradeNum = gradeMatch ? parseInt(gradeMatch[1]) : undefined
+			assert.ok(gradeNum !== undefined && gradeNum >= 7 && gradeNum <= 10, "Grade must be between 7 and 10")
 		} finally {
 		}
 	})
