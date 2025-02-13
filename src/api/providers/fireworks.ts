@@ -20,7 +20,7 @@ export class FireworksHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new OpenAI({
-			baseURL: "https://api.fireworks.ai/v1",
+			baseURL: "https://api.fireworks.ai/inference/v1",
 			apiKey: this.options.fireworksApiKey,
 		})
 	}
