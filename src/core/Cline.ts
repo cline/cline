@@ -59,7 +59,7 @@ import { formatResponse } from "./prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
-import { getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1272,9 +1272,10 @@ export class Cline {
 		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, mcpHub, this.browserSettings)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
-		const preferredLanguageInstructions = this.preferredLanguage
-			? `# Preferred Language\n\nSpeak in ${this.preferredLanguage}.`
-			: ""
+		const preferredLanguageInstructions =
+			this.preferredLanguage && this.preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
+				? `# Preferred Language\n\nSpeak in ${this.preferredLanguage}.`
+				: ""
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
 		if (await fileExistsAtPath(clineRulesFilePath)) {
