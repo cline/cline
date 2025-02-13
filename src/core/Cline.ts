@@ -59,7 +59,7 @@ import { formatResponse } from "./prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
-import { LanguageKey } from "../shared/Languages"
+import { getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -122,7 +122,6 @@ export class Cline {
 		browserSettings: BrowserSettings,
 		chatSettings: ChatSettings,
 		customInstructions?: string,
-		preferredLanguage?: LanguageKey,
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -138,7 +137,9 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context, browserSettings)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
-		this.preferredLanguage = preferredLanguage
+		this.preferredLanguage = getLanguageKey(
+			vscode.workspace.getConfiguration("cline").get<LanguageDisplay>("preferredLanguage"),
+		)
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings

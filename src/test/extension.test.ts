@@ -88,41 +88,4 @@ describe("Cline Extension", () => {
 		// Clean up
 		panel.dispose()
 	})
-
-	// Test language message handling
-	it("should handle webview messages with language data", async () => {
-		const panel = vscode.window.createWebviewPanel("testWebview", "Language Message Test", vscode.ViewColumn.One, {
-			enableScripts: true,
-		})
-
-		// Set up message handling
-		const messagePromise = new Promise<{ text: string; type: string }>((resolve) => {
-			panel.webview.onDidReceiveMessage((message) => resolve(message), undefined)
-		})
-
-		// Add message sending script
-		panel.webview.html = `
-			<!DOCTYPE html>
-			<html>
-				<head>
-					<meta charset="UTF-8">
-					<title>Language Message Test</title>
-				</head>
-				<body>
-					<script>
-						const vscode = acquireVsCodeApi();
-						vscode.postMessage({ text: 'en', type: 'preferredLanguage' });
-					</script>
-				</body>
-			</html>
-		`
-
-		// Wait for message
-		const message = await messagePromise
-		message.text.should.equal("en")
-		message.type.should.equal("preferredLanguage")
-
-		// Clean up
-		panel.dispose()
-	})
 })

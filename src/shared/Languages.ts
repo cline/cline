@@ -18,7 +18,29 @@ export type LanguageKey =
 	| "zh-TW"
 	| "tr"
 
-export const languageOptions: { key: LanguageKey; display: string }[] = [
+export type LanguageDisplay =
+	| "English"
+	| "Arabic - العربية"
+	| "Portuguese - Português (Brasil)"
+	| "Czech - Čeština"
+	| "French - Français"
+	| "German - Deutsch"
+	| "Hindi - हिन्दी"
+	| "Hungarian - Magyar"
+	| "Italian - Italiano"
+	| "Japanese - 日本語"
+	| "Korean - 한국어"
+	| "Polish - Polski"
+	| "Portuguese - Português (Portugal)"
+	| "Russian - Русский"
+	| "Simplified Chinese - 简体中文"
+	| "Spanish - Español"
+	| "Traditional Chinese - 繁體中文"
+	| "Turkish - Türkçe"
+
+export const DEFAULT_LANGUAGE_SETTINGS: LanguageKey = "en"
+
+export const languageOptions: { key: LanguageKey; display: LanguageDisplay }[] = [
 	{ key: "en", display: "English" },
 	{ key: "ar", display: "Arabic - العربية" },
 	{ key: "pt-BR", display: "Portuguese - Português (Brasil)" },
@@ -39,4 +61,13 @@ export const languageOptions: { key: LanguageKey; display: string }[] = [
 	{ key: "tr", display: "Turkish - Türkçe" },
 ]
 
-export const DEFAULT_LANGUAGE_SETTINGS: LanguageKey = "en"
+export function getLanguageKey(display: LanguageDisplay | undefined): LanguageKey {
+	if (!display) {
+		return DEFAULT_LANGUAGE_SETTINGS
+	}
+	const languageOption = languageOptions.find((option) => option.display === display)
+	if (languageOption) {
+		return languageOption.key
+	}
+	return DEFAULT_LANGUAGE_SETTINGS
+}

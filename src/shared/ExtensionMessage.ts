@@ -57,7 +57,6 @@ export interface ExtensionState {
 	version: string
 	apiConfiguration?: ApiConfiguration
 	customInstructions?: string
-	preferredLanguage?: LanguageKey
 	uriScheme?: string
 	currentTaskItem?: HistoryItem
 	checkpointTrackerErrorMessage?: string

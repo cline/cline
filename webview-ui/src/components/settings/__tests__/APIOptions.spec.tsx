@@ -126,6 +126,7 @@ describe("OpenApiInfoOptions", () => {
 				<ApiOptions showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
+		fireEvent.click(screen.getByText("Model Configuration"))
 		const apiKeyInput = screen.getByText("Supports Images")
 		expect(apiKeyInput).toBeInTheDocument()
 	})
@@ -136,6 +137,7 @@ describe("OpenApiInfoOptions", () => {
 				<ApiOptions showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
+		fireEvent.click(screen.getByText("Model Configuration"))
 		const orgIdInput = screen.getByText("Context Window Size")
 		expect(orgIdInput).toBeInTheDocument()
 	})
@@ -146,6 +148,7 @@ describe("OpenApiInfoOptions", () => {
 				<ApiOptions showModelOptions={true} />
 			</ExtensionStateContextProvider>,
 		)
+		fireEvent.click(screen.getByText("Model Configuration"))
 		const modelInput = screen.getByText("Max Output Tokens")
 		expect(modelInput).toBeInTheDocument()
 	})

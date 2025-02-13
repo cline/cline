@@ -5,7 +5,6 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import SettingsButton from "../common/SettingsButton"
-import PreferredLanguagePicker from "./PreferredLanguagePicker"
 const IS_DEV = false // FIXME: use flags when packaging
 
 type SettingsViewProps = {
@@ -13,15 +12,7 @@ type SettingsViewProps = {
 }
 
 const SettingsView = ({ onDone }: SettingsViewProps) => {
-	const {
-		apiConfiguration,
-		version,
-		customInstructions,
-		setCustomInstructions,
-		preferredLanguage,
-		setPreferredLanguage,
-		openRouterModels,
-	} = useExtensionState()
+	const { apiConfiguration, version, customInstructions, setCustomInstructions, openRouterModels } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 
@@ -37,10 +28,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({
 				type: "customInstructions",
 				text: customInstructions,
-			})
-			vscode.postMessage({
-				type: "preferredLanguage",
-				text: preferredLanguage,
 			})
 			onDone()
 		}
@@ -108,7 +95,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				</div>
 
 				<div style={{ marginBottom: 5 }}>
-					<PreferredLanguagePicker selectedLanguage={preferredLanguage} onSelectLanguage={setPreferredLanguage} />
 					<VSCodeTextArea
 						value={customInstructions ?? ""}
 						style={{ width: "100%" }}

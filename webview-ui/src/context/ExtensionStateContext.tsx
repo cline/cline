@@ -21,7 +21,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	filePaths: string[]
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
-	setPreferredLanguage: (value: LanguageKey) => void
 	setShowAnnouncement: (value: boolean) => void
 }
 
@@ -38,7 +37,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
-		preferredLanguage: DEFAULT_LANGUAGE_SETTINGS,
 		isLoggedIn: false,
 		platform: DEFAULT_PLATFORM,
 	})
@@ -151,11 +149,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				customInstructions: value,
-			})),
-		setPreferredLanguage: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				preferredLanguage: value,
 			})),
 		setShowAnnouncement: (value) =>
 			setState((prevState) => ({
