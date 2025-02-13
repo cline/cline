@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## 3.3.19
+
+### Patch Changes
+
+- Add a help button
+- Allow users to clear out custom instructions for the built-in modes
+
 ## [3.3.18]
 
 - Add a per-API-configuration model temperature setting (thanks @joemanley201!)
