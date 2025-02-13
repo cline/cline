@@ -84,6 +84,8 @@ export class ClineIgnoreController {
 						if (await fileExistsAtPath(resolvedIncludePath)) {
 							const includedContent = await fs.readFile(resolvedIncludePath, "utf8")
 							combinedContent += "\n" + includedContent
+						} else {
+							console.debug(`[ClineIgnore] Included file not found: ${resolvedIncludePath}`)
 						}
 					} else {
 						combinedContent += "\n" + line

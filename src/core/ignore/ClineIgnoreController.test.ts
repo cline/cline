@@ -266,6 +266,18 @@ describe("ClineIgnoreController", () => {
 		})
 
 		it("should handle non-existent included file gracefully", async () => {
+			// Create a .clineignore file that includes a non-existent file
+			await fs.writeFile(path.join(tempDir, ".clineignore"), ["!include missing-file.txt"].join("\n"))
+
+			// Initialize the controller
+			controller = new ClineIgnoreController(tempDir)
+			await controller.initialize()
+
+			// Validate access to a regular file; it should be allowed because the missing include should not break everything
+			controller.validateAccess("regular-file.txt").should.be.true()
+		})
+
+		it("should handle non-existent included file gracefully alongside a valid pattern", async () => {
 			// Test with an include directive for a non-existent file alongside a valid pattern ("*.tmp")
 			await fs.writeFile(path.join(tempDir, ".clineignore"), ["!include non-existent.txt", "*.tmp"].join("\n"))
 
