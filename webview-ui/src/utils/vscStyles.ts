@@ -1,4 +1,5 @@
 export const VSC_INPUT_BACKGROUND = "--vscode-input-background"
+export const VSC_INPUT_FOREGROUND = "--vscode-input-foreground"
 export const VSC_SIDEBAR_BACKGROUND = "--vscode-sideBar-background"
 export const VSC_FOREGROUND = "--vscode-foreground"
 export const VSC_EDITOR_FOREGROUND = "--vscode-editor-foreground"
