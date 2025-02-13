@@ -475,6 +475,7 @@ describe("Cline", () => {
 				// Mock abort state
 				Object.defineProperty(cline, "abort", {
 					get: () => false,
+					set: () => {},
 					configurable: true,
 				})
 
@@ -603,10 +604,12 @@ describe("Cline", () => {
 				// Mock abort state for both instances
 				Object.defineProperty(clineWithImages, "abort", {
 					get: () => false,
+					set: () => {},
 					configurable: true,
 				})
 				Object.defineProperty(clineWithoutImages, "abort", {
 					get: () => false,
+					set: () => {},
 					configurable: true,
 				})
 
