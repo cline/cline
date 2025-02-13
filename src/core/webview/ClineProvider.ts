@@ -73,6 +73,7 @@ type GlobalStateKey =
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
 	| "azureApiVersion"
+	| "isReasoningModel"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
 	| "autoApprovalSettings"
@@ -460,6 +461,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								qwenApiKey,
 								mistralApiKey,
 								azureApiVersion,
+								isReasoningModel,
 								openRouterModelId,
 								openRouterModelInfo,
 								vsCodeLmModelSelector,
@@ -499,6 +501,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("mistralApiKey", mistralApiKey)
 							await this.storeSecret("liteLlmApiKey", liteLlmApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
+							await this.updateGlobalState("isReasoningModel", isReasoningModel)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 							await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
@@ -1409,6 +1412,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			qwenApiKey,
 			mistralApiKey,
 			azureApiVersion,
+			isReasoningModel,
 			openRouterModelId,
 			openRouterModelInfo,
 			lastShownAnnouncementId,
@@ -1460,6 +1464,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getSecret("qwenApiKey") as Promise<string | undefined>,
 			this.getSecret("mistralApiKey") as Promise<string | undefined>,
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
+			this.getGlobalState("isReasoningModel") as Promise<boolean | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
@@ -1494,8 +1499,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
-		const o3MiniReasoningEffort = vscode.workspace
-			.getConfiguration("cline.modelSettings.o3Mini")
+		const oSeriesReasoningEffort = vscode.workspace
+			.getConfiguration("cline.modelSettings.o-series")
 			.get("reasoningEffort", "medium")
 
 		return {
@@ -1533,10 +1538,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				qwenApiLine,
 				mistralApiKey,
 				azureApiVersion,
+				isReasoningModel,
 				openRouterModelId,
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
-				o3MiniReasoningEffort,
+				oSeriesReasoningEffort,
 				liteLlmBaseUrl,
 				liteLlmModelId,
 				liteLlmApiKey,
