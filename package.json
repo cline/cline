@@ -219,7 +219,7 @@
 				},
 				"cline.editor.skipDiffAnimation": {
 					"type": "boolean",
-					"default": true,
+					"default": false,
 					"description": "Skip the animation when applying diffs in the editor. Useful for faster updates, especially with remote repositories."
 				}
 			}
