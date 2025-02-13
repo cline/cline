@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## [3.3.19]
+
+- Fix a bug where aborting in the middle of file writes would not revert the write
+- Honor the VS Code theme for dialog backgrounds
+- Make it possible to clear out the default custom instructions for built-in modes
+- Add a help button that links to our new documentation site (which we would love help from the community to improve!)
+- Switch checkpoints logic to use a shadow git repository to work around issues with hot reloads and polluting existing repositories (thanks Cline for the inspiration!)
+
 ## [3.3.18]
 
 - Add a per-API-configuration model temperature setting (thanks @joemanley201!)
