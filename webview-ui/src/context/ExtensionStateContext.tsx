@@ -9,7 +9,6 @@ import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
-import { DEFAULT_LANGUAGE_SETTINGS, LanguageKey } from "../../../src/shared/Languages"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
