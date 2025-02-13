@@ -637,9 +637,9 @@ export const mistralModels = {
 export type LiteLLMModelId = string
 export const liteLlmDefaultModelId = "gpt-3.5-turbo"
 export const liteLlmModelInfoSaneDefaults: ModelInfo = {
-	maxTokens: 4096,
-	contextWindow: 8192,
-	supportsImages: false,
+	maxTokens: -1,
+	contextWindow: 128_000,
+	supportsImages: true,
 	supportsPromptCache: false,
 	inputPrice: 0,
 	outputPrice: 0,
