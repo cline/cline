@@ -100,6 +100,11 @@
 				"icon": "$(settings-gear)"
 			},
 			{
+				"command": "roo-cline.helpButtonClicked",
+				"title": "Documentation",
+				"icon": "$(question)"
+			},
+			{
 				"command": "roo-cline.openInNewTab",
 				"title": "Open In New Tab",
 				"category": "Roo Code"
@@ -224,6 +229,11 @@
 				{
 					"command": "roo-cline.settingsButtonClicked",
 					"group": "navigation@6",
+					"when": "view == roo-cline.SidebarProvider"
+				},
+				{
+					"command": "roo-cline.helpButtonClicked",
+					"group": "navigation@7",
 					"when": "view == roo-cline.SidebarProvider"
 				}
 			]
