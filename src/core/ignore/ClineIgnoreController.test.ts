@@ -242,4 +242,40 @@ describe("ClineIgnoreController", () => {
 			result.should.be.true()
 		})
 	})
+
+	describe("Include Directive", () => {
+		it("should load patterns from an included file", async () => {
+			// Create a .gitignore file with patterns "*.log" and "debug/"
+			await fs.writeFile(path.join(tempDir, ".gitignore"), ["*.log", "debug/"].join("\n"))
+
+			// Create a .clineignore file that includes .gitignore and adds an extra pattern "secret.txt"
+			await fs.writeFile(path.join(tempDir, ".clineignore"), ["!include .gitignore", "secret.txt"].join("\n"))
+
+			// Initialize the controller to load the updated .clineignore
+			controller = new ClineIgnoreController(tempDir)
+			await controller.initialize()
+
+			// "server.log" should be ignored due to the "*.log" pattern from .gitignore
+			controller.validateAccess("server.log").should.be.false()
+			// "debug/app.js" should be ignored due to the "debug/" pattern from .gitignore
+			controller.validateAccess("debug/app.js").should.be.false()
+			// "secret.txt" should be ignored as specified directly in .clineignore
+			controller.validateAccess("secret.txt").should.be.false()
+			// Other files should be allowed
+			controller.validateAccess("app.js").should.be.true()
+		})
+
+		it("should handle non-existent included file gracefully", async () => {
+			// Test with an include directive for a non-existent file alongside a valid pattern ("*.tmp")
+			await fs.writeFile(path.join(tempDir, ".clineignore"), ["!include non-existent.txt", "*.tmp"].join("\n"))
+
+			controller = new ClineIgnoreController(tempDir)
+			await controller.initialize()
+
+			// "file.tmp" should be ignored because of the "*.tmp" pattern
+			controller.validateAccess("file.tmp").should.be.false()
+			// Files that do not match "*.tmp" should be allowed
+			controller.validateAccess("file.log").should.be.true()
+		})
+	})
 })
