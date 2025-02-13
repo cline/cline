@@ -1290,7 +1290,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						style={{ width: "100%" }}
 						onInput={handleInputChange("arkEpId")}
 						placeholder={"Enter Endpoint ID..."}>
-						<span style={{ fontWeight: 500 }}>Endpoint Id</span>
+						<span style={{ fontWeight: 500 }}>Endpoint ID</span>
 					</VSCodeTextField>
 					<p
 						style={{
