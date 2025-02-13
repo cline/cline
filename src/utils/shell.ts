@@ -105,7 +105,7 @@ function getWindowsShellFromVSCode(): string | null {
 	}
 
 	// If there's a specific path, return that immediately
-	if (profile.path) {
+	if (profile?.path) {
 		return profile.path
 	}
 

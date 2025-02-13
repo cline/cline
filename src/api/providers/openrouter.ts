@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import delay from "delay"
 import OpenAI from "openai"
+import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -24,6 +25,7 @@ export class OpenRouterHandler implements ApiHandler {
 		})
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
 
@@ -128,6 +130,7 @@ export class OpenRouterHandler implements ApiHandler {
 			stream: true,
 			transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 			include_reasoning: true,
+			...(model.id === "openai/o3-mini" ? { reasoning_effort: this.options.o3MiniReasoningEffort || "medium" } : {}),
 		})
 
 		let genId: string | undefined
@@ -191,8 +194,31 @@ export class OpenRouterHandler implements ApiHandler {
 			// }
 		}
 
-		await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
+		if (genId) {
+			await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
+			try {
+				const generationIterator = this.fetchGenerationDetails(genId)
+				const generation = (await generationIterator.next()).value
+				// console.log("OpenRouter generation details:", generation)
+				yield {
+					type: "usage",
+					// cacheWriteTokens: 0,
+					// cacheReadTokens: 0,
+					// openrouter generation endpoint fails often
+					inputTokens: generation?.native_tokens_prompt || 0,
+					outputTokens: generation?.native_tokens_completion || 0,
+					totalCost: generation?.total_cost || 0,
+				}
+			} catch (error) {
+				// ignore if fails
+				console.error("Error fetching OpenRouter generation details:", error)
+			}
+		}
+	}
 
+	@withRetry({ maxRetries: 4, baseDelay: 250, maxDelay: 1000, retryAllErrors: true })
+	async *fetchGenerationDetails(genId: string) {
+		// console.log("Fetching generation details for:", genId)
 		try {
 			const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
 				headers: {
@@ -200,21 +226,11 @@ export class OpenRouterHandler implements ApiHandler {
 				},
 				timeout: 5_000, // this request hangs sometimes
 			})
-
-			const generation = response.data?.data
-			console.log("OpenRouter generation details:", response.data)
-			yield {
-				type: "usage",
-				// cacheWriteTokens: 0,
-				// cacheReadTokens: 0,
-				// openrouter generation endpoint fails often
-				inputTokens: generation?.native_tokens_prompt || 0,
-				outputTokens: generation?.native_tokens_completion || 0,
-				totalCost: generation?.total_cost || 0,
-			}
+			yield response.data?.data
 		} catch (error) {
 			// ignore if fails
 			console.error("Error fetching OpenRouter generation details:", error)
+			throw error
 		}
 	}
 
