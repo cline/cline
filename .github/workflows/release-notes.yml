@@ -1,0 +1,60 @@
+name: Generate Release Notes
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
+        branches: [main]
+    pull_request_target:
+        types: [opened, synchronize, reopened]
+        branches: [main]
+
+jobs:
+    generate-notes:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            pull-requests: write
+
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Generate Release Notes
+              uses: ./.github/actions/ai-release-notes
+              with:
+                  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+                  GHA_PAT: ${{ secrets.GITHUB_TOKEN }}
+                  git_ref: ${{ github.event.pull_request.head.sha }}
+                  head_ref: ${{ github.event.pull_request.head.ref }}
+                  base_ref: ${{ github.event.pull_request.base.ref }}
+              id: release_notes
+
+            - name: Update PR Description
+              uses: actions/github-script@v7
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  script: |
+                      const releaseNotes = `${{ steps.release_notes.outputs.RELEASE_NOTES }}`;
+                      const prNumber = context.payload.pull_request.number;
+                      const prBody = context.payload.pull_request.body || '';
+
+                      // Check if there's an existing release notes section
+                      const releaseNotesRegex = /## Release Notes[\s\S]*?(?=##|$)/;
+                      const hasReleaseNotes = releaseNotesRegex.test(prBody);
+
+                      let newBody;
+                      if (hasReleaseNotes) {
+                        // Replace existing release notes section
+                        newBody = prBody.replace(releaseNotesRegex, `## Release Notes\n\n${releaseNotes}\n\n`);
+                      } else {
+                        // Add new release notes section at the top
+                        newBody = `## Release Notes\n\n${releaseNotes}\n\n${prBody}`;
+                      }
+
+                      await github.rest.pulls.update({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        pull_number: prNumber,
+                        body: newBody
+                      });
