@@ -3,6 +3,7 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { LanguageKey } from "./Languages"
+import { ChatContent } from "./ChatContent"
 
 export interface WebviewMessage {
 	type:
@@ -56,6 +57,7 @@ export interface WebviewMessage {
 	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
+	chatContent?: ChatContent
 
 	// For toggleToolAutoApprove
 	serverName?: string
