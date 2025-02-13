@@ -3,7 +3,6 @@ import os from "os"
 import osName from "os-name"
 import { McpHub } from "../../services/mcp/McpHub"
 import { BrowserSettings } from "../../shared/BrowserSettings"
-import { LanguageKey } from "../../shared/Languages"
 
 export const SYSTEM_PROMPT = async (
 	cwd: string,

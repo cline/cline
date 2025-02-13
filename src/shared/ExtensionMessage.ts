@@ -6,7 +6,6 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer } from "./mcp"
-import { LanguageKey } from "./Languages"
 
 // webview will hold state
 export interface ExtensionMessage {
