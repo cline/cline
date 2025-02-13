@@ -75,7 +75,7 @@ declare global {
 npm run test:integration
 ```
 
-3. If you want to run a specific test, you can use the `test.only` function in the test file. This will run only the test you specify and ignore the others.
+3. If you want to run a specific test, you can use the `test.only` function in the test file. This will run only the test you specify and ignore the others. Be sure to remove the `test.only` function before committing your changes.
 
 The tests will:
 
