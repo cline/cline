@@ -626,7 +626,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									await this.postMessageToWebview({
 										type: "invoke",
 										invoke: "sendMessage",
-										text: "[Proceeding with the task...]",
+										text: message.chatContent?.message || "[Proceeding with the task...]",
+										images: message.chatContent?.images,
 									})
 								} else {
 									this.cancelTask()
