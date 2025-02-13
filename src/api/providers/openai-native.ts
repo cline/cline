@@ -48,7 +48,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			}
 			case "o1-preview":
 			case "o1-mini": {
-				// o1-preview and o1-mini doesnt suppor system prompt and 'Reasoning effort'
+				// o1-preview and o1-mini doesnt support system prompt and 'Reasoning effort'
 				const response = await this.client.chat.completions.create({
 					model: this.getModel().id,
 					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
