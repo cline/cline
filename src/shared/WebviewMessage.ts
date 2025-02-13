@@ -115,6 +115,7 @@ export interface WebviewMessage {
 	modeConfig?: ModeConfig
 	timeout?: number
 	payload?: WebViewMessagePayload
+	source?: "global" | "project"
 }
 
 export const checkoutDiffPayloadSchema = z.object({

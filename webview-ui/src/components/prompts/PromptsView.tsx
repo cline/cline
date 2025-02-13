@@ -6,6 +6,8 @@ import {
 	VSCodeOption,
 	VSCodeTextField,
 	VSCodeCheckbox,
+	VSCodeRadioGroup,
+	VSCodeRadio,
 } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import {
@@ -29,6 +31,8 @@ import { vscode } from "../../utils/vscode"
 
 // Get all available groups that should show in prompts view
 const availableGroups = (Object.keys(TOOL_GROUPS) as ToolGroup[]).filter((group) => !TOOL_GROUPS[group].alwaysAvailable)
+
+type ModeSource = "global" | "project"
 
 type PromptsViewProps = {
 	onDone: () => void
@@ -64,6 +68,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const [selectedPromptContent, setSelectedPromptContent] = useState("")
 	const [selectedPromptTitle, setSelectedPromptTitle] = useState("")
 	const [isToolsEditMode, setIsToolsEditMode] = useState(false)
+	const [showConfigMenu, setShowConfigMenu] = useState(false)
 	const [isCreateModeDialogOpen, setIsCreateModeDialogOpen] = useState(false)
 	const [activeSupportTab, setActiveSupportTab] = useState<SupportPromptType>("ENHANCE")
 
@@ -88,10 +93,14 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	)
 
 	const updateCustomMode = useCallback((slug: string, modeConfig: ModeConfig) => {
+		const source = modeConfig.source || "global"
 		vscode.postMessage({
 			type: "updateCustomMode",
 			slug,
-			modeConfig,
+			modeConfig: {
+				...modeConfig,
+				source, // Ensure source is set
+			},
 		})
 	}, [])
 
@@ -146,6 +155,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const [newModeRoleDefinition, setNewModeRoleDefinition] = useState("")
 	const [newModeCustomInstructions, setNewModeCustomInstructions] = useState("")
 	const [newModeGroups, setNewModeGroups] = useState<GroupEntry[]>(availableGroups)
+	const [newModeSource, setNewModeSource] = useState<ModeSource>("global")
 
 	// Reset form fields when dialog opens
 	useEffect(() => {
@@ -153,6 +163,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 			setNewModeGroups(availableGroups)
 			setNewModeRoleDefinition("")
 			setNewModeCustomInstructions("")
+			setNewModeSource("global")
 		}
 	}, [isCreateModeDialogOpen])
 
@@ -177,12 +188,14 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const handleCreateMode = useCallback(() => {
 		if (!newModeName.trim() || !newModeSlug.trim()) return
 
+		const source = newModeSource
 		const newMode: ModeConfig = {
 			slug: newModeSlug,
 			name: newModeName,
 			roleDefinition: newModeRoleDefinition.trim() || "",
 			customInstructions: newModeCustomInstructions.trim() || undefined,
 			groups: newModeGroups,
+			source,
 		}
 		updateCustomMode(newModeSlug, newMode)
 		switchMode(newModeSlug)
@@ -192,8 +205,17 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		setNewModeRoleDefinition("")
 		setNewModeCustomInstructions("")
 		setNewModeGroups(availableGroups)
+		setNewModeSource("global")
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [newModeName, newModeSlug, newModeRoleDefinition, newModeCustomInstructions, newModeGroups, updateCustomMode])
+	}, [
+		newModeName,
+		newModeSlug,
+		newModeRoleDefinition,
+		newModeCustomInstructions,
+		newModeGroups,
+		newModeSource,
+		updateCustomMode,
+	])
 
 	const isNameOrSlugTaken = useCallback(
 		(name: string, slug: string) => {
@@ -233,14 +255,28 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					newGroups = oldGroups.filter((g) => getGroupName(g) !== group)
 				}
 				if (customMode) {
+					const source = customMode.source || "global"
 					updateCustomMode(customMode.slug, {
 						...customMode,
 						groups: newGroups,
+						source,
 					})
 				}
 			},
 		[updateCustomMode],
 	)
+
+	// Handle clicks outside the config menu
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			if (showConfigMenu) {
+				setShowConfigMenu(false)
+			}
+		}
+
+		document.addEventListener("click", handleClickOutside)
+		return () => document.removeEventListener("click", handleClickOutside)
+	}, [showConfigMenu])
 
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
@@ -434,6 +470,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 
 				<div style={{ marginTop: "20px" }}>
 					<div
+						onClick={(e) => e.stopPropagation()}
 						style={{
 							display: "flex",
 							justifyContent: "space-between",
@@ -445,16 +482,81 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							<VSCodeButton appearance="icon" onClick={openCreateModeDialog} title="Create new mode">
 								<span className="codicon codicon-add"></span>
 							</VSCodeButton>
-							<VSCodeButton
-								appearance="icon"
-								title="Edit modes configuration"
-								onClick={() => {
-									vscode.postMessage({
-										type: "openCustomModesSettings",
-									})
-								}}>
-								<span className="codicon codicon-json"></span>
-							</VSCodeButton>
+							<div style={{ position: "relative", display: "inline-block" }}>
+								<VSCodeButton
+									appearance="icon"
+									title="Edit modes configuration"
+									style={{ display: "flex" }}
+									onClick={(e: React.MouseEvent) => {
+										e.preventDefault()
+										e.stopPropagation()
+										setShowConfigMenu((prev) => !prev)
+									}}
+									onBlur={() => {
+										// Add slight delay to allow menu item clicks to register
+										setTimeout(() => setShowConfigMenu(false), 200)
+									}}>
+									<span className="codicon codicon-json"></span>
+								</VSCodeButton>
+								{showConfigMenu && (
+									<div
+										onClick={(e) => e.stopPropagation()}
+										onMouseDown={(e) => e.stopPropagation()}
+										style={{
+											position: "absolute",
+											top: "100%",
+											right: 0,
+											width: "200px",
+											marginTop: "4px",
+											backgroundColor: "var(--vscode-editor-background)",
+											border: "1px solid var(--vscode-input-border)",
+											borderRadius: "3px",
+											boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
+											zIndex: 1000,
+										}}>
+										<div
+											style={{
+												padding: "8px",
+												cursor: "pointer",
+												color: "var(--vscode-foreground)",
+												fontSize: "13px",
+											}}
+											onMouseDown={(e) => {
+												e.preventDefault() // Prevent blur
+												vscode.postMessage({
+													type: "openCustomModesSettings",
+												})
+												setShowConfigMenu(false)
+											}}
+											onClick={(e) => e.preventDefault()}>
+											Edit Global Modes
+										</div>
+										<div
+											style={{
+												padding: "8px",
+												cursor: "pointer",
+												color: "var(--vscode-foreground)",
+												fontSize: "13px",
+												borderTop: "1px solid var(--vscode-input-border)",
+											}}
+											onMouseDown={(e) => {
+												e.preventDefault() // Prevent blur
+												vscode.postMessage({
+													type: "openFile",
+													text: "./.roomodes",
+													values: {
+														create: true,
+														content: JSON.stringify({ customModes: [] }, null, 2),
+													},
+												})
+												setShowConfigMenu(false)
+											}}
+											onClick={(e) => e.preventDefault()}>
+											Edit Project Modes (.roomodes)
+										</div>
+									</div>
+								)}
+							</div>
 						</div>
 					</div>
 
@@ -521,6 +623,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 												updateCustomMode(mode, {
 													...customMode,
 													name: target.value,
+													source: customMode.source || "global",
 												})
 											}
 										}}
@@ -590,6 +693,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									updateCustomMode(mode, {
 										...customMode,
 										roleDefinition: value.trim() || "",
+										source: customMode.source || "global",
 									})
 								} else {
 									// For built-in modes, update the prompts
@@ -798,6 +902,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									updateCustomMode(mode, {
 										...customMode,
 										customInstructions: value.trim() || undefined,
+										source: customMode.source || "global",
 									})
 								} else {
 									// For built-in modes, update the prompts
@@ -1118,6 +1223,49 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									letters, numbers, and hyphens.
 								</div>
 							</div>
+							<div style={{ marginBottom: "16px" }}>
+								<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Save Location</div>
+								<div
+									style={{
+										fontSize: "13px",
+										color: "var(--vscode-descriptionForeground)",
+										marginBottom: "8px",
+									}}>
+									Choose where to save this mode. Project-specific modes take precedence over global
+									modes.
+								</div>
+								<VSCodeRadioGroup
+									value={newModeSource}
+									onChange={(e: Event | React.FormEvent<HTMLElement>) => {
+										const target = ((e as CustomEvent)?.detail?.target ||
+											(e.target as HTMLInputElement)) as HTMLInputElement
+										setNewModeSource(target.value as ModeSource)
+									}}>
+									<VSCodeRadio value="global">
+										Global
+										<div
+											style={{
+												fontSize: "12px",
+												color: "var(--vscode-descriptionForeground)",
+												marginTop: "2px",
+											}}>
+											Available in all workspaces
+										</div>
+									</VSCodeRadio>
+									<VSCodeRadio value="project">
+										Project-specific (.roomodes)
+										<div
+											style={{
+												fontSize: "12px",
+												color: "var(--vscode-descriptionForeground)",
+												marginTop: "2px",
+											}}>
+											Only available in this workspace, takes precedence over global
+										</div>
+									</VSCodeRadio>
+								</VSCodeRadioGroup>
+							</div>
+
 							<div style={{ marginBottom: "16px" }}>
 								<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Role Definition</div>
 								<div

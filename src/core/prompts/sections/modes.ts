@@ -16,7 +16,13 @@ MODES
 ${modes.map((mode: ModeConfig) => `  * "${mode.name}" mode - ${mode.roleDefinition.split(".")[0]}`).join("\n")}
   Custom modes will be referred to by their configured name property.
 
-- Custom modes can be configured by editing the custom modes file at '${customModesPath}'. The file gets created automatically on startup and should always exist. Make sure to read the latest contents before writing to it to avoid overwriting existing modes.
+- Custom modes can be configured in two ways:
+  1. Globally via '${customModesPath}' (created automatically on startup)
+  2. Per-workspace via '.roomodes' in the workspace root directory
+
+  When modes with the same slug exist in both files, the workspace-specific .roomodes version takes precedence. This allows projects to override global modes or define project-specific modes.
+
+  If asked to create a project mode, create it in .roomodes in the workspace root. If asked to create a global mode, use the global custom modes file.
 
 - The following fields are required and must not be empty:
   * slug: A valid slug (lowercase letters, numbers, and hyphens). Must be unique, and shorter is better.
@@ -26,15 +32,15 @@ ${modes.map((mode: ModeConfig) => `  * "${mode.name}" mode - ${mode.roleDefiniti
 
 - The customInstructions field is optional.
 
-- For multi-line text, include newline characters in the string like "This is the first line.\nThis is the next line.\n\nThis is a double line break."
+- For multi-line text, include newline characters in the string like "This is the first line.\\nThis is the next line.\\n\\nThis is a double line break."
 
-The file should follow this structure:
+Both files should follow this structure:
 {
  "customModes": [
    {
      "slug": "designer", // Required: unique slug with lowercase letters, numbers, and hyphens
      "name": "Designer", // Required: mode display name
-     "roleDefinition": "You are Roo, a UI/UX expert specializing in design systems and frontend development. Your expertise includes:\n- Creating and maintaining design systems\n- Implementing responsive and accessible web interfaces\n- Working with CSS, HTML, and modern frontend frameworks\n- Ensuring consistent user experiences across platforms", // Required: non-empty
+     "roleDefinition": "You are Roo, a UI/UX expert specializing in design systems and frontend development. Your expertise includes:\\n- Creating and maintaining design systems\\n- Implementing responsive and accessible web interfaces\\n- Working with CSS, HTML, and modern frontend frameworks\\n- Ensuring consistent user experiences across platforms", // Required: non-empty
      "groups": [ // Required: array of tool groups (can be empty)
        "read",    // Read files group (read_file, search_files, list_files, list_code_definition_names)
        "edit",    // Edit files group (write_to_file, apply_diff) - allows editing any file

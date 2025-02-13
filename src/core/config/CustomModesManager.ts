@@ -6,6 +6,8 @@ import { ModeConfig } from "../../shared/modes"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
 
+const ROOMODES_FILENAME = ".roomodes"
+
 export class CustomModesManager {
 	private disposables: vscode.Disposable[] = []
 	private isWriting = false
@@ -15,7 +17,7 @@ export class CustomModesManager {
 		private readonly context: vscode.ExtensionContext,
 		private readonly onUpdate: () => Promise<void>,
 	) {
-		this.watchCustomModesFile()
+		this.watchCustomModesFiles()
 	}
 
 	private async queueWrite(operation: () => Promise<void>): Promise<void> {
@@ -43,6 +45,73 @@ export class CustomModesManager {
 		}
 	}
 
+	private async getWorkspaceRoomodes(): Promise<string | undefined> {
+		const workspaceFolders = vscode.workspace.workspaceFolders
+		if (!workspaceFolders || workspaceFolders.length === 0) {
+			return undefined
+		}
+		const workspaceRoot = workspaceFolders[0].uri.fsPath
+		const roomodesPath = path.join(workspaceRoot, ROOMODES_FILENAME)
+		const exists = await fileExistsAtPath(roomodesPath)
+		return exists ? roomodesPath : undefined
+	}
+
+	private async loadModesFromFile(filePath: string): Promise<ModeConfig[]> {
+		try {
+			const content = await fs.readFile(filePath, "utf-8")
+			const settings = JSON.parse(content)
+			const result = CustomModesSettingsSchema.safeParse(settings)
+			if (!result.success) {
+				const errorMsg = `Schema validation failed for ${filePath}`
+				console.error(`[CustomModesManager] ${errorMsg}:`, result.error)
+				return []
+			}
+
+			// Determine source based on file path
+			const isRoomodes = filePath.endsWith(ROOMODES_FILENAME)
+			const source = isRoomodes ? ("project" as const) : ("global" as const)
+
+			// Add source to each mode
+			return result.data.customModes.map((mode) => ({
+				...mode,
+				source,
+			}))
+		} catch (error) {
+			const errorMsg = `Failed to load modes from ${filePath}: ${error instanceof Error ? error.message : String(error)}`
+			console.error(`[CustomModesManager] ${errorMsg}`)
+			return []
+		}
+	}
+
+	private async mergeCustomModes(projectModes: ModeConfig[], globalModes: ModeConfig[]): Promise<ModeConfig[]> {
+		const slugs = new Set<string>()
+		const merged: ModeConfig[] = []
+
+		// Add project mode (takes precedence)
+		for (const mode of projectModes) {
+			if (!slugs.has(mode.slug)) {
+				slugs.add(mode.slug)
+				merged.push({
+					...mode,
+					source: "project",
+				})
+			}
+		}
+
+		// Add non-duplicate global modes
+		for (const mode of globalModes) {
+			if (!slugs.has(mode.slug)) {
+				slugs.add(mode.slug)
+				merged.push({
+					...mode,
+					source: "global",
+				})
+			}
+		}
+
+		return merged
+	}
+
 	async getCustomModesFilePath(): Promise<string> {
 		const settingsDir = await this.ensureSettingsDirectoryExists()
 		const filePath = path.join(settingsDir, "cline_custom_modes.json")
@@ -55,14 +124,17 @@ export class CustomModesManager {
 		return filePath
 	}
 
-	private async watchCustomModesFile(): Promise<void> {
+	private async watchCustomModesFiles(): Promise<void> {
 		const settingsPath = await this.getCustomModesFilePath()
+
+		// Watch settings file
 		this.disposables.push(
 			vscode.workspace.onDidSaveTextDocument(async (document) => {
 				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
 					const content = await fs.readFile(settingsPath, "utf-8")
 					const errorMessage =
 						"Invalid custom modes format. Please ensure your settings follow the correct JSON format."
+
 					let config: any
 					try {
 						config = JSON.parse(content)
@@ -71,86 +143,170 @@ export class CustomModesManager {
 						vscode.window.showErrorMessage(errorMessage)
 						return
 					}
+
 					const result = CustomModesSettingsSchema.safeParse(config)
 					if (!result.success) {
 						vscode.window.showErrorMessage(errorMessage)
 						return
 					}
-					await this.context.globalState.update("customModes", result.data.customModes)
+
+					// Get modes from .roomodes if it exists (takes precedence)
+					const roomodesPath = await this.getWorkspaceRoomodes()
+					const roomodesModes = roomodesPath ? await this.loadModesFromFile(roomodesPath) : []
+
+					// Merge modes from both sources (.roomodes takes precedence)
+					const mergedModes = await this.mergeCustomModes(roomodesModes, result.data.customModes)
+					await this.context.globalState.update("customModes", mergedModes)
 					await this.onUpdate()
 				}
 			}),
 		)
+
+		// Watch .roomodes file if it exists
+		const roomodesPath = await this.getWorkspaceRoomodes()
+		if (roomodesPath) {
+			this.disposables.push(
+				vscode.workspace.onDidSaveTextDocument(async (document) => {
+					if (arePathsEqual(document.uri.fsPath, roomodesPath)) {
+						const settingsModes = await this.loadModesFromFile(settingsPath)
+						const roomodesModes = await this.loadModesFromFile(roomodesPath)
+						// .roomodes takes precedence
+						const mergedModes = await this.mergeCustomModes(roomodesModes, settingsModes)
+						await this.context.globalState.update("customModes", mergedModes)
+						await this.onUpdate()
+					}
+				}),
+			)
+		}
 	}
 
 	async getCustomModes(): Promise<ModeConfig[]> {
-		const modes = await this.context.globalState.get<ModeConfig[]>("customModes")
+		// Get modes from settings file
+		const settingsPath = await this.getCustomModesFilePath()
+		const settingsModes = await this.loadModesFromFile(settingsPath)
 
-		// Always read from file to ensure we have the latest
-		try {
-			const settingsPath = await this.getCustomModesFilePath()
-			const content = await fs.readFile(settingsPath, "utf-8")
+		// Get modes from .roomodes if it exists
+		const roomodesPath = await this.getWorkspaceRoomodes()
+		const roomodesModes = roomodesPath ? await this.loadModesFromFile(roomodesPath) : []
 
-			const settings = JSON.parse(content)
-			const result = CustomModesSettingsSchema.safeParse(settings)
-			if (result.success) {
-				await this.context.globalState.update("customModes", result.data.customModes)
-				return result.data.customModes
-			}
-			return modes ?? []
-		} catch (error) {
-			// Return empty array if there's an error reading the file
+		// Create maps to store modes by source
+		const projectModes = new Map<string, ModeConfig>()
+		const globalModes = new Map<string, ModeConfig>()
+
+		// Add project modes (they take precedence)
+		for (const mode of roomodesModes) {
+			projectModes.set(mode.slug, { ...mode, source: "project" as const })
 		}
 
-		return modes ?? []
+		// Add global modes
+		for (const mode of settingsModes) {
+			if (!projectModes.has(mode.slug)) {
+				globalModes.set(mode.slug, { ...mode, source: "global" as const })
+			}
+		}
+
+		// Combine modes in the correct order: project modes first, then global modes
+		const mergedModes = [
+			...roomodesModes.map((mode) => ({ ...mode, source: "project" as const })),
+			...settingsModes
+				.filter((mode) => !projectModes.has(mode.slug))
+				.map((mode) => ({ ...mode, source: "global" as const })),
+		]
+
+		await this.context.globalState.update("customModes", mergedModes)
+		return mergedModes
 	}
 
 	async updateCustomMode(slug: string, config: ModeConfig): Promise<void> {
 		try {
-			const settingsPath = await this.getCustomModesFilePath()
+			const isProjectMode = config.source === "project"
+			const targetPath = isProjectMode ? await this.getWorkspaceRoomodes() : await this.getCustomModesFilePath()
+
+			if (isProjectMode && !targetPath) {
+				throw new Error("No workspace folder found for project-specific mode")
+			}
 
 			await this.queueWrite(async () => {
-				// Read and update file
-				const content = await fs.readFile(settingsPath, "utf-8")
-				const settings = JSON.parse(content)
-				const currentModes = settings.customModes || []
-				const updatedModes = currentModes.filter((m: ModeConfig) => m.slug !== slug)
-				updatedModes.push(config)
-				settings.customModes = updatedModes
+				// Ensure source is set correctly based on target file
+				const modeWithSource = {
+					...config,
+					source: isProjectMode ? ("project" as const) : ("global" as const),
+				}
 
-				const newContent = JSON.stringify(settings, null, 2)
+				await this.updateModesInFile(targetPath!, (modes) => {
+					const updatedModes = modes.filter((m) => m.slug !== slug)
+					updatedModes.push(modeWithSource)
+					return updatedModes
+				})
 
-				// Write to file
-				await fs.writeFile(settingsPath, newContent)
-
-				// Update global state
-				await this.context.globalState.update("customModes", updatedModes)
-
-				// Notify about the update
-				await this.onUpdate()
+				await this.refreshMergedState()
 			})
-
-			// Success, no need for message
 		} catch (error) {
 			vscode.window.showErrorMessage(
 				`Failed to update custom mode: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
 	}
+	private async updateModesInFile(filePath: string, operation: (modes: ModeConfig[]) => ModeConfig[]): Promise<void> {
+		let content = "{}"
+		try {
+			content = await fs.readFile(filePath, "utf-8")
+		} catch (error) {
+			// File might not exist yet
+			content = JSON.stringify({ customModes: [] })
+		}
+
+		let settings
+		try {
+			settings = JSON.parse(content)
+		} catch (error) {
+			console.error(`[CustomModesManager] Failed to parse JSON from ${filePath}:`, error)
+			settings = { customModes: [] }
+		}
+		settings.customModes = operation(settings.customModes || [])
+		await fs.writeFile(filePath, JSON.stringify(settings, null, 2), "utf-8")
+	}
+
+	private async refreshMergedState(): Promise<void> {
+		const settingsPath = await this.getCustomModesFilePath()
+		const roomodesPath = await this.getWorkspaceRoomodes()
+
+		const settingsModes = await this.loadModesFromFile(settingsPath)
+		const roomodesModes = roomodesPath ? await this.loadModesFromFile(roomodesPath) : []
+		const mergedModes = await this.mergeCustomModes(roomodesModes, settingsModes)
+
+		await this.context.globalState.update("customModes", mergedModes)
+		await this.onUpdate()
+	}
 
 	async deleteCustomMode(slug: string): Promise<void> {
 		try {
 			const settingsPath = await this.getCustomModesFilePath()
+			const roomodesPath = await this.getWorkspaceRoomodes()
+
+			const settingsModes = await this.loadModesFromFile(settingsPath)
+			const roomodesModes = roomodesPath ? await this.loadModesFromFile(roomodesPath) : []
+
+			// Find the mode in either file
+			const projectMode = roomodesModes.find((m) => m.slug === slug)
+			const globalMode = settingsModes.find((m) => m.slug === slug)
+
+			if (!projectMode && !globalMode) {
+				throw new Error("Write error: Mode not found")
+			}
 
 			await this.queueWrite(async () => {
-				const content = await fs.readFile(settingsPath, "utf-8")
-				const settings = JSON.parse(content)
+				// Delete from project first if it exists there
+				if (projectMode && roomodesPath) {
+					await this.updateModesInFile(roomodesPath, (modes) => modes.filter((m) => m.slug !== slug))
+				}
 
-				settings.customModes = (settings.customModes || []).filter((m: ModeConfig) => m.slug !== slug)
-				await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2))
+				// Delete from global settings if it exists there
+				if (globalMode) {
+					await this.updateModesInFile(settingsPath, (modes) => modes.filter((m) => m.slug !== slug))
+				}
 
-				await this.context.globalState.update("customModes", settings.customModes)
-				await this.onUpdate()
+				await this.refreshMergedState()
 			})
 		} catch (error) {
 			vscode.window.showErrorMessage(
@@ -165,9 +321,6 @@ export class CustomModesManager {
 		return settingsDir
 	}
 
-	/**
-	 * Delete the custom modes file and reset to default state
-	 */
 	async resetCustomModes(): Promise<void> {
 		try {
 			const filePath = await this.getCustomModesFilePath()
