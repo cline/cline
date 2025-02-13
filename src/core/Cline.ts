@@ -2716,17 +2716,18 @@ export class Cline {
 								this.isAwaitingPlanResponse = false
 
 								if (this.didRespondToPlanAskBySwitchingMode) {
+									if (text) {
+										await this.say("user_feedback", text ?? "", images)
+									}
 									pushToolResult(
 										formatResponse.toolResult(
-											`[The user has switched to ACT MODE, so you may now proceed with the task.]`,
+											`[The user has switched to ACT MODE, so you may now proceed with the task.]` +
+												(text
+													? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${text}\n</user_message>`
+													: ""),
 											images,
 										),
 									)
-								}
-
-								if (text) {
-									await this.say("user_feedback", text ?? "", images)
-									pushToolResult(formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images))
 								}
 
 								//
