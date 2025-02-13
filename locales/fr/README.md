@@ -121,6 +121,6 @@ Pour contribuer au projet, commencez par consulter notre [Guide de contribution]
 
 </details>
 
-## Lizenz
+## Licence
 
 [Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)
