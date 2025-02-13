@@ -88,6 +88,7 @@ type GlobalStateKey =
 	| "qwenApiLine"
 	| "requestyModelId"
 	| "togetherModelId"
+	| "usePromptCache"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -507,6 +508,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("qwenApiLine", qwenApiLine)
 							await this.updateGlobalState("requestyModelId", requestyModelId)
 							await this.updateGlobalState("togetherModelId", togetherModelId)
+							await this.updateGlobalState("usePromptCache", message.apiConfiguration.usePromptCache)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -1426,6 +1428,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeModelId,
 			previousModeModelInfo,
 			qwenApiLine,
+			usePromptCache,
 			liteLlmApiKey,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -1477,6 +1480,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
+			this.getGlobalState("usePromptCache") as Promise<boolean | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
 		])
 
@@ -1539,6 +1543,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				o3MiniReasoningEffort,
 				liteLlmBaseUrl,
 				liteLlmModelId,
+				usePromptCache,
 				liteLlmApiKey,
 			},
 			lastShownAnnouncementId,
