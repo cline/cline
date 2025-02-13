@@ -3,60 +3,51 @@ import * as path from "path"
 import { fileExistsAtPath } from "../../utils/fs"
 import { GIT_DISABLED_SUFFIX } from "./CheckpointTracker"
 
-//*
-// CheckpointExclusions
-//
-// A specialized module within Cline's Checkpoints system that manages file exclusion rules
-// for the checkpoint tracking process. It provides:
-//
-// - File filtering based on multiple criteria:
-//   - Size limits (default 5MB)
-//   - File types (build artifacts, media, cache files, etc.)
-//   - Git LFS patterns
-//   - Environment and configuration files
-//
-// - Extensible pattern management
-// - Integration with Git's exclude mechanism
-// - Support for workspace-specific LFS pattern detection
-//
-// The module ensures efficient checkpoint creation by preventing unnecessary tracking
-// of large files and temporary files while maintaining a clean and organized
-// checkpoint history.
+/**
+ * CheckpointExclusions Module
+ *
+ * A specialized module within Cline's Checkpoints system that manages file exclusion rules
+ * for the checkpoint tracking process. It provides:
+ *
+ * File Filtering:
+ * - File types (build artifacts, media, cache files, etc.)
+ * - Git LFS patterns from workspace
+ * - Environment and configuration files
+ * - Temporary and cache files
+ *
+ * Pattern Management:
+ * - Extensible category-based pattern system
+ * - Comprehensive file type coverage
+ * - Easy pattern updates and maintenance
+ *
+ * Git Integration:
+ * - Seamless integration with Git's exclude mechanism
+ * - Support for workspace-specific LFS patterns
+ * - Automatic pattern updates during checkpoints
+ *
+ * The module ensures efficient checkpoint creation by preventing unnecessary tracking
+ * of large files, binary files, and temporary artifacts while maintaining a clean
+ * and organized checkpoint history.
+ */
 
-// Interfaces
-// ===================
-
+/**
+ * Interface representing the result of a file exclusion check
+ */
 interface ExclusionResult {
+	/** Whether the file should be excluded */
 	excluded: boolean
+	/** Optional reason for exclusion */
 	reason?: string
 }
 
-// Constants
-// =========
-
-const SIZE_LIMIT = 5 // 5 MB
-
-// Helper function to check if file exceeds size limit
-// ===================================================
-async function isOverSizeLimit(filePath: string): Promise<ExclusionResult> {
-	try {
-		const stats = await fs.stat(filePath)
-		const sizeInMB = stats.size / (1024 * 1024)
-
-		return {
-			excluded: sizeInMB > SIZE_LIMIT,
-			reason: sizeInMB > SIZE_LIMIT ? `File size ${sizeInMB.toFixed(2)}MB exceeds ${SIZE_LIMIT}MB limit` : undefined,
-		}
-	} catch {
-		return { excluded: false }
-	}
-}
-
-// Default Exclusions
-// =================
-
-// Returns the default list of file and directory patterns to exclude
-// TODO: Make this configurable by the user
+/**
+ * Returns the default list of file and directory patterns to exclude from checkpoints.
+ * Combines built-in patterns with workspace-specific LFS patterns.
+ *
+ * @param lfsPatterns - Optional array of Git LFS patterns from workspace
+ * @returns Array of glob patterns to exclude
+ * @todo Make this configurable by the user
+ */
 export const getDefaultExclusions = (lfsPatterns: string[] = []): string[] => [
 	// Build and Development Artifacts
 	".git/",
@@ -87,9 +78,10 @@ export const getDefaultExclusions = (lfsPatterns: string[] = []): string[] => [
 	...lfsPatterns,
 ]
 
-// Pattern Category Helpers
-// =======================
-
+/**
+ * Returns patterns for common build and development artifact directories
+ * @returns Array of glob patterns for build artifacts
+ */
 function getBuildArtifactPatterns(): string[] {
 	return [
 		".gradle/",
@@ -122,6 +114,10 @@ function getBuildArtifactPatterns(): string[] {
 	]
 }
 
+/**
+ * Returns patterns for common media and image file types
+ * @returns Array of glob patterns for media files
+ */
 function getMediaFilePatterns(): string[] {
 	return [
 		"*.jpg",
@@ -166,6 +162,10 @@ function getMediaFilePatterns(): string[] {
 	]
 }
 
+/**
+ * Returns patterns for cache, temporary, and system files
+ * @returns Array of glob patterns for cache files
+ */
 function getCacheFilePatterns(): string[] {
 	return [
 		"*.DS_Store",
@@ -191,10 +191,18 @@ function getCacheFilePatterns(): string[] {
 	]
 }
 
+/**
+ * Returns patterns for environment and configuration files
+ * @returns Array of glob patterns for config files
+ */
 function getConfigFilePatterns(): string[] {
 	return ["*.env*", "*.local", "*.development", "*.production"]
 }
 
+/**
+ * Returns patterns for common large binary and archive files
+ * @returns Array of glob patterns for large data files
+ */
 function getLargeDataFilePatterns(): string[] {
 	return [
 		"*.zip",
@@ -214,6 +222,10 @@ function getLargeDataFilePatterns(): string[] {
 	]
 }
 
+/**
+ * Returns patterns for database and data storage files
+ * @returns Array of glob patterns for database files
+ */
 function getDatabaseFilePatterns(): string[] {
 	return [
 		"*.arrow",
@@ -240,6 +252,10 @@ function getDatabaseFilePatterns(): string[] {
 	]
 }
 
+/**
+ * Returns patterns for geospatial and mapping data files
+ * @returns Array of glob patterns for geospatial files
+ */
 function getGeospatialPatterns(): string[] {
 	return [
 		"*.shp",
@@ -272,14 +288,21 @@ function getGeospatialPatterns(): string[] {
 	]
 }
 
+/**
+ * Returns patterns for log and debug output files
+ * @returns Array of glob patterns for log files
+ */
 function getLogFilePatterns(): string[] {
 	return ["*.error", "*.log", "*.logs", "*.npm-debug.log*", "*.out", "*.stdout", "yarn-debug.log*", "yarn-error.log*"]
 }
 
-// File Operations
-// ==============
-
-// Writes exclusion patterns to Git's exclude file
+/**
+ * Writes the combined exclusion patterns to Git's exclude file.
+ * Creates the info directory if it doesn't exist.
+ *
+ * @param gitPath - Path to the .git directory
+ * @param lfsPatterns - Optional array of Git LFS patterns to include
+ */
 export const writeExcludesFile = async (gitPath: string, lfsPatterns: string[] = []): Promise<void> => {
 	const excludesPath = path.join(gitPath, "info", "exclude")
 	await fs.mkdir(path.join(gitPath, "info"), { recursive: true })
@@ -288,7 +311,13 @@ export const writeExcludesFile = async (gitPath: string, lfsPatterns: string[] =
 	await fs.writeFile(excludesPath, patterns.join("\n"))
 }
 
-// Retrieves LFS patterns from workspace if they exist
+/**
+ * Retrieves Git LFS patterns from the workspace's .gitattributes file.
+ * Returns an empty array if no patterns found or file doesn't exist.
+ *
+ * @param workspacePath - Path to the workspace root
+ * @returns Array of Git LFS patterns found in .gitattributes
+ */
 export const getLfsPatterns = async (workspacePath: string): Promise<string[]> => {
 	try {
 		const attributesPath = path.join(workspacePath, ".gitattributes")
@@ -305,17 +334,14 @@ export const getLfsPatterns = async (workspacePath: string): Promise<string[]> =
 	return []
 }
 
-// Main function to determine if a file should be excluded based on
-// multiple criteria, ordered from fastest to most expensive checks.
+/**
+ * Main function to determine if a file should be excluded from checkpoints.
+ * Currently returns false for all files since pattern-based exclusions are
+ * handled by Git's exclude file mechanism.
+ *
+ * @param filePath - Path to the file to check
+ * @returns ExclusionResult indicating if file should be excluded
+ */
 export const shouldExcludeFile = async (filePath: string): Promise<ExclusionResult> => {
-	try {
-		const sizeResult = await isOverSizeLimit(filePath)
-		if (sizeResult.excluded) {
-			return sizeResult
-		}
-		return { excluded: false }
-	} catch (error) {
-		console.log("Error in shouldExcludeFile:", error)
-		return { excluded: false }
-	}
+	return { excluded: false }
 }
