@@ -75,7 +75,7 @@ export class Cline {
 	private urlContentFetcher: UrlContentFetcher
 	browserSession: BrowserSession
 	private didEditFile: boolean = false
-	?: string
+	customInstructions?: string
 	preferredLanguage?: LanguageKey
 	autoApprovalSettings: AutoApprovalSettings
 	private browserSettings: BrowserSettings
@@ -121,7 +121,7 @@ export class Cline {
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
 		chatSettings: ChatSettings,
-		?: string,
+		customInstructions?: string,
 		preferredLanguage?: LanguageKey,
 		task?: string,
 		images?: string[],
@@ -137,7 +137,7 @@ export class Cline {
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context, browserSettings)
 		this.diffViewProvider = new DiffViewProvider(cwd)
-		this. = 
+		this.customInstructions = customInstructions
 		this.preferredLanguage = preferredLanguage
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
@@ -1293,10 +1293,10 @@ export class Cline {
 			clineIgnoreInstructions = `# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${clineIgnoreContent}\n.clineignore`
 		}
 
-		if (settings || clineRulesFileInstructions || preferredLanguageInstructions || clineIgnoreInstructions) {
+		if (settingsCustomInstructions || clineRulesFileInstructions || preferredLanguageInstructions) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			systemPrompt += addUserInstructions(
-				settings,
+				settingsCustomInstructions,
 				clineRulesFileInstructions,
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
