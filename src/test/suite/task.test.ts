@@ -22,16 +22,19 @@ suite("Roo Code Task", () => {
 				await new Promise((resolve) => setTimeout(resolve, interval))
 			}
 
+			await globalThis.provider.updateGlobalState("mode", "Code")
+			await globalThis.provider.updateGlobalState("alwaysAllowModeSwitch", true)
+			await globalThis.provider.updateGlobalState("autoApprovalEnabled", true)
+
 			await globalThis.api.startNewTask("Hello world, what is your name? Respond with 'My name is ...'")
 
 			// Wait for task to appear in history with tokens.
 			startTime = Date.now()
 
 			while (Date.now() - startTime < timeout) {
-				const state = await globalThis.provider.getState()
-				const task = state.taskHistory?.[0]
+				const messages = globalThis.provider.messages
 
-				if (task && task.tokensOut > 0) {
+				if (messages.some(({ type, text }) => type === "say" && text?.includes("My name is Roo"))) {
 					break
 				}
 
