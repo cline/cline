@@ -1,3 +1,5 @@
 requests>=2.31.0
 pytest>=8.0.0
 pytest-cov>=4.1.0
+pytest-integration>=0.2.3
+coverage>=7.4.0

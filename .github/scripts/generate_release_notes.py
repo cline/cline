@@ -18,6 +18,7 @@ Command line arguments:
     --changesets: JSON string of changesets
     --version: Version being released
     --release-type: Either 'release' or 'pre-release'
+    --api-key: OpenRouter API key for generating release notes
 """
 
 import os
@@ -49,6 +50,11 @@ def parse_args():
         choices=["release", "pre-release"],
         default="release",
         help="Type of release"
+    )
+    parser.add_argument(
+        "--api-key",
+        help="OpenRouter API key",
+        required=True
     )
     return parser.parse_args()
 
@@ -133,15 +139,18 @@ Please format the release notes in markdown with:
 Focus on user-facing changes and their benefits. Ignore version bumps, dependency updates, and minor syntax changes.
 Be concise but informative, highlighting the most important changes first."""
 
-def generate_release_notes(prompt: str) -> Optional[str]:
-    """Generate release notes using OpenRouter API with Claude 3.5 Sonnet."""
-    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-    if not OPENROUTER_API_KEY:
-        print("Error: OPENROUTER_API_KEY environment variable not set")
-        return None
+def generate_release_notes(prompt: str, api_key: str = None) -> str:
+    """Generate release notes using OpenRouter API with Claude 3.5 Sonnet.
+    
+    Args:
+        prompt: The prompt to send to the API
+        api_key: OpenRouter API key.
+    """
+    if not api_key:
+        raise Exception("API key not provided and OPENROUTER_API_KEY environment variable not set")
         
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "HTTP-Referer": "https://github.com/cline/cline",
         "Content-Type": "application/json"
     }
@@ -161,14 +170,20 @@ def generate_release_notes(prompt: str) -> Optional[str]:
             headers=headers,
             json=data
         )
-        response.raise_for_status()
         
+        if response.status_code == 429:
+            raise Exception("Rate limit exceeded")
+        elif response.status_code == 401:
+            raise Exception("Invalid API key")
+            
+        response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        print(f"Error calling OpenRouter API: {str(e)}")
+        
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Error calling OpenRouter API: {str(e)}"
         if hasattr(e, 'response'):
-            print(f"Response: {e.response.text}")
-        return None
+            error_msg += f"\nResponse: {e.response.text}"
+        raise Exception(error_msg)
 
 def main():
     args = parse_args()
@@ -192,20 +207,20 @@ def main():
     )
     
     # Generate release notes
-    release_notes = generate_release_notes(prompt)
-    if not release_notes:
-        print("Error: Failed to generate release notes")
+    try:
+        release_notes = generate_release_notes(prompt, api_key=args.api_key)
+        print("Generated Release Notes:")
+        print("-" * 80)
+        print(release_notes)
+        print("-" * 80)
+        
+        # Write outputs for GitHub Actions
+        if args.github_output:
+            with open(args.github_output, "a") as f:
+                f.write(f"release_notes<<EOF\n{release_notes}\nEOF\n")
+    except Exception as e:
+        print(f"Error: {str(e)}")
         sys.exit(1)
-    
-    print("Generated Release Notes:")
-    print("-" * 80)
-    print(release_notes)
-    print("-" * 80)
-    
-    # Write outputs for GitHub Actions
-    if args.github_output:
-        with open(args.github_output, "a") as f:
-            f.write(f"release_notes<<EOF\n{release_notes}\nEOF\n")
 
 if __name__ == "__main__":
     main()

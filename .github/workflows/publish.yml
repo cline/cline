@@ -35,14 +35,25 @@ jobs:
 
             - name: Install Dependencies
               run: |
-                  pip install requests
-                  pip install pytest
-                  pip install pytest-cov
+                  cd .github/scripts
+                  python -m pip install uv
+                  uv venv
+                  source .venv/bin/activate
+                  uv pip install -r requirements.txt
 
-            - name: Run Tests
+            - name: Run Unit Tests
               run: |
                   cd .github/scripts
-                  python -m pytest test_*.py --cov=. --cov-report=term-missing
+                  source .venv/bin/activate
+                  python -m pytest test_*.py -v --cov=. --cov-report=term-missing --ignore=test_integration.py
+
+            - name: Run Integration Tests
+              env:
+                  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+              run: |
+                  cd .github/scripts
+                  source .venv/bin/activate
+                  python -m pytest test_integration.py -v --api-key=$OPENROUTER_API_KEY
 
     prepare:
         needs: [test, test-scripts]
@@ -82,14 +93,13 @@ jobs:
 
             - name: Generate Release Notes
               id: notes
-              env:
-                  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
               run: |
                   python .github/scripts/generate_release_notes.py \
                     --release-type ${{ github.event.inputs.release-type }} \
                     --version ${{ steps.version.outputs.new_version }} \
                     --changesets '${{ steps.version.outputs.changesets }}' \
-                    --github-output $GITHUB_OUTPUT
+                    --github-output $GITHUB_OUTPUT \
+                    --api-key ${{ secrets.OPENROUTER_API_KEY }}
 
             - name: Update CHANGELOG.md
               run: |
