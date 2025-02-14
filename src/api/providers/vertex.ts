@@ -23,27 +23,23 @@ export class VertexHandler extends EnterpriseHandler {
 		const modelId = model.id
 		let stream: AnthropicStream<RawMessageStreamEvent>
 
-		if (this.isNextGenModel(modelId)) {
-			stream = await this.createNextGenModelStream(systemPrompt, messages, modelId, model.info.maxTokens ?? 8192)
+		if (this.isEnterpriseModel(modelId)) {
+			stream = await this.createEnterpriseModelStream(systemPrompt, messages, modelId, model.info.maxTokens ?? 8192)
 		} else {
-			stream = await this.createDefaultModelStream(systemPrompt, messages, modelId, model.info.maxTokens ?? 8192)
+			stream = this.client.messages.create({
+				model: modelId,
+				max_tokens: model.info.maxTokens || 8192,
+				temperature: 0,
+				system: [{ text: systemPrompt, type: "text" }],
+				messages,
+				stream: true,
+			}) as any
 		}
 
 		yield* this.processStream(stream)
 	}
 
-	private isNextGenModel(modelId: string): boolean {
-		const specialModels = [
-			"claude-3-5-sonnet-v2@20241022",
-			"claude-3-sonnet@20240229",
-			"claude-3-5-haiku@20241022",
-			"claude-3-haiku@20240307",
-			"claude-3-opus@20240229",
-		]
-		return specialModels.includes(modelId)
-	}
-
-	private async createNextGenModelStream(
+	async createEnterpriseModelStream(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		modelId: string,
@@ -63,44 +59,6 @@ export class VertexHandler extends EnterpriseHandler {
 			),
 			stream: true,
 		})
-	}
-
-	private transformMessage(
-		message: Anthropic.Messages.MessageParam,
-		index: number,
-		lastUserMsgIndex: number,
-		secondLastMsgUserIndex: number,
-	): Anthropic.Messages.MessageParam {
-		if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-			return {
-				...message,
-				content:
-					typeof message.content === "string"
-						? [{ type: "text", text: message.content, cache_control: { type: "ephemeral" } }]
-						: message.content.map((content, contentIndex) =>
-								contentIndex === message.content.length - 1
-									? { ...content, cache_control: { type: "ephemeral" } }
-									: content,
-							),
-			}
-		}
-		return message
-	}
-
-	private async createDefaultModelStream(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		modelId: string,
-		maxTokens: number,
-	): Promise<AnthropicStream<RawMessageStreamEvent>> {
-		return this.client.messages.create({
-			model: modelId,
-			max_tokens: maxTokens || 8192,
-			temperature: 0,
-			system: [{ text: systemPrompt, type: "text" }],
-			messages,
-			stream: true,
-		}) as any
 	}
 
 	async *processChunk(chunk: RawMessageStreamEvent): ApiStream {
