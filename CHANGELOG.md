@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## 3.3.20
+
+### Patch Changes
+
+- Disable writing in ask mode
+- v3.3.20
+
 ## [3.3.19]
 
 - Fix a bug where aborting in the middle of file writes would not revert the write
