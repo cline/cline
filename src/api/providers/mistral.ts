@@ -86,4 +86,25 @@ export class MistralHandler implements ApiHandler {
 			info: mistralModels[mistralDefaultModelId],
 		}
 	}
+
+	async completePrompt(prompt: string): Promise<string> {
+		try {
+			const response = await this.client.chat.complete({
+				model: this.options.apiModelId || mistralDefaultModelId,
+				messages: [{ role: "user", content: prompt }],
+				temperature: this.options.modelTemperature ?? MISTRAL_DEFAULT_TEMPERATURE,
+			})
+
+			const content = response.choices?.[0]?.message.content
+			if (Array.isArray(content)) {
+				return content.map((c) => (c.type === "text" ? c.text : "")).join("")
+			}
+			return content || ""
+		} catch (error) {
+			if (error instanceof Error) {
+				throw new Error(`Mistral completion error: ${error.message}`)
+			}
+			throw error
+		}
+	}
 }
