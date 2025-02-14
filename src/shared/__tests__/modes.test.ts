@@ -93,9 +93,9 @@ describe("isToolAllowedForMode", () => {
 				}),
 			).toBe(true)
 
-			// Should allow path-only for ask mode too
+			// Should allow path-only for architect mode too
 			expect(
-				isToolAllowedForMode("write_to_file", "ask", [], undefined, {
+				isToolAllowedForMode("write_to_file", "architect", [], undefined, {
 					path: "test.js",
 				}),
 			).toBe(true)
@@ -197,10 +197,10 @@ describe("isToolAllowedForMode", () => {
 			).toBe(true)
 		})
 
-		it("allows ask mode to edit markdown files only", () => {
+		it("allows architect mode to edit markdown files only", () => {
 			// Should allow editing markdown files
 			expect(
-				isToolAllowedForMode("write_to_file", "ask", [], undefined, {
+				isToolAllowedForMode("write_to_file", "architect", [], undefined, {
 					path: "test.md",
 					content: "# Test",
 				}),
@@ -208,7 +208,7 @@ describe("isToolAllowedForMode", () => {
 
 			// Should allow applying diffs to markdown files
 			expect(
-				isToolAllowedForMode("apply_diff", "ask", [], undefined, {
+				isToolAllowedForMode("apply_diff", "architect", [], undefined, {
 					path: "readme.md",
 					diff: "- old\n+ new",
 				}),
@@ -216,22 +216,22 @@ describe("isToolAllowedForMode", () => {
 
 			// Should reject non-markdown files
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "ask", [], undefined, {
+				isToolAllowedForMode("write_to_file", "architect", [], undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
 			).toThrow(FileRestrictionError)
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "ask", [], undefined, {
+				isToolAllowedForMode("write_to_file", "architect", [], undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
 			).toThrow(/Markdown files only/)
 
 			// Should maintain read capabilities
-			expect(isToolAllowedForMode("read_file", "ask", [])).toBe(true)
-			expect(isToolAllowedForMode("browser_action", "ask", [])).toBe(true)
-			expect(isToolAllowedForMode("use_mcp_tool", "ask", [])).toBe(true)
+			expect(isToolAllowedForMode("read_file", "architect", [])).toBe(true)
+			expect(isToolAllowedForMode("browser_action", "architect", [])).toBe(true)
+			expect(isToolAllowedForMode("use_mcp_tool", "architect", [])).toBe(true)
 		})
 	})
 
