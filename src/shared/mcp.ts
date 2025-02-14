@@ -81,7 +81,7 @@ export interface McpMarketplaceItem {
 	readmeContent?: string
 	isRecommended: boolean
 	githubStars: number
-	downloads: number
+	downloadCount: number
 	createdAt: string
 	updatedAt: string
 	lastGithubSync: string
@@ -89,4 +89,14 @@ export interface McpMarketplaceItem {
 
 export interface McpMarketplaceCatalog {
 	items: McpMarketplaceItem[]
+}
+
+export interface McpDownloadResponse {
+	mcpId: string
+	githubUrl: string
+	name: string
+	author: string
+	description: string
+	readmeContent: string
+	requiresApiKey: boolean
 }

@@ -14,7 +14,7 @@ import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
-import { McpMarketplaceCatalog, McpMarketplaceItem } from "../../shared/mcp"
+import { McpDownloadResponse, McpMarketplaceCatalog, McpMarketplaceItem, McpServer } from "../../shared/mcp"
 import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
@@ -404,7 +404,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					items: (response.data || []).map((item: any) => ({
 						...item,
 						githubStars: item.githubStars ?? 0,
-						downloads: item.downloads ?? 0,
+						downloadCount: item.downloadCount ?? 0,
 						tags: item.tags ?? [],
 					})),
 				}
@@ -438,30 +438,59 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	private async downloadMcp(mcpId: string) {
 		try {
-			const response = await axios.post(
+			// First check if we already have this MCP server installed
+			const servers = this.mcpHub?.getServers() || []
+			const isInstalled = servers.some((server: McpServer) => {
+				try {
+					const config = JSON.parse(server.config)
+					const serverConfig = config.mcpServers[server.name]
+					const githubUrl = serverConfig.args?.find((arg: string) => arg.includes("github.com"))
+					return githubUrl?.includes(mcpId)
+				} catch {
+					return false
+				}
+			})
+
+			if (isInstalled) {
+				throw new Error("This MCP server is already installed")
+			}
+
+			// Fetch server details from marketplace
+			const response = await axios.post<McpDownloadResponse>(
 				"https://api.cline.bot/v1/mcp/download",
+				{ mcpId },
 				{
-					mcpId,
-				},
-				{
-					headers: {
-						"Content-Type": "application/json",
-					},
+					headers: { "Content-Type": "application/json" },
+					timeout: 10000,
 				},
 			)
 
 			if (!response.data) {
-				throw new Error("Invalid response from MCP download API")
+				throw new Error("Invalid response from MCP marketplace API")
 			}
 
+			console.log("[downloadMcp] Response from download API", { response })
+
 			const mcpDetails = response.data
+
+			// Validate required fields
+			if (!mcpDetails.githubUrl) {
+				throw new Error("Missing GitHub URL in MCP download response")
+			}
+			if (!mcpDetails.readmeContent) {
+				throw new Error("Missing README content in MCP download response")
+			}
+
+			// Send details to webview
 			await this.postMessageToWebview({
 				type: "mcpDownloadDetails",
 				mcpDownloadDetails: mcpDetails,
 			})
 
-			// Create a new task for Cline to set up the MCP server
+			// Create task with context from README
 			const task = `Set up the MCP server from ${mcpDetails.githubUrl}. Here's some additional context from the README:\n\n${mcpDetails.readmeContent}`
+
+			// Initialize task and show chat view
 			await this.initClineWithTask(task)
 			await this.postMessageToWebview({
 				type: "action",
@@ -469,7 +498,23 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			})
 		} catch (error) {
 			console.error("Failed to download MCP:", error)
-			const errorMessage = error instanceof Error ? error.message : "Failed to download MCP"
+			let errorMessage = "Failed to download MCP"
+
+			if (axios.isAxiosError(error)) {
+				if (error.code === "ECONNABORTED") {
+					errorMessage = "Request timed out. Please try again."
+				} else if (error.response?.status === 404) {
+					errorMessage = "MCP server not found in marketplace."
+				} else if (error.response?.status === 500) {
+					errorMessage = "Internal server error. Please try again later."
+				} else if (!error.response && error.request) {
+					errorMessage = "Network error. Please check your internet connection."
+				}
+			} else if (error instanceof Error) {
+				errorMessage = error.message
+			}
+
+			// Show error in both notification and marketplace UI
 			vscode.window.showErrorMessage(errorMessage)
 			await this.postMessageToWebview({
 				type: "mcpDownloadDetails",

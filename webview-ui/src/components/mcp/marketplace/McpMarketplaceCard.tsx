@@ -9,7 +9,17 @@ interface McpMarketplaceCardProps {
 }
 
 const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps) => {
-	const isInstalled = installedServers.some((server) => server.name === item.mcpId)
+	const isInstalled = installedServers.some((server) => {
+		try {
+			const config = JSON.parse(server.config)
+			const serverConfig = config.mcpServers[server.name]
+			// Extract GitHub URL from args if it's an npm package
+			const githubUrl = serverConfig.args?.find((arg: string) => arg.includes("github.com"))
+			return githubUrl?.includes(item.mcpId) || githubUrl?.includes(item.githubUrl)
+		} catch {
+			return false
+		}
+	})
 	const [isDownloading, setIsDownloading] = useState(false)
 
 	useEffect(() => {
@@ -94,7 +104,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 						</div>
 						<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
 							<span className="codicon codicon-cloud-download" />
-							{item.downloads?.toLocaleString() ?? 0}
+							{item.downloadCount?.toLocaleString() ?? 0}
 						</div>
 						{item.requiresApiKey && (
 							<div style={{ display: "flex", alignItems: "center", gap: "4px" }}>

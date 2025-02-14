@@ -5,7 +5,7 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
-import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem } from "./mcp"
+import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -50,7 +50,7 @@ export interface ExtensionMessage {
 	mcpServers?: McpServer[]
 	mcpMarketplaceCatalog?: McpMarketplaceCatalog
 	error?: string
-	mcpDownloadDetails?: McpMarketplaceItem
+	mcpDownloadDetails?: McpDownloadResponse
 }
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
