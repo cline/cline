@@ -19,6 +19,7 @@ export type ModeConfig = {
 	roleDefinition: string
 	customInstructions?: string
 	groups: readonly GroupEntry[] // Now supports both simple strings and tuples with options
+	source?: "global" | "project" // Where this mode was loaded from
 }
 
 // Mode-specific prompts only

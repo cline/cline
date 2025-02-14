@@ -16,6 +16,11 @@
    - Logs can be found in `logs\app.log`
      - Logfile is overwritten on each run to keep it to a manageable volume.
 
+4. Styling Guidelines:
+   - Use Tailwind CSS classes instead of inline style objects for new markup
+   - VSCode CSS variables must be added to webview-ui/src/index.css before using them in Tailwind classes
+   - Example: `<div className="text-md text-vscode-descriptionForeground mb-2" />` instead of style objects
+
 
 # Adding a New Setting
 

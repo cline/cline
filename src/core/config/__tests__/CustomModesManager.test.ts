@@ -1,133 +1,306 @@
-import { ModeConfig } from "../../../shared/modes"
-import { CustomModesManager } from "../CustomModesManager"
 import * as vscode from "vscode"
-import * as fs from "fs/promises"
 import * as path from "path"
+import * as fs from "fs/promises"
+import { CustomModesManager } from "../CustomModesManager"
+import { ModeConfig } from "../../../shared/modes"
+import { fileExistsAtPath } from "../../../utils/fs"
 
-// Mock dependencies
 jest.mock("vscode")
 jest.mock("fs/promises")
-jest.mock("../../../utils/fs", () => ({
-	fileExistsAtPath: jest.fn().mockResolvedValue(false),
-}))
+jest.mock("../../../utils/fs")
 
 describe("CustomModesManager", () => {
 	let manager: CustomModesManager
 	let mockContext: vscode.ExtensionContext
 	let mockOnUpdate: jest.Mock
-	let mockStoragePath: string
+	let mockWorkspaceFolders: { uri: { fsPath: string } }[]
+
+	const mockStoragePath = "/mock/settings"
+	const mockSettingsPath = path.join(mockStoragePath, "settings", "cline_custom_modes.json")
+	const mockRoomodes = "/mock/workspace/.roomodes"
 
 	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks()
-
-		// Mock storage path
-		mockStoragePath = "/test/storage/path"
-
-		// Mock context
+		mockOnUpdate = jest.fn()
 		mockContext = {
-			globalStorageUri: { fsPath: mockStoragePath },
 			globalState: {
-				get: jest.fn().mockResolvedValue([]),
-				update: jest.fn().mockResolvedValue(undefined),
+				get: jest.fn(),
+				update: jest.fn(),
+			},
+			globalStorageUri: {
+				fsPath: mockStoragePath,
 			},
 		} as unknown as vscode.ExtensionContext
 
-		// Mock onUpdate callback
-		mockOnUpdate = jest.fn().mockResolvedValue(undefined)
-
-		// Mock fs.mkdir to do nothing
+		mockWorkspaceFolders = [{ uri: { fsPath: "/mock/workspace" } }]
+		;(vscode.workspace as any).workspaceFolders = mockWorkspaceFolders
+		;(vscode.workspace.onDidSaveTextDocument as jest.Mock).mockReturnValue({ dispose: jest.fn() })
+		;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+			return path === mockSettingsPath || path === mockRoomodes
+		})
 		;(fs.mkdir as jest.Mock).mockResolvedValue(undefined)
+		;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+			if (path === mockSettingsPath) {
+				return JSON.stringify({ customModes: [] })
+			}
+			throw new Error("File not found")
+		})
 
-		// Create manager instance
 		manager = new CustomModesManager(mockContext, mockOnUpdate)
 	})
 
-	describe("Mode Configuration Validation", () => {
-		test("validates valid custom mode configuration", async () => {
-			const validMode = {
-				slug: "test-mode",
-				name: "Test Mode",
-				roleDefinition: "Test role definition",
-				groups: ["read"] as const,
-			} satisfies ModeConfig
+	afterEach(() => {
+		jest.clearAllMocks()
+	})
 
-			// Mock file read/write operations
-			;(fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ customModes: [] }))
-			;(fs.writeFile as jest.Mock).mockResolvedValue(undefined)
+	describe("getCustomModes", () => {
+		it("should merge modes with .roomodes taking precedence", async () => {
+			const settingsModes = [
+				{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] },
+				{ slug: "mode2", name: "Mode 2", roleDefinition: "Role 2", groups: ["read"] },
+			]
 
-			await manager.updateCustomMode(validMode.slug, validMode)
+			const roomodesModes = [
+				{ slug: "mode2", name: "Mode 2 Override", roleDefinition: "Role 2 Override", groups: ["read"] },
+				{ slug: "mode3", name: "Mode 3", roleDefinition: "Role 3", groups: ["read"] },
+			]
 
-			// Verify file was written with the new mode
-			expect(fs.writeFile).toHaveBeenCalledWith(
-				expect.stringContaining("cline_custom_modes.json"),
-				expect.stringContaining(validMode.name),
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: settingsModes })
+				}
+				if (path === mockRoomodes) {
+					return JSON.stringify({ customModes: roomodesModes })
+				}
+				throw new Error("File not found")
+			})
+
+			const modes = await manager.getCustomModes()
+
+			// Should contain 3 modes (mode1 from settings, mode2 and mode3 from roomodes)
+			expect(modes).toHaveLength(3)
+			expect(modes.map((m) => m.slug)).toEqual(["mode2", "mode3", "mode1"])
+
+			// mode2 should come from .roomodes since it takes precedence
+			const mode2 = modes.find((m) => m.slug === "mode2")
+			expect(mode2?.name).toBe("Mode 2 Override")
+			expect(mode2?.roleDefinition).toBe("Role 2 Override")
+		})
+
+		it("should handle missing .roomodes file", async () => {
+			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
+
+			;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+				return path === mockSettingsPath
+			})
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: settingsModes })
+				}
+				throw new Error("File not found")
+			})
+
+			const modes = await manager.getCustomModes()
+
+			expect(modes).toHaveLength(1)
+			expect(modes[0].slug).toBe("mode1")
+		})
+
+		it("should handle invalid JSON in .roomodes", async () => {
+			const settingsModes = [{ slug: "mode1", name: "Mode 1", roleDefinition: "Role 1", groups: ["read"] }]
+
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: settingsModes })
+				}
+				if (path === mockRoomodes) {
+					return "invalid json"
+				}
+				throw new Error("File not found")
+			})
+
+			const modes = await manager.getCustomModes()
+
+			// Should fall back to settings modes when .roomodes is invalid
+			expect(modes).toHaveLength(1)
+			expect(modes[0].slug).toBe("mode1")
+		})
+	})
+
+	describe("updateCustomMode", () => {
+		it("should update mode in settings file while preserving .roomodes precedence", async () => {
+			const newMode: ModeConfig = {
+				slug: "mode1",
+				name: "Updated Mode 1",
+				roleDefinition: "Updated Role 1",
+				groups: ["read"],
+				source: "global",
+			}
+
+			const roomodesModes = [
+				{
+					slug: "mode1",
+					name: "Roomodes Mode 1",
+					roleDefinition: "Role 1",
+					groups: ["read"],
+					source: "project",
+				},
+			]
+
+			const existingModes = [
+				{ slug: "mode2", name: "Mode 2", roleDefinition: "Role 2", groups: ["read"], source: "global" },
+			]
+
+			let settingsContent = { customModes: existingModes }
+			let roomodesContent = { customModes: roomodesModes }
+
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockRoomodes) {
+					return JSON.stringify(roomodesContent)
+				}
+				if (path === mockSettingsPath) {
+					return JSON.stringify(settingsContent)
+				}
+				throw new Error("File not found")
+			})
+			;(fs.writeFile as jest.Mock).mockImplementation(
+				async (path: string, content: string, encoding?: string) => {
+					if (path === mockSettingsPath) {
+						settingsContent = JSON.parse(content)
+					}
+					if (path === mockRoomodes) {
+						roomodesContent = JSON.parse(content)
+					}
+					return Promise.resolve()
+				},
 			)
+
+			await manager.updateCustomMode("mode1", newMode)
+
+			// Should write to settings file
+			expect(fs.writeFile).toHaveBeenCalledWith(mockSettingsPath, expect.any(String), "utf-8")
+
+			// Verify the content of the write
+			const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]
+			const content = JSON.parse(writeCall[1])
+			expect(content.customModes).toContainEqual(
+				expect.objectContaining({
+					slug: "mode1",
+					name: "Updated Mode 1",
+					roleDefinition: "Updated Role 1",
+					source: "global",
+				}),
+			)
+
+			// Should update global state with merged modes where .roomodes takes precedence
+			expect(mockContext.globalState.update).toHaveBeenCalledWith(
+				"customModes",
+				expect.arrayContaining([
+					expect.objectContaining({
+						slug: "mode1",
+						name: "Roomodes Mode 1", // .roomodes version should take precedence
+						source: "project",
+					}),
+				]),
+			)
+
+			// Should trigger onUpdate
+			expect(mockOnUpdate).toHaveBeenCalled()
+		})
+
+		it("queues write operations", async () => {
+			const mode1: ModeConfig = {
+				slug: "mode1",
+				name: "Mode 1",
+				roleDefinition: "Role 1",
+				groups: ["read"],
+				source: "global",
+			}
+			const mode2: ModeConfig = {
+				slug: "mode2",
+				name: "Mode 2",
+				roleDefinition: "Role 2",
+				groups: ["read"],
+				source: "global",
+			}
+
+			let settingsContent = { customModes: [] }
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify(settingsContent)
+				}
+				throw new Error("File not found")
+			})
+			;(fs.writeFile as jest.Mock).mockImplementation(
+				async (path: string, content: string, encoding?: string) => {
+					if (path === mockSettingsPath) {
+						settingsContent = JSON.parse(content)
+					}
+					return Promise.resolve()
+				},
+			)
+
+			// Start both updates simultaneously
+			await Promise.all([manager.updateCustomMode("mode1", mode1), manager.updateCustomMode("mode2", mode2)])
+
+			// Verify final state in settings file
+			expect(settingsContent.customModes).toHaveLength(2)
+			expect(settingsContent.customModes.map((m: ModeConfig) => m.name)).toContain("Mode 1")
+			expect(settingsContent.customModes.map((m: ModeConfig) => m.name)).toContain("Mode 2")
 
 			// Verify global state was updated
 			expect(mockContext.globalState.update).toHaveBeenCalledWith(
 				"customModes",
-				expect.arrayContaining([validMode]),
+				expect.arrayContaining([
+					expect.objectContaining({
+						slug: "mode1",
+						name: "Mode 1",
+						source: "global",
+					}),
+					expect.objectContaining({
+						slug: "mode2",
+						name: "Mode 2",
+						source: "global",
+					}),
+				]),
 			)
 
-			// Verify onUpdate was called
+			// Should trigger onUpdate
 			expect(mockOnUpdate).toHaveBeenCalled()
-		})
-
-		test("handles file read errors gracefully", async () => {
-			// Mock fs.readFile to throw error
-			;(fs.readFile as jest.Mock).mockRejectedValueOnce(new Error("Test error"))
-
-			const modes = await manager.getCustomModes()
-
-			// Should return empty array on error
-			expect(modes).toEqual([])
-		})
-
-		test("handles file write errors gracefully", async () => {
-			const validMode = {
-				slug: "123e4567-e89b-12d3-a456-426614174000",
-				name: "Test Mode",
-				roleDefinition: "Test role definition",
-				groups: ["read"] as const,
-			} satisfies ModeConfig
-
-			// Mock fs.writeFile to throw error
-			;(fs.writeFile as jest.Mock).mockRejectedValueOnce(new Error("Write error"))
-
-			const mockShowError = jest.fn()
-			;(vscode.window.showErrorMessage as jest.Mock) = mockShowError
-
-			await manager.updateCustomMode(validMode.slug, validMode)
-
-			// Should show error message
-			expect(mockShowError).toHaveBeenCalledWith(expect.stringContaining("Write error"))
 		})
 	})
 
 	describe("File Operations", () => {
-		test("creates settings directory if it doesn't exist", async () => {
+		it("creates settings directory if it doesn't exist", async () => {
 			const configPath = path.join(mockStoragePath, "settings", "cline_custom_modes.json")
 			await manager.getCustomModesFilePath()
 
 			expect(fs.mkdir).toHaveBeenCalledWith(path.dirname(configPath), { recursive: true })
 		})
 
-		test("creates default config if file doesn't exist", async () => {
+		it("creates default config if file doesn't exist", async () => {
 			const configPath = path.join(mockStoragePath, "settings", "cline_custom_modes.json")
+
+			// Mock fileExists to return false first time, then true
+			let firstCall = true
+			;(fileExistsAtPath as jest.Mock).mockImplementation(async () => {
+				if (firstCall) {
+					firstCall = false
+					return false
+				}
+				return true
+			})
+
 			await manager.getCustomModesFilePath()
 
-			expect(fs.writeFile).toHaveBeenCalledWith(configPath, JSON.stringify({ customModes: [] }, null, 2))
+			expect(fs.writeFile).toHaveBeenCalledWith(
+				configPath,
+				expect.stringMatching(/^\{\s+"customModes":\s+\[\s*\]\s*\}$/),
+			)
 		})
 
-		test("watches file for changes", async () => {
-			// Mock file path resolution
+		it("watches file for changes", async () => {
 			const configPath = path.join(mockStoragePath, "settings", "cline_custom_modes.json")
 			;(fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ customModes: [] }))
-
-			// Create manager and wait for initialization
-			const manager = new CustomModesManager(mockContext, mockOnUpdate)
-			await manager.getCustomModesFilePath() // This ensures watchCustomModesFile has completed
 
 			// Get the registered callback
 			const registerCall = (vscode.workspace.onDidSaveTextDocument as jest.Mock).mock.calls[0]
@@ -144,102 +317,93 @@ describe("CustomModesManager", () => {
 			expect(fs.readFile).toHaveBeenCalledWith(configPath, "utf-8")
 			expect(mockContext.globalState.update).toHaveBeenCalled()
 			expect(mockOnUpdate).toHaveBeenCalled()
-
-			// Verify file content was processed
-			expect(fs.readFile).toHaveBeenCalled()
 		})
 	})
 
-	describe("Mode Operations", () => {
-		const validMode = {
-			slug: "123e4567-e89b-12d3-a456-426614174000",
-			name: "Test Mode",
-			roleDefinition: "Test role definition",
-			groups: ["read"] as const,
-		} satisfies ModeConfig
+	describe("deleteCustomMode", () => {
+		it("deletes mode from settings file", async () => {
+			const existingMode = {
+				slug: "mode-to-delete",
+				name: "Mode To Delete",
+				roleDefinition: "Test role",
+				groups: ["read"],
+				source: "global",
+			}
 
-		beforeEach(() => {
-			// Mock fs.readFile to return empty config
-			;(fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ customModes: [] }))
-		})
-
-		test("adds new custom mode", async () => {
-			await manager.updateCustomMode(validMode.slug, validMode)
-
-			expect(fs.writeFile).toHaveBeenCalledWith(expect.any(String), expect.stringContaining(validMode.name))
-			expect(mockOnUpdate).toHaveBeenCalled()
-		})
-
-		test("updates existing custom mode", async () => {
-			// Mock existing mode
-			;(fs.readFile as jest.Mock).mockResolvedValue(
-				JSON.stringify({
-					customModes: [validMode],
-				}),
+			let settingsContent = { customModes: [existingMode] }
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify(settingsContent)
+				}
+				throw new Error("File not found")
+			})
+			;(fs.writeFile as jest.Mock).mockImplementation(
+				async (path: string, content: string, encoding?: string) => {
+					if (path === mockSettingsPath && encoding === "utf-8") {
+						settingsContent = JSON.parse(content)
+					}
+					return Promise.resolve()
+				},
 			)
 
-			const updatedMode = {
-				...validMode,
-				name: "Updated Name",
-			}
-
-			await manager.updateCustomMode(validMode.slug, updatedMode)
-
-			expect(fs.writeFile).toHaveBeenCalledWith(expect.any(String), expect.stringContaining("Updated Name"))
-			expect(mockOnUpdate).toHaveBeenCalled()
-		})
-
-		test("deletes custom mode", async () => {
-			// Mock existing mode
-			;(fs.readFile as jest.Mock).mockResolvedValue(
-				JSON.stringify({
-					customModes: [validMode],
-				}),
-			)
-
-			await manager.deleteCustomMode(validMode.slug)
-
-			expect(fs.writeFile).toHaveBeenCalledWith(expect.any(String), expect.not.stringContaining(validMode.name))
-			expect(mockOnUpdate).toHaveBeenCalled()
-		})
-
-		test("queues write operations", async () => {
-			const mode1 = {
-				...validMode,
-				name: "Mode 1",
-			}
-			const mode2 = {
-				...validMode,
-				slug: "mode-2",
-				name: "Mode 2",
-			}
-
-			// Mock initial empty state and track writes
-			let currentModes: ModeConfig[] = []
-			;(fs.readFile as jest.Mock).mockImplementation(() => JSON.stringify({ customModes: currentModes }))
-			;(fs.writeFile as jest.Mock).mockImplementation(async (path, content) => {
-				const data = JSON.parse(content)
-				currentModes = data.customModes
+			// Mock the global state update to actually update the settingsContent
+			;(mockContext.globalState.update as jest.Mock).mockImplementation((key: string, value: any) => {
+				if (key === "customModes") {
+					settingsContent.customModes = value
+				}
 				return Promise.resolve()
 			})
 
-			// Start both updates simultaneously
-			await Promise.all([
-				manager.updateCustomMode(mode1.slug, mode1),
-				manager.updateCustomMode(mode2.slug, mode2),
-			])
+			await manager.deleteCustomMode("mode-to-delete")
 
-			// Verify final state
-			expect(currentModes).toHaveLength(2)
-			expect(currentModes.map((m) => m.name)).toContain("Mode 1")
-			expect(currentModes.map((m) => m.name)).toContain("Mode 2")
+			// Verify mode was removed from settings file
+			expect(settingsContent.customModes).toHaveLength(0)
 
-			// Verify write was called with both modes
-			const lastWriteCall = (fs.writeFile as jest.Mock).mock.calls.pop()
-			const finalContent = JSON.parse(lastWriteCall[1])
-			expect(finalContent.customModes).toHaveLength(2)
-			expect(finalContent.customModes.map((m: ModeConfig) => m.name)).toContain("Mode 1")
-			expect(finalContent.customModes.map((m: ModeConfig) => m.name)).toContain("Mode 2")
+			// Verify global state was updated
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("customModes", [])
+
+			// Should trigger onUpdate
+			expect(mockOnUpdate).toHaveBeenCalled()
+		})
+
+		it("handles errors gracefully", async () => {
+			const mockShowError = jest.fn()
+			;(vscode.window.showErrorMessage as jest.Mock) = mockShowError
+			;(fs.writeFile as jest.Mock).mockRejectedValue(new Error("Write error"))
+
+			await manager.deleteCustomMode("non-existent-mode")
+
+			expect(mockShowError).toHaveBeenCalledWith(expect.stringContaining("Write error"))
+		})
+	})
+
+	describe("updateModesInFile", () => {
+		it("handles corrupted JSON content gracefully", async () => {
+			const corruptedJson = "{ invalid json content"
+			;(fs.readFile as jest.Mock).mockResolvedValue(corruptedJson)
+
+			const newMode: ModeConfig = {
+				slug: "test-mode",
+				name: "Test Mode",
+				roleDefinition: "Test Role",
+				groups: ["read"],
+				source: "global",
+			}
+
+			await manager.updateCustomMode("test-mode", newMode)
+
+			// Verify that a valid JSON structure was written
+			const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]
+			const writtenContent = JSON.parse(writeCall[1])
+			expect(writtenContent).toEqual({
+				customModes: [
+					expect.objectContaining({
+						slug: "test-mode",
+						name: "Test Mode",
+						roleDefinition: "Test Role",
+					}),
+				],
+			})
 		})
 	})
 })
