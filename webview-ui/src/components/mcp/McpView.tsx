@@ -105,7 +105,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
 
-			<div style={{ flex: 1, overflow: "auto" }}>
+			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
 				<VSCodePanels activeid={activeTab} onchange={(e: any) => setActiveTab(e.target.activeid)}>
 					<VSCodePanelTab id="installed">Installed</VSCodePanelTab>
 					<VSCodePanelTab id="marketplace">Marketplace</VSCodePanelTab>
@@ -168,11 +168,13 @@ const McpView = ({ onDone }: McpViewProps) => {
 					</VSCodePanelView>
 
 					<VSCodePanelView id="marketplace">
-						<McpMarketplaceView />
+						<div style={{ maxWidth: "100%" }}>
+							<McpMarketplaceView />
+						</div>
 					</VSCodePanelView>
 
 					<VSCodePanelView id="settings">
-						<div style={{ padding: "0 20px" }}>
+						<div style={{ maxWidth: "100%" }}>
 							{/* Server Configuration Button */}
 							<div style={{ marginTop: "10px", width: "100%" }}>
 								<VSCodeButton

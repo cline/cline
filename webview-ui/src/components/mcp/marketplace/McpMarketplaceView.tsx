@@ -5,26 +5,38 @@ import { useExtensionState } from "../../../context/ExtensionStateContext"
 import { vscode } from "../../../utils/vscode"
 import McpMarketplaceCard from "./McpMarketplaceCard"
 
+const controlHeight = "28px"
+
 const searchInputStyles = {
 	width: "100%",
-	padding: "4px 8px 4px 28px",
+	height: controlHeight,
+	padding: "0 8px 0 32px", // Removed vertical padding since we're using fixed height
 	background: "var(--vscode-input-background)",
 	border: "1px solid var(--vscode-input-border)",
 	color: "var(--vscode-input-foreground)",
 	borderRadius: "2px",
 	outline: "none",
 	transition: "border-color 0.1s ease-in-out, opacity 0.1s ease-in-out",
-}
+	cursor: "text", // Show text cursor for input
+} as const
 
 const selectStyles = {
-	padding: "4px 8px",
+	height: controlHeight,
+	padding: "0 12px", // Removed vertical padding since we're using fixed height
 	background: "var(--vscode-dropdown-background)",
 	border: "1px solid var(--vscode-dropdown-border)",
 	color: "var(--vscode-dropdown-foreground)",
 	borderRadius: "2px",
 	outline: "none",
 	transition: "border-color 0.1s ease-in-out, opacity 0.1s ease-in-out",
-}
+	minWidth: "140px", // Ensure consistent width for dropdowns
+	cursor: "pointer", // Show pointer cursor on hover
+} as const
+
+const refreshStyles = {
+	height: controlHeight,
+	alignSelf: "flex-end",
+} as const
 
 const McpMarketplaceView = () => {
 	const { mcpServers } = useExtensionState()
@@ -142,16 +154,19 @@ const McpMarketplaceView = () => {
 	}
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "0 20px" }}>
+		<div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
 			<div
 				style={{
 					display: "flex",
 					justifyContent: "space-between",
 					alignItems: "center",
 					marginBottom: "16px",
-					gap: "16px",
+					gap: "12px",
+					flexWrap: "wrap",
 				}}>
-				<div style={{ display: "flex", gap: "8px", alignItems: "center", flex: 1 }}>
+				<div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
+					{" "}
+					{/* Added minWidth: 0 to prevent flex item from overflowing */}
 					<div style={{ position: "relative", flex: 1 }}>
 						<input
 							type="text"
@@ -165,10 +180,13 @@ const McpMarketplaceView = () => {
 							className="codicon codicon-search"
 							style={{
 								position: "absolute",
-								left: "8px",
+								left: "10px",
 								top: "50%",
 								transform: "translateY(-50%)",
 								color: "var(--vscode-input-placeholderForeground)",
+								pointerEvents: "none",
+								fontSize: "14px", // Match input text size
+								lineHeight: 1, // Ensure icon is centered properly
 							}}
 						/>
 					</div>
@@ -194,26 +212,33 @@ const McpMarketplaceView = () => {
 						<option value="name">Sort by Name</option>
 					</select>
 				</div>
-				<VSCodeButton appearance="secondary" onClick={() => fetchMarketplace(true)} disabled={isRefreshing}>
+				<VSCodeButton
+					appearance="secondary"
+					onClick={() => fetchMarketplace(true)}
+					disabled={isRefreshing}
+					style={refreshStyles}>
 					<span className="codicon codicon-refresh" style={{ marginRight: "6px" }} />
 					Refresh
 				</VSCodeButton>
 			</div>
 			<style>
 				{`
-					.mcp-search-input:focus {
-						border-color: var(--vscode-focusBorder) !important;
-					}
-					.mcp-search-input:hover {
-						opacity: 0.9;
-					}
-					.mcp-select:focus {
-						border-color: var(--vscode-focusBorder) !important;
-					}
-					.mcp-select:hover {
-						opacity: 0.9;
-					}
-				`}
+				.mcp-search-input,
+				.mcp-select {
+				box-sizing: border-box;
+				}
+				.mcp-search-input {
+				min-width: 140px;
+				}
+				.mcp-search-input:focus,
+				.mcp-select:focus {
+				border-color: var(--vscode-focusBorder) !important;
+				}
+				.mcp-search-input:hover,
+				.mcp-select:hover {
+				opacity: 0.9;
+				}
+			`}
 			</style>
 			{filteredItems.length === 0 ? (
 				<div
