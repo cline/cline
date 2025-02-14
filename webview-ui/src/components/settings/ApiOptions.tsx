@@ -314,7 +314,6 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Mistral API Key</span>
 					</VSCodeTextField>
-
 					<p
 						style={{
 							fontSize: "12px",
@@ -335,7 +334,8 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						)}
 					</p>
 
-					{apiConfiguration?.apiModelId?.startsWith("codestral-") && (
+					{(apiConfiguration?.apiModelId?.startsWith("codestral-") ||
+						(!apiConfiguration?.apiModelId && mistralDefaultModelId.startsWith("codestral-"))) && (
 						<div>
 							<VSCodeTextField
 								value={apiConfiguration?.mistralCodestralUrl || ""}
