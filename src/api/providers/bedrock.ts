@@ -1,9 +1,11 @@
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
+import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
+import { bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { fromIni } from "@aws-sdk/credential-providers"
 import { EnterpriseHandler } from "./enterprise"
+import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
 
 /**
  * Handles interactions with the Anthropic Bedrock service using AWS credentials.
@@ -52,17 +54,55 @@ export class AwsBedrockHandler extends EnterpriseHandler {
 	 * @returns An asynchronous generator yielding ApiStream events.
 	 */
 	async *createEnterpriseMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.getModel()
 		const modelId = this.getModelId()
-		const stream = await this.client.messages.create({
+
+		let stream: AnthropicStream<RawMessageStreamEvent>
+
+		if (this.isEnterpriseModel(modelId)) {
+			stream = await this.createEnterpriseModelStream(systemPrompt, messages, modelId, model.info.maxTokens ?? 8192)
+		} else {
+			stream = await this.client.messages.create({
+				model: modelId,
+				max_tokens: model.info.maxTokens || 8192,
+				temperature: 0,
+				system: systemPrompt,
+				messages,
+				stream: true,
+			})
+		}
+
+		yield* this.processStream(stream)
+	}
+
+	/**
+	 * Creates a message stream for an enterprise model.
+	 * @param systemPrompt - The system prompt to initialize the conversation.
+	 * @param messages - An array of message parameters.
+	 * @param modelId - The model ID to use for the conversation.
+	 * @param maxTokens - The maximum number of tokens to generate.
+	 * @returns A promise that resolves with the message stream.
+	 */
+	async createEnterpriseModelStream(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		modelId: string,
+		maxTokens: number,
+	): Promise<AnthropicStream<RawMessageStreamEvent>> {
+		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
+		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
+		return this.client.messages.create({
 			model: modelId,
-			max_tokens: this.getModel().info.maxTokens || 8192,
+			max_tokens: maxTokens || 8192,
 			temperature: 0,
-			system: systemPrompt,
-			messages,
+			system: [{ text: systemPrompt, type: "text" }],
+			messages: messages.map((message, index) =>
+				this.transformMessage(message, index, lastUserMsgIndex, secondLastMsgUserIndex),
+			),
 			stream: true,
 		})
-
-		return this.processStream(stream)
 	}
 
 	/**

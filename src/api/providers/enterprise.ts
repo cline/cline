@@ -13,9 +13,19 @@ import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
  * @implements ApiHandler
  */
 export abstract class EnterpriseHandler implements ApiHandler {
+	// The enterprise models w/ first-class support
+	static ENTERPRISE_MODELS: string[] = [
+		"claude-3-5-sonnet-v2@20241022",
+		"claude-3-sonnet@20240229",
+		"claude-3-5-haiku@20241022",
+		"claude-3-haiku@20240307",
+		"claude-3-opus@20240229",
+	]
+
 	protected options: ApiHandlerOptions // The options for the enterprise handler.
 	protected cache: Map<string, ApiStream> // A cache of message streams.
-	protected client: Promise<any> // The enterprise client.
+	protected client: Promise<any> | any // The enterprise client.
+	protected firstClassModels: string[] = []
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -24,10 +34,32 @@ export abstract class EnterpriseHandler implements ApiHandler {
 	}
 
 	/**
+	 * Checks if a model is an enterprise model.
+	 * @param modelId - The model ID to check.
+	 * @returns True if the model is an enterprise model, false otherwise.
+	 */
+	protected isEnterpriseModel(modelId: string): boolean {
+		return this.firstClassModels.includes(modelId)
+	}
+
+	/**
+	 * Creates a message stream to an enterprise model.
+	 * @param systemPrompt - The system prompt to initialize the conversation.
+	 * @param messages - An array of message parameters.
+	 * @returns An asynchronous generator yielding ApiStream events.
+	 */
+	protected abstract createEnterpriseModelStream(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		modelId: string,
+		maxTokens: number,
+	): Promise<AnthropicStream<RawMessageStreamEvent>>
+
+	/**
 	 * Initializes the enterprise handler.
 	 * This method must be implemented by subclasses.
 	 */
-	abstract initialize(): Promise<any>
+	protected abstract initialize(): Promise<any> | any
 
 	/**
 	 * Creates a message stream.
@@ -81,13 +113,35 @@ export abstract class EnterpriseHandler implements ApiHandler {
 		}
 	}
 
+	protected transformMessage(
+		message: Anthropic.Messages.MessageParam,
+		index: number,
+		lastUserMsgIndex: number,
+		secondLastMsgUserIndex: number,
+	): Anthropic.Messages.MessageParam {
+		if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+			return {
+				...message,
+				content:
+					typeof message.content === "string"
+						? [{ type: "text", text: message.content, cache_control: { type: "ephemeral" } }]
+						: message.content.map((content, contentIndex) =>
+								contentIndex === message.content.length - 1
+									? { ...content, cache_control: { type: "ephemeral" } }
+									: content,
+							),
+			}
+		}
+		return message
+	}
+
 	/**
 	 * Processes a raw message event.
 	 * This method must be implemented by subclasses.
 	 * @param chunk - A raw message event.
 	 * @returns A processed message event.
 	 */
-	abstract processChunk(chunk: RawMessageStreamEvent): any
+	protected abstract processChunk(chunk: RawMessageStreamEvent): any
 
 	abstract getModel(): { id: string; info: ModelInfo }
 }
