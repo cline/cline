@@ -83,6 +83,7 @@
 	--color-vscode-notifications-foreground: var(--vscode-notifications-foreground);
 	--color-vscode-notifications-background: var(--vscode-notifications-background);
 	--color-vscode-notifications-border: var(--vscode-notifications-border);
+	--color-vscode-descriptionForeground: var(--vscode-descriptionForeground);
 }
 
 @layer base {

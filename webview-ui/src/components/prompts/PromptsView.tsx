@@ -343,31 +343,16 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	}
 
 	return (
-		<div
-			style={{
-				position: "fixed",
-				top: 0,
-				left: 0,
-				right: 0,
-				bottom: 0,
-				display: "flex",
-				flexDirection: "column",
-			}}>
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					padding: "10px 17px 10px 20px",
-				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Prompts</h3>
+		<div className="fixed inset-0 flex flex-col">
+			<div className="flex justify-between items-center px-5 py-2.5">
+				<h3 className="text-vscode-foreground m-0">Prompts</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
 
-			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
-				<div style={{ paddingBottom: "20px", borderBottom: "1px solid var(--vscode-input-border)" }}>
-					<div style={{ marginBottom: "20px" }}>
-						<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Preferred Language</div>
+			<div className="flex-1 overflow-auto px-5">
+				<div className="pb-5 border-b border-vscode-input-border">
+					<div className="mb-5">
+						<div className="font-bold mb-1">Preferred Language</div>
 						<select
 							value={preferredLanguage}
 							onChange={(e) => {
@@ -377,15 +362,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									text: e.target.value,
 								})
 							}}
-							style={{
-								width: "100%",
-								padding: "4px 8px",
-								backgroundColor: "var(--vscode-input-background)",
-								color: "var(--vscode-input-foreground)",
-								border: "1px solid var(--vscode-input-border)",
-								borderRadius: "2px",
-								height: "28px",
-							}}>
+							className="w-full px-2 py-1 h-7 bg-vscode-input-background text-vscode-input-foreground border border-vscode-input-border rounded">
 							<option value="English">English</option>
 							<option value="Arabic">Arabic - العربية</option>
 							<option value="Brazilian Portuguese">Portuguese - Português (Brasil)</option>
@@ -405,19 +382,13 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							<option value="Traditional Chinese">Traditional Chinese - 繁體中文</option>
 							<option value="Turkish">Turkish - Türkçe</option>
 						</select>
-						<p
-							style={{
-								fontSize: "12px",
-								marginTop: "5px",
-								color: "var(--vscode-descriptionForeground)",
-							}}>
+						<p className="text-xs mt-1.5 text-vscode-descriptionForeground">
 							Select the language that Cline should use for communication.
 						</p>
 					</div>
 
-					<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Custom Instructions for All Modes</div>
-					<div
-						style={{ fontSize: "13px", color: "var(--vscode-descriptionForeground)", marginBottom: "8px" }}>
+					<div className="font-bold mb-1">Custom Instructions for All Modes</div>
+					<div className="text-sm text-vscode-descriptionForeground mb-2">
 						These instructions apply to all modes. They provide a base set of behaviors that can be enhanced
 						by mode-specific instructions below.
 					</div>
@@ -435,23 +406,13 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						}}
 						rows={4}
 						resize="vertical"
-						style={{ width: "100%" }}
+						className="w-full"
 						data-testid="global-custom-instructions-textarea"
 					/>
-					<div
-						style={{
-							fontSize: "12px",
-							color: "var(--vscode-descriptionForeground)",
-							marginTop: "5px",
-							marginBottom: "40px",
-						}}>
+					<div className="text-xs text-vscode-descriptionForeground mt-1.5 mb-10">
 						Instructions can also be loaded from{" "}
 						<span
-							style={{
-								color: "var(--vscode-textLink-foreground)",
-								cursor: "pointer",
-								textDecoration: "underline",
-							}}
+							className="text-vscode-textLink-foreground cursor-pointer underline"
 							onClick={() =>
 								vscode.postMessage({
 									type: "openFile",
@@ -468,25 +429,18 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 				</div>
 
-				<div style={{ marginTop: "20px" }}>
-					<div
-						onClick={(e) => e.stopPropagation()}
-						style={{
-							display: "flex",
-							justifyContent: "space-between",
-							alignItems: "center",
-							marginBottom: "12px",
-						}}>
-						<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Mode-Specific Prompts</h3>
-						<div style={{ display: "flex", gap: "8px" }}>
+				<div className="mt-5">
+					<div onClick={(e) => e.stopPropagation()} className="flex justify-between items-center mb-3">
+						<h3 className="text-vscode-foreground m-0">Mode-Specific Prompts</h3>
+						<div className="flex gap-2">
 							<VSCodeButton appearance="icon" onClick={openCreateModeDialog} title="Create new mode">
 								<span className="codicon codicon-add"></span>
 							</VSCodeButton>
-							<div style={{ position: "relative", display: "inline-block" }}>
+							<div className="relative inline-block">
 								<VSCodeButton
 									appearance="icon"
 									title="Edit modes configuration"
-									style={{ display: "flex" }}
+									className="flex"
 									onClick={(e: React.MouseEvent) => {
 										e.preventDefault()
 										e.stopPropagation()
@@ -502,25 +456,9 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									<div
 										onClick={(e) => e.stopPropagation()}
 										onMouseDown={(e) => e.stopPropagation()}
-										style={{
-											position: "absolute",
-											top: "100%",
-											right: 0,
-											width: "200px",
-											marginTop: "4px",
-											backgroundColor: "var(--vscode-editor-background)",
-											border: "1px solid var(--vscode-input-border)",
-											borderRadius: "3px",
-											boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
-											zIndex: 1000,
-										}}>
+										className="absolute top-full right-0 w-[200px] mt-1 bg-vscode-editor-background border border-vscode-input-border rounded shadow-md z-[1000]">
 										<div
-											style={{
-												padding: "8px",
-												cursor: "pointer",
-												color: "var(--vscode-foreground)",
-												fontSize: "13px",
-											}}
+											className="p-2 cursor-pointer text-vscode-foreground text-sm"
 											onMouseDown={(e) => {
 												e.preventDefault() // Prevent blur
 												vscode.postMessage({
@@ -532,13 +470,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 											Edit Global Modes
 										</div>
 										<div
-											style={{
-												padding: "8px",
-												cursor: "pointer",
-												color: "var(--vscode-foreground)",
-												fontSize: "13px",
-												borderTop: "1px solid var(--vscode-input-border)",
-											}}
+											className="p-2 cursor-pointer text-vscode-foreground text-sm border-t border-vscode-input-border"
 											onMouseDown={(e) => {
 												e.preventDefault() // Prevent blur
 												vscode.postMessage({
@@ -560,24 +492,11 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						</div>
 					</div>
 
-					<div
-						style={{
-							fontSize: "13px",
-							color: "var(--vscode-descriptionForeground)",
-							marginBottom: "12px",
-						}}>
+					<div className="text-sm text-vscode-descriptionForeground mb-3">
 						Hit the + to create a new custom mode, or just ask Roo in chat to create one for you!
 					</div>
 
-					<div
-						style={{
-							display: "flex",
-							gap: "8px",
-							alignItems: "center",
-							marginBottom: "12px",
-							flexWrap: "wrap",
-							padding: "4px 0",
-						}}>
+					<div className="flex gap-2 items-center mb-3 flex-wrap py-1">
 						{modes.map((modeConfig) => {
 							const isActive = mode === modeConfig.slug
 							return (
@@ -586,18 +505,11 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									data-testid={`${modeConfig.slug}-tab`}
 									data-active={isActive ? "true" : "false"}
 									onClick={() => handleModeSwitch(modeConfig)}
-									style={{
-										padding: "4px 8px",
-										border: "none",
-										background: isActive ? "var(--vscode-button-background)" : "none",
-										color: isActive
-											? "var(--vscode-button-foreground)"
-											: "var(--vscode-foreground)",
-										cursor: "pointer",
-										opacity: isActive ? 1 : 0.8,
-										borderRadius: "3px",
-										fontWeight: "bold",
-									}}>
+									className={`px-2 py-1 border-none rounded cursor-pointer font-bold ${
+										isActive
+											? "bg-vscode-button-background text-vscode-button-foreground opacity-100"
+											: "bg-transparent text-vscode-foreground opacity-80"
+									}`}>
 									{modeConfig.name}
 								</button>
 							)
@@ -608,10 +520,10 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 				<div style={{ marginBottom: "20px" }}>
 					{/* Only show name and delete for custom modes */}
 					{mode && findModeBySlug(mode, customModes) && (
-						<div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
-							<div style={{ flex: 1 }}>
-								<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Name</div>
-								<div style={{ display: "flex", gap: "8px" }}>
+						<div className="flex gap-3 mb-4">
+							<div className="flex-1">
+								<div className="font-bold mb-1">Name</div>
+								<div className="flex gap-2">
 									<VSCodeTextField
 										value={getModeProperty(findModeBySlug(mode, customModes), "name") ?? ""}
 										onChange={(e: Event | React.FormEvent<HTMLElement>) => {
@@ -627,7 +539,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 												})
 											}
 										}}
-										style={{ width: "100%" }}
+										className="w-full"
 									/>
 									<VSCodeButton
 										appearance="icon"
@@ -645,14 +557,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						</div>
 					)}
 					<div style={{ marginBottom: "16px" }}>
-						<div
-							style={{
-								display: "flex",
-								justifyContent: "space-between",
-								alignItems: "center",
-								marginBottom: "4px",
-							}}>
-							<div style={{ fontWeight: "bold" }}>Role Definition</div>
+						<div className="flex justify-between items-center mb-1">
+							<div className="font-bold">Role Definition</div>
 							{!findModeBySlug(mode, customModes) && (
 								<VSCodeButton
 									appearance="icon"
@@ -668,12 +574,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								</VSCodeButton>
 							)}
 						</div>
-						<div
-							style={{
-								fontSize: "13px",
-								color: "var(--vscode-descriptionForeground)",
-								marginBottom: "8px",
-							}}>
+						<div className="text-sm text-vscode-descriptionForeground mb-2">
 							Define Roo's expertise and personality for this mode. This description shapes how Roo
 							presents itself and approaches tasks.
 						</div>
@@ -722,34 +623,23 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 											text: value,
 										})
 									}}
-									style={{ width: "100%" }}>
+									className="w-full">
 									{(listApiConfigMeta || []).map((config) => (
 										<VSCodeOption key={config.id} value={config.name}>
 											{config.name}
 										</VSCodeOption>
 									))}
 								</VSCodeDropdown>
-								<div
-									style={{
-										fontSize: "12px",
-										marginTop: "5px",
-										color: "var(--vscode-descriptionForeground)",
-									}}>
+								<div className="text-xs mt-1.5 text-vscode-descriptionForeground">
 									Select which API configuration to use for this mode
 								</div>
 							</div>
 						</div>
 
 						{/* Show tools for all modes */}
-						<div style={{ marginBottom: "16px" }}>
-							<div
-								style={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "center",
-									marginBottom: "4px",
-								}}>
-								<div style={{ fontWeight: "bold" }}>Available Tools</div>
+						<div className="mb-4">
+							<div className="flex justify-between items-center mb-1">
+								<div className="font-bold">Available Tools</div>
 								{findModeBySlug(mode, customModes) && (
 									<VSCodeButton
 										appearance="icon"
@@ -761,22 +651,12 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								)}
 							</div>
 							{!findModeBySlug(mode, customModes) && (
-								<div
-									style={{
-										fontSize: "13px",
-										color: "var(--vscode-descriptionForeground)",
-										marginBottom: "8px",
-									}}>
+								<div className="text-sm text-vscode-descriptionForeground mb-2">
 									Tools for built-in modes cannot be modified
 								</div>
 							)}
 							{isToolsEditMode && findModeBySlug(mode, customModes) ? (
-								<div
-									style={{
-										display: "grid",
-										gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-										gap: "8px",
-									}}>
+								<div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
 									{availableGroups.map((group) => {
 										const currentMode = getCurrentMode()
 										const isCustomMode = findModeBySlug(mode, customModes)
@@ -793,12 +673,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 												disabled={!isCustomMode}>
 												{GROUP_DISPLAY_NAMES[group]}
 												{group === "edit" && (
-													<div
-														style={{
-															fontSize: "12px",
-															color: "var(--vscode-descriptionForeground)",
-															marginTop: "2px",
-														}}>
+													<div className="text-xs text-vscode-descriptionForeground mt-0.5">
 														Allowed files:{" "}
 														{(() => {
 															const currentMode = getCurrentMode()
@@ -821,13 +696,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									})}
 								</div>
 							) : (
-								<div
-									style={{
-										fontSize: "13px",
-										color: "var(--vscode-foreground)",
-										marginBottom: "8px",
-										lineHeight: "1.4",
-									}}>
+								<div className="text-sm text-vscode-foreground mb-2 leading-relaxed">
 									{(() => {
 										const currentMode = getCurrentMode()
 										const enabledGroups = currentMode?.groups || []
@@ -1225,12 +1094,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							</div>
 							<div style={{ marginBottom: "16px" }}>
 								<div style={{ fontWeight: "bold", marginBottom: "4px" }}>Save Location</div>
-								<div
-									style={{
-										fontSize: "13px",
-										color: "var(--vscode-descriptionForeground)",
-										marginBottom: "8px",
-									}}>
+								<div className="text-sm text-vscode-descriptionForeground mb-2">
 									Choose where to save this mode. Project-specific modes take precedence over global
 									modes.
 								</div>
@@ -1254,12 +1118,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 									</VSCodeRadio>
 									<VSCodeRadio value="project">
 										Project-specific (.roomodes)
-										<div
-											style={{
-												fontSize: "12px",
-												color: "var(--vscode-descriptionForeground)",
-												marginTop: "2px",
-											}}>
+										<div className="text-xs text-vscode-descriptionForeground mt-0.5">
 											Only available in this workspace, takes precedence over global
 										</div>
 									</VSCodeRadio>
