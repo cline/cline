@@ -121,6 +121,51 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.editCodeWithPrompt", async () => {
+			const editor = vscode.window.activeTextEditor
+			if (!editor) {
+				vscode.window.showWarningMessage("No active editor found.")
+				return
+			}
+
+			const selection = editor.selection
+			if (selection.isEmpty) {
+				vscode.window.showWarningMessage("No text selected.")
+				return
+			}
+
+			const selectedText = editor.document.getText(selection)
+			const fullFileContent = editor.document.getText()
+			const filePath = editor.document.fileName
+			const languageId = editor.document.languageId
+
+			// Get edit instruction from user
+			const editInstruction = await vscode.window.showInputBox({
+				prompt: "What changes would you like to make to the selected code?",
+				placeHolder: "e.g., Refactor this code to be more efficient",
+			})
+
+			if (!editInstruction) {
+				return // User cancelled the input
+			}
+
+			// Format the task message with code context
+			const taskMessage = `Please help modify this code:
+Selected code:
+\`\`\`${languageId}
+${selectedText}
+\`\`\`
+Instruction: ${editInstruction}
+File context: @/${vscode.workspace.asRelativePath(filePath)}
+Don't Do anything else, it just simple in-file change just do the task and complete the task, don't ask for testing, directly use task completion tool
+`
+
+			// Initialize a new task with the code editing request
+			await sidebarProvider.initClineWithTask(taskMessage)
+		}),
+	)
+
 	/*
 	We use the text document content provider API to show the left side for diff view by creating a virtual document for the original content. This makes it readonly so users know to edit the right side if they want to keep their changes.
 
