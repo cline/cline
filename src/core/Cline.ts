@@ -1303,7 +1303,7 @@ export class Cline {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			const combinedRulesInstructions = [clineRulesFileInstructions, clineRulesLocalFileInstructions]
 				.filter(Boolean)
-				.join('\n\n')
+				.join("\n\n")
 			systemPrompt += addUserInstructions(settingsCustomInstructions, combinedRulesInstructions, clineIgnoreInstructions)
 		}
 
