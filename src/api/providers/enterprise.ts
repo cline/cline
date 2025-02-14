@@ -77,7 +77,7 @@ export abstract class EnterpriseHandler implements ApiHandler {
 	 */
 	protected async *processStream(stream: AnthropicStream<RawMessageStreamEvent>): ApiStream {
 		for await (const chunk of stream) {
-			return this.processChunk(chunk)
+			yield this.processChunk(chunk)
 		}
 	}
 
