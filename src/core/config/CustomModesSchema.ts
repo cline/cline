@@ -29,22 +29,19 @@ const GroupOptionsSchema = z.object({
 const GroupEntrySchema = z.union([ToolGroupSchema, z.tuple([ToolGroupSchema, GroupOptionsSchema])])
 
 // Schema for array of groups
-const GroupsArraySchema = z
-	.array(GroupEntrySchema)
-	.min(1, "At least one tool group is required")
-	.refine(
-		(groups) => {
-			const seen = new Set()
-			return groups.every((group) => {
-				// For tuples, check the group name (first element)
-				const groupName = Array.isArray(group) ? group[0] : group
-				if (seen.has(groupName)) return false
-				seen.add(groupName)
-				return true
-			})
-		},
-		{ message: "Duplicate groups are not allowed" },
-	)
+const GroupsArraySchema = z.array(GroupEntrySchema).refine(
+	(groups) => {
+		const seen = new Set()
+		return groups.every((group) => {
+			// For tuples, check the group name (first element)
+			const groupName = Array.isArray(group) ? group[0] : group
+			if (seen.has(groupName)) return false
+			seen.add(groupName)
+			return true
+		})
+	},
+	{ message: "Duplicate groups are not allowed" },
+)
 
 // Schema for mode configuration
 export const CustomModeSchema = z.object({

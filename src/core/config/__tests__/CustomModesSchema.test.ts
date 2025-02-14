@@ -95,17 +95,6 @@ describe("CustomModeSchema", () => {
 			expect(() => validateCustomMode(invalidGroupMode)).toThrow(ZodError)
 		})
 
-		test("rejects empty groups array", () => {
-			const invalidMode = {
-				slug: "123e4567-e89b-12d3-a456-426614174000",
-				name: "Test Mode",
-				roleDefinition: "Test role definition",
-				groups: [] as const,
-			} satisfies ModeConfig
-
-			expect(() => validateCustomMode(invalidMode)).toThrow("At least one tool group is required")
-		})
-
 		test("handles null and undefined gracefully", () => {
 			expect(() => validateCustomMode(null)).toThrow(ZodError)
 			expect(() => validateCustomMode(undefined)).toThrow(ZodError)
@@ -178,17 +167,6 @@ describe("CustomModeSchema", () => {
 			}
 
 			expect(() => CustomModeSchema.parse(modeWithDuplicates)).toThrow(/Duplicate groups/)
-		})
-
-		it("requires at least one group", () => {
-			const modeWithNoGroups = {
-				slug: "test",
-				name: "Test",
-				roleDefinition: "Test",
-				groups: [],
-			}
-
-			expect(() => CustomModeSchema.parse(modeWithNoGroups)).toThrow(/At least one tool group is required/)
 		})
 	})
 })
