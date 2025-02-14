@@ -22,8 +22,99 @@ jobs:
     test:
         uses: ./.github/workflows/test.yml
 
+    test-scripts:
+        name: Test Release Scripts
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.x"
+
+            - name: Install Dependencies
+              run: |
+                  pip install requests
+                  pip install pytest
+                  pip install pytest-cov
+
+            - name: Run Tests
+              run: |
+                  cd .github/scripts
+                  python -m pytest test_*.py --cov=. --cov-report=term-missing
+
+    prepare:
+        needs: [test, test-scripts]
+        name: Prepare Release
+        runs-on: ubuntu-latest
+        outputs:
+            new_version: ${{ steps.version.outputs.new_version }}
+            has_changes: ${{ steps.version.outputs.has_changes }}
+            release_notes: ${{ steps.notes.outputs.release_notes }}
+
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.x"
+
+            - name: Install Python Dependencies
+              run: |
+                  pip install requests
+
+            - name: Determine Version
+              id: version
+              run: |
+                  python .github/scripts/version_manager.py \
+                    --release-type ${{ github.event.inputs.release-type }} \
+                    --github-output $GITHUB_OUTPUT
+
+            - name: Check for Changes
+              if: steps.version.outputs.has_changes != 'true'
+              run: |
+                  echo "No changes detected since last release. Skipping release process."
+                  exit 0
+
+            - name: Generate Release Notes
+              id: notes
+              env:
+                  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+              run: |
+                  python .github/scripts/generate_release_notes.py \
+                    --release-type ${{ github.event.inputs.release-type }} \
+                    --version ${{ steps.version.outputs.new_version }} \
+                    --changesets '${{ steps.version.outputs.changesets }}' \
+                    --github-output $GITHUB_OUTPUT
+
+            - name: Update CHANGELOG.md
+              run: |
+                  python .github/scripts/overwrite_changeset_changelog.py \
+                    --version ${{ steps.version.outputs.new_version }} \
+                    --content "${{ steps.notes.outputs.release_notes }}"
+
+            - name: Update package.json Version
+              run: |
+                  VERSION=${{ steps.version.outputs.new_version }}
+                  # Remove v prefix for package.json
+                  VERSION=${VERSION#v}
+                  npm version $VERSION --no-git-tag-version
+
+            - name: Commit Changes
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  git add CHANGELOG.md package.json
+                  git commit -m "Release ${{ steps.version.outputs.new_version }}"
+                  git push
+
     publish:
-        needs: test
+        needs: prepare
+        if: needs.prepare.outputs.has_changes == 'true'
         name: Publish Extension
         runs-on: ubuntu-latest
         environment: publish
@@ -63,17 +154,9 @@ jobs:
             - name: Install Publishing Tools
               run: npm install -g vsce ovsx
 
-            - name: Get Version
-              id: get_version
-              run: |
-                  VERSION=$(node -p "require('./package.json').version")
-                  echo "version=$VERSION" >> $GITHUB_OUTPUT
-
             - name: Create Git Tag
-              id: create_tag
               run: |
-                  VERSION=v${{ steps.get_version.outputs.version }}
-                  echo "tag=$VERSION" >> $GITHUB_OUTPUT
+                  VERSION=${{ needs.prepare.outputs.new_version }}
                   echo "Tagging with $VERSION"
                   git tag "$VERSION"
                   git push origin "$VERSION"
@@ -84,32 +167,24 @@ jobs:
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
               run: |
                   # Required to generate the .vsix
-                  vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"
+                  VERSION=${{ needs.prepare.outputs.new_version }}
+                  VERSION=${VERSION#v}  # Remove v prefix for package name
+                  vsce package --out "cline-${VERSION}.vsix"
 
                   if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
                     npm run publish:marketplace:prerelease
-                    echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
+                    echo "Successfully published pre-release version ${VERSION} to VS Code Marketplace and Open VSX Registry"
                   else
                     npm run publish:marketplace
-                    echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
+                    echo "Successfully published release version ${VERSION} to VS Code Marketplace and Open VSX Registry"
                   fi
-
-            # - name: Get Changelog Entry
-            #   id: changelog
-            #   uses: mindsers/changelog-reader-action@v2
-            #   with:
-            #       # This expects a standard Keep a Changelog format
-            #       # "latest" means it will read whichever is the most recent version
-            #       # set in "## [1.2.3] - 2025-01-28" style
-            #       version: latest
 
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
               with:
-                  tag_name: ${{ steps.create_tag.outputs.tag }}
+                  tag_name: ${{ needs.prepare.outputs.new_version }}
                   files: "*.vsix"
-                  # body: ${{ steps.changelog.outputs.content }}
-                  generate_release_notes: true
+                  body: ${{ needs.prepare.outputs.release_notes }}
                   prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
