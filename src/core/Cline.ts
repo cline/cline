@@ -3112,11 +3112,14 @@ export class Cline {
 		}
 
 		details += "\n\n# VSCode Open Tabs"
+		const { maxOpenTabsContext } = (await this.providerRef.deref()?.getState()) ?? {}
+		const maxTabs = maxOpenTabsContext ?? 20
 		const openTabs = vscode.window.tabGroups.all
 			.flatMap((group) => group.tabs)
 			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
 			.filter(Boolean)
 			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
+			.slice(0, maxTabs)
 			.join("\n")
 		if (openTabs) {
 			details += `\n${openTabs}`

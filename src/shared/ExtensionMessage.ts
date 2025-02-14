@@ -128,6 +128,7 @@ export interface ExtensionState {
 	autoApprovalEnabled?: boolean
 	customModes: ModeConfig[]
 	toolRequirements?: Record<string, boolean> // Map of tool names to their requirements (e.g. {"apply_diff": true} if diffEnabled)
+	maxOpenTabsContext: number // Maximum number of VSCode open tabs to include in context (0-500)
 }
 
 export interface ClineMessage {

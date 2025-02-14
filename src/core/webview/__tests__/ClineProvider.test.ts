@@ -351,6 +351,7 @@ describe("ClineProvider", () => {
 			mode: defaultModeSlug,
 			customModes: [],
 			experiments: experimentDefault,
+			maxOpenTabsContext: 20,
 		}
 
 		const message: ExtensionMessage = {
