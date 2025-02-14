@@ -1,45 +1,36 @@
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { fromIni } from "@aws-sdk/credential-providers"
+import { EnterpriseHandler } from "./enterprise"
 
-// https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
-export class AwsBedrockHandler implements ApiHandler {
-	private options: ApiHandlerOptions
-	private client: AnthropicBedrock | any
-	private initializationPromise: Promise<void>
-
-	constructor(options: ApiHandlerOptions) {
-		this.options = options
-		this.initializationPromise = this.initializeClient()
-	}
-
-	private async initializeClient() {
-		let clientConfig: any = {
+/**
+ * Handles interactions with the Anthropic Bedrock service using AWS credentials.
+ */
+export class AwsBedrockHandler extends EnterpriseHandler {
+	/**
+	 * Initializes the AnthropicBedrock client with AWS credentials.
+	 * @returns A promise that resolves when the client is initialized.
+	 */
+	async initialize() {
+		const clientConfig: any = {
 			awsRegion: this.options.awsRegion || "us-east-1",
 		}
+
 		try {
+			// Use AWS profile credentials if specified.
 			if (this.options.awsUseProfile) {
-				// Use profile-based credentials if enabled
-				// Use named profile, defaulting to 'default' if not specified
-				var credentials: any
-				if (this.options.awsProfile) {
-					credentials = await fromIni({
-						profile: this.options.awsProfile,
-						ignoreCache: true,
-					})()
-				} else {
-					credentials = await fromIni({
-						ignoreCache: true,
-					})()
-				}
+				const credentials = await fromIni({
+					profile: this.options.awsProfile || "default",
+					ignoreCache: true,
+				})()
 				clientConfig.awsAccessKey = credentials.accessKeyId
 				clientConfig.awsSecretKey = credentials.secretAccessKey
 				clientConfig.awsSessionToken = credentials.sessionToken
-			} else if (this.options.awsAccessKey && this.options.awsSecretKey) {
-				// Use direct credentials if provided
+			}
+			// Use provided AWS access key and secret key if specified.
+			else if (this.options.awsAccessKey && this.options.awsSecretKey) {
 				clientConfig.awsAccessKey = this.options.awsAccessKey
 				clientConfig.awsSecretKey = this.options.awsSecretKey
 				if (this.options.awsSessionToken) {
@@ -50,31 +41,18 @@ export class AwsBedrockHandler implements ApiHandler {
 			console.error("Failed to initialize Bedrock client:", error)
 			throw error
 		} finally {
-			this.client = new AnthropicBedrock(clientConfig)
+			return new AnthropicBedrock(clientConfig)
 		}
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		// cross region inference requires prefixing the model id with the region
-		let modelId: string
-		if (this.options.awsUseCrossRegionInference) {
-			let regionPrefix = (this.options.awsRegion || "").slice(0, 3)
-			switch (regionPrefix) {
-				case "us-":
-					modelId = `us.${this.getModel().id}`
-					break
-				case "eu-":
-					modelId = `eu.${this.getModel().id}`
-					break
-				default:
-					// cross region inference is not supported in this region, falling back to default model
-					modelId = this.getModel().id
-					break
-			}
-		} else {
-			modelId = this.getModel().id
-		}
-
+	/**
+	 * Creates a message stream to the Anthropic Bedrock service.
+	 * @param systemPrompt - The system prompt to initialize the conversation.
+	 * @param messages - An array of message parameters.
+	 * @returns An asynchronous generator yielding ApiStream events.
+	 */
+	async *createEnterpriseMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const modelId = this.getModelId()
 		const stream = await this.client.messages.create({
 			model: modelId,
 			max_tokens: this.getModel().info.maxTokens || 8192,
@@ -83,63 +61,76 @@ export class AwsBedrockHandler implements ApiHandler {
 			messages,
 			stream: true,
 		})
-		for await (const chunk of stream) {
-			switch (chunk.type) {
-				case "message_start":
-					const usage = chunk.message.usage
-					yield {
-						type: "usage",
-						inputTokens: usage.input_tokens || 0,
-						outputTokens: usage.output_tokens || 0,
-					}
-					break
-				case "message_delta":
-					yield {
-						type: "usage",
-						inputTokens: 0,
-						outputTokens: chunk.usage.output_tokens || 0,
-					}
-					break
 
-				case "content_block_start":
-					switch (chunk.content_block.type) {
-						case "text":
-							if (chunk.index > 0) {
-								yield {
-									type: "text",
-									text: "\n",
-								}
-							}
-							yield {
-								type: "text",
-								text: chunk.content_block.text,
-							}
-							break
+		return this.processStream(stream)
+	}
+
+	/**
+	 * Processes each chunk of the stream and yields the appropriate ApiStream events.
+	 * @param chunk - The chunk of data received from the stream.
+	 * @returns An asynchronous generator yielding ApiStream events.
+	 */
+	async *processChunk(chunk: any): ApiStream {
+		switch (chunk.type) {
+			case "message_start":
+				yield {
+					type: "usage",
+					inputTokens: chunk.message.usage.input_tokens || 0,
+					outputTokens: chunk.message.usage.output_tokens || 0,
+				}
+				break
+			case "message_delta":
+				yield {
+					type: "usage",
+					inputTokens: 0,
+					outputTokens: chunk.usage.output_tokens || 0,
+				}
+				break
+			case "content_block_start":
+				if (chunk.content_block.type === "text") {
+					if (chunk.index > 0) {
+						yield { type: "text", text: "\n" }
 					}
-					break
-				case "content_block_delta":
-					switch (chunk.delta.type) {
-						case "text_delta":
-							yield {
-								type: "text",
-								text: chunk.delta.text,
-							}
-							break
-					}
-					break
-			}
+					yield { type: "text", text: chunk.content_block.text }
+				}
+				break
+			case "content_block_delta":
+				if (chunk.delta.type === "text_delta") {
+					yield { type: "text", text: chunk.delta.text }
+				}
+				break
 		}
 	}
 
+	/**
+	 * Determines the model ID to use, considering cross-region inference if specified.
+	 * @returns A string representing the model ID.
+	 */
+	private getModelId(): string {
+		if (this.options.awsUseCrossRegionInference) {
+			const regionPrefix = (this.options.awsRegion || "").slice(0, 3)
+			switch (regionPrefix) {
+				case "us-":
+					return `us.${this.getModel().id}`
+				case "eu-":
+					return `eu.${this.getModel().id}`
+				default:
+					return this.getModel().id
+			}
+		}
+		return this.getModel().id
+	}
+
+	/**
+	 * Retrieves the model information based on the provided or default model ID.
+	 * @returns An object containing the model ID and model information.
+	 */
 	getModel(): { id: BedrockModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in bedrockModels) {
-			const id = modelId as BedrockModelId
-			return { id, info: bedrockModels[id] }
+			// Return the model information for the specified model ID
+			return { id: modelId as BedrockModelId, info: bedrockModels[modelId as BedrockModelId] }
 		}
-		return {
-			id: bedrockDefaultModelId,
-			info: bedrockModels[bedrockDefaultModelId],
-		}
+		return { id: bedrockDefaultModelId, info: bedrockModels[bedrockDefaultModelId] }
 	}
 }
