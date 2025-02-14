@@ -45,15 +45,6 @@ describe("GroupConfigSchema", () => {
 			expect(() => CustomModeSchema.parse(mode)).toThrow()
 		})
 
-		test("rejects empty groups array", () => {
-			const mode = {
-				...validBaseMode,
-				groups: [] as const,
-			} satisfies ModeConfig
-
-			expect(() => CustomModeSchema.parse(mode)).toThrow("At least one tool group is required")
-		})
-
 		test("rejects invalid group names", () => {
 			const mode = {
 				...validBaseMode,

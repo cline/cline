@@ -246,7 +246,7 @@ describe("ClineProvider", () => {
 		// Mock CustomModesManager
 		const mockCustomModesManager = {
 			updateCustomMode: jest.fn().mockResolvedValue(undefined),
-			getCustomModes: jest.fn().mockResolvedValue({}),
+			getCustomModes: jest.fn().mockResolvedValue({ customModes: [] }),
 			dispose: jest.fn(),
 		}
 
@@ -1049,7 +1049,7 @@ describe("ClineProvider", () => {
 				"900x600", // browserViewportSize
 				"code", // mode
 				{}, // customModePrompts
-				{}, // customModes
+				{ customModes: [] }, // customModes
 				undefined, // effectiveInstructions
 				undefined, // preferredLanguage
 				true, // diffEnabled
@@ -1102,7 +1102,7 @@ describe("ClineProvider", () => {
 				"900x600", // browserViewportSize
 				"code", // mode
 				{}, // customModePrompts
-				{}, // customModes
+				{ customModes: [] }, // customModes
 				undefined, // effectiveInstructions
 				undefined, // preferredLanguage
 				false, // diffEnabled
@@ -1220,12 +1220,14 @@ describe("ClineProvider", () => {
 			provider.customModesManager = {
 				updateCustomMode: jest.fn().mockResolvedValue(undefined),
 				getCustomModes: jest.fn().mockResolvedValue({
-					"test-mode": {
-						slug: "test-mode",
-						name: "Test Mode",
-						roleDefinition: "Updated role definition",
-						groups: ["read"] as const,
-					},
+					customModes: [
+						{
+							slug: "test-mode",
+							name: "Test Mode",
+							roleDefinition: "Updated role definition",
+							groups: ["read"] as const,
+						},
+					],
 				}),
 				dispose: jest.fn(),
 			} as any
@@ -1251,27 +1253,29 @@ describe("ClineProvider", () => {
 			)
 
 			// Verify state was updated
-			expect(mockContext.globalState.update).toHaveBeenCalledWith(
-				"customModes",
-				expect.objectContaining({
-					"test-mode": expect.objectContaining({
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("customModes", {
+				customModes: [
+					expect.objectContaining({
 						slug: "test-mode",
 						roleDefinition: "Updated role definition",
 					}),
-				}),
-			)
+				],
+			})
 
 			// Verify state was posted to webview
+			// Verify state was posted to webview with correct format
 			expect(mockPostMessage).toHaveBeenCalledWith(
 				expect.objectContaining({
 					type: "state",
 					state: expect.objectContaining({
-						customModes: expect.objectContaining({
-							"test-mode": expect.objectContaining({
-								slug: "test-mode",
-								roleDefinition: "Updated role definition",
-							}),
-						}),
+						customModes: {
+							customModes: [
+								expect.objectContaining({
+									slug: "test-mode",
+									roleDefinition: "Updated role definition",
+								}),
+							],
+						},
 					}),
 				}),
 			)

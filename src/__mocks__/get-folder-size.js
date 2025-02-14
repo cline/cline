@@ -4,3 +4,10 @@ module.exports = async function getFolderSize() {
 		errors: [],
 	}
 }
+
+module.exports.loose = async function getFolderSizeLoose() {
+	return {
+		size: 1000,
+		errors: [],
+	}
+}

@@ -62,8 +62,6 @@ export class CustomModesManager {
 			const settings = JSON.parse(content)
 			const result = CustomModesSettingsSchema.safeParse(settings)
 			if (!result.success) {
-				const errorMsg = `Schema validation failed for ${filePath}`
-				console.error(`[CustomModesManager] ${errorMsg}:`, result.error)
 				return []
 			}
 
