@@ -92,6 +92,7 @@ export interface WebviewMessage {
 		| "openCustomModesSettings"
 		| "checkpointDiff"
 		| "checkpointRestore"
+		| "maxOpenTabsContext"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
