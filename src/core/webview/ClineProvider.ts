@@ -440,16 +440,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		try {
 			// First check if we already have this MCP server installed
 			const servers = this.mcpHub?.getServers() || []
-			const isInstalled = servers.some((server: McpServer) => {
-				try {
-					const config = JSON.parse(server.config)
-					const serverConfig = config.mcpServers[server.name]
-					const githubUrl = serverConfig.args?.find((arg: string) => arg.includes("github.com"))
-					return githubUrl?.includes(mcpId)
-				} catch {
-					return false
-				}
-			})
+			const isInstalled = servers.some((server: McpServer) => server.name === mcpId)
 
 			if (isInstalled) {
 				throw new Error("This MCP server is already installed")
@@ -488,7 +479,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			})
 
 			// Create task with context from README
-			const task = `Set up the MCP server from ${mcpDetails.githubUrl}. Here's some additional context from the README:\n\n${mcpDetails.readmeContent}`
+			const task = `Set up the MCP server from ${mcpDetails.githubUrl}. Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json. Here's some additional context from the README:\n\n${mcpDetails.readmeContent}`
 
 			// Initialize task and show chat view
 			await this.initClineWithTask(task)

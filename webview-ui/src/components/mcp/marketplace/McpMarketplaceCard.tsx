@@ -9,17 +9,7 @@ interface McpMarketplaceCardProps {
 }
 
 const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps) => {
-	const isInstalled = installedServers.some((server) => {
-		try {
-			const config = JSON.parse(server.config)
-			const serverConfig = config.mcpServers[server.name]
-			// Extract GitHub URL from args if it's an npm package
-			const githubUrl = serverConfig.args?.find((arg: string) => arg.includes("github.com"))
-			return githubUrl?.includes(item.mcpId) || githubUrl?.includes(item.githubUrl)
-		} catch {
-			return false
-		}
-	})
+	const isInstalled = installedServers.some((server) => server.name === item.mcpId)
 	const [isDownloading, setIsDownloading] = useState(false)
 
 	useEffect(() => {
