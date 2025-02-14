@@ -4,12 +4,9 @@ import path from "path"
 
 import simpleGit, { SimpleGit, CleanOptions } from "simple-git"
 
-export type CheckpointServiceOptions = {
-	taskId: string
-	git?: SimpleGit
-	baseDir: string
-	log?: (message: string) => void
-}
+import { CheckpointStrategy, CheckpointService, CheckpointServiceOptions } from "./types"
+
+export interface LocalCheckpointServiceOptions extends CheckpointServiceOptions {}
 
 /**
  * The CheckpointService provides a mechanism for storing a snapshot of the
@@ -49,29 +46,26 @@ export type CheckpointServiceOptions = {
  *    and it's not clear whether it's worth it.
  */
 
-export class CheckpointService {
+export class LocalCheckpointService implements CheckpointService {
 	private static readonly USER_NAME = "Roo Code"
 	private static readonly USER_EMAIL = "support@roocode.com"
 	private static readonly CHECKPOINT_BRANCH = "roo-code-checkpoints"
 	private static readonly STASH_BRANCH = "roo-code-stash"
 
-	private _currentCheckpoint?: string
+	public readonly strategy: CheckpointStrategy = "local"
+	public readonly version = 1
 
-	public get currentCheckpoint() {
-		return this._currentCheckpoint
-	}
-
-	private set currentCheckpoint(value: string | undefined) {
-		this._currentCheckpoint = value
+	public get baseHash() {
+		return this._baseHash
 	}
 
 	constructor(
 		public readonly taskId: string,
-		private readonly git: SimpleGit,
-		public readonly baseDir: string,
-		public readonly mainBranch: string,
-		public readonly baseCommitHash: string,
-		public readonly hiddenBranch: string,
+		public readonly git: SimpleGit,
+		public readonly workspaceDir: string,
+		private readonly mainBranch: string,
+		private _baseHash: string,
+		private readonly hiddenBranch: string,
 		private readonly log: (message: string) => void,
 	) {}
 
@@ -83,40 +77,27 @@ export class CheckpointService {
 		}
 	}
 
-	public async getDiff({ from, to }: { from?: string; to: string }) {
+	public async getDiff({ from, to }: { from?: string; to?: string }) {
 		const result = []
 
 		if (!from) {
-			from = this.baseCommitHash
+			from = this.baseHash
 		}
 
 		const { files } = await this.git.diffSummary([`${from}..${to}`])
 
 		for (const file of files.filter((f) => !f.binary)) {
 			const relPath = file.file
-			const absPath = path.join(this.baseDir, relPath)
+			const absPath = path.join(this.workspaceDir, relPath)
+			const before = await this.git.show([`${from}:${relPath}`]).catch(() => "")
 
-			// If modified both before and after will generate content.
-			// If added only after will generate content.
-			// If deleted only before will generate content.
-			let beforeContent = ""
-			let afterContent = ""
-
-			try {
-				beforeContent = await this.git.show([`${from}:${relPath}`])
-			} catch (err) {
-				// File doesn't exist in older commit.
-			}
-
-			try {
-				afterContent = await this.git.show([`${to}:${relPath}`])
-			} catch (err) {
-				// File doesn't exist in newer commit.
-			}
+			const after = to
+				? await this.git.show([`${to}:${relPath}`]).catch(() => "")
+				: await fs.readFile(absPath, "utf8").catch(() => "")
 
 			result.push({
 				paths: { relative: relPath, absolute: absPath },
-				content: { before: beforeContent, after: afterContent },
+				content: { before, after },
 			})
 		}
 
@@ -201,7 +182,7 @@ export class CheckpointService {
 		 *   - Create branch
 		 *   - Change branch
 		 */
-		const stashBranch = `${CheckpointService.STASH_BRANCH}-${Date.now()}`
+		const stashBranch = `${LocalCheckpointService.STASH_BRANCH}-${Date.now()}`
 		await this.git.checkout(["-b", stashBranch])
 		this.log(`[saveCheckpoint] created and checked out ${stashBranch}`)
 
@@ -322,7 +303,7 @@ export class CheckpointService {
 				// If the cherry-pick resulted in an empty commit (e.g., only
 				// deletions) then complete it with --allow-empty.
 				// Otherwise, rethrow the error.
-				if (existsSync(path.join(this.baseDir, ".git/CHERRY_PICK_HEAD"))) {
+				if (existsSync(path.join(this.workspaceDir, ".git/CHERRY_PICK_HEAD"))) {
 					await this.git.raw(["commit", "--allow-empty", "--no-edit"])
 				} else {
 					throw err
@@ -330,7 +311,6 @@ export class CheckpointService {
 			}
 
 			commit = await this.git.revparse(["HEAD"])
-			this.currentCheckpoint = commit
 			this.log(`[saveCheckpoint] cherry-pick commit = ${commit}`)
 		} catch (err) {
 			this.log(
@@ -360,42 +340,42 @@ export class CheckpointService {
 		await this.git.raw(["restore", "--source", commitHash, "--worktree", "--", "."])
 		const duration = Date.now() - startTime
 		this.log(`[restoreCheckpoint] restored checkpoint ${commitHash} in ${duration}ms`)
-		this.currentCheckpoint = commitHash
 	}
 
-	public static async create({ taskId, git, baseDir, log = console.log }: CheckpointServiceOptions) {
-		git = git || simpleGit({ baseDir })
-
+	public static async create({ taskId, workspaceDir, log = console.log }: LocalCheckpointServiceOptions) {
+		const git = simpleGit(workspaceDir)
 		const version = await git.version()
 
 		if (!version?.installed) {
 			throw new Error(`Git is not installed. Please install Git if you wish to use checkpoints.`)
 		}
 
-		if (!baseDir || !existsSync(baseDir)) {
+		if (!workspaceDir || !existsSync(workspaceDir)) {
 			throw new Error(`Base directory is not set or does not exist.`)
 		}
 
-		const { currentBranch, currentSha, hiddenBranch } = await CheckpointService.initRepo({
+		const { currentBranch, currentSha, hiddenBranch } = await LocalCheckpointService.initRepo(git, {
 			taskId,
-			git,
-			baseDir,
+			workspaceDir,
 			log,
 		})
 
 		log(
-			`[CheckpointService] taskId = ${taskId}, baseDir = ${baseDir}, currentBranch = ${currentBranch}, currentSha = ${currentSha}, hiddenBranch = ${hiddenBranch}`,
+			`[create] taskId = ${taskId}, workspaceDir = ${workspaceDir}, currentBranch = ${currentBranch}, currentSha = ${currentSha}, hiddenBranch = ${hiddenBranch}`,
 		)
 
-		return new CheckpointService(taskId, git, baseDir, currentBranch, currentSha, hiddenBranch, log)
+		return new LocalCheckpointService(taskId, git, workspaceDir, currentBranch, currentSha, hiddenBranch, log)
 	}
 
-	private static async initRepo({ taskId, git, baseDir, log }: Required<CheckpointServiceOptions>) {
-		const isExistingRepo = existsSync(path.join(baseDir, ".git"))
+	private static async initRepo(
+		git: SimpleGit,
+		{ taskId, workspaceDir, log }: Required<LocalCheckpointServiceOptions>,
+	) {
+		const isExistingRepo = existsSync(path.join(workspaceDir, ".git"))
 
 		if (!isExistingRepo) {
 			await git.init()
-			log(`[initRepo] Initialized new Git repository at ${baseDir}`)
+			log(`[initRepo] Initialized new Git repository at ${workspaceDir}`)
 		}
 
 		const globalUserName = await git.getConfig("user.name", "global")
@@ -410,21 +390,21 @@ export class CheckpointService {
 		// config, and it should not override the global config. To address
 		// this we remove the local user config if it matches the default
 		// user name and email and there's a global config.
-		if (globalUserName.value && localUserName.value === CheckpointService.USER_NAME) {
+		if (globalUserName.value && localUserName.value === LocalCheckpointService.USER_NAME) {
 			await git.raw(["config", "--unset", "--local", "user.name"])
 		}
 
-		if (globalUserEmail.value && localUserEmail.value === CheckpointService.USER_EMAIL) {
+		if (globalUserEmail.value && localUserEmail.value === LocalCheckpointService.USER_EMAIL) {
 			await git.raw(["config", "--unset", "--local", "user.email"])
 		}
 
 		// Only set user config if not already configured.
 		if (!userName) {
-			await git.addConfig("user.name", CheckpointService.USER_NAME)
+			await git.addConfig("user.name", LocalCheckpointService.USER_NAME)
 		}
 
 		if (!userEmail) {
-			await git.addConfig("user.email", CheckpointService.USER_EMAIL)
+			await git.addConfig("user.email", LocalCheckpointService.USER_EMAIL)
 		}
 
 		if (!isExistingRepo) {
@@ -433,7 +413,7 @@ export class CheckpointService {
 			// However, using an empty commit causes problems when restoring
 			// the checkpoint (i.e. the `git restore` command doesn't work
 			// for empty commits).
-			await fs.writeFile(path.join(baseDir, ".gitkeep"), "")
+			await fs.writeFile(path.join(workspaceDir, ".gitkeep"), "")
 			await git.add(".gitkeep")
 			const commit = await git.commit("Initial commit")
 
@@ -447,7 +427,7 @@ export class CheckpointService {
 		const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
 		const currentSha = await git.revparse(["HEAD"])
 
-		const hiddenBranch = `${CheckpointService.CHECKPOINT_BRANCH}-${taskId}`
+		const hiddenBranch = `${LocalCheckpointService.CHECKPOINT_BRANCH}-${taskId}`
 		const branchSummary = await git.branch()
 
 		if (!branchSummary.all.includes(hiddenBranch)) {

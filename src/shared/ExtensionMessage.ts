@@ -107,6 +107,7 @@ export interface ExtensionState {
 	requestDelaySeconds: number
 	rateLimitSeconds: number // Minimum time between successive requests (0 = disabled)
 	uriScheme?: string
+	currentTaskItem?: HistoryItem
 	allowedCommands?: string[]
 	soundEnabled?: boolean
 	soundVolume?: number
@@ -127,6 +128,7 @@ export interface ExtensionState {
 	autoApprovalEnabled?: boolean
 	customModes: ModeConfig[]
 	toolRequirements?: Record<string, boolean> // Map of tool names to their requirements (e.g. {"apply_diff": true} if diffEnabled)
+	maxOpenTabsContext: number // Maximum number of VSCode open tabs to include in context (0-500)
 }
 
 export interface ClineMessage {
