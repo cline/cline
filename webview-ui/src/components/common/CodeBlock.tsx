@@ -120,7 +120,7 @@ const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
 						if (!node.lang) {
 							node.lang = "javascript"
 						} else if (node.lang.includes(".")) {
-							// if the langauge is a file, get the extension
+							// if the language is a file, get the extension
 							node.lang = node.lang.split(".").slice(-1)[0]
 						}
 					})

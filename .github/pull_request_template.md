@@ -21,6 +21,7 @@
 
 -   [ ] Changes are limited to a single feature, bugfix or chore (split larger changes into separate PRs)
 -   [ ] Tests are passing (`npm test`) and code is formatted and linted (`npm run format && npm run lint`)
+-   [ ] I have created a changeset using `npm run changeset` (required for user-facing changes)
 -   [ ] I have reviewed [contributor guidelines](https://github.com/cline/cline/blob/main/CONTRIBUTING.md)
 
 ### Screenshots

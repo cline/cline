@@ -2,6 +2,7 @@ import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
+import { ChatContent } from "./ChatContent"
 
 export interface WebviewMessage {
 	type:
@@ -25,6 +26,7 @@ export interface WebviewMessage {
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
+		| "refreshOpenAiModels"
 		| "refreshOpenAiModels"
 		| "openMcpSettings"
 		| "restartMcpServer"
@@ -54,6 +56,7 @@ export interface WebviewMessage {
 	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
+	chatContent?: ChatContent
 
 	// For toggleToolAutoApprove
 	serverName?: string

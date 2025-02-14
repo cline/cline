@@ -9,6 +9,7 @@ export type ApiProvider =
 	| "gemini"
 	| "openai-native"
 	| "requesty"
+	| "together"
 	| "deepseek"
 	| "qwen"
 	| "mistral"
@@ -18,9 +19,10 @@ export type ApiProvider =
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
+	figmaAccessToken?: string
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
-	figmaAccessToken?: string
+	liteLlmApiKey?: string
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
@@ -30,11 +32,14 @@ export interface ApiHandlerOptions {
 	awsSessionToken?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
+	awsUseProfile?: boolean
+	awsProfile?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
 	openAiApiKey?: string
 	openAiModelId?: string
+	openAiModelInfo?: ModelInfo
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
 	lmStudioModelId?: string
@@ -44,10 +49,13 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	requestyApiKey?: string
 	requestyModelId?: string
+	togetherApiKey?: string
+	togetherModelId?: string
 	qwenApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
+	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 }
 
@@ -449,80 +457,140 @@ export const qwenModels = {
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.0035,
-		outputPrice: 0.007,
-		cacheWritesPrice: 0.0035,
-		cacheReadsPrice: 0.007,
+		inputPrice: 3.5,
+		outputPrice: 7,
+		cacheWritesPrice: 3.5,
+		cacheReadsPrice: 7,
 	},
 	"qwen-plus-latest": {
 		maxTokens: 129_024,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.0008,
-		outputPrice: 0.002,
-		cacheWritesPrice: 0.0004,
-		cacheReadsPrice: 0.001,
+		inputPrice: 0.8,
+		outputPrice: 2,
+		cacheWritesPrice: 0.8,
+		cacheReadsPrice: 0.2,
 	},
 	"qwen-turbo-latest": {
 		maxTokens: 1_000_000,
 		contextWindow: 1_000_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.0003,
-		outputPrice: 0.0006,
-		cacheWritesPrice: 0.00015,
-		cacheReadsPrice: 0.0003,
+		inputPrice: 0.8,
+		outputPrice: 2,
+		cacheWritesPrice: 0.8,
+		cacheReadsPrice: 2,
 	},
 	"qwen-max-latest": {
 		maxTokens: 30_720,
 		contextWindow: 32_768,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.0112,
-		outputPrice: 0.0448,
-		cacheWritesPrice: 0.0056,
-		cacheReadsPrice: 0.0224,
+		inputPrice: 2.4,
+		outputPrice: 9.6,
+		cacheWritesPrice: 2.4,
+		cacheReadsPrice: 9.6,
 	},
 	"qwen-coder-plus": {
 		maxTokens: 129_024,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.0035,
-		outputPrice: 0.007,
-		cacheWritesPrice: 0.0035,
-		cacheReadsPrice: 0.007,
+		inputPrice: 3.5,
+		outputPrice: 7,
+		cacheWritesPrice: 3.5,
+		cacheReadsPrice: 7,
 	},
 	"qwen-plus": {
 		maxTokens: 129_024,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.0008,
-		outputPrice: 0.002,
-		cacheWritesPrice: 0.0004,
-		cacheReadsPrice: 0.001,
+		inputPrice: 0.8,
+		outputPrice: 2,
+		cacheWritesPrice: 0.8,
+		cacheReadsPrice: 0.2,
 	},
 	"qwen-turbo": {
 		maxTokens: 1_000_000,
 		contextWindow: 1_000_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.0003,
-		outputPrice: 0.0006,
-		cacheWritesPrice: 0.00015,
-		cacheReadsPrice: 0.0003,
+		inputPrice: 0.3,
+		outputPrice: 0.6,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.6,
 	},
 	"qwen-max": {
 		maxTokens: 30_720,
 		contextWindow: 32_768,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.0112,
-		outputPrice: 0.0448,
-		cacheWritesPrice: 0.0056,
-		cacheReadsPrice: 0.0224,
+		inputPrice: 2.4,
+		outputPrice: 9.6,
+		cacheWritesPrice: 2.4,
+		cacheReadsPrice: 9.6,
+	},
+	"deepseek-v3": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0.28,
+		cacheWritesPrice: 0.14,
+		cacheReadsPrice: 0.014,
+	},
+	"deepseek-r1": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 2.19,
+		cacheWritesPrice: 0.55,
+		cacheReadsPrice: 0.14,
+	},
+	"qwen-vl-max": {
+		maxTokens: 30_720,
+		contextWindow: 32_768,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3,
+		outputPrice: 9,
+		cacheWritesPrice: 3,
+		cacheReadsPrice: 9,
+	},
+	"qwen-vl-max-latest": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3,
+		outputPrice: 9,
+		cacheWritesPrice: 3,
+		cacheReadsPrice: 9,
+	},
+	"qwen-vl-plus": {
+		maxTokens: 6_000,
+		contextWindow: 8_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 1.5,
+		outputPrice: 4.5,
+		cacheWritesPrice: 1.5,
+		cacheReadsPrice: 4.5,
+	},
+	"qwen-vl-plus-latest": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 1.5,
+		outputPrice: 4.5,
+		cacheWritesPrice: 1.5,
+		cacheReadsPrice: 4.5,
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -610,9 +678,9 @@ export const mistralModels = {
 export type LiteLLMModelId = string
 export const liteLlmDefaultModelId = "gpt-3.5-turbo"
 export const liteLlmModelInfoSaneDefaults: ModelInfo = {
-	maxTokens: 4096,
-	contextWindow: 8192,
-	supportsImages: false,
+	maxTokens: -1,
+	contextWindow: 128_000,
+	supportsImages: true,
 	supportsPromptCache: false,
 	inputPrice: 0,
 	outputPrice: 0,

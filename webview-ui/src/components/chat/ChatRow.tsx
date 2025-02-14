@@ -24,6 +24,7 @@ import Thumbnails from "../common/Thumbnails"
 import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
 import { highlightMentions } from "./TaskHeader"
+import { CheckmarkControl } from "../common/CheckmarkControl"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -59,8 +60,8 @@ const ChatRow = memo(
 				message.ask === "tool" ||
 				message.say === "command" ||
 				message.ask === "command" ||
-				message.say === "completion_result" ||
-				message.ask === "completion_result" ||
+				// message.say === "completion_result" ||
+				// message.ask === "completion_result" ||
 				message.say === "use_mcp_server" ||
 				message.ask === "use_mcp_server")
 
@@ -300,16 +301,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 			default:
 				return [null, null]
 		}
-	}, [
-		type,
-		cost,
-		apiRequestFailedMessage,
-		isCommandExecuting,
-		apiReqCancelReason,
-		isMcpServerResponding,
-		message.text,
-		message.type,
-	])
+	}, [type, cost, apiRequestFailedMessage, isCommandExecuting, apiReqCancelReason, isMcpServerResponding, message.text])
 
 	const headerStyle: React.CSSProperties = {
 		display: "flex",
@@ -759,7 +751,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									}}>
 									{icon}
 									{title}
-									{/* Need to render this everytime since it affects height of row by 2px */}
+									{/* Need to render this every time since it affects height of row by 2px */}
 									<VSCodeBadge
 										style={{
 											opacity: cost != null && cost > 0 ? 1 : 0,
@@ -995,6 +987,53 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									file. Retrying...
 								</div>
 							</div>
+						</>
+					)
+				case "clineignore_error":
+					return (
+						<>
+							<div
+								style={{
+									display: "flex",
+									flexDirection: "column",
+									backgroundColor: "rgba(255, 191, 0, 0.1)",
+									padding: 8,
+									borderRadius: 3,
+									fontSize: 12,
+								}}>
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										marginBottom: 4,
+									}}>
+									<i
+										className="codicon codicon-error"
+										style={{
+											marginRight: 8,
+											fontSize: 18,
+											color: "#FFA500",
+										}}></i>
+									<span
+										style={{
+											fontWeight: 500,
+											color: "#FFA500",
+										}}>
+										Access Denied
+									</span>
+								</div>
+								<div>
+									Cline tried to access <code>{message.text}</code> which is blocked by the{" "}
+									<code>.clineignore</code>
+									file.
+								</div>
+							</div>
+						</>
+					)
+				case "checkpoint_created":
+					return (
+						<>
+							<CheckmarkControl messageTs={message.ts} isCheckpointCheckedOut={message.isCheckpointCheckedOut} />
 						</>
 					)
 				case "completion_result":
