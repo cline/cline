@@ -61,17 +61,35 @@ export class VertexHandler extends EnterpriseHandler {
 		})
 	}
 
-	async *processChunk(chunk: RawMessageStreamEvent): ApiStream {
+	async *processChunk(chunk: any): ApiStream {
 		switch (chunk.type) {
-			case "message": {
-				return chunk.data
-			}
-			case "error": {
-				throw new Error(chunk.data)
-			}
-			default: {
-				throw new Error(`Unexpected chunk type: ${chunk.type}`)
-			}
+			case "message_start":
+				yield {
+					type: "usage",
+					inputTokens: chunk.message.usage.input_tokens || 0,
+					outputTokens: chunk.message.usage.output_tokens || 0,
+				}
+				break
+			case "message_delta":
+				yield {
+					type: "usage",
+					inputTokens: 0,
+					outputTokens: chunk.usage.output_tokens || 0,
+				}
+				break
+			case "content_block_start":
+				if (chunk.content_block.type === "text") {
+					if (chunk.index > 0) {
+						yield { type: "text", text: "\n" }
+					}
+					yield { type: "text", text: chunk.content_block.text }
+				}
+				break
+			case "content_block_delta":
+				if (chunk.delta.type === "text_delta") {
+					yield { type: "text", text: chunk.delta.text }
+				}
+				break
 		}
 	}
 
