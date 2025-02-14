@@ -33,6 +33,8 @@ import {
 	openRouterDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
+	siliconFlowModels,
+	siliconFlowDefaultModelId,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -191,6 +193,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
 					<VSCodeOption value="requesty">Requesty</VSCodeOption>
 					<VSCodeOption value="together">Together</VSCodeOption>
+					<VSCodeOption value="siliconflow">SiliconFlow</VSCodeOption>
 					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
@@ -311,6 +314,37 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									fontSize: "inherit",
 								}}>
 								You can get a DeepSeek API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "siliconflow" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.siliconFlowApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("siliconFlowApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>SiliconFlow API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.siliconFlowApiKey && (
+							<VSCodeLink
+								href="https://cloud.siliconflow.cn/"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a SiliconFlow API key by signing up here.
 							</VSCodeLink>
 						)}
 					</p>
@@ -1150,6 +1184,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
+							{selectedProvider === "siliconflow" && createDropdown(siliconFlowModels)}
 							{selectedProvider === "qwen" && createDropdown(qwenModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 						</DropdownContainer>
@@ -1358,6 +1393,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
 		case "deepseek":
 			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
+		case "siliconflow":
+			return getProviderData(siliconFlowModels, siliconFlowDefaultModelId)
 		case "qwen":
 			return getProviderData(qwenModels, qwenDefaultModelId)
 		case "mistral":
