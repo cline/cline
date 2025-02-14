@@ -452,7 +452,7 @@ export type QwenModelId = keyof typeof qwenModels
 export const qwenDefaultModelId: QwenModelId = "qwen-coder-plus-latest"
 export const qwenModels = {
 	"qwen2.5-coder-32b-instruct": {
-		maxTokens: 129_024,
+		maxTokens: 8_192,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -462,7 +462,7 @@ export const qwenModels = {
 		cacheReadsPrice: 0.006,
 	},
 	"qwen2.5-coder-14b-instruct": {
-		maxTokens: 129_024,
+		maxTokens: 8_192,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -472,7 +472,7 @@ export const qwenModels = {
 		cacheReadsPrice: 0.006,
 	},
 	"qwen2.5-coder-7b-instruct": {
-		maxTokens: 129_024,
+		maxTokens: 8_192,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
@@ -482,14 +482,34 @@ export const qwenModels = {
 		cacheReadsPrice: 0.002,
 	},
 	"qwen2.5-coder-3b-instruct": {
-		maxTokens: 129_024,
-		contextWindow: 131_072,
+		maxTokens: 8_192,
+		contextWindow: 32_768,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.000,
-		outputPrice: 0.000,
-		cacheWritesPrice: 0.000,
-		cacheReadsPrice: 0.000,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		cacheWritesPrice: 0.0,
+		cacheReadsPrice: 0.0,
+	},
+	"qwen2.5-coder-1.5b-instruct": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		cacheWritesPrice: 0.0,
+		cacheReadsPrice: 0.0,
+	},
+	"qwen2.5-coder-0.5b-instruct": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		cacheWritesPrice: 0.0,
+		cacheReadsPrice: 0.0,
 	},
 	"qwen-coder-plus-latest": {
 		maxTokens: 129_024,
