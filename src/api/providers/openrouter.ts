@@ -1,14 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import delay from "delay"
-import delay from "delay"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-import { convertToR1Format } from "../transform/r1-format"
 import { convertToR1Format } from "../transform/r1-format"
 
 export class OpenRouterHandler implements ApiHandler {

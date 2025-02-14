@@ -6,7 +6,6 @@ import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
-import { convertToR1Format } from "../transform/r1-format"
 
 export class OpenAiHandler implements ApiHandler {
 	private options: ApiHandlerOptions

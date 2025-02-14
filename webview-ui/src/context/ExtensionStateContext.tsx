@@ -16,7 +16,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	theme: any
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
-	openAiModels: string[]
 	mcpServers: McpServer[]
 	filePaths: string[]
 	setApiConfiguration: (config: ApiConfiguration) => void

@@ -4,8 +4,6 @@ import fs from "fs/promises"
 import os from "os"
 import crypto from "crypto"
 import { execa } from "execa"
-import crypto from "crypto"
-import { execa } from "execa"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -16,7 +14,6 @@ import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
-import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
 import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
@@ -864,36 +861,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables,
 		)
-	}
-
-	async subscribeEmail(email?: string) {
-		if (!email) {
-			return
-		}
-		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-		if (!emailRegex.test(email)) {
-			vscode.window.showErrorMessage("Please enter a valid email address")
-			return
-		}
-		console.log("Subscribing email:", email)
-		this.postMessageToWebview({ type: "emailSubscribed" })
-		// Currently ignoring errors to this endpoint, but after accounts we'll remove this anyways
-		try {
-			const response = await axios.post(
-				"https://app.cline.bot/api/mailing-list",
-				{
-					email: email,
-				},
-				{
-					headers: {
-						"Content-Type": "application/json",
-					},
-				},
-			)
-			console.log("Email subscribed successfully. Response:", response.data)
-		} catch (error) {
-			console.error("Failed to subscribe email:", error)
-		}
 	}
 
 	async subscribeEmail(email?: string) {
