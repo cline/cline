@@ -1,10 +1,18 @@
-import { VSCodeButton, VSCodeLink, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeButton,
+	VSCodeLink,
+	VSCodePanels,
+	VSCodePanelTab,
+	VSCodePanelView,
+	VSCodeDivider,
+} from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { vscode } from "../../utils/vscode"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { McpServer } from "../../../../src/shared/mcp"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
+import McpMarketplaceView from "./marketplace/McpMarketplaceView"
 
 type McpViewProps = {
 	onDone: () => void
@@ -12,6 +20,7 @@ type McpViewProps = {
 
 const McpView = ({ onDone }: McpViewProps) => {
 	const { mcpServers: servers } = useExtensionState()
+	const [activeTab, setActiveTab] = useState(servers.length === 0 ? "marketplace" : "installed")
 
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
@@ -96,72 +105,103 @@ const McpView = ({ onDone }: McpViewProps) => {
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
 
-			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
-				<div
-					style={{
-						color: "var(--vscode-foreground)",
-						fontSize: "13px",
-						marginBottom: "16px",
-						marginTop: "5px",
-					}}>
-					The{" "}
-					<VSCodeLink href="https://github.com/modelcontextprotocol" style={{ display: "inline" }}>
-						Model Context Protocol
-					</VSCodeLink>{" "}
-					enables communication with locally running MCP servers that provide additional tools and resources to extend
-					Cline's capabilities. You can use{" "}
-					<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
-						community-made servers
-					</VSCodeLink>{" "}
-					or ask Cline to create new tools specific to your workflow (e.g., "add a tool that gets the latest npm docs").{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
-						See a demo here.
-					</VSCodeLink>
-				</div>
+			<div style={{ flex: 1, overflow: "auto" }}>
+				<VSCodePanels activeid={activeTab} onchange={(e: any) => setActiveTab(e.target.activeid)}>
+					<VSCodePanelTab id="installed">Installed</VSCodePanelTab>
+					<VSCodePanelTab id="marketplace">Marketplace</VSCodePanelTab>
+					<VSCodePanelTab id="settings">Settings</VSCodePanelTab>
 
-				{servers.length > 0 && (
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							gap: "10px",
-						}}>
-						{servers.map((server) => (
-							<ServerRow key={server.name} server={server} />
-						))}
-					</div>
-				)}
+					<VSCodePanelView id="installed">
+						<div style={{ padding: "0 20px" }}>
+							<div
+								style={{
+									color: "var(--vscode-foreground)",
+									fontSize: "13px",
+									marginBottom: "16px",
+									marginTop: "5px",
+								}}>
+								The{" "}
+								<VSCodeLink href="https://github.com/modelcontextprotocol" style={{ display: "inline" }}>
+									Model Context Protocol
+								</VSCodeLink>{" "}
+								enables communication with locally running MCP servers that provide additional tools and resources
+								to extend Cline's capabilities. You can use{" "}
+								<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
+									community-made servers
+								</VSCodeLink>{" "}
+								or ask Cline to create new tools specific to your workflow (e.g., "add a tool that gets the latest
+								npm docs").{" "}
+								<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
+									See a demo here.
+								</VSCodeLink>
+							</div>
 
-				{/* Server Configuration Button */}
+							{servers.length > 0 ? (
+								<div
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										gap: "10px",
+									}}>
+									{servers.map((server) => (
+										<ServerRow key={server.name} server={server} />
+									))}
+								</div>
+							) : (
+								<div
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										alignItems: "center",
+										gap: "12px",
+										marginTop: "20px",
+										color: "var(--vscode-descriptionForeground)",
+									}}>
+									<div>No MCP servers installed yet</div>
+									<VSCodeButton appearance="primary" onClick={() => setActiveTab("marketplace")}>
+										<span className="codicon codicon-cloud-download" style={{ marginRight: "6px" }} />
+										Browse Marketplace
+									</VSCodeButton>
+								</div>
+							)}
+						</div>
+					</VSCodePanelView>
 
-				<div style={{ marginTop: "10px", width: "100%" }}>
-					<VSCodeButton
-						appearance="secondary"
-						style={{ width: "100%" }}
-						onClick={() => {
-							vscode.postMessage({ type: "openMcpSettings" })
-						}}>
-						<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
-						Configure MCP Servers
-					</VSCodeButton>
-				</div>
+					<VSCodePanelView id="marketplace">
+						<McpMarketplaceView />
+					</VSCodePanelView>
 
-				{/* Advanced Settings Link */}
-				<div style={{ textAlign: "center", marginTop: "5px" }}>
-					<VSCodeLink
-						onClick={() => {
-							vscode.postMessage({
-								type: "openExtensionSettings",
-								text: "cline.mcp",
-							})
-						}}
-						style={{ fontSize: "12px" }}>
-						Advanced MCP Settings
-					</VSCodeLink>
-				</div>
+					<VSCodePanelView id="settings">
+						<div style={{ padding: "0 20px" }}>
+							{/* Server Configuration Button */}
+							<div style={{ marginTop: "10px", width: "100%" }}>
+								<VSCodeButton
+									appearance="secondary"
+									style={{ width: "100%" }}
+									onClick={() => {
+										vscode.postMessage({ type: "openMcpSettings" })
+									}}>
+									<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
+									Configure MCP Servers
+								</VSCodeButton>
+							</div>
 
-				{/* Bottom padding */}
-				<div style={{ height: "20px" }} />
+							{/* Advanced Settings Link */}
+							<div style={{ textAlign: "center", marginTop: "5px" }}>
+								<VSCodeLink
+									onClick={() => {
+										vscode.postMessage({
+											type: "openExtensionSettings",
+											text: "cline.mcp",
+										})
+									}}
+									style={{ fontSize: "12px" }}>
+									Advanced MCP Settings
+								</VSCodeLink>
+							</div>
+						</div>
+					</VSCodePanelView>
+				</VSCodePanels>
 			</div>
 		</div>
 	)

@@ -14,6 +14,7 @@ import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
+import { McpMarketplaceCatalog, McpMarketplaceItem } from "../../shared/mcp"
 import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
@@ -88,6 +89,7 @@ type GlobalStateKey =
 	| "qwenApiLine"
 	| "requestyModelId"
 	| "togetherModelId"
+	| "mcpMarketplaceCatalog"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -375,6 +377,107 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	 *
 	 * @param webview A reference to the extension webview
 	 */
+	private async fetchMcpMarketplace(forceRefresh: boolean = false) {
+		try {
+			// Check if we have cached data
+			const cachedCatalog = (await this.getGlobalState("mcpMarketplaceCatalog")) as McpMarketplaceCatalog | undefined
+			if (!forceRefresh && cachedCatalog?.items) {
+				await this.postMessageToWebview({
+					type: "mcpMarketplaceCatalog",
+					mcpMarketplaceCatalog: cachedCatalog,
+				})
+				return
+			}
+
+			try {
+				const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
+					headers: {
+						"Content-Type": "application/json",
+					},
+				})
+
+				if (!response.data) {
+					throw new Error("Invalid response from MCP marketplace API")
+				}
+
+				const catalog: McpMarketplaceCatalog = {
+					items: (response.data || []).map((item: any) => ({
+						...item,
+						githubStars: item.githubStars ?? 0,
+						downloads: item.downloads ?? 0,
+						tags: item.tags ?? [],
+					})),
+				}
+
+				// Store in global state
+				await this.updateGlobalState("mcpMarketplaceCatalog", catalog)
+
+				await this.postMessageToWebview({
+					type: "mcpMarketplaceCatalog",
+					mcpMarketplaceCatalog: catalog,
+				})
+			} catch (error) {
+				console.error("Failed to fetch MCP marketplace:", error)
+				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
+				await this.postMessageToWebview({
+					type: "mcpMarketplaceCatalog",
+					error: errorMessage,
+				})
+				vscode.window.showErrorMessage(errorMessage)
+			}
+		} catch (error) {
+			console.error("Failed to handle cached MCP marketplace:", error)
+			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
+			await this.postMessageToWebview({
+				type: "mcpMarketplaceCatalog",
+				error: errorMessage,
+			})
+			vscode.window.showErrorMessage(errorMessage)
+		}
+	}
+
+	private async downloadMcp(mcpId: string) {
+		try {
+			const response = await axios.post(
+				"https://api.cline.bot/v1/mcp/download",
+				{
+					mcpId,
+				},
+				{
+					headers: {
+						"Content-Type": "application/json",
+					},
+				},
+			)
+
+			if (!response.data) {
+				throw new Error("Invalid response from MCP download API")
+			}
+
+			const mcpDetails = response.data
+			await this.postMessageToWebview({
+				type: "mcpDownloadDetails",
+				mcpDownloadDetails: mcpDetails,
+			})
+
+			// Create a new task for Cline to set up the MCP server
+			const task = `Set up the MCP server from ${mcpDetails.githubUrl}. Here's some additional context from the README:\n\n${mcpDetails.readmeContent}`
+			await this.initClineWithTask(task)
+			await this.postMessageToWebview({
+				type: "action",
+				action: "chatButtonClicked",
+			})
+		} catch (error) {
+			console.error("Failed to download MCP:", error)
+			const errorMessage = error instanceof Error ? error.message : "Failed to download MCP"
+			vscode.window.showErrorMessage(errorMessage)
+			await this.postMessageToWebview({
+				type: "mcpDownloadDetails",
+				error: errorMessage,
+			})
+		}
+	}
+
 	private setWebviewMessageListener(webview: vscode.Webview) {
 		webview.onDidReceiveMessage(
 			async (message: WebviewMessage) => {
@@ -776,6 +879,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
 						if (mcpSettingsFilePath) {
 							openFile(mcpSettingsFilePath)
+						}
+						break
+					}
+					case "fetchMcpMarketplace": {
+						await this.fetchMcpMarketplace(message.bool)
+						break
+					}
+					case "downloadMcp": {
+						if (message.mcpId) {
+							await this.downloadMcp(message.mcpId)
 						}
 						break
 					}

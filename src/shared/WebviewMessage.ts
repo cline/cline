@@ -43,6 +43,8 @@ export interface WebviewMessage {
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "subscribeEmail"
+		| "fetchMcpMarketplace"
+		| "downloadMcp"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -55,6 +57,7 @@ export interface WebviewMessage {
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
+	mcpId?: string
 
 	// For toggleToolAutoApprove
 	serverName?: string
