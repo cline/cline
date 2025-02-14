@@ -35,7 +35,7 @@ export class MistralHandler implements ApiHandler {
 	}
 
 	private getBaseUrl(): string {
-		const modelId = this.options.apiModelId
+		const modelId = this.options.apiModelId ?? mistralDefaultModelId
 		if (modelId?.startsWith("codestral-")) {
 			return this.options.mistralCodestralUrl || "https://codestral.mistral.ai"
 		}
