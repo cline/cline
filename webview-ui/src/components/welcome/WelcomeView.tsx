@@ -1,13 +1,9 @@
 import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState, useCallback } from "react"
-import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState, useCallback } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "../settings/ApiOptions"
-import { useEvent } from "react-use"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 
@@ -15,8 +11,6 @@ const WelcomeView = () => {
 	const { apiConfiguration } = useExtensionState()
 
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
-	const [email, setEmail] = useState("")
-	const [isSubscribed, setIsSubscribed] = useState(false)
 	const [email, setEmail] = useState("")
 	const [isSubscribed, setIsSubscribed] = useState(false)
 
@@ -69,49 +63,48 @@ const WelcomeView = () => {
 				capabilities.
 			</p>
 
-				<b>To get started, this extension needs an API provider for Claude 3.5 Sonnet.</b>
+			<b>To get started, this extension needs an API provider for Claude 3.5 Sonnet.</b>
 
-				<div
-					style={{
-						marginTop: "15px",
-						padding: isSubscribed ? "5px 15px 5px 15px" : "12px",
-						background: "var(--vscode-textBlockQuote-background)",
-						borderRadius: "6px",
-						fontSize: "0.9em",
-					}}>
-					{isSubscribed ? (
-						<p style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-							<span style={{ color: "var(--vscode-testing-iconPassed)", fontSize: "1.5em" }}>✓</span>
-							Thanks for subscribing! We'll keep you updated on new features.
+			<div
+				style={{
+					marginTop: "15px",
+					padding: isSubscribed ? "5px 15px 5px 15px" : "12px",
+					background: "var(--vscode-textBlockQuote-background)",
+					borderRadius: "6px",
+					fontSize: "0.9em",
+				}}>
+				{isSubscribed ? (
+					<p style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+						<span style={{ color: "var(--vscode-testing-iconPassed)", fontSize: "1.5em" }}>✓</span>
+						Thanks for subscribing! We'll keep you updated on new features.
+					</p>
+				) : (
+					<>
+						<p style={{ margin: 0, marginBottom: "8px" }}>
+							While Cline currently requires you bring your own API key, we are working on an official accounts
+							system with additional capabilities. Subscribe to our mailing list to get updates!
 						</p>
-					) : (
-						<>
-							<p style={{ margin: 0, marginBottom: "8px" }}>
-								While Cline currently requires you bring your own API key, we are working on an official accounts
-								system with additional capabilities. Subscribe to our mailing list to get updates!
-							</p>
-							<div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-								<VSCodeTextField
-									type="email"
-									value={email}
-									onInput={(e: any) => setEmail(e.target.value)}
-									placeholder="Enter your email"
-									style={{ flex: 1 }}
-								/>
-								<VSCodeButton appearance="secondary" onClick={handleSubscribe} disabled={!email}>
-									Subscribe
-								</VSCodeButton>
-							</div>
-						</>
-					)}
-				</div>
+						<div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+							<VSCodeTextField
+								type="email"
+								value={email}
+								onInput={(e: any) => setEmail(e.target.value)}
+								placeholder="Enter your email"
+								style={{ flex: 1 }}
+							/>
+							<VSCodeButton appearance="secondary" onClick={handleSubscribe} disabled={!email}>
+								Subscribe
+							</VSCodeButton>
+						</div>
+					</>
+				)}
+			</div>
 
-				<div style={{ marginTop: "15px" }}>
-					<ApiOptions showModelOptions={false} />
-					<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
-						Let's go!
-					</VSCodeButton>
-				</div>
+			<div style={{ marginTop: "15px" }}>
+				<ApiOptions showModelOptions={false} />
+				<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} style={{ marginTop: "3px" }}>
+					Let's go!
+				</VSCodeButton>
 			</div>
 		</div>
 	)
