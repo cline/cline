@@ -69,6 +69,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.deepSeekApiKey,
 							config.mistralApiKey,
 							config.vsCodeLmModelSelector,
+							config.figmaAccessToken,
 						].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)

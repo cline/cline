@@ -140,6 +140,16 @@ Usage:
 <fetch_user_stories>
 <project_name>Project name here</project_name>
 </fetch_user_stories>
+## fetch_figma_design
+Description: Request to fetch figma design details such as whole structure of file and images. This tool retrieves all details of figma design and one image showcasing output of that figma design.
+If figma_url is given, ask user to provide it.
+when you got details of figma design start generating code to implementing that design, you can analyze the image if provided to get more insights.
+Parameters:
+- figma_url: (required) The url of the figma file to fetch details for
+Usage:
+<fetch_figma_design>
+<figma_url>Figma Url here</figma_url>
+</fetch_figma_design>
 
 ## list_code_definition_names
 Description: Request to list definition names (classes, functions, methods, etc.) used in source code files at the top level of the specified directory. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.
@@ -983,6 +993,6 @@ export function addUserInstructions(settingsCustomInstructions?: string, clineRu
 USER'S CUSTOM INSTRUCTIONS
 
 The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
-STRICTLY, Before attempt_completion tool use, verify if a testing environment is configured, If yes, then always use the ask_followup_question tool to prompt the user for test creation before attempt_completion tool use. On confirmation, plan and generate production-ready unit tests tailored to the modifications. Additionally, if an end-to-end testing environment is available in codebase, construct corresponding end-to-end tests where applicable.then run the tests and verify the results. If tests fail, then fix the issues and re-run the tests. If tests pass, then proceed with the attempt_completion tool use. If no testing environment is available, then proceed with the attempt_completion tool use directly.
+STRICTLY, Before attempt_completion tool use, verify if a testing environment is configured, If yes, then always use the ask_followup_question tool to ask the user for test creation before attempt_completion tool use. On confirmation, plan and generate production-ready unit tests tailored to the modifications. Additionally, if an end-to-end testing environment is available in codebase, construct corresponding end-to-end tests where applicable.then run the tests and verify the results. If tests fail, then fix the issues and re-run the tests. If tests pass, then proceed with the attempt_completion tool use. If no testing environment is available, then proceed with the attempt_completion tool use directly.Proceed with testing if and only if user confirm to write test, always use ask_followup_question tool to confirm with user.
 ${customInstructions.trim()}`
 }

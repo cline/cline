@@ -1033,6 +1033,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</ButtonContainer>
 						</VSCodeButton>
 
+						<VSCodeButton
+							data-testid="figma-button"
+							appearance="icon"
+							aria-label="Import from Figma"
+							disabled={shouldDisableImages}
+							onClick={() => {
+								vscode.postMessage({ type: "importFigma" })
+							}}
+							style={{ padding: "0px 0px", height: "20px" }}>
+							<ButtonContainer>
+								<span className="codicon codicon-type-hierarchy" style={{ fontSize: "14px", marginBottom: -3 }} />
+							</ButtonContainer>
+						</VSCodeButton>
+
 						<ModelContainer ref={modelSelectorRef}>
 							<ModelButtonWrapper ref={buttonRef}>
 								<ModelDisplayButton

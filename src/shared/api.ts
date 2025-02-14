@@ -20,6 +20,7 @@ export interface ApiHandlerOptions {
 	apiKey?: string // anthropic
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
+	figmaAccessToken?: string
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string

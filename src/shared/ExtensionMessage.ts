@@ -26,6 +26,7 @@ export interface ExtensionMessage {
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
 		| "emailSubscribed"
+		| "importFigma"
 	text?: string
 	action?:
 		| "chatButtonClicked"

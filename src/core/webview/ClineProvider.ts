@@ -28,6 +28,7 @@ import { getUri } from "./getUri"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
+import { FigmaService } from "../../services/figma/figma"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -48,6 +49,7 @@ type SecretKey =
 	| "mistralApiKey"
 	| "authToken"
 	| "authNonce"
+	| "figmaAccessToken"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -443,6 +445,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openRouterModelId,
 								openRouterModelInfo,
 								vsCodeLmModelSelector,
+								figmaAccessToken,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -471,6 +474,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
 							await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
+							await this.storeSecret("figmaAccessToken", figmaAccessToken)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -764,6 +768,45 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							"workbench.action.openSettings",
 							`@ext:opengig.og-cline ${settingsFilter}`.trim(), // trim whitespace if no settings filter
 						)
+						break
+					}
+					case "importFigma": {
+						let figmaToken = await this.getSecret("figmaAccessToken")
+						if (!figmaToken) {
+							figmaToken = await vscode.window.showInputBox({
+								prompt: "Enter your Figma access token",
+								placeHolder: "Personal access token from Figma settings",
+							})
+							if (figmaToken) {
+								await this.storeSecret("figmaAccessToken", figmaToken)
+							} else {
+								vscode.window.showErrorMessage("Figma token is required")
+								return
+							}
+						}
+
+						const url = await vscode.window.showInputBox({
+							prompt: "Enter Figma file URL",
+							placeHolder: "https://www.figma.com/file/...",
+						})
+
+						if (url) {
+							try {
+								if (!this.cline?.taskId) {
+									await this.initClineWithTask(
+										`User wants to fetch figma design details and write code to create those pages/components in the codebase, Please Use exact colors defined in Figma. Figma URL: ${url}`,
+										[],
+									)
+								} else {
+									this.cline.say(
+										"text",
+										`User wants to fetch figma design details and write code to create those pages/components in the codebase, Please Use exact colors defined in figma. Figma URL: ${url}`,
+									)
+								}
+							} catch (error) {
+								vscode.window.showErrorMessage("Failed to import from Figma: " + error.message)
+							}
+						}
 						break
 					}
 					// Add more switch case statements here as more webview message commands
@@ -1369,6 +1412,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			figmaAccessToken,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1408,6 +1452,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
+			this.getSecret("figmaAccessToken") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1453,6 +1498,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openRouterModelId,
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
+				figmaAccessToken,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

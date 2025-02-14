@@ -243,6 +243,7 @@ const toolNames = [
 	"ask_followup_question",
 	"attempt_completion",
 	"fetch_user_stories",
+	"fetch_figma_design",
 ]
 
 function parseAIResponse(response: string): {
@@ -343,6 +344,8 @@ function validateToolInput(toolName: string, tool_input: Record<string, string>)
 			return "result" in tool_input
 		case "fetch_user_stories":
 			return "project_name" in tool_input
+		case "fetch_figma_design":
+			return "file_url" in tool_input
 		default:
 			return false
 	}

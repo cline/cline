@@ -61,6 +61,7 @@ import { OpenAiHandler } from "../api/providers/openai"
 import { OgTools } from "./tools/og-tools"
 import { DirectoryTreeService } from "../services/directory-structure"
 import { ApiStream } from "../api/transform/stream"
+import { FigmaService } from "../services/figma/figma"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1193,6 +1194,7 @@ export class Cline {
 				case "use_mcp_tool":
 					return this.autoApprovalSettings.actions.useMcp
 				case "fetch_user_stories":
+				case "fetch_figma_design":
 					return true
 			}
 		}
@@ -1447,6 +1449,8 @@ export class Cline {
 							return `[${block.name}]`
 						case "fetch_user_stories":
 							return `[${block.name} for '${block.params.project_name}']`
+						case "fetch_figma_design":
+							return `[${block.name} for '${block.params.figma_url}']`
 					}
 				}
 
@@ -2839,6 +2843,81 @@ export class Cline {
 									pushToolResult(`Error fetching user stories: ${result.error}`)
 								} else {
 									pushToolResult(JSON.stringify(result.data, null, 2))
+								}
+								await this.saveCheckpoint()
+								break
+							}
+						} catch (error) {
+							await handleError("fetching user stories", error)
+							await this.saveCheckpoint()
+							break
+						}
+					}
+					case "fetch_figma_design": {
+						const figmaUrl: string | undefined = block.params.figma_url
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify({
+									tool: "fetchFigmaDesign",
+									projectName: removeClosingTag("figma_url", figmaUrl),
+								})
+								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
+								break
+							} else {
+								if (!figmaUrl) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("fetch_figma_design", "figma_url"))
+									await this.saveCheckpoint()
+									break
+								}
+								this.consecutiveMistakeCount = 0
+
+								const completeMessage = JSON.stringify({
+									tool: "fetchFigmaDesign",
+									figmaUrl,
+								})
+
+								if (this.shouldAutoApproveTool(block.name)) {
+									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+									await this.say("tool", completeMessage, undefined, false)
+									this.consecutiveAutoApprovedRequestsCount++
+								} else {
+									showNotificationForApprovalIfAutoApprovalEnabled(
+										`Og assistant wants to fetch Figma for project: ${figmaUrl}`,
+									)
+									this.removeLastPartialMessageIfExistsWithType("say", "tool")
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										await this.saveCheckpoint()
+										break
+									}
+								}
+
+								const fileId = FigmaService.extractFileId(figmaUrl)
+								if (!fileId) {
+									throw new Error("Invalid Figma URL")
+								}
+								const nodeId = FigmaService.extractNodeId(figmaUrl)
+								const figmaToken = await this.providerRef.deref()?.getSecret("figmaAccessToken")
+								const figma = new FigmaService(figmaToken!)
+
+								const parsed = await figma.parseFileForDevelopment(fileId, nodeId)
+								// Extract frame/component IDs that need images
+								let image = { base64: "", url: "" }
+								if (nodeId) {
+									image = await figma.getImage(fileId, nodeId)
+								}
+								const prompt = `Imported Figma file below are the details of figma and image of figma, use those colors to make design\nOutput should be exactly like shown in image\nFollow Existing Design pattern of project\nUse Placeholder images wherever required\nImage url to use: ${image.url}\n${parsed}`
+								if (image.base64 || this.api.getModel().info.supportsImages) {
+									pushToolResult(formatResponse.toolResult(prompt, image.base64 ? [image.base64] : []))
+								} else {
+									pushToolResult(prompt)
 								}
 								await this.saveCheckpoint()
 								break

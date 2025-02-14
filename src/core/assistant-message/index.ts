@@ -23,6 +23,7 @@ export const toolUseNames = [
 	"plan_mode_response",
 	"attempt_completion",
 	"fetch_user_stories",
+	"fetch_figma_design",
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)
@@ -49,6 +50,7 @@ export const toolParamNames = [
 	"response",
 	"result",
 	"project_name",
+	"figma_url",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -124,5 +126,9 @@ export interface AttemptCompletionToolUse extends ToolUse {
 
 export interface FetchUserStoriesToolUse extends ToolUse {
 	name: "fetch_user_stories"
+	params: Partial<Pick<Record<ToolParamName, string>, "project_name">>
+}
+export interface FetchFigmaDesignToolUse extends ToolUse {
+	name: "fetch_figma_design"
 	params: Partial<Pick<Record<ToolParamName, string>, "project_name">>
 }

@@ -843,6 +843,35 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker isPopup={isPopup} />}
 
+			<div>
+				<VSCodeTextField
+					value={apiConfiguration?.figmaAccessToken || ""}
+					style={{ width: "100%" }}
+					type="password"
+					onInput={handleInputChange("figmaAccessToken")}
+					placeholder="Enter Figma access token...">
+					<span style={{ fontWeight: 500 }}>Figma Access Token</span>
+				</VSCodeTextField>
+				<p
+					style={{
+						fontSize: "12px",
+						marginTop: 3,
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+					This token is stored locally and only used to access Figma designs.
+					{!apiConfiguration?.figmaAccessToken && (
+						<VSCodeLink
+							href="https://www.figma.com/developers/api#access-tokens"
+							style={{
+								display: "inline",
+								fontSize: "inherit",
+							}}>
+							You can get a Figma access token from your account settings.
+						</VSCodeLink>
+					)}
+				</p>
+			</div>
+
 			{modelIdErrorMessage && (
 				<p
 					style={{
