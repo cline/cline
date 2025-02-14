@@ -7,6 +7,7 @@ import fs from "fs/promises"
 import { extractTextFromFile } from "../../integrations/misc/extract-text"
 import { isBinaryFile } from "isbinaryfile"
 import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
+import { getLatestTerminalOutput } from "../../integrations/terminal/get-latest-output"
 
 export function openMention(mention?: string): void {
 	if (!mention) {
@@ -28,6 +29,8 @@ export function openMention(mention?: string): void {
 		}
 	} else if (mention === "problems") {
 		vscode.commands.executeCommand("workbench.actions.view.problems")
+	} else if (mention === "terminal") {
+		vscode.commands.executeCommand("workbench.action.terminal.focus")
 	} else if (mention.startsWith("http")) {
 		vscode.env.openExternal(vscode.Uri.parse(mention))
 	}
@@ -46,6 +49,8 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 				: `'${mentionPath}' (see below for file content)`
 		} else if (mention === "problems") {
 			return `Workspace Problems (see below for diagnostics)`
+		} else if (mention === "terminal") {
+			return `Terminal Output (see below for output)`
 		}
 		return match
 	})
@@ -98,6 +103,13 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 				parsedText += `\n\n<workspace_diagnostics>\n${problems}\n</workspace_diagnostics>`
 			} catch (error) {
 				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
+			}
+		} else if (mention === "terminal") {
+			try {
+				const terminalOutput = await getLatestTerminalOutput()
+				parsedText += `\n\n<terminal_output>\n${terminalOutput}\n</terminal_output>`
+			} catch (error) {
+				parsedText += `\n\n<terminal_output>\nError fetching terminal output: ${error.message}\n</terminal_output>`
 			}
 		}
 	}

@@ -243,6 +243,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const queryItems = useMemo(() => {
 			return [
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
+				{ type: ContextMenuOptionType.Terminal, value: "terminal" },
 				...filePaths
 					.map((file) => "/" + file)
 					.map((path) => ({
@@ -293,6 +294,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = value || ""
 					} else if (type === ContextMenuOptionType.Problems) {
 						insertValue = "problems"
+					} else if (type === ContextMenuOptionType.Terminal) {
+						insertValue = "terminal"
 					}
 
 					const { newValue, mentionIndex } = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
