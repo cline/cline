@@ -25,7 +25,12 @@ export class MistralHandler implements ApiHandler {
 			throw new Error("Mistral API key is required")
 		}
 
-		this.options = options
+		// Set default model ID if not provided
+		this.options = {
+			...options,
+			apiModelId: options.apiModelId || mistralDefaultModelId,
+		}
+
 		const baseUrl = this.getBaseUrl()
 		console.debug(`[Roo Code] MistralHandler using baseUrl: ${baseUrl}`)
 		this.client = new Mistral({
@@ -36,6 +41,7 @@ export class MistralHandler implements ApiHandler {
 
 	private getBaseUrl(): string {
 		const modelId = this.options.apiModelId ?? mistralDefaultModelId
+		console.debug(`[Roo Code] MistralHandler using modelId: ${modelId}`)
 		if (modelId?.startsWith("codestral-")) {
 			return this.options.mistralCodestralUrl || "https://codestral.mistral.ai"
 		}
