@@ -936,7 +936,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderTop: 0,
 							borderColor: "transparent",
 							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
-							padding: "9px 49px 3px 9px",
+							padding: "9px 28px 3px 9px",
 						}}
 					/>
 					<DynamicTextArea
