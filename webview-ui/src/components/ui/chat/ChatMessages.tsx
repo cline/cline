@@ -1,31 +1,30 @@
-import { useCallback, useEffect, useRef } from "react"
+import { useEffect, useRef } from "react"
+import { Virtuoso, VirtuosoHandle } from "react-virtuoso"
 
 import { useChatUI } from "./useChatUI"
 import { ChatMessage } from "./ChatMessage"
 
 export function ChatMessages() {
 	const { messages, isLoading, append } = useChatUI()
-	const containerRef = useRef<HTMLDivElement>(null)
 	const messageCount = messages.length
+	const virtuoso = useRef<VirtuosoHandle>(null)
 
-	const scrollToBottom = useCallback(() => {
-		if (!containerRef.current) {
+	useEffect(() => {
+		if (!virtuoso.current) {
 			return
 		}
 
-		requestAnimationFrame(() => {
-			containerRef.current?.scrollTo({
-				top: containerRef.current.scrollHeight,
-				behavior: "smooth",
-			})
-		})
-	}, [])
-
-	useEffect(() => scrollToBottom(), [messageCount, scrollToBottom])
+		requestAnimationFrame(() =>
+			virtuoso.current?.scrollToIndex({ index: messageCount - 1, align: "end", behavior: "smooth" }),
+		)
+	}, [messageCount])
 
 	return (
-		<div ref={containerRef} className="flex flex-col flex-1 min-h-0 overflow-auto relative">
-			{messages.map((message, index) => (
+		<Virtuoso
+			ref={virtuoso}
+			data={messages}
+			totalCount={messageCount}
+			itemContent={(index, message) => (
 				<ChatMessage
 					key={index}
 					message={message}
@@ -36,7 +35,7 @@ export function ChatMessages() {
 					isLoading={isLoading}
 					append={append}
 				/>
-			))}
-		</div>
+			)}
+		/>
 	)
 }
