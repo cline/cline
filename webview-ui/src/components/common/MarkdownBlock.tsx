@@ -5,6 +5,7 @@ import styled from "styled-components"
 import { visit } from "unist-util-visit"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
+import mermaid from "mermaid"
 
 interface MarkdownBlockProps {
 	markdown?: string
@@ -194,7 +195,44 @@ const StyledPre = styled.pre<{ theme: any }>`
 			.join("")}
 `
 
+// Initialize mermaid with offline configuration
+mermaid.initialize({
+	startOnLoad: false,
+	securityLevel: "loose",
+})
+
 const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
+	// Effect to render mermaid diagrams
+	useEffect(() => {
+		const renderMermaidDiagrams = async () => {
+			const mermaidDivs = document.querySelectorAll("code.language-mermaid")
+
+			// Convert NodeList to Array to fix TypeScript error
+			for (const element of Array.from(mermaidDivs)) {
+				const code = element.textContent || ""
+				try {
+					// First validate the diagram - suppressErrors:true returns false instead of throwing
+					const isValid = await mermaid.parse(code, { suppressErrors: true })
+					console.log(`Mermaid is valid: ${isValid}`)
+					if (isValid) {
+						console.log("Valid diagram found.")
+						const id = `mermaid-${Math.random().toString(36).substring(2)}`
+						const { svg } = await mermaid.render(id, code)
+						if (element.parentElement) {
+							element.parentElement.innerHTML = svg
+						}
+					}
+				} catch (error) {
+					console.warn("Failed to render mermaid diagram:", error)
+				}
+			}
+		}
+
+		// Small delay to ensure React has finished rendering
+		const timeoutId = setTimeout(renderMermaidDiagrams, 0)
+		return () => clearTimeout(timeoutId)
+	}, [markdown])
+
 	const { theme } = useExtensionState()
 	const [reactContent, setMarkdown] = useRemark({
 		remarkPlugins: [
