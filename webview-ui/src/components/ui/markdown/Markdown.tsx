@@ -12,17 +12,7 @@ const MemoizedReactMarkdown: FC<Options> = memo(
 	(prevProps, nextProps) => prevProps.children === nextProps.children && prevProps.className === nextProps.className,
 )
 
-const preprocessLaTeX = (content: string) => {
-	// Replace block-level LaTeX delimiters \[ \] with $$ $$
-	const blockProcessedContent = content.replace(/\\\[([\s\S]*?)\\\]/g, (_, equation) => `$$${equation}$$`)
-
-	// Replace inline LaTeX delimiters \( \) with $ $
-	return blockProcessedContent.replace(/\\\[([\s\S]*?)\\\]/g, (_, equation) => `$${equation}$`)
-}
-
 export function Markdown({ content }: { content: string }) {
-	const processedContent = preprocessLaTeX(content)
-
 	return (
 		<MemoizedReactMarkdown
 			remarkPlugins={[remarkGfm]}
@@ -85,7 +75,7 @@ export function Markdown({ content }: { content: string }) {
 					)
 				},
 			}}>
-			{processedContent}
+			{content}
 		</MemoizedReactMarkdown>
 	)
 }
