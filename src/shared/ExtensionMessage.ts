@@ -1,5 +1,6 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
+import { GitCommit } from "../utils/git"
 import { ApiConfiguration, ModelInfo } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
@@ -26,6 +27,7 @@ export interface ExtensionMessage {
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
 		| "emailSubscribed"
+		| "commitSearchResults"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -46,6 +48,7 @@ export interface ExtensionMessage {
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
+	commits?: GitCommit[]
 }
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
