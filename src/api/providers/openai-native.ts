@@ -56,9 +56,11 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 				},
 				...convertToOpenAiMessages(messages),
 			],
+			stream: true,
+			stream_options: { include_usage: true },
 		})
 
-		yield* this.yieldResponseData(response)
+		yield* this.handleStreamResponse(response)
 	}
 
 	private async *handleO3FamilyMessage(
