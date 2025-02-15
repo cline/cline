@@ -2,4 +2,4 @@
 "claude-dev": minor
 ---
 
-Add Together API Provider
+Adding .clineignore guide

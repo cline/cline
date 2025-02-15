@@ -65,6 +65,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.openAiApiKey,
 							config.ollamaModelId,
 							config.lmStudioModelId,
+							config.liteLlmApiKey,
 							config.geminiApiKey,
 							config.openAiNativeApiKey,
 							config.deepSeekApiKey,
