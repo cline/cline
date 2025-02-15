@@ -1,10 +1,10 @@
 import { FC, memo } from "react"
 import ReactMarkdown, { Options } from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 import { Separator } from "@/components/ui"
 
 import { CodeBlock } from "./CodeBlock"
-import { SourceNumberButton } from "./SourceNumberButton"
 import { Blockquote } from "./Blockquote"
 
 const MemoizedReactMarkdown: FC<Options> = memo(
@@ -25,6 +25,7 @@ export function Markdown({ content }: { content: string }) {
 
 	return (
 		<MemoizedReactMarkdown
+			remarkPlugins={[remarkGfm]}
 			className="custom-markdown break-words"
 			components={{
 				p({ children }) {
@@ -77,23 +78,6 @@ export function Markdown({ content }: { content: string }) {
 					)
 				},
 				a({ href, children }) {
-					// If a text link starts with 'citation:', then render it as
-					// a citation reference.
-					if (
-						Array.isArray(children) &&
-						typeof children[0] === "string" &&
-						children[0].startsWith("citation:")
-					) {
-						const index = Number(children[0].replace("citation:", ""))
-
-						if (!isNaN(index)) {
-							return <SourceNumberButton index={index} />
-						}
-
-						// Citation is not looked up yet, don't render anything.
-						return null
-					}
-
 					return (
 						<a href={href} target="_blank" rel="noopener noreferrer">
 							{children}
