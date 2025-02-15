@@ -1566,7 +1566,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				o3MiniReasoningEffort,
 				liteLlmBaseUrl,
 				liteLlmModelId,
-        liteLlmApiKey,
+				liteLlmApiKey,
 				difyApiKey,
 				difyBaseUrl,
 			},
