@@ -46,6 +46,7 @@ export enum ContextMenuOptionType {
 	File = "file",
 	Folder = "folder",
 	Problems = "problems",
+	Terminal = "terminal",
 	URL = "url",
 	NoResults = "noResults",
 }
@@ -84,6 +85,7 @@ export function getContextMenuOptions(
 		return [
 			{ type: ContextMenuOptionType.URL },
 			{ type: ContextMenuOptionType.Problems },
+			{ type: ContextMenuOptionType.Terminal },
 			{ type: ContextMenuOptionType.Folder },
 			{ type: ContextMenuOptionType.File },
 		]
@@ -121,8 +123,8 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
 	// Don't show the menu if it's a URL
 	if (textAfterAt.toLowerCase().startsWith("http")) return false
 
-	// Don't show the menu if it's a problems
-	if (textAfterAt.toLowerCase().startsWith("problems")) return false
+	// Don't show the menu if it's a problems or terminal
+	if (textAfterAt.toLowerCase().startsWith("problems") || textAfterAt.toLowerCase().startsWith("terminal")) return false
 
 	// NOTE: it's okay that menu shows when there's trailing punctuation since user could be inputting a path with marks
 
