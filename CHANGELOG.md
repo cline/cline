@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## [3.3.20]
+
+- Support project-specific custom modes in a .roomodes file
+- Add more Mistral models (thanks @d-oit and @bramburn!)
+- By popular request, make it so Ask mode can't write to Markdown files and is purely for chatting with
+- Add a setting to control the number of open editor tabs to tell the model about (665 is probably too many!)
+- Fix race condition bug with entering API key on the welcome screen
+
 ## [3.3.19]
 
 - Fix a bug where aborting in the middle of file writes would not revert the write

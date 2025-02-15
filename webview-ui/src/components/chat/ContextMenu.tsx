@@ -70,6 +70,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				)
 			case ContextMenuOptionType.Problems:
 				return <span>Problems</span>
+			case ContextMenuOptionType.Terminal:
+				return <span>Terminal</span>
 			case ContextMenuOptionType.URL:
 				return <span>Paste URL to fetch contents</span>
 			case ContextMenuOptionType.NoResults:
@@ -133,6 +135,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				return "folder"
 			case ContextMenuOptionType.Problems:
 				return "warning"
+			case ContextMenuOptionType.Terminal:
+				return "terminal"
 			case ContextMenuOptionType.URL:
 				return "link"
 			case ContextMenuOptionType.Git:
@@ -221,6 +225,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 								/>
 							)}
 						{(option.type === ContextMenuOptionType.Problems ||
+							option.type === ContextMenuOptionType.Terminal ||
 							((option.type === ContextMenuOptionType.File ||
 								option.type === ContextMenuOptionType.Folder ||
 								option.type === ContextMenuOptionType.OpenedFile ||

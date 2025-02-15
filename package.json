@@ -1,9 +1,9 @@
 {
 	"name": "roo-cline",
 	"displayName": "Roo Code (prev. Roo Cline)",
-	"description": "A VS Code plugin that enhances coding with AI-powered automation, multi-model support, and experimental features.",
+	"description": "An AI-powered autonomous coding agent that lives in your editor.",
 	"publisher": "RooVeterinaryInc",
-	"version": "3.3.19",
+	"version": "3.3.20",
 	"icon": "assets/icons/rocket.png",
 	"galleryBanner": {
 		"color": "#617A91",
