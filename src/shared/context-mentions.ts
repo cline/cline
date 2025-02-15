@@ -26,10 +26,9 @@ Mention regex:
 	  - **Exact Word ('problems')**: Matches the exact word 'problems'.
 	  - **Word Boundary (`\b`)**: Ensures that 'problems' is matched as a whole word and not as part of another word (e.g., 'problematic').
 		- `|`: Logical OR.
-	- `problems\b`: 
-	  - **Exact Word ('git-changes')**: Matches the exact word 'git-changes'.
-	  - **Word Boundary (`\b`)**: Ensures that 'git-changes' is matched as a whole word and not as part of another word.  
-
+    - `terminal\b`:
+      - **Exact Word ('terminal')**: Matches the exact word 'terminal'.
+      - **Word Boundary (`\b`)**: Ensures that 'terminal' is matched as a whole word and not as part of another word (e.g., 'terminals').
   - `(?=[.,;:!?]?(?=[\s\r\n]|$))`:
 	- **Positive Lookahead (`(?=...)`)**: Ensures that the match is followed by specific patterns without including them in the match.
 	- `[.,;:!?]?`: 
@@ -43,6 +42,7 @@ Mention regex:
 	- URLs that start with a protocol (like 'http://') followed by any non-whitespace characters (including query parameters).
 	- The exact word 'problems'.
 	- The exact word 'git-changes'.
+    - The exact word 'terminal'.
   - It ensures that any trailing punctuation marks (such as ',', '.', '!', etc.) are not included in the matched mention, allowing the punctuation to follow the mention naturally in the text.
 
 - **Global Regex**:
@@ -50,7 +50,7 @@ Mention regex:
 
 */
 export const mentionRegex =
-	/@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/
+	/@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|git-changes\b|terminal\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/
 export const mentionRegexGlobal = new RegExp(mentionRegex.source, "g")
 
 export interface MentionSuggestion {
