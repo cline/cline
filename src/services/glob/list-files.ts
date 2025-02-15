@@ -46,7 +46,7 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 
 			// Convert .gitignore patterns to glob patterns
 			return gitignoreContent
-				.split("\n")
+				.split("\n").map(line => line.trim())
 				.filter((line) => line && !line.startsWith("#"))
 				.map(
 					(pattern) =>
