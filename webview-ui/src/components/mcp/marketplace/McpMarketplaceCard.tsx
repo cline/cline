@@ -12,12 +12,16 @@ interface McpMarketplaceCardProps {
 const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps) => {
 	const isInstalled = installedServers.some((server) => server.name === item.mcpId)
 	const [isDownloading, setIsDownloading] = useState(false)
+	const [isLoading, setIsLoading] = useState(false)
 
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
 			const message = event.data
 			if (message.type === "mcpDownloadDetails") {
 				setIsDownloading(false)
+			}
+			if (message.type === "relinquishControl") {
+				setIsLoading(false)
 			}
 		}
 
@@ -43,10 +47,16 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 				className="mcp-card"
 				onClick={() => {
 					console.log("Card clicked:", item.mcpId)
+					setIsLoading(true)
+					vscode.postMessage({
+						type: "openMcpMarketplaceServerDetails",
+						mcpId: item.mcpId,
+					})
 				}}
 				style={{
 					borderBottom: "1px solid var(--vscode-textCodeBlock-background)",
 					padding: "12px 16px",
+					cursor: isLoading ? "wait" : "pointer",
 				}}>
 				{/* Main container with logo and content */}
 				<div style={{ display: "flex", gap: "12px" }}>
