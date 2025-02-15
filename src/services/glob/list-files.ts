@@ -43,7 +43,6 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 
 		try {
 			const gitignoreContent = await fs.promises.readFile(gitignorePath, "utf8")
-			const ig = ignore().add(gitignoreContent)
 
 			// Convert .gitignore patterns to glob patterns
 			return gitignoreContent
