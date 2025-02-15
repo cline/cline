@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react"
-import { VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeButton,
+	VSCodeProgressRing,
+	VSCodeRadioGroup,
+	VSCodeRadio,
+	VSCodeDropdown,
+	VSCodeOption,
+	VSCodeTextField,
+} from "@vscode/webview-ui-toolkit/react"
 import { McpMarketplaceItem } from "../../../../../src/shared/mcp"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
 import { vscode } from "../../../utils/vscode"
@@ -33,11 +41,6 @@ const selectStyles = {
 	cursor: "pointer", // Show pointer cursor on hover
 } as const
 
-const refreshStyles = {
-	height: controlHeight,
-	alignSelf: "flex-end",
-} as const
-
 const McpMarketplaceView = () => {
 	const { mcpServers } = useExtensionState()
 	const [items, setItems] = useState<McpMarketplaceItem[]>([])
@@ -46,7 +49,7 @@ const McpMarketplaceView = () => {
 	const [isRefreshing, setIsRefreshing] = useState(false)
 	const [searchQuery, setSearchQuery] = useState("")
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-	const [sortBy, setSortBy] = useState<"downloadCount" | "stars" | "name">("downloadCount")
+	const [sortBy, setSortBy] = useState<"downloadCount" | "stars" | "name" | "newest">("downloadCount")
 
 	const categories = useMemo(() => {
 		const uniqueCategories = new Set(items.map((item) => item.category))
@@ -72,6 +75,8 @@ const McpMarketplaceView = () => {
 						return b.githubStars - a.githubStars
 					case "name":
 						return a.name.localeCompare(b.name)
+					case "newest":
+						return b.githubStars - a.githubStars // FIXME: b.createdAt - a.createdAt // Assuming there's a createdAt field
 					default:
 						return 0
 				}
@@ -154,73 +159,115 @@ const McpMarketplaceView = () => {
 	}
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: "16px",
-					gap: "12px",
-					flexWrap: "wrap",
-				}}>
-				<div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
-					{" "}
-					{/* Added minWidth: 0 to prevent flex item from overflowing */}
-					<div style={{ position: "relative", flex: 1 }}>
-						<input
-							type="text"
-							placeholder="Search MCPs..."
-							value={searchQuery}
-							onChange={(e) => setSearchQuery(e.target.value)}
-							className="mcp-search-input"
-							style={searchInputStyles}
-						/>
-						<span
-							className="codicon codicon-search"
+		<div
+			style={{
+				display: "flex",
+				flexDirection: "column",
+				width: "100%",
+			}}>
+			<div style={{ padding: "16px 16px 5px 16px" }}>
+				{/* Search row */}
+				<VSCodeTextField
+					style={{ width: "100%" }}
+					placeholder="Search MCPs..."
+					value={searchQuery}
+					onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}>
+					<div
+						slot="start"
+						className="codicon codicon-search"
+						style={{
+							fontSize: 13,
+							marginTop: 2.5,
+							opacity: 0.8,
+						}}
+					/>
+					{searchQuery && (
+						<div
+							className="codicon codicon-close"
+							aria-label="Clear search"
+							onClick={() => setSearchQuery("")}
+							slot="end"
 							style={{
-								position: "absolute",
-								left: "10px",
-								top: "50%",
-								transform: "translateY(-50%)",
-								color: "var(--vscode-input-placeholderForeground)",
-								pointerEvents: "none",
-								fontSize: "14px", // Match input text size
-								lineHeight: 1, // Ensure icon is centered properly
+								display: "flex",
+								justifyContent: "center",
+								alignItems: "center",
+								height: "100%",
+								cursor: "pointer",
 							}}
 						/>
+					)}
+				</VSCodeTextField>
+
+				{/* Filter row */}
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: "8px",
+						marginTop: "8px",
+					}}>
+					<span
+						style={{
+							fontSize: "11px",
+							color: "var(--vscode-descriptionForeground)",
+							textTransform: "uppercase",
+							fontWeight: 500,
+						}}>
+						Filter:
+					</span>
+					<div
+						style={{
+							// transform: "scale(0.9)",
+							// transformOrigin: "left center",
+							position: "relative",
+							zIndex: 2,
+						}}>
+						<VSCodeDropdown
+							value={selectedCategory || ""}
+							onChange={(e) => setSelectedCategory((e.target as HTMLSelectElement).value || null)}>
+							<VSCodeOption value="">All Categories</VSCodeOption>
+							{categories.map((category) => (
+								<VSCodeOption key={category} value={category}>
+									{category}
+								</VSCodeOption>
+							))}
+						</VSCodeDropdown>
 					</div>
-					<select
-						value={selectedCategory || ""}
-						onChange={(e) => setSelectedCategory(e.target.value || null)}
-						className="mcp-select"
-						style={selectStyles}>
-						<option value="">All Categories</option>
-						{categories.map((category) => (
-							<option key={category} value={category}>
-								{category}
-							</option>
-						))}
-					</select>
-					<select
-						value={sortBy}
-						onChange={(e) => setSortBy(e.target.value as "downloadCount" | "stars" | "name")}
-						className="mcp-select"
-						style={selectStyles}>
-						<option value="downloadCount">Sort by Downloads</option>
-						<option value="stars">Sort by Stars</option>
-						<option value="name">Sort by Name</option>
-					</select>
 				</div>
-				<VSCodeButton
-					appearance="secondary"
-					onClick={() => fetchMarketplace(true)}
-					disabled={isRefreshing}
-					style={refreshStyles}>
-					<span className="codicon codicon-refresh" style={{ marginRight: "6px" }} />
-					Refresh
-				</VSCodeButton>
+
+				{/* Sort row */}
+				<div
+					style={{
+						display: "flex",
+						gap: "8px",
+						marginTop: "8px",
+					}}>
+					<span
+						style={{
+							fontSize: "11px",
+							color: "var(--vscode-descriptionForeground)",
+							textTransform: "uppercase",
+							fontWeight: 500,
+							marginTop: "3px",
+						}}>
+						Sort:
+					</span>
+					<VSCodeRadioGroup
+						style={{
+							display: "flex",
+							flexWrap: "wrap",
+							marginTop: "-2.5px",
+						}}
+						value={sortBy}
+						onChange={(e) => setSortBy((e.target as HTMLInputElement).value as typeof sortBy)}>
+						<VSCodeRadio value="downloadCount">Most Installs</VSCodeRadio>
+						<VSCodeRadio value="stars">Most Stars</VSCodeRadio>
+						<VSCodeRadio value="newest">Newest</VSCodeRadio>
+						<VSCodeRadio value="name">Name</VSCodeRadio>
+					</VSCodeRadioGroup>
+				</div>
 			</div>
+
 			<style>
 				{`
 				.mcp-search-input,

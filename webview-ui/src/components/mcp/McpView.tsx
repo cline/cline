@@ -13,6 +13,7 @@ import { McpServer } from "../../../../src/shared/mcp"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import McpMarketplaceView from "./marketplace/McpMarketplaceView"
+import styled from "styled-components"
 
 type McpViewProps = {
 	onDone: () => void
@@ -20,7 +21,7 @@ type McpViewProps = {
 
 const McpView = ({ onDone }: McpViewProps) => {
 	const { mcpServers: servers } = useExtensionState()
-	const [activeTab, setActiveTab] = useState(servers.length === 0 ? "marketplace" : "installed")
+	const [activeTab, setActiveTab] = useState("marketplace")
 
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
@@ -99,20 +100,34 @@ const McpView = ({ onDone }: McpViewProps) => {
 					display: "flex",
 					justifyContent: "space-between",
 					alignItems: "center",
-					padding: "10px 17px 10px 20px",
+					padding: "10px 17px 5px 20px",
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>MCP Servers</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
 
-			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
-				<VSCodePanels activeid={activeTab} onchange={(e: any) => setActiveTab(e.target.activeid)}>
-					<VSCodePanelTab id="installed">Installed</VSCodePanelTab>
-					<VSCodePanelTab id="marketplace">Marketplace</VSCodePanelTab>
-					<VSCodePanelTab id="settings">Settings</VSCodePanelTab>
+			<div style={{ flex: 1, overflow: "auto" }}>
+				{/* Tabs container */}
+				<div
+					style={{
+						display: "flex",
+						gap: "1px",
+						padding: "0 8px 0 10px",
+						borderBottom: "1px solid var(--vscode-panel-border)",
+					}}>
+					<TabButton isActive={activeTab === "marketplace"} onClick={() => setActiveTab("marketplace")}>
+						Marketplace
+					</TabButton>
+					<TabButton isActive={activeTab === "installed"} onClick={() => setActiveTab("installed")}>
+						Installed
+					</TabButton>
+				</div>
 
-					<VSCodePanelView id="installed">
-						<div style={{ padding: "0 20px" }}>
+				{/* Content container */}
+				<div style={{ width: "100%" }}>
+					{activeTab === "marketplace" && <McpMarketplaceView />}
+					{activeTab === "installed" && (
+						<div style={{ padding: "16px 20px" }}>
 							<div
 								style={{
 									color: "var(--vscode-foreground)",
@@ -164,50 +179,61 @@ const McpView = ({ onDone }: McpViewProps) => {
 									</VSCodeButton>
 								</div>
 							)}
-						</div>
-					</VSCodePanelView>
 
-					<VSCodePanelView id="marketplace">
-						<div style={{ maxWidth: "100%" }}>
-							<McpMarketplaceView />
-						</div>
-					</VSCodePanelView>
-
-					<VSCodePanelView id="settings">
-						<div style={{ maxWidth: "100%" }}>
-							{/* Server Configuration Button */}
-							<div style={{ marginTop: "10px", width: "100%" }}>
+							{/* Settings Section */}
+							<div style={{ marginBottom: "20px", marginTop: 10 }}>
 								<VSCodeButton
 									appearance="secondary"
-									style={{ width: "100%" }}
+									style={{ width: "100%", marginBottom: "5px" }}
 									onClick={() => {
 										vscode.postMessage({ type: "openMcpSettings" })
 									}}>
 									<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
 									Configure MCP Servers
 								</VSCodeButton>
-							</div>
 
-							{/* Advanced Settings Link */}
-							<div style={{ textAlign: "center", marginTop: "5px" }}>
-								<VSCodeLink
-									onClick={() => {
-										vscode.postMessage({
-											type: "openExtensionSettings",
-											text: "cline.mcp",
-										})
-									}}
-									style={{ fontSize: "12px" }}>
-									Advanced MCP Settings
-								</VSCodeLink>
+								<div style={{ textAlign: "center" }}>
+									<VSCodeLink
+										onClick={() => {
+											vscode.postMessage({
+												type: "openExtensionSettings",
+												text: "cline.mcp",
+											})
+										}}
+										style={{ fontSize: "12px" }}>
+										Advanced MCP Settings
+									</VSCodeLink>
+								</div>
 							</div>
 						</div>
-					</VSCodePanelView>
-				</VSCodePanels>
+					)}
+				</div>
 			</div>
 		</div>
 	)
 }
+
+const StyledTabButton = styled.button<{ isActive: boolean }>`
+	background: none;
+	border: none;
+	border-bottom: 2px solid ${(props) => (props.isActive ? "var(--vscode-foreground)" : "transparent")};
+	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	padding: 8px 16px;
+	cursor: pointer;
+	font-size: 13px;
+	margin-bottom: -1px;
+	font-family: inherit;
+
+	&:hover {
+		color: var(--vscode-foreground);
+	}
+`
+
+const TabButton = ({ children, isActive, onClick }: { children: React.ReactNode; isActive: boolean; onClick: () => void }) => (
+	<StyledTabButton isActive={isActive} onClick={onClick}>
+		{children}
+	</StyledTabButton>
+)
 
 // Server Row Component
 const ServerRow = ({ server }: { server: McpServer }) => {
