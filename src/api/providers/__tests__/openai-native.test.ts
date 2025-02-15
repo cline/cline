@@ -130,11 +130,20 @@ describe("OpenAiNativeHandler", () => {
 			})
 
 			mockCreate.mockResolvedValueOnce({
-				choices: [{ message: { content: null } }],
-				usage: {
-					prompt_tokens: 0,
-					completion_tokens: 0,
-					total_tokens: 0,
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						choices: [
+							{
+								delta: { content: null },
+								index: 0,
+							},
+						],
+						usage: {
+							prompt_tokens: 0,
+							completion_tokens: 0,
+							total_tokens: 0,
+						},
+					}
 				},
 			})
 
@@ -144,10 +153,7 @@ describe("OpenAiNativeHandler", () => {
 				results.push(result)
 			}
 
-			expect(results).toEqual([
-				{ type: "text", text: "" },
-				{ type: "usage", inputTokens: 0, outputTokens: 0 },
-			])
+			expect(results).toEqual([{ type: "usage", inputTokens: 0, outputTokens: 0 }])
 
 			// Verify developer role is used for system prompt with o1 model
 			expect(mockCreate).toHaveBeenCalledWith({
@@ -156,6 +162,8 @@ describe("OpenAiNativeHandler", () => {
 					{ role: "developer", content: "Formatting re-enabled\n" + systemPrompt },
 					{ role: "user", content: "Hello!" },
 				],
+				stream: true,
+				stream_options: { include_usage: true },
 			})
 		})
 
