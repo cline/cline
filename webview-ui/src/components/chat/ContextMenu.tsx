@@ -54,6 +54,27 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				return <span>Paste URL to fetch contents</span>
 			case ContextMenuOptionType.NoResults:
 				return <span>No results found</span>
+			case ContextMenuOptionType.Git:
+				if (option.value) {
+					return (
+						<div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+							<span style={{ lineHeight: "1.2" }}>{option.label}</span>
+							<span
+								style={{
+									fontSize: "0.85em",
+									opacity: 0.7,
+									whiteSpace: "nowrap",
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									lineHeight: "1.2",
+								}}>
+								{option.description}
+							</span>
+						</div>
+					)
+				} else {
+					return <span>Git Commits</span>
+				}
 			case ContextMenuOptionType.File:
 			case ContextMenuOptionType.Folder:
 				if (option.value) {
@@ -91,6 +112,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				return "terminal"
 			case ContextMenuOptionType.URL:
 				return "link"
+			case ContextMenuOptionType.Git:
+				return "git-commit"
 			case ContextMenuOptionType.NoResults:
 				return "info"
 			default:
@@ -165,7 +188,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							/>
 							{renderOptionContent(option)}
 						</div>
-						{(option.type === ContextMenuOptionType.File || option.type === ContextMenuOptionType.Folder) &&
+						{(option.type === ContextMenuOptionType.File ||
+							option.type === ContextMenuOptionType.Folder ||
+							option.type === ContextMenuOptionType.Git) &&
 							!option.value && (
 								<i
 									className="codicon codicon-chevron-right"
@@ -178,7 +203,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							)}
 						{(option.type === ContextMenuOptionType.Problems ||
 							option.type === ContextMenuOptionType.Terminal ||
-							((option.type === ContextMenuOptionType.File || option.type === ContextMenuOptionType.Folder) &&
+							((option.type === ContextMenuOptionType.File ||
+								option.type === ContextMenuOptionType.Folder ||
+								option.type === ContextMenuOptionType.Git) &&
 								option.value)) && (
 							<i
 								className="codicon codicon-add"

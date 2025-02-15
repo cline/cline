@@ -8,22 +8,24 @@ import { extractTextFromFile } from "../../integrations/misc/extract-text"
 import { isBinaryFile } from "isbinaryfile"
 import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
 import { getLatestTerminalOutput } from "../../integrations/terminal/get-latest-output"
+import { getCommitInfo } from "../../utils/git"
+import { getWorkingState } from "../../utils/git"
 
 export function openMention(mention?: string): void {
 	if (!mention) {
 		return
 	}
 
+	const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+	if (!cwd) {
+		return
+	}
+
 	if (mention.startsWith("/")) {
 		const relPath = mention.slice(1)
-		const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-		if (!cwd) {
-			return
-		}
 		const absPath = path.resolve(cwd, relPath)
 		if (mention.endsWith("/")) {
 			vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath))
-			// vscode.commands.executeCommand("vscode.openFolder", , { forceNewWindow: false }) opens in new window
 		} else {
 			openFile(absPath)
 		}
@@ -51,6 +53,10 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 			return `Workspace Problems (see below for diagnostics)`
 		} else if (mention === "terminal") {
 			return `Terminal Output (see below for output)`
+		} else if (mention === "git-changes") {
+			return `Working directory changes (see below for details)`
+		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
+			return `Git commit '${mention}' (see below for commit info)`
 		}
 		return match
 	})
@@ -110,6 +116,20 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 				parsedText += `\n\n<terminal_output>\n${terminalOutput}\n</terminal_output>`
 			} catch (error) {
 				parsedText += `\n\n<terminal_output>\nError fetching terminal output: ${error.message}\n</terminal_output>`
+			}
+		} else if (mention === "git-changes") {
+			try {
+				const workingState = await getWorkingState(cwd)
+				parsedText += `\n\n<git_working_state>\n${workingState}\n</git_working_state>`
+			} catch (error) {
+				parsedText += `\n\n<git_working_state>\nError fetching working state: ${error.message}\n</git_working_state>`
+			}
+		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
+			try {
+				const commitInfo = await getCommitInfo(mention, cwd)
+				parsedText += `\n\n<git_commit hash="${mention}">\n${commitInfo}\n</git_commit>`
+			} catch (error) {
+				parsedText += `\n\n<git_commit hash="${mention}">\nError fetching commit info: ${error.message}\n</git_commit>`
 			}
 		}
 	}
