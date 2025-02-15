@@ -943,6 +943,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							const details: McpDownloadResponse = await response.json()
 
 							if (details.readmeContent) {
+								// Disable markdown preview markers
+								const config = vscode.workspace.getConfiguration("markdown")
+								await config.update("preview.markEditorSelection", false, true)
+
 								// Create URI with base64 encoded markdown content
 								const uri = vscode.Uri.parse(
 									`${DIFF_VIEW_URI_SCHEME}:${details.name} README?${Buffer.from(details.readmeContent).toString("base64")}`,
