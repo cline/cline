@@ -60,7 +60,6 @@
 	 */
 
 	--color-vscode-foreground: var(--vscode-foreground);
-	--color-vscode-background: var(--vscode-background);
 
 	--color-vscode-editor-foreground: var(--vscode-editor-foreground);
 	--color-vscode-editor-background: var(--vscode-editor-background);
@@ -74,8 +73,11 @@
 	--color-vscode-dropdown-background: var(--vscode-dropdown-background);
 	--color-vscode-dropdown-border: var(--vscode-dropdown-border);
 
+	--color-vscode-input-foreground: var(--vscode-input-foreground);
 	--color-vscode-input-background: var(--vscode-input-background);
 	--color-vscode-input-border: var(--vscode-input-border);
+
+	--color-vscode-focusBorder: var(--vscode-focusBorder);
 
 	--color-vscode-badge-foreground: var(--vscode-badge-foreground);
 	--color-vscode-badge-background: var(--vscode-badge-background);
@@ -83,8 +85,13 @@
 	--color-vscode-notifications-foreground: var(--vscode-notifications-foreground);
 	--color-vscode-notifications-background: var(--vscode-notifications-background);
 	--color-vscode-notifications-border: var(--vscode-notifications-border);
+
 	--color-vscode-descriptionForeground: var(--vscode-descriptionForeground);
 	--color-vscode-errorForeground: var(--vscode-errorForeground);
+
+	--color-vscode-list-hoverForeground: var(--vscode-list-hoverForeground);
+	--color-vscode-list-hoverBackground: var(--vscode-list-hoverBackground);
+	--color-vscode-list-focusBackground: var(--vscode-list-focusBackground);
 }
 
 @layer base {
@@ -137,8 +144,13 @@
 }
 
 /* Form Element Focus States */
+
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);
+}
+
+.focus\:outline-0 {
+	outline: 0 !important; /* Allow tailwind to override the `textarea:focus` rule */
 }
 
 vscode-button::part(control):focus {
@@ -201,19 +213,19 @@ body:focus-within .code-block-scrollable {
 	border-color: var(--vscode-scrollbarSlider-activeBackground);
 }
 
-/*
-Fix VSCode ignoring webkit scrollbar modifiers
-https://github.com/microsoft/vscode/issues/213045
-*/
+/**
+ * Fix VSCode ignoring webkit scrollbar modifiers
+ * https://github.com/microsoft/vscode/issues/213045
+ */
 @supports selector(::-webkit-scrollbar) {
 	html {
 		scrollbar-color: unset;
 	}
 }
 
-/*
-The above scrollbar styling uses some transparent background color magic to accomplish its animation. However this doesn't play nicely with SyntaxHighlighter, so we need to set a background color for the code blocks' horizontal scrollbar. This actually has the unintended consequence of always showing the scrollbar which I prefer since it makes it more obvious that there is more content to scroll to.
-*/
+/**
+ * The above scrollbar styling uses some transparent background color magic to accomplish its animation. However this doesn't play nicely with SyntaxHighlighter, so we need to set a background color for the code blocks' horizontal scrollbar. This actually has the unintended consequence of always showing the scrollbar which I prefer since it makes it more obvious that there is more content to scroll to.
+ */
 
 .code-block-scrollable::-webkit-scrollbar-track {
 	background: transparent;
@@ -236,6 +248,19 @@ The above scrollbar styling uses some transparent background color magic to acco
 
 .code-block-scrollable::-webkit-scrollbar-corner {
 	background-color: transparent;
+}
+
+/**
+ * Add a way to hide scrollbars.
+ */
+
+.scrollbar-hide {
+	-ms-overflow-style: none; /* IE and Edge */
+	scrollbar-width: none; /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+	display: none; /* Chrome, Safari and Opera */
 }
 
 /**

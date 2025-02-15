@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react"
 import { Button } from "@/components/ui"
 
 const meta = {
-	title: "@shadcn/Button",
+	title: "primitives/Button",
 	component: Button,
 	parameters: { layout: "centered" },
 	tags: ["autodocs"],
@@ -49,5 +49,47 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
-	name: "Button",
+	name: "Default",
+}
+
+export const Secondary: Story = {
+	name: "Secondary",
+	args: {
+		variant: "secondary",
+	},
+}
+
+export const Destructive: Story = {
+	name: "Destructive",
+	args: {
+		variant: "destructive",
+	},
+}
+
+export const Outline: Story = {
+	name: "Outline",
+	args: {
+		variant: "outline",
+	},
+}
+
+export const Ghost: Story = {
+	name: "Ghost",
+	args: {
+		variant: "ghost",
+	},
+}
+
+export const Link: Story = {
+	name: "Link",
+	args: {
+		variant: "link",
+	},
+}
+
+export const Combobox: Story = {
+	name: "Combobox",
+	args: {
+		variant: "combobox",
+	},
 }
