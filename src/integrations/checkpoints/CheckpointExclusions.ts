@@ -1,7 +1,7 @@
 import fs from "fs/promises"
 import * as path from "path"
 import { fileExistsAtPath } from "../../utils/fs"
-import { GIT_DISABLED_SUFFIX } from "./CheckpointTracker"
+import { GIT_DISABLED_SUFFIX } from "./GitOperations"
 
 /**
  * CheckpointExclusions Module
