@@ -17,7 +17,7 @@ import {
 } from "@/components/ui"
 
 const meta = {
-	title: "@shadcn/Combobox",
+	title: "primitives/Combobox",
 	component: Combobox,
 	parameters: { layout: "centered" },
 	tags: ["autodocs"],
@@ -62,7 +62,7 @@ function Combobox() {
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
-				<Button variant="secondary" role="combobox" aria-expanded={open} className="w-[200px] justify-between">
+				<Button variant="combobox" role="combobox" aria-expanded={open} className="w-[200px] justify-between">
 					{value ? frameworks.find((framework) => framework.value === value)?.label : "Select framework..."}
 					<CaretSortIcon className="opacity-50" />
 				</Button>
