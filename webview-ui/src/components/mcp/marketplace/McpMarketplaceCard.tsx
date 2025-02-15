@@ -221,7 +221,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 								top: 0,
 								bottom: 0,
 								width: "32px",
-								background: "linear-gradient(to right, transparent, var(--vscode-editor-background))",
+								background: "linear-gradient(to right, transparent, var(--vscode-sideBar-background))",
 								pointerEvents: "none",
 							}}
 						/>
