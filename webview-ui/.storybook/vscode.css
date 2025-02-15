@@ -6,27 +6,51 @@
  */
 
 :root {
-	--vscode-editor-background: #1f1f1f; /* "editor.background" */
-	--vscode-editor-foreground: #cccccc; /* "editor.foreground" */
-	--vscode-menu-background: #1f1f1f; /* "menu.background" */
-	--vscode-menu-foreground: #cccccc; /* "menu.foreground" */
-	--vscode-button-background: #0078d4; /* "button.background" */
-	--vscode-button-foreground: #ffffff; /* "button.foreground" */
-	--vscode-button-secondaryBackground: #313131; /* "button.secondaryBackground" */
-	--vscode-button-secondaryForeground: #cccccc; /* "button.secondaryForeground" */
-	--vscode-disabledForeground: #313131; /* "disabledForeground" */
-	--vscode-descriptionForeground: #9d9d9d; /* "descriptionForeground" */
-	--vscode-focusBorder: #0078d4; /* "focusBorder" */
-	--vscode-errorForeground: #f85149; /* "errorForeground" */
-	--vscode-widget-border: #313131; /* "widget.border" */
-	--vscode-input-background: #313131; /* "input.background" */
-	--vscode-input-foreground: #cccccc; /* "input.foreground" */
-	--vscode-input-border: #3c3c3c; /* "input.border" */
+	/**
+	 * The styles below have been defined for Tailwind.
+	 */
 
-	/* I can't find these in the output of `Developer: Generate Color Theme From Current Settings` */
-	--vscode-charts-red: red;
-	--vscode-charts-blue: blue;
-	--vscode-charts-yellow: yellow;
-	--vscode-charts-orange: orange;
-	--vscode-charts-green: green;
+	--vscode-foreground: #d1d5da; /* "foreground" */
+
+	--vscode-editor-foreground: #e1e4e8; /* "editor.foreground" */
+	--vscode-editor-background: #24292e; /* "editor.background" */
+
+	--vscode-button-foreground: #dcffe4; /* "button.foreground" */
+	--vscode-button-background: #176f2c; /* "button.background" */
+	--vscode-button-secondaryForeground: #ffffff; /* "button.secondaryForeground" */
+	--vscode-button-secondaryBackground: #444d56; /* "button.secondaryBackground" */
+
+	--vscode-dropdown-foreground: #e1e4e8; /* "dropdown.foreground" */
+	--vscode-dropdown-background: #2f363d; /* "dropdown.background" */
+	--vscode-dropdown-border: #1b1f23; /* "dropdown.border" */
+
+	--vscode-input-foreground: #e1e4e8; /* "input.foreground" */
+	--vscode-input-background: #2f363d; /* "input.background" */
+	--vscode-input-border: #1b1f23; /* "input.border" */
+
+	--vscode-focusBorder: #005cc5; /* "focusBorder" */
+
+	--vscode-badge-foreground: #c8e1ff; /* "badge.foreground" */
+	--vscode-badge-background: #044289; /* "badge.background" */
+
+	--vscode-notifications-foreground: #e1e4e8; /* "notifications.foreground" */
+	--vscode-notifications-background: #2f363d; /* "notifications.background" */
+	--vscode-notifications-border: #1b1f23; /* "notifications.border" */
+
+	--vscode-descriptionForeground: #959da5; /* "descriptionForeground" */
+	--vscode-errorForeground: #f97583; /* "errorForeground" */
+
+	--vscode-list-hoverForeground: #e1e4e8; /* "list.hoverForeground" */
+	--vscode-list-hoverBackground: #282e34; /* "list.hoverBackground" */
+	--vscode-list-focusBackground: #044289; /* "list.focusBackground" */
+
+	/**
+	 * The styles below are used in the @shadcn/ui + Tailwind theme but are
+	 * not exposed as `--color-vscode-*` variables.
+	 */
+
+	--vscode-menu-background: #2f363d; /* "menu.background" [MISSING] */
+	--vscode-menu-foreground: #e1e4e8; /* "menu.foreground" [MISSING] */
+
+	--vscode-disabledForeground: #cccccc; /* "disabledForeground" [MISSING] */
 }

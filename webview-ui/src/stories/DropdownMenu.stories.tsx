@@ -27,7 +27,7 @@ import {
 } from "@/components/ui"
 
 const meta = {
-	title: "@shadcn/DropdownMenu",
+	title: "primitives/DropdownMenu",
 	component: DropdownMenu,
 	parameters: { layout: "centered" },
 	tags: ["autodocs"],
