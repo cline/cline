@@ -40,6 +40,15 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 					.mcp-card:hover {
 						background-color: var(--vscode-list-hoverBackground);
 					}
+					vscode-link::part(control) {
+						text-decoration: none !important;
+						border: none !important;
+					}
+					vscode-link:hover::part(control) {
+						color: var(--link-active-foreground);
+						text-decoration: none !important;
+						border: none !important;
+					}
 				`}
 			</style>
 			<div
@@ -142,7 +151,9 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 									minWidth: 0,
 									opacity: 0.5,
 									textDecoration: "none",
+									border: "none !important",
 								}}
+								className="github-link"
 								onMouseEnter={(e) => {
 									e.currentTarget.style.opacity = "0.8"
 								}}
