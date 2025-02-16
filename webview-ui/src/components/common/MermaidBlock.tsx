@@ -6,6 +6,15 @@ import styled from "styled-components"
 mermaid.initialize({
 	startOnLoad: false,
 	securityLevel: "loose",
+	theme: "dark",
+	themeVariables: {
+		background: "#1e1e1e",
+		textColor: "#ffffff", // make text much brighter
+		mainBkg: "#2d2d2d",
+		lineColor: "#cccccc", // light enough for contrast
+		fontSize: "16px",
+		primaryColor: "#3c3c3c", // node fill color, etc.
+	},
 })
 
 interface MermaidBlockProps {
