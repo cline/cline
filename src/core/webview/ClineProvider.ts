@@ -28,6 +28,7 @@ import { getUri } from "./getUri"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
+import { searchCommits } from "../../utils/git"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -49,6 +50,7 @@ type SecretKey =
 	| "togetherApiKey"
 	| "qwenApiKey"
 	| "mistralApiKey"
+	| "liteLlmApiKey"
 	| "authToken"
 	| "authNonce"
 	| "nebiusApiKey"
@@ -66,6 +68,7 @@ type GlobalStateKey =
 	| "taskHistory"
 	| "openAiBaseUrl"
 	| "openAiModelId"
+	| "openAiModelInfo"
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
 	| "lmStudioModelId"
@@ -336,15 +339,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		// Use a nonce to only allow a specific script to be run.
 		/*
-        content security policy of your webview to only allow scripts that have a specific nonce
-        create a content security policy meta tag so that only loading scripts with a nonce is allowed
-        As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicity allow for these resources. E.g.
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
+				content security policy of your webview to only allow scripts that have a specific nonce
+				create a content security policy meta tag so that only loading scripts with a nonce is allowed
+				As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicity allow for these resources. E.g.
+								<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
 		- 'unsafe-inline' is required for styles due to vscode-webview-toolkit's dynamic style injection
 		- since we pass base64 images to the webview, we need to specify img-src ${webview.cspSource} data:;
 
-        in meta tag we add nonce attribute: A cryptographic nonce (only used once) to allow scripts. The server must generate a unique nonce value each time it transmits a policy. It is critical to provide a nonce that cannot be guessed as bypassing a resource's policy is otherwise trivial.
-        */
+				in meta tag we add nonce attribute: A cryptographic nonce (only used once) to allow scripts. The server must generate a unique nonce value each time it transmits a policy. It is critical to provide a nonce that cannot be guessed as bypassing a resource's policy is otherwise trivial.
+				*/
 		const nonce = getNonce()
 
 		// Tip: Install the es6-string-html VS Code extension to enable code highlighting below
@@ -444,6 +447,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openAiBaseUrl,
 								openAiApiKey,
 								openAiModelId,
+								openAiModelInfo,
 								ollamaModelId,
 								ollamaBaseUrl,
 								lmStudioModelId,
@@ -464,6 +468,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								vsCodeLmModelSelector,
 								liteLlmBaseUrl,
 								liteLlmModelId,
+								liteLlmApiKey,
 								qwenApiLine,
 								nebiusApiKey,
 								nebiusModelId,
@@ -484,6 +489,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
 							await this.storeSecret("openAiApiKey", openAiApiKey)
 							await this.updateGlobalState("openAiModelId", openAiModelId)
+							await this.updateGlobalState("openAiModelInfo", openAiModelInfo)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
 							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
 							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
@@ -496,6 +502,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("togetherApiKey", togetherApiKey)
 							await this.storeSecret("qwenApiKey", qwenApiKey)
 							await this.storeSecret("mistralApiKey", mistralApiKey)
+							await this.storeSecret("liteLlmApiKey", liteLlmApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
@@ -564,6 +571,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									break
 								case "openai":
 									await this.updateGlobalState("previousModeModelId", apiConfiguration.openAiModelId)
+									await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openAiModelInfo)
 									break
 								case "ollama":
 									await this.updateGlobalState("previousModeModelId", apiConfiguration.ollamaModelId)
@@ -595,6 +603,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 										break
 									case "openai":
 										await this.updateGlobalState("openAiModelId", newModelId)
+										await this.updateGlobalState("openAiModelInfo", newModelInfo)
 										break
 									case "ollama":
 										await this.updateGlobalState("ollamaModelId", newModelId)
@@ -624,7 +633,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									await this.postMessageToWebview({
 										type: "invoke",
 										invoke: "sendMessage",
-										text: "[Proceeding with the task...]",
+										text: message.chatContent?.message || "[Proceeding with the task...]",
+										images: message.chatContent?.images,
 									})
 								} else {
 									this.cancelTask()
@@ -797,6 +807,21 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.mcpHub?.restartConnection(message.text!)
 						} catch (error) {
 							console.error(`Failed to retry connection for ${message.text}:`, error)
+						}
+						break
+					}
+					case "searchCommits": {
+						const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+						if (cwd) {
+							try {
+								const commits = await searchCommits(message.text || "", cwd)
+								await this.postMessageToWebview({
+									type: "commitSearchResults",
+									commits,
+								})
+							} catch (error) {
+								console.error(`Error searching commits: ${JSON.stringify(error)}`)
+							}
 						}
 						break
 					}
@@ -1390,6 +1415,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openAiBaseUrl,
 			openAiApiKey,
 			openAiModelId,
+			openAiModelInfo,
 			ollamaModelId,
 			ollamaBaseUrl,
 			lmStudioModelId,
@@ -1424,6 +1450,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			qwenApiLine,
 			nebiusApiKey,
 			nebiusModelId,
+			liteLlmApiKey,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1441,6 +1468,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
 			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
+			this.getGlobalState("openAiModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
@@ -1475,6 +1503,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("nebiusApiKey") as Promise<string | undefined>,
 			this.getGlobalState("nebiusModelId") as Promise<string | undefined>,
+			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1513,6 +1542,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				openAiBaseUrl,
 				openAiApiKey,
 				openAiModelId,
+				openAiModelInfo,
 				ollamaModelId,
 				ollamaBaseUrl,
 				lmStudioModelId,
@@ -1537,6 +1567,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				liteLlmModelId,
 				nebiusApiKey,
 				nebiusModelId,
+				liteLlmApiKey,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -1629,6 +1660,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"togetherApiKey",
 			"qwenApiKey",
 			"mistralApiKey",
+			"liteLlmApiKey",
 			"authToken",
 			"nebiusApiKey",
 		]
