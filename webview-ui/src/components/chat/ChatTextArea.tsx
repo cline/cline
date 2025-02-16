@@ -712,6 +712,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return `${selectedProvider}:${apiConfiguration.liteLlmModelId}`
 				case "requesty":
 					return `${selectedProvider}:${apiConfiguration.requestyModelId}`
+				case "nebius":
+					return `${selectedProvider}:${apiConfiguration.nebiusModelId}`
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}

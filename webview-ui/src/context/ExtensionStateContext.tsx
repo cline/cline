@@ -72,6 +72,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.togetherApiKey,
 							config.qwenApiKey,
 							config.mistralApiKey,
+							config.nebiusApiKey,
 							config.vsCodeLmModelSelector,
 						].some((key) => key !== undefined)
 					: false

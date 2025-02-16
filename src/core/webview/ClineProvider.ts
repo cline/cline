@@ -51,6 +51,7 @@ type SecretKey =
 	| "mistralApiKey"
 	| "authToken"
 	| "authNonce"
+	| "nebiusApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -86,6 +87,7 @@ type GlobalStateKey =
 	| "qwenApiLine"
 	| "requestyModelId"
 	| "togetherModelId"
+	| "nebiusModelId"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -463,6 +465,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								liteLlmBaseUrl,
 								liteLlmModelId,
 								qwenApiLine,
+								nebiusApiKey,
+								nebiusModelId,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -501,6 +505,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("qwenApiLine", qwenApiLine)
 							await this.updateGlobalState("requestyModelId", requestyModelId)
 							await this.updateGlobalState("togetherModelId", togetherModelId)
+							await this.storeSecret("nebiusApiKey", nebiusApiKey)
+							await this.updateGlobalState("nebiusModelId", nebiusModelId)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -1416,6 +1422,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeModelId,
 			previousModeModelInfo,
 			qwenApiLine,
+			nebiusApiKey,
+			nebiusModelId,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1465,6 +1473,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
+			this.getSecret("nebiusApiKey") as Promise<string | undefined>,
+			this.getGlobalState("nebiusModelId") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1525,6 +1535,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				o3MiniReasoningEffort,
 				liteLlmBaseUrl,
 				liteLlmModelId,
+				nebiusApiKey,
+				nebiusModelId,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -1618,6 +1630,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"qwenApiKey",
 			"mistralApiKey",
 			"authToken",
+			"nebiusApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)

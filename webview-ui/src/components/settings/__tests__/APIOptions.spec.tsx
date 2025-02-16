@@ -66,6 +66,23 @@ vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	}
 })
 
+vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
+	const actual = await importOriginal()
+	return {
+		...actual,
+		// your mocked methods
+		useExtensionState: vi.fn(() => ({
+			apiConfiguration: {
+				apiProvider: "nebius",
+				requestyApiKey: "",
+				requestyModelId: "",
+			},
+			setApiConfiguration: vi.fn(),
+			uriScheme: "vscode",
+		})),
+	}
+})
+
 describe("ApiOptions Component", () => {
 	vi.clearAllMocks()
 	const mockPostMessage = vi.fn()
