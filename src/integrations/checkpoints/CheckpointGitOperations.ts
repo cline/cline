@@ -12,13 +12,16 @@ import { HistoryItem } from "../../shared/HistoryItem"
  * GitOperations Class
  *
  * Handles git-specific operations for Cline's Checkpoints system.
- * This class encapsulates git operations to provide a clean separation
- * of concerns from checkpoint tracking logic.
  *
  * Key responsibilities:
  * - Git repository initialization and configuration
  * - Git settings management (user, LFS, etc.)
- * - Worktree configuration
+ * - Worktree configuration and management
+ * - Task-specific branch management (creation, switching, deletion)
+ * - Handling of both legacy and branch-per-task checkpoint structures
+ * - Managing nested git repositories during checkpoint operations
+ * - File staging and checkpoint creation
+ * - Shadow git repository maintenance and cleanup
  */
 export class GitOperations {
     private cwd: string
@@ -45,28 +48,11 @@ export class GitOperations {
      * - Configures git settings (user, LFS, etc.)
      * - Sets up worktree to point to workspace
      * - Creates initial empty commit
-     * - Handles both legacy and new checkpoint structures
-     *
-     * Legacy path structure:
-     * globalStorage/
-     *   tasks/
-     *     {taskId}/
-     *       checkpoints/
-     *         .git/
-     *
-     * Branch-per-task path structure:
-     * globalStorage/
-     *   checkpoints/
-     *     {cwdHash}/
-     *       .git/
-     *
-     * Git Configuration:
-     * - core.worktree: Set to workspace directory
-     * - commit.gpgSign: Disabled
-     * - user.name: "Cline Checkpoint"
-     * - user.email: "checkpoint@cline.bot"
+     * - Handles both legacy and branch-per-task checkpoint structures
      *
      * @param gitPath - Path to the .git directory
+     * @param cwd - The current working directory for git operations
+     * @param isLegacyCheckpoint - Whether this is operating in legacy checkpoint mode
      * @returns Promise<string> Path to the initialized .git directory
      * @throws Error if:
      * - Worktree verification fails for existing repository
@@ -74,41 +60,41 @@ export class GitOperations {
      * - Unable to create initial commit
      * - LFS pattern setup fails
      */
-    public async initShadowGit(gitPath: string): Promise<string> {
-        console.log(`Initializing ${this.isLegacyCheckpoint ? "legacy" : "new"} shadow git`)
+    public static async initShadowGit(gitPath: string, cwd: string, isLegacyCheckpoint: boolean): Promise<string> {
+        console.log(`Initializing ${isLegacyCheckpoint ? "legacy" : "branch-per-task"} shadow git`)
 
         // If repo exists, just verify worktree
-        if (await this.fileExists(gitPath)) {
+        if (await fileExistsAtPath(gitPath)) {
             const git = simpleGit(path.dirname(gitPath))
             const worktree = await git.getConfig("core.worktree")
-            if (worktree.value !== this.cwd) {
+            if (worktree.value !== cwd) {
                 throw new Error("Checkpoints can only be used in the original workspace: " + worktree.value)
             }
-            console.log(`Using existing ${this.isLegacyCheckpoint ? "legacy" : "new"} shadow git at ${gitPath}`)
+            console.log(`Using existing ${isLegacyCheckpoint ? "legacy" : "branch-per-task"} shadow git at ${gitPath}`)
             return gitPath
         }
 
         // Initialize new repo
         const checkpointsDir = path.dirname(gitPath)
-        console.log(`Creating new ${this.isLegacyCheckpoint ? "legacy" : "new"} shadow git in ${checkpointsDir}`)
+        console.log(`Creating new ${isLegacyCheckpoint ? "legacy" : "branch-per-task"} shadow git in ${checkpointsDir}`)
 
         const git = simpleGit(checkpointsDir)
         await git.init()
 
         // Configure repo
-        await git.addConfig("core.worktree", this.cwd)
+        await git.addConfig("core.worktree", cwd)
         await git.addConfig("commit.gpgSign", "false")
         await git.addConfig("user.name", "Cline Checkpoint")
         await git.addConfig("user.email", "checkpoint@cline.bot")
 
         // Set up LFS patterns
-        const lfsPatterns = await getLfsPatterns(this.cwd)
+        const lfsPatterns = await getLfsPatterns(cwd)
         await writeExcludesFile(gitPath, lfsPatterns)
 
         // Initial commit only on first repo creation
         await git.commit("initial commit", { "--allow-empty": null })
 
-        console.log(`${this.isLegacyCheckpoint ? "Legacy" : "New"} shadow git initialization completed`)
+        console.log(`${isLegacyCheckpoint ? "Legacy" : "New"} shadow git initialization completed`)
 
         return gitPath
     }
@@ -117,6 +103,10 @@ export class GitOperations {
      * Retrieves the worktree path from the shadow git configuration.
      * The worktree path indicates where the shadow git repository is tracking files,
      * which should match the current workspace directory.
+     *
+     * @param gitPath - Path to the .git directory
+     * @returns Promise<string | undefined> The worktree path or undefined if not found
+     * @throws Error if unable to get worktree path
      */
     public async getShadowGitConfigWorkTree(gitPath: string): Promise<string | undefined> {
         try {
@@ -129,23 +119,13 @@ export class GitOperations {
         }
     }
 
-    /**
-     * Helper method to check if a file exists at the given path.
-     *
-     * @param path - Path to check for file existence
-     * @returns Promise<boolean> True if file exists, false otherwise
-     */
-    private async fileExists(path: string): Promise<boolean> {
-        try {
-            await fs.access(path)
-            return true
-        } catch {
-            return false
-        }
-    }
 
     /**
      * Checks if a shadow Git repository exists for the given task and workspace.
+     *
+     * @param taskId - The ID of the task whose shadow git to check
+     * @param provider - The ClineProvider instance for accessing VS Code functionality
+     * @returns Promise<boolean> True if the shadow git exists, false otherwise
      */
     public static async doesShadowGitExist(taskId: string, provider?: ClineProvider): Promise<boolean> {
         const globalStoragePath = provider?.context.globalStorageUri.fsPath
@@ -243,39 +223,6 @@ export class GitOperations {
         }
     }
 
-    /**
-     * Deletes the branch associated with a task.
-     * @param taskId - The ID of the task whose branch should be deleted
-     * @param isLegacy - Whether this is a legacy checkpoint
-     * @param checkpointsDir - Directory containing the git repository
-     * @throws Error if branch deletion fails
-     */
-    public async deleteTaskBranch(taskId: string, isLegacy: boolean, checkpointsDir: string): Promise<void> {
-        try {
-            console.log("Starting task branch deletion process...")
-
-            if (isLegacy) {
-                console.log("Deleting legacy checkpoint directory")
-                try {
-                    await fs.rm(checkpointsDir, { recursive: true, force: true })
-                    console.log("Successfully deleted legacy checkpoint directory")
-                } catch (error) {
-                    console.error("Failed to delete legacy checkpoint directory:", error)
-                    throw error
-                }
-                return
-            }
-
-            console.log("Deleting task branch in new checkpoint structure")
-            const git = simpleGit(checkpointsDir)
-            const branchName = `task-${taskId}`
-
-            await GitOperations.deleteBranchForGit(git, branchName, checkpointsDir)
-        } catch (error) {
-            console.error("Failed to delete task branch:", error)
-            throw new Error(`Failed to delete task branch: ${error instanceof Error ? error.message : String(error)}`)
-        }
-    }
 
     /**
      * Static method to delete a task's branch using stored workspace path.
@@ -291,13 +238,40 @@ export class GitOperations {
     ): Promise<void> {
         try {
             console.log("Starting static task branch deletion process...")
-            console.log("History item:", JSON.stringify(historyItem, null, 2))
 
             if (!globalStoragePath) {
                 throw new Error("Global storage uri is invalid")
             }
 
-            // First check for legacy checkpoint
+            // First try to handle branch-per-task checkpoint
+            let workingDir: string
+            if (historyItem.shadowGitConfigWorkTree) {
+                workingDir = historyItem.shadowGitConfigWorkTree
+            } else {
+                // Try to determine working directory from current state
+                workingDir = await getWorkingDirectory()
+            }
+
+            const cwdHash = hashWorkingDir(workingDir)
+            const checkpointsDir = path.join(globalStoragePath, "checkpoints", cwdHash)
+            const gitPath = path.join(checkpointsDir, ".git")
+
+            if (await fileExistsAtPath(gitPath)) {
+                console.log(`Found branch-per-task git repository at ${gitPath}`)
+                const git = simpleGit(path.dirname(gitPath))
+                const branchName = `task-${taskId}`
+
+                // Check if the branch exists
+                const branches = await git.branchLocal()
+                if (branches.all.includes(branchName)) {
+                    console.log(`Found branch ${branchName} to delete`)
+                    await GitOperations.deleteBranchForGit(git, branchName, checkpointsDir)
+                    return
+                }
+                console.log(`Branch ${branchName} not found in branch-per-task repository`)
+            }
+
+            // Only check legacy checkpoint if we didn't find/delete a branch-per-task branch
             const legacyCheckpointsDir = path.join(globalStoragePath, "tasks", taskId, "checkpoints")
             const legacyGitPath = path.join(legacyCheckpointsDir, ".git")
 
@@ -313,46 +287,7 @@ export class GitOperations {
                 }
             }
 
-            // No legacy checkpoint found, proceed with new structure
-            if (!historyItem.shadowGitConfigWorkTree) {
-                // Try to determine working directory from current state
-                const workingDir = await getWorkingDirectory()
-                console.log(`No shadow git config in history item, using current working directory: ${workingDir}`)
-
-                const cwdHash = hashWorkingDir(workingDir)
-                const checkpointsDir = path.join(globalStoragePath, "checkpoints", cwdHash)
-                const gitPath = path.join(checkpointsDir, ".git")
-
-                if (await fileExistsAtPath(gitPath)) {
-                    console.log(`Found git repository at ${gitPath}`)
-                    const git = simpleGit(path.dirname(gitPath))
-                    const branchName = `task-${taskId}`
-                    await GitOperations.deleteBranchForGit(git, branchName, checkpointsDir)
-                    return
-                }
-
-                console.log("No shadow git found for current working directory")
-                return
-            }
-
-            const workingDir = historyItem.shadowGitConfigWorkTree
-            const cwdHash = hashWorkingDir(workingDir)
-            console.log(`Working directory: ${workingDir}, hash: ${cwdHash}`)
-
-            const checkpointsDir = path.join(globalStoragePath, "checkpoints", cwdHash)
-            const gitPath = path.join(checkpointsDir, ".git")
-
-            // Verify the shadow git exists
-            if (!(await fileExistsAtPath(gitPath))) {
-                console.log(`No shadow git found at path: ${gitPath}`)
-                return
-            }
-
-            console.log("Deleting task branch in new checkpoint structure")
-            const git = simpleGit(path.dirname(gitPath))
-            const branchName = `task-${taskId}`
-
-            await GitOperations.deleteBranchForGit(git, branchName, checkpointsDir)
+            console.log("No checkpoints found to delete")
         } catch (error) {
             console.error("Failed to delete task branch:", error)
             throw new Error(`Failed to delete task branch: ${error instanceof Error ? error.message : String(error)}`)
@@ -413,7 +348,7 @@ export class GitOperations {
     /**
      * Switches to or creates a task-specific branch in the shadow Git repository.
      * For legacy checkpoints, this is a no-op since they use separate repositories.
-     * For new checkpoints, this ensures we're on the correct task branch before operations.
+     * For branch-per-task checkpoints, this ensures we're on the correct task branch before operations.
      *
      * The method performs the following:
      * 1. Gets the shadow git path and initializes simple-git
@@ -435,8 +370,6 @@ export class GitOperations {
         const git = simpleGit(path.dirname(gitPath))
         const branchName = `task-${taskId}`
 
-        console.log(`Switching to task branch: ${branchName} in shadow git at ${gitPath}`)
-
         // Create new task-specific branch, or switch to one if it already exists.
         const branches = await git.branchLocal()
         if (!branches.all.includes(branchName)) {
@@ -448,8 +381,62 @@ export class GitOperations {
         }
 
         const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
-        console.log(`Current branch after switch: ${currentBranch}`)
+        console.log(`Current Checkpoint branch after switch: ${currentBranch}`)
+    }
+
+    /**
+     * Adds files to the shadow git repository while handling nested git repos.
+     * Uses git commands to list files and stages them for commit.
+     *
+     * Process:
+     * 1. Updates exclude patterns from LFS config
+     * 2. Temporarily disables nested git repos
+     * 3. Gets list of tracked and untracked files from git
+     * 4. Adds all files to git staging
+     * 5. Re-enables nested git repos
+     *
+     * @param git - SimpleGit instance configured for the shadow git repo
+     * @param gitPath - Path to the .git directory
+     * @returns Promise<void>
+     * @throws Error if file operations fail or git commands error
+     */
+    public async addCheckpointFiles(git: SimpleGit, gitPath: string): Promise<void> {
+        try {
+            // Update exclude patterns before each commit
+            await writeExcludesFile(
+                gitPath,
+                await getLfsPatterns(this.cwd)
+            )
+            await this.renameNestedGitRepos(true)
+            //console.log("Starting checkpoint add operation...")
+
+            // Get list of all files git would track (respects .gitignore)
+            const gitFiles = (await git.raw(["ls-files", "--others", "--exclude-standard", "--cached"]))
+                .split("\n")
+                .filter(Boolean)
+
+            // Add filtered files
+            if (gitFiles.length === 0) {
+                console.log("No files to add to checkpoint")
+                return
+            }
+
+            try {
+                console.log(`Adding ${gitFiles.length} files to checkpoint`)
+                await git.add(gitFiles)
+                console.log("Checkpoint add operation completed successfully")
+            } catch (error) {
+                console.error("Checkpoint add operation failed:", error)
+                throw error
+            }
+        } catch (error) {
+            console.error("Failed to add files to checkpoint", error)
+            throw error
+        } finally {
+            await this.renameNestedGitRepos(false)
+        }
     }
 }
 
 export const GIT_DISABLED_SUFFIX = "_disabled"
+

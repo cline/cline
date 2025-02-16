@@ -1,7 +1,7 @@
 import fs from "fs/promises"
 import * as path from "path"
 import { fileExistsAtPath } from "../../utils/fs"
-import { GIT_DISABLED_SUFFIX } from "./GitOperations"
+import { GIT_DISABLED_SUFFIX } from "./CheckpointGitOperations"
 
 /**
  * CheckpointExclusions Module
@@ -332,16 +332,4 @@ export const getLfsPatterns = async (workspacePath: string): Promise<string[]> =
 		console.log("Failed to read .gitattributes:", error)
 	}
 	return []
-}
-
-/**
- * Main function to determine if a file should be excluded from checkpoints.
- * Currently returns false for all files since pattern-based exclusions are
- * handled by Git's exclude file mechanism.
- *
- * @param filePath - Path to the file to check
- * @returns ExclusionResult indicating if file should be excluded
- */
-export const shouldExcludeFile = async (filePath: string): Promise<ExclusionResult> => {
-	return { excluded: false }
 }

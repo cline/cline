@@ -1,12 +1,11 @@
 import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
-import simpleGit, { SimpleGit } from "simple-git"
+import simpleGit from "simple-git"
 import * as vscode from "vscode"
 import { ClineProvider } from "../../core/webview/ClineProvider"
 import { HistoryItem } from "../../shared/HistoryItem"
-import { getLfsPatterns, writeExcludesFile } from "./CheckpointExclusions"
-import { GitOperations } from "./GitOperations"
+import { GitOperations } from "./CheckpointGitOperations"
 import { getShadowGitPath, hashWorkingDir, getWorkingDirectory,detectLegacyCheckpoint } from "./CheckpointUtils"
 
 /**
@@ -35,10 +34,11 @@ import { getShadowGitPath, hashWorkingDir, getWorkingDirectory,detectLegacyCheck
  * - Validates workspace configuration
  * - Handles cleanup and resource disposal
  *
- * Checkpoint behavior:
- * - Utilizes a branch-per-task architecture to consilidate shadow gits and reduve overall checkpoint size
- * - Handles legacy checkpoints use for minimal user disruption with older tasks
- * - Deletes branches when a task is deleted, legacy task deletions delete older checkpoints using legacy method
+ * Checkpoint Architecture:
+ * - Uses a branch-per-task model to consolidate shadow git repositories
+ * - Each task gets its own branch within a single shadow git per workspace
+ * - Maintains backward compatibility with legacy checkpoint structure
+ * - Automatically cleans up by deleting task branches when tasks are removed
  */
 
 class CheckpointTracker {
@@ -117,22 +117,37 @@ class CheckpointTracker {
 
 			const workingDir = await getWorkingDirectory()
 			const cwdHash = hashWorkingDir(workingDir)
-			console.log(`Initializing checkpoint tracking in directory: ${workingDir}`)
 			console.log(`Repository ID (cwdHash): ${cwdHash}`)
 
 			const newTracker = new CheckpointTracker(provider, taskId, workingDir, cwdHash)
 
-			// Check if this is a legacy checkpoint
-			newTracker.isLegacyCheckpoint = await newTracker.detectLegacyCheckpoint()
+			// Check if this is a legacy task
+			newTracker.isLegacyCheckpoint = await detectLegacyCheckpoint(
+				newTracker.providerRef.deref()?.context.globalStorageUri.fsPath,
+				newTracker.taskId
+			)
 			if (newTracker.isLegacyCheckpoint) {
 				console.log("Using legacy checkpoint path structure")
-				await newTracker.initShadowGit(cwdHash)
+				const gitPath = await getShadowGitPath(
+					newTracker.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+					newTracker.taskId,
+					newTracker.cwdHash,
+					newTracker.isLegacyCheckpoint
+				)
+				await GitOperations.initShadowGit(gitPath, workingDir, newTracker.isLegacyCheckpoint)
+				await newTracker.gitOperations.switchToTaskBranch(newTracker.taskId, gitPath)
 				return newTracker
 			}
 
-			// New checkpoint structure
-			await newTracker.initShadowGit(cwdHash)
-			await newTracker.switchToTaskBranch()
+			// Branch-per-task structure
+			const gitPath = await getShadowGitPath(
+				newTracker.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+				newTracker.taskId,
+				newTracker.cwdHash,
+				newTracker.isLegacyCheckpoint
+			)
+			await GitOperations.initShadowGit(gitPath, workingDir, newTracker.isLegacyCheckpoint)
+			await newTracker.gitOperations.switchToTaskBranch(newTracker.taskId, gitPath)
 			return newTracker
 		} catch (error) {
 			console.error("Failed to create CheckpointTracker:", error)
@@ -142,92 +157,12 @@ class CheckpointTracker {
 
 
 	/**
-	 * Adds files to the shadow git repository while handling nested git repos and applying exclusion rules.
-	 * Uses git commands to list files, then applies custom exclusion patterns.
-	 *
-	 * Process:
-	 * 1. Updates exclude patterns from LFS config
-	 * 2. Temporarily disables nested git repos
-	 * 3. Gets list of tracked and untracked files from git
-	 * 4. Applies custom exclusion rules
-	 * 5. Adds filtered files to git staging
-	 * 6. Re-enables nested git repos
-	 *
-	 * @param git - SimpleGit instance configured for the shadow git repo
-	 * @returns Promise<void>
-	 * @throws Error if file operations fail or git commands error
-	 *
-	 * File selection:
-	 * - Uses git ls-files to get both tracked and untracked files
-	 * - Respects .gitignore rules
-	 * - Applies additional custom exclusions from CheckpointExclusions
-	 *
-	 * Safety:
-	 * - Handles nested git repos by temporarily disabling them
-	 * - Restores nested repos even if operation fails
-	 * - Validates paths before adding
-	 */
-	private async addCheckpointFiles(git: SimpleGit): Promise<void> {
-		try {
-			// Update exclude patterns before each commit
-			await writeExcludesFile(await this.getShadowGitPath(), await getLfsPatterns(this.cwd))
-			await this.gitOperations.renameNestedGitRepos(true)
-			console.log("Starting checkpoint add operation...")
-
-			// Get list of all files git would track (respects .gitignore)
-			const gitFiles = (await git.raw(["ls-files", "--others", "--exclude-standard", "--cached"]))
-				.split("\n")
-				.filter(Boolean)
-			console.log(`Found ${gitFiles.length} files from git to check for exclusions:`)
-			//console.log("Git files:", gitFiles)
-
-			const filesToAdd: string[] = []
-
-			console.log("filesToAdd: ", filesToAdd)
-
-			const excludedFiles: Array<{ path: string; reason: string }> = []
-
-			// Apply our custom exclusions
-			for (const relativePath of gitFiles) {
-				filesToAdd.push(relativePath)
-			}
-
-			// Log exclusions
-			if (excludedFiles.length > 0) {
-				console.log(`Excluded ${excludedFiles.length} files:`)
-				//console.log("Excluded files:", excludedFiles)
-			}
-
-			// Add filtered files
-			if (filesToAdd.length === 0) {
-				console.log("No files to add to checkpoint")
-				return
-			}
-
-			try {
-				console.log(`Adding ${filesToAdd.length} files to checkpoint:`)
-				//console.log("Files to add:", filesToAdd)
-				await git.add(filesToAdd)
-				console.log("Checkpoint add operation completed successfully")
-			} catch (error) {
-				console.error("Checkpoint add operation failed:", error)
-				throw error
-			}
-		} catch (error) {
-			console.error("Failed to add files to checkpoint:", error)
-			throw error
-		} finally {
-			await this.gitOperations.renameNestedGitRepos(false)
-		}
-	}
-
-	/**
 	 * Creates a new checkpoint commit in the shadow git repository.
 	 *
 	 * Key behaviors:
 	 * - Creates commit with checkpoint files in shadow git repo
-	 * - Handles both legacy and new checkpoint structures
-	 * - For new checkpoints, switches to task-specific branch first
+	 * - Handles both legacy and branch-per-task checkpoint structures
+	 * - For new tasks, switches to task-specific branch first
 	 * - Caches the created commit hash
 	 *
 	 * Commit structure:
@@ -254,14 +189,19 @@ class CheckpointTracker {
 	public async commit(): Promise<string | undefined> {
 		try {
 			console.log(`Creating new checkpoint commit for task ${this.taskId}`)
-			const gitPath = await this.getShadowGitPath()
+			const gitPath = await getShadowGitPath(
+				this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+				this.taskId,
+				this.cwdHash,
+				this.isLegacyCheckpoint
+			)
 			const git = simpleGit(path.dirname(gitPath))
 
 			console.log(`Using shadow git at: ${gitPath}`)
 			if (!this.isLegacyCheckpoint) {
-				await this.switchToTaskBranch()
+				await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
 			}
-			await this.addCheckpointFiles(git)
+			await this.gitOperations.addCheckpointFiles(git, gitPath)
 
 			const commitMessage = this.isLegacyCheckpoint ? "checkpoint" : "checkpoint-" + this.cwdHash + "-" + this.taskId
 
@@ -271,7 +211,7 @@ class CheckpointTracker {
 			})
 			const commitHash = result.commit || ""
 			this.lastCheckpointHash = commitHash
-			console.log(`Created checkpoint commit: ${commitHash}`)
+			console.log(`Checkpoint commit created.`)
 			return commitHash
 		} catch (error) {
 			console.error("Failed to create checkpoint:", error)
@@ -279,116 +219,6 @@ class CheckpointTracker {
 		}
 	}
 
-
-
-	/**
-	 * Detects if the current task uses the legacy checkpoint structure.
-	 * @returns Promise<boolean> True if task uses legacy checkpoint structure, false otherwise
-	 */
-	private async detectLegacyCheckpoint(): Promise<boolean> {
-		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-		return detectLegacyCheckpoint(globalStoragePath, this.taskId)
-	}
-
-
-	/**
-	 * Gets the path to the shadow Git repository in globalStorage.
-	 * For legacy checkpoints, delegates to getLegacyShadowGitPath().
-	 * For new checkpoints, uses the consolidated branch-per-task structure.
-	 *
-	 * The method performs the following:
-	 * 1. Checks if this is a legacy checkpoint and delegates if so
-	 * 2. Gets the global storage path from the provider reference
-	 * 3. Constructs the checkpoints directory path using the workspace hash
-	 * 4. Creates the directory if it doesn't exist
-	 * 5. Returns the path to the .git directory
-	 *
-	 * @returns Promise<string> The absolute path to the shadow git directory
-	 * @throws Error if global storage path is invalid
-	 */
-	private async getShadowGitPath(): Promise<string> {
-		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-		return getShadowGitPath(
-			globalStoragePath || "",
-			this.taskId,
-			this.cwdHash,
-			this.isLegacyCheckpoint
-		)
-	}
-
-	/**
-	 * Switches to or creates a task-specific branch in the shadow Git repository.
-	 * For legacy checkpoints, this is a no-op since they use separate repositories.
-	 * For new checkpoints, this ensures we're on the correct task branch before operations.
-	 *
-	 * The method performs the following:
-	 * 1. Checks if this is a legacy checkpoint and returns early if so
-	 * 2. Gets the shadow git path and initializes simple-git
-	 * 3. Constructs the branch name using the task ID
-	 * 4. Checks if the branch exists:
-	 *    - If not, creates a new branch
-	 *    - If yes, switches to the existing branch
-	 * 5. Verifies the branch switch completed successfully
-	 *
-	 * Branch naming convention:
-	 * task-{taskId}
-	 *
-	 * @returns Promise<void>
-	 * @throws Error if branch operations fail or git commands error
-	 */
-	private async switchToTaskBranch(): Promise<void> {
-		if (this.isLegacyCheckpoint) {
-			console.log("Skipping branch operations for legacy checkpoint")
-			return
-		}
-		const gitPath = await this.getShadowGitPath()
-		await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
-	}
-
-	/**
-	 * Initializes or verifies a shadow Git repository for checkpoint tracking.
-	 * Creates a new repository if one doesn't exist, or verifies the worktree
-	 * configuration if it does.
-	 *
-	 * Key operations:
-	 * - Creates/verifies shadow git repository
-	 * - Configures git settings (user, LFS, etc.)
-	 * - Sets up worktree to point to workspace
-	 * - Creates initial empty commit
-	 * - Handles both legacy and new checkpoint structures
-	 *
-	 * Legacy path structure:
-	 * globalStorage/
-	 *   tasks/
-	 *     {taskId}/
-	 *       checkpoints/
-	 *         .git/
-	 *
-	 * Branch-per-task path structure:
-	 * globalStorage/
-	 *   checkpoints/
-	 *     {cwdHash}/
-	 *       .git/
-	 *
-	 * Git Configuration:
-	 * - core.worktree: Set to workspace directory
-	 * - commit.gpgSign: Disabled
-	 * - user.name: "Cline Checkpoint"
-	 * - user.email: "checkpoint@cline.bot"
-	 *
-	 * @param cwdHash - Hash of the working directory path used for repository identification
-	 * @returns Promise<string> Path to the initialized .git directory
-	 * @throws Error if:
-	 * - Worktree verification fails for existing repository
-	 * - Git initialization or configuration fails
-	 * - Unable to create initial commit
-	 * - LFS pattern setup fails
-	 */
-	public async initShadowGit(cwdHash: string): Promise<string> {
-		const gitPath = await this.getShadowGitPath()
-		this.gitOperations = new GitOperations(this.cwd, this.isLegacyCheckpoint) // Update with current legacy mode
-		return this.gitOperations.initShadowGit(gitPath)
-	}
 
 	/**
 	 * Retrieves the worktree path from the shadow git configuration.
@@ -419,7 +249,12 @@ class CheckpointTracker {
 			return this.lastRetrievedShadowGitConfigWorkTree
 		}
 		try {
-			const gitPath = await this.getShadowGitPath()
+			const gitPath = await getShadowGitPath(
+				this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+				this.taskId,
+				this.cwdHash,
+				this.isLegacyCheckpoint
+			)
 			this.lastRetrievedShadowGitConfigWorkTree = await this.gitOperations.getShadowGitConfigWorkTree(gitPath)
 			return this.lastRetrievedShadowGitConfigWorkTree
 		} catch (error) {
@@ -450,10 +285,15 @@ class CheckpointTracker {
 	 */
 	public async resetHead(commitHash: string): Promise<void> {
 		console.log(`Resetting to checkpoint: ${commitHash}`)
-		const gitPath = await this.getShadowGitPath()
+		const gitPath = await getShadowGitPath(
+            this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+            this.taskId,
+            this.cwdHash,
+            this.isLegacyCheckpoint
+        )
 		const git = simpleGit(path.dirname(gitPath))
 		console.log(`Using shadow git at: ${gitPath}`)
-		await this.switchToTaskBranch()
+		await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
 		await git.reset(["--hard", commitHash]) // Hard reset to target commit
 		console.log(`Successfully reset to checkpoint: ${commitHash}`)
 	}
@@ -482,9 +322,17 @@ class CheckpointTracker {
 			after: string
 		}>
 	> {
-		const gitPath = await this.getShadowGitPath()
+		const gitPath = await getShadowGitPath(
+            this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+            this.taskId,
+            this.cwdHash,
+            this.isLegacyCheckpoint
+        )
 		const git = simpleGit(path.dirname(gitPath))
-		await this.switchToTaskBranch()
+
+		if (!this.isLegacyCheckpoint) {
+			await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
+		}
 
 		console.log(`Getting diff between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
 
@@ -497,7 +345,7 @@ class CheckpointTracker {
 		}
 
 		// Stage all changes so that untracked files appear in diff summary
-		await this.addCheckpointFiles(git)
+		await this.gitOperations.addCheckpointFiles(git, gitPath)
 
 		const diffSummary = rhsHash ? await git.diffSummary([`${baseHash}..${rhsHash}`]) : await git.diffSummary([baseHash])
 		console.log(`Found ${diffSummary.files.length} changed files`)

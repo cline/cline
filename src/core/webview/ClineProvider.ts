@@ -1272,7 +1272,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		console.log("deleting checkpoints")
 		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
 		const historyItem = taskHistory.find((item) => item.id === id)
-		console.log("historyItem: ", historyItem)
+		//console.log("historyItem: ", historyItem)
 		if (historyItem) {
 			try {
 				await CheckpointTracker.deleteCheckpoints(id, historyItem, this)
