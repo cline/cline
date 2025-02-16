@@ -12,7 +12,7 @@ import WelcomeView from "./components/welcome/WelcomeView"
 import McpView from "./components/mcp/McpView"
 import PromptsView from "./components/prompts/PromptsView"
 
-type Tab = "settings" | "history" | "mcp" | "prompts" | "research" | "chat"
+type Tab = "settings" | "history" | "mcp" | "prompts" | "chat"
 
 const tabsByMessageAction: Partial<Record<NonNullable<ExtensionMessage["action"]>, Tab>> = {
 	chatButtonClicked: "chat",
