@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from "react"
+import React, { useRef } from "react"
 import mermaid from "mermaid"
+import { useDebounceEffect } from "../../utils/useDebounceEffect"
 
 mermaid.initialize({
 	startOnLoad: false,
@@ -13,32 +14,32 @@ interface MermaidBlockProps {
 export default function MermaidBlock({ code }: MermaidBlockProps) {
 	const containerRef = useRef<HTMLDivElement>(null)
 
-	useEffect(() => {
-		// 1) Clear previous render
-		if (containerRef.current) {
-			containerRef.current.innerHTML = ""
-		}
-
-		// 2) Try parse
-		mermaid
-			.parse(code, { suppressErrors: true })
-			.then((isValid) => {
-				if (!isValid) {
-					throw new Error("Invalid or incomplete Mermaid code")
-				}
-				// 3) If valid, do the actual render
-				const id = `mermaid-${Math.random().toString(36).substring(2)}`
-				return mermaid.render(id, code)
-			})
-			.then(({ svg }) => {
-				if (containerRef.current) {
-					containerRef.current.innerHTML = svg
-				}
-			})
-			.catch((err) => {
-				console.warn("Mermaid parse/render failed:", err)
-			})
-	}, [code])
+	useDebounceEffect(
+		() => {
+			if (containerRef.current) {
+				containerRef.current.innerHTML = ""
+			}
+			mermaid
+				.parse(code, { suppressErrors: true })
+				.then((isValid) => {
+					if (!isValid) {
+						throw new Error("Invalid or incomplete Mermaid code")
+					}
+					const id = `mermaid-${Math.random().toString(36).substring(2)}`
+					return mermaid.render(id, code)
+				})
+				.then(({ svg }) => {
+					if (containerRef.current) {
+						containerRef.current.innerHTML = svg
+					}
+				})
+				.catch((err) => {
+					console.warn("Mermaid parse/render failed:", err)
+				})
+		},
+		500, // Delay 500ms
+		[code], // Dependencies for scheduling
+	)
 
 	return <div ref={containerRef} />
 }
