@@ -1,6 +1,7 @@
-import React, { useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import mermaid from "mermaid"
 import { useDebounceEffect } from "../../utils/useDebounceEffect"
+import styled from "styled-components"
 
 mermaid.initialize({
 	startOnLoad: false,
@@ -13,7 +14,14 @@ interface MermaidBlockProps {
 
 export default function MermaidBlock({ code }: MermaidBlockProps) {
 	const containerRef = useRef<HTMLDivElement>(null)
+	const [isLoading, setIsLoading] = useState(false)
 
+	// 1) Whenever `code` changes, mark that we need to re-render a new chart
+	useEffect(() => {
+		setIsLoading(true)
+	}, [code])
+
+	// 2) Debounce the actual parse/render
 	useDebounceEffect(
 		() => {
 			if (containerRef.current) {
@@ -35,11 +43,44 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 				})
 				.catch((err) => {
 					console.warn("Mermaid parse/render failed:", err)
+					containerRef.current!.innerHTML = code
+				})
+				.finally(() => {
+					setIsLoading(false)
 				})
 		},
 		500, // Delay 500ms
 		[code], // Dependencies for scheduling
 	)
 
-	return <div ref={containerRef} />
+	return (
+		<MermaidBlockContainer>
+			{isLoading && <LoadingMessage>Creating mermaid chart...</LoadingMessage>}
+
+			{/* The container for the final <svg> or raw code. */}
+			<SvgContainer ref={containerRef} $isLoading={isLoading} />
+		</MermaidBlockContainer>
+	)
 }
+
+const MermaidBlockContainer = styled.div`
+	position: relative;
+	margin: 8px 0;
+`
+
+const LoadingMessage = styled.div`
+	padding: 8px 0;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	font-size: 0.9em;
+`
+
+interface SvgContainerProps {
+	$isLoading: boolean
+}
+
+const SvgContainer = styled.div<SvgContainerProps>`
+	opacity: ${(props) => (props.$isLoading ? 0.3 : 1)};
+	min-height: 20px;
+	transition: opacity 0.2s ease;
+`
