@@ -214,7 +214,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration, openRouterModels, requestyModels, platform } = useExtensionState()
+		const { filePaths, chatSettings, apiConfiguration, openRouterModels, requestyModels, platform, memoryBankSettings } =
+			useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 
@@ -277,6 +278,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			return [
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
 				{ type: ContextMenuOptionType.Terminal, value: "terminal" },
+				{ type: ContextMenuOptionType.MemoryBank, value: "Initialize Memory Bank" },
+				{ type: ContextMenuOptionType.MemoryBank, value: "Update Memory Bank" },
+				{ type: ContextMenuOptionType.MemoryBank, value: "Follow your custom instructions" },
 				...gitCommits,
 				...filePaths
 					.map((file) => "/" + file)
@@ -303,15 +307,30 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showContextMenu, setShowContextMenu])
 
+		const updateMemoryBank = (enabled: boolean) => {
+			vscode.postMessage({
+				type: "memoryBankSettings",
+				memoryBankSettings: {
+					...memoryBankSettings,
+					enabled,
+				},
+			})
+		}
 		const handleMentionSelect = useCallback(
 			(type: ContextMenuOptionType, value?: string) => {
 				if (type === ContextMenuOptionType.NoResults) {
 					return
 				}
 
+				if (type === ContextMenuOptionType.MemoryBank && value === "Enable Memory Bank") {
+					updateMemoryBank(!memoryBankSettings.enabled)
+					return
+				}
+
 				if (
 					type === ContextMenuOptionType.File ||
 					type === ContextMenuOptionType.Folder ||
+					type === ContextMenuOptionType.MemoryBank ||
 					type === ContextMenuOptionType.Git
 				) {
 					if (!value) {
@@ -334,11 +353,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = "problems"
 					} else if (type === ContextMenuOptionType.Terminal) {
 						insertValue = "terminal"
+					} else if (type === ContextMenuOptionType.MemoryBank) {
+						insertValue = value || ""
 					} else if (type === ContextMenuOptionType.Git) {
 						insertValue = value || ""
 					}
 
-					const { newValue, mentionIndex } = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
+					let { newValue, mentionIndex } = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
+
+					if (type === ContextMenuOptionType.MemoryBank) {
+						newValue = newValue.replace("@", "")
+					}
 
 					setInputValue(newValue)
 					const newCursorPosition = newValue.indexOf(" ", mentionIndex + insertValue.length) + 1
@@ -399,6 +424,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					if ((event.key === "Enter" || event.key === "Tab") && selectedMenuIndex !== -1) {
 						event.preventDefault()
 						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems)[selectedMenuIndex]
+						if (
+							selectedOption &&
+							selectedOption.type === ContextMenuOptionType.MemoryBank &&
+							(selectedOption.value === "Initialize Memory Bank" ||
+								selectedOption.value === "Update Memory Bank" ||
+								selectedOption.value === "Follow your custom instructions") &&
+							!memoryBankSettings.enabled
+						) {
+							return
+						}
 						if (
 							selectedOption &&
 							selectedOption.type !== ContextMenuOptionType.URL &&

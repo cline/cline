@@ -17,6 +17,7 @@ import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
 import { TelemetrySetting } from "../../../src/shared/TelemetrySetting"
+import { DEFAULT_MEMORY_BANK_SETTINGS } from "../../../src/shared/MemoryBankSettings"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -47,6 +48,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
+		memoryBankSettings: DEFAULT_MEMORY_BANK_SETTINGS,
 		isLoggedIn: false,
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
