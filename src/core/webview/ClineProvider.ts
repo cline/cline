@@ -480,7 +480,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			})
 
 			// Create task with context from README
-			const task = `Set up the MCP server from ${mcpDetails.githubUrl}. Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json. Here's some additional context from the README:\n\n${mcpDetails.readmeContent}`
+			const task = `Set up the MCP server from ${mcpDetails.githubUrl}. Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json. Here's some additional context from the README:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
 
 			// Initialize task and show chat view
 			await this.initClineWithTask(task)

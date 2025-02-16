@@ -79,6 +79,7 @@ export interface McpMarketplaceItem {
 	tags: string[]
 	requiresApiKey: boolean
 	readmeContent?: string
+	llmsInstallationContent?: string
 	isRecommended: boolean
 	githubStars: number
 	downloadCount: number
@@ -98,5 +99,6 @@ export interface McpDownloadResponse {
 	author: string
 	description: string
 	readmeContent: string
+	llmsInstallationContent: string
 	requiresApiKey: boolean
 }

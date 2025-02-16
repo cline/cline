@@ -57,7 +57,6 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 					})
 				}}
 				style={{
-					borderBottom: "1px solid var(--vscode-textCodeBlock-background)",
 					padding: "12px 16px",
 					cursor: isLoading ? "wait" : "pointer",
 				}}>
