@@ -43,7 +43,7 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 				})
 				.catch((err) => {
 					console.warn("Mermaid parse/render failed:", err)
-					containerRef.current!.innerHTML = code
+					containerRef.current!.innerHTML = code.replace(/</g, "&lt;").replace(/>/g, "&gt;")
 				})
 				.finally(() => {
 					setIsLoading(false)
