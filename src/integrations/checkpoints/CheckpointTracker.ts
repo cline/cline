@@ -6,7 +6,7 @@ import * as vscode from "vscode"
 import { ClineProvider } from "../../core/webview/ClineProvider"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { GitOperations } from "./CheckpointGitOperations"
-import { getShadowGitPath, hashWorkingDir, getWorkingDirectory,detectLegacyCheckpoint } from "./CheckpointUtils"
+import { getShadowGitPath, hashWorkingDir, getWorkingDirectory, detectLegacyCheckpoint } from "./CheckpointUtils"
 
 /**
  * CheckpointTracker Module
@@ -52,7 +52,6 @@ class CheckpointTracker {
 	private isLegacyCheckpoint: boolean = false
 	private gitOperations: GitOperations
 
-
 	/**
 	 * Creates a new CheckpointTracker instance to manage checkpoints for a specific task.
 	 * The constructor is private - use the static create() method to instantiate.
@@ -69,7 +68,6 @@ class CheckpointTracker {
 		this.cwdHash = cwdHash
 		this.gitOperations = new GitOperations(cwd, false) // Initialize with non-legacy mode
 	}
-
 
 	/**
 	 * Creates a new CheckpointTracker instance for tracking changes in a task.
@@ -124,7 +122,7 @@ class CheckpointTracker {
 			// Check if this is a legacy task
 			newTracker.isLegacyCheckpoint = await detectLegacyCheckpoint(
 				newTracker.providerRef.deref()?.context.globalStorageUri.fsPath,
-				newTracker.taskId
+				newTracker.taskId,
 			)
 			if (newTracker.isLegacyCheckpoint) {
 				console.log("Using legacy checkpoint path structure")
@@ -132,7 +130,7 @@ class CheckpointTracker {
 					newTracker.providerRef.deref()?.context.globalStorageUri.fsPath || "",
 					newTracker.taskId,
 					newTracker.cwdHash,
-					newTracker.isLegacyCheckpoint
+					newTracker.isLegacyCheckpoint,
 				)
 				await GitOperations.initShadowGit(gitPath, workingDir, newTracker.isLegacyCheckpoint)
 				await newTracker.gitOperations.switchToTaskBranch(newTracker.taskId, gitPath)
@@ -144,7 +142,7 @@ class CheckpointTracker {
 				newTracker.providerRef.deref()?.context.globalStorageUri.fsPath || "",
 				newTracker.taskId,
 				newTracker.cwdHash,
-				newTracker.isLegacyCheckpoint
+				newTracker.isLegacyCheckpoint,
 			)
 			await GitOperations.initShadowGit(gitPath, workingDir, newTracker.isLegacyCheckpoint)
 			await newTracker.gitOperations.switchToTaskBranch(newTracker.taskId, gitPath)
@@ -154,7 +152,6 @@ class CheckpointTracker {
 			throw error
 		}
 	}
-
 
 	/**
 	 * Creates a new checkpoint commit in the shadow git repository.
@@ -193,7 +190,7 @@ class CheckpointTracker {
 				this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
 				this.taskId,
 				this.cwdHash,
-				this.isLegacyCheckpoint
+				this.isLegacyCheckpoint,
 			)
 			const git = simpleGit(path.dirname(gitPath))
 
@@ -218,7 +215,6 @@ class CheckpointTracker {
 			return undefined
 		}
 	}
-
 
 	/**
 	 * Retrieves the worktree path from the shadow git configuration.
@@ -253,7 +249,7 @@ class CheckpointTracker {
 				this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
 				this.taskId,
 				this.cwdHash,
-				this.isLegacyCheckpoint
+				this.isLegacyCheckpoint,
 			)
 			this.lastRetrievedShadowGitConfigWorkTree = await this.gitOperations.getShadowGitConfigWorkTree(gitPath)
 			return this.lastRetrievedShadowGitConfigWorkTree
@@ -262,8 +258,6 @@ class CheckpointTracker {
 			return undefined
 		}
 	}
-
-
 
 	/**
 	 * Resets the shadow git repository's HEAD to a specific checkpoint commit.
@@ -286,11 +280,11 @@ class CheckpointTracker {
 	public async resetHead(commitHash: string): Promise<void> {
 		console.log(`Resetting to checkpoint: ${commitHash}`)
 		const gitPath = await getShadowGitPath(
-            this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
-            this.taskId,
-            this.cwdHash,
-            this.isLegacyCheckpoint
-        )
+			this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+			this.taskId,
+			this.cwdHash,
+			this.isLegacyCheckpoint,
+		)
 		const git = simpleGit(path.dirname(gitPath))
 		console.log(`Using shadow git at: ${gitPath}`)
 		await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
@@ -323,11 +317,11 @@ class CheckpointTracker {
 		}>
 	> {
 		const gitPath = await getShadowGitPath(
-            this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
-            this.taskId,
-            this.cwdHash,
-            this.isLegacyCheckpoint
-        )
+			this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+			this.taskId,
+			this.cwdHash,
+			this.isLegacyCheckpoint,
+		)
 		const git = simpleGit(path.dirname(gitPath))
 
 		if (!this.isLegacyCheckpoint) {
@@ -392,8 +386,6 @@ class CheckpointTracker {
 
 		return result
 	}
-
-
 
 	/**
 	 * Deletes all checkpoint data for a given task.
