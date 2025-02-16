@@ -1,8 +1,9 @@
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { CSSProperties, useEffect, useState } from "react"
+import { CSSProperties, useCallback, useEffect, useState, useRef } from "react"
 import styled from "styled-components"
 import { McpMarketplaceItem, McpServer } from "../../../../../src/shared/mcp"
 import { vscode } from "../../../utils/vscode"
+import { useEvent } from "react-use"
 
 interface McpMarketplaceCardProps {
 	item: McpMarketplaceItem
@@ -13,23 +14,21 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 	const isInstalled = installedServers.some((server) => server.name === item.mcpId)
 	const [isDownloading, setIsDownloading] = useState(false)
 	const [isLoading, setIsLoading] = useState(false)
+	const githubLinkRef = useRef<HTMLDivElement>(null)
 
-	useEffect(() => {
-		const handleMessage = (event: MessageEvent) => {
-			const message = event.data
-			if (message.type === "mcpDownloadDetails") {
+	const handleMessage = useCallback((event: MessageEvent) => {
+		const message = event.data
+		switch (message.type) {
+			case "mcpDownloadDetails":
 				setIsDownloading(false)
-			}
-			if (message.type === "relinquishControl") {
+				break
+			case "relinquishControl":
 				setIsLoading(false)
-			}
-		}
-
-		window.addEventListener("message", handleMessage)
-		return () => {
-			window.removeEventListener("message", handleMessage)
+				break
 		}
 	}, [])
+
+	useEvent("message", handleMessage)
 
 	return (
 		<>
@@ -45,7 +44,11 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 			</style>
 			<div
 				className="mcp-card"
-				onClick={() => {
+				onClick={(e) => {
+					if (githubLinkRef.current?.contains(e.target as Node)) {
+						return
+					}
+
 					console.log("Card clicked:", item.mcpId)
 					setIsLoading(true)
 					vscode.postMessage({
@@ -121,18 +124,27 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 								flexWrap: "wrap",
 								minWidth: 0,
 							}}>
-							<VSCodeLink
-								href={item.githubUrl}
-								title="View on GitHub"
-								style={{
-									display: "flex",
-									alignItems: "center",
-									color: "var(--vscode-descriptionForeground)",
-									marginBottom: "-3px",
-									minWidth: 0,
-								}}>
-								<span className="codicon codicon-github" style={{ fontSize: "14px" }} />
-							</VSCodeLink>
+							<div ref={githubLinkRef}>
+								<VSCodeLink
+									href={item.githubUrl}
+									title="View on GitHub"
+									style={{
+										display: "flex",
+										alignItems: "center",
+										color: "var(--vscode-foreground)",
+										marginBottom: "-3px",
+										minWidth: 0,
+										opacity: 0.5,
+									}}
+									onMouseEnter={(e) => {
+										e.currentTarget.style.opacity = "0.8"
+									}}
+									onMouseLeave={(e) => {
+										e.currentTarget.style.opacity = "0.5"
+									}}>
+									<span className="codicon codicon-github" style={{ fontSize: "14px" }} />
+								</VSCodeLink>
+							</div>
 							<span
 								style={{
 									overflow: "hidden",
