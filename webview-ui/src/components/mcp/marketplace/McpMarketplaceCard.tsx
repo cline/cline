@@ -129,43 +129,39 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 								gap: "12px",
 								fontSize: "12px",
 								color: "var(--vscode-descriptionForeground)",
-								marginTop: "2px",
 								flexWrap: "wrap",
 								minWidth: 0,
 							}}>
-							<div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-								<div ref={githubLinkRef}>
-									<VSCodeLink
-										href={item.githubUrl}
-										title="View on GitHub"
+							<VSCodeLink
+								href={item.githubUrl}
+								title="View on GitHub"
+								style={{
+									display: "flex",
+									alignItems: "center",
+									color: "var(--vscode-foreground)",
+									minWidth: 0,
+									opacity: 0.5,
+									textDecoration: "none",
+								}}
+								onMouseEnter={(e) => {
+									e.currentTarget.style.opacity = "0.8"
+								}}
+								onMouseLeave={(e) => {
+									e.currentTarget.style.opacity = "0.5"
+								}}>
+								<div style={{ display: "flex", gap: "4px", alignItems: "center" }} ref={githubLinkRef}>
+									<span className="codicon codicon-github" style={{ fontSize: "14px" }} />
+									<span
 										style={{
-											display: "flex",
-											alignItems: "center",
-											color: "var(--vscode-foreground)",
-											marginBottom: "-3px",
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+											wordBreak: "break-all",
 											minWidth: 0,
-											opacity: 0.5,
-										}}
-										onMouseEnter={(e) => {
-											e.currentTarget.style.opacity = "0.8"
-										}}
-										onMouseLeave={(e) => {
-											e.currentTarget.style.opacity = "0.5"
 										}}>
-										<span className="codicon codicon-github" style={{ fontSize: "14px" }} />
-									</VSCodeLink>
+										{item.author}
+									</span>
 								</div>
-								<span
-									style={{
-										overflow: "hidden",
-										textOverflow: "ellipsis",
-										wordBreak: "break-all",
-										minWidth: 0,
-									}}>
-									{item.author}
-								</span>
-							</div>
-							<span style={{ color: "var(--vscode-descriptionForeground)", flexShrink: 0 }}>|</span>
+							</VSCodeLink>
 							<div
 								style={{
 									display: "flex",
@@ -177,7 +173,6 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 								<span className="codicon codicon-star-full" />
 								<span style={{ wordBreak: "break-all" }}>{item.githubStars?.toLocaleString() ?? 0}</span>
 							</div>
-							<span style={{ color: "var(--vscode-descriptionForeground)", flexShrink: 0 }}>|</span>
 							<div
 								style={{
 									display: "flex",
