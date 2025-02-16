@@ -321,17 +321,15 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						This key is stored locally and only used to make API requests from this extension.
-						{!apiConfiguration?.mistralApiKey && (
-							<VSCodeLink
-								href="https://console.mistral.ai/"
-								style={{
-									display: "inline",
-									fontSize: "inherit",
-								}}>
-								You can get a La Plateforme (api.mistral.ai) / Codestral (codestral.mistral.ai) API key
-								by signing up here.
-							</VSCodeLink>
-						)}
+						<VSCodeLink
+							href="https://console.mistral.ai/"
+							style={{
+								display: "inline",
+								fontSize: "inherit",
+							}}>
+							You can get a La Plateforme (api.mistral.ai) or Codestral (codestral.mistral.ai) API key by
+							signing up here.
+						</VSCodeLink>
 					</p>
 
 					{(apiConfiguration?.apiModelId?.startsWith("codestral-") ||
