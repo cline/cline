@@ -13,6 +13,7 @@ import {
 	removeMention,
 	shouldShowContextMenu,
 } from "../../utils/context-mentions"
+import { MemoryBankContextMenuOptionType, memoryBankContextMenuOptions } from "../../utils/context-MemoryBank"
 import { useMetaKeyDetection, useShortcut } from "../../utils/hooks"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
@@ -22,6 +23,7 @@ import Tooltip from "../common/Tooltip"
 import ApiOptions, { normalizeApiConfiguration } from "../settings/ApiOptions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
+import MemoryBankContextMenu from "./MemoryBankContextMenu"
 import { ChatSettings } from "../../../../src/shared/ChatSettings"
 
 interface ChatTextAreaProps {
@@ -214,13 +216,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
+		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform, memoryBankSettings } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
 		const [showContextMenu, setShowContextMenu] = useState(false)
+		const [showMemoryBankContextMenu, setShowMemoryBankContextMenu] = useState(false)
+		const [memoryBankCommandPending, setMemoryBankCommandPending] = useState(false)
 		const [cursorPosition, setCursorPosition] = useState(0)
 		const [searchQuery, setSearchQuery] = useState("")
 		const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -228,9 +232,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const highlightLayerRef = useRef<HTMLDivElement>(null)
 		const [selectedMenuIndex, setSelectedMenuIndex] = useState(-1)
 		const [selectedType, setSelectedType] = useState<ContextMenuOptionType | null>(null)
+		const [selectedTypeMemoryBank, setSelectedTypeMemoryBank] = useState<MemoryBankContextMenuOptionType | null>(null)
 		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
+		const memoryBankContextMenuContainerRef = useRef<HTMLDivElement>(null)
 		const [showModelSelector, setShowModelSelector] = useState(false)
 		const modelSelectorRef = useRef<HTMLDivElement>(null)
 		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
@@ -303,6 +309,25 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showContextMenu, setShowContextMenu])
 
+		useEffect(() => {
+			const handleClickOutsideMemoryBank = (event: MouseEvent) => {
+				if (
+					memoryBankContextMenuContainerRef.current &&
+					!memoryBankContextMenuContainerRef.current.contains(event.target as Node)
+				) {
+					setShowMemoryBankContextMenu(false)
+				}
+			}
+
+			if (showMemoryBankContextMenu) {
+				document.addEventListener("mousedown", handleClickOutsideMemoryBank)
+			}
+
+			return () => {
+				document.removeEventListener("mousedown", handleClickOutsideMemoryBank)
+			}
+		}, [showMemoryBankContextMenu, setShowMemoryBankContextMenu])
+
 		const handleMentionSelect = useCallback(
 			(type: ContextMenuOptionType, value?: string) => {
 				if (type === ContextMenuOptionType.NoResults) {
@@ -358,6 +383,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[setInputValue, cursorPosition],
 		)
 
+		const handleMemoryBankSelect = useCallback(
+			(type: MemoryBankContextMenuOptionType) => {
+				if (type === MemoryBankContextMenuOptionType.Initialize) {
+					setInputValue("Initialize Memory Bank")
+					setMemoryBankCommandPending(true)
+				}
+
+				if (type === MemoryBankContextMenuOptionType.Update) {
+					setInputValue("Update Memory Bank")
+					setMemoryBankCommandPending(true)
+				}
+
+				if (type === MemoryBankContextMenuOptionType.Follow) {
+					setInputValue("Follow your custom instructions")
+					setMemoryBankCommandPending(true)
+				}
+
+				setShowMemoryBankContextMenu(false)
+				setSelectedTypeMemoryBank(null)
+			},
+			[setInputValue],
+		)
+
+		useEffect(() => {
+			if (memoryBankCommandPending) {
+				onSend()
+				setMemoryBankCommandPending(false)
+			}
+		}, [inputValue, memoryBankCommandPending, onSend])
+
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
 				if (showContextMenu) {
@@ -410,6 +465,50 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 				}
 
+				if (showMemoryBankContextMenu) {
+					if (!memoryBankSettings.enabled) {
+						return
+					}
+
+					if (event.key === "Escape") {
+						event.preventDefault()
+						setShowMemoryBankContextMenu(false)
+						return
+					}
+
+					if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+						event.preventDefault()
+						setSelectedMenuIndex((prevIndex) => {
+							const direction = event.key === "ArrowUp" ? -1 : 1
+							const optionsLength = memoryBankContextMenuOptions.length
+
+							if (optionsLength === 0) return prevIndex
+
+							// Find the index of the next selectable option
+							const currentSelectableIndex = memoryBankContextMenuOptions.findIndex(
+								(option) => option === memoryBankContextMenuOptions[prevIndex],
+							)
+
+							const newSelectableIndex = (currentSelectableIndex + direction + optionsLength) % optionsLength
+
+							// Find the index of the selected option in the original options array
+							return memoryBankContextMenuOptions.findIndex(
+								(option) => option === memoryBankContextMenuOptions[newSelectableIndex],
+							)
+						})
+						return
+					}
+
+					if ((event.key === "Enter" || event.key === "Tab") && selectedMenuIndex !== -1) {
+						event.preventDefault()
+						const selectedOption = memoryBankContextMenuOptions[selectedMenuIndex]
+						if (selectedOption) {
+							handleMemoryBankSelect(selectedOption.type)
+						}
+						return
+					}
+				}
+
 				const isComposing = event.nativeEvent?.isComposing ?? false
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
@@ -456,15 +555,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[
 				onSend,
 				showContextMenu,
+				showMemoryBankContextMenu,
 				searchQuery,
 				selectedMenuIndex,
 				handleMentionSelect,
+				handleMemoryBankSelect,
 				selectedType,
 				inputValue,
 				cursorPosition,
 				setInputValue,
 				justDeletedSpaceAfterMention,
 				queryItems,
+				memoryBankSettings,
 			],
 		)
 
@@ -507,10 +609,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [showContextMenu])
 
+		useEffect(() => {
+			if (!showMemoryBankContextMenu) {
+				setSelectedTypeMemoryBank(null)
+			}
+		}, [showMemoryBankContextMenu])
+
 		const handleBlur = useCallback(() => {
 			// Only hide the context menu if the user didn't click on it
 			if (!isMouseDownOnMenu) {
 				setShowContextMenu(false)
+				setShowMemoryBankContextMenu(false)
 			}
 			setIsTextAreaFocused(false)
 		}, [isMouseDownOnMenu])
@@ -716,6 +825,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			updateHighlights()
 		}, [inputValue, textAreaDisabled, handleInputChange, updateHighlights])
 
+		const handleMemoryBankButtonClick = useCallback(() => {
+			if (textAreaDisabled) return
+
+			// Focus the textarea first
+			textAreaRef.current?.focus()
+
+			setShowMemoryBankContextMenu(true)
+		}, [textAreaDisabled])
+
 		// Use an effect to detect menu close
 		useEffect(() => {
 			if (prevShowModelSelector.current && !showModelSelector) {
@@ -900,6 +1018,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								setSelectedIndex={setSelectedMenuIndex}
 								selectedType={selectedType}
 								queryItems={queryItems}
+							/>
+						</div>
+					)}
+					{showMemoryBankContextMenu && (
+						<div ref={memoryBankContextMenuContainerRef}>
+							<MemoryBankContextMenu
+								onSelect={handleMemoryBankSelect}
+								onMouseDown={handleMenuMouseDown}
+								selectedIndex={selectedMenuIndex}
+								setSelectedIndex={setSelectedMenuIndex}
+								selectedType={selectedTypeMemoryBank}
 							/>
 						</div>
 					)}
@@ -1093,6 +1222,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							style={{ padding: "0px 0px", height: "20px" }}>
 							<ButtonContainer>
 								<span className="codicon codicon-device-camera" style={{ fontSize: "14px", marginBottom: -3 }} />
+								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
+							</ButtonContainer>
+						</VSCodeButton>
+
+						<VSCodeButton
+							data-testid="memorybank-button"
+							appearance="icon"
+							aria-label="Memory Bank Instructions"
+							disabled={textAreaDisabled}
+							onClick={handleMemoryBankButtonClick}
+							style={{ padding: "0px 0px", height: "20px" }}>
+							<ButtonContainer>
+								<span className="codicon codicon-database" style={{ fontSize: "14px", marginBottom: -3 }} />
 								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
 							</ButtonContainer>
 						</VSCodeButton>
