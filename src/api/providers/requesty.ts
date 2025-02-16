@@ -34,6 +34,7 @@ export class RequestyHandler implements ApiHandler {
 		// @ts-ignore-next-line
 		const stream = await this.client.chat.completions.create({
 			model: model.id,
+			max_tokens: model.info.maxTokens || undefined,
 			messages: openAiMessages,
 			temperature: 0,
 			stream: true,
