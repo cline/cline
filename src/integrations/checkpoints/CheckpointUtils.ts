@@ -18,19 +18,17 @@ import { fileExistsAtPath } from "../../utils/fs"
  *
  * @param globalStoragePath - The VS Code global storage path
  * @param taskId - The ID of the task
- * @param cwdHash - Hash of the working directory path
  * @returns Promise<string> The absolute path to the legacy shadow git directory
  * @throws Error if global storage path is invalid
  */
 export async function getLegacyShadowGitPath(
     globalStoragePath: string,
-    taskId: string,
-    cwdHash: string
+    taskId: string
 ): Promise<string> {
     if (!globalStoragePath) {
         throw new Error("Global storage uri is invalid")
     }
-    const checkpointsDir = path.join(globalStoragePath, "checkpoints", cwdHash)
+    const checkpointsDir = path.join(globalStoragePath, "tasks", taskId, "checkpoints")
     await fs.mkdir(checkpointsDir, { recursive: true })
     const gitPath = path.join(checkpointsDir, ".git")
     console.log(`Legacy shadow git path: ${gitPath}`)
@@ -62,7 +60,7 @@ export async function getShadowGitPath(
     isLegacyCheckpoint: boolean
 ): Promise<string> {
     if (isLegacyCheckpoint) {
-        return getLegacyShadowGitPath(globalStoragePath, taskId, cwdHash)
+        return getLegacyShadowGitPath(globalStoragePath, taskId)
     }
     if (!globalStoragePath) {
         throw new Error("Global storage uri is invalid")
@@ -73,6 +71,20 @@ export async function getShadowGitPath(
     return gitPath
 }
 
+/**
+ * Gets the current working directory from the VS Code workspace.
+ * Validates that checkpoints are not being used in protected directories
+ * like home, Desktop, Documents, or Downloads.
+ *
+ * Protected directories:
+ * - User's home directory
+ * - Desktop
+ * - Documents
+ * - Downloads
+ *
+ * @returns Promise<string> The absolute path to the current working directory
+ * @throws Error if no workspace is detected or if in a protected directory
+ */
 export async function getWorkingDirectory(): Promise<string> {
     const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
     if (!cwd) {
@@ -97,6 +109,12 @@ export async function getWorkingDirectory(): Promise<string> {
     }
 }
 
+/**
+ * Hashes the current working directory to a 13-character numeric hash.
+ *
+ * @param workingDir - The current working directory to hash
+ * @returns A 13-character numeric hash of the working directory
+ */
 export function hashWorkingDir(workingDir: string): string {
     let hash = 0
     for (let i = 0; i < workingDir.length; i++) {
@@ -131,7 +149,6 @@ export function hashWorkingDir(workingDir: string): string {
  *       .git/
  */
 export async function detectLegacyCheckpoint(globalStoragePath: string | undefined, taskId: string): Promise<boolean> {
-    console.log("Detecting if task uses legacy checkpoint...")
     if (!globalStoragePath) {
         return false
     }
