@@ -1,4 +1,4 @@
-import fs from "fs/promises"
+import { mkdir } from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import os from "os"
@@ -26,7 +26,7 @@ export async function getLegacyShadowGitPath(globalStoragePath: string, taskId: 
 		throw new Error("Global storage uri is invalid")
 	}
 	const checkpointsDir = path.join(globalStoragePath, "tasks", taskId, "checkpoints")
-	await fs.mkdir(checkpointsDir, { recursive: true })
+	await mkdir(checkpointsDir, { recursive: true })
 	const gitPath = path.join(checkpointsDir, ".git")
 	console.log(`Legacy shadow git path: ${gitPath}`)
 	return gitPath
@@ -63,7 +63,7 @@ export async function getShadowGitPath(
 		throw new Error("Global storage uri is invalid")
 	}
 	const checkpointsDir = path.join(globalStoragePath, "checkpoints", cwdHash)
-	await fs.mkdir(checkpointsDir, { recursive: true })
+	await mkdir(checkpointsDir, { recursive: true })
 	const gitPath = path.join(checkpointsDir, ".git")
 	return gitPath
 }
@@ -108,11 +108,14 @@ export async function getWorkingDirectory(): Promise<string> {
 
 /**
  * Hashes the current working directory to a 13-character numeric hash.
- *
- * @param workingDir - The current working directory to hash
- * @returns A 13-character numeric hash of the working directory
+ * @param workingDir - The absolute path to the working directory
+ * @returns A 13-character numeric hash string used to identify the workspace
+ * @throws {Error} If the working directory path is empty or invalid
  */
 export function hashWorkingDir(workingDir: string): string {
+	if (!workingDir) {
+		throw new Error("Working directory path cannot be empty")
+	}
 	let hash = 0
 	for (let i = 0; i < workingDir.length; i++) {
 		hash = (hash * 31 + workingDir.charCodeAt(i)) >>> 0

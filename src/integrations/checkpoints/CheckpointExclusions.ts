@@ -1,5 +1,5 @@
 import fs from "fs/promises"
-import * as path from "path"
+import { join } from "path"
 import { fileExistsAtPath } from "../../utils/fs"
 import { GIT_DISABLED_SUFFIX } from "./CheckpointGitOperations"
 
@@ -304,8 +304,8 @@ function getLogFilePatterns(): string[] {
  * @param lfsPatterns - Optional array of Git LFS patterns to include
  */
 export const writeExcludesFile = async (gitPath: string, lfsPatterns: string[] = []): Promise<void> => {
-	const excludesPath = path.join(gitPath, "info", "exclude")
-	await fs.mkdir(path.join(gitPath, "info"), { recursive: true })
+	const excludesPath = join(gitPath, "info", "exclude")
+	await fs.mkdir(join(gitPath, "info"), { recursive: true })
 
 	const patterns = getDefaultExclusions(lfsPatterns)
 	await fs.writeFile(excludesPath, patterns.join("\n"))
@@ -320,7 +320,7 @@ export const writeExcludesFile = async (gitPath: string, lfsPatterns: string[] =
  */
 export const getLfsPatterns = async (workspacePath: string): Promise<string[]> => {
 	try {
-		const attributesPath = path.join(workspacePath, ".gitattributes")
+		const attributesPath = join(workspacePath, ".gitattributes")
 		if (await fileExistsAtPath(attributesPath)) {
 			const attributesContent = await fs.readFile(attributesPath, "utf8")
 			return attributesContent

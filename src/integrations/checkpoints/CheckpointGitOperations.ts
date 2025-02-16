@@ -121,10 +121,12 @@ export class GitOperations {
 
 	/**
 	 * Checks if a shadow Git repository exists for the given task and workspace.
+	 * Checks both legacy checkpoint paths (tasks/{taskId}/checkpoints/.git) and
+	 * branch-per-task paths (checkpoints/{workspaceHash}/.git).
 	 *
 	 * @param taskId - The ID of the task whose shadow git to check
 	 * @param provider - The ClineProvider instance for accessing VS Code functionality
-	 * @returns Promise<boolean> True if the shadow git exists, false otherwise
+	 * @returns Promise<boolean> True if either a legacy or branch-per-task shadow git exists, false otherwise
 	 */
 	public static async doesShadowGitExist(taskId: string, provider?: ClineProvider): Promise<boolean> {
 		const globalStoragePath = provider?.context.globalStorageUri.fsPath
@@ -152,10 +154,20 @@ export class GitOperations {
 
 	/**
 	 * Deletes a branch in the git repository, handling cases where the branch is currently checked out.
+	 * If the branch to be deleted is currently checked out, the method will:
+	 * 1. Save the current worktree configuration
+	 * 2. Temporarily unset the worktree to prevent workspace modifications
+	 * 3. Force switch to master branch
+	 * 4. Delete the target branch
+	 * 5. Restore the worktree configuration
+	 *
 	 * @param git - SimpleGit instance to use for operations
 	 * @param branchName - Name of the branch to delete
 	 * @param checkpointsDir - Directory containing the git repository
-	 * @throws Error if branch deletion fails
+	 * @throws Error if:
+	 *  - Branch deletion fails
+	 *  - Unable to switch to master branch after 3 retries
+	 *  - Git operations fail during the process
 	 */
 	public static async deleteBranchForGit(git: SimpleGit, branchName: string, checkpointsDir: string): Promise<void> {
 		// Check if branch exists
@@ -224,10 +236,17 @@ export class GitOperations {
 
 	/**
 	 * Static method to delete a task's branch using stored workspace path.
+	 * Handles both branch-per-task and legacy checkpoint formats:
+	 * 1. First attempts to delete branch-per-task checkpoint if it exists
+	 * 2. Falls back to deleting legacy checkpoint directory if found
+	 *
 	 * @param taskId - The ID of the task whose branch should be deleted
 	 * @param historyItem - The history item containing the shadow git config
 	 * @param globalStoragePath - Path to VS Code's global storage
-	 * @throws Error if branch deletion fails
+	 * @throws Error if:
+	 *  - Global storage path is invalid
+	 *  - Branch deletion fails
+	 *  - Legacy checkpoint directory deletion fails
 	 */
 	public static async deleteTaskBranchStatic(
 		taskId: string,
@@ -297,7 +316,8 @@ export class GitOperations {
 	 * requirement of using submodules for nested repos.
 	 *
 	 * This method renames nested .git directories by adding/removing a suffix to temporarily disable/enable them.
-	 * The root .git directory is preserved.
+	 * The root .git directory is preserved. Uses VS Code's workspace API to find nested .git directories and
+	 * only processes actual directories (not files named .git).
 	 *
 	 * @param disable - If true, adds suffix to disable nested git repos. If false, removes suffix to re-enable them.
 	 * @throws Error if renaming any .git directory fails
@@ -385,18 +405,23 @@ export class GitOperations {
 	/**
 	 * Adds files to the shadow git repository while handling nested git repos.
 	 * Uses git commands to list files and stages them for commit.
+	 * Respects .gitignore and handles LFS patterns.
 	 *
 	 * Process:
 	 * 1. Updates exclude patterns from LFS config
 	 * 2. Temporarily disables nested git repos
-	 * 3. Gets list of tracked and untracked files from git
+	 * 3. Gets list of tracked and untracked files from git (respecting .gitignore)
 	 * 4. Adds all files to git staging
 	 * 5. Re-enables nested git repos
 	 *
 	 * @param git - SimpleGit instance configured for the shadow git repo
 	 * @param gitPath - Path to the .git directory
 	 * @returns Promise<void>
-	 * @throws Error if file operations fail or git commands error
+	 * @throws Error if:
+	 *  - File operations fail
+	 *  - Git commands error
+	 *  - LFS pattern updates fail
+	 *  - Nested git repo handling fails
 	 */
 	public async addCheckpointFiles(git: SimpleGit, gitPath: string): Promise<void> {
 		try {
