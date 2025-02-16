@@ -2716,9 +2716,6 @@ export class Cline {
 								this.isAwaitingPlanResponse = false
 
 								if (this.didRespondToPlanAskBySwitchingMode) {
-									if (text) {
-										await this.say("user_feedback", text ?? "", images)
-									}
 									pushToolResult(
 										formatResponse.toolResult(
 											`[The user has switched to ACT MODE, so you may now proceed with the task.]` +
@@ -2728,6 +2725,13 @@ export class Cline {
 											images,
 										),
 									)
+								} else {
+									// if we didn't switch to ACT MODE, then we can just send the user_feedback message
+									pushToolResult(formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images))
+								}
+
+								if (text || images) {
+									await this.say("user_feedback", text ?? "", images)
 								}
 
 								//
