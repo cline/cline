@@ -112,7 +112,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 					style={{
 						display: "flex",
 						gap: "1px",
-						padding: "0 8px 0 10px",
+						padding: "0 20px 0 20px",
 						borderBottom: "1px solid var(--vscode-panel-border)",
 					}}>
 					<TabButton isActive={activeTab === "marketplace"} onClick={() => setActiveTab("marketplace")}>

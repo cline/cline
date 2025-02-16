@@ -57,33 +57,43 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 					})
 				}}
 				style={{
-					padding: "12px 16px",
+					padding: "16px 20px",
+					display: "flex",
+					flexDirection: "column",
+					gap: 16,
 					cursor: isLoading ? "wait" : "pointer",
 				}}>
 				{/* Main container with logo and content */}
-				<div style={{ display: "flex", gap: "12px" }}>
+				<div style={{ display: "flex", gap: "16px" }}>
 					{/* Logo */}
 					{item.logoUrl && (
 						<img
 							src={item.logoUrl}
 							alt={`${item.name} logo`}
 							style={{
-								width: "32px",
-								height: "32px",
-								borderRadius: "4px",
+								width: 42,
+								height: 42,
+								borderRadius: 4,
 							}}
 						/>
 					)}
 
 					{/* Content section */}
-					<div style={{ flex: 1, minWidth: 0 }}>
+					<div
+						style={{
+							flex: 1,
+							minWidth: 0,
+							display: "flex",
+							flexDirection: "column",
+							justifyContent: "space-between",
+						}}>
 						{/* First row: name and install button */}
 						<div
 							style={{
 								display: "flex",
 								justifyContent: "space-between",
 								alignItems: "center",
-								gap: "12px",
+								gap: "16px",
 							}}>
 							<h3
 								style={{
@@ -116,43 +126,45 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 							style={{
 								display: "flex",
 								alignItems: "center",
-								gap: "6px",
+								gap: "12px",
 								fontSize: "12px",
 								color: "var(--vscode-descriptionForeground)",
 								marginTop: "2px",
 								flexWrap: "wrap",
 								minWidth: 0,
 							}}>
-							<div ref={githubLinkRef}>
-								<VSCodeLink
-									href={item.githubUrl}
-									title="View on GitHub"
+							<div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+								<div ref={githubLinkRef}>
+									<VSCodeLink
+										href={item.githubUrl}
+										title="View on GitHub"
+										style={{
+											display: "flex",
+											alignItems: "center",
+											color: "var(--vscode-foreground)",
+											marginBottom: "-3px",
+											minWidth: 0,
+											opacity: 0.5,
+										}}
+										onMouseEnter={(e) => {
+											e.currentTarget.style.opacity = "0.8"
+										}}
+										onMouseLeave={(e) => {
+											e.currentTarget.style.opacity = "0.5"
+										}}>
+										<span className="codicon codicon-github" style={{ fontSize: "14px" }} />
+									</VSCodeLink>
+								</div>
+								<span
 									style={{
-										display: "flex",
-										alignItems: "center",
-										color: "var(--vscode-foreground)",
-										marginBottom: "-3px",
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										wordBreak: "break-all",
 										minWidth: 0,
-										opacity: 0.5,
-									}}
-									onMouseEnter={(e) => {
-										e.currentTarget.style.opacity = "0.8"
-									}}
-									onMouseLeave={(e) => {
-										e.currentTarget.style.opacity = "0.5"
 									}}>
-									<span className="codicon codicon-github" style={{ fontSize: "14px" }} />
-								</VSCodeLink>
+									{item.author}
+								</span>
 							</div>
-							<span
-								style={{
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									wordBreak: "break-all",
-									minWidth: 0,
-								}}>
-								{item.author}
-							</span>
 							<span style={{ color: "var(--vscode-descriptionForeground)", flexShrink: 0 }}>|</span>
 							<div
 								style={{
@@ -188,8 +200,8 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 				</div>
 
 				{/* Description and tags */}
-				<div style={{ marginTop: "8px" }}>
-					<p style={{ margin: "0 0 4px 0", fontSize: "13px" }}>{item.description}</p>
+				<div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+					<p style={{ fontSize: "13px", margin: 0 }}>{item.description}</p>
 					<div
 						style={{
 							display: "flex",

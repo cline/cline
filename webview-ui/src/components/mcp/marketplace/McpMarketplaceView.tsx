@@ -165,7 +165,7 @@ const McpMarketplaceView = () => {
 				flexDirection: "column",
 				width: "100%",
 			}}>
-			<div style={{ padding: "16px 16px 5px 16px" }}>
+			<div style={{ padding: "20px 20px 5px", display: "flex", flexDirection: "column", gap: "16px" }}>
 				{/* Search row */}
 				<VSCodeTextField
 					style={{ width: "100%" }}
@@ -177,7 +177,6 @@ const McpMarketplaceView = () => {
 						className="codicon codicon-search"
 						style={{
 							fontSize: 13,
-							marginTop: 2.5,
 							opacity: 0.8,
 						}}
 					/>
@@ -204,7 +203,6 @@ const McpMarketplaceView = () => {
 						display: "flex",
 						alignItems: "center",
 						gap: "8px",
-						marginTop: "8px",
 					}}>
 					<span
 						style={{
@@ -240,7 +238,6 @@ const McpMarketplaceView = () => {
 					style={{
 						display: "flex",
 						gap: "8px",
-						marginTop: "8px",
 					}}>
 					<span
 						style={{
