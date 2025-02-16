@@ -73,7 +73,7 @@ export interface McpMarketplaceItem {
 	name: string
 	author: string
 	description: string
-	codegenIcon: string
+	codiconIcon: string
 	logoUrl: string
 	category: string
 	tags: string[]
