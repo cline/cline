@@ -213,7 +213,7 @@ class CheckpointTracker {
 			console.error("Failed to create checkpoint:", {
 				taskId: this.taskId,
 				error,
-				isLegacyCheckpoint: this.isLegacyCheckpoint
+				isLegacyCheckpoint: this.isLegacyCheckpoint,
 			})
 			throw new Error(`Failed to create checkpoint: ${error instanceof Error ? error.message : String(error)}`)
 		}
