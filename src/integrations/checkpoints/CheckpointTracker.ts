@@ -1,5 +1,4 @@
 import fs from "fs/promises"
-import os from "os"
 import * as path from "path"
 import simpleGit from "simple-git"
 import * as vscode from "vscode"
@@ -48,7 +47,7 @@ class CheckpointTracker {
 	private cwd: string
 	private cwdHash: string
 	private lastRetrievedShadowGitConfigWorkTree?: string
-	lastCheckpointHash?: string
+	private lastCheckpointHash?: string
 	private isLegacyCheckpoint: boolean = false
 	private gitOperations: GitOperations
 
@@ -211,8 +210,12 @@ class CheckpointTracker {
 			console.log(`Checkpoint commit created.`)
 			return commitHash
 		} catch (error) {
-			console.error("Failed to create checkpoint:", error)
-			return undefined
+			console.error("Failed to create checkpoint:", {
+				taskId: this.taskId,
+				error,
+				isLegacyCheckpoint: this.isLegacyCheckpoint
+			})
+			throw new Error(`Failed to create checkpoint: ${error instanceof Error ? error.message : String(error)}`)
 		}
 	}
 
@@ -402,11 +405,6 @@ class CheckpointTracker {
 			throw new Error("Global storage uri is invalid")
 		}
 		await GitOperations.deleteTaskBranchStatic(taskId, historyItem, globalStoragePath)
-	}
-
-	public dispose() {
-		this.disposables.forEach((d) => d.dispose())
-		this.disposables = []
 	}
 }
 
