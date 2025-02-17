@@ -5,6 +5,8 @@ import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
+import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
+import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 
 /**
  * Base class for enterprise support
@@ -12,34 +14,30 @@ import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
  * @abstract
  * @implements ApiHandler
  */
-export abstract class EnterpriseHandler implements ApiHandler {
-	// The enterprise models w/ first-class support
-	static ENTERPRISE_MODELS: string[] = [
-		"claude-3-5-sonnet-v2@20241022",
-		"claude-3-sonnet@20240229",
-		"claude-3-5-haiku@20241022",
-		"claude-3-haiku@20240307",
-		"claude-3-opus@20240229",
-	]
-
+export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
 	protected options: ApiHandlerOptions // The options for the enterprise handler.
 	protected cache: Map<string, ApiStream> // A cache of message streams.
-	protected client: Promise<any> | any // The enterprise client.
-	protected firstClassModels: string[] = []
+	protected client!: ClientType // The enterprise client.
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.cache = new Map()
-		this.client = this.initialize()
+		this._initialize()
 	}
 
-	/**
-	 * Checks if a model is an enterprise model.
-	 * @param modelId - The model ID to check.
-	 * @returns True if the model is an enterprise model, false otherwise.
-	 */
-	protected isEnterpriseModel(modelId: string): boolean {
-		return this.firstClassModels.includes(modelId)
+	private _initialize() {
+		const client = this.getClient()
+		if (client instanceof Promise) {
+			client
+				.then((resolvedClient) => {
+					this.client = resolvedClient
+				})
+				.catch((error) => {
+					throw new Error("Failed to initialize client: " + error)
+				})
+		} else {
+			this.client = client
+		}
 	}
 
 	/**
@@ -59,7 +57,7 @@ export abstract class EnterpriseHandler implements ApiHandler {
 	 * Initializes the enterprise handler.
 	 * This method must be implemented by subclasses.
 	 */
-	protected abstract initialize(): Promise<any> | any
+	protected abstract getClient(): ClientType | Promise<ClientType>
 
 	/**
 	 * Creates a message stream.
@@ -109,7 +107,7 @@ export abstract class EnterpriseHandler implements ApiHandler {
 	 */
 	protected async *processStream(stream: AnthropicStream<RawMessageStreamEvent>): ApiStream {
 		for await (const chunk of stream) {
-			yield this.processChunk(chunk)
+			yield* this.processChunk(chunk)
 		}
 	}
 

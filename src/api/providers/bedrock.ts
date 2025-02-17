@@ -10,14 +10,14 @@ import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
 /**
  * Handles interactions with the Anthropic Bedrock service using AWS credentials.
  */
-export class AwsBedrockHandler extends EnterpriseHandler {
+export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 	/**
 	 * Initializes the AnthropicBedrock client with AWS credentials.
 	 * @returns A promise that resolves when the client is initialized.
 	 */
-	async initialize() {
+	override async getClient() {
 		const clientConfig: any = {
-			awsRegion: this.options.awsRegion || "us-east-1",
+			awsRegion: this.options.awsRegion || "us-west-2",
 		}
 
 		try {
@@ -59,7 +59,7 @@ export class AwsBedrockHandler extends EnterpriseHandler {
 
 		let stream: AnthropicStream<RawMessageStreamEvent>
 
-		if (this.isEnterpriseModel(modelId)) {
+		if (Object.keys(bedrockModels).includes(modelId)) {
 			stream = await this.createEnterpriseModelStream(systemPrompt, messages, modelId, model.info.maxTokens ?? 8192)
 		} else {
 			stream = await this.client.messages.create({
@@ -93,14 +93,12 @@ export class AwsBedrockHandler extends EnterpriseHandler {
 		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
-		return this.client.messages.create({
+		return await this.client.messages.create({
 			model: modelId,
 			max_tokens: maxTokens || 8192,
 			temperature: 0,
 			system: [{ text: systemPrompt, type: "text" }],
-			messages: messages.map((message, index) =>
-				this.transformMessage(message, index, lastUserMsgIndex, secondLastMsgUserIndex),
-			),
+			messages,
 			stream: true,
 		})
 	}
@@ -146,7 +144,7 @@ export class AwsBedrockHandler extends EnterpriseHandler {
 	 * Determines the model ID to use, considering cross-region inference if specified.
 	 * @returns A string representing the model ID.
 	 */
-	private getModelId(): string {
+	protected getModelId(): string {
 		if (this.options.awsUseCrossRegionInference) {
 			const regionPrefix = (this.options.awsRegion || "").slice(0, 3)
 			switch (regionPrefix) {

@@ -6,12 +6,12 @@ import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vert
 import { ApiStream } from "../transform/stream"
 import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
 
-export class VertexHandler extends EnterpriseHandler {
+export class VertexHandler extends EnterpriseHandler<AnthropicVertex> {
 	/**
 	 * Initializes the AnthropicVertex client with projectId and region.
 	 * @returns A promise that resolved when the client is initialized.
 	 */
-	async initialize() {
+	override getClient() {
 		return new AnthropicVertex({
 			projectId: this.options.vertexProjectId,
 			region: this.options.vertexRegion,
@@ -23,7 +23,7 @@ export class VertexHandler extends EnterpriseHandler {
 		const modelId = model.id
 		let stream: AnthropicStream<RawMessageStreamEvent>
 
-		if (this.isEnterpriseModel(modelId)) {
+		if (Object.keys(vertexModels).includes(modelId)) {
 			stream = await this.createEnterpriseModelStream(systemPrompt, messages, modelId, model.info.maxTokens ?? 8192)
 		} else {
 			stream = this.client.messages.create({
