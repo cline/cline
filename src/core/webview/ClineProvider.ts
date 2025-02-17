@@ -49,6 +49,7 @@ type SecretKey =
 	| "requestyApiKey"
 	| "togetherApiKey"
 	| "qwenApiKey"
+	| "siliconFlowApiKey"
 	| "mistralApiKey"
 	| "liteLlmApiKey"
 	| "authToken"
@@ -468,6 +469,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								liteLlmModelId,
 								liteLlmApiKey,
 								qwenApiLine,
+								siliconFlowApiKey,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -499,6 +501,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("qwenApiKey", qwenApiKey)
 							await this.storeSecret("mistralApiKey", mistralApiKey)
 							await this.storeSecret("liteLlmApiKey", liteLlmApiKey)
+							await this.storeSecret("siliconFlowApiKey", siliconFlowApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
@@ -1443,6 +1446,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeModelInfo,
 			qwenApiLine,
 			liteLlmApiKey,
+			siliconFlowApiKey,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1494,6 +1498,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
+			this.getSecret("siliconFlowApiKey") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1556,6 +1561,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				liteLlmBaseUrl,
 				liteLlmModelId,
 				liteLlmApiKey,
+				siliconFlowApiKey,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -1649,6 +1655,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"qwenApiKey",
 			"mistralApiKey",
 			"liteLlmApiKey",
+			"siliconFlowApiKey",
 			"authToken",
 		]
 		for (const key of secretKeys) {
