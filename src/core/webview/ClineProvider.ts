@@ -630,7 +630,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									await this.postMessageToWebview({
 										type: "invoke",
 										invoke: "sendMessage",
-										text: message.chatContent?.message || "[Proceeding with the task...]",
+										text: message.chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
 										images: message.chatContent?.images,
 									})
 								} else {
