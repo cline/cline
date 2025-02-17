@@ -15,9 +15,7 @@ export class AnthropicHandler implements ApiHandler {
 			apiKey: this.options.apiKey,
 			baseURL: this.options.anthropicBaseUrl || undefined,
 			defaultHeaders: this.options.anthropicCustomAuthHeader
-				? {
-						Authorization: this.options.anthropicCustomAuthHeader,
-					}
+				? { Authorization: this.options.anthropicCustomAuthHeader }
 				: undefined,
 		})
 	}
