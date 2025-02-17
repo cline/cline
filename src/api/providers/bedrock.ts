@@ -3,25 +3,55 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
+import { fromIni } from "@aws-sdk/credential-providers"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private client: AnthropicBedrock
+	private client: AnthropicBedrock | any
+	private initializationPromise: Promise<void>
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new AnthropicBedrock({
-			// Authenticate by either providing the keys below or use the default AWS credential providers, such as
-			// using ~/.aws/credentials or the "AWS_SECRET_ACCESS_KEY" and "AWS_ACCESS_KEY_ID" environment variables.
-			...(this.options.awsAccessKey ? { awsAccessKey: this.options.awsAccessKey } : {}),
-			...(this.options.awsSecretKey ? { awsSecretKey: this.options.awsSecretKey } : {}),
-			...(this.options.awsSessionToken ? { awsSessionToken: this.options.awsSessionToken } : {}),
+		this.initializationPromise = this.initializeClient()
+	}
 
-			// awsRegion changes the aws region to which the request is made. By default, we read AWS_REGION,
-			// and if that's not present, we default to us-east-1. Note that we do not read ~/.aws/config for the region.
-			awsRegion: this.options.awsRegion,
-		})
+	private async initializeClient() {
+		let clientConfig: any = {
+			awsRegion: this.options.awsRegion || "us-east-1",
+		}
+		try {
+			if (this.options.awsUseProfile) {
+				// Use profile-based credentials if enabled
+				// Use named profile, defaulting to 'default' if not specified
+				var credentials: any
+				if (this.options.awsProfile) {
+					credentials = await fromIni({
+						profile: this.options.awsProfile,
+						ignoreCache: true,
+					})()
+				} else {
+					credentials = await fromIni({
+						ignoreCache: true,
+					})()
+				}
+				clientConfig.awsAccessKey = credentials.accessKeyId
+				clientConfig.awsSecretKey = credentials.secretAccessKey
+				clientConfig.awsSessionToken = credentials.sessionToken
+			} else if (this.options.awsAccessKey && this.options.awsSecretKey) {
+				// Use direct credentials if provided
+				clientConfig.awsAccessKey = this.options.awsAccessKey
+				clientConfig.awsSecretKey = this.options.awsSecretKey
+				if (this.options.awsSessionToken) {
+					clientConfig.awsSessionToken = this.options.awsSessionToken
+				}
+			}
+		} catch (error) {
+			console.error("Failed to initialize Bedrock client:", error)
+			throw error
+		} finally {
+			this.client = new AnthropicBedrock(clientConfig)
+		}
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
