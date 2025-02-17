@@ -4,9 +4,14 @@ import fs from "fs/promises"
 import * as path from "path"
 import { fileExistsAtPath } from "../../utils/fs"
 import * as vscode from "vscode"
-import { ClineProvider } from "../../core/webview/ClineProvider"
 import { getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
 import { HistoryItem } from "../../shared/HistoryItem"
+
+interface StorageProvider {
+    context: {
+        globalStorageUri: { fsPath: string };
+    };
+}
 
 /**
  * GitOperations Class
@@ -128,7 +133,7 @@ export class GitOperations {
 	 * @param provider - The ClineProvider instance for accessing VS Code functionality
 	 * @returns Promise<boolean> True if either a legacy or branch-per-task shadow git exists, false otherwise
 	 */
-	public static async doesShadowGitExist(taskId: string, provider?: ClineProvider): Promise<boolean> {
+	public static async doesShadowGitExist(taskId: string, provider?: StorageProvider): Promise<boolean> {
 		const globalStoragePath = provider?.context.globalStorageUri.fsPath
 		if (!globalStoragePath) {
 			return false

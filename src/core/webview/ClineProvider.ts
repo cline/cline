@@ -1275,7 +1275,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		//console.log("historyItem: ", historyItem)
 		if (historyItem) {
 			try {
-				await CheckpointTracker.deleteCheckpoints(id, historyItem, this)
+				await CheckpointTracker.deleteCheckpoints(id, historyItem, this.context.globalStorageUri.fsPath)
 			} catch (error) {
 				console.error(`Failed to delete checkpoints for task ${id}:`, error)
 			}
@@ -1368,7 +1368,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	/*
 	It seems that some API messages do not comply with vscode state requirements. Either the Anthropic library is manipulating these values somehow in the backend in a way thats creating cyclic references, or the API returns a function or a Symbol as part of the message content.
-	VSCode docs about state: "The value must be JSON-stringifyable ... value — A value. MUST not contain cyclic references."
+	VSCode docs about state: "The value must be JSON-stringifyable ... value  A value. MUST not contain cyclic references."
 	For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
 	*/
 

@@ -2,7 +2,6 @@ import fs from "fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"
 import * as vscode from "vscode"
-import { ClineProvider } from "../../core/webview/ClineProvider"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { GitOperations } from "./CheckpointGitOperations"
 import { getShadowGitPath, hashWorkingDir, getWorkingDirectory, detectLegacyCheckpoint } from "./CheckpointUtils"
@@ -41,9 +40,8 @@ import { getShadowGitPath, hashWorkingDir, getWorkingDirectory, detectLegacyChec
  */
 
 class CheckpointTracker {
-	private providerRef: WeakRef<ClineProvider>
+	private globalStoragePath: string
 	private taskId: string
-	private disposables: vscode.Disposable[] = []
 	private cwd: string
 	private cwdHash: string
 	private lastRetrievedShadowGitConfigWorkTree?: string
@@ -55,13 +53,12 @@ class CheckpointTracker {
 	 * Creates a new CheckpointTracker instance to manage checkpoints for a specific task.
 	 * The constructor is private - use the static create() method to instantiate.
 	 *
-	 * @param provider - The ClineProvider instance for accessing VS Code functionality
 	 * @param taskId - Unique identifier for the task being tracked
 	 * @param cwd - The current working directory to track files in
 	 * @param cwdHash - Hash of the working directory path for shadow git organization
 	 */
-	private constructor(provider: ClineProvider, taskId: string, cwd: string, cwdHash: string) {
-		this.providerRef = new WeakRef(provider)
+	private constructor(globalStoragePath: string, taskId: string, cwd: string, cwdHash: string) {
+		this.globalStoragePath = globalStoragePath
 		this.taskId = taskId
 		this.cwd = cwd
 		this.cwdHash = cwdHash
@@ -73,10 +70,10 @@ class CheckpointTracker {
 	 * Handles initialization of the shadow git repository and branch setup.
 	 *
 	 * @param taskId - Unique identifier for the task to track
-	 * @param provider - ClineProvider instance for accessing VS Code extension context
+	 * @param globalStoragePath - the globalStorage path
 	 * @returns Promise resolving to new CheckpointTracker instance, or undefined if checkpoints are disabled
 	 * @throws Error if:
-	 * - Provider is not supplied
+	 * - globalStoragePath is not supplied
 	 * - Git is not installed
 	 * - Working directory is invalid or in a protected location
 	 * - Shadow git initialization fails
@@ -92,12 +89,12 @@ class CheckpointTracker {
 	 * - Uses branch-per-task architecture for new checkpoints
 	 * - Maintains backwards compatibility with legacy structure
 	 */
-	public static async create(taskId: string, provider?: ClineProvider): Promise<CheckpointTracker | undefined> {
+	public static async create(taskId: string, globalStoragePath: string | undefined): Promise<CheckpointTracker | undefined> {
+		if (!globalStoragePath) {
+			throw new Error("Global storage path is required to create a checkpoint tracker")
+		}
 		try {
 			console.log(`Creating new CheckpointTracker for task ${taskId}`)
-			if (!provider) {
-				throw new Error("Provider is required to create a checkpoint tracker")
-			}
 
 			// Check if checkpoints are disabled in VS Code settings
 			const enableCheckpoints = vscode.workspace.getConfiguration("cline").get<boolean>("enableCheckpoints") ?? true
@@ -116,17 +113,17 @@ class CheckpointTracker {
 			const cwdHash = hashWorkingDir(workingDir)
 			console.log(`Repository ID (cwdHash): ${cwdHash}`)
 
-			const newTracker = new CheckpointTracker(provider, taskId, workingDir, cwdHash)
+			const newTracker = new CheckpointTracker(globalStoragePath, taskId, workingDir, cwdHash)
 
 			// Check if this is a legacy task
 			newTracker.isLegacyCheckpoint = await detectLegacyCheckpoint(
-				newTracker.providerRef.deref()?.context.globalStorageUri.fsPath,
+				newTracker.globalStoragePath,
 				newTracker.taskId,
 			)
 			if (newTracker.isLegacyCheckpoint) {
 				console.log("Using legacy checkpoint path structure")
 				const gitPath = await getShadowGitPath(
-					newTracker.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+				newTracker.globalStoragePath,
 					newTracker.taskId,
 					newTracker.cwdHash,
 					newTracker.isLegacyCheckpoint,
@@ -138,7 +135,7 @@ class CheckpointTracker {
 
 			// Branch-per-task structure
 			const gitPath = await getShadowGitPath(
-				newTracker.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+				newTracker.globalStoragePath,
 				newTracker.taskId,
 				newTracker.cwdHash,
 				newTracker.isLegacyCheckpoint,
@@ -186,7 +183,7 @@ class CheckpointTracker {
 		try {
 			console.log(`Creating new checkpoint commit for task ${this.taskId}`)
 			const gitPath = await getShadowGitPath(
-				this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+				this.globalStoragePath,
 				this.taskId,
 				this.cwdHash,
 				this.isLegacyCheckpoint,
@@ -213,7 +210,7 @@ class CheckpointTracker {
 			console.error("Failed to create checkpoint:", {
 				taskId: this.taskId,
 				error,
-				isLegacyCheckpoint: this.isLegacyCheckpoint,
+				isLegacyCheckpoint: this.isLegacyCheckpoint
 			})
 			throw new Error(`Failed to create checkpoint: ${error instanceof Error ? error.message : String(error)}`)
 		}
@@ -249,7 +246,7 @@ class CheckpointTracker {
 		}
 		try {
 			const gitPath = await getShadowGitPath(
-				this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+				this.globalStoragePath,
 				this.taskId,
 				this.cwdHash,
 				this.isLegacyCheckpoint,
@@ -283,7 +280,7 @@ class CheckpointTracker {
 	public async resetHead(commitHash: string): Promise<void> {
 		console.log(`Resetting to checkpoint: ${commitHash}`)
 		const gitPath = await getShadowGitPath(
-			this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+			this.globalStoragePath,
 			this.taskId,
 			this.cwdHash,
 			this.isLegacyCheckpoint,
@@ -320,7 +317,7 @@ class CheckpointTracker {
 		}>
 	> {
 		const gitPath = await getShadowGitPath(
-			this.providerRef.deref()?.context.globalStorageUri.fsPath || "",
+			this.globalStoragePath,
 			this.taskId,
 			this.cwdHash,
 			this.isLegacyCheckpoint,
@@ -396,11 +393,10 @@ class CheckpointTracker {
 	 *
 	 * @param taskId - The ID of the task whose checkpoints should be deleted
 	 * @param historyItem - The history item containing the shadow git config for this task
-	 * @param provider - The ClineProvider instance, needed to access global storage paths
+	 * @param globalStoragePath - the globalStorage path
 	 * @throws Error if deletion fails
 	 */
-	public static async deleteCheckpoints(taskId: string, historyItem: HistoryItem, provider?: ClineProvider): Promise<void> {
-		const globalStoragePath = provider?.context.globalStorageUri.fsPath
+	public static async deleteCheckpoints(taskId: string, historyItem: HistoryItem, globalStoragePath: string): Promise<void> {
 		if (!globalStoragePath) {
 			throw new Error("Global storage uri is invalid")
 		}
