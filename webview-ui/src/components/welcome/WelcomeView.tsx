@@ -10,13 +10,7 @@ const WelcomeView = () => {
 
 	const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
 
-	const handleSubmit = async () => {
-		// Focus the active element's parent to trigger blur
-		document.activeElement?.parentElement?.focus()
-
-		// Small delay to let blur events complete
-		await new Promise((resolve) => setTimeout(resolve, 50))
-
+	const handleSubmit = () => {
 		const error = validateApiConfiguration(apiConfiguration)
 		if (error) {
 			setErrorMessage(error)
