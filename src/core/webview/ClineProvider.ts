@@ -81,6 +81,7 @@ type GlobalStateKey =
 	| "chatSettings"
 	| "vsCodeLmModelSelector"
 	| "userInfo"
+	| "geminiBaseUrl"
 	| "previousModeApiProvider"
 	| "previousModeModelId"
 	| "previousModeModelInfo"
@@ -452,6 +453,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								lmStudioBaseUrl,
 								anthropicBaseUrl,
 								geminiApiKey,
+								geminiBaseUrl,
 								openAiNativeApiKey,
 								deepSeekApiKey,
 								requestyApiKey,
@@ -492,6 +494,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
 							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
 							await this.storeSecret("geminiApiKey", geminiApiKey)
+							await this.updateGlobalState("geminiBaseUrl", geminiBaseUrl)
 							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
 							await this.storeSecret("deepSeekApiKey", deepSeekApiKey)
 							await this.storeSecret("requestyApiKey", requestyApiKey)
@@ -1416,6 +1419,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			lmStudioBaseUrl,
 			anthropicBaseUrl,
 			geminiApiKey,
+			geminiBaseUrl,
 			openAiNativeApiKey,
 			deepSeekApiKey,
 			requestyApiKey,
@@ -1467,6 +1471,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("lmStudioBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
+			this.getGlobalState("geminiBaseUrl") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
 			this.getSecret("requestyApiKey") as Promise<string | undefined>,
@@ -1539,6 +1544,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				lmStudioBaseUrl,
 				anthropicBaseUrl,
 				geminiApiKey,
+				geminiBaseUrl,
 				openAiNativeApiKey,
 				deepSeekApiKey,
 				requestyApiKey,

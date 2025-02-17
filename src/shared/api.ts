@@ -44,6 +44,7 @@ export interface ApiHandlerOptions {
 	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
+	geminiBaseUrl?: string
 	openAiNativeApiKey?: string
 	deepSeekApiKey?: string
 	requestyApiKey?: string
