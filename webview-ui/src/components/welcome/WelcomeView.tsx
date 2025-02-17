@@ -6,7 +6,7 @@ import { vscode } from "../../utils/vscode"
 import ApiOptions from "../settings/ApiOptions"
 
 const WelcomeView = () => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, currentApiConfigName } = useExtensionState()
 
 	const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
 
@@ -17,7 +17,11 @@ const WelcomeView = () => {
 			return
 		}
 		setErrorMessage(undefined)
-		vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+		vscode.postMessage({
+			type: "upsertApiConfiguration",
+			text: currentApiConfigName,
+			apiConfiguration,
+		})
 	}
 
 	return (

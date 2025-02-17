@@ -1317,6 +1317,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "saveApiConfiguration":
+						if (message.text && message.apiConfiguration) {
+							try {
+								await this.configManager.saveConfig(message.text, message.apiConfiguration)
+								const listApiConfig = await this.configManager.listConfig()
+								await this.updateGlobalState("listApiConfigMeta", listApiConfig)
+							} catch (error) {
+								this.outputChannel.appendLine(
+									`Error save api configuration: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+								)
+								vscode.window.showErrorMessage("Failed to save api configuration")
+							}
+						}
+						break
 					case "upsertApiConfiguration":
 						if (message.text && message.apiConfiguration) {
 							try {
@@ -1361,9 +1375,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								await this.postStateToWebview()
 							} catch (error) {
 								this.outputChannel.appendLine(
-									`Error create new api configuration: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+									`Error rename api configuration: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
 								)
-								vscode.window.showErrorMessage("Failed to create api configuration")
+								vscode.window.showErrorMessage("Failed to rename api configuration")
 							}
 						}
 						break
@@ -1647,51 +1661,53 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestyModelInfo,
 			modelTemperature,
 		} = apiConfiguration
-		await this.updateGlobalState("apiProvider", apiProvider)
-		await this.updateGlobalState("apiModelId", apiModelId)
-		await this.storeSecret("apiKey", apiKey)
-		await this.updateGlobalState("glamaModelId", glamaModelId)
-		await this.updateGlobalState("glamaModelInfo", glamaModelInfo)
-		await this.storeSecret("glamaApiKey", glamaApiKey)
-		await this.storeSecret("openRouterApiKey", openRouterApiKey)
-		await this.storeSecret("awsAccessKey", awsAccessKey)
-		await this.storeSecret("awsSecretKey", awsSecretKey)
-		await this.storeSecret("awsSessionToken", awsSessionToken)
-		await this.updateGlobalState("awsRegion", awsRegion)
-		await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
-		await this.updateGlobalState("awsProfile", awsProfile)
-		await this.updateGlobalState("awsUseProfile", awsUseProfile)
-		await this.updateGlobalState("vertexProjectId", vertexProjectId)
-		await this.updateGlobalState("vertexRegion", vertexRegion)
-		await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
-		await this.storeSecret("openAiApiKey", openAiApiKey)
-		await this.updateGlobalState("openAiModelId", openAiModelId)
-		await this.updateGlobalState("openAiCustomModelInfo", openAiCustomModelInfo)
-		await this.updateGlobalState("openAiUseAzure", openAiUseAzure)
-		await this.updateGlobalState("ollamaModelId", ollamaModelId)
-		await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
-		await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
-		await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
-		await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
-		await this.storeSecret("geminiApiKey", geminiApiKey)
-		await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
-		await this.storeSecret("deepSeekApiKey", deepSeekApiKey)
-		await this.updateGlobalState("azureApiVersion", azureApiVersion)
-		await this.updateGlobalState("openAiStreamingEnabled", openAiStreamingEnabled)
-		await this.updateGlobalState("openRouterModelId", openRouterModelId)
-		await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
-		await this.updateGlobalState("openRouterBaseUrl", openRouterBaseUrl)
-		await this.updateGlobalState("openRouterUseMiddleOutTransform", openRouterUseMiddleOutTransform)
-		await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
-		await this.storeSecret("mistralApiKey", mistralApiKey)
-		await this.updateGlobalState("mistralCodestralUrl", mistralCodestralUrl)
-		await this.storeSecret("unboundApiKey", unboundApiKey)
-		await this.updateGlobalState("unboundModelId", unboundModelId)
-		await this.updateGlobalState("unboundModelInfo", unboundModelInfo)
-		await this.storeSecret("requestyApiKey", requestyApiKey)
-		await this.updateGlobalState("requestyModelId", requestyModelId)
-		await this.updateGlobalState("requestyModelInfo", requestyModelInfo)
-		await this.updateGlobalState("modelTemperature", modelTemperature)
+		await Promise.all([
+			this.updateGlobalState("apiProvider", apiProvider),
+			this.updateGlobalState("apiModelId", apiModelId),
+			this.storeSecret("apiKey", apiKey),
+			this.updateGlobalState("glamaModelId", glamaModelId),
+			this.updateGlobalState("glamaModelInfo", glamaModelInfo),
+			this.storeSecret("glamaApiKey", glamaApiKey),
+			this.storeSecret("openRouterApiKey", openRouterApiKey),
+			this.storeSecret("awsAccessKey", awsAccessKey),
+			this.storeSecret("awsSecretKey", awsSecretKey),
+			this.storeSecret("awsSessionToken", awsSessionToken),
+			this.updateGlobalState("awsRegion", awsRegion),
+			this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference),
+			this.updateGlobalState("awsProfile", awsProfile),
+			this.updateGlobalState("awsUseProfile", awsUseProfile),
+			this.updateGlobalState("vertexProjectId", vertexProjectId),
+			this.updateGlobalState("vertexRegion", vertexRegion),
+			this.updateGlobalState("openAiBaseUrl", openAiBaseUrl),
+			this.storeSecret("openAiApiKey", openAiApiKey),
+			this.updateGlobalState("openAiModelId", openAiModelId),
+			this.updateGlobalState("openAiCustomModelInfo", openAiCustomModelInfo),
+			this.updateGlobalState("openAiUseAzure", openAiUseAzure),
+			this.updateGlobalState("ollamaModelId", ollamaModelId),
+			this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl),
+			this.updateGlobalState("lmStudioModelId", lmStudioModelId),
+			this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl),
+			this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl),
+			this.storeSecret("geminiApiKey", geminiApiKey),
+			this.storeSecret("openAiNativeApiKey", openAiNativeApiKey),
+			this.storeSecret("deepSeekApiKey", deepSeekApiKey),
+			this.updateGlobalState("azureApiVersion", azureApiVersion),
+			this.updateGlobalState("openAiStreamingEnabled", openAiStreamingEnabled),
+			this.updateGlobalState("openRouterModelId", openRouterModelId),
+			this.updateGlobalState("openRouterModelInfo", openRouterModelInfo),
+			this.updateGlobalState("openRouterBaseUrl", openRouterBaseUrl),
+			this.updateGlobalState("openRouterUseMiddleOutTransform", openRouterUseMiddleOutTransform),
+			this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector),
+			this.storeSecret("mistralApiKey", mistralApiKey),
+			this.updateGlobalState("mistralCodestralUrl", mistralCodestralUrl),
+			this.storeSecret("unboundApiKey", unboundApiKey),
+			this.updateGlobalState("unboundModelId", unboundModelId),
+			this.updateGlobalState("unboundModelInfo", unboundModelInfo),
+			this.storeSecret("requestyApiKey", requestyApiKey),
+			this.updateGlobalState("requestyModelId", requestyModelId),
+			this.updateGlobalState("requestyModelInfo", requestyModelInfo),
+			this.updateGlobalState("modelTemperature", modelTemperature),
+		])
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
 		}
