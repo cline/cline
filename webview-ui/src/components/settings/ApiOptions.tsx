@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
-import { useEvent, useInterval } from "react-use"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEvent } from "react-use"
 import { Checkbox, Dropdown, Pane, type DropdownOption } from "vscrui"
 import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { TemperatureControl } from "./TemperatureControl"
@@ -65,7 +65,8 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
-	// Poll ollama/lmstudio models
+	const requestLocalModelsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+	// Pull ollama/lmstudio models
 	const requestLocalModels = useCallback(() => {
 		if (selectedProvider === "ollama") {
 			vscode.postMessage({ type: "requestOllamaModels", text: apiConfiguration?.ollamaBaseUrl })
@@ -75,34 +76,29 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 			vscode.postMessage({ type: "requestVsCodeLmModels" })
 		}
 	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
+	// Debounced model updates, only executed 250ms after the user stops typing
 	useEffect(() => {
-		if (selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm") {
-			requestLocalModels()
+		if (requestLocalModelsTimeoutRef.current) {
+			clearTimeout(requestLocalModelsTimeoutRef.current)
 		}
-	}, [selectedProvider, requestLocalModels])
-	useInterval(
-		requestLocalModels,
-		selectedProvider === "ollama" || selectedProvider === "lmstudio" || selectedProvider === "vscode-lm"
-			? 2000
-			: null,
-	)
+		requestLocalModelsTimeoutRef.current = setTimeout(requestLocalModels, 250)
+		return () => {
+			if (requestLocalModelsTimeoutRef.current) {
+				clearTimeout(requestLocalModelsTimeoutRef.current)
+			}
+		}
+	}, [requestLocalModels])
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		if (message.type === "ollamaModels" && Array.isArray(message.ollamaModels)) {
 			const newModels = message.ollamaModels
-			setOllamaModels((prevModels) => {
-				return JSON.stringify(prevModels) === JSON.stringify(newModels) ? prevModels : newModels
-			})
+			setOllamaModels(newModels)
 		} else if (message.type === "lmStudioModels" && Array.isArray(message.lmStudioModels)) {
 			const newModels = message.lmStudioModels
-			setLmStudioModels((prevModels) => {
-				return JSON.stringify(prevModels) === JSON.stringify(newModels) ? prevModels : newModels
-			})
+			setLmStudioModels(newModels)
 		} else if (message.type === "vsCodeLmModels" && Array.isArray(message.vsCodeLmModels)) {
 			const newModels = message.vsCodeLmModels
-			setVsCodeLmModels((prevModels) => {
-				return JSON.stringify(prevModels) === JSON.stringify(newModels) ? prevModels : newModels
-			})
+			setVsCodeLmModels(newModels)
 		}
 	}, [])
 	useEvent("message", handleMessage)
@@ -142,10 +138,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 					id="api-provider"
 					value={selectedProvider}
 					onChange={(value: unknown) => {
-						handleInputChange(
-							"apiProvider",
-							true,
-						)({
+						handleInputChange("apiProvider")({
 							target: {
 								value: (value as DropdownOption).value,
 							},
@@ -178,7 +171,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.apiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onBlur={handleInputChange("apiKey")}
+						onInput={handleInputChange("apiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Anthropic API Key</span>
 					</VSCodeTextField>
@@ -203,7 +196,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 							value={apiConfiguration?.anthropicBaseUrl || ""}
 							style={{ width: "100%", marginTop: 3 }}
 							type="url"
-							onBlur={handleInputChange("anthropicBaseUrl")}
+							onInput={handleInputChange("anthropicBaseUrl")}
 							placeholder="Default: https://api.anthropic.com"
 						/>
 					)}
@@ -232,7 +225,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.glamaApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onBlur={handleInputChange("glamaApiKey")}
+						onInput={handleInputChange("glamaApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Glama API Key</span>
 					</VSCodeTextField>
@@ -261,7 +254,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.requestyApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onBlur={handleInputChange("requestyApiKey")}
+						onInput={handleInputChange("requestyApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Requesty API Key</span>
 					</VSCodeTextField>
@@ -282,7 +275,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.openAiNativeApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onBlur={handleInputChange("openAiNativeApiKey")}
+						onInput={handleInputChange("openAiNativeApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>OpenAI API Key</span>
 					</VSCodeTextField>
@@ -310,7 +303,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.mistralApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onBlur={handleInputChange("mistralApiKey")}
+						onInput={handleInputChange("mistralApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Mistral API Key</span>
 					</VSCodeTextField>
@@ -339,7 +332,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 								value={apiConfiguration?.mistralCodestralUrl || ""}
 								style={{ width: "100%", marginTop: "10px" }}
 								type="url"
-								onBlur={handleInputChange("mistralCodestralUrl")}
+								onInput={handleInputChange("mistralCodestralUrl")}
 								placeholder="Default: https://codestral.mistral.ai">
 								<span style={{ fontWeight: 500 }}>Codestral Base URL (Optional)</span>
 							</VSCodeTextField>
@@ -362,7 +355,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.openRouterApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onBlur={handleInputChange("openRouterApiKey")}
+						onInput={handleInputChange("openRouterApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
 					</VSCodeTextField>
@@ -406,7 +399,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 									value={apiConfiguration?.openRouterBaseUrl || ""}
 									style={{ width: "100%", marginTop: 3 }}
 									type="url"
-									onBlur={handleInputChange("openRouterBaseUrl")}
+									onInput={handleInputChange("openRouterBaseUrl")}
 									placeholder="Default: https://openrouter.ai/api/v1"
 								/>
 							)}
@@ -444,7 +437,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						<VSCodeTextField
 							value={apiConfiguration?.awsProfile || ""}
 							style={{ width: "100%" }}
-							onBlur={handleInputChange("awsProfile")}
+							onInput={handleInputChange("awsProfile")}
 							placeholder="Enter profile name">
 							<span style={{ fontWeight: 500 }}>AWS Profile Name</span>
 						</VSCodeTextField>
@@ -455,7 +448,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 								value={apiConfiguration?.awsAccessKey || ""}
 								style={{ width: "100%" }}
 								type="password"
-								onBlur={handleInputChange("awsAccessKey")}
+								onInput={handleInputChange("awsAccessKey")}
 								placeholder="Enter Access Key...">
 								<span style={{ fontWeight: 500 }}>AWS Access Key</span>
 							</VSCodeTextField>
@@ -463,7 +456,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 								value={apiConfiguration?.awsSecretKey || ""}
 								style={{ width: "100%" }}
 								type="password"
-								onBlur={handleInputChange("awsSecretKey")}
+								onInput={handleInputChange("awsSecretKey")}
 								placeholder="Enter Secret Key...">
 								<span style={{ fontWeight: 500 }}>AWS Secret Key</span>
 							</VSCodeTextField>
@@ -471,7 +464,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 								value={apiConfiguration?.awsSessionToken || ""}
 								style={{ width: "100%" }}
 								type="password"
-								onBlur={handleInputChange("awsSessionToken")}
+								onInput={handleInputChange("awsSessionToken")}
 								placeholder="Enter Session Token...">
 								<span style={{ fontWeight: 500 }}>AWS Session Token</span>
 							</VSCodeTextField>
@@ -539,7 +532,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 					<VSCodeTextField
 						value={apiConfiguration?.vertexProjectId || ""}
 						style={{ width: "100%" }}
-						onBlur={handleInputChange("vertexProjectId")}
+						onInput={handleInputChange("vertexProjectId")}
 						placeholder="Enter Project ID...">
 						<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
 					</VSCodeTextField>
@@ -597,7 +590,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.geminiApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onBlur={handleInputChange("geminiApiKey")}
+						onInput={handleInputChange("geminiApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Gemini API Key</span>
 					</VSCodeTextField>
@@ -625,7 +618,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.openAiBaseUrl || ""}
 						style={{ width: "100%" }}
 						type="url"
-						onBlur={handleInputChange("openAiBaseUrl")}
+						onInput={handleInputChange("openAiBaseUrl")}
 						placeholder={"Enter base URL..."}>
 						<span style={{ fontWeight: 500 }}>Base URL</span>
 					</VSCodeTextField>
@@ -633,7 +626,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.openAiApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onBlur={handleInputChange("openAiApiKey")}
+						onInput={handleInputChange("openAiApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
@@ -676,7 +669,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						<VSCodeTextField
 							value={apiConfiguration?.azureApiVersion || ""}
 							style={{ width: "100%", marginTop: 3 }}
-							onBlur={handleInputChange("azureApiVersion")}
+							onInput={handleInputChange("azureApiVersion")}
 							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
 						/>
 					)}
@@ -1126,14 +1119,14 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.lmStudioBaseUrl || ""}
 						style={{ width: "100%" }}
 						type="url"
-						onBlur={handleInputChange("lmStudioBaseUrl")}
+						onInput={handleInputChange("lmStudioBaseUrl")}
 						placeholder={"Default: http://localhost:1234"}>
 						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.lmStudioModelId || ""}
 						style={{ width: "100%" }}
-						onBlur={handleInputChange("lmStudioModelId")}
+						onInput={handleInputChange("lmStudioModelId")}
 						placeholder={"e.g. meta-llama-3.1-8b-instruct"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
@@ -1195,7 +1188,7 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.deepSeekApiKey || ""}
 						style={{ width: "100%" }}
 						type="password"
-						onBlur={handleInputChange("deepSeekApiKey")}
+						onInput={handleInputChange("deepSeekApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>DeepSeek API Key</span>
 					</VSCodeTextField>
@@ -1285,14 +1278,14 @@ const ApiOptions = ({ apiErrorMessage, modelIdErrorMessage, fromWelcomeView }: A
 						value={apiConfiguration?.ollamaBaseUrl || ""}
 						style={{ width: "100%" }}
 						type="url"
-						onBlur={handleInputChange("ollamaBaseUrl")}
+						onInput={handleInputChange("ollamaBaseUrl")}
 						placeholder={"Default: http://localhost:11434"}>
 						<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.ollamaModelId || ""}
 						style={{ width: "100%" }}
-						onBlur={handleInputChange("ollamaModelId")}
+						onInput={handleInputChange("ollamaModelId")}
 						placeholder={"e.g. llama3.1"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>

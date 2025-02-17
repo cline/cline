@@ -70,23 +70,13 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [commandInput, setCommandInput] = useState("")
 
-	const handleSubmit = async () => {
-		// Focus the active element's parent to trigger blur
-		document.activeElement?.parentElement?.focus()
-
-		// Small delay to let blur events complete
-		await new Promise((resolve) => setTimeout(resolve, 50))
-
+	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, glamaModels, openRouterModels)
 
 		setApiErrorMessage(apiValidationResult)
 		setModelIdErrorMessage(modelIdValidationResult)
 		if (!apiValidationResult && !modelIdValidationResult) {
-			vscode.postMessage({
-				type: "apiConfiguration",
-				apiConfiguration,
-			})
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
 			vscode.postMessage({ type: "alwaysAllowExecute", bool: alwaysAllowExecute })
@@ -201,6 +191,11 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							currentApiConfigName={currentApiConfigName}
 							listApiConfigMeta={listApiConfigMeta}
 							onSelectConfig={(configName: string) => {
+								vscode.postMessage({
+									type: "saveApiConfiguration",
+									text: currentApiConfigName,
+									apiConfiguration,
+								})
 								vscode.postMessage({
 									type: "loadApiConfiguration",
 									text: configName,

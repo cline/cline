@@ -33,29 +33,38 @@ export class ConfigManager {
 		return Math.random().toString(36).substring(2, 15)
 	}
 
+	// Synchronize readConfig/writeConfig operations to avoid data loss.
+	private _lock = Promise.resolve()
+	private lock<T>(cb: () => Promise<T>) {
+		const next = this._lock.then(cb)
+		this._lock = next.catch(() => {}) as Promise<void>
+		return next
+	}
 	/**
 	 * Initialize config if it doesn't exist
 	 */
 	async initConfig(): Promise<void> {
 		try {
-			const config = await this.readConfig()
-			if (!config) {
-				await this.writeConfig(this.defaultConfig)
-				return
-			}
-
-			// Migrate: ensure all configs have IDs
-			let needsMigration = false
-			for (const [name, apiConfig] of Object.entries(config.apiConfigs)) {
-				if (!apiConfig.id) {
-					apiConfig.id = this.generateId()
-					needsMigration = true
+			return await this.lock(async () => {
+				const config = await this.readConfig()
+				if (!config) {
+					await this.writeConfig(this.defaultConfig)
+					return
 				}
-			}
 
-			if (needsMigration) {
-				await this.writeConfig(config)
-			}
+				// Migrate: ensure all configs have IDs
+				let needsMigration = false
+				for (const [name, apiConfig] of Object.entries(config.apiConfigs)) {
+					if (!apiConfig.id) {
+						apiConfig.id = this.generateId()
+						needsMigration = true
+					}
+				}
+
+				if (needsMigration) {
+					await this.writeConfig(config)
+				}
+			})
 		} catch (error) {
 			throw new Error(`Failed to initialize config: ${error}`)
 		}
@@ -66,12 +75,14 @@ export class ConfigManager {
 	 */
 	async listConfig(): Promise<ApiConfigMeta[]> {
 		try {
-			const config = await this.readConfig()
-			return Object.entries(config.apiConfigs).map(([name, apiConfig]) => ({
-				name,
-				id: apiConfig.id || "",
-				apiProvider: apiConfig.apiProvider,
-			}))
+			return await this.lock(async () => {
+				const config = await this.readConfig()
+				return Object.entries(config.apiConfigs).map(([name, apiConfig]) => ({
+					name,
+					id: apiConfig.id || "",
+					apiProvider: apiConfig.apiProvider,
+				}))
+			})
 		} catch (error) {
 			throw new Error(`Failed to list configs: ${error}`)
 		}
@@ -82,13 +93,15 @@ export class ConfigManager {
 	 */
 	async saveConfig(name: string, config: ApiConfiguration): Promise<void> {
 		try {
-			const currentConfig = await this.readConfig()
-			const existingConfig = currentConfig.apiConfigs[name]
-			currentConfig.apiConfigs[name] = {
-				...config,
-				id: existingConfig?.id || this.generateId(),
-			}
-			await this.writeConfig(currentConfig)
+			return await this.lock(async () => {
+				const currentConfig = await this.readConfig()
+				const existingConfig = currentConfig.apiConfigs[name]
+				currentConfig.apiConfigs[name] = {
+					...config,
+					id: existingConfig?.id || this.generateId(),
+				}
+				await this.writeConfig(currentConfig)
+			})
 		} catch (error) {
 			throw new Error(`Failed to save config: ${error}`)
 		}
@@ -99,17 +112,19 @@ export class ConfigManager {
 	 */
 	async loadConfig(name: string): Promise<ApiConfiguration> {
 		try {
-			const config = await this.readConfig()
-			const apiConfig = config.apiConfigs[name]
+			return await this.lock(async () => {
+				const config = await this.readConfig()
+				const apiConfig = config.apiConfigs[name]
 
-			if (!apiConfig) {
-				throw new Error(`Config '${name}' not found`)
-			}
+				if (!apiConfig) {
+					throw new Error(`Config '${name}' not found`)
+				}
 
-			config.currentApiConfigName = name
-			await this.writeConfig(config)
+				config.currentApiConfigName = name
+				await this.writeConfig(config)
 
-			return apiConfig
+				return apiConfig
+			})
 		} catch (error) {
 			throw new Error(`Failed to load config: ${error}`)
 		}
@@ -120,18 +135,20 @@ export class ConfigManager {
 	 */
 	async deleteConfig(name: string): Promise<void> {
 		try {
-			const currentConfig = await this.readConfig()
-			if (!currentConfig.apiConfigs[name]) {
-				throw new Error(`Config '${name}' not found`)
-			}
+			return await this.lock(async () => {
+				const currentConfig = await this.readConfig()
+				if (!currentConfig.apiConfigs[name]) {
+					throw new Error(`Config '${name}' not found`)
+				}
 
-			// Don't allow deleting the default config
-			if (Object.keys(currentConfig.apiConfigs).length === 1) {
-				throw new Error(`Cannot delete the last remaining configuration.`)
-			}
+				// Don't allow deleting the default config
+				if (Object.keys(currentConfig.apiConfigs).length === 1) {
+					throw new Error(`Cannot delete the last remaining configuration.`)
+				}
 
-			delete currentConfig.apiConfigs[name]
-			await this.writeConfig(currentConfig)
+				delete currentConfig.apiConfigs[name]
+				await this.writeConfig(currentConfig)
+			})
 		} catch (error) {
 			throw new Error(`Failed to delete config: ${error}`)
 		}
@@ -142,13 +159,15 @@ export class ConfigManager {
 	 */
 	async setCurrentConfig(name: string): Promise<void> {
 		try {
-			const currentConfig = await this.readConfig()
-			if (!currentConfig.apiConfigs[name]) {
-				throw new Error(`Config '${name}' not found`)
-			}
+			return await this.lock(async () => {
+				const currentConfig = await this.readConfig()
+				if (!currentConfig.apiConfigs[name]) {
+					throw new Error(`Config '${name}' not found`)
+				}
 
-			currentConfig.currentApiConfigName = name
-			await this.writeConfig(currentConfig)
+				currentConfig.currentApiConfigName = name
+				await this.writeConfig(currentConfig)
+			})
 		} catch (error) {
 			throw new Error(`Failed to set current config: ${error}`)
 		}
@@ -159,8 +178,10 @@ export class ConfigManager {
 	 */
 	async hasConfig(name: string): Promise<boolean> {
 		try {
-			const config = await this.readConfig()
-			return name in config.apiConfigs
+			return await this.lock(async () => {
+				const config = await this.readConfig()
+				return name in config.apiConfigs
+			})
 		} catch (error) {
 			throw new Error(`Failed to check config existence: ${error}`)
 		}
@@ -171,12 +192,14 @@ export class ConfigManager {
 	 */
 	async setModeConfig(mode: Mode, configId: string): Promise<void> {
 		try {
-			const currentConfig = await this.readConfig()
-			if (!currentConfig.modeApiConfigs) {
-				currentConfig.modeApiConfigs = {}
-			}
-			currentConfig.modeApiConfigs[mode] = configId
-			await this.writeConfig(currentConfig)
+			return await this.lock(async () => {
+				const currentConfig = await this.readConfig()
+				if (!currentConfig.modeApiConfigs) {
+					currentConfig.modeApiConfigs = {}
+				}
+				currentConfig.modeApiConfigs[mode] = configId
+				await this.writeConfig(currentConfig)
+			})
 		} catch (error) {
 			throw new Error(`Failed to set mode config: ${error}`)
 		}
@@ -187,8 +210,10 @@ export class ConfigManager {
 	 */
 	async getModeConfigId(mode: Mode): Promise<string | undefined> {
 		try {
-			const config = await this.readConfig()
-			return config.modeApiConfigs?.[mode]
+			return await this.lock(async () => {
+				const config = await this.readConfig()
+				return config.modeApiConfigs?.[mode]
+			})
 		} catch (error) {
 			throw new Error(`Failed to get mode config: ${error}`)
 		}
@@ -205,7 +230,9 @@ export class ConfigManager {
 	 * Reset all configuration by deleting the stored config from secrets
 	 */
 	public async resetAllConfigs(): Promise<void> {
-		await this.context.secrets.delete(this.getConfigKey())
+		return await this.lock(async () => {
+			await this.context.secrets.delete(this.getConfigKey())
+		})
 	}
 
 	private async readConfig(): Promise<ApiConfigData> {

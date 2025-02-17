@@ -1,4 +1,5 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import React from "react"
+import { render, screen, fireEvent } from "@testing-library/react"
 import SettingsView from "../SettingsView"
 import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext"
 import { vscode } from "../../../utils/vscode"
@@ -126,7 +127,7 @@ describe("SettingsView - Sound Settings", () => {
 		expect(screen.queryByRole("slider", { name: /volume/i })).not.toBeInTheDocument()
 	})
 
-	it("toggles sound setting and sends message to VSCode", async () => {
+	it("toggles sound setting and sends message to VSCode", () => {
 		renderSettingsView()
 
 		const soundCheckbox = screen.getByRole("checkbox", {
@@ -141,14 +142,12 @@ describe("SettingsView - Sound Settings", () => {
 		const doneButton = screen.getByText("Done")
 		fireEvent.click(doneButton)
 
-		await waitFor(() => {
-			expect(vscode.postMessage).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: "soundEnabled",
-					bool: true,
-				}),
-			)
-		})
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "soundEnabled",
+				bool: true,
+			}),
+		)
 	})
 
 	it("shows volume slider when sound is enabled", () => {
@@ -166,7 +165,7 @@ describe("SettingsView - Sound Settings", () => {
 		expect(volumeSlider).toHaveValue("0.5")
 	})
 
-	it("updates volume and sends message to VSCode when slider changes", async () => {
+	it("updates volume and sends message to VSCode when slider changes", () => {
 		renderSettingsView()
 
 		// Enable sound
@@ -184,11 +183,9 @@ describe("SettingsView - Sound Settings", () => {
 		fireEvent.click(doneButton)
 
 		// Verify message sent to VSCode
-		await waitFor(() => {
-			expect(vscode.postMessage).toHaveBeenCalledWith({
-				type: "soundVolume",
-				value: 0.75,
-			})
+		expect(vscode.postMessage).toHaveBeenCalledWith({
+			type: "soundVolume",
+			value: 0.75,
 		})
 	})
 })
@@ -305,7 +302,7 @@ describe("SettingsView - Allowed Commands", () => {
 		expect(commands).toHaveLength(1)
 	})
 
-	it("saves allowed commands when clicking Done", async () => {
+	it("saves allowed commands when clicking Done", () => {
 		const { onDone } = renderSettingsView()
 
 		// Enable always allow execute
@@ -325,14 +322,12 @@ describe("SettingsView - Allowed Commands", () => {
 		fireEvent.click(doneButton)
 
 		// Verify VSCode messages were sent
-		await waitFor(() => {
-			expect(vscode.postMessage).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: "allowedCommands",
-					commands: ["npm test"],
-				}),
-			)
-			expect(onDone).toHaveBeenCalled()
-		})
+		expect(vscode.postMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "allowedCommands",
+				commands: ["npm test"],
+			}),
+		)
+		expect(onDone).toHaveBeenCalled()
 	})
 })

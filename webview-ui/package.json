@@ -48,7 +48,7 @@
 		"tailwind-merge": "^2.6.0",
 		"tailwindcss": "^4.0.0",
 		"tailwindcss-animate": "^1.0.7",
-		"vscrui": "^0.2.0"
+		"vscrui": "^0.2.2"
 	},
 	"devDependencies": {
 		"@storybook/addon-essentials": "^8.5.6",

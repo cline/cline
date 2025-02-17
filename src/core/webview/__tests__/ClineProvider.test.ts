@@ -1405,5 +1405,38 @@ describe("ClineProvider", () => {
 			])
 			expect(mockContext.globalState.update).toHaveBeenCalledWith("currentApiConfigName", "test-config")
 		})
+
+		test("handles successful saveApiConfiguration", async () => {
+			provider.resolveWebviewView(mockWebviewView)
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+			// Mock ConfigManager methods
+			provider.configManager = {
+				saveConfig: jest.fn().mockResolvedValue(undefined),
+				listConfig: jest
+					.fn()
+					.mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
+			} as any
+
+			const testApiConfig = {
+				apiProvider: "anthropic" as const,
+				apiKey: "test-key",
+			}
+
+			// Trigger upsertApiConfiguration
+			await messageHandler({
+				type: "saveApiConfiguration",
+				text: "test-config",
+				apiConfiguration: testApiConfig,
+			})
+
+			// Verify config was saved
+			expect(provider.configManager.saveConfig).toHaveBeenCalledWith("test-config", testApiConfig)
+
+			// Verify state updates
+			expect(mockContext.globalState.update).toHaveBeenCalledWith("listApiConfigMeta", [
+				{ name: "test-config", id: "test-id", apiProvider: "anthropic" },
+			])
+		})
 	})
 })
