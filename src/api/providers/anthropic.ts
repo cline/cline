@@ -3,8 +3,10 @@ import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { EnterpriseHandler } from "./enterprise"
-import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
 
+/**
+ * Handles interactions with the Anthropic service.
+ */
 export class AnthropicHandler extends EnterpriseHandler<Anthropic> {
 	override getClient() {
 		return new Anthropic({
@@ -69,61 +71,6 @@ export class AnthropicHandler extends EnterpriseHandler<Anthropic> {
 			},
 			{ headers: { "anthropic-beta": "prompt-caching-2024-07-31" } },
 		)
-	}
-
-	override async *processChunk(chunk: Anthropic.Messages.RawMessageStreamEvent) {
-		switch (chunk.type) {
-			case "message_start":
-				// tells us cache reads/writes/input/output
-				const usage = chunk.message.usage
-				yield {
-					type: "usage",
-					inputTokens: usage.input_tokens || 0,
-					outputTokens: usage.output_tokens || 0,
-				}
-				break
-			case "message_delta":
-				// tells us stop_reason, stop_sequence, and output tokens along the way and at the end of the message
-
-				yield {
-					type: "usage",
-					inputTokens: 0,
-					outputTokens: chunk.usage.output_tokens || 0,
-				}
-				break
-			case "message_stop":
-				// no usage data, just an indicator that the message is done
-				break
-			case "content_block_start":
-				switch (chunk.content_block.type) {
-					case "text":
-						// we may receive multiple text blocks, in which case just insert a line break between them
-						if (chunk.index > 0) {
-							yield {
-								type: "text",
-								text: "\n",
-							}
-						}
-						yield {
-							type: "text",
-							text: chunk.content_block.text,
-						}
-						break
-				}
-				break
-			case "content_block_delta":
-				switch (chunk.delta.type) {
-					case "text_delta":
-						yield {
-							type: "text",
-							text: chunk.delta.text,
-						}
-						break
-				}
-				break
-			case "content_block_stop":
-				break
-		}
 	}
 
 	override getModel(): { id: AnthropicModelId; info: ModelInfo } {

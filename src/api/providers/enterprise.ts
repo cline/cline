@@ -5,8 +5,6 @@ import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
-import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
-import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 
 /**
  * Base class for enterprise support
@@ -19,12 +17,19 @@ export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
 	protected cache: Map<string, ApiStream> // A cache of message streams.
 	protected client!: ClientType // The enterprise client.
 
+	/**
+	 * Creates a new enterprise handler.
+	 * @param options - The options for the enterprise handler.
+	 */
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.cache = new Map()
 		this._initialize()
 	}
 
+	/**
+	 * Initializes the enterprise handler.
+	 */
 	private _initialize() {
 		const client = this.getClient()
 		if (client instanceof Promise) {
@@ -111,6 +116,58 @@ export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
 		}
 	}
 
+	/**
+	 * Processes each chunk of the stream and yields the appropriate ApiStream events.
+	 * @param chunk - The chunk of data received from the stream.
+	 * @returns An asynchronous generator yielding ApiStream events.
+	 */
+	protected async *processChunk(chunk: any): ApiStream {
+		switch (chunk.type) {
+			case "message_start":
+				// tells us cache reads/writes/input/output
+				yield {
+					type: "usage",
+					inputTokens: chunk.message.usage.input_tokens || 0,
+					outputTokens: chunk.message.usage.output_tokens || 0,
+				}
+				break
+			case "message_delta":
+				// tells us stop_reason, stop_sequence, and output tokens along the way and at the end of the message
+
+				yield {
+					type: "usage",
+					inputTokens: 0,
+					outputTokens: chunk.usage.output_tokens || 0,
+				}
+				break
+			case "message_stop":
+				// no usage data, just an indicator that the message is done
+				break
+			case "content_block_start":
+				if (chunk.content_block.type === "text") {
+					// we may receive multiple text blocks, in which case just insert a line break between them
+					if (chunk.index > 0) {
+						yield { type: "text", text: "\n" }
+					}
+					yield { type: "text", text: chunk.content_block.text }
+				}
+				break
+			case "content_block_delta":
+				if (chunk.delta.type === "text_delta") {
+					yield { type: "text", text: chunk.delta.text }
+				}
+				break
+		}
+	}
+
+	/**
+	 * Transforms a message based on its index and user message indices.
+	 * @param message - The message to transform.
+	 * @param index - The index of the message in the array.
+	 * @param lastUserMsgIndex - The index of the last user message.
+	 * @param secondLastMsgUserIndex - The index of the second last user message.
+	 * @returns The transformed message.
+	 */
 	protected transformMessage(
 		message: Anthropic.Messages.MessageParam,
 		index: number,
@@ -134,12 +191,9 @@ export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
 	}
 
 	/**
-	 * Processes a raw message event.
+	 * Gets the model ID and info for the enterprise handler.
 	 * This method must be implemented by subclasses.
-	 * @param chunk - A raw message event.
-	 * @returns A processed message event.
+	 * @returns The model ID and info.
 	 */
-	protected abstract processChunk(chunk: RawMessageStreamEvent): any
-
 	abstract getModel(): { id: string; info: ModelInfo }
 }

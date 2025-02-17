@@ -11,10 +11,6 @@ import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
  * Handles interactions with the Anthropic Bedrock service using AWS credentials.
  */
 export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
-	/**
-	 * Initializes the AnthropicBedrock client with AWS credentials.
-	 * @returns A promise that resolves when the client is initialized.
-	 */
 	override async getClient() {
 		const clientConfig: any = {
 			awsRegion: this.options.awsRegion || "us-west-2",
@@ -47,12 +43,6 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 		}
 	}
 
-	/**
-	 * Creates a message stream to the Anthropic Bedrock service.
-	 * @param systemPrompt - The system prompt to initialize the conversation.
-	 * @param messages - An array of message parameters.
-	 * @returns An asynchronous generator yielding ApiStream events.
-	 */
 	async *createEnterpriseMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
 		const modelId = this.getModelId()
@@ -75,14 +65,6 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 		yield* this.processStream(stream)
 	}
 
-	/**
-	 * Creates a message stream for an enterprise model.
-	 * @param systemPrompt - The system prompt to initialize the conversation.
-	 * @param messages - An array of message parameters.
-	 * @param modelId - The model ID to use for the conversation.
-	 * @param maxTokens - The maximum number of tokens to generate.
-	 * @returns A promise that resolves with the message stream.
-	 */
 	async createEnterpriseModelStream(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
@@ -90,8 +72,6 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 		maxTokens: number,
 	): Promise<AnthropicStream<RawMessageStreamEvent>> {
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
-		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
-		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
 		return await this.client.messages.create({
 			model: modelId,
@@ -103,47 +83,6 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 		})
 	}
 
-	/**
-	 * Processes each chunk of the stream and yields the appropriate ApiStream events.
-	 * @param chunk - The chunk of data received from the stream.
-	 * @returns An asynchronous generator yielding ApiStream events.
-	 */
-	async *processChunk(chunk: any): ApiStream {
-		switch (chunk.type) {
-			case "message_start":
-				yield {
-					type: "usage",
-					inputTokens: chunk.message.usage.input_tokens || 0,
-					outputTokens: chunk.message.usage.output_tokens || 0,
-				}
-				break
-			case "message_delta":
-				yield {
-					type: "usage",
-					inputTokens: 0,
-					outputTokens: chunk.usage.output_tokens || 0,
-				}
-				break
-			case "content_block_start":
-				if (chunk.content_block.type === "text") {
-					if (chunk.index > 0) {
-						yield { type: "text", text: "\n" }
-					}
-					yield { type: "text", text: chunk.content_block.text }
-				}
-				break
-			case "content_block_delta":
-				if (chunk.delta.type === "text_delta") {
-					yield { type: "text", text: chunk.delta.text }
-				}
-				break
-		}
-	}
-
-	/**
-	 * Determines the model ID to use, considering cross-region inference if specified.
-	 * @returns A string representing the model ID.
-	 */
 	protected getModelId(): string {
 		if (this.options.awsUseCrossRegionInference) {
 			const regionPrefix = (this.options.awsRegion || "").slice(0, 3)
@@ -159,10 +98,6 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 		return this.getModel().id
 	}
 
-	/**
-	 * Retrieves the model information based on the provided or default model ID.
-	 * @returns An object containing the model ID and model information.
-	 */
 	getModel(): { id: BedrockModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in bedrockModels) {

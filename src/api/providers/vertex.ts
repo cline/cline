@@ -2,15 +2,14 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { EnterpriseHandler } from "./enterprise"
-import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
+import { ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
 
+/**
+ * Handles interactions with the Anthropic Vertex service.
+ */
 export class VertexHandler extends EnterpriseHandler<AnthropicVertex> {
-	/**
-	 * Initializes the AnthropicVertex client with projectId and region.
-	 * @returns A promise that resolved when the client is initialized.
-	 */
 	override getClient() {
 		return new AnthropicVertex({
 			projectId: this.options.vertexProjectId,
@@ -59,38 +58,6 @@ export class VertexHandler extends EnterpriseHandler<AnthropicVertex> {
 			),
 			stream: true,
 		})
-	}
-
-	async *processChunk(chunk: any): ApiStream {
-		switch (chunk.type) {
-			case "message_start":
-				yield {
-					type: "usage",
-					inputTokens: chunk.message.usage.input_tokens || 0,
-					outputTokens: chunk.message.usage.output_tokens || 0,
-				}
-				break
-			case "message_delta":
-				yield {
-					type: "usage",
-					inputTokens: 0,
-					outputTokens: chunk.usage.output_tokens || 0,
-				}
-				break
-			case "content_block_start":
-				if (chunk.content_block.type === "text") {
-					if (chunk.index > 0) {
-						yield { type: "text", text: "\n" }
-					}
-					yield { type: "text", text: chunk.content_block.text }
-				}
-				break
-			case "content_block_delta":
-				if (chunk.delta.type === "text_delta") {
-					yield { type: "text", text: chunk.delta.text }
-				}
-				break
-		}
 	}
 
 	getModel(): { id: VertexModelId; info: ModelInfo } {
