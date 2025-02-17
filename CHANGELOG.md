@@ -8,6 +8,7 @@
 -   Add advanced configuration options for OpenAI Compatible (context window, max output, pricing, etc.)
 -   Add Alibaba Qwen 2.5 coder models, VL models, and DeepSeek-R1/V3 support
 -   Improve support for AWS Bedrock Profiles
+-   Fix Mistral provider support for non-codestral models
 -   Add advanced setting to disable browser tool
 -   Add advanced setting to set chromium executable path for browser tool
 
