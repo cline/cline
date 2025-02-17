@@ -75,14 +75,56 @@ export class AwsBedrockHandler implements ApiHandler {
 			modelId = this.getModel().id
 		}
 
+		const model = this.getModel()
+		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
+		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
 		const stream = await this.client.messages.create({
 			model: modelId,
-			max_tokens: this.getModel().info.maxTokens || 8192,
+			max_tokens: model.info.maxTokens || 8192,
 			temperature: 0,
-			system: systemPrompt,
-			messages,
+			system: [
+				{
+					text: systemPrompt,
+					type: "text",
+					...(this.options.usePromptCache === true && {
+						cache_control: { type: "ephemeral" },
+					}),
+				},
+			],
+			messages: messages.map((message, index) => {
+				if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+					return {
+						...message,
+						content:
+							typeof message.content === "string"
+								? [
+										{
+											type: "text",
+											text: message.content,
+											...(this.options.usePromptCache === true && {
+												cache_control: { type: "ephemeral" },
+											}),
+										},
+									]
+								: message.content.map((content, contentIndex) =>
+										contentIndex === message.content.length - 1
+											? {
+													...content,
+													...(this.options.usePromptCache === true && {
+														cache_control: { type: "ephemeral" },
+													}),
+												}
+											: content,
+									),
+					}
+				}
+				return message
+			}),
 			stream: true,
 		})
+
 		for await (const chunk of stream) {
 			switch (chunk.type) {
 				case "message_start":
@@ -91,6 +133,8 @@ export class AwsBedrockHandler implements ApiHandler {
 						type: "usage",
 						inputTokens: usage.input_tokens || 0,
 						outputTokens: usage.output_tokens || 0,
+						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
+						cacheReadTokens: usage.cache_read_input_tokens || undefined,
 					}
 					break
 				case "message_delta":
@@ -100,7 +144,6 @@ export class AwsBedrockHandler implements ApiHandler {
 						outputTokens: chunk.usage.output_tokens || 0,
 					}
 					break
-
 				case "content_block_start":
 					switch (chunk.content_block.type) {
 						case "text":
