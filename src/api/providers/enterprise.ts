@@ -7,9 +7,21 @@ import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
 
 /**
- * Base class for enterprise support
- * This class is abstract and must be extended by a subclass.
- * @abstract
+ * Abstract base class for enterprise providers.
+ *
+ * This class provides a standardized framework for handling enterprise API interactions,
+ * ensuring consistency and reusability. It enforces a contract for subclasses to implement
+ * specific methods, promoting a clear and maintainable architecture.
+ *
+ * The use of generators and yielding allows efficient handling of asynchronous data streams,
+ * enabling real-time data processing without blocking the main thread.
+ *
+ * Generics provide flexibility and type safety for different enterprise clients.
+ *
+ * Caching improves performance by storing frequently accessed data, reducing latency and load
+ * on external services, and optimizing data handling.
+ *
+ * @template ClientType - The type of the enterprise client.
  * @implements ApiHandler
  */
 export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
