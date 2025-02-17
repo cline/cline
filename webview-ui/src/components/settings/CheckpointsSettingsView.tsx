@@ -1,4 +1,11 @@
-import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeLink, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import {
+	VSCodeButton,
+	VSCodeDropdown,
+	VSCodeOption,
+	VSCodeLink,
+	VSCodeCheckbox,
+	VSCodeTextField,
+} from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState, useCallback, useRef } from "react"
 import { NumericFormat } from "react-number-format"
 import { vscode } from "../../utils/vscode"
@@ -37,7 +44,7 @@ const CheckpointsSettingsView = () => {
 				checkpointSettings: newSettings,
 			})
 		}, 1000),
-		[settings]
+		[settings],
 	)
 
 	useEffect(() => {
@@ -54,12 +61,12 @@ const CheckpointsSettingsView = () => {
 				case "checkpointSettings": {
 					const newSettings = message.checkpointSettings
 					setSettings(newSettings)
-					
+
 					// Check if current value matches any preset
 					const isPresetValue = fileSizeOptions.some(
-						option => option.value !== "custom" && parseFloat(option.value) === newSettings.fileSizeThresholdMB
+						(option) => option.value !== "custom" && parseFloat(option.value) === newSettings.fileSizeThresholdMB,
 					)
-					
+
 					if (!isPresetValue) {
 						setIsCustomSize(true)
 						setCustomSizeValue(newSettings.fileSizeThresholdMB.toString())
@@ -76,7 +83,7 @@ const CheckpointsSettingsView = () => {
 	const handleFileSizeChange = (e: any) => {
 		const select = e.target as HTMLSelectElement
 		const value = select.value
-		
+
 		if (value === "custom") {
 			setIsCustomSize(true)
 			setCustomSizeValue(settings.fileSizeThresholdMB.toString())
@@ -156,10 +163,9 @@ const CheckpointsSettingsView = () => {
 							style={{ width: "120px" }}
 						/>
 					)}
-					<VSCodeDropdown 
-						value={isCustomSize ? "custom" : `${settings.fileSizeThresholdMB}`} 
-						onChange={handleFileSizeChange}
-					>
+					<VSCodeDropdown
+						value={isCustomSize ? "custom" : `${settings.fileSizeThresholdMB}`}
+						onChange={handleFileSizeChange}>
 						{fileSizeOptions.map((option) => (
 							<VSCodeOption key={option.value} value={option.value}>
 								{option.text}

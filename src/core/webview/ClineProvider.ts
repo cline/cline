@@ -853,21 +853,23 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					}
 					case "confirmDeleteAllCheckpoints": {
-						vscode.window.showWarningMessage(
-							"This action will delete all checkpoints that have been created by Cline! Deleting all checkpoints will remove the ability to use these features for all historical tasks.",
-							"Delete All",
-							"Cancel"
-						).then(async (selection) => {
-							if (selection === "Delete All") {
-								try {
-									await deleteAllCheckpoints(this.context.globalStoragePath)
-									vscode.window.showInformationMessage("All checkpoints have been deleted")
-								} catch (error) {
-									vscode.window.showErrorMessage("Failed to delete checkpoints")
-									console.error("Failed to delete all checkpoints:", error)
+						vscode.window
+							.showWarningMessage(
+								"This action will delete all checkpoints that have been created by Cline! Deleting all checkpoints will remove the ability to use these features for all historical tasks.",
+								"Delete All",
+								"Cancel",
+							)
+							.then(async (selection) => {
+								if (selection === "Delete All") {
+									try {
+										await deleteAllCheckpoints(this.context.globalStoragePath)
+										vscode.window.showInformationMessage("All checkpoints have been deleted")
+									} catch (error) {
+										vscode.window.showErrorMessage("Failed to delete checkpoints")
+										console.error("Failed to delete all checkpoints:", error)
+									}
 								}
-							}
-						})
+							})
 						break
 					}
 					// Add more switch case statements here as more webview message commands

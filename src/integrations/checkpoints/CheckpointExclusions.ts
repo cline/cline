@@ -80,7 +80,7 @@ export const getDefaultExclusions = (): string[] => [
 async function isOverSizeLimit(filePath: string): Promise<ExclusionResult> {
 	try {
 		const settings = CheckpointSettingsManager.getInstance().getSettings()
-		
+
 		// If threshold is -1, don't check file size at all
 		if (settings.fileSizeThresholdMB === -1) {
 			return { excluded: false }
@@ -91,9 +91,10 @@ async function isOverSizeLimit(filePath: string): Promise<ExclusionResult> {
 
 		return {
 			excluded: sizeInMB > settings.fileSizeThresholdMB,
-			reason: sizeInMB > settings.fileSizeThresholdMB 
-				? `File size ${sizeInMB.toFixed(2)}MB exceeds ${settings.fileSizeThresholdMB}MB limit` 
-				: undefined,
+			reason:
+				sizeInMB > settings.fileSizeThresholdMB
+					? `File size ${sizeInMB.toFixed(2)}MB exceeds ${settings.fileSizeThresholdMB}MB limit`
+					: undefined,
 		}
 	} catch {
 		return { excluded: false }
@@ -111,7 +112,7 @@ export const writeExcludesFile = async (gitPath: string, lfsPatterns: string[] =
 	const settingsManager = CheckpointSettingsManager.getInstance()
 	// Ensure .checkpointsignore exists and load its patterns
 	const ignorePatterns = await settingsManager.getIgnorePatterns()
-	
+
 	// Combine patterns and write to git exclude file
 	const patterns = [...ignorePatterns, ...lfsPatterns]
 	await fs.writeFile(excludesPath, patterns.join("\n"))
@@ -138,7 +139,7 @@ export const shouldExcludeFile = async (filePath: string): Promise<ExclusionResu
 			if (ig.ignores(relativePath)) {
 				return {
 					excluded: true,
-					reason: "Matched pattern in .checkpointsignore"
+					reason: "Matched pattern in .checkpointsignore",
 				}
 			}
 		}

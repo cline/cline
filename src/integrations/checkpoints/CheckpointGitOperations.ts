@@ -8,9 +8,9 @@ import { getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
 import { HistoryItem } from "../../shared/HistoryItem"
 
 interface StorageProvider {
-    context: {
-        globalStorageUri: { fsPath: string };
-    };
+	context: {
+		globalStorageUri: { fsPath: string }
+	}
 }
 
 /**

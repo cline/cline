@@ -168,25 +168,25 @@ export async function detectLegacyCheckpoint(globalStoragePath: string | undefin
  * @throws Error if deletion fails or if global storage path is invalid
  */
 export async function deleteAllCheckpoints(globalStoragePath: string): Promise<void> {
-    if (!globalStoragePath) {
-        throw new Error("Global storage path is invalid");
-    }
+	if (!globalStoragePath) {
+		throw new Error("Global storage path is invalid")
+	}
 
-    // Delete legacy checkpoints
-    const tasksDir = path.join(globalStoragePath, "tasks");
-    if (await fileExistsAtPath(tasksDir)) {
-        const taskDirs = await fs.readdir(tasksDir);
-        for (const taskId of taskDirs) {
-            const checkpointsDir = path.join(tasksDir, taskId, "checkpoints");
-            if (await fileExistsAtPath(checkpointsDir)) {
-                await fs.rm(checkpointsDir, { recursive: true, force: true });
-            }
-        }
-    }
+	// Delete legacy checkpoints
+	const tasksDir = path.join(globalStoragePath, "tasks")
+	if (await fileExistsAtPath(tasksDir)) {
+		const taskDirs = await fs.readdir(tasksDir)
+		for (const taskId of taskDirs) {
+			const checkpointsDir = path.join(tasksDir, taskId, "checkpoints")
+			if (await fileExistsAtPath(checkpointsDir)) {
+				await fs.rm(checkpointsDir, { recursive: true, force: true })
+			}
+		}
+	}
 
-    // Delete branch-per-task checkpoints
-    const checkpointsDir = path.join(globalStoragePath, "checkpoints");
-    if (await fileExistsAtPath(checkpointsDir)) {
-        await fs.rm(checkpointsDir, { recursive: true, force: true });
-    }
+	// Delete branch-per-task checkpoints
+	const checkpointsDir = path.join(globalStoragePath, "checkpoints")
+	if (await fileExistsAtPath(checkpointsDir)) {
+		await fs.rm(checkpointsDir, { recursive: true, force: true })
+	}
 }
