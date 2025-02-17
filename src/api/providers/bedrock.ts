@@ -50,12 +50,17 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 		let stream: AnthropicStream<RawMessageStreamEvent>
 
 		if (Object.keys(bedrockModels).includes(modelId)) {
-			stream = await this.createEnterpriseModelStream(systemPrompt, messages, modelId, model.info.maxTokens ?? 8192)
+			stream = await this.createEnterpriseModelStream(
+				systemPrompt,
+				messages,
+				modelId,
+				model.info.maxTokens ?? EnterpriseHandler.DEFAULT_TOKEN_SIZE,
+			)
 		} else {
 			stream = await this.client.messages.create({
 				model: modelId,
-				max_tokens: model.info.maxTokens || 8192,
-				temperature: 0,
+				max_tokens: model.info.maxTokens || EnterpriseHandler.DEFAULT_TOKEN_SIZE,
+				temperature: EnterpriseHandler.DEFAULT_TEMPERATURE,
 				system: systemPrompt,
 				messages,
 				stream: true,
@@ -75,8 +80,8 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 
 		return await this.client.messages.create({
 			model: modelId,
-			max_tokens: maxTokens || 8192,
-			temperature: 0,
+			max_tokens: maxTokens || EnterpriseHandler.DEFAULT_TOKEN_SIZE,
+			temperature: EnterpriseHandler.DEFAULT_TEMPERATURE,
 			system: [{ text: systemPrompt, type: "text" }],
 			messages,
 			stream: true,

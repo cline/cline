@@ -22,12 +22,17 @@ export class AnthropicHandler extends EnterpriseHandler<Anthropic> {
 		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
 
 		if (Object.keys(anthropicModels).includes(modelId)) {
-			stream = await this.createEnterpriseModelStream(systemPrompt, messages, modelId, model.info.maxTokens ?? 8192)
+			stream = await this.createEnterpriseModelStream(
+				systemPrompt,
+				messages,
+				modelId,
+				model.info.maxTokens ?? AnthropicHandler.DEFAULT_TOKEN_SIZE,
+			)
 		} else {
 			stream = this.client.messages.create({
 				model: modelId,
-				max_tokens: model.info.maxTokens || 8192,
-				temperature: 0,
+				max_tokens: model.info.maxTokens || AnthropicHandler.DEFAULT_TOKEN_SIZE,
+				temperature: AnthropicHandler.DEFAULT_TEMPERATURE,
 				system: [{ text: systemPrompt, type: "text" }],
 				messages,
 				stream: true,
@@ -52,8 +57,8 @@ export class AnthropicHandler extends EnterpriseHandler<Anthropic> {
 		return await this.client.beta.promptCaching.messages.create(
 			{
 				model: modelId,
-				max_tokens: maxTokens || 8192,
-				temperature: 0,
+				max_tokens: maxTokens || AnthropicHandler.DEFAULT_TOKEN_SIZE,
+				temperature: AnthropicHandler.DEFAULT_TEMPERATURE,
 				system: [
 					{
 						text: systemPrompt,

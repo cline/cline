@@ -25,6 +25,8 @@ import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
  * @implements ApiHandler
  */
 export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
+	static readonly DEFAULT_TOKEN_SIZE: number = 8192 // The default token size for message generation.
+	static readonly DEFAULT_TEMPERATURE: number = 0 // The default temperature for message generation.
 	protected options: ApiHandlerOptions // The options for the enterprise handler.
 	protected cache: Map<string, ApiStream> // A cache of message streams.
 	protected client!: ClientType // The enterprise client.
