@@ -79,9 +79,15 @@ export const getDefaultExclusions = (): string[] => [
  */
 async function isOverSizeLimit(filePath: string): Promise<ExclusionResult> {
 	try {
+		const settings = CheckpointSettingsManager.getInstance().getSettings()
+		
+		// If threshold is -1, don't check file size at all
+		if (settings.fileSizeThresholdMB === -1) {
+			return { excluded: false }
+		}
+
 		const stats = await fs.stat(filePath)
 		const sizeInMB = stats.size / (1024 * 1024)
-		const settings = await CheckpointSettingsManager.getInstance().getSettings()
 
 		return {
 			excluded: sizeInMB > settings.fileSizeThresholdMB,

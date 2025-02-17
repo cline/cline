@@ -1,7 +1,9 @@
-import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeLink, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { memo, useEffect, useState } from "react"
+import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeLink, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { memo, useEffect, useState, useCallback, useRef } from "react"
+import { NumericFormat } from "react-number-format"
 import { vscode } from "../../utils/vscode"
 import type { CheckpointSettings } from "../../../../src/shared/WebviewMessage"
+import debounce from "debounce"
 
 const fileSizeOptions = [
 	{ value: "5", text: "5MB" },
@@ -9,6 +11,8 @@ const fileSizeOptions = [
 	{ value: "25", text: "25MB" },
 	{ value: "50", text: "50MB" },
 	{ value: "100", text: "100MB" },
+	{ value: "-1", text: "No Limit" },
+	{ value: "custom", text: "Custom" },
 ]
 
 const CheckpointsSettingsView = () => {
@@ -16,6 +20,25 @@ const CheckpointsSettingsView = () => {
 		fileSizeThresholdMB: 5,
 		enableCheckpoints: true,
 	})
+	const [isCustomSize, setIsCustomSize] = useState(false)
+	const [customSizeValue, setCustomSizeValue] = useState("")
+	const customSizeInputRef = useRef<HTMLInputElement>(null)
+
+	// Create debounced update function
+	const debouncedUpdateSettings = useCallback(
+		debounce((value: number) => {
+			const newSettings = {
+				...settings,
+				fileSizeThresholdMB: value,
+			}
+			setSettings(newSettings)
+			vscode.postMessage({
+				type: "updateCheckpointSettings",
+				checkpointSettings: newSettings,
+			})
+		}, 1000),
+		[settings]
+	)
 
 	useEffect(() => {
 		// Get initial settings
@@ -28,9 +51,21 @@ const CheckpointsSettingsView = () => {
 		const messageHandler = (event: MessageEvent) => {
 			const message = event.data
 			switch (message.type) {
-				case "checkpointSettings":
-					setSettings(message.checkpointSettings)
+				case "checkpointSettings": {
+					const newSettings = message.checkpointSettings
+					setSettings(newSettings)
+					
+					// Check if current value matches any preset
+					const isPresetValue = fileSizeOptions.some(
+						option => option.value !== "custom" && parseFloat(option.value) === newSettings.fileSizeThresholdMB
+					)
+					
+					if (!isPresetValue) {
+						setIsCustomSize(true)
+						setCustomSizeValue(newSettings.fileSizeThresholdMB.toString())
+					}
 					break
+				}
 			}
 		}
 
@@ -40,15 +75,29 @@ const CheckpointsSettingsView = () => {
 
 	const handleFileSizeChange = (e: any) => {
 		const select = e.target as HTMLSelectElement
-		const newSettings = {
-			...settings,
-			fileSizeThresholdMB: parseInt(select.value),
+		const value = select.value
+		
+		if (value === "custom") {
+			setIsCustomSize(true)
+			setCustomSizeValue(settings.fileSizeThresholdMB.toString())
+			setTimeout(() => {
+				if (customSizeInputRef.current) {
+					customSizeInputRef.current.focus()
+				}
+			}, 0)
+		} else {
+			setIsCustomSize(false)
+			const newValue = parseFloat(value)
+			const newSettings = {
+				...settings,
+				fileSizeThresholdMB: newValue,
+			}
+			setSettings(newSettings)
+			vscode.postMessage({
+				type: "updateCheckpointSettings",
+				checkpointSettings: newSettings,
+			})
 		}
-		setSettings(newSettings)
-		vscode.postMessage({
-			type: "updateCheckpointSettings",
-			checkpointSettings: newSettings,
-		})
 	}
 
 	const handleEnableChange = (e: any) => {
@@ -89,20 +138,42 @@ const CheckpointsSettingsView = () => {
 
 			<div>
 				<div style={{ fontWeight: "500", marginBottom: "8px" }}>File Size Threshold</div>
-				<VSCodeDropdown value={`${settings.fileSizeThresholdMB}`} onChange={handleFileSizeChange}>
-					{fileSizeOptions.map((option) => (
-						<VSCodeOption key={option.value} value={option.value}>
-							{option.text}
-						</VSCodeOption>
-					))}
-				</VSCodeDropdown>
+				<div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+					{isCustomSize && (
+						<NumericFormat
+							customInput={VSCodeTextField}
+							getInputRef={customSizeInputRef}
+							value={customSizeValue}
+							onValueChange={({ value }) => {
+								setCustomSizeValue(value)
+								if (value !== "") {
+									debouncedUpdateSettings(parseFloat(value))
+								}
+							}}
+							allowNegative={customSizeValue === "-1"}
+							decimalScale={3}
+							placeholder="Size in MB"
+							style={{ width: "120px" }}
+						/>
+					)}
+					<VSCodeDropdown 
+						value={isCustomSize ? "custom" : `${settings.fileSizeThresholdMB}`} 
+						onChange={handleFileSizeChange}
+					>
+						{fileSizeOptions.map((option) => (
+							<VSCodeOption key={option.value} value={option.value}>
+								{option.text}
+							</VSCodeOption>
+						))}
+					</VSCodeDropdown>
+				</div>
 				<p
 					style={{
 						fontSize: "12px",
 						marginTop: "5px",
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					Exclude files larger than this size from checkpoint creation globally
+					Exclude files larger than this size in MB from checkpoint creation globally
 				</p>
 			</div>
 
