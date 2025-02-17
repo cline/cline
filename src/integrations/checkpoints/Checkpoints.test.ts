@@ -9,6 +9,7 @@ import * as vscode from "vscode"
 import "should"
 import simpleGit from "simple-git"
 import { fileExistsAtPath } from "../../utils/fs"
+import { CheckpointSettingsManager } from "./CheckpointSettings"
 
 describe("CheckpointTracker", () => {
 	let tempDir: string
@@ -21,6 +22,9 @@ describe("CheckpointTracker", () => {
 		tempDir = path.join(os.tmpdir(), `checkpoint-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir)
 		gitPath = path.join(tempDir, ".git")
+
+		// Initialize CheckpointSettingsManager with temp directory
+		CheckpointSettingsManager.initialize(tempDir)
 
 		// Mock getWorkingDirectory
 		originalGetWorkingDirectory = CheckpointUtils.getWorkingDirectory
@@ -173,6 +177,62 @@ describe("CheckpointTracker", () => {
 			// Verify content of remaining file
 			const content = await fs.readFile(initialFile, "utf8")
 			content.should.equal("initial content")
+		})
+	})
+
+	describe("deleteAllCheckpoints", () => {
+		it("should delete all checkpoint data", async () => {
+			// Create and initialize legacy checkpoint structure
+			const taskId = "legacy-task"
+			const legacyCheckpointsDir = path.join(tempDir, "tasks", taskId, "checkpoints")
+			const legacyGitPath = path.join(legacyCheckpointsDir, ".git")
+			await fs.mkdir(legacyCheckpointsDir, { recursive: true })
+			await GitOperations.initShadowGit(legacyGitPath, tempDir, true)
+
+			// Create and initialize branch-per-task checkpoint structure
+			const cwdHash = CheckpointUtils.hashWorkingDir(tempDir)
+			const branchCheckpointsDir = path.join(tempDir, "checkpoints", cwdHash)
+			const branchGitPath = path.join(branchCheckpointsDir, ".git")
+			await fs.mkdir(branchCheckpointsDir, { recursive: true })
+			await GitOperations.initShadowGit(branchGitPath, tempDir, false)
+
+			// Delete all checkpoints
+			await CheckpointUtils.deleteAllCheckpoints(tempDir)
+
+			// Verify legacy checkpoints are deleted
+			const legacyExists = await fileExistsAtPath(legacyCheckpointsDir)
+			legacyExists.should.be.false()
+
+			// Verify branch-per-task checkpoints are deleted
+			const branchExists = await fileExistsAtPath(path.join(tempDir, "checkpoints"))
+			branchExists.should.be.false()
+		})
+
+		it("should handle missing directories gracefully", async () => {
+			// Delete all checkpoints when directories don't exist
+			await CheckpointUtils.deleteAllCheckpoints(tempDir)
+
+			// Create task ID to check specific paths
+			const taskId = "test-task"
+
+			// Verify no errors are thrown and specific paths don't exist
+			const legacyCheckpointsDir = path.join(tempDir, "tasks", taskId, "checkpoints")
+			const legacyExists = await fileExistsAtPath(legacyCheckpointsDir)
+			legacyExists.should.be.false()
+
+			const cwdHash = CheckpointUtils.hashWorkingDir(tempDir)
+			const branchCheckpointsDir = path.join(tempDir, "checkpoints", cwdHash)
+			const branchExists = await fileExistsAtPath(branchCheckpointsDir)
+			branchExists.should.be.false()
+		})
+
+		it("should throw error if globalStoragePath is invalid", async () => {
+			try {
+				await CheckpointUtils.deleteAllCheckpoints("")
+				throw new Error("Should have thrown error for invalid globalStoragePath")
+			} catch (error: any) {
+				error.message.should.equal("Global storage path is invalid")
+			}
 		})
 	})
 })
