@@ -190,6 +190,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
 					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
 					<VSCodeOption value="requesty">Requesty</VSCodeOption>
+					<VSCodeOption value="fireworks">Fireworks</VSCodeOption>
 					<VSCodeOption value="together">Together</VSCodeOption>
 					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
@@ -848,6 +849,44 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+				</div>
+			)}
+
+			{selectedProvider === "fireworks" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.fireworksApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("fireworksApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.fireworksApiKey && (
+							<VSCodeLink
+								href="https://fireworks.ai/account/api-keys"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Fireworks API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+					<VSCodeTextField
+						value={apiConfiguration?.fireworksModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("fireworksModelId")}
+						placeholder={"Enter Model ID..."}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
 					<p
 						style={{
 							fontSize: "12px",
@@ -859,6 +898,48 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							models. Less capable models may not work as expected.)
 						</span>
 					</p>
+					<VSCodeTextField
+						value={apiConfiguration?.fireworksModelMaxCompletionTokens?.toString() || ""}
+						style={{ width: "100%" }}
+						onInput={(e) => {
+							const value = (e.target as HTMLInputElement).value
+							if (!value) {
+								return
+							}
+							const num = parseInt(value, 10)
+							if (isNaN(num)) {
+								return
+							}
+							handleInputChange("fireworksModelMaxCompletionTokens")({
+								target: {
+									value: num,
+								},
+							})
+						}}
+						placeholder={"2000"}>
+						<span style={{ fontWeight: 500 }}>Max Completion Tokens</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.fireworksModelMaxTokens?.toString() || ""}
+						style={{ width: "100%" }}
+						onInput={(e) => {
+							const value = (e.target as HTMLInputElement).value
+							if (!value) {
+								return
+							}
+							const num = parseInt(value)
+							if (isNaN(num)) {
+								return
+							}
+							handleInputChange("fireworksModelMaxTokens")({
+								target: {
+									value: num,
+								},
+							})
+						}}
+						placeholder={"4000"}>
+						<span style={{ fontWeight: 500 }}>Max Context Tokens</span>
+					</VSCodeTextField>
 				</div>
 			)}
 

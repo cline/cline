@@ -17,7 +17,7 @@ import { QwenHandler } from "./providers/qwen"
 import { MistralHandler } from "./providers/mistral"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { LiteLlmHandler } from "./providers/litellm"
-
+import { FireworksHandler } from "./providers/fireworks"
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
 	getModel(): { id: string; info: ModelInfo }
@@ -52,6 +52,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new DeepSeekHandler(options)
 		case "requesty":
 			return new RequestyHandler(options)
+		case "fireworks":
+			return new FireworksHandler(options)
 		case "together":
 			return new TogetherHandler(options)
 		case "qwen":

@@ -15,6 +15,7 @@ export type ApiProvider =
 	| "mistral"
 	| "vscode-lm"
 	| "litellm"
+	| "fireworks"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -50,6 +51,10 @@ export interface ApiHandlerOptions {
 	requestyModelId?: string
 	togetherApiKey?: string
 	togetherModelId?: string
+	fireworksApiKey?: string
+	fireworksModelId?: string
+	fireworksModelMaxCompletionTokens?: number
+	fireworksModelMaxTokens?: number
 	qwenApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
