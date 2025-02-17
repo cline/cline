@@ -1,4 +1,5 @@
 import { mentionRegex } from "../../../src/shared/context-mentions"
+import { Fzf } from "fzf"
 
 export function insertMention(text: string, position: number, value: string): { newValue: string; mentionIndex: number } {
 	const beforeCursor = text.slice(0, position)
@@ -46,13 +47,17 @@ export enum ContextMenuOptionType {
 	File = "file",
 	Folder = "folder",
 	Problems = "problems",
+	Terminal = "terminal",
 	URL = "url",
+	Git = "git",
 	NoResults = "noResults",
 }
 
 export interface ContextMenuQueryItem {
 	type: ContextMenuOptionType
 	value?: string
+	label?: string
+	description?: string
 }
 
 export function getContextMenuOptions(
@@ -60,6 +65,13 @@ export function getContextMenuOptions(
 	selectedType: ContextMenuOptionType | null = null,
 	queryItems: ContextMenuQueryItem[],
 ): ContextMenuQueryItem[] {
+	const workingChanges: ContextMenuQueryItem = {
+		type: ContextMenuOptionType.Git,
+		value: "git-changes",
+		label: "Working changes",
+		description: "Current uncommitted changes",
+	}
+
 	if (query === "") {
 		if (selectedType === ContextMenuOptionType.File) {
 			const files = queryItems
@@ -81,30 +93,102 @@ export function getContextMenuOptions(
 			return folders.length > 0 ? folders : [{ type: ContextMenuOptionType.NoResults }]
 		}
 
+		if (selectedType === ContextMenuOptionType.Git) {
+			const commits = queryItems.filter((item) => item.type === ContextMenuOptionType.Git)
+			return commits.length > 0 ? [workingChanges, ...commits] : [workingChanges]
+		}
+
 		return [
 			{ type: ContextMenuOptionType.URL },
 			{ type: ContextMenuOptionType.Problems },
+			{ type: ContextMenuOptionType.Terminal },
+			{ type: ContextMenuOptionType.Git },
 			{ type: ContextMenuOptionType.Folder },
 			{ type: ContextMenuOptionType.File },
 		]
 	}
 
 	const lowerQuery = query.toLowerCase()
+	const suggestions: ContextMenuQueryItem[] = []
 
+	// Check for top-level option matches
+	if ("git".startsWith(lowerQuery)) {
+		suggestions.push({
+			type: ContextMenuOptionType.Git,
+			label: "Git Commits",
+			description: "Search repository history",
+		})
+	} else if ("git-changes".startsWith(lowerQuery)) {
+		suggestions.push(workingChanges)
+	}
+	if ("problems".startsWith(lowerQuery)) {
+		suggestions.push({ type: ContextMenuOptionType.Problems })
+	}
 	if (query.startsWith("http")) {
-		return [{ type: ContextMenuOptionType.URL, value: query }]
-	} else {
-		const matchingItems = queryItems.filter((item) => item.value?.toLowerCase().includes(lowerQuery))
+		suggestions.push({ type: ContextMenuOptionType.URL, value: query })
+	}
 
-		if (matchingItems.length > 0) {
-			return matchingItems.map((item) => ({
-				type: item.type,
-				value: item.value,
-			}))
+	// Add exact SHA matches to suggestions
+	if (/^[a-f0-9]{7,40}$/i.test(lowerQuery)) {
+		const exactMatches = queryItems.filter(
+			(item) => item.type === ContextMenuOptionType.Git && item.value?.toLowerCase() === lowerQuery,
+		)
+		if (exactMatches.length > 0) {
+			suggestions.push(...exactMatches)
 		} else {
-			return [{ type: ContextMenuOptionType.NoResults }]
+			// If no exact match but valid SHA format, add as option
+			suggestions.push({
+				type: ContextMenuOptionType.Git,
+				value: lowerQuery,
+				label: `Commit ${lowerQuery}`,
+				description: "Git commit hash",
+			})
 		}
 	}
+
+	// Create searchable strings array for fzf
+	const searchableItems = queryItems.map((item) => ({
+		original: item,
+		searchStr: [item.value, item.label, item.description].filter(Boolean).join(" "),
+	}))
+
+	// Initialize fzf instance for fuzzy search
+	const fzf = new Fzf(searchableItems, {
+		selector: (item) => item.searchStr,
+	})
+
+	// Get fuzzy matching items
+	const matchingItems = query ? fzf.find(query).map((result) => result.item.original) : []
+
+	// Separate matches by type
+	const fileMatches = matchingItems.filter(
+		(item) => item.type === ContextMenuOptionType.File || item.type === ContextMenuOptionType.Folder,
+	)
+	const gitMatches = matchingItems.filter((item) => item.type === ContextMenuOptionType.Git)
+	const otherMatches = matchingItems.filter(
+		(item) =>
+			item.type !== ContextMenuOptionType.File &&
+			item.type !== ContextMenuOptionType.Folder &&
+			item.type !== ContextMenuOptionType.Git,
+	)
+
+	// Combine suggestions with matching items in the desired order
+	if (suggestions.length > 0 || matchingItems.length > 0) {
+		const allItems = [...suggestions, ...fileMatches, ...gitMatches, ...otherMatches]
+
+		// Remove duplicates based on type and value
+		const seen = new Set()
+		const deduped = allItems.filter((item) => {
+			const key = `${item.type}-${item.value}`
+			if (seen.has(key)) return false
+			seen.add(key)
+			return true
+		})
+
+		return deduped
+	}
+
+	return [{ type: ContextMenuOptionType.NoResults }]
 }
 
 export function shouldShowContextMenu(text: string, position: number): boolean {
@@ -121,8 +205,8 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
 	// Don't show the menu if it's a URL
 	if (textAfterAt.toLowerCase().startsWith("http")) return false
 
-	// Don't show the menu if it's a problems
-	if (textAfterAt.toLowerCase().startsWith("problems")) return false
+	// Don't show the menu if it's a problems or terminal
+	if (textAfterAt.toLowerCase().startsWith("problems") || textAfterAt.toLowerCase().startsWith("terminal")) return false
 
 	// NOTE: it's okay that menu shows when there's trailing punctuation since user could be inputting a path with marks
 
