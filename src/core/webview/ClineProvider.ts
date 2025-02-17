@@ -8,6 +8,7 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import { buildApiHandler } from "../../api"
+import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
@@ -1257,11 +1258,28 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async deleteTaskWithId(id: string) {
+		console.log("deleteTaskWithId: ", id)
+
 		if (id === this.cline?.taskId) {
 			await this.clearTask()
+			console.log("cleared task")
 		}
 
 		const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
+
+		// Delete checkpoints
+		// deleteCheckpoints will determine if the task has legacy checkpoints or not and handle it accordingly
+		console.log("deleting checkpoints")
+		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+		const historyItem = taskHistory.find((item) => item.id === id)
+		//console.log("historyItem: ", historyItem)
+		if (historyItem) {
+			try {
+				await CheckpointTracker.deleteCheckpoints(id, historyItem, this.context.globalStorageUri.fsPath)
+			} catch (error) {
+				console.error(`Failed to delete checkpoints for task ${id}:`, error)
+			}
+		}
 
 		await this.deleteTaskFromState(id)
 
@@ -1279,21 +1297,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await fs.unlink(legacyMessagesFilePath)
 		}
 
-		// Delete the checkpoints directory if it exists
-		const checkpointsDir = path.join(taskDirPath, "checkpoints")
-		if (await fileExistsAtPath(checkpointsDir)) {
-			try {
-				await fs.rm(checkpointsDir, { recursive: true, force: true })
-			} catch (error) {
-				console.error(`Failed to delete checkpoints directory for task ${id}:`, error)
-				// Continue with deletion of task directory - don't throw since this is a cleanup operation
-			}
-		}
-
 		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
 	}
 
 	async deleteTaskFromState(id: string) {
+		console.log("deleteTaskFromState: ", id)
+
 		// Remove the task from history
 		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
@@ -1359,7 +1368,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	/*
 	It seems that some API messages do not comply with vscode state requirements. Either the Anthropic library is manipulating these values somehow in the backend in a way thats creating cyclic references, or the API returns a function or a Symbol as part of the message content.
-	VSCode docs about state: "The value must be JSON-stringifyable ... value — A value. MUST not contain cyclic references."
+	VSCode docs about state: "The value must be JSON-stringifyable ... value  A value. MUST not contain cyclic references."
 	For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
 	*/
 
