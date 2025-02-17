@@ -78,6 +78,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid model selector."
 				}
 				break
+			case "dify":
+				if (!apiConfiguration.difyApiKey || !apiConfiguration.difyBaseUrl) {
+					return "You must provide both a valid API key and base URL."
+				}
+				break
 		}
 	}
 	return undefined
