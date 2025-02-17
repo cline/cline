@@ -45,6 +45,8 @@
 	],
 	"activationEvents": [],
 	"main": "./dist/extension.js",
+	"types": "./dist/src/extension.d.ts",
+	"module": "./dist/extension.js",
 	"contributes": {
 		"viewsContainers": {
 			"activitybar": [
