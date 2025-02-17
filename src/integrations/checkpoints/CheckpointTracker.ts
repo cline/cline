@@ -5,6 +5,7 @@ import * as vscode from "vscode"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { GitOperations } from "./CheckpointGitOperations"
 import { getShadowGitPath, hashWorkingDir, getWorkingDirectory, detectLegacyCheckpoint } from "./CheckpointUtils"
+import { CheckpointSettingsManager } from "./CheckpointSettings"
 
 /**
  * CheckpointTracker Module
@@ -85,7 +86,7 @@ class CheckpointTracker {
 	 * - Sets up task-specific branch for new checkpoints
 	 *
 	 * Configuration:
-	 * - Respects 'cline.enableCheckpoints' VS Code setting
+	 * - Uses settings from CheckpointSettingsManager
 	 * - Uses branch-per-task architecture for new checkpoints
 	 * - Maintains backwards compatibility with legacy structure
 	 */
@@ -93,12 +94,17 @@ class CheckpointTracker {
 		if (!globalStoragePath) {
 			throw new Error("Global storage path is required to create a checkpoint tracker")
 		}
+
 		try {
 			console.log(`Creating new CheckpointTracker for task ${taskId}`)
 
-			// Check if checkpoints are disabled in VS Code settings
-			const enableCheckpoints = vscode.workspace.getConfiguration("cline").get<boolean>("enableCheckpoints") ?? true
-			if (!enableCheckpoints) {
+			// Get settings manager instance and reinitialize
+			const settingsManager = CheckpointSettingsManager.getInstance()
+			await settingsManager.reinitialize()
+
+			// Check if checkpoints are enabled in settings
+			const settings = settingsManager.getSettings()
+			if (!settings.enableCheckpoints) {
 				return undefined // Don't create tracker when disabled
 			}
 
@@ -402,6 +408,7 @@ class CheckpointTracker {
 		}
 		await GitOperations.deleteTaskBranchStatic(taskId, historyItem, globalStoragePath)
 	}
+
 }
 
 export default CheckpointTracker

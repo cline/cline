@@ -157,3 +157,14 @@ export async function detectLegacyCheckpoint(globalStoragePath: string | undefin
 	console.log(`Legacy checkpoint detection result: ${isLegacy}`)
 	return isLegacy
 }
+
+/**
+ * Deletes all checkpoint data across all tasks.
+ * This is a destructive operation that removes all checkpoint history.
+ *
+ * @param globalStoragePath - The VS Code global storage path
+ * @throws Error if deletion fails
+ */
+export async function deleteAllCheckpoints(globalStoragePath: string): Promise<void> {
+	// TODO: Implement deletion of all checkpoints
+}

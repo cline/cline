@@ -9,6 +9,8 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { buildApiHandler } from "../../api"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
+import { CheckpointSettingsManager } from "../../integrations/checkpoints/CheckpointSettings"
+import { deleteAllCheckpoints } from "../../integrations/checkpoints/CheckpointUtils"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
@@ -826,6 +828,46 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							"workbench.action.openSettings",
 							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
 						)
+						break
+					}
+					case "getCheckpointSettings": {
+						const settings = await CheckpointSettingsManager.getInstance().getSettings()
+						await this.postMessageToWebview({
+							type: "checkpointSettings",
+							checkpointSettings: settings,
+						})
+						break
+					}
+					case "updateCheckpointSettings": {
+						if (message.checkpointSettings) {
+							await CheckpointSettingsManager.getInstance().saveSettings(message.checkpointSettings)
+							await this.postMessageToWebview({
+								type: "checkpointSettings",
+								checkpointSettings: message.checkpointSettings,
+							})
+						}
+						break
+					}
+					case "openCheckpointsIgnore": {
+						await vscode.commands.executeCommand("cline.openCheckpointsIgnore")
+						break
+					}
+					case "confirmDeleteAllCheckpoints": {
+						vscode.window.showWarningMessage(
+							"This action will delete all checkpoints that have been created by Cline! Deleting all checkpoints will remove the ability to use these features for all historical tasks.",
+							"Delete All",
+							"Cancel"
+						).then(async (selection) => {
+							if (selection === "Delete All") {
+								try {
+									await deleteAllCheckpoints(this.context.globalStoragePath)
+									vscode.window.showInformationMessage("All checkpoints have been deleted")
+								} catch (error) {
+									vscode.window.showErrorMessage("Failed to delete checkpoints")
+									console.error("Failed to delete all checkpoints:", error)
+								}
+							}
+						})
 						break
 					}
 					// Add more switch case statements here as more webview message commands

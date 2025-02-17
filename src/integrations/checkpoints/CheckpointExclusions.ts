@@ -1,7 +1,9 @@
 import fs from "fs/promises"
-import { join } from "path"
+import * as path from "path"
 import { fileExistsAtPath } from "../../utils/fs"
 import { GIT_DISABLED_SUFFIX } from "./CheckpointGitOperations"
+import { CheckpointSettingsManager } from "./CheckpointSettings"
+import ignore from "ignore"
 
 /**
  * CheckpointExclusions Module
@@ -42,13 +44,9 @@ interface ExclusionResult {
 
 /**
  * Returns the default list of file and directory patterns to exclude from checkpoints.
- * Combines built-in patterns with workspace-specific LFS patterns.
- *
- * @param lfsPatterns - Optional array of Git LFS patterns from workspace
- * @returns Array of glob patterns to exclude
- * @todo Make this configurable by the user
+ * These patterns will be written to .checkpointsignore when it's created.
  */
-export const getDefaultExclusions = (lfsPatterns: string[] = []): string[] => [
+export const getDefaultExclusions = (): string[] => [
 	// Build and Development Artifacts
 	".git/",
 	`.git${GIT_DISABLED_SUFFIX}/`,
@@ -74,9 +72,98 @@ export const getDefaultExclusions = (lfsPatterns: string[] = []): string[] => [
 
 	// Log Files
 	...getLogFilePatterns(),
-
-	...lfsPatterns,
 ]
+
+/**
+ * Check if a file exceeds the configured size limit
+ */
+async function isOverSizeLimit(filePath: string): Promise<ExclusionResult> {
+	try {
+		const stats = await fs.stat(filePath)
+		const sizeInMB = stats.size / (1024 * 1024)
+		const settings = await CheckpointSettingsManager.getInstance().getSettings()
+
+		return {
+			excluded: sizeInMB > settings.fileSizeThresholdMB,
+			reason: sizeInMB > settings.fileSizeThresholdMB 
+				? `File size ${sizeInMB.toFixed(2)}MB exceeds ${settings.fileSizeThresholdMB}MB limit` 
+				: undefined,
+		}
+	} catch {
+		return { excluded: false }
+	}
+}
+
+/**
+ * Writes exclusion patterns to Git's exclude file.
+ * Combines .checkpointsignore patterns with LFS patterns.
+ */
+export const writeExcludesFile = async (gitPath: string, lfsPatterns: string[] = []): Promise<void> => {
+	const excludesPath = path.join(gitPath, "info", "exclude")
+	await fs.mkdir(path.join(gitPath, "info"), { recursive: true })
+
+	const settingsManager = CheckpointSettingsManager.getInstance()
+	// Ensure .checkpointsignore exists and load its patterns
+	const ignorePatterns = await settingsManager.getIgnorePatterns()
+	
+	// Combine patterns and write to git exclude file
+	const patterns = [...ignorePatterns, ...lfsPatterns]
+	await fs.writeFile(excludesPath, patterns.join("\n"))
+}
+
+/**
+ * Main function to determine if a file should be excluded based on
+ * multiple criteria, ordered from fastest to most expensive checks.
+ */
+export const shouldExcludeFile = async (filePath: string): Promise<ExclusionResult> => {
+	try {
+		// Check file size limit first
+		const sizeResult = await isOverSizeLimit(filePath)
+		if (sizeResult.excluded) {
+			return sizeResult
+		}
+
+		const settingsManager = CheckpointSettingsManager.getInstance()
+		// Check against .checkpointsignore patterns
+		const ignorePatterns = await settingsManager.getIgnorePatterns()
+		if (ignorePatterns.length > 0) {
+			const ig = ignore().add(ignorePatterns)
+			const relativePath = path.relative(process.cwd(), filePath)
+			if (ig.ignores(relativePath)) {
+				return {
+					excluded: true,
+					reason: "Matched pattern in .checkpointsignore"
+				}
+			}
+		}
+
+		return { excluded: false }
+	} catch (error) {
+		console.log("Error in shouldExcludeFile:", error)
+		return { excluded: false }
+	}
+}
+
+// Exclusion Patterns
+
+/**
+ * Retrieves Git LFS patterns from the workspace's .gitattributes file.
+ */
+export const getLfsPatterns = async (workspacePath: string): Promise<string[]> => {
+	try {
+		const attributesPath = path.join(workspacePath, ".gitattributes")
+		if (await fileExistsAtPath(attributesPath)) {
+			const attributesContent = await fs.readFile(attributesPath, "utf8")
+			return attributesContent
+				.split("\n")
+				.filter((line) => line.includes("filter=lfs"))
+				.map((line) => line.split(" ")[0].trim())
+		}
+	} catch (error) {
+		console.log("Failed to read .gitattributes:", error)
+	}
+	return []
+}
 
 /**
  * Returns patterns for common build and development artifact directories
@@ -294,42 +381,4 @@ function getGeospatialPatterns(): string[] {
  */
 function getLogFilePatterns(): string[] {
 	return ["*.error", "*.log", "*.logs", "*.npm-debug.log*", "*.out", "*.stdout", "yarn-debug.log*", "yarn-error.log*"]
-}
-
-/**
- * Writes the combined exclusion patterns to Git's exclude file.
- * Creates the info directory if it doesn't exist.
- *
- * @param gitPath - Path to the .git directory
- * @param lfsPatterns - Optional array of Git LFS patterns to include
- */
-export const writeExcludesFile = async (gitPath: string, lfsPatterns: string[] = []): Promise<void> => {
-	const excludesPath = join(gitPath, "info", "exclude")
-	await fs.mkdir(join(gitPath, "info"), { recursive: true })
-
-	const patterns = getDefaultExclusions(lfsPatterns)
-	await fs.writeFile(excludesPath, patterns.join("\n"))
-}
-
-/**
- * Retrieves Git LFS patterns from the workspace's .gitattributes file.
- * Returns an empty array if no patterns found or file doesn't exist.
- *
- * @param workspacePath - Path to the workspace root
- * @returns Array of Git LFS patterns found in .gitattributes
- */
-export const getLfsPatterns = async (workspacePath: string): Promise<string[]> => {
-	try {
-		const attributesPath = join(workspacePath, ".gitattributes")
-		if (await fileExistsAtPath(attributesPath)) {
-			const attributesContent = await fs.readFile(attributesPath, "utf8")
-			return attributesContent
-				.split("\n")
-				.filter((line) => line.includes("filter=lfs"))
-				.map((line) => line.split(" ")[0].trim())
-		}
-	} catch (error) {
-		console.log("Failed to read .gitattributes:", error)
-	}
-	return []
 }

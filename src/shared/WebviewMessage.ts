@@ -44,6 +44,10 @@ export interface WebviewMessage {
 		| "accountLogoutClicked"
 		| "subscribeEmail"
 		| "searchCommits"
+		| "getCheckpointSettings"
+		| "updateCheckpointSettings"
+		| "openCheckpointsIgnore"
+		| "confirmDeleteAllCheckpoints"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -56,6 +60,7 @@ export interface WebviewMessage {
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
+	checkpointSettings?: CheckpointSettings
 
 	// For toggleToolAutoApprove
 	serverName?: string
@@ -66,3 +71,8 @@ export interface WebviewMessage {
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
 
 export type ClineCheckpointRestore = "task" | "workspace" | "taskAndWorkspace"
+
+export interface CheckpointSettings {
+	fileSizeThresholdMB: number
+	enableCheckpoints: boolean
+}
