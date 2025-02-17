@@ -3,7 +3,7 @@ import { memo, useEffect, useRef, useState } from "react"
 import { ApiConfigMeta } from "../../../../src/shared/ExtensionMessage"
 import { Dropdown } from "vscrui"
 import type { DropdownOption } from "vscrui"
-import { Dialog, DialogContent } from "../ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "../ui/dialog"
 
 interface ApiConfigManagerProps {
 	currentApiConfigName?: string
@@ -298,9 +298,7 @@ const ApiConfigManager = ({
 					}}
 					aria-labelledby="new-profile-title">
 					<DialogContent className="p-4 max-w-sm">
-						<h2 id="new-profile-title" className="text-lg font-semibold mb-4">
-							New Configuration Profile
-						</h2>
+						<DialogTitle>New Configuration Profile</DialogTitle>
 						<button className="absolute right-4 top-4" aria-label="Close dialog" onClick={resetCreateState}>
 							<span className="codicon codicon-close" />
 						</button>

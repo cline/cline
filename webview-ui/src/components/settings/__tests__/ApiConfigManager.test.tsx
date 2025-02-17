@@ -41,6 +41,7 @@ jest.mock("@/components/ui/dialog", () => ({
 		</div>
 	),
 	DialogContent: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
+	DialogTitle: ({ children }: any) => <div data-testid="dialog-title">{children}</div>,
 }))
 
 describe("ApiConfigManager", () => {
