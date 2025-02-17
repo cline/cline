@@ -931,14 +931,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 					case "openMcpMarketplaceServerDetails": {
 						if (message.mcpId) {
-							// close existing
-							const tabs = vscode.window.tabGroups.all
-								.flatMap((tg) => tg.tabs)
-								.filter((tab) => tab.label && tab.label.includes("README") && tab.label.includes("Preview"))
-							for (const tab of tabs) {
-								await vscode.window.tabGroups.close(tab)
-							}
-
 							const response = await fetch(`https://api.cline.bot/v1/mcp/marketplace/item?mcpId=${message.mcpId}`)
 							const details: McpDownloadResponse = await response.json()
 
@@ -951,6 +943,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								const uri = vscode.Uri.parse(
 									`${DIFF_VIEW_URI_SCHEME}:${details.name} README?${Buffer.from(details.readmeContent).toString("base64")}`,
 								)
+
+								// close existing
+								const tabs = vscode.window.tabGroups.all
+									.flatMap((tg) => tg.tabs)
+									.filter((tab) => tab.label && tab.label.includes("README") && tab.label.includes("Preview"))
+								for (const tab of tabs) {
+									await vscode.window.tabGroups.close(tab)
+								}
 
 								// Show only the preview
 								await vscode.commands.executeCommand("markdown.showPreview", uri, {
