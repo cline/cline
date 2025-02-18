@@ -1524,18 +1524,18 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	}
 
 	async deleteTaskWithId(id: string) {
-		console.log("deleteTaskWithId: ", id)
+		console.info("deleteTaskWithId: ", id)
 
 		if (id === this.cline?.taskId) {
 			await this.clearTask()
-			console.log("cleared task")
+			console.debug("cleared task")
 		}
 
 		const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
 
 		// Delete checkpoints
 		// deleteCheckpoints will determine if the task has legacy checkpoints or not and handle it accordingly
-		console.log("deleting checkpoints")
+		console.info("deleting checkpoints")
 		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
 		const historyItem = taskHistory.find((item) => item.id === id)
 		//console.log("historyItem: ", historyItem)

@@ -1,6 +1,6 @@
 import fs from "fs/promises"
 import * as path from "path"
-import simpleGit from "simple-git"
+import simpleGit, { SimpleGit } from "simple-git"
 import * as vscode from "vscode"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { GitOperations } from "./CheckpointGitOperations"
@@ -276,7 +276,7 @@ class CheckpointTracker {
 	 * - Reset to target commit
 	 */
 	public async resetHead(commitHash: string): Promise<void> {
-		console.warn(`Resetting to checkpoint: ${commitHash}`)
+		console.info(`Resetting to checkpoint: ${commitHash}`)
 		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash, this.isLegacyCheckpoint)
 		const git = simpleGit(path.dirname(gitPath))
 		console.debug(`Using shadow git at: ${gitPath}`)
@@ -335,43 +335,79 @@ class CheckpointTracker {
 		// For each changed file, gather before/after content
 		const result = []
 		const cwdPath = (await this.getShadowGitConfigWorkTree()) || this.cwd || ""
+		const files = diffSummary.files.map((f) => f.file)
+		const batchSize = 50
 
-		for (const file of diffSummary.files) {
-			const filePath = file.file
-			const absolutePath = path.join(cwdPath, filePath)
+		// Get list of files that exist in base commit
+		const existingFiles = await this.getExistingFiles(git, baseHash, files)
 
-			let beforeContent = ""
-			try {
-				beforeContent = await git.show([`${baseHash}:${filePath}`])
-			} catch (_) {
-				// file didn't exist in older commit => remains empty
+		// Process files in batches
+		for (let i = 0; i < files.length; i += batchSize) {
+			const batch = files.slice(i, i + batchSize)
+
+			// Split batch into existing and new files
+			const existingBatch = batch.filter((file) => existingFiles.has(file))
+			const newBatch = batch.filter((file) => !existingFiles.has(file))
+
+			// Get before contents for existing files
+			let beforeContents: string[] = new Array(batch.length).fill("")
+			if (existingBatch.length > 0) {
+				const paths = existingBatch.map((file) => `${baseHash}:${file}`).join(" ")
+				const beforeResult = await git.raw(["show", "--format=", ...paths.split(" ")])
+				const existingContents = beforeResult.split("\n\0\n")
+				// Map contents back to original batch positions
+				existingBatch.forEach((file, index) => {
+					const batchIndex = batch.indexOf(file)
+					if (batchIndex !== -1) {
+						beforeContents[batchIndex] = existingContents[index] || ""
+					}
+				})
 			}
 
-			let afterContent = ""
+			// Get after contents
+			let afterContents: string[] = []
 			if (rhsHash) {
-				// if user provided a newer commit, use git.show at that commit
-				try {
-					afterContent = await git.show([`${rhsHash}:${filePath}`])
-				} catch (_) {
-					// file didn't exist in newer commit => remains empty
+				// Split after files into existing and new in target commit
+				const afterExistingFiles = await this.getExistingFiles(git, rhsHash, batch)
+				const afterExistingBatch = batch.filter((file) => afterExistingFiles.has(file))
+
+				if (afterExistingBatch.length > 0) {
+					const paths = afterExistingBatch.map((file) => `${rhsHash}:${file}`).join(" ")
+					const afterResult = await git.raw(["show", "--format=", ...paths.split(" ")])
+					const existingContents = afterResult.split("\n\0\n")
+					afterContents = new Array(batch.length).fill("")
+					afterExistingBatch.forEach((file, index) => {
+						const batchIndex = batch.indexOf(file)
+						if (batchIndex !== -1) {
+							afterContents[batchIndex] = existingContents[index] || ""
+						}
+					})
 				}
 			} else {
-				// otherwise, read from disk (includes uncommitted changes)
-				try {
-					afterContent = await fs.readFile(absolutePath, "utf8")
-				} catch (_) {
-					// file might be deleted => remains empty
-				}
+				// Read from disk for working directory changes
+				afterContents = await Promise.all(
+					batch.map(async (filePath) => {
+						try {
+							return await fs.readFile(path.join(cwdPath, filePath), "utf8")
+						} catch (_) {
+							return ""
+						}
+					}),
+				)
 			}
 
-			result.push({
-				relativePath: filePath,
-				absolutePath,
-				before: beforeContent,
-				after: afterContent,
-			})
+			// Add results for this batch
+			for (let j = 0; j < batch.length; j++) {
+				const filePath = batch[j]
+				const absolutePath = path.join(cwdPath, filePath)
+				result.push({
+					relativePath: filePath,
+					absolutePath,
+					before: beforeContents[j] || "",
+					after: afterContents[j] || "",
+				})
+			}
 		}
-
 		return result
 	}
 
@@ -389,6 +425,20 @@ class CheckpointTracker {
 			throw new Error("Global storage uri is invalid")
 		}
 		await GitOperations.deleteTaskBranchStatic(taskId, historyItem, globalStoragePath)
+	}
+
+	/**
+	 * Helper function to get a set of files that exist in a given commit
+	 */
+	private async getExistingFiles(git: SimpleGit, commitHash: string, files: string[]): Promise<Set<string>> {
+		try {
+			const result = await git.raw(["ls-tree", "-r", "--name-only", commitHash])
+			const existingFiles = new Set<string>(result.split("\n"))
+			return existingFiles
+		} catch (error) {
+			console.error("Error getting existing files:", error)
+			return new Set()
+		}
 	}
 }
 
