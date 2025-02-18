@@ -26,13 +26,15 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		switch (this.getModel().id) {
+		const model = this.getModel()
+
+		switch (model.id) {
 			case "o1":
 			case "o1-preview":
 			case "o1-mini": {
 				// o1 doesnt support streaming, non-1 temp, or system prompt
 				const response = await this.client.chat.completions.create({
-					model: this.getModel().id,
+					model: model.id,
 					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 				})
 				yield {
@@ -48,7 +50,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			}
 			case "o3-mini": {
 				const stream = await this.client.chat.completions.create({
-					model: this.getModel().id,
+					model: model.id,
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
@@ -74,7 +76,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			}
 			default: {
 				const stream = await this.client.chat.completions.create({
-					model: this.getModel().id,
+					model: model.id,
 					// max_completion_tokens: this.getModel().info.maxTokens,
 					temperature: 0,
 					messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
