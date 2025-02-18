@@ -1,12 +1,14 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import delay from "delay"
+import * as path from "path"
 import * as vscode from "vscode"
 import { ClineProvider } from "./core/webview/ClineProvider"
 import { Logger } from "./services/logging/Logger"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
+import { CheckpointSettingsManager } from "./integrations/checkpoints/CheckpointSettings"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -29,6 +31,9 @@ export function activate(context: vscode.ExtensionContext) {
 	Logger.log("Cline extension activated")
 
 	const sidebarProvider = new ClineProvider(context, outputChannel)
+
+	// Initialize CheckpointSettingsManager
+	CheckpointSettingsManager.initialize(context.globalStorageUri.fsPath)
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, sidebarProvider, {
@@ -118,6 +123,14 @@ export function activate(context: vscode.ExtensionContext) {
 				type: "action",
 				action: "accountLoginClicked",
 			})
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.openCheckpointsIgnore", async () => {
+			const settingsManager = CheckpointSettingsManager.getInstance()
+			const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(settingsManager.checkpointsIgnorePath))
+			await vscode.window.showTextDocument(doc)
 		}),
 	)
 

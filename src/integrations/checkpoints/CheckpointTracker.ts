@@ -5,6 +5,7 @@ import * as vscode from "vscode"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { GitOperations } from "./CheckpointGitOperations"
 import { getShadowGitPath, hashWorkingDir, getWorkingDirectory, detectLegacyCheckpoint } from "./CheckpointUtils"
+import { CheckpointSettingsManager } from "./CheckpointSettings"
 
 /**
  * CheckpointTracker Module
@@ -85,7 +86,7 @@ class CheckpointTracker {
 	 * - Sets up task-specific branch for new checkpoints
 	 *
 	 * Configuration:
-	 * - Respects 'cline.enableCheckpoints' VS Code setting
+	 * - Uses settings from CheckpointSettingsManager
 	 * - Uses branch-per-task architecture for new checkpoints
 	 * - Maintains backwards compatibility with legacy structure
 	 */
@@ -93,12 +94,17 @@ class CheckpointTracker {
 		if (!globalStoragePath) {
 			throw new Error("Global storage path is required to create a checkpoint tracker")
 		}
+
 		try {
 			console.log(`Creating new CheckpointTracker for task ${taskId}`)
 
-			// Check if checkpoints are disabled in VS Code settings
-			const enableCheckpoints = vscode.workspace.getConfiguration("cline").get<boolean>("enableCheckpoints") ?? true
-			if (!enableCheckpoints) {
+			// Get settings manager instance and reinitialize
+			const settingsManager = CheckpointSettingsManager.getInstance()
+			await settingsManager.reinitialize()
+
+			// Check if checkpoints are enabled in settings
+			const settings = settingsManager.getSettings()
+			if (!settings.enableCheckpoints) {
 				return undefined // Don't create tracker when disabled
 			}
 
@@ -116,14 +122,11 @@ class CheckpointTracker {
 			const newTracker = new CheckpointTracker(globalStoragePath, taskId, workingDir, cwdHash)
 
 			// Check if this is a legacy task
-			newTracker.isLegacyCheckpoint = await detectLegacyCheckpoint(
-				newTracker.globalStoragePath,
-				newTracker.taskId,
-			)
+			newTracker.isLegacyCheckpoint = await detectLegacyCheckpoint(newTracker.globalStoragePath, newTracker.taskId)
 			if (newTracker.isLegacyCheckpoint) {
 				console.log("Using legacy checkpoint path structure")
 				const gitPath = await getShadowGitPath(
-				newTracker.globalStoragePath,
+					newTracker.globalStoragePath,
 					newTracker.taskId,
 					newTracker.cwdHash,
 					newTracker.isLegacyCheckpoint,
@@ -182,12 +185,7 @@ class CheckpointTracker {
 	public async commit(): Promise<string | undefined> {
 		try {
 			console.log(`Creating new checkpoint commit for task ${this.taskId}`)
-			const gitPath = await getShadowGitPath(
-				this.globalStoragePath,
-				this.taskId,
-				this.cwdHash,
-				this.isLegacyCheckpoint,
-			)
+			const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash, this.isLegacyCheckpoint)
 			const git = simpleGit(path.dirname(gitPath))
 
 			console.log(`Using shadow git at: ${gitPath}`)
@@ -210,7 +208,7 @@ class CheckpointTracker {
 			console.error("Failed to create checkpoint:", {
 				taskId: this.taskId,
 				error,
-				isLegacyCheckpoint: this.isLegacyCheckpoint
+				isLegacyCheckpoint: this.isLegacyCheckpoint,
 			})
 			throw new Error(`Failed to create checkpoint: ${error instanceof Error ? error.message : String(error)}`)
 		}
@@ -245,12 +243,7 @@ class CheckpointTracker {
 			return this.lastRetrievedShadowGitConfigWorkTree
 		}
 		try {
-			const gitPath = await getShadowGitPath(
-				this.globalStoragePath,
-				this.taskId,
-				this.cwdHash,
-				this.isLegacyCheckpoint,
-			)
+			const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash, this.isLegacyCheckpoint)
 			this.lastRetrievedShadowGitConfigWorkTree = await this.gitOperations.getShadowGitConfigWorkTree(gitPath)
 			return this.lastRetrievedShadowGitConfigWorkTree
 		} catch (error) {
@@ -279,12 +272,7 @@ class CheckpointTracker {
 	 */
 	public async resetHead(commitHash: string): Promise<void> {
 		console.log(`Resetting to checkpoint: ${commitHash}`)
-		const gitPath = await getShadowGitPath(
-			this.globalStoragePath,
-			this.taskId,
-			this.cwdHash,
-			this.isLegacyCheckpoint,
-		)
+		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash, this.isLegacyCheckpoint)
 		const git = simpleGit(path.dirname(gitPath))
 		console.log(`Using shadow git at: ${gitPath}`)
 		await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
@@ -316,12 +304,7 @@ class CheckpointTracker {
 			after: string
 		}>
 	> {
-		const gitPath = await getShadowGitPath(
-			this.globalStoragePath,
-			this.taskId,
-			this.cwdHash,
-			this.isLegacyCheckpoint,
-		)
+		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash, this.isLegacyCheckpoint)
 		const git = simpleGit(path.dirname(gitPath))
 
 		if (!this.isLegacyCheckpoint) {

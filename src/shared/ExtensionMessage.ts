@@ -28,6 +28,7 @@ export interface ExtensionMessage {
 		| "requestVsCodeLmModels"
 		| "emailSubscribed"
 		| "commitSearchResults"
+		| "checkpointSettings"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -49,6 +50,10 @@ export interface ExtensionMessage {
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
 	commits?: GitCommit[]
+	checkpointSettings?: {
+		fileSizeThresholdMB: number
+		enableCheckpoints: boolean
+	}
 }
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
