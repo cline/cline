@@ -56,14 +56,14 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 					})
 				}}
 				style={{
-					padding: "16px 20px",
+					padding: "14px 16px",
 					display: "flex",
 					flexDirection: "column",
-					gap: 16,
+					gap: 12,
 					cursor: isLoading ? "wait" : "pointer",
 				}}>
 				{/* Main container with logo and content */}
-				<div style={{ display: "flex", gap: "16px" }}>
+				<div style={{ display: "flex", gap: "12px" }}>
 					{/* Logo */}
 					{item.logoUrl && (
 						<img
@@ -130,6 +130,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 								color: "var(--vscode-descriptionForeground)",
 								flexWrap: "wrap",
 								minWidth: 0,
+								rowGap: 0, // Add this to remove vertical gap
 							}}>
 							<a
 								href={item.githubUrl}
@@ -197,7 +198,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 				</div>
 
 				{/* Description and tags */}
-				<div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+				<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 					<p style={{ fontSize: "13px", margin: 0 }}>{item.description}</p>
 					<div
 						style={{

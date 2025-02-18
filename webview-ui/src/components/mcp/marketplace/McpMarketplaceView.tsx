@@ -182,17 +182,20 @@ const McpMarketplaceView = () => {
 							color: "var(--vscode-descriptionForeground)",
 							textTransform: "uppercase",
 							fontWeight: 500,
+							flexShrink: 0,
 						}}>
 						Filter:
 					</span>
 					<div
 						style={{
-							// transform: "scale(0.9)",
-							// transformOrigin: "left center",
 							position: "relative",
 							zIndex: 2,
+							flex: 1,
 						}}>
 						<VSCodeDropdown
+							style={{
+								width: "100%",
+							}}
 							value={selectedCategory || ""}
 							onChange={(e) => setSelectedCategory((e.target as HTMLSelectElement).value || null)}>
 							<VSCodeOption value="">All Categories</VSCodeOption>
