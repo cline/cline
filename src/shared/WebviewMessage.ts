@@ -45,7 +45,6 @@ export interface WebviewMessage {
 		| "subscribeEmail"
 		| "fetchMcpMarketplace"
 		| "downloadMcp"
-		| "openMcpMarketplaceServerDetails"
 		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
 	// | "relaunchChromeDebugMode"

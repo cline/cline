@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef } from "react"
+import { useCallback, useState, useRef, useMemo } from "react"
 import styled from "styled-components"
 import { McpMarketplaceItem, McpServer } from "../../../../../src/shared/mcp"
 import { vscode } from "../../../utils/vscode"
@@ -29,6 +29,15 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 
 	useEvent("message", handleMessage)
 
+	const githubAuthorUrl = useMemo(() => {
+		const url = new URL(item.githubUrl)
+		const pathParts = url.pathname.split("/")
+		if (pathParts.length >= 2) {
+			return `${url.origin}/${pathParts[1]}`
+		}
+		return item.githubUrl
+	}, [item.githubUrl])
+
 	return (
 		<>
 			<style>
@@ -41,26 +50,17 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 					}
 				`}
 			</style>
-			<div
+			<a
+				href={item.githubUrl}
 				className="mcp-card"
-				onClick={(e) => {
-					if (githubLinkRef.current?.contains(e.target as Node)) {
-						return
-					}
-
-					console.log("Card clicked:", item.mcpId)
-					setIsLoading(true)
-					vscode.postMessage({
-						type: "openMcpMarketplaceServerDetails",
-						mcpId: item.mcpId,
-					})
-				}}
 				style={{
 					padding: "14px 16px",
 					display: "flex",
 					flexDirection: "column",
 					gap: 12,
 					cursor: isLoading ? "wait" : "pointer",
+					textDecoration: "none",
+					color: "inherit",
 				}}>
 				{/* Main container with logo and content */}
 				<div style={{ display: "flex", gap: "12px" }}>
@@ -104,7 +104,8 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 							</h3>
 							<div
 								onClick={(e) => {
-									e.stopPropagation() // Prevent card click when clicking install
+									e.preventDefault() // Prevent card click when clicking install
+									e.stopPropagation() // Stop event from bubbling up to parent link
 									if (!isInstalled && !isDownloading) {
 										setIsDownloading(true)
 										vscode.postMessage({
@@ -125,31 +126,31 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 							style={{
 								display: "flex",
 								alignItems: "center",
-								gap: "12px",
+								gap: "8px",
 								fontSize: "12px",
 								color: "var(--vscode-descriptionForeground)",
 								flexWrap: "wrap",
 								minWidth: 0,
-								rowGap: 0, // Add this to remove vertical gap
+								rowGap: 0,
 							}}>
 							<a
-								href={item.githubUrl}
+								href={githubAuthorUrl}
 								style={{
 									display: "flex",
 									alignItems: "center",
 									color: "var(--vscode-foreground)",
 									minWidth: 0,
-									opacity: 0.5,
+									opacity: 0.7,
 									textDecoration: "none",
 									border: "none !important",
 								}}
 								className="github-link"
 								onMouseEnter={(e) => {
-									e.currentTarget.style.opacity = "0.8"
+									e.currentTarget.style.opacity = "1"
 									e.currentTarget.style.color = "var(--link-active-foreground)"
 								}}
 								onMouseLeave={(e) => {
-									e.currentTarget.style.opacity = "0.5"
+									e.currentTarget.style.opacity = "0.7"
 									e.currentTarget.style.color = "var(--vscode-foreground)"
 								}}>
 								<div style={{ display: "flex", gap: "4px", alignItems: "center" }} ref={githubLinkRef}>
@@ -190,15 +191,28 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 							{item.requiresApiKey && (
 								<span className="codicon codicon-key" title="Requires API key" style={{ flexShrink: 0 }} />
 							)}
-							{item.isRecommended && (
-								<span className="codicon codicon-verified" title="Recommended" style={{ flexShrink: 0 }} />
-							)}
 						</div>
 					</div>
 				</div>
 
 				{/* Description and tags */}
 				<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+					{!item.isRecommended && (
+						<div
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: "4px",
+								fontSize: "12px",
+								color: "var(--vscode-notificationsWarningIcon-foreground)",
+								marginTop: -3,
+								marginBottom: -3,
+							}}>
+							<span className="codicon codicon-warning" style={{ fontSize: "14px" }} />
+							<span>Community Made (use at your own risk)</span>
+						</div>
+					)}
+
 					<p style={{ fontSize: "13px", margin: 0 }}>{item.description}</p>
 					<div
 						style={{
@@ -248,7 +262,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 						/>
 					</div>
 				</div>
-			</div>
+			</a>
 		</>
 	)
 }
