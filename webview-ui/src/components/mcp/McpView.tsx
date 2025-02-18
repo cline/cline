@@ -1,11 +1,4 @@
-import {
-	VSCodeButton,
-	VSCodeLink,
-	VSCodePanels,
-	VSCodePanelTab,
-	VSCodePanelView,
-	VSCodeDivider,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { vscode } from "../../utils/vscode"
 import { useExtensionState } from "../../context/ExtensionStateContext"

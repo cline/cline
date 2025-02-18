@@ -1,6 +1,3 @@
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import styled from "styled-components"
-
 const McpSubmitCard = () => {
 	return (
 		<div
@@ -50,29 +47,5 @@ const McpSubmitCard = () => {
 		</div>
 	)
 }
-
-const StyledGitHubButton = styled.div`
-	font-size: 13px;
-	font-weight: 500;
-	padding: 8px;
-	border-radius: 2px;
-	border: 1px solid var(--vscode-button-border, transparent);
-	cursor: pointer;
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 100%;
-
-	&:hover {
-		background: var(--vscode-button-hoverBackground);
-	}
-
-	&:active {
-		background: var(--vscode-button-background);
-		opacity: 0.7;
-	}
-`
 
 export default McpSubmitCard

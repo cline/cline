@@ -13,35 +13,6 @@ import { useExtensionState } from "../../../context/ExtensionStateContext"
 import { vscode } from "../../../utils/vscode"
 import McpMarketplaceCard from "./McpMarketplaceCard"
 import McpSubmitCard from "./McpSubmitCard"
-
-const controlHeight = "28px"
-
-const searchInputStyles = {
-	width: "100%",
-	height: controlHeight,
-	padding: "0 8px 0 32px", // Removed vertical padding since we're using fixed height
-	background: "var(--vscode-input-background)",
-	border: "1px solid var(--vscode-input-border)",
-	color: "var(--vscode-input-foreground)",
-	borderRadius: "2px",
-	outline: "none",
-	transition: "border-color 0.1s ease-in-out, opacity 0.1s ease-in-out",
-	cursor: "text", // Show text cursor for input
-} as const
-
-const selectStyles = {
-	height: controlHeight,
-	padding: "0 12px", // Removed vertical padding since we're using fixed height
-	background: "var(--vscode-dropdown-background)",
-	border: "1px solid var(--vscode-dropdown-border)",
-	color: "var(--vscode-dropdown-foreground)",
-	borderRadius: "2px",
-	outline: "none",
-	transition: "border-color 0.1s ease-in-out, opacity 0.1s ease-in-out",
-	minWidth: "140px", // Ensure consistent width for dropdowns
-	cursor: "pointer", // Show pointer cursor on hover
-} as const
-
 const McpMarketplaceView = () => {
 	const { mcpServers } = useExtensionState()
 	const [items, setItems] = useState<McpMarketplaceItem[]>([])

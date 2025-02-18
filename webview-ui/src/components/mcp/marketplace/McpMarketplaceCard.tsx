@@ -1,5 +1,4 @@
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { CSSProperties, useCallback, useEffect, useState, useRef } from "react"
+import { useCallback, useState, useRef } from "react"
 import styled from "styled-components"
 import { McpMarketplaceItem, McpServer } from "../../../../../src/shared/mcp"
 import { vscode } from "../../../utils/vscode"
