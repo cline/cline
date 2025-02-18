@@ -201,9 +201,9 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								marginBottom: "-1.5px",
 							}}></span>
 					),
-					<span style={{ color: normalColor, fontWeight: "bold" }}>
+					<span style={{ color: normalColor, fontWeight: "bold", wordBreak: "break-word" }}>
 						Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
-						<code>{mcpServerUse.serverName}</code> MCP server:
+						<code style={{ wordBreak: "break-all" }}>{mcpServerUse.serverName}</code> MCP server:
 					</span>,
 				]
 			case "completion_result":

@@ -280,7 +280,18 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 				{!server.error && (
 					<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`} style={{ marginRight: "8px" }} />
 				)}
-				<span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{server.name}</span>
+				<span
+					style={{
+						flex: 1,
+						overflow: "hidden",
+						wordBreak: "break-all",
+						whiteSpace: "normal",
+						display: "flex",
+						alignItems: "center",
+						marginRight: "4px",
+					}}>
+					{server.name}
+				</span>
 				<div style={{ display: "flex", alignItems: "center", marginRight: "8px" }} onClick={(e) => e.stopPropagation()}>
 					<div
 						role="switch"
