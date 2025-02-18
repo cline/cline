@@ -573,22 +573,22 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
 						// (see normalizeApiConfiguration > openrouter)
 						// Prefetch marketplace and OpenRouter models
-						Promise.all([
-							this.prefetchMcpMarketplace(),
-							this.refreshOpenRouterModels().then(async (openRouterModels) => {
-								if (openRouterModels) {
-									// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-									const { apiConfiguration } = await this.getState()
-									if (apiConfiguration.openRouterModelId) {
-										await this.updateGlobalState(
-											"openRouterModelInfo",
-											openRouterModels[apiConfiguration.openRouterModelId],
-										)
-										await this.postStateToWebview()
-									}
+
+						this.prefetchMcpMarketplace()
+						this.refreshOpenRouterModels().then(async (openRouterModels) => {
+							if (openRouterModels) {
+								// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+								const { apiConfiguration } = await this.getState()
+								if (apiConfiguration.openRouterModelId) {
+									await this.updateGlobalState(
+										"openRouterModelInfo",
+										openRouterModels[apiConfiguration.openRouterModelId],
+									)
+									await this.postStateToWebview()
 								}
-							}),
-						]).catch(console.error)
+							}
+						})
+
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
