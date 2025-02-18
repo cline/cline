@@ -5,11 +5,12 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import ExperimentalFeature from "./ExperimentalFeature"
-import { EXPERIMENT_IDS, experimentConfigsMap } from "../../../../src/shared/experiments"
+import { EXPERIMENT_IDS, experimentConfigsMap, ExperimentId } from "../../../../src/shared/experiments"
 import ApiConfigManager from "./ApiConfigManager"
 import { Dropdown } from "vscrui"
 import type { DropdownOption } from "vscrui"
 import { ApiConfiguration } from "../../../../src/shared/api"
+import ConfirmDialog from "../ui/comfirm-dialog"
 
 type SettingsViewProps = {
 	onDone: () => void
@@ -21,6 +22,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [commandInput, setCommandInput] = useState("")
 	const prevApiConfigName = useRef(extensionState.currentApiConfigName)
+	const [isDiscardDialogShow, setDiscardDialogShow] = useState(false)
 
 	// TODO: Reduce WebviewMessage/ExtensionState complexity
 	const [cachedState, setCachedState] = useState(extensionState)
@@ -67,7 +69,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	}, [currentApiConfigName, extensionState, isChangeDetected])
 
 	const setCachedStateField = useCallback(
-		<K extends keyof ExtensionStateContextType>(field: K, value: ExtensionStateContextType[K]) =>
+		<K extends keyof ExtensionStateContextType>(field: K, value: ExtensionStateContextType[K]) => {
 			setCachedState((prevState) => {
 				if (prevState[field] === value) {
 					return prevState
@@ -77,7 +79,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					...prevState,
 					[field]: value,
 				}
-			}),
+			})
+		},
 		[],
 	)
 
@@ -91,20 +94,27 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				return {
 					...prevState,
 					apiConfiguration: {
-						...apiConfiguration,
+						...prevState.apiConfiguration,
 						[field]: value,
 					},
 				}
 			})
 		},
-		[apiConfiguration],
+		[],
 	)
 
-	const setExperimentEnabled = useCallback(
-		(id: string, enabled: boolean) =>
-			setCachedStateField("experiments", { ...cachedState.experiments, [id]: enabled }),
-		[cachedState.experiments, setCachedStateField],
-	)
+	const setExperimentEnabled = useCallback((id: ExperimentId, enabled: boolean) => {
+		setCachedState((prevState) => {
+			if (prevState.experiments?.[id] === enabled) {
+				return prevState
+			}
+			setChangeDetected(true)
+			return {
+				...prevState,
+				experiments: { ...prevState.experiments, [id]: enabled },
+			}
+		})
+	}, [])
 
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
@@ -171,6 +181,24 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setModelIdErrorMessage(modelIdValidationResult)
 	}, [apiConfiguration, extensionState.glamaModels, extensionState.openRouterModels])
 
+	const confirmDialogHandler = useRef<() => void>()
+	const onConfirmDialogResult = useCallback((confirm: boolean) => {
+		if (confirm) {
+			confirmDialogHandler.current?.()
+		}
+	}, [])
+	const checkUnsaveChanges = useCallback(
+		(then: () => void) => {
+			if (isChangeDetected) {
+				confirmDialogHandler.current = then
+				setDiscardDialogShow(true)
+			} else {
+				then()
+			}
+		},
+		[isChangeDetected],
+	)
+
 	const handleResetState = () => {
 		vscode.postMessage({ type: "resetState" })
 	}
@@ -215,6 +243,14 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				flexDirection: "column",
 				overflow: "hidden",
 			}}>
+			<ConfirmDialog
+				icon="codicon-warning"
+				title="Unsaved changes"
+				message="Do you want to discard changes and continue?"
+				show={isDiscardDialogShow}
+				onResult={onConfirmDialogResult}
+				onClose={() => setDiscardDialogShow(false)}
+				aria-labelledby="unsave-warning-dialog"></ConfirmDialog>
 			<div
 				style={{
 					display: "flex",
@@ -240,7 +276,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<VSCodeButton
 						appearance="secondary"
 						title="Discard unsaved changes and close settings panel"
-						onClick={onDone}>
+						onClick={() => checkUnsaveChanges(onDone)}>
 						Done
 					</VSCodeButton>
 				</div>
@@ -254,9 +290,11 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							currentApiConfigName={currentApiConfigName}
 							listApiConfigMeta={extensionState.listApiConfigMeta}
 							onSelectConfig={(configName: string) => {
-								vscode.postMessage({
-									type: "loadApiConfiguration",
-									text: configName,
+								checkUnsaveChanges(() => {
+									vscode.postMessage({
+										type: "loadApiConfiguration",
+										text: configName,
+									})
 								})
 							}}
 							onDeleteConfig={(configName: string) => {

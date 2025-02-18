@@ -299,9 +299,6 @@ const ApiConfigManager = ({
 					aria-labelledby="new-profile-title">
 					<DialogContent className="p-4 max-w-sm">
 						<DialogTitle>New Configuration Profile</DialogTitle>
-						<button className="absolute right-4 top-4" aria-label="Close dialog" onClick={resetCreateState}>
-							<span className="codicon codicon-close" />
-						</button>
 						<VSCodeTextField
 							ref={newProfileInputRef}
 							value={newProfileName}
