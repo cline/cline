@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.3.21
+
+### Patch Changes
+
+- v3.3.21
+
 ## [3.3.20]
 
 - Support project-specific custom modes in a .roomodes file
