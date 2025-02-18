@@ -379,174 +379,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	 *
 	 * @param webview A reference to the extension webview
 	 */
-	private async fetchMcpMarketplaceFromApi(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
-		try {
-			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
-				headers: {
-					"Content-Type": "application/json",
-				},
-			})
-
-			if (!response.data) {
-				throw new Error("Invalid response from MCP marketplace API")
-			}
-
-			const catalog: McpMarketplaceCatalog = {
-				items: (response.data || []).map((item: any) => ({
-					...item,
-					githubStars: item.githubStars ?? 0,
-					downloadCount: item.downloadCount ?? 0,
-					tags: item.tags ?? [],
-				})),
-			}
-
-			// Store in global state
-			await this.updateGlobalState("mcpMarketplaceCatalog", catalog)
-			return catalog
-		} catch (error) {
-			console.error("Failed to fetch MCP marketplace:", error)
-			if (!silent) {
-				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					error: errorMessage,
-				})
-				vscode.window.showErrorMessage(errorMessage)
-			}
-			return undefined
-		}
-	}
-
-	async prefetchMcpMarketplace() {
-		try {
-			await this.fetchMcpMarketplaceFromApi(true)
-		} catch (error) {
-			console.error("Failed to prefetch MCP marketplace:", error)
-		}
-	}
-
-	async silentlyRefreshMcpMarketplace() {
-		try {
-			const catalog = await this.fetchMcpMarketplaceFromApi(true)
-			if (catalog) {
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					mcpMarketplaceCatalog: catalog,
-				})
-			}
-		} catch (error) {
-			console.error("Failed to silently refresh MCP marketplace:", error)
-		}
-	}
-
-	private async fetchMcpMarketplace(forceRefresh: boolean = false) {
-		try {
-			// Check if we have cached data
-			const cachedCatalog = (await this.getGlobalState("mcpMarketplaceCatalog")) as McpMarketplaceCatalog | undefined
-			if (!forceRefresh && cachedCatalog?.items) {
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					mcpMarketplaceCatalog: cachedCatalog,
-				})
-				return
-			}
-
-			const catalog = await this.fetchMcpMarketplaceFromApi(false)
-			if (catalog) {
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					mcpMarketplaceCatalog: catalog,
-				})
-			}
-		} catch (error) {
-			console.error("Failed to handle cached MCP marketplace:", error)
-			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
-			await this.postMessageToWebview({
-				type: "mcpMarketplaceCatalog",
-				error: errorMessage,
-			})
-			vscode.window.showErrorMessage(errorMessage)
-		}
-	}
-
-	private async downloadMcp(mcpId: string) {
-		try {
-			// First check if we already have this MCP server installed
-			const servers = this.mcpHub?.getServers() || []
-			const isInstalled = servers.some((server: McpServer) => server.name === mcpId)
-
-			if (isInstalled) {
-				throw new Error("This MCP server is already installed")
-			}
-
-			// Fetch server details from marketplace
-			const response = await axios.post<McpDownloadResponse>(
-				"https://api.cline.bot/v1/mcp/download",
-				{ mcpId },
-				{
-					headers: { "Content-Type": "application/json" },
-					timeout: 10000,
-				},
-			)
-
-			if (!response.data) {
-				throw new Error("Invalid response from MCP marketplace API")
-			}
-
-			console.log("[downloadMcp] Response from download API", { response })
-
-			const mcpDetails = response.data
-
-			// Validate required fields
-			if (!mcpDetails.githubUrl) {
-				throw new Error("Missing GitHub URL in MCP download response")
-			}
-			if (!mcpDetails.readmeContent) {
-				throw new Error("Missing README content in MCP download response")
-			}
-
-			// Send details to webview
-			await this.postMessageToWebview({
-				type: "mcpDownloadDetails",
-				mcpDownloadDetails: mcpDetails,
-			})
-
-			// Create task with context from README
-			const task = `Set up the MCP server from ${mcpDetails.githubUrl}. Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json. Here's some additional context from the README:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
-
-			// Initialize task and show chat view
-			await this.initClineWithTask(task)
-			await this.postMessageToWebview({
-				type: "action",
-				action: "chatButtonClicked",
-			})
-		} catch (error) {
-			console.error("Failed to download MCP:", error)
-			let errorMessage = "Failed to download MCP"
-
-			if (axios.isAxiosError(error)) {
-				if (error.code === "ECONNABORTED") {
-					errorMessage = "Request timed out. Please try again."
-				} else if (error.response?.status === 404) {
-					errorMessage = "MCP server not found in marketplace."
-				} else if (error.response?.status === 500) {
-					errorMessage = "Internal server error. Please try again later."
-				} else if (!error.response && error.request) {
-					errorMessage = "Network error. Please check your internet connection."
-				}
-			} else if (error instanceof Error) {
-				errorMessage = error.message
-			}
-
-			// Show error in both notification and marketplace UI
-			vscode.window.showErrorMessage(errorMessage)
-			await this.postMessageToWebview({
-				type: "mcpDownloadDetails",
-				error: errorMessage,
-			})
-		}
-	}
-
 	private setWebviewMessageListener(webview: vscode.Webview) {
 		webview.onDidReceiveMessage(
 			async (message: WebviewMessage) => {
@@ -1239,6 +1071,176 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
 			vscode.window.showErrorMessage("Failed to log in to Cline")
+		}
+	}
+
+	// MCP Marketplace
+
+	private async fetchMcpMarketplaceFromApi(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
+		try {
+			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
+				headers: {
+					"Content-Type": "application/json",
+				},
+			})
+
+			if (!response.data) {
+				throw new Error("Invalid response from MCP marketplace API")
+			}
+
+			const catalog: McpMarketplaceCatalog = {
+				items: (response.data || []).map((item: any) => ({
+					...item,
+					githubStars: item.githubStars ?? 0,
+					downloadCount: item.downloadCount ?? 0,
+					tags: item.tags ?? [],
+				})),
+			}
+
+			// Store in global state
+			await this.updateGlobalState("mcpMarketplaceCatalog", catalog)
+			return catalog
+		} catch (error) {
+			console.error("Failed to fetch MCP marketplace:", error)
+			if (!silent) {
+				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
+				await this.postMessageToWebview({
+					type: "mcpMarketplaceCatalog",
+					error: errorMessage,
+				})
+				vscode.window.showErrorMessage(errorMessage)
+			}
+			return undefined
+		}
+	}
+
+	async prefetchMcpMarketplace() {
+		try {
+			await this.fetchMcpMarketplaceFromApi(true)
+		} catch (error) {
+			console.error("Failed to prefetch MCP marketplace:", error)
+		}
+	}
+
+	async silentlyRefreshMcpMarketplace() {
+		try {
+			const catalog = await this.fetchMcpMarketplaceFromApi(true)
+			if (catalog) {
+				await this.postMessageToWebview({
+					type: "mcpMarketplaceCatalog",
+					mcpMarketplaceCatalog: catalog,
+				})
+			}
+		} catch (error) {
+			console.error("Failed to silently refresh MCP marketplace:", error)
+		}
+	}
+
+	private async fetchMcpMarketplace(forceRefresh: boolean = false) {
+		try {
+			// Check if we have cached data
+			const cachedCatalog = (await this.getGlobalState("mcpMarketplaceCatalog")) as McpMarketplaceCatalog | undefined
+			if (!forceRefresh && cachedCatalog?.items) {
+				await this.postMessageToWebview({
+					type: "mcpMarketplaceCatalog",
+					mcpMarketplaceCatalog: cachedCatalog,
+				})
+				return
+			}
+
+			const catalog = await this.fetchMcpMarketplaceFromApi(false)
+			if (catalog) {
+				await this.postMessageToWebview({
+					type: "mcpMarketplaceCatalog",
+					mcpMarketplaceCatalog: catalog,
+				})
+			}
+		} catch (error) {
+			console.error("Failed to handle cached MCP marketplace:", error)
+			const errorMessage = error instanceof Error ? error.message : "Failed to handle cached MCP marketplace"
+			await this.postMessageToWebview({
+				type: "mcpMarketplaceCatalog",
+				error: errorMessage,
+			})
+			vscode.window.showErrorMessage(errorMessage)
+		}
+	}
+
+	private async downloadMcp(mcpId: string) {
+		try {
+			// First check if we already have this MCP server installed
+			const servers = this.mcpHub?.getServers() || []
+			const isInstalled = servers.some((server: McpServer) => server.name === mcpId)
+
+			if (isInstalled) {
+				throw new Error("This MCP server is already installed")
+			}
+
+			// Fetch server details from marketplace
+			const response = await axios.post<McpDownloadResponse>(
+				"https://api.cline.bot/v1/mcp/download",
+				{ mcpId },
+				{
+					headers: { "Content-Type": "application/json" },
+					timeout: 10000,
+				},
+			)
+
+			if (!response.data) {
+				throw new Error("Invalid response from MCP marketplace API")
+			}
+
+			console.log("[downloadMcp] Response from download API", { response })
+
+			const mcpDetails = response.data
+
+			// Validate required fields
+			if (!mcpDetails.githubUrl) {
+				throw new Error("Missing GitHub URL in MCP download response")
+			}
+			if (!mcpDetails.readmeContent) {
+				throw new Error("Missing README content in MCP download response")
+			}
+
+			// Send details to webview
+			await this.postMessageToWebview({
+				type: "mcpDownloadDetails",
+				mcpDownloadDetails: mcpDetails,
+			})
+
+			// Create task with context from README
+			const task = `Set up the MCP server from ${mcpDetails.githubUrl}. Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json. Here's some additional context from the README:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
+
+			// Initialize task and show chat view
+			await this.initClineWithTask(task)
+			await this.postMessageToWebview({
+				type: "action",
+				action: "chatButtonClicked",
+			})
+		} catch (error) {
+			console.error("Failed to download MCP:", error)
+			let errorMessage = "Failed to download MCP"
+
+			if (axios.isAxiosError(error)) {
+				if (error.code === "ECONNABORTED") {
+					errorMessage = "Request timed out. Please try again."
+				} else if (error.response?.status === 404) {
+					errorMessage = "MCP server not found in marketplace."
+				} else if (error.response?.status === 500) {
+					errorMessage = "Internal server error. Please try again later."
+				} else if (!error.response && error.request) {
+					errorMessage = "Network error. Please check your internet connection."
+				}
+			} else if (error instanceof Error) {
+				errorMessage = error.message
+			}
+
+			// Show error in both notification and marketplace UI
+			vscode.window.showErrorMessage(errorMessage)
+			await this.postMessageToWebview({
+				type: "mcpDownloadDetails",
+				error: errorMessage,
+			})
 		}
 	}
 
