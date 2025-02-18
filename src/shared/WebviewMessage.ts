@@ -43,6 +43,9 @@ export interface WebviewMessage {
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "subscribeEmail"
+		| "fetchMcpMarketplace"
+		| "downloadMcp"
+		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
 	// | "relaunchChromeDebugMode"
 	text?: string
@@ -56,6 +59,7 @@ export interface WebviewMessage {
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
+	mcpId?: string
 
 	// For toggleToolAutoApprove
 	serverName?: string

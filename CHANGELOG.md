@@ -2,9 +2,11 @@
 
 ## [3.4.0]
 
--   Send current textfield contents as additional feedback when toggling from Plan to Act Mode, or when hitting 'Approve' button
+-   Use more visual checkpoints indicators after editing files & running commands
+-   Create a checkpoint at the beginning of each task to easily revert to the initial state
 -   Add 'Terminal' context mention to reference the active terminal's contents
 -   Add 'Git Commits' context mention to reference current working changes or specific commits (thanks @mrubens!)
+-   Send current textfield contents as additional feedback when toggling from Plan to Act Mode, or when hitting 'Approve' button
 -   Add advanced configuration options for OpenAI Compatible (context window, max output, pricing, etc.)
 -   Add Alibaba Qwen 2.5 coder models, VL models, and DeepSeek-R1/V3 support
 -   Improve support for AWS Bedrock Profiles

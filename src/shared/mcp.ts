@@ -66,3 +66,39 @@ export type McpToolCallResponse = {
 	>
 	isError?: boolean
 }
+
+export interface McpMarketplaceItem {
+	mcpId: string
+	githubUrl: string
+	name: string
+	author: string
+	description: string
+	codiconIcon: string
+	logoUrl: string
+	category: string
+	tags: string[]
+	requiresApiKey: boolean
+	readmeContent?: string
+	llmsInstallationContent?: string
+	isRecommended: boolean
+	githubStars: number
+	downloadCount: number
+	createdAt: string
+	updatedAt: string
+	lastGithubSync: string
+}
+
+export interface McpMarketplaceCatalog {
+	items: McpMarketplaceItem[]
+}
+
+export interface McpDownloadResponse {
+	mcpId: string
+	githubUrl: string
+	name: string
+	author: string
+	description: string
+	readmeContent: string
+	llmsInstallationContent: string
+	requiresApiKey: boolean
+}
