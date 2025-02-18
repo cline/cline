@@ -40,15 +40,6 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 					.mcp-card:hover {
 						background-color: var(--vscode-list-hoverBackground);
 					}
-					vscode-link::part(control) {
-						text-decoration: none !important;
-						border: none !important;
-					}
-					vscode-link:hover::part(control) {
-						color: var(--link-active-foreground);
-						text-decoration: none !important;
-						border: none !important;
-					}
 				`}
 			</style>
 			<div
@@ -141,9 +132,8 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 								flexWrap: "wrap",
 								minWidth: 0,
 							}}>
-							<VSCodeLink
+							<a
 								href={item.githubUrl}
-								title="View on GitHub"
 								style={{
 									display: "flex",
 									alignItems: "center",
@@ -156,9 +146,11 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 								className="github-link"
 								onMouseEnter={(e) => {
 									e.currentTarget.style.opacity = "0.8"
+									e.currentTarget.style.color = "var(--link-active-foreground)"
 								}}
 								onMouseLeave={(e) => {
 									e.currentTarget.style.opacity = "0.5"
+									e.currentTarget.style.color = "var(--vscode-foreground)"
 								}}>
 								<div style={{ display: "flex", gap: "4px", alignItems: "center" }} ref={githubLinkRef}>
 									<span className="codicon codicon-github" style={{ fontSize: "14px" }} />
@@ -172,7 +164,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 										{item.author}
 									</span>
 								</div>
-							</VSCodeLink>
+							</a>
 							<div
 								style={{
 									display: "flex",
