@@ -10,6 +10,7 @@ import {
 	openAiNativeModels,
 } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions.mjs"
 
@@ -24,11 +25,19 @@ export class OpenAiNativeHandler implements ApiHandler {
 		})
 	}
 
-	private async *yieldUsage(usage: CompletionsAPI.CompletionUsage | null) {
+	private async *yieldUsage(info: ModelInfo, usage: OpenAI.Completions.CompletionUsage | undefined): ApiStream {
+		const inputTokens = usage?.prompt_tokens || 0
+		const outputTokens = usage?.completion_tokens || 0
+		const cacheReadTokens = usage?.prompt_tokens_details?.cached_tokens || 0
+		const cacheWriteTokens = 0
+		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
 		yield {
 			type: "usage",
-			inputTokens: usage?.prompt_tokens || 0,
-			outputTokens: usage?.completion_tokens || 0,
+			inputTokens: inputTokens,
+			outputTokens: outputTokens,
+			cacheWriteTokens: cacheWriteTokens,
+			cacheReadTokens: cacheReadTokens,
+			totalCost: totalCost,
 		}
 	}
 
@@ -50,7 +59,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					text: response.choices[0]?.message.content || "",
 				}
 
-				yield* this.yieldUsage(response.usage)
+				yield* this.yieldUsage(model.info, response.usage)
 
 				break
 			}
@@ -72,7 +81,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					}
 					if (chunk.usage) {
 						// Only last chunk contains usage
-						yield* this.yieldUsage(chunk.usage)
+						yield* this.yieldUsage(model.info, chunk.usage)
 					}
 				}
 				break
@@ -97,7 +106,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					}
 					if (chunk.usage) {
 						// Only last chunk contains usage
-						yield* this.yieldUsage(chunk.usage)
+						yield* this.yieldUsage(model.info, chunk.usage)
 					}
 				}
 			}
