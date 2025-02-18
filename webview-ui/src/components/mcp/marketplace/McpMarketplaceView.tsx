@@ -48,7 +48,7 @@ const McpMarketplaceView = () => {
 					case "name":
 						return a.name.localeCompare(b.name)
 					case "newest":
-						return b.githubStars - a.githubStars // FIXME: b.createdAt - a.createdAt // Assuming there's a createdAt field
+						return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
 					default:
 						return 0
 				}
