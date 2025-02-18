@@ -941,6 +941,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					/>
 					<DynamicTextArea
 						data-testid="chat-input"
+						className="ph-no-capture"
 						ref={(el) => {
 							if (typeof ref === "function") {
 								ref(el)

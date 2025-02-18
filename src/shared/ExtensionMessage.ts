@@ -1,12 +1,14 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
 import { GitCommit } from "../utils/git"
+import { ClineConfiguration } from "./AdvancedSettings"
 import { ApiConfiguration, ModelInfo } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer } from "./mcp"
+import { WorkspaceConfiguration } from "vscode"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -70,6 +72,9 @@ export interface ExtensionState {
 	chatSettings: ChatSettings
 	isLoggedIn: boolean
 	platform: Platform
+	advancedSettings: WorkspaceConfiguration | ClineConfiguration
+	vscMachineId: string
+	hideTelemetryOptIn: boolean
 	userInfo?: {
 		displayName: string | null
 		email: string | null

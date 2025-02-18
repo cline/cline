@@ -181,6 +181,11 @@
 					"type": "string",
 					"default": null,
 					"description": "Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find or download it automatically."
+				},
+				"cline.enableTelemetry": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enables extension to post anonymous error tracking & usage data to help improve the product."
 				}
 			}
 		}
@@ -263,6 +268,7 @@
 		"os-name": "^6.0.0",
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
+		"posthog-node": "^4.6.0",
 		"puppeteer-chromium-resolver": "^23.0.0",
 		"puppeteer-core": "^23.4.0",
 		"serialize-error": "^11.0.3",
@@ -271,6 +277,6 @@
 		"tree-sitter-wasms": "^0.1.11",
 		"turndown": "^7.2.0",
 		"web-tree-sitter": "^0.22.6",
-		"zod": "^3.23.8"
+		"zod": "^3.24.2"
 	}
 }
