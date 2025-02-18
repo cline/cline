@@ -10,6 +10,7 @@ tmp
 pnpm-lock.yaml
 
 .clineignore
+.coverage
 
 # python
 .venv/

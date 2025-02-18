@@ -11,6 +11,15 @@ This directory contains Python scripts for managing release notes, version bumpi
   ```bash
   brew install uv
   ```
+- [act](https://github.com/nektos/act) - Run GitHub Actions locally
+  ```bash
+  brew install act
+  ```
+
+### Environment Variables
+
+For local testing, you'll need:
+- `OPENROUTER_API_KEY` - Your OpenRouter API key for release notes generation
 
 ### Setting Up Development Environment
 
@@ -95,6 +104,22 @@ python overwrite_changeset_changelog.py \
   --content "Release notes content" \
   --changelog-path CHANGELOG.md
 ```
+
+## End-to-End Testing
+
+### test-release.sh
+Runs the complete release workflow locally using GitHub CLI, exactly as it would run in production:
+
+```bash
+# Run a test pre-release
+./test-release.sh
+```
+
+This script triggers the publish workflow with pre-release mode, allowing you to verify:
+- Version bumping from changesets
+- Release notes generation
+- Changelog updates
+- Complete workflow integration
 
 ## Testing
 

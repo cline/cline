@@ -13,7 +13,6 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 from generate_release_notes import generate_release_notes, generate_prompt
-from overwrite_changeset_changelog import update_changelog
 
 import pytest
 
@@ -92,19 +91,76 @@ class TestIntegration:
         assert release_notes is not None
         assert "browser automation" in release_notes.lower()
         
-        # Update and verify changelog
-        update_changelog(self.test_version, release_notes, self.test_changelog)
-        with open(self.test_changelog, "r") as f:
-            content = f.read()
-            assert self.test_version in content
-            assert "browser automation" in content.lower()
-            
-        # Verify no changes to actual project files
-        actual_changelog = os.path.join(self.original_cwd, "CHANGELOG.md")
-        if os.path.exists(actual_changelog):
-            with open(actual_changelog, "r") as f:
-                original_content = f.read()
-            assert self.test_version not in original_content
+        # Verify release notes content
+        assert "browser automation" in release_notes.lower()
+        
+    @patch('subprocess.check_output')
+    def test_pre_release_flow(self, mock_git, api_key):
+        """Test the pre-release flow with live API calls."""
+        # Create additional changeset for pre-release
+        pre_changeset = {
+            "type": "minor",
+            "content": "Added experimental feature"
+        }
+        path = os.path.join(self.changeset_dir, "pre-change.md")
+        with open(path, "w") as f:
+            f.write(f"---\n{pre_changeset['type']}\n{pre_changeset['content']}")
+        
+        # Mock git commands for pre-release
+        mock_git.side_effect = [
+            "v3.2.0".encode(),  # get_last_release_tag
+            "\n".join(os.listdir(self.changeset_dir)).encode()  # get_changesets_since_tag
+        ]
+        
+        # Generate pre-release notes
+        prompt = generate_prompt(
+            self.changesets + [pre_changeset],
+            self.git_info,
+            f"{self.test_version}-pre",
+            is_prerelease=True
+        )
+        pre_release_notes = generate_release_notes(prompt, api_key=api_key)
+        
+        # Verify pre-release notes
+        assert pre_release_notes is not None
+        assert "experimental feature" in pre_release_notes.lower()
+        assert "(pre-release)" in pre_release_notes.lower()
+        
+    @patch('subprocess.check_output')
+    def test_pre_release_to_release_flow(self, mock_git, api_key):
+        """Test converting a pre-release to a full release."""
+        # First create a pre-release
+        pre_version = f"{self.test_version}-pre"
+        pre_prompt = generate_prompt(
+            self.changesets,
+            self.git_info,
+            pre_version,
+            is_prerelease=True
+        )
+        pre_release_notes = generate_release_notes(pre_prompt, api_key=api_key)
+        assert "(pre-release)" in pre_release_notes.lower()
+        
+        # Mock git commands showing no changes since pre-release
+        mock_git.side_effect = [
+            f"{pre_version}\nv3.2.0".encode(),  # get_last_release_tag with pre
+            "".encode(),  # no changesets since pre-release
+            "v3.2.0".encode(),  # get_last_release_tag without pre
+            "\n".join(os.listdir(self.changeset_dir)).encode()  # all changesets since last regular release
+        ]
+        
+        # Generate full release notes
+        release_prompt = generate_prompt(
+            self.changesets,
+            self.git_info,
+            self.test_version,
+            is_prerelease=False
+        )
+        release_notes = generate_release_notes(release_prompt, api_key=api_key)
+        
+        # Verify full release notes include all changes
+        assert release_notes is not None
+        assert "browser automation" in release_notes.lower()
+        assert "(pre-release)" not in release_notes.lower()
     
     def test_error_handling(self, api_key):
         """Test error handling in the release flow."""

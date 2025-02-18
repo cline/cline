@@ -61,12 +61,16 @@ def parse_args():
 def get_git_info(version: str) -> Dict[str, str]:
     """Get git diff and commit information since the last release."""
     try:
-        # Get the last release tag
+        # Always get changes since last regular release, ignoring pre-releases
         tags = subprocess.check_output(
             ["git", "tag", "--sort=-v:refname"],
             text=True
         ).strip().split("\n")
-        last_tag = next((tag for tag in tags if not tag.endswith("-pre")), "v0.0.0")
+        
+        # Filter out pre-releases to get the last regular release
+        regular_releases = [tag for tag in tags if not tag.endswith("-pre")]
+        last_tag = regular_releases[0] if regular_releases else "v0.0.0"
+        print(f"Generating release notes with changes since {last_tag}")
         
         # Get commit messages
         commit_log = subprocess.check_output(
@@ -116,7 +120,10 @@ def generate_prompt(changesets: List[Dict], git_info: Dict[str, str], version: s
         f"Patch Changes:\n{chr(10).join(changes_by_type['patch'])}" if changes_by_type["patch"] else ""
     ]).strip()
     
-    return f"""Please generate release notes for version {version}{' (Pre-release)' if is_prerelease else ''} of the Cline VSCode extension.
+    return f"""Please generate release notes for version {version} of the Cline VSCode extension.
+
+{'''IMPORTANT: This is a pre-release version. The release notes MUST include "(Pre-release)" in the title.
+Example title: "## New Features Added (Pre-release)"''' if is_prerelease else ''}
 
 Changesets:
 {changes_text}

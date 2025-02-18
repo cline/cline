@@ -62,7 +62,6 @@ jobs:
         outputs:
             new_version: ${{ steps.version.outputs.new_version }}
             has_changes: ${{ steps.version.outputs.has_changes }}
-            release_notes: ${{ steps.notes.outputs.release_notes }}
 
         steps:
             - uses: actions/checkout@v4
@@ -78,12 +77,34 @@ jobs:
               run: |
                   pip install requests
 
-            - name: Determine Version
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20.15.1
+
+            - name: Install Dependencies
+              run: npm ci
+
+            - name: Generate Changelog
+              run: |
+                  if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
+                    # Enter prerelease mode and version
+                    npx changeset pre enter next
+                    npx changeset version
+                  else
+                    # Exit prerelease mode if we're in it
+                    npx changeset pre exit
+                    # Regular release
+                    npx changeset version
+                  fi
+
+            - name: Determine Version and Overwrite Changes
               id: version
               run: |
                   python .github/scripts/version_manager.py \
                     --release-type ${{ github.event.inputs.release-type }} \
-                    --github-output $GITHUB_OUTPUT
+                    --github-output $GITHUB_OUTPUT \
+                    --package-path package.json
 
             - name: Check for Changes
               if: steps.version.outputs.has_changes != 'true'
@@ -91,34 +112,13 @@ jobs:
                   echo "No changes detected since last release. Skipping release process."
                   exit 0
 
-            - name: Generate Release Notes
-              id: notes
-              run: |
-                  python .github/scripts/generate_release_notes.py \
-                    --release-type ${{ github.event.inputs.release-type }} \
-                    --version ${{ steps.version.outputs.new_version }} \
-                    --changesets '${{ steps.version.outputs.changesets }}' \
-                    --github-output $GITHUB_OUTPUT \
-                    --api-key ${{ secrets.OPENROUTER_API_KEY }}
-
-            - name: Update CHANGELOG.md
-              run: |
-                  python .github/scripts/overwrite_changeset_changelog.py \
-                    --version ${{ steps.version.outputs.new_version }} \
-                    --content "${{ steps.notes.outputs.release_notes }}"
-
-            - name: Update package.json Version
-              run: |
-                  VERSION=${{ steps.version.outputs.new_version }}
-                  # Remove v prefix for package.json
-                  VERSION=${VERSION#v}
-                  npm version $VERSION --no-git-tag-version
-
             - name: Commit Changes
               run: |
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
-                  git add CHANGELOG.md package.json
+                  # Remove all changeset files except config.json and README.md
+                  find .changeset -type f -not -name 'config.json' -not -name 'README.md' -delete
+                  git add CHANGELOG.md package.json .changeset
                   git commit -m "Release ${{ steps.version.outputs.new_version }}"
                   git push
 
@@ -194,7 +194,7 @@ jobs:
               with:
                   tag_name: ${{ needs.prepare.outputs.new_version }}
                   files: "*.vsix"
-                  body: ${{ needs.prepare.outputs.release_notes }}
-                  prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
+                  draft: true # Create as draft so our draft-release.yml can populate the notes
+                  prerelease: ${{ github.event.inputs.release-type == 'pre-release' }} # This determines if it's a pre-release when published
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

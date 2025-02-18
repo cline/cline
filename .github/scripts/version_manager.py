@@ -40,6 +40,11 @@ def parse_args():
         "--github-output",
         help="Path to GitHub Actions output file"
     )
+    parser.add_argument(
+        "--package-path",
+        default="package.json",
+        help="Path to package.json file"
+    )
     return parser.parse_args()
 
 def get_last_release_tag(include_pre: bool = False) -> tuple[str, bool]:
@@ -139,6 +144,9 @@ def bump_version(current: str, bump_type: ChangeType) -> str:
     # Strip v prefix if present
     version = current[1:] if current.startswith("v") else current
     
+    # Strip pre-release suffix if present
+    version = version.split("-")[0]
+    
     major, minor, patch = map(int, version.split("."))
     
     if bump_type == "major":
@@ -147,6 +155,34 @@ def bump_version(current: str, bump_type: ChangeType) -> str:
         return f"v{major}.{minor + 1}.0"
     else:  # patch
         return f"v{major}.{minor}.{patch + 1}"
+
+def overwrite_package_version(version: str, package_path: str = "package.json"):
+    """
+    Overwrite version in package.json with our determined version.
+    
+    Args:
+        version: New version to set (with or without v prefix)
+        package_path: Path to package.json file
+    """
+    try:
+        # Read package.json
+        with open(package_path, 'r') as f:
+            package_data = json.load(f)
+        
+        # Remove v prefix for package.json
+        version_no_prefix = version[1:] if version.startswith('v') else version
+        
+        # Update version
+        package_data['version'] = version_no_prefix
+        
+        # Write back to package.json
+        with open(package_path, 'w') as f:
+            json.dump(package_data, f, indent='\t')
+            f.write('\n')  # Add newline at end of file
+            
+    except Exception as e:
+        print(f"Error updating package.json: {str(e)}")
+        sys.exit(1)
 
 def main():
     args = parse_args()
@@ -201,6 +237,10 @@ def main():
                 "content": c["content"]
             } for c in changesets])
             f.write(f"changesets<<EOF\n{changesets_json}\nEOF\n")
+    
+    # Overwrite version in package.json
+    if change_count > 0:
+        overwrite_package_version(new_version, args.package_path)
 
 if __name__ == "__main__":
     main()

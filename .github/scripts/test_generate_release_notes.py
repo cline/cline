@@ -41,6 +41,7 @@ class TestGenerateReleaseNotes(unittest.TestCase):
             self.assertEqual(args.api_key, 'test-api-key')
     
     def test_generate_prompt(self):
+        # Test regular release prompt
         prompt = generate_prompt(
             self.test_changesets,
             self.test_git_info,
@@ -53,10 +54,25 @@ class TestGenerateReleaseNotes(unittest.TestCase):
         self.assertIn("Fixed bug", prompt)
         self.assertIn("test commit", prompt)
         self.assertIn("1 file changed", prompt)
+        self.assertNotIn("(Pre-release)", prompt)
+        
+        # Test pre-release prompt
+        pre_version = f"{self.test_version}-pre"
+        pre_prompt = generate_prompt(
+            self.test_changesets,
+            self.test_git_info,
+            pre_version,
+            is_prerelease=True
+        )
+        
+        self.assertIn(pre_version, pre_prompt)
+        self.assertIn("(Pre-release)", pre_prompt)
+        self.assertIn("Added new feature", pre_prompt)
+        self.assertIn("Fixed bug", pre_prompt)
     
     @patch('requests.post')
     def test_generate_release_notes_success(self, mock_post):
-        # Mock successful API response
+        # Test regular release notes
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "choices": [{
@@ -76,6 +92,26 @@ class TestGenerateReleaseNotes(unittest.TestCase):
         
         result = generate_release_notes(prompt, api_key="mock-api-key")
         self.assertEqual(result, "Test release notes")
+        
+        # Test pre-release notes
+        mock_response.json.return_value = {
+            "choices": [{
+                "message": {
+                    "content": "Test pre-release notes"
+                }
+            }]
+        }
+        mock_post.return_value = mock_response
+        
+        pre_prompt = generate_prompt(
+            self.test_changesets,
+            self.test_git_info,
+            f"{self.test_version}-pre",
+            is_prerelease=True
+        )
+        
+        pre_result = generate_release_notes(pre_prompt, api_key="mock-api-key")
+        self.assertEqual(pre_result, "Test pre-release notes")
     
     def test_generate_release_notes_no_api_key(self):
         prompt = generate_prompt(
