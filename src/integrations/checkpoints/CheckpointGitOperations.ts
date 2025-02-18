@@ -8,9 +8,9 @@ import { getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
 import { HistoryItem } from "../../shared/HistoryItem"
 
 interface StorageProvider {
-    context: {
-        globalStorageUri: { fsPath: string };
-    };
+	context: {
+		globalStorageUri: { fsPath: string }
+	}
 }
 
 /**
@@ -66,7 +66,7 @@ export class GitOperations {
 	 * - LFS pattern setup fails
 	 */
 	public static async initShadowGit(gitPath: string, cwd: string, isLegacyCheckpoint: boolean): Promise<string> {
-		console.log(`Initializing ${isLegacyCheckpoint ? "legacy" : "branch-per-task"} shadow git`)
+		console.info(`Initializing ${isLegacyCheckpoint ? "legacy" : "branch-per-task"} shadow git`)
 
 		// If repo exists, just verify worktree
 		if (await fileExistsAtPath(gitPath)) {
@@ -75,13 +75,13 @@ export class GitOperations {
 			if (worktree.value !== cwd) {
 				throw new Error("Checkpoints can only be used in the original workspace: " + worktree.value)
 			}
-			console.log(`Using existing ${isLegacyCheckpoint ? "legacy" : "branch-per-task"} shadow git at ${gitPath}`)
+			console.warn(`Using existing ${isLegacyCheckpoint ? "legacy" : "branch-per-task"} shadow git at ${gitPath}`)
 			return gitPath
 		}
 
 		// Initialize new repo
 		const checkpointsDir = path.dirname(gitPath)
-		console.log(`Creating new ${isLegacyCheckpoint ? "legacy" : "branch-per-task"} shadow git in ${checkpointsDir}`)
+		console.warn(`Creating new ${isLegacyCheckpoint ? "legacy" : "branch-per-task"} shadow git in ${checkpointsDir}`)
 
 		const git = simpleGit(checkpointsDir)
 		await git.init()
@@ -99,7 +99,7 @@ export class GitOperations {
 		// Initial commit only on first repo creation
 		await git.commit("initial commit", { "--allow-empty": null })
 
-		console.log(`${isLegacyCheckpoint ? "Legacy" : "New"} shadow git initialization completed`)
+		console.warn(`${isLegacyCheckpoint ? "Legacy" : "New"} shadow git initialization completed`)
 
 		return gitPath
 	}
@@ -142,7 +142,7 @@ export class GitOperations {
 		// Check legacy checkpoint path to see if this is a legacy task
 		const legacyGitPath = path.join(globalStoragePath, "tasks", taskId, "checkpoints", ".git")
 		if (await fileExistsAtPath(legacyGitPath)) {
-			console.log("Found legacy shadow git")
+			console.info("Found legacy shadow git")
 			return true
 		}
 
@@ -152,7 +152,7 @@ export class GitOperations {
 		const gitPath = path.join(globalStoragePath, "checkpoints", cwdHash, ".git")
 		const exists = await fileExistsAtPath(gitPath)
 		if (exists) {
-			console.log("Found new shadow git")
+			console.info("Found branch-per-task shadow git")
 		}
 		return exists
 	}
@@ -178,41 +178,41 @@ export class GitOperations {
 		// Check if branch exists
 		const branches = await git.branchLocal()
 		if (!branches.all.includes(branchName)) {
-			console.log(`Task branch ${branchName} does not exist, nothing to delete`)
+			console.error(`Task branch ${branchName} does not exist, nothing to delete`)
 			return // Branch doesn't exist, nothing to delete
 		}
 
 		// First, if we're on the branch to be deleted, switch to master
 		const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
-		console.log(`Current branch: ${currentBranch}, target branch to delete: ${branchName}`)
+		console.info(`Current branch: ${currentBranch}, target branch to delete: ${branchName}`)
 
 		if (currentBranch === branchName) {
-			console.log("Currently on branch to be deleted, switching to master first")
+			console.debug("Currently on branch to be deleted, switching to master first")
 			// Save the current worktree config
 			const worktree = await git.getConfig("core.worktree")
-			console.log(`Saved current worktree config: ${worktree.value}`)
+			console.debug(`Saved current worktree config: ${worktree.value}`)
 
 			try {
 				// Temporarily unset worktree to prevent workspace modifications
-				console.log("Temporarily unsetting worktree config")
+				console.debug("Temporarily unsetting worktree config")
 				await git.raw(["config", "--unset", "core.worktree"])
 
 				// Force discard all changes
-				console.log("Discarding all changes")
+				console.debug("Discarding all changes")
 				await git.reset(["--hard"])
 				await git.clean("f", ["-d"]) // Clean mode 'f' for force, -d for directories
 
 				// Switch to master and delete branch
-				console.log("Attempting to force switch to master branch")
+				console.debug("Attempting to force switch to master branch")
 				await git.checkout(["master", "--force"])
 
 				// Verify the switch completed
 				let retries = 3
 				while (retries > 0) {
 					const newBranch = await git.revparse(["--abbrev-ref", "HEAD"])
-					console.log(`Verifying branch switch - current branch: ${newBranch}, attempts left: ${retries}`)
+					console.debug(`Verifying branch switch - current branch: ${newBranch}, attempts left: ${retries}`)
 					if (newBranch === "master") {
-						console.log("Successfully switched to master branch")
+						console.debug("Successfully switched to master branch")
 						break
 					}
 					retries--
@@ -221,21 +221,21 @@ export class GitOperations {
 					}
 				}
 
-				console.log(`Deleting branch: ${branchName}`)
+				console.info(`Deleting branch: ${branchName}`)
 				await git.raw(["branch", "-D", branchName])
-				console.log(`Successfully deleted branch: ${branchName}`)
+				console.debug(`Successfully deleted branch: ${branchName}`)
 			} finally {
 				// Restore the worktree config
 				if (worktree.value) {
-					console.log(`Restoring worktree config to: ${worktree.value}`)
+					console.debug(`Restoring worktree config to: ${worktree.value}`)
 					await git.addConfig("core.worktree", worktree.value)
 				}
 			}
 		} else {
 			// If we're not on the branch, we can safely delete it
-			console.log(`Directly deleting branch ${branchName} since we're not on it`)
+			console.info(`Directly deleting branch ${branchName} since we're not on it`)
 			await git.raw(["branch", "-D", branchName])
-			console.log(`Successfully deleted branch: ${branchName}`)
+			console.debug(`Successfully deleted branch: ${branchName}`)
 		}
 	}
 
@@ -259,7 +259,7 @@ export class GitOperations {
 		globalStoragePath: string,
 	): Promise<void> {
 		try {
-			console.log("Starting static task branch deletion process...")
+			console.debug("Starting static task branch deletion process...")
 
 			if (!globalStoragePath) {
 				throw new Error("Global storage uri is invalid")
@@ -279,18 +279,18 @@ export class GitOperations {
 			const gitPath = path.join(checkpointsDir, ".git")
 
 			if (await fileExistsAtPath(gitPath)) {
-				console.log(`Found branch-per-task git repository at ${gitPath}`)
+				console.debug(`Found branch-per-task git repository at ${gitPath}`)
 				const git = simpleGit(path.dirname(gitPath))
 				const branchName = `task-${taskId}`
 
 				// Check if the branch exists
 				const branches = await git.branchLocal()
 				if (branches.all.includes(branchName)) {
-					console.log(`Found branch ${branchName} to delete`)
+					console.info(`Found branch ${branchName} to delete`)
 					await GitOperations.deleteBranchForGit(git, branchName, checkpointsDir)
 					return
 				}
-				console.log(`Branch ${branchName} not found in branch-per-task repository`)
+				console.warn(`Branch ${branchName} not found in branch-per-task repository`)
 			}
 
 			// Only check legacy checkpoint if we didn't find/delete a branch-per-task branch
@@ -298,10 +298,10 @@ export class GitOperations {
 			const legacyGitPath = path.join(legacyCheckpointsDir, ".git")
 
 			if (await fileExistsAtPath(legacyGitPath)) {
-				console.log("Found legacy checkpoint, deleting directory")
+				console.info("Found legacy checkpoint, deleting directory")
 				try {
 					await fs.rm(legacyCheckpointsDir, { recursive: true, force: true })
-					console.log("Successfully deleted legacy checkpoint directory")
+					console.debug("Successfully deleted legacy checkpoint directory")
 					return
 				} catch (error) {
 					console.error("Failed to delete legacy checkpoint directory:", error)
@@ -309,7 +309,7 @@ export class GitOperations {
 				}
 			}
 
-			console.log("No checkpoints found to delete")
+			console.info("No checkpoints found to delete")
 		} catch (error) {
 			console.error("Failed to delete task branch:", error)
 			throw new Error(`Failed to delete task branch: ${error instanceof Error ? error.message : String(error)}`)
@@ -361,7 +361,7 @@ export class GitOperations {
 
 			try {
 				await fs.rename(fullPath, newPath)
-				console.log(`${disable ? "Disabled" : "Enabled"} nested git repo ${gitPath}`)
+				console.info(`${disable ? "Disabled" : "Enabled"} nested git repo ${gitPath}`)
 			} catch (error) {
 				console.error(`Failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
 			}
@@ -396,15 +396,15 @@ export class GitOperations {
 		// Create new task-specific branch, or switch to one if it already exists.
 		const branches = await git.branchLocal()
 		if (!branches.all.includes(branchName)) {
-			console.log(`Creating new task branch: ${branchName}`)
+			console.info(`Creating new task branch: ${branchName}`)
 			await git.checkoutLocalBranch(branchName)
 		} else {
-			console.log(`Switching to existing task branch: ${branchName}`)
+			console.info(`Switching to existing task branch: ${branchName}`)
 			await git.checkout(branchName)
 		}
 
 		const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
-		console.log(`Current Checkpoint branch after switch: ${currentBranch}`)
+		console.info(`Current Checkpoint branch after switch: ${currentBranch}`)
 	}
 
 	/**
@@ -433,7 +433,7 @@ export class GitOperations {
 			// Update exclude patterns before each commit
 			await writeExcludesFile(gitPath, await getLfsPatterns(this.cwd))
 			await this.renameNestedGitRepos(true)
-			//console.log("Starting checkpoint add operation...")
+			//console.info("Starting checkpoint add operation...")
 
 			// Get list of all files git would track (respects .gitignore)
 			const gitFiles = (await git.raw(["ls-files", "--others", "--exclude-standard", "--cached"]))
@@ -442,14 +442,14 @@ export class GitOperations {
 
 			// Add filtered files
 			if (gitFiles.length === 0) {
-				console.log("No files to add to checkpoint")
+				console.info("No files to add to checkpoint")
 				return
 			}
 
 			try {
-				console.log(`Adding ${gitFiles.length} files to checkpoint`)
+				console.info(`Adding ${gitFiles.length} files to checkpoint`)
 				await git.add(gitFiles)
-				console.log("Checkpoint add operation completed successfully")
+				console.info("Checkpoint add operation completed successfully")
 			} catch (error) {
 				console.error("Checkpoint add operation failed:", error)
 				throw error

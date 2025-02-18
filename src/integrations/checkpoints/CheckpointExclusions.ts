@@ -329,7 +329,7 @@ export const getLfsPatterns = async (workspacePath: string): Promise<string[]> =
 				.map((line) => line.split(" ")[0].trim())
 		}
 	} catch (error) {
-		console.log("Failed to read .gitattributes:", error)
+		console.warn("Failed to read .gitattributes:", error)
 	}
 	return []
 }
