@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeLink, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { vscode } from "../../utils/vscode"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { McpServer } from "../../../../src/shared/mcp"
@@ -18,10 +18,11 @@ const McpView = ({ onDone }: McpViewProps) => {
 
 	const handleTabChange = (tab: string) => {
 		setActiveTab(tab)
-		if (tab === "marketplace") {
-			vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" })
-		}
 	}
+
+	useEffect(() => {
+		vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" })
+	}, [])
 
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
