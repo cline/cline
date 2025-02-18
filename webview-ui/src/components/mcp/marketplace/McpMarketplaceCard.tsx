@@ -44,9 +44,13 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 				{`
 					.mcp-card {
 						cursor: pointer;
+						outline: none !important;
 					}
 					.mcp-card:hover {
 						background-color: var(--vscode-list-hoverBackground);
+					}
+					.mcp-card:focus {
+						outline: none !important;
 					}
 				`}
 			</style>
