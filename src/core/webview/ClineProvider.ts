@@ -2778,13 +2778,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						pl: "Polish",
 						pt: "Portuguese",
 						ru: "Russian",
+						zh: "Simplified Chinese",
 						"zh-cn": "Simplified Chinese",
 						es: "Spanish",
 						"zh-tw": "Traditional Chinese",
 						tr: "Turkish",
 					}
 					// Return mapped language or default to English
-					return langMap[vscodeLang.split("-")[0]] ?? "English"
+					return langMap[vscodeLang] ?? langMap[vscodeLang.split("-")[0]] ?? "English"
 				})(),
 			mcpEnabled: mcpEnabled ?? true,
 			enableMcpServerCreation: enableMcpServerCreation ?? true,
