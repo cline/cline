@@ -12,6 +12,7 @@ import { McpMarketplaceItem } from "../../../../../src/shared/mcp"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
 import { vscode } from "../../../utils/vscode"
 import McpMarketplaceCard from "./McpMarketplaceCard"
+import McpSubmitCard from "./McpSubmitCard"
 
 const controlHeight = "28px"
 
@@ -284,23 +285,26 @@ const McpMarketplaceView = () => {
 				}
 			`}
 			</style>
-			{filteredItems.length === 0 ? (
-				<div
-					style={{
-						display: "flex",
-						justifyContent: "center",
-						alignItems: "center",
-						height: "100%",
-						padding: "20px",
-						color: "var(--vscode-descriptionForeground)",
-					}}>
-					{searchQuery || selectedCategory
-						? "No matching MCP servers found"
-						: "No MCP servers found in the marketplace"}
-				</div>
-			) : (
-				filteredItems.map((item) => <McpMarketplaceCard key={item.mcpId} item={item} installedServers={mcpServers} />)
-			)}
+			<div style={{ display: "flex", flexDirection: "column" }}>
+				{filteredItems.length === 0 ? (
+					<div
+						style={{
+							display: "flex",
+							justifyContent: "center",
+							alignItems: "center",
+							height: "100%",
+							padding: "20px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						{searchQuery || selectedCategory
+							? "No matching MCP servers found"
+							: "No MCP servers found in the marketplace"}
+					</div>
+				) : (
+					filteredItems.map((item) => <McpMarketplaceCard key={item.mcpId} item={item} installedServers={mcpServers} />)
+				)}
+				<McpSubmitCard />
+			</div>
 		</div>
 	)
 }
