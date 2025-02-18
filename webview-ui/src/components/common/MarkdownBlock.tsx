@@ -1,4 +1,4 @@
-import { memo, useEffect } from "react"
+import React, { memo, useEffect } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
@@ -221,7 +221,19 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 		],
 		rehypeReactOptions: {
 			components: {
-				pre: ({ node, ...preProps }: any) => <StyledPre {...preProps} theme={theme} />,
+				pre: ({ node, children, ...preProps }: any) => {
+					if (Array.isArray(children) && children.length === 1 && React.isValidElement(children[0])) {
+						const child = children[0] as React.ReactElement<{ className?: string }>
+						if (child.props?.className?.includes("language-mermaid")) {
+							return child
+						}
+					}
+					return (
+						<StyledPre {...preProps} theme={theme}>
+							{children}
+						</StyledPre>
+					)
+				},
 				code: (props: any) => {
 					const className = props.className || ""
 					if (className.includes("language-mermaid")) {
