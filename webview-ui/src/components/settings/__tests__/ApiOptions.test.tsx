@@ -50,7 +50,12 @@ describe("ApiOptions", () => {
 	const renderApiOptions = (props = {}) => {
 		render(
 			<ExtensionStateContextProvider>
-				<ApiOptions {...props} />
+				<ApiOptions
+					uriScheme={undefined}
+					apiConfiguration={{}}
+					setApiConfigurationField={() => {}}
+					{...props}
+				/>
 			</ExtensionStateContextProvider>,
 		)
 	}
