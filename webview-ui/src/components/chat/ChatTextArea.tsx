@@ -1,9 +1,10 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
-import { useClickAway, useWindowSize } from "react-use"
+import { useClickAway, useEvent, useWindowSize } from "react-use"
 import styled from "styled-components"
 import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
+import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import {
 	ContextMenuOptionType,
@@ -12,16 +13,15 @@ import {
 	removeMention,
 	shouldShowContextMenu,
 } from "../../utils/context-mentions"
+import { useMetaKeyDetection, useShortcut } from "../../utils/hooks"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import Thumbnails from "../common/Thumbnails"
+import Tooltip from "../common/Tooltip"
 import ApiOptions, { normalizeApiConfiguration } from "../settings/ApiOptions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
-import { useShortcut } from "../../utils/hooks"
-import Tooltip from "../common/Tooltip"
-import { useMetaKeyDetection } from "../../utils/hooks"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -215,6 +215,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 	) => {
 		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
+		const [gitCommits, setGitCommits] = useState<any[]>([])
+
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
 		const [showContextMenu, setShowContextMenu] = useState(false)
@@ -240,9 +242,40 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Add a ref to track previous menu state
 		const prevShowModelSelector = useRef(showModelSelector)
 
+		// Fetch git commits when Git is selected or when typing a hash
+		useEffect(() => {
+			if (selectedType === ContextMenuOptionType.Git || /^[a-f0-9]+$/i.test(searchQuery)) {
+				vscode.postMessage({
+					type: "searchCommits",
+					text: searchQuery || "",
+				})
+			}
+		}, [selectedType, searchQuery])
+
+		const handleMessage = useCallback((event: MessageEvent) => {
+			const message: ExtensionMessage = event.data
+			switch (message.type) {
+				case "commitSearchResults": {
+					const commits =
+						message.commits?.map((commit: any) => ({
+							type: ContextMenuOptionType.Git,
+							value: commit.hash,
+							label: commit.subject,
+							description: `${commit.shortHash} by ${commit.author} on ${commit.date}`,
+						})) || []
+					setGitCommits(commits)
+					break
+				}
+			}
+		}, [])
+
+		useEvent("message", handleMessage)
+
 		const queryItems = useMemo(() => {
 			return [
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
+				{ type: ContextMenuOptionType.Terminal, value: "terminal" },
+				...gitCommits,
 				...filePaths
 					.map((file) => "/" + file)
 					.map((path) => ({
@@ -250,7 +283,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						value: path,
 					})),
 			]
-		}, [filePaths])
+		}, [filePaths, gitCommits])
 
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {
@@ -274,7 +307,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return
 				}
 
-				if (type === ContextMenuOptionType.File || type === ContextMenuOptionType.Folder) {
+				if (
+					type === ContextMenuOptionType.File ||
+					type === ContextMenuOptionType.Folder ||
+					type === ContextMenuOptionType.Git
+				) {
 					if (!value) {
 						setSelectedType(type)
 						setSearchQuery("")
@@ -293,6 +330,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = value || ""
 					} else if (type === ContextMenuOptionType.Problems) {
 						insertValue = "problems"
+					} else if (type === ContextMenuOptionType.Terminal) {
+						insertValue = "terminal"
+					} else if (type === ContextMenuOptionType.Git) {
+						insertValue = value || ""
 					}
 
 					const { newValue, mentionIndex } = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
@@ -895,7 +936,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderTop: 0,
 							borderColor: "transparent",
 							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
-							padding: "9px 49px 3px 9px",
+							padding: "9px 28px 3px 9px",
 						}}
 					/>
 					<DynamicTextArea
