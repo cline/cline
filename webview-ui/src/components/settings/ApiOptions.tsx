@@ -1296,6 +1296,7 @@ const ApiOptions = ({
 						fontSize: 12,
 						color: "var(--vscode-errorForeground)",
 					}}>
+					<span style={{ fontSize: "2em" }} className={`codicon codicon-close align-middle mr-1`} />
 					{apiErrorMessage}
 				</p>
 			)}
@@ -1352,6 +1353,7 @@ const ApiOptions = ({
 						fontSize: 12,
 						color: "var(--vscode-errorForeground)",
 					}}>
+					<span style={{ fontSize: "2em" }} className={`codicon codicon-close align-middle mr-1`} />
 					{modelIdErrorMessage}
 				</p>
 			)}
