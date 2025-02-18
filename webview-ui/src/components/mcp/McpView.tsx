@@ -23,6 +23,13 @@ const McpView = ({ onDone }: McpViewProps) => {
 	const { mcpServers: servers } = useExtensionState()
 	const [activeTab, setActiveTab] = useState("marketplace")
 
+	const handleTabChange = (tab: string) => {
+		setActiveTab(tab)
+		if (tab === "marketplace") {
+			vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" })
+		}
+	}
+
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
 	// 	{
@@ -115,10 +122,10 @@ const McpView = ({ onDone }: McpViewProps) => {
 						padding: "0 20px 0 20px",
 						borderBottom: "1px solid var(--vscode-panel-border)",
 					}}>
-					<TabButton isActive={activeTab === "marketplace"} onClick={() => setActiveTab("marketplace")}>
+					<TabButton isActive={activeTab === "marketplace"} onClick={() => handleTabChange("marketplace")}>
 						Marketplace
 					</TabButton>
-					<TabButton isActive={activeTab === "installed"} onClick={() => setActiveTab("installed")}>
+					<TabButton isActive={activeTab === "installed"} onClick={() => handleTabChange("installed")}>
 						Installed
 					</TabButton>
 				</div>

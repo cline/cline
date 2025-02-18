@@ -46,6 +46,7 @@ export interface WebviewMessage {
 		| "fetchMcpMarketplace"
 		| "downloadMcp"
 		| "openMcpMarketplaceServerDetails"
+		| "silentlyRefreshMcpMarketplace"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean

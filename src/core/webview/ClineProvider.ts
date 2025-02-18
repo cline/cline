@@ -378,6 +378,66 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	 *
 	 * @param webview A reference to the extension webview
 	 */
+	private async fetchMcpMarketplaceFromApi(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
+		try {
+			const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
+				headers: {
+					"Content-Type": "application/json",
+				},
+			})
+
+			if (!response.data) {
+				throw new Error("Invalid response from MCP marketplace API")
+			}
+
+			const catalog: McpMarketplaceCatalog = {
+				items: (response.data || []).map((item: any) => ({
+					...item,
+					githubStars: item.githubStars ?? 0,
+					downloadCount: item.downloadCount ?? 0,
+					tags: item.tags ?? [],
+				})),
+			}
+
+			// Store in global state
+			await this.updateGlobalState("mcpMarketplaceCatalog", catalog)
+			return catalog
+		} catch (error) {
+			console.error("Failed to fetch MCP marketplace:", error)
+			if (!silent) {
+				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
+				await this.postMessageToWebview({
+					type: "mcpMarketplaceCatalog",
+					error: errorMessage,
+				})
+				vscode.window.showErrorMessage(errorMessage)
+			}
+			return undefined
+		}
+	}
+
+	async prefetchMcpMarketplace() {
+		try {
+			await this.fetchMcpMarketplaceFromApi(true)
+		} catch (error) {
+			console.error("Failed to prefetch MCP marketplace:", error)
+		}
+	}
+
+	async silentlyRefreshMcpMarketplace() {
+		try {
+			const catalog = await this.fetchMcpMarketplaceFromApi(true)
+			if (catalog) {
+				await this.postMessageToWebview({
+					type: "mcpMarketplaceCatalog",
+					mcpMarketplaceCatalog: catalog,
+				})
+			}
+		} catch (error) {
+			console.error("Failed to silently refresh MCP marketplace:", error)
+		}
+	}
+
 	private async fetchMcpMarketplace(forceRefresh: boolean = false) {
 		try {
 			// Check if we have cached data
@@ -390,41 +450,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				return
 			}
 
-			try {
-				const response = await axios.get("https://api.cline.bot/v1/mcp/marketplace", {
-					headers: {
-						"Content-Type": "application/json",
-					},
-				})
-
-				if (!response.data) {
-					throw new Error("Invalid response from MCP marketplace API")
-				}
-
-				const catalog: McpMarketplaceCatalog = {
-					items: (response.data || []).map((item: any) => ({
-						...item,
-						githubStars: item.githubStars ?? 0,
-						downloadCount: item.downloadCount ?? 0,
-						tags: item.tags ?? [],
-					})),
-				}
-
-				// Store in global state
-				await this.updateGlobalState("mcpMarketplaceCatalog", catalog)
-
+			const catalog = await this.fetchMcpMarketplaceFromApi(false)
+			if (catalog) {
 				await this.postMessageToWebview({
 					type: "mcpMarketplaceCatalog",
 					mcpMarketplaceCatalog: catalog,
 				})
-			} catch (error) {
-				console.error("Failed to fetch MCP marketplace:", error)
-				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				await this.postMessageToWebview({
-					type: "mcpMarketplaceCatalog",
-					error: errorMessage,
-				})
-				vscode.window.showErrorMessage(errorMessage)
 			}
 		} catch (error) {
 			console.error("Failed to handle cached MCP marketplace:", error)
@@ -540,19 +571,23 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
 						// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
 						// (see normalizeApiConfiguration > openrouter)
-						this.refreshOpenRouterModels().then(async (openRouterModels) => {
-							if (openRouterModels) {
-								// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-								const { apiConfiguration } = await this.getState()
-								if (apiConfiguration.openRouterModelId) {
-									await this.updateGlobalState(
-										"openRouterModelInfo",
-										openRouterModels[apiConfiguration.openRouterModelId],
-									)
-									await this.postStateToWebview()
+						// Prefetch marketplace and OpenRouter models
+						Promise.all([
+							this.prefetchMcpMarketplace(),
+							this.refreshOpenRouterModels().then(async (openRouterModels) => {
+								if (openRouterModels) {
+									// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+									const { apiConfiguration } = await this.getState()
+									if (apiConfiguration.openRouterModelId) {
+										await this.updateGlobalState(
+											"openRouterModelInfo",
+											openRouterModels[apiConfiguration.openRouterModelId],
+										)
+										await this.postStateToWebview()
+									}
 								}
-							}
-						})
+							}),
+						]).catch(console.error)
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
@@ -927,6 +962,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						if (message.mcpId) {
 							await this.downloadMcp(message.mcpId)
 						}
+						break
+					}
+					case "silentlyRefreshMcpMarketplace": {
+						await this.silentlyRefreshMcpMarketplace()
 						break
 					}
 					case "openMcpMarketplaceServerDetails": {
