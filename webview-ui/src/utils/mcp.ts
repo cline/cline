@@ -1,4 +1,4 @@
-import { McpResource, McpResourceTemplate } from "../../../src/shared/mcp"
+import { McpMarketplaceCatalog, McpResource, McpResourceTemplate } from "../../../src/shared/mcp"
 
 /**
  * Matches a URI against an array of URI templates and returns the matching template
@@ -39,4 +39,26 @@ export function findMatchingResourceOrTemplate(
 
 	// If no exact match, try to find a matching template
 	return findMatchingTemplate(uri, templates)
+}
+
+/**
+ * Attempts to convert an MCP server name to its display name using the marketplace catalog
+ * @param serverName The server name/ID to look up
+ * @param mcpMarketplaceCatalog The marketplace catalog containing server metadata
+ * @returns The display name if found in catalog, otherwise returns the original server name
+ */
+export function getMcpServerDisplayName(serverName: string, mcpMarketplaceCatalog: McpMarketplaceCatalog): string {
+	// Find matching item in marketplace catalog
+	const catalogItem = mcpMarketplaceCatalog.items.find((item) => item.mcpId === serverName)
+	// Log if no matching catalog item found
+	if (!catalogItem) {
+		console.warn(`No marketplace catalog item found for MCP server: ${serverName}`)
+	} else {
+		console.log(`Found marketplace catalog item for MCP server: ${serverName}`, catalogItem)
+	}
+
+	console.log(mcpMarketplaceCatalog)
+
+	// Return display name if found, otherwise return original server name
+	return catalogItem?.name || serverName
 }
