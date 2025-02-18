@@ -295,6 +295,7 @@ const McpMarketplaceView = () => {
 							height: "100%",
 							padding: "20px",
 							color: "var(--vscode-descriptionForeground)",
+							borderBottom: "1px solid var(--vscode-list-inactiveSelectionBackground)",
 						}}>
 						{searchQuery || selectedCategory
 							? "No matching MCP servers found"

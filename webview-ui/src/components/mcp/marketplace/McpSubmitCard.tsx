@@ -10,7 +10,6 @@ const McpSubmitCard = () => {
 				alignItems: "center",
 				gap: "24px",
 				padding: "32px 20px",
-				borderTop: "1px solid var(--vscode-list-inactiveSelectionBackground)",
 				marginTop: "16px",
 			}}>
 			{/* Logo */}
