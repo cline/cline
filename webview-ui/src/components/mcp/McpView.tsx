@@ -7,6 +7,7 @@ import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import McpMarketplaceView from "./marketplace/McpMarketplaceView"
 import styled from "styled-components"
+import { getMcpServerDisplayName } from "../../utils/mcp"
 
 type McpViewProps = {
 	onDone: () => void
@@ -238,6 +239,8 @@ const TabButton = ({ children, isActive, onClick }: { children: React.ReactNode;
 
 // Server Row Component
 const ServerRow = ({ server }: { server: McpServer }) => {
+	const { mcpMarketplaceCatalog } = useExtensionState()
+
 	const [isExpanded, setIsExpanded] = useState(false)
 
 	const getStatusColor = () => {
@@ -290,7 +293,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 						alignItems: "center",
 						marginRight: "4px",
 					}}>
-					{server.name}
+					{getMcpServerDisplayName(server.name, mcpMarketplaceCatalog)}
 				</span>
 				<div style={{ display: "flex", alignItems: "center", marginRight: "8px" }} onClick={(e) => e.stopPropagation()}>
 					<div
