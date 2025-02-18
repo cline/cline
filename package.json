@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.3.2",
+	"version": "3.4.0",
 	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
 		"color": "#617A91",
@@ -162,6 +162,11 @@
 					"default": true,
 					"description": "Enables extension to save checkpoints of workspace throughout the task."
 				},
+				"cline.disableBrowserTool": {
+					"type": "boolean",
+					"default": false,
+					"description": "Disables extension from spawning browser session."
+				},
 				"cline.modelSettings.o3Mini.reasoningEffort": {
 					"type": "string",
 					"enum": [
@@ -218,7 +223,7 @@
 		"@vscode/test-cli": "^0.0.9",
 		"@vscode/test-electron": "^2.4.0",
 		"chai": "^4.3.10",
-		"esbuild": "^0.21.5",
+		"esbuild": "^0.25.0",
 		"eslint": "^8.57.0",
 		"husky": "^9.1.7",
 		"npm-run-all": "^4.1.5",
@@ -231,7 +236,7 @@
 		"@anthropic-ai/sdk": "^0.26.0",
 		"@anthropic-ai/vertex-sdk": "^0.4.1",
 		"@google/generative-ai": "^0.18.0",
-		"@mistralai/mistralai": "^1.3.6",
+		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.0.1",
 		"@types/clone-deep": "^4.0.4",
 		"@types/get-folder-size": "^3.0.4",
