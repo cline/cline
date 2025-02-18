@@ -16,14 +16,14 @@ mermaid.initialize({
 	startOnLoad: false,
 	securityLevel: "loose",
 	theme: "dark",
-	themeVariables: {
-		background: MERMAID_THEME.background,
-		textColor: MERMAID_THEME.textColor,
-		mainBkg: MERMAID_THEME.mainBkg,
-		lineColor: MERMAID_THEME.lineColor,
-		fontSize: "16px",
-		primaryColor: MERMAID_THEME.primaryColor,
-	},
+	// themeVariables: {
+	// 	background: MERMAID_THEME.background,
+	// 	textColor: MERMAID_THEME.textColor,
+	// 	mainBkg: MERMAID_THEME.mainBkg,
+	// 	lineColor: MERMAID_THEME.lineColor,
+	// 	fontSize: "16px",
+	// 	primaryColor: MERMAID_THEME.primaryColor,
+	// },
 })
 
 interface MermaidBlockProps {
@@ -93,10 +93,10 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 
 	return (
 		<MermaidBlockContainer>
-			{isLoading && <LoadingMessage>Creating mermaid chart...</LoadingMessage>}
+			{isLoading && <LoadingMessage>Generating mermaid diagram...</LoadingMessage>}
 
 			{/* The container for the final <svg> or raw code. */}
-			<SvgContainer ref={containerRef} $isLoading={isLoading} />
+			<SvgContainer onClick={handleClick} ref={containerRef} $isLoading={isLoading} />
 		</MermaidBlockContainer>
 	)
 }
