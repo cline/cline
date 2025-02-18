@@ -86,18 +86,13 @@ export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
 	 */
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		// Ensure child implementation is called
-		if (this instanceof EnterpriseHandler) {
-			const cacheKey = this.generateCacheKey(systemPrompt, messages)
-			if (this.cache.has(cacheKey)) {
-				yield* this.cache.get(cacheKey)!
-				return
-			}
-			let resultStream = yield* this.createEnterpriseMessage(systemPrompt, messages)
-			this.cache.set(cacheKey, resultStream)
-		} else {
-			throw new Error("Method not implemented. Please use a subclass that implements this method.")
+		const cacheKey = this.generateCacheKey(systemPrompt, messages)
+		if (this.cache.has(cacheKey)) {
+			yield* this.cache.get(cacheKey)!
+			return
 		}
+		let resultStream = yield* this.createEnterpriseMessage(systemPrompt, messages)
+		this.cache.set(cacheKey, resultStream)
 	}
 
 	/**

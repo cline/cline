@@ -38,9 +38,8 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 		} catch (error) {
 			console.error("Failed to initialize Bedrock client:", error)
 			throw error
-		} finally {
-			return new AnthropicBedrock(clientConfig)
 		}
+		return new AnthropicBedrock(clientConfig)
 	}
 
 	async *createEnterpriseMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {

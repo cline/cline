@@ -32,7 +32,7 @@ describe("ApiOptions", () => {
 		renderComponent()
 		const dropdown = screen.getAllByRole("combobox")[0]
 		await userEvent.click(dropdown)
-		const option = screen.getByRole("option", { name: "OpenRouter" })
+		const option = screen.getByRole("option", { name: "OpenAI" })
 		await userEvent.click(option)
 		expect(screen.getByPlaceholderText(/Enter API Key/i)).toBeInTheDocument()
 	})
