@@ -5,7 +5,7 @@
 - Fix input box revert issue and configuration loss during profile switch (thanks @System233!)
 - Fix default preferred language for zh-cn and zh-tw (thanks @System233!)
 - Fix Mistral integration (thanks @d-oit!)
-- Feature to mention @terminal to pull terminal output into context (thanks Cline!)
+- Feature to mention `@terminal` to pull terminal output into context (thanks Cline!)
 - Fix system prompt to make sure Roo knows about all available modes
 - Enable streaming mode for OpenAI o1
 
