@@ -45,7 +45,7 @@ const WelcomeView = () => {
 				/>
 			</div>
 
-			<div className="sticky bottom-0 bg-[var(--vscode-editor-background)] py-3">
+			<div className="sticky bottom-0 bg-[var(--vscode-sideBar-background)] py-3">
 				<div className="flex flex-col gap-1.5">
 					<VSCodeButton onClick={handleSubmit}>Let's go!</VSCodeButton>
 					{errorMessage && <span className="text-destructive">{errorMessage}</span>}
