@@ -1139,14 +1139,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
 							<SwitchOption
 								isActive={chatSettings.mode === "plan"}
-								onMouseOver={() => setShownToolipMode("plan")}
-								onMouseLeave={() => setShownToolipMode(null)}>
+								onMouseOver={() => setShownTooltipMode("plan")}
+								onMouseLeave={() => setShownTooltipMode(null)}>
 								Plan
 							</SwitchOption>
 							<SwitchOption
 								isActive={chatSettings.mode === "act"}
-								onMouseOver={() => setShownToolipMode("act")}
-								onMouseLeave={() => setShownToolipMode(null)}>
+								onMouseOver={() => setShownTooltipMode("act")}
+								onMouseLeave={() => setShownTooltipMode(null)}>
 								Act
 							</SwitchOption>
 						</SwitchContainer>
