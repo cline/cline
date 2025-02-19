@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useEvent } from "react-use"
+import { memo, useCallback, useMemo, useState } from "react"
+import { useDebounce, useEvent } from "react-use"
 import { Checkbox, Dropdown, Pane, type DropdownOption } from "vscrui"
 import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { TemperatureControl } from "./TemperatureControl"
@@ -88,29 +88,21 @@ const ApiOptions = ({
 		return normalizeApiConfiguration(apiConfiguration)
 	}, [apiConfiguration])
 
-	const requestLocalModelsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 	// Pull ollama/lmstudio models
-	const requestLocalModels = useCallback(() => {
-		if (selectedProvider === "ollama") {
-			vscode.postMessage({ type: "requestOllamaModels", text: apiConfiguration?.ollamaBaseUrl })
-		} else if (selectedProvider === "lmstudio") {
-			vscode.postMessage({ type: "requestLmStudioModels", text: apiConfiguration?.lmStudioBaseUrl })
-		} else if (selectedProvider === "vscode-lm") {
-			vscode.postMessage({ type: "requestVsCodeLmModels" })
-		}
-	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl])
 	// Debounced model updates, only executed 250ms after the user stops typing
-	useEffect(() => {
-		if (requestLocalModelsTimeoutRef.current) {
-			clearTimeout(requestLocalModelsTimeoutRef.current)
-		}
-		requestLocalModelsTimeoutRef.current = setTimeout(requestLocalModels, 250)
-		return () => {
-			if (requestLocalModelsTimeoutRef.current) {
-				clearTimeout(requestLocalModelsTimeoutRef.current)
+	useDebounce(
+		() => {
+			if (selectedProvider === "ollama") {
+				vscode.postMessage({ type: "requestOllamaModels", text: apiConfiguration?.ollamaBaseUrl })
+			} else if (selectedProvider === "lmstudio") {
+				vscode.postMessage({ type: "requestLmStudioModels", text: apiConfiguration?.lmStudioBaseUrl })
+			} else if (selectedProvider === "vscode-lm") {
+				vscode.postMessage({ type: "requestVsCodeLmModels" })
 			}
-		}
-	}, [requestLocalModels])
+		},
+		250,
+		[selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl],
+	)
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		if (message.type === "ollamaModels" && Array.isArray(message.ollamaModels)) {
@@ -663,8 +655,7 @@ const ApiOptions = ({
 						]}>
 						<div
 							style={{
-								padding: 15,
-								backgroundColor: "var(--vscode-editor-background)",
+								padding: 12,
 							}}>
 							<p
 								style={{
@@ -678,24 +669,11 @@ const ApiOptions = ({
 							</p>
 
 							{/* Capabilities Section */}
-							<div
-								style={{
-									marginBottom: 20,
-									padding: 12,
-									backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
-									borderRadius: 4,
-								}}>
-								<span
-									style={{
-										fontWeight: 500,
-										fontSize: "12px",
-										display: "block",
-										marginBottom: 12,
-										color: "var(--vscode-editor-foreground)",
-									}}>
+							<div>
+								<h3 className="font-medium text-sm text-vscode-editor-foreground">
 									Model Capabilities
-								</span>
-								<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+								</h3>
+								<div className="flex flex-col gap-2">
 									<div className="token-config-field">
 										<VSCodeTextField
 											value={
@@ -792,158 +770,104 @@ const ApiOptions = ({
 											</span>
 										</div>
 									</div>
+								</div>
+							</div>
 
-									<div
-										style={{
-											backgroundColor: "var(--vscode-editor-background)",
-											padding: "12px",
-											borderRadius: "4px",
-											marginTop: "8px",
-											border: "1px solid var(--vscode-input-border)",
-											transition: "background-color 0.2s ease",
-										}}>
-										<span
+							<div>
+								<h3 className="font-medium text-sm text-vscode-editor-foreground">Model Features</h3>
+								<div className="flex flex-col gap-2">
+									<div className="feature-toggle">
+										<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+											<Checkbox
+												checked={
+													apiConfiguration?.openAiCustomModelInfo?.supportsImages ??
+													openAiModelInfoSaneDefaults.supportsImages
+												}
+												onChange={handleInputChange("openAiCustomModelInfo", (checked) => {
+													return {
+														...(apiConfiguration?.openAiCustomModelInfo ||
+															openAiModelInfoSaneDefaults),
+														supportsImages: checked,
+													}
+												})}>
+												<span style={{ fontWeight: 500 }}>Image Support</span>
+											</Checkbox>
+											<i
+												className="codicon codicon-info"
+												title="Enable if the model can process and understand images in the input. Required for image-based assistance and visual code understanding."
+												style={{
+													fontSize: "12px",
+													color: "var(--vscode-descriptionForeground)",
+													cursor: "help",
+												}}
+											/>
+										</div>
+										<p
 											style={{
 												fontSize: "11px",
-												fontWeight: 500,
-												color: "var(--vscode-editor-foreground)",
-												display: "block",
-												marginBottom: "10px",
+												color: "var(--vscode-descriptionForeground)",
+												marginLeft: "24px",
+												marginTop: "4px",
+												lineHeight: "1.4",
+												marginBottom: 0,
 											}}>
-											Model Features
-										</span>
+											Allows the model to analyze and understand images, essential for visual code
+											assistance
+										</p>
+									</div>
 
-										<div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-											<div className="feature-toggle">
-												<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-													<Checkbox
-														checked={
-															apiConfiguration?.openAiCustomModelInfo?.supportsImages ??
-															openAiModelInfoSaneDefaults.supportsImages
-														}
-														onChange={handleInputChange(
-															"openAiCustomModelInfo",
-															(checked) => {
-																return {
-																	...(apiConfiguration?.openAiCustomModelInfo ||
-																		openAiModelInfoSaneDefaults),
-																	supportsImages: checked,
-																}
-															},
-														)}>
-														<span style={{ fontWeight: 500 }}>Image Support</span>
-													</Checkbox>
-													<i
-														className="codicon codicon-info"
-														title="Enable if the model can process and understand images in the input. Required for image-based assistance and visual code understanding."
-														style={{
-															fontSize: "12px",
-															color: "var(--vscode-descriptionForeground)",
-															cursor: "help",
-														}}
-													/>
-												</div>
-												<p
-													style={{
-														fontSize: "11px",
-														color: "var(--vscode-descriptionForeground)",
-														marginLeft: "24px",
-														marginTop: "4px",
-														lineHeight: "1.4",
-													}}>
-													Allows the model to analyze and understand images, essential for
-													visual code assistance
-												</p>
-											</div>
-
-											<div
-												className="feature-toggle"
+									<div
+										className="feature-toggle"
+										style={{
+											borderTop: "1px solid var(--vscode-input-border)",
+										}}>
+										<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+											<Checkbox
+												checked={
+													apiConfiguration?.openAiCustomModelInfo?.supportsComputerUse ??
+													false
+												}
+												onChange={handleInputChange("openAiCustomModelInfo", (checked) => {
+													return {
+														...(apiConfiguration?.openAiCustomModelInfo ||
+															openAiModelInfoSaneDefaults),
+														supportsComputerUse: checked,
+													}
+												})}>
+												<span style={{ fontWeight: 500 }}>Computer Use</span>
+											</Checkbox>
+											<i
+												className="codicon codicon-info"
+												title="Enable if the model can interact with your computer through commands and file operations. Required for automated tasks and file modifications."
 												style={{
-													borderTop: "1px solid var(--vscode-input-border)",
-													paddingTop: "12px",
-												}}>
-												<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-													<Checkbox
-														checked={
-															apiConfiguration?.openAiCustomModelInfo
-																?.supportsComputerUse ?? false
-														}
-														onChange={handleInputChange(
-															"openAiCustomModelInfo",
-															(checked) => {
-																return {
-																	...(apiConfiguration?.openAiCustomModelInfo ||
-																		openAiModelInfoSaneDefaults),
-																	supportsComputerUse: checked,
-																}
-															},
-														)}>
-														<span style={{ fontWeight: 500 }}>Computer Use</span>
-													</Checkbox>
-													<i
-														className="codicon codicon-info"
-														title="Enable if the model can interact with your computer through commands and file operations. Required for automated tasks and file modifications."
-														style={{
-															fontSize: "12px",
-															color: "var(--vscode-descriptionForeground)",
-															cursor: "help",
-														}}
-													/>
-												</div>
-												<p
-													style={{
-														fontSize: "11px",
-														color: "var(--vscode-descriptionForeground)",
-														marginLeft: "24px",
-														marginTop: "4px",
-														lineHeight: "1.4",
-													}}>
-													This model feature is for computer use like sonnet 3.5 support
-												</p>
-											</div>
+													fontSize: "12px",
+													color: "var(--vscode-descriptionForeground)",
+													cursor: "help",
+												}}
+											/>
 										</div>
+										<p
+											style={{
+												fontSize: "11px",
+												color: "var(--vscode-descriptionForeground)",
+												marginLeft: "24px",
+												marginTop: "4px",
+												lineHeight: "1.4",
+												marginBottom: 0,
+											}}>
+											This model feature is for computer use like sonnet 3.5 support
+										</p>
 									</div>
 								</div>
 							</div>
 
 							{/* Pricing Section */}
-							<div
-								style={{
-									backgroundColor: "var(--vscode-editor-inactiveSelectionBackground)",
-									padding: "12px",
-									borderRadius: "4px",
-									marginTop: "15px",
-								}}>
-								<div style={{ marginBottom: "12px" }}>
-									<span
-										style={{
-											fontWeight: 500,
-											fontSize: "12px",
-											color: "var(--vscode-editor-foreground)",
-											display: "block",
-											marginBottom: "4px",
-										}}>
-										Model Pricing
-									</span>
-									<span
-										style={{
-											fontSize: "11px",
-											color: "var(--vscode-descriptionForeground)",
-											display: "block",
-										}}>
-										Configure token-based pricing in USD per million tokens
-									</span>
-								</div>
-
-								<div
-									style={{
-										display: "grid",
-										gridTemplateColumns: "1fr 1fr",
-										gap: "12px",
-										backgroundColor: "var(--vscode-editor-background)",
-										padding: "12px",
-										borderRadius: "4px",
-									}}>
+							<div>
+								<h3 className="font-medium text-sm text-vscode-editor-foreground mb-0">
+									Model Pricing
+								</h3>
+								<div className="text-xs">Configure token-based pricing in USD per million tokens</div>
+								<div className="flex flex-row gap-2 mt-1.5">
 									<div className="price-input">
 										<VSCodeTextField
 											value={

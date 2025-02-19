@@ -10,7 +10,16 @@ import ApiConfigManager from "./ApiConfigManager"
 import { Dropdown } from "vscrui"
 import type { DropdownOption } from "vscrui"
 import { ApiConfiguration } from "../../../../src/shared/api"
-import ConfirmDialog from "../ui/comfirm-dialog"
+import {
+	AlertDialog,
+	AlertDialogContent,
+	AlertDialogTitle,
+	AlertDialogDescription,
+	AlertDialogCancel,
+	AlertDialogAction,
+	AlertDialogHeader,
+	AlertDialogFooter,
+} from "../ui/alert-dialog"
 
 type SettingsViewProps = {
 	onDone: () => void
@@ -223,13 +232,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		paddingBottom: "2px",
 	}
 
-	const sliderStyle = {
-		flexGrow: 1,
-		maxWidth: "80%",
-		accentColor: "var(--vscode-button-background)",
-		height: "2px",
-	}
-
 	return (
 		<div
 			style={{
@@ -243,14 +245,21 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				flexDirection: "column",
 				overflow: "hidden",
 			}}>
-			<ConfirmDialog
-				icon="codicon-warning"
-				title="Unsaved changes"
-				message="Do you want to discard changes and continue?"
-				show={isDiscardDialogShow}
-				onResult={onConfirmDialogResult}
-				onClose={() => setDiscardDialogShow(false)}
-				aria-labelledby="unsave-warning-dialog"></ConfirmDialog>
+			<AlertDialog open={isDiscardDialogShow} onOpenChange={setDiscardDialogShow}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+						<AlertDialogDescription>
+							<span style={{ fontSize: "2em" }} className={`codicon codicon-warning align-middle mr-1`} />
+							Do you want to discard changes and continue?
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogAction onClick={() => onConfirmDialogResult(true)}>Yes</AlertDialogAction>
+						<AlertDialogCancel onClick={() => onConfirmDialogResult(false)}>No</AlertDialogCancel>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 			<div
 				style={{
 					display: "flex",
@@ -378,11 +387,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 										step="100"
 										value={writeDelayMs}
 										onChange={(e) => setCachedStateField("writeDelayMs", parseInt(e.target.value))}
-										style={{
-											flex: 1,
-											accentColor: "var(--vscode-button-background)",
-											height: "2px",
-										}}
+										className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 									/>
 									<span style={{ minWidth: "45px", textAlign: "left" }}>{writeDelayMs}ms</span>
 								</div>
@@ -437,11 +442,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 										onChange={(e) =>
 											setCachedStateField("requestDelaySeconds", parseInt(e.target.value))
 										}
-										style={{
-											flex: 1,
-											accentColor: "var(--vscode-button-background)",
-											height: "2px",
-										}}
+										className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 									/>
 									<span style={{ minWidth: "45px", textAlign: "left" }}>{requestDelaySeconds}s</span>
 								</div>
@@ -535,30 +536,11 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									{(allowedCommands ?? []).map((cmd, index) => (
 										<div
 											key={index}
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "5px",
-												backgroundColor: "var(--vscode-button-secondaryBackground)",
-												padding: "2px 6px",
-												borderRadius: "4px",
-												border: "1px solid var(--vscode-button-secondaryBorder)",
-												height: "24px",
-											}}>
+											className="border border-vscode-input-border bg-primary text-primary-foreground flex items-center gap-1 rounded-xs px-1.5 p-0.5">
 											<span>{cmd}</span>
 											<VSCodeButton
 												appearance="icon"
-												style={{
-													padding: 0,
-													margin: 0,
-													height: "20px",
-													width: "20px",
-													minWidth: "20px",
-													display: "flex",
-													alignItems: "center",
-													justifyContent: "center",
-													color: "var(--vscode-button-foreground)",
-												}}
+												className="text-primary-foreground"
 												onClick={() => {
 													const newCommands = (allowedCommands ?? []).filter(
 														(_, i) => i !== index,
@@ -619,10 +601,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									max="100"
 									step="1"
 									value={screenshotQuality ?? 75}
+									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 									onChange={(e) => setCachedStateField("screenshotQuality", parseInt(e.target.value))}
-									style={{
-										...sliderStyle,
-									}}
 								/>
 								<span style={{ ...sliderLabelStyle }}>{screenshotQuality ?? 75}%</span>
 							</div>
@@ -672,11 +652,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									step="0.01"
 									value={soundVolume ?? 0.5}
 									onChange={(e) => setCachedStateField("soundVolume", parseFloat(e.target.value))}
-									style={{
-										flexGrow: 1,
-										accentColor: "var(--vscode-button-background)",
-										height: "2px",
-									}}
+									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 									aria-label="Volume"
 								/>
 								<span style={{ minWidth: "35px", textAlign: "left" }}>
@@ -700,7 +676,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									step="1"
 									value={rateLimitSeconds}
 									onChange={(e) => setCachedStateField("rateLimitSeconds", parseInt(e.target.value))}
-									style={{ ...sliderStyle }}
+									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 								/>
 								<span style={{ ...sliderLabelStyle }}>{rateLimitSeconds}s</span>
 							</div>
@@ -722,7 +698,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									onChange={(e) =>
 										setCachedStateField("terminalOutputLineLimit", parseInt(e.target.value))
 									}
-									style={{ ...sliderStyle }}
+									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 								/>
 								<span style={{ ...sliderLabelStyle }}>{terminalOutputLineLimit ?? 500}</span>
 							</div>
@@ -746,7 +722,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									onChange={(e) =>
 										setCachedStateField("maxOpenTabsContext", parseInt(e.target.value))
 									}
-									style={{ ...sliderStyle }}
+									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 								/>
 								<span style={{ ...sliderLabelStyle }}>{maxOpenTabsContext ?? 20}</span>
 							</div>
@@ -802,9 +778,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 											onChange={(e) => {
 												setCachedStateField("fuzzyMatchThreshold", parseFloat(e.target.value))
 											}}
-											style={{
-												...sliderStyle,
-											}}
+											className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 										/>
 										<span style={{ ...sliderLabelStyle }}>
 											{Math.round((fuzzyMatchThreshold || 1) * 100)}%
