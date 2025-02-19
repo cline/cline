@@ -114,8 +114,8 @@ async function svgToPng(svgEl: SVGElement): Promise<string> {
 	// Calculate the scale factor to fit editor width while maintaining aspect ratio
 
 	// Unless we can find a way to get the actual editor window dimensions through the VS Code API (which might be possible but would require changes to the extension side),
-	// the fixed 1200px width seems like a reliable approach.
-	const editorWidth = 1200
+	// the fixed width seems like a reliable approach.
+	const editorWidth = 3_600
 
 	const scale = editorWidth / originalWidth
 	const scaledHeight = originalHeight * scale
