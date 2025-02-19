@@ -174,4 +174,6 @@ const SvgContainer = styled.div<SvgContainerProps>`
 	min-height: 20px;
 	transition: opacity 0.2s ease;
 	cursor: pointer;
+	display: flex;
+	justify-content: center;
 `
