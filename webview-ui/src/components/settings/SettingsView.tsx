@@ -401,7 +401,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 										color: "var(--vscode-descriptionForeground)",
 									}}>
 									Command prefixes that can be auto-executed when "Always approve execute operations"
-									is enabled.
+									is enabled. Add * to allow all commands (use with caution).
 								</p>
 
 								<div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
