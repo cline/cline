@@ -93,6 +93,7 @@ export interface WebviewMessage {
 		| "openCustomModesSettings"
 		| "checkpointDiff"
 		| "checkpointRestore"
+		| "deleteMcpServer"
 		| "maxOpenTabsContext"
 	text?: string
 	disabled?: boolean
