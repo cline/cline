@@ -173,4 +173,5 @@ const SvgContainer = styled.div<SvgContainerProps>`
 	opacity: ${(props) => (props.$isLoading ? 0.3 : 1)};
 	min-height: 20px;
 	transition: opacity 0.2s ease;
+	cursor: pointer;
 `
