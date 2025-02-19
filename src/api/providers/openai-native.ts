@@ -24,6 +24,14 @@ export class OpenAiNativeHandler implements ApiHandler {
 		})
 	}
 
+	private async *yieldUsage(usage: CompletionsAPI.CompletionUsage | null) {
+		yield {
+			type: "usage",
+			inputTokens: usage?.prompt_tokens || 0,
+			outputTokens: usage?.completion_tokens || 0,
+		}
+	}
+
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
@@ -41,11 +49,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 					type: "text",
 					text: response.choices[0]?.message.content || "",
 				}
-				yield {
-					type: "usage",
-					inputTokens: response.usage?.prompt_tokens || 0,
-					outputTokens: response.usage?.completion_tokens || 0,
-				}
+
+				yield* this.yieldUsage(response.usage)
+
 				break
 			}
 			case "o3-mini": {
@@ -65,11 +71,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 						}
 					}
 					if (chunk.usage) {
-						yield {
-							type: "usage",
-							inputTokens: chunk.usage.prompt_tokens || 0,
-							outputTokens: chunk.usage.completion_tokens || 0,
-						}
+						// Only last chunk contains usage
+						yield* this.yieldUsage(chunk.usage)
 					}
 				}
 				break
@@ -92,14 +95,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 							text: delta.content,
 						}
 					}
-
-					// contains a null value except for the last chunk which contains the token usage statistics for the entire request
 					if (chunk.usage) {
-						yield {
-							type: "usage",
-							inputTokens: chunk.usage.prompt_tokens || 0,
-							outputTokens: chunk.usage.completion_tokens || 0,
-						}
+						// Only last chunk contains usage
+						yield* this.yieldUsage(chunk.usage)
 					}
 				}
 			}
