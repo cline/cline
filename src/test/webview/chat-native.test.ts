@@ -84,7 +84,7 @@ describe("Chat Integration Tests", () => {
 		// Set up state change listener
 		const stateChangePromise = new Promise<any>((resolve) => {
 			panel.webview.onDidReceiveMessage((message) => {
-				if (message.type === "chatSettings") {
+				if (message.type === "togglePlanActMode") {
 					resolve(message)
 				}
 			})
@@ -102,7 +102,7 @@ describe("Chat Integration Tests", () => {
 		// Set up state change listener
 		const stateChangePromise = new Promise<any>((resolve) => {
 			panel.webview.onDidReceiveMessage((message) => {
-				if (message.type === "chatSettings") {
+				if (message.type === "togglePlanActMode") {
 					resolve(message)
 				}
 			})
