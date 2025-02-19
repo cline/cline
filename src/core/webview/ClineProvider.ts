@@ -2220,18 +2220,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 			if (response.data) {
 				const rawModels: Record<string, any> = response.data
-
 				for (const [modelId, model] of Object.entries(rawModels)) {
 					models[modelId] = {
-						maxTokens: model.maxTokens ? parseInt(model.maxTokens) : undefined,
-						contextWindow: model.contextWindow ? parseInt(model.contextWindow) : 0,
-						supportsImages: model.supportsImages ?? false,
-						supportsPromptCache: model.supportsPromptCaching ?? false,
-						supportsComputerUse: model.supportsComputerUse ?? false,
-						inputPrice: model.inputTokenPrice ? parseFloat(model.inputTokenPrice) : undefined,
-						outputPrice: model.outputTokenPrice ? parseFloat(model.outputTokenPrice) : undefined,
-						cacheWritesPrice: model.cacheWritePrice ? parseFloat(model.cacheWritePrice) : undefined,
-						cacheReadsPrice: model.cacheReadPrice ? parseFloat(model.cacheReadPrice) : undefined,
+						maxTokens: model?.maxTokens ? parseInt(model.maxTokens) : undefined,
+						contextWindow: model?.contextWindow ? parseInt(model.contextWindow) : 0,
+						supportsImages: model?.supportsImages ?? false,
+						supportsPromptCache: model?.supportsPromptCaching ?? false,
+						supportsComputerUse: model?.supportsComputerUse ?? false,
+						inputPrice: model?.inputTokenPrice ? parseFloat(model.inputTokenPrice) : undefined,
+						outputPrice: model?.outputTokenPrice ? parseFloat(model.outputTokenPrice) : undefined,
+						cacheWritesPrice: model?.cacheWritePrice ? parseFloat(model.cacheWritePrice) : undefined,
+						cacheReadsPrice: model?.cacheReadPrice ? parseFloat(model.cacheReadPrice) : undefined,
 					}
 				}
 			}
