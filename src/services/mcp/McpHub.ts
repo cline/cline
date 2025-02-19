@@ -576,6 +576,59 @@ export class McpHub {
 		}
 	}
 
+	public async deleteServer(serverName: string): Promise<void> {
+		try {
+			const settingsPath = await this.getMcpSettingsFilePath()
+
+			// Ensure the settings file exists and is accessible
+			try {
+				await fs.access(settingsPath)
+			} catch (error) {
+				throw new Error("Settings file not accessible")
+			}
+
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+
+			// Validate the config structure
+			if (!config || typeof config !== "object") {
+				throw new Error("Invalid config structure")
+			}
+
+			if (!config.mcpServers || typeof config.mcpServers !== "object") {
+				config.mcpServers = {}
+			}
+
+			// Remove the server from the settings
+			if (config.mcpServers[serverName]) {
+				delete config.mcpServers[serverName]
+
+				// Write the entire config back
+				const updatedConfig = {
+					mcpServers: config.mcpServers,
+				}
+
+				await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
+
+				// Update server connections
+				await this.updateServerConnections(config.mcpServers)
+
+				vscode.window.showInformationMessage(`Deleted MCP server: ${serverName}`)
+			} else {
+				vscode.window.showWarningMessage(`Server "${serverName}" not found in configuration`)
+			}
+		} catch (error) {
+			console.error("Failed to delete MCP server:", error)
+			if (error instanceof Error) {
+				console.error("Error details:", error.message, error.stack)
+			}
+			vscode.window.showErrorMessage(
+				`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`,
+			)
+			throw error
+		}
+	}
+
 	async readResource(serverName: string, uri: string): Promise<McpResourceResponse> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {

@@ -948,69 +948,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 						try {
 							this.outputChannel.appendLine(`Attempting to delete MCP server: ${message.serverName}`)
-
-							const settingsPath = await this.mcpHub?.getMcpSettingsFilePath()
-							if (!settingsPath) {
-								throw new Error("Could not get MCP settings file path")
-							}
-
-							// Ensure the settings file exists and is accessible
-							try {
-								await fs.access(settingsPath)
-							} catch (error) {
-								this.outputChannel.appendLine("Settings file not accessible")
-								throw new Error("Settings file not accessible")
-							}
-
-							this.outputChannel.appendLine(`Reading MCP settings from: ${settingsPath}`)
-							const content = await fs.readFile(settingsPath, "utf-8")
-							const config = JSON.parse(content)
-
-							// Validate the config structure
-							if (!config || typeof config !== "object") {
-								throw new Error("Invalid config structure")
-							}
-
-							if (!config.mcpServers || typeof config.mcpServers !== "object") {
-								config.mcpServers = {}
-							}
-
-							// Remove the server from the settings
-							if (config.mcpServers[message.serverName]) {
-								this.outputChannel.appendLine(
-									`Removing server ${message.serverName} from configuration`,
-								)
-								delete config.mcpServers[message.serverName]
-
-								// Write the entire config back
-								const updatedConfig = {
-									mcpServers: config.mcpServers,
-								}
-
-								await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
-
-								// Update server connections through McpHub
-								this.outputChannel.appendLine("Updating server connections")
-								await this.mcpHub?.updateServerConnections(config.mcpServers)
-
-								this.outputChannel.appendLine(`Successfully deleted MCP server: ${message.serverName}`)
-								vscode.window.showInformationMessage(`Deleted MCP server: ${message.serverName}`)
-							} else {
-								this.outputChannel.appendLine(`Server ${message.serverName} not found in configuration`)
-								vscode.window.showWarningMessage(
-									`Server "${message.serverName}" not found in configuration`,
-								)
-							}
+							await this.mcpHub?.deleteServer(message.serverName)
+							this.outputChannel.appendLine(`Successfully deleted MCP server: ${message.serverName}`)
 						} catch (error) {
-							console.error("Failed to delete MCP server:", error)
-							if (error instanceof Error) {
-								console.error("Error details:", error.message, error.stack)
-							}
 							const errorMessage = error instanceof Error ? error.message : String(error)
 							this.outputChannel.appendLine(`Failed to delete MCP server: ${errorMessage}`)
-							vscode.window.showErrorMessage(
-								`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`,
-							)
+							// Error messages are already handled by McpHub.deleteServer
 						}
 						break
 					}
