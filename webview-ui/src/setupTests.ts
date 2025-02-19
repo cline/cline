@@ -1,3 +1,6 @@
+import "@testing-library/jest-dom"
+import { vi } from "vitest"
+
 // "Official" jest workaround for mocking window.matchMedia()
 // https://jestjs.io/docs/manual-mocks#mocking-methods-which-are-not-implemented-in-jsdom
 
