@@ -23,6 +23,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 
 	useEffect(() => {
 		vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" })
+		vscode.postMessage({ type: "fetchLatestMcpServersFromHub" })
 	}, [])
 
 	// const [servers, setServers] = useState<McpServer[]>([

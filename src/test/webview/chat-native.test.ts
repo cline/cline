@@ -29,7 +29,7 @@ describe("Chat Integration Tests", () => {
                                     break;
                                 case 'toggleMode':
                                     vscode.postMessage({
-                                        type: 'chatSettings',
+                                        type: 'togglePlanActMode',
                                         chatSettings: { mode: 'act' }, 
                                         chatContent: {
                                             message: "message test",
