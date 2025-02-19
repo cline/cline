@@ -11,6 +11,13 @@ type SettingsViewProps = {
 	onDone: () => void
 }
 
+const fetchMemoryBank = async () => {
+	const response = await fetch(
+		"https://raw.githubusercontent.com/cline/cline/refs/heads/main/docs/prompting/custom%20instructions%20library/raw-instructions/cline-memory-bank.md",
+	)
+	return await response.text()
+}
+
 const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const { apiConfiguration, version, customInstructions, setCustomInstructions, openRouterModels } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
@@ -103,6 +110,15 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						placeholder={'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'}
 						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
 						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
+						<VSCodeLink
+							style={{ float: "right" }}
+							onClick={async () => {
+								setCustomInstructions(
+									`${customInstructions ? customInstructions + "\n" : ""}${await fetchMemoryBank()}`,
+								)
+							}}>
+							Add Memory Bank
+						</VSCodeLink>
 					</VSCodeTextArea>
 					<p
 						style={{

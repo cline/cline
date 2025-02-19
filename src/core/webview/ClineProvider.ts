@@ -360,6 +360,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				*/
 		const nonce = getNonce()
 
+		// TODO: Make this more robust if we plan to add more CSP rules.
+		function cspBuilder() {
+			let csp = ""
+			csp += `default-src 'none';`
+			csp += `connect-src https://raw.githubusercontent.com/cline/cline/refs/heads/main/docs/prompting/custom%20instructions%20library/raw-instructions/cline-memory-bank.md;`
+			csp += `font-src ${webview.cspSource};`
+			csp += `style-src ${webview.cspSource} 'unsafe-inline';`
+			csp += `img-src ${webview.cspSource} https: data:;`
+			csp += `script-src 'nonce-${nonce}';`
+
+			return csp
+		}
+
 		// Tip: Install the es6-string-html VS Code extension to enable code highlighting below
 		return /*html*/ `
         <!DOCTYPE html>
@@ -368,6 +381,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
             <meta name="theme-color" content="#000000">
+            <meta http-equiv="Content-Security-Policy" content="${cspBuilder()}">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
             <link href="${codiconsUri}" rel="stylesheet" />
 						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://*.posthog.com; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' https://*.posthog.com;">
