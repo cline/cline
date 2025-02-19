@@ -1,72 +1,86 @@
 import { ApiConfiguration } from "./api"
-import { AutoApprovalSettings } from "./AutoApprovalSettings"
-import { BrowserSettings } from "./BrowserSettings"
-import { ChatSettings } from "./ChatSettings"
-import { ChatContent } from "./ChatContent"
+
+export type WebviewMessageType =
+	| "webviewDidLaunch"
+	| "newTask"
+	| "apiConfiguration"
+	| "customInstructions"
+	| "autoApprovalSettings"
+	| "browserSettings"
+	| "chatSettings"
+	| "askResponse"
+	| "clearTask"
+	| "didShowAnnouncement"
+	| "selectImages"
+	| "exportCurrentTask"
+	| "showTaskWithId"
+	| "deleteTaskWithId"
+	| "exportTaskWithId"
+	| "resetState"
+	| "openImage"
+	| "openFile"
+	| "openMention"
+	| "checkpointDiff"
+	| "checkpointRestore"
+	| "taskCompletionViewChanges"
+	| "cancelTask"
+	| "getLatestState"
+	| "accountLoginClicked"
+	| "accountLogoutClicked"
+	| "searchCommits"
+	| "openExtensionSettings"
 
 export interface WebviewMessage {
-	type:
-		| "apiConfiguration"
-		| "customInstructions"
-		| "webviewDidLaunch"
-		| "newTask"
-		| "askResponse"
-		| "clearTask"
-		| "didShowAnnouncement"
-		| "selectImages"
-		| "exportCurrentTask"
-		| "showTaskWithId"
-		| "deleteTaskWithId"
-		| "exportTaskWithId"
-		| "resetState"
-		| "requestOllamaModels"
-		| "requestLmStudioModels"
-		| "openImage"
-		| "openFile"
-		| "openMention"
-		| "cancelTask"
-		| "refreshOpenRouterModels"
-		| "refreshOpenAiModels"
-		| "openMcpSettings"
-		| "restartMcpServer"
-		| "autoApprovalSettings"
-		| "browserSettings"
-		| "chatSettings"
-		| "checkpointDiff"
-		| "checkpointRestore"
-		| "taskCompletionViewChanges"
-		| "openExtensionSettings"
-		| "requestVsCodeLmModels"
-		| "toggleToolAutoApprove"
-		| "toggleMcpServer"
-		| "getLatestState"
-		| "accountLoginClicked"
-		| "accountLogoutClicked"
-		| "subscribeEmail"
-		| "fetchMcpMarketplace"
-		| "downloadMcp"
-		| "silentlyRefreshMcpMarketplace"
-		| "searchCommits"
-	// | "relaunchChromeDebugMode"
+	type: WebviewMessageType
 	text?: string
-	disabled?: boolean
-	askResponse?: ClineAskResponse
-	apiConfiguration?: ApiConfiguration
 	images?: string[]
-	bool?: boolean
+	apiConfiguration?: ApiConfiguration
+	autoApprovalSettings?: any
+	browserSettings?: any
+	chatSettings?: any
+	chatContent?: {
+		message?: string
+		images?: string[]
+	}
+	askResponse?: ClineAskResponse
 	number?: number
-	autoApprovalSettings?: AutoApprovalSettings
-	browserSettings?: BrowserSettings
-	chatSettings?: ChatSettings
-	chatContent?: ChatContent
-	mcpId?: string
-
-	// For toggleToolAutoApprove
-	serverName?: string
-	toolName?: string
-	autoApprove?: boolean
 }
 
-export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
+export interface ClineAskResponse {
+	text: string
+	images?: string[]
+}
 
-export type ClineCheckpointRestore = "task" | "workspace" | "taskAndWorkspace"
+export interface ClineCheckpointRestore {
+	checkpointNumber: number
+	restoreMode: "task" | "workspace" | "taskAndWorkspace"
+}
+
+export interface ChatSettings {
+	mode: "act" | "plan"
+	autoScroll: boolean
+	showTimestamps: boolean
+	showCheckpoints: boolean
+	showDiffs: boolean
+	showLineNumbers: boolean
+	showGutter: boolean
+	showMinimap: boolean
+	showIndentGuides: boolean
+	showInvisibles: boolean
+	wordWrap: boolean
+	theme: string
+	fontSize: number
+	lineHeight: number
+	fontFamily: string
+	tabSize: number
+	useSoftTabs: boolean
+	useSpaces: boolean
+	trimTrailingWhitespace: boolean
+	insertFinalNewline: boolean
+	trimFinalNewlines: boolean
+}
+
+export interface AutoApprovalSettings {
+	enabled: boolean
+	tools: string[]
+}

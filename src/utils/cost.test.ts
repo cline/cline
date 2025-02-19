@@ -7,6 +7,9 @@ describe("Cost Utilities", () => {
 	describe("calculateApiCost", () => {
 		it("should calculate basic input/output costs", () => {
 			const modelInfo: ModelInfo = {
+				id: "test-model",
+				name: "Test Model",
+				provider: "test",
 				supportsPromptCache: false,
 				inputPrice: 3.0, // $3 per million tokens
 				outputPrice: 15.0, // $15 per million tokens
@@ -21,6 +24,9 @@ describe("Cost Utilities", () => {
 
 		it("should handle missing prices", () => {
 			const modelInfo: ModelInfo = {
+				id: "test-model",
+				name: "Test Model",
+				provider: "test",
 				supportsPromptCache: true,
 				// No prices specified
 			}
@@ -31,10 +37,12 @@ describe("Cost Utilities", () => {
 
 		it("should use real model configuration (Claude 3.5 Sonnet)", () => {
 			const modelInfo: ModelInfo = {
+				id: "claude-3.5-sonnet",
+				name: "Claude 3.5 Sonnet",
+				provider: "anthropic",
 				maxTokens: 8192,
 				contextWindow: 200_000,
 				supportsImages: true,
-				supportsComputerUse: true,
 				supportsPromptCache: true,
 				inputPrice: 3.0,
 				outputPrice: 15.0,
@@ -53,6 +61,9 @@ describe("Cost Utilities", () => {
 
 		it("should handle zero token counts", () => {
 			const modelInfo: ModelInfo = {
+				id: "test-model",
+				name: "Test Model",
+				provider: "test",
 				supportsPromptCache: true,
 				inputPrice: 3.0,
 				outputPrice: 15.0,

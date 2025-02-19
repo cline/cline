@@ -1,37 +1,39 @@
-// type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
-
-import { GitCommit } from "../utils/git"
-import { ApiConfiguration, ModelInfo } from "./api"
-import { AutoApprovalSettings } from "./AutoApprovalSettings"
-import { BrowserSettings } from "./BrowserSettings"
-import { ChatSettings } from "./ChatSettings"
+import { ApiConfiguration } from "./api"
 import { HistoryItem } from "./HistoryItem"
-import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
+import { GitCommit } from "../utils/git"
 
-// webview will hold state
-export interface ExtensionMessage {
-	type:
-		| "action"
-		| "state"
-		| "selectedImages"
-		| "ollamaModels"
-		| "lmStudioModels"
-		| "theme"
-		| "workspaceUpdated"
-		| "invoke"
-		| "partialMessage"
-		| "openRouterModels"
-		| "openAiModels"
-		| "mcpServers"
-		| "relinquishControl"
-		| "vsCodeLmModels"
-		| "requestVsCodeLmModels"
-		| "emailSubscribed"
-		| "mcpMarketplaceCatalog"
-		| "mcpDownloadDetails"
-		| "commitSearchResults"
-	text?: string
-	action?:
+export type Platform = "win32" | "darwin" | "linux"
+
+export interface ExtensionState {
+	version: string
+	apiConfiguration: ApiConfiguration
+	customInstructions?: string
+	uriScheme: string
+	currentTaskItem?: HistoryItem
+	checkpointTrackerErrorMessage?: string
+	clineMessages: any[]
+	taskHistory: HistoryItem[]
+	shouldShowAnnouncement: boolean
+	platform: Platform
+	autoApprovalSettings: any
+	browserSettings: any
+	chatSettings: any
+	isLoggedIn: boolean
+	userInfo?: any
+	commits?: GitCommit[]
+	workspaceFolders?: string[]
+	workspace?: string
+}
+
+export interface WorkspaceUpdateMessage {
+	type: "workspaceUpdated"
+	workspace: string
+	workspaceFolders: string[]
+}
+
+export interface ActionMessage {
+	type: "action"
+	action:
 		| "chatButtonClicked"
 		| "mcpButtonClicked"
 		| "settingsButtonClicked"
@@ -39,157 +41,115 @@ export interface ExtensionMessage {
 		| "didBecomeVisible"
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
-	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
-	state?: ExtensionState
-	images?: string[]
-	ollamaModels?: string[]
-	lmStudioModels?: string[]
-	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
-	filePaths?: string[]
-	partialMessage?: ClineMessage
-	openRouterModels?: Record<string, ModelInfo>
-	openAiModels?: string[]
-	mcpServers?: McpServer[]
-	mcpMarketplaceCatalog?: McpMarketplaceCatalog
-	error?: string
-	mcpDownloadDetails?: McpDownloadResponse
-	commits?: GitCommit[]
 }
 
-export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
-
-export const DEFAULT_PLATFORM = "unknown"
-
-export interface ExtensionState {
-	version: string
-	apiConfiguration?: ApiConfiguration
-	customInstructions?: string
-	uriScheme?: string
-	currentTaskItem?: HistoryItem
-	checkpointTrackerErrorMessage?: string
-	clineMessages: ClineMessage[]
-	taskHistory: HistoryItem[]
-	shouldShowAnnouncement: boolean
-	autoApprovalSettings: AutoApprovalSettings
-	browserSettings: BrowserSettings
-	chatSettings: ChatSettings
-	isLoggedIn: boolean
-	platform: Platform
-	userInfo?: {
-		displayName: string | null
-		email: string | null
-		photoURL: string | null
-	}
+export interface StateMessage {
+	type: "state"
+	state: ExtensionState
 }
 
-export interface ClineMessage {
-	ts: number
-	type: "ask" | "say"
-	ask?: ClineAsk
-	say?: ClineSay
+export interface ThemeMessage {
+	type: "theme"
+	text: string
+}
+
+export interface InvokeMessage {
+	type: "invoke"
+	invoke: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 	text?: string
-	reasoning?: string
 	images?: string[]
-	partial?: boolean
-	lastCheckpointHash?: string
-	isCheckpointCheckedOut?: boolean
-	conversationHistoryIndex?: number
-	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 }
 
-export type ClineAsk =
-	| "followup"
-	| "plan_mode_response"
-	| "command"
-	| "command_output"
-	| "completion_result"
-	| "tool"
-	| "api_req_failed"
-	| "resume_task"
-	| "resume_completed_task"
-	| "mistake_limit_reached"
-	| "auto_approval_max_req_reached"
-	| "browser_action_launch"
-	| "use_mcp_server"
-
-export type ClineSay =
-	| "task"
-	| "error"
-	| "api_req_started"
-	| "api_req_finished"
-	| "text"
-	| "reasoning"
-	| "completion_result"
-	| "user_feedback"
-	| "user_feedback_diff"
-	| "api_req_retried"
-	| "command"
-	| "command_output"
-	| "tool"
-	| "shell_integration_warning"
-	| "browser_action_launch"
-	| "browser_action"
-	| "browser_action_result"
-	| "mcp_server_request_started"
-	| "mcp_server_response"
-	| "use_mcp_server"
-	| "diff_error"
-	| "deleted_api_reqs"
-	| "clineignore_error"
-	| "checkpoint_created"
-
-export interface ClineSayTool {
-	tool:
-		| "editedExistingFile"
-		| "newFileCreated"
-		| "readFile"
-		| "listFilesTopLevel"
-		| "listFilesRecursive"
-		| "listCodeDefinitionNames"
-		| "searchFiles"
-	path?: string
-	diff?: string
-	content?: string
-	regex?: string
-	filePattern?: string
+export interface SelectedImagesMessage {
+	type: "selectedImages"
+	images: string[]
 }
 
-// must keep in sync with system prompt
-export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
-export type BrowserAction = (typeof browserActions)[number]
+export interface CommitSearchResultsMessage {
+	type: "commitSearchResults"
+	commits: GitCommit[]
+}
 
-export interface ClineSayBrowserAction {
-	action: BrowserAction
+export interface BrowserAction {
+	type: "launch" | "click" | "type" | "scroll_down" | "scroll_up" | "close"
+	url?: string
 	coordinate?: string
 	text?: string
 }
 
-export type BrowserActionResult = {
+export interface BrowserActionResult {
+	success: boolean
+	error?: string
 	screenshot?: string
-	logs?: string
-	currentUrl?: string
-	currentMousePosition?: string
+	logs?: string[]
+}
+
+export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
+
+export interface ClineApiReqInfo {
+	id: string
+	model: string
+	inputTokens: number
+	outputTokens: number
+	cacheWrites: number
+	cacheReads: number
+	cost: number
+}
+
+export type ClineApiReqCancelReason = "user" | "error" | "timeout"
+
+export interface ClineAsk {
+	text: string
+	type: "text" | "tool" | "browser" | "mcp"
+	requires_approval: boolean
 }
 
 export interface ClineAskUseMcpServer {
-	serverName: string
-	type: "use_mcp_tool" | "access_mcp_resource"
-	toolName?: string
-	arguments?: string
-	uri?: string
+	text: string
+	type: "mcp"
+	requires_approval: boolean
+	server_name: string
+	tool_name: string
 }
 
-export interface ClineApiReqInfo {
-	request?: string
-	tokensIn?: number
-	tokensOut?: number
-	cacheWrites?: number
-	cacheReads?: number
-	cost?: number
-	cancelReason?: ClineApiReqCancelReason
-	streamingFailedMessage?: string
+export interface ClineSay {
+	text: string
+	type: "text"
 }
 
-export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
+export interface ClineSayTool {
+	text: string
+	type: "tool"
+	tool: string
+	args: string[]
+}
 
-export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"
+export interface ClineSayBrowserAction {
+	text: string
+	type: "browser"
+	action: BrowserAction
+}
+
+export type ClineMessage = ClineSay | ClineSayTool | ClineSayBrowserAction | ClineAsk | ClineAskUseMcpServer
+
+export const COMPLETION_RESULT_CHANGES_FLAG = "COMPLETION_RESULT_CHANGES"
+
+export interface PartialMessage {
+	type: "partialMessage"
+	text: string
+}
+
+export interface RelinquishControl {
+	type: "relinquishControl"
+}
+
+export type ExtensionMessage =
+	| WorkspaceUpdateMessage
+	| ActionMessage
+	| StateMessage
+	| ThemeMessage
+	| InvokeMessage
+	| SelectedImagesMessage
+	| CommitSearchResultsMessage
+	| PartialMessage
+	| RelinquishControl
