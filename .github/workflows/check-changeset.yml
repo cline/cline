@@ -40,13 +40,12 @@ jobs:
                   echo "Changed files:"
                   echo "$CHANGED_FILES"
 
-                  echo "Listing .changeset directory:"
-                  ls -la .changeset/
-
                   # Check if any of the changed files are in docs/ or .github/
+                  echo "Checking if changes are docs-only..."
                   DOCS_ONLY=true
                   while IFS= read -r file; do
                     if [[ ! "$file" =~ ^(docs/|.github/) ]]; then
+                      echo "Found non-docs change: $file"
                       DOCS_ONLY=false
                       break
                     fi
@@ -54,14 +53,17 @@ jobs:
 
                   # If changes are docs-only, skip changeset check
                   if [ "$DOCS_ONLY" = true ]; then
-                    echo "Only documentation files were changed, skipping changeset check"
+                    echo "All changes are in docs/ or .github/, skipping changeset check"
                     exit 0
+                  else
+                    echo "Changes include non-docs files, checking for changeset..."
                   fi
 
                   # Check if any changeset files are in the changed files
+                  echo "Checking for changeset files in changed files..."
                   CHANGESET_IN_PR=false
                   while IFS= read -r file; do
-                    if [[ "$file" =~ ^\.changeset/.*\.md$ && "$file" != ".changeset/README.md" ]]; then
+                    if [[ "$file" =~ ^\.changeset/.*\.md$ && "$file" != ".changeset/README.md" && "$file" != ".changeset/config.json" ]]; then
                       echo "Found changeset file in PR: $file"
                       CHANGESET_IN_PR=true
                       break
@@ -69,14 +71,10 @@ jobs:
                   done <<< "$CHANGED_FILES"
 
                   if [ "$CHANGESET_IN_PR" = false ]; then
-                    # Double check local changeset files as backup
-                    CHANGESETS=$(find .changeset -name "*.md" ! -name "README.md" | wc -l | tr -d ' ')
-                    echo "Number of local changesets: $CHANGESETS"
-
-                    if [ "$CHANGESETS" -eq 0 ]; then
-                      echo "::error::No changeset file found in PR changes or local directory. Please run 'npm run changeset' to create one."
-                      exit 1
-                    fi
+                    echo "No changeset files found in changed files. Changed files in .changeset/:"
+                    echo "$CHANGED_FILES" | grep "^\.changeset/" || true
+                    echo "::error::No changeset file found in PR changes. Please run 'npm run changeset' to create one."
+                    exit 1
                   fi
 
             - name: Comment on PR

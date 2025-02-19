@@ -20,6 +20,8 @@ import {
 	bedrockModels,
 	deepSeekDefaultModelId,
 	deepSeekModels,
+	qwenDefaultModelId,
+	qwenModels,
 	geminiDefaultModelId,
 	geminiModels,
 	mistralDefaultModelId,
@@ -179,14 +181,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					}}>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
+					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
+					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
+					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
 					<VSCodeOption value="gemini">Google Gemini</VSCodeOption>
 					<VSCodeOption value="deepseek">DeepSeek</VSCodeOption>
 					<VSCodeOption value="mistral">Mistral</VSCodeOption>
-					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
-					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openai-native">OpenAI</VSCodeOption>
-					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="vscode-lm">VS Code LM API</VSCodeOption>
+					<VSCodeOption value="requesty">Requesty</VSCodeOption>
+					<VSCodeOption value="together">Together</VSCodeOption>
+					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
@@ -313,6 +318,62 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
+			{selectedProvider === "qwen" && (
+				<div>
+					<DropdownContainer className="dropdown-container" style={{ position: "inherit" }}>
+						<label htmlFor="qwen-line-provider">
+							<span style={{ fontWeight: 500, marginTop: 5 }}>Alibaba API Line</span>
+						</label>
+						<VSCodeDropdown
+							id="qwen-line-provider"
+							value={apiConfiguration?.qwenApiLine || "china"}
+							onChange={handleInputChange("qwenApiLine")}
+							style={{
+								minWidth: 130,
+								position: "relative",
+							}}>
+							<VSCodeOption value="china">China API</VSCodeOption>
+							<VSCodeOption value="international">International API</VSCodeOption>
+						</VSCodeDropdown>
+					</DropdownContainer>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Please select the appropriate API interface based on your location. If you are in China, choose the China
+						API interface. Otherwise, choose the International API interface.
+					</p>
+					<VSCodeTextField
+						value={apiConfiguration?.qwenApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("qwenApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Qwen API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.qwenApiKey && (
+							<VSCodeLink
+								href="https://bailian.console.aliyun.com/"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Qwen API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
 			{selectedProvider === "mistral" && (
 				<div>
 					<VSCodeTextField
@@ -386,30 +447,56 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						flexDirection: "column",
 						gap: 5,
 					}}>
-					<VSCodeTextField
-						value={apiConfiguration?.awsAccessKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("awsAccessKey")}
-						placeholder="Enter Access Key...">
-						<span style={{ fontWeight: 500 }}>AWS Access Key</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.awsSecretKey || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("awsSecretKey")}
-						placeholder="Enter Secret Key...">
-						<span style={{ fontWeight: 500 }}>AWS Secret Key</span>
-					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.awsSessionToken || ""}
-						style={{ width: "100%" }}
-						type="password"
-						onInput={handleInputChange("awsSessionToken")}
-						placeholder="Enter Session Token...">
-						<span style={{ fontWeight: 500 }}>AWS Session Token</span>
-					</VSCodeTextField>
+					<VSCodeRadioGroup
+						value={apiConfiguration?.awsUseProfile ? "profile" : "credentials"}
+						onChange={(e) => {
+							const value = (e.target as HTMLInputElement)?.value
+							const useProfile = value === "profile"
+							setApiConfiguration({
+								...apiConfiguration,
+								awsUseProfile: useProfile,
+							})
+						}}>
+						<VSCodeRadio value="credentials">AWS Credentials</VSCodeRadio>
+						<VSCodeRadio value="profile">AWS Profile</VSCodeRadio>
+					</VSCodeRadioGroup>
+
+					{apiConfiguration?.awsUseProfile ? (
+						<VSCodeTextField
+							value={apiConfiguration?.awsProfile || ""}
+							style={{ width: "100%" }}
+							onInput={handleInputChange("awsProfile")}
+							placeholder="Enter profile name (default if empty)">
+							<span style={{ fontWeight: 500 }}>AWS Profile Name</span>
+						</VSCodeTextField>
+					) : (
+						<>
+							<VSCodeTextField
+								value={apiConfiguration?.awsAccessKey || ""}
+								style={{ width: "100%" }}
+								type="password"
+								onInput={handleInputChange("awsAccessKey")}
+								placeholder="Enter Access Key...">
+								<span style={{ fontWeight: 500 }}>AWS Access Key</span>
+							</VSCodeTextField>
+							<VSCodeTextField
+								value={apiConfiguration?.awsSecretKey || ""}
+								style={{ width: "100%" }}
+								type="password"
+								onInput={handleInputChange("awsSecretKey")}
+								placeholder="Enter Secret Key...">
+								<span style={{ fontWeight: 500 }}>AWS Secret Key</span>
+							</VSCodeTextField>
+							<VSCodeTextField
+								value={apiConfiguration?.awsSessionToken || ""}
+								style={{ width: "100%" }}
+								type="password"
+								onInput={handleInputChange("awsSessionToken")}
+								placeholder="Enter Session Token...">
+								<span style={{ fontWeight: 500 }}>AWS Session Token</span>
+							</VSCodeTextField>
+						</>
+					)}
 					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 1} className="dropdown-container">
 						<label htmlFor="aws-region-dropdown">
 							<span style={{ fontWeight: 500 }}>AWS Region</span>
@@ -464,9 +551,18 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Authenticate by either providing the keys above or use the default AWS credential providers, i.e.
-						~/.aws/credentials or environment variables. These credentials are only used locally to make API requests
-						from this extension.
+						{apiConfiguration?.awsUseProfile ? (
+							<>
+								Using AWS Profile credentials from ~/.aws/credentials. Leave profile name empty to use the default
+								profile. These credentials are only used locally to make API requests from this extension.
+							</>
+						) : (
+							<>
+								Authenticate by either providing the keys above or use the default AWS credential providers, i.e.
+								~/.aws/credentials or environment variables. These credentials are only used locally to make API
+								requests from this extension.
+							</>
+						)}
 					</p>
 				</div>
 			)}
@@ -601,6 +697,68 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
 						/>
 					)}
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "requesty" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.requestyApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("requestyApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>API Key</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.requestyModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("requestyModelId")}
+						placeholder={"Enter Model ID..."}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "together" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.togetherApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("togetherApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>API Key</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.togetherModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("togetherModelId")}
+						placeholder={"Enter Model ID..."}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
 					<p
 						style={{
 							fontSize: "12px",
@@ -917,6 +1075,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
+							{selectedProvider === "qwen" && createDropdown(qwenModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 							{selectedProvider === "sapaicore" && createDropdown(sapAiCoreModels)}
 						</DropdownContainer>
@@ -1125,6 +1284,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
 		case "deepseek":
 			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
+		case "qwen":
+			return getProviderData(qwenModels, qwenDefaultModelId)
 		case "mistral":
 			return getProviderData(mistralModels, mistralDefaultModelId)
 		case "openrouter":

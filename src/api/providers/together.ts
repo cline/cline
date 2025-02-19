@@ -1,36 +1,27 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI, { AzureOpenAI } from "openai"
+import OpenAI from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, azureOpenAiDefaultApiVersion, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 
-export class OpenAiHandler implements ApiHandler {
+export class TogetherHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
-		if (this.options.openAiBaseUrl?.toLowerCase().includes("azure.com")) {
-			this.client = new AzureOpenAI({
-				baseURL: this.options.openAiBaseUrl,
-				apiKey: this.options.openAiApiKey,
-				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
-			})
-		} else {
-			this.client = new OpenAI({
-				baseURL: this.options.openAiBaseUrl,
-				apiKey: this.options.openAiApiKey,
-			})
-		}
+		this.client = new OpenAI({
+			baseURL: "https://api.together.xyz/v1",
+			apiKey: this.options.togetherApiKey,
+		})
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const modelId = this.options.openAiModelId ?? ""
+		const modelId = this.options.togetherModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -77,7 +68,7 @@ export class OpenAiHandler implements ApiHandler {
 
 	getModel(): { id: string; info: ModelInfo } {
 		return {
-			id: this.options.openAiModelId ?? "",
+			id: this.options.togetherModelId ?? "",
 			info: openAiModelInfoSaneDefaults,
 		}
 	}

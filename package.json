@@ -2,7 +2,7 @@
 	"name": "cline-for-sap-ai-core",
 	"displayName": "Cline for SAP AI Core",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.2.13",
+	"version": "3.3.2",
 	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
 		"color": "#617A91",
@@ -161,6 +161,26 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Enables extension to save checkpoints of workspace throughout the task."
+				},
+				"cline.disableBrowserTool": {
+					"type": "boolean",
+					"default": false,
+					"description": "Disables extension from spawning browser session."
+				},
+				"cline.modelSettings.o3Mini.reasoningEffort": {
+					"type": "string",
+					"enum": [
+						"low",
+						"medium",
+						"high"
+					],
+					"default": "medium",
+					"description": "Controls the reasoning effort when using the o3-mini model. Higher values may result in more thorough but slower responses."
+				},
+				"cline.chromeExecutablePath": {
+					"type": "string",
+					"default": null,
+					"description": "Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find or download it automatically."
 				}
 			}
 		}
@@ -203,7 +223,7 @@
 		"@vscode/test-cli": "^0.0.9",
 		"@vscode/test-electron": "^2.4.0",
 		"chai": "^4.3.10",
-		"esbuild": "^0.21.5",
+		"esbuild": "^0.25.0",
 		"eslint": "^8.57.0",
 		"husky": "^9.1.7",
 		"npm-run-all": "^4.1.5",
@@ -239,7 +259,7 @@
 		"isbinaryfile": "^5.0.2",
 		"mammoth": "^1.8.0",
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
-		"openai": "^4.82.0",
+		"openai": "^4.83.0",
 		"os-name": "^6.0.0",
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
