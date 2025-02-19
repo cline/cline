@@ -412,6 +412,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							<option value="English">English</option>
 							<option value="Arabic">Arabic - العربية</option>
 							<option value="Brazilian Portuguese">Portuguese - Português (Brasil)</option>
+							<option value="Catalan">Catalan - Català</option>
 							<option value="Czech">Czech - Čeština</option>
 							<option value="French">French - Français</option>
 							<option value="German">German - Deutsch</option>
