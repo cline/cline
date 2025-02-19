@@ -13,7 +13,7 @@ import {
 } from "../../../../src/shared/ExtensionMessage"
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "../../../../src/shared/combineCommandSequences"
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { findMatchingResourceOrTemplate } from "../../utils/mcp"
+import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
@@ -100,7 +100,7 @@ const ChatRow = memo(
 export default ChatRow
 
 export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
-	const { mcpServers } = useExtensionState()
+	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
@@ -201,9 +201,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								marginBottom: "-1.5px",
 							}}></span>
 					),
-					<span style={{ color: normalColor, fontWeight: "bold" }}>
+					<span style={{ color: normalColor, fontWeight: "bold", wordBreak: "break-word" }}>
 						Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
-						<code>{mcpServerUse.serverName}</code> MCP server:
+						<code style={{ wordBreak: "break-all" }}>
+							{getMcpServerDisplayName(mcpServerUse.serverName, mcpMarketplaceCatalog)}
+						</code>{" "}
+						MCP server:
 					</span>,
 				]
 			case "completion_result":

@@ -31,7 +31,7 @@ export interface WebviewMessage {
 		| "restartMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
-		| "chatSettings"
+		| "togglePlanActMode"
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
@@ -43,7 +43,12 @@ export interface WebviewMessage {
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "subscribeEmail"
+		| "fetchMcpMarketplace"
+		| "downloadMcp"
+		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
+		| "showMcpView"
+		| "fetchLatestMcpServersFromHub"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -56,6 +61,7 @@ export interface WebviewMessage {
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
+	mcpId?: string
 
 	// For toggleToolAutoApprove
 	serverName?: string
