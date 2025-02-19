@@ -472,6 +472,10 @@ export class McpHub {
 		})
 	}
 
+	async sendLatestMcpServers() {
+		await this.notifyWebviewOfServerChanges()
+	}
+
 	// Using server
 
 	// Public methods for server management
