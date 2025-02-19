@@ -111,7 +111,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	private authManager: FirebaseAuthManager
-	private latestAnnouncementId = "jan-20-2025" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "feb-18-2025" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -786,6 +786,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 					case "accountLogoutClicked": {
 						await this.handleSignOut()
+						break
+					}
+					case "showMcpView": {
+						await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked" })
 						break
 					}
 					case "openMcpSettings": {

@@ -2,6 +2,8 @@
 
 ## [3.4.0]
 
+-   Introducing MCP Marketplace! You can now discover and install the best MCP servers right from within the extension, with new servers added regularly
+-   Add mermaid diagram support in Plan mode! You can now see visual representations of mermaid code blocks in chat, and click on them to see an expanded view
 -   Use more visual checkpoints indicators after editing files & running commands
 -   Create a checkpoint at the beginning of each task to easily revert to the initial state
 -   Add 'Terminal' context mention to reference the active terminal's contents
