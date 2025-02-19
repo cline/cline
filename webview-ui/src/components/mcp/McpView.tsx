@@ -1,10 +1,13 @@
 import { VSCodeButton, VSCodeLink, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { vscode } from "../../utils/vscode"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { McpServer } from "../../../../src/shared/mcp"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
+import McpMarketplaceView from "./marketplace/McpMarketplaceView"
+import styled from "styled-components"
+import { getMcpServerDisplayName } from "../../utils/mcp"
 
 type McpViewProps = {
 	onDone: () => void
@@ -12,6 +15,15 @@ type McpViewProps = {
 
 const McpView = ({ onDone }: McpViewProps) => {
 	const { mcpServers: servers } = useExtensionState()
+	const [activeTab, setActiveTab] = useState("marketplace")
+
+	const handleTabChange = (tab: string) => {
+		setActiveTab(tab)
+	}
+
+	useEffect(() => {
+		vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" })
+	}, [])
 
 	// const [servers, setServers] = useState<McpServer[]>([
 	// 	// Add some mock servers for testing
@@ -90,85 +102,145 @@ const McpView = ({ onDone }: McpViewProps) => {
 					display: "flex",
 					justifyContent: "space-between",
 					alignItems: "center",
-					padding: "10px 17px 10px 20px",
+					padding: "10px 17px 5px 20px",
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>MCP Servers</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
 
-			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
+			<div style={{ flex: 1, overflow: "auto" }}>
+				{/* Tabs container */}
 				<div
 					style={{
-						color: "var(--vscode-foreground)",
-						fontSize: "13px",
-						marginBottom: "16px",
-						marginTop: "5px",
+						display: "flex",
+						gap: "1px",
+						padding: "0 20px 0 20px",
+						borderBottom: "1px solid var(--vscode-panel-border)",
 					}}>
-					The{" "}
-					<VSCodeLink href="https://github.com/modelcontextprotocol" style={{ display: "inline" }}>
-						Model Context Protocol
-					</VSCodeLink>{" "}
-					enables communication with locally running MCP servers that provide additional tools and resources to extend
-					Cline's capabilities. You can use{" "}
-					<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
-						community-made servers
-					</VSCodeLink>{" "}
-					or ask Cline to create new tools specific to your workflow (e.g., "add a tool that gets the latest npm docs").{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
-						See a demo here.
-					</VSCodeLink>
+					<TabButton isActive={activeTab === "marketplace"} onClick={() => handleTabChange("marketplace")}>
+						Marketplace
+					</TabButton>
+					<TabButton isActive={activeTab === "installed"} onClick={() => handleTabChange("installed")}>
+						Installed
+					</TabButton>
 				</div>
 
-				{servers.length > 0 && (
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							gap: "10px",
-						}}>
-						{servers.map((server) => (
-							<ServerRow key={server.name} server={server} />
-						))}
-					</div>
-				)}
+				{/* Content container */}
+				<div style={{ width: "100%" }}>
+					{activeTab === "marketplace" && <McpMarketplaceView />}
+					{activeTab === "installed" && (
+						<div style={{ padding: "16px 20px" }}>
+							<div
+								style={{
+									color: "var(--vscode-foreground)",
+									fontSize: "13px",
+									marginBottom: "16px",
+									marginTop: "5px",
+								}}>
+								The{" "}
+								<VSCodeLink href="https://github.com/modelcontextprotocol" style={{ display: "inline" }}>
+									Model Context Protocol
+								</VSCodeLink>{" "}
+								enables communication with locally running MCP servers that provide additional tools and resources
+								to extend Cline's capabilities. You can use{" "}
+								<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
+									community-made servers
+								</VSCodeLink>{" "}
+								or ask Cline to create new tools specific to your workflow (e.g., "add a tool that gets the latest
+								npm docs").{" "}
+								<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
+									See a demo here.
+								</VSCodeLink>
+							</div>
 
-				{/* Server Configuration Button */}
+							{servers.length > 0 ? (
+								<div
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										gap: "10px",
+									}}>
+									{servers.map((server) => (
+										<ServerRow key={server.name} server={server} />
+									))}
+								</div>
+							) : (
+								<div
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										alignItems: "center",
+										gap: "12px",
+										marginTop: "20px",
+										color: "var(--vscode-descriptionForeground)",
+									}}>
+									<div>No MCP servers installed yet</div>
+									<VSCodeButton appearance="primary" onClick={() => setActiveTab("marketplace")}>
+										<span className="codicon codicon-cloud-download" style={{ marginRight: "6px" }} />
+										Browse Marketplace
+									</VSCodeButton>
+								</div>
+							)}
 
-				<div style={{ marginTop: "10px", width: "100%" }}>
-					<VSCodeButton
-						appearance="secondary"
-						style={{ width: "100%" }}
-						onClick={() => {
-							vscode.postMessage({ type: "openMcpSettings" })
-						}}>
-						<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
-						Configure MCP Servers
-					</VSCodeButton>
+							{/* Settings Section */}
+							<div style={{ marginBottom: "20px", marginTop: 10 }}>
+								<VSCodeButton
+									appearance="secondary"
+									style={{ width: "100%", marginBottom: "5px" }}
+									onClick={() => {
+										vscode.postMessage({ type: "openMcpSettings" })
+									}}>
+									<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
+									Configure MCP Servers
+								</VSCodeButton>
+
+								<div style={{ textAlign: "center" }}>
+									<VSCodeLink
+										onClick={() => {
+											vscode.postMessage({
+												type: "openExtensionSettings",
+												text: "cline.mcp",
+											})
+										}}
+										style={{ fontSize: "12px" }}>
+										Advanced MCP Settings
+									</VSCodeLink>
+								</div>
+							</div>
+						</div>
+					)}
 				</div>
-
-				{/* Advanced Settings Link */}
-				<div style={{ textAlign: "center", marginTop: "5px" }}>
-					<VSCodeLink
-						onClick={() => {
-							vscode.postMessage({
-								type: "openExtensionSettings",
-								text: "cline.mcp",
-							})
-						}}
-						style={{ fontSize: "12px" }}>
-						Advanced MCP Settings
-					</VSCodeLink>
-				</div>
-
-				{/* Bottom padding */}
-				<div style={{ height: "20px" }} />
 			</div>
 		</div>
 	)
 }
 
+const StyledTabButton = styled.button<{ isActive: boolean }>`
+	background: none;
+	border: none;
+	border-bottom: 2px solid ${(props) => (props.isActive ? "var(--vscode-foreground)" : "transparent")};
+	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	padding: 8px 16px;
+	cursor: pointer;
+	font-size: 13px;
+	margin-bottom: -1px;
+	font-family: inherit;
+
+	&:hover {
+		color: var(--vscode-foreground);
+	}
+`
+
+const TabButton = ({ children, isActive, onClick }: { children: React.ReactNode; isActive: boolean; onClick: () => void }) => (
+	<StyledTabButton isActive={isActive} onClick={onClick}>
+		{children}
+	</StyledTabButton>
+)
+
 // Server Row Component
 const ServerRow = ({ server }: { server: McpServer }) => {
+	const { mcpMarketplaceCatalog } = useExtensionState()
+
 	const [isExpanded, setIsExpanded] = useState(false)
 
 	const getStatusColor = () => {
@@ -211,7 +283,18 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 				{!server.error && (
 					<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`} style={{ marginRight: "8px" }} />
 				)}
-				<span style={{ flex: 1 }}>{server.name}</span>
+				<span
+					style={{
+						flex: 1,
+						overflow: "hidden",
+						wordBreak: "break-all",
+						whiteSpace: "normal",
+						display: "flex",
+						alignItems: "center",
+						marginRight: "4px",
+					}}>
+					{getMcpServerDisplayName(server.name, mcpMarketplaceCatalog)}
+				</span>
 				<div style={{ display: "flex", alignItems: "center", marginRight: "8px" }} onClick={(e) => e.stopPropagation()}>
 					<div
 						role="switch"
