@@ -892,10 +892,13 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							appearance="icon"
 							title="Copy system prompt to clipboard"
 							onClick={() => {
-								vscode.postMessage({
-									type: "copySystemPrompt",
-									text: selectedPromptContent,
-								})
+								const currentMode = getCurrentMode()
+								if (currentMode) {
+									vscode.postMessage({
+										type: "copySystemPrompt",
+										mode: currentMode.slug,
+									})
+								}
 							}}
 							data-testid="copy-prompt-button">
 							<span className="codicon codicon-copy"></span>
