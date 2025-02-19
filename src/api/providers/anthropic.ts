@@ -19,7 +19,7 @@ export class AnthropicHandler extends EnterpriseHandler<Anthropic> {
 		const model = this.getModel()
 		const modelId = model.id
 
-		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
+		let stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>
 
 		if (Object.keys(anthropicModels).includes(modelId)) {
 			stream = await this.createEnterpriseModelStream(

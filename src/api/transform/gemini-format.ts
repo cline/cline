@@ -19,6 +19,7 @@ export function convertAnthropicContentToGemini(
 				| Anthropic.Messages.ImageBlockParam
 				| Anthropic.Messages.ToolUseBlockParam
 				| Anthropic.Messages.ToolResultBlockParam
+				| Anthropic.Messages.DocumentBlockParam
 		  >,
 ): Part[] {
 	if (typeof content === "string") {
@@ -31,6 +32,16 @@ export function convertAnthropicContentToGemini(
 			case "image":
 				if (block.source.type !== "base64") {
 					throw new Error("Unsupported image source type")
+				}
+				return {
+					inlineData: {
+						data: block.source.data,
+						mimeType: block.source.media_type,
+					},
+				} as InlineDataPart
+			case "document":
+				if (block.source.type !== "base64") {
+					throw new Error("Unsupported document source type")
 				}
 				return {
 					inlineData: {
@@ -133,7 +144,7 @@ export function convertGeminiResponseToAnthropic(response: EnhancedGenerateConte
 	// Add the main text response
 	const text = response.text()
 	if (text) {
-		content.push({ type: "text", text })
+		content.push({ type: "text", text, citations: [] })
 	}
 
 	// Add function calls as tool_use blocks
@@ -183,6 +194,8 @@ export function convertGeminiResponseToAnthropic(response: EnhancedGenerateConte
 		usage: {
 			input_tokens: response.usageMetadata?.promptTokenCount ?? 0,
 			output_tokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+			cache_creation_input_tokens: null,
+			cache_read_input_tokens: null,
 		},
 	}
 }
