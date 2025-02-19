@@ -767,7 +767,7 @@ IMPORTANT: Regardless of what else you see in the MCP settings file, you must de
 
 (Note: the user may also ask you to install the MCP server to the Claude desktop app, in which case you would read then modify \`~/Library/Application\ Support/Claude/claude_desktop_config.json\` on macOS for example. It follows the same format of a top level \`mcpServers\` object.)
 
-6. After you have edited the MCP settings configuration file, the system will automatically run all the servers and expose the available tools and resources in the 'Connected MCP Servers' section. (Note: sometimes connecting to an MCP server may fail, in which case it might help to explore the server's directory to troubleshoot e.g., it may be outputting the compiled script to dist/ instead of build/)
+6. After you have edited the MCP settings configuration file, the system will automatically run all the servers and expose the available tools and resources in the 'Connected MCP Servers' section. (Note: If you encounter a 'not connected' error when testing a newly installed mcp server, a common cause is an incorrect build path in your MCP settings configuration. Since compiled JavaScript files are commonly output to either 'dist/' or 'build/' directories, double-check that the build path in your MCP settings matches where your files are actually being compiled. E.g. If you assumed 'build' as the folder, check tsconfig.json to see if it's using 'dist' instead.)
 
 7. Now that you have access to these new tools and resources, you may suggest ways the user can command you to invoke them - for example, with this new weather tool now available, you can invite the user to ask "what's the weather in San Francisco?"
 
