@@ -4,7 +4,6 @@ import { ApiHandlerOptions, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/messages.mjs"
 
 /**
  * Abstract base class for enterprise providers.
@@ -70,7 +69,7 @@ export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
 		messages: Anthropic.Messages.MessageParam[],
 		modelId: string,
 		maxTokens: number,
-	): Promise<AnthropicStream<RawMessageStreamEvent>>
+	): Promise<AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>>
 
 	/**
 	 * Initializes the enterprise handler.
@@ -119,7 +118,7 @@ export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
 	 * @param stream - A stream of raw message events.
 	 * @returns An asynchronous generator yielding ApiStream events.
 	 */
-	protected async *processStream(stream: AnthropicStream<RawMessageStreamEvent>): ApiStream {
+	protected async *processStream(stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>): ApiStream {
 		for await (const chunk of stream) {
 			yield* this.processChunk(chunk)
 		}
