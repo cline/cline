@@ -104,6 +104,9 @@ export function isAllowedSingleCommand(command: string, allowedCommands: string[
 export function validateCommand(command: string, allowedCommands: string[]): boolean {
 	if (!command?.trim()) return true
 
+	// If '*' is in allowed commands, everything is allowed
+	if (allowedCommands?.includes("*")) return true
+
 	// Block subshell execution attempts
 	if (command.includes("$(") || command.includes("`")) {
 		return false

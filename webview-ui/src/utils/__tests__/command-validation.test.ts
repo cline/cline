@@ -106,5 +106,16 @@ describe("Command Validation", () => {
 			expect(validateCommand("", allowedCommands)).toBe(true)
 			expect(validateCommand("	", allowedCommands)).toBe(true)
 		})
+
+		it("allows all commands when wildcard is present", () => {
+			const wildcardAllowedCommands = ["*"]
+			// Should allow any command, including dangerous ones
+			expect(validateCommand("rm -rf /", wildcardAllowedCommands)).toBe(true)
+			expect(validateCommand("dangerous-command", wildcardAllowedCommands)).toBe(true)
+			expect(validateCommand("npm test && rm -rf /", wildcardAllowedCommands)).toBe(true)
+			// Should even allow subshell commands that are normally blocked
+			expect(validateCommand("npm test $(echo dangerous)", wildcardAllowedCommands)).toBe(true)
+			expect(validateCommand("npm test `rm -rf /`", wildcardAllowedCommands)).toBe(true)
+		})
 	})
 })
