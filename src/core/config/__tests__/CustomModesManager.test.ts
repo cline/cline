@@ -207,6 +207,57 @@ describe("CustomModesManager", () => {
 			expect(mockOnUpdate).toHaveBeenCalled()
 		})
 
+		it("creates .roomodes file when adding project-specific mode", async () => {
+			const projectMode: ModeConfig = {
+				slug: "project-mode",
+				name: "Project Mode",
+				roleDefinition: "Project Role",
+				groups: ["read"],
+				source: "project",
+			}
+
+			// Mock .roomodes to not exist initially
+			let roomodesContent: any = null
+			;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
+				return path === mockSettingsPath
+			})
+			;(fs.readFile as jest.Mock).mockImplementation(async (path: string) => {
+				if (path === mockSettingsPath) {
+					return JSON.stringify({ customModes: [] })
+				}
+				if (path === mockRoomodes) {
+					if (!roomodesContent) {
+						throw new Error("File not found")
+					}
+					return JSON.stringify(roomodesContent)
+				}
+				throw new Error("File not found")
+			})
+			;(fs.writeFile as jest.Mock).mockImplementation(async (path: string, content: string) => {
+				if (path === mockRoomodes) {
+					roomodesContent = JSON.parse(content)
+				}
+				return Promise.resolve()
+			})
+
+			await manager.updateCustomMode("project-mode", projectMode)
+
+			// Verify .roomodes was created with the project mode
+			expect(fs.writeFile).toHaveBeenCalledWith(mockRoomodes, expect.stringContaining("project-mode"), "utf-8")
+
+			// Verify the content written to .roomodes
+			expect(roomodesContent).toEqual({
+				customModes: [
+					expect.objectContaining({
+						slug: "project-mode",
+						name: "Project Mode",
+						roleDefinition: "Project Role",
+						source: "project",
+					}),
+				],
+			})
+		})
+
 		it("queues write operations", async () => {
 			const mode1: ModeConfig = {
 				slug: "mode1",

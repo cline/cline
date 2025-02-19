@@ -5,6 +5,7 @@ import { CustomModesSettingsSchema } from "./CustomModesSchema"
 import { ModeConfig } from "../../shared/modes"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
+import { logger } from "../../utils/logging"
 
 const ROOMODES_FILENAME = ".roomodes"
 
@@ -214,14 +215,26 @@ export class CustomModesManager {
 		await this.context.globalState.update("customModes", mergedModes)
 		return mergedModes
 	}
-
 	async updateCustomMode(slug: string, config: ModeConfig): Promise<void> {
 		try {
 			const isProjectMode = config.source === "project"
-			const targetPath = isProjectMode ? await this.getWorkspaceRoomodes() : await this.getCustomModesFilePath()
+			let targetPath: string
 
-			if (isProjectMode && !targetPath) {
-				throw new Error("No workspace folder found for project-specific mode")
+			if (isProjectMode) {
+				const workspaceFolders = vscode.workspace.workspaceFolders
+				if (!workspaceFolders || workspaceFolders.length === 0) {
+					logger.error("Failed to update project mode: No workspace folder found", { slug })
+					throw new Error("No workspace folder found for project-specific mode")
+				}
+				const workspaceRoot = workspaceFolders[0].uri.fsPath
+				targetPath = path.join(workspaceRoot, ROOMODES_FILENAME)
+				const exists = await fileExistsAtPath(targetPath)
+				logger.info(`${exists ? "Updating" : "Creating"} project mode in ${ROOMODES_FILENAME}`, {
+					slug,
+					workspace: workspaceRoot,
+				})
+			} else {
+				targetPath = await this.getCustomModesFilePath()
 			}
 
 			await this.queueWrite(async () => {
@@ -231,7 +244,7 @@ export class CustomModesManager {
 					source: isProjectMode ? ("project" as const) : ("global" as const),
 				}
 
-				await this.updateModesInFile(targetPath!, (modes) => {
+				await this.updateModesInFile(targetPath, (modes) => {
 					const updatedModes = modes.filter((m) => m.slug !== slug)
 					updatedModes.push(modeWithSource)
 					return updatedModes
@@ -240,9 +253,9 @@ export class CustomModesManager {
 				await this.refreshMergedState()
 			})
 		} catch (error) {
-			vscode.window.showErrorMessage(
-				`Failed to update custom mode: ${error instanceof Error ? error.message : String(error)}`,
-			)
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			logger.error("Failed to update custom mode", { slug, error: errorMessage })
+			vscode.window.showErrorMessage(`Failed to update custom mode: ${errorMessage}`)
 		}
 	}
 	private async updateModesInFile(filePath: string, operation: (modes: ModeConfig[]) => ModeConfig[]): Promise<void> {
