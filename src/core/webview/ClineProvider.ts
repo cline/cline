@@ -2783,6 +2783,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						en: "English",
 						ar: "Arabic",
 						"pt-br": "Brazilian Portuguese",
+						ca: "Catalan",
 						cs: "Czech",
 						fr: "French",
 						de: "German",
