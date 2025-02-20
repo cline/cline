@@ -173,7 +173,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 				text: currentApiConfigName,
 				apiConfiguration,
 			})
-			// onDone()
 			setChangeDetected(false)
 		}
 	}
@@ -217,7 +216,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 
 	const onConfirmDialogResult = useCallback((confirm: boolean) => {
 		if (confirm) {
-			confirmDialogHandler.current?.()
+			setChangeDetected(false)
+			// Wait for the change detection to be updated
+			setTimeout(() => {
+				confirmDialogHandler.current?.()
+			}, 100)
 		}
 	}, [])
 
