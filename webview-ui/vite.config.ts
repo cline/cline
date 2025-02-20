@@ -20,7 +20,6 @@ export default defineConfig({
 				assetFileNames: `assets/[name].[ext]`,
 			},
 		},
-		cssCodeSplit: false,
 		chunkSizeWarningLimit: 100000,
 	},
 	server: {
