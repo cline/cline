@@ -1,10 +1,9 @@
 # Roo Code Changelog
 
-## 3.3.23
+## [3.3.23]
 
-### Patch Changes
-
-- Handle errors more gracefully when reading custom instructions from files
+- Handle errors more gracefully when reading custom instructions from files (thanks @joemanley201!)
+- Bug fix to hitting "Done" on settings page with unsaved changes (thanks @System233!)
 
 ## [3.3.22]
 
