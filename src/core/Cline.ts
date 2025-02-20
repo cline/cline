@@ -285,7 +285,10 @@ export class Cline {
 			case "workspace":
 				if (!this.checkpointTracker) {
 					try {
-						this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref()?.context.globalStorageUri.fsPath)
+						this.checkpointTracker = await CheckpointTracker.create(
+							this.taskId,
+							this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						)
 						this.checkpointTrackerErrorMessage = undefined
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -396,7 +399,10 @@ export class Cline {
 		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we cant show diff outside of workspace?
 		if (!this.checkpointTracker) {
 			try {
-				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref()?.context.globalStorageUri.fsPath)
+				this.checkpointTracker = await CheckpointTracker.create(
+					this.taskId,
+					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				)
 				this.checkpointTrackerErrorMessage = undefined
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -500,7 +506,10 @@ export class Cline {
 
 		if (!this.checkpointTracker) {
 			try {
-				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref()?.context.globalStorageUri.fsPath)
+				this.checkpointTracker = await CheckpointTracker.create(
+					this.taskId,
+					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				)
 				this.checkpointTrackerErrorMessage = undefined
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -3015,7 +3024,10 @@ export class Cline {
 		// isNewTask &&
 		if (!this.checkpointTracker) {
 			try {
-				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref()?.context.globalStorageUri.fsPath)
+				this.checkpointTracker = await CheckpointTracker.create(
+					this.taskId,
+					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				)
 				this.checkpointTrackerErrorMessage = undefined
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
