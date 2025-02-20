@@ -98,18 +98,26 @@ config.module.rules[1].oneOf.forEach((rule) => {
 	}
 })
 
-// Disable code splitting
-config.optimization.splitChunks = {
-	cacheGroups: {
-		default: false,
+// Force all code into a single bundle for VS Code webview compatibility.
+// This is necessary for:
+// 1. Mermaid.js to work properly (prevents async chunk loading)
+// 2. Consistent CSP nonce handling (single bundle = single nonce)
+config.optimization = {
+	...config.optimization,
+	splitChunks: {
+		cacheGroups: {
+			default: false,
+		},
+		name: "main", // Forces all chunks (dynamic import() calls, for example those used by Mermaid) into one bundle - this is what actually prevents code splitting
 	},
+	runtimeChunk: false,
 }
 
-// Disable code chunks
-config.optimization.runtimeChunk = false
-
-// Rename main.{hash}.js to main.js
-config.output.filename = "static/js/[name].js"
+// Ensure all chunks are named 'main' to match our CSP nonce setup
+config.output = {
+	...config.output,
+	filename: "static/js/[name].js",
+}
 
 // Rename main.{hash}.css to main.css
 config.plugins[5].options.filename = "static/css/[name].css"

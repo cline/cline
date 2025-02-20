@@ -8,35 +8,50 @@ import { fromIni } from "@aws-sdk/credential-providers"
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private client: AnthropicBedrock
+	private client: AnthropicBedrock | any
+	private initializationPromise: Promise<void>
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+		this.initializationPromise = this.initializeClient()
+	}
 
-		const clientConfig: any = {
+	private async initializeClient() {
+		let clientConfig: any = {
 			awsRegion: this.options.awsRegion || "us-east-1",
 		}
-
-		if (this.options.awsUseProfile) {
-			// Use profile-based credentials if enabled
-			if (this.options.awsProfile) {
-				clientConfig.credentials = fromIni({
-					profile: this.options.awsProfile,
-				})
-			} else {
-				// Use default profile if no specific profile is set
-				clientConfig.credentials = fromIni()
+		try {
+			if (this.options.awsUseProfile) {
+				// Use profile-based credentials if enabled
+				// Use named profile, defaulting to 'default' if not specified
+				var credentials: any
+				if (this.options.awsProfile) {
+					credentials = await fromIni({
+						profile: this.options.awsProfile,
+						ignoreCache: true,
+					})()
+				} else {
+					credentials = await fromIni({
+						ignoreCache: true,
+					})()
+				}
+				clientConfig.awsAccessKey = credentials.accessKeyId
+				clientConfig.awsSecretKey = credentials.secretAccessKey
+				clientConfig.awsSessionToken = credentials.sessionToken
+			} else if (this.options.awsAccessKey && this.options.awsSecretKey) {
+				// Use direct credentials if provided
+				clientConfig.awsAccessKey = this.options.awsAccessKey
+				clientConfig.awsSecretKey = this.options.awsSecretKey
+				if (this.options.awsSessionToken) {
+					clientConfig.awsSessionToken = this.options.awsSessionToken
+				}
 			}
-		} else if (this.options.awsAccessKey && this.options.awsSecretKey) {
-			// Use direct credentials if provided
-			clientConfig.awsAccessKey = this.options.awsAccessKey
-			clientConfig.awsSecretKey = this.options.awsSecretKey
-			if (this.options.awsSessionToken) {
-				clientConfig.awsSessionToken = this.options.awsSessionToken
-			}
+		} catch (error) {
+			console.error("Failed to initialize Bedrock client:", error)
+			throw error
+		} finally {
+			this.client = new AnthropicBedrock(clientConfig)
 		}
-
-		this.client = new AnthropicBedrock(clientConfig)
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {

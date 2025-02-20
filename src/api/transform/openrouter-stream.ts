@@ -86,14 +86,11 @@ export async function* streamOpenRouterFormatRequest(
 
 	let temperature = 0
 	let topP: number | undefined = undefined
-	// Handle models based on deepseek-r1
 	if (model.id.startsWith("deepseek/deepseek-r1") || model.id === "perplexity/sonar-reasoning") {
-		// Recommended temperature for DeepSeek reasoning models
-		temperature = 0.6
-		// DeepSeek highly recommends using user instead of system role
-		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-		// Some provider support topP and 0.95 is value that Deepseek used in their benchmarks
+		// Recommended values from DeepSeek
+		temperature = 0.7
 		topP = 0.95
+		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 	}
 
 	// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.

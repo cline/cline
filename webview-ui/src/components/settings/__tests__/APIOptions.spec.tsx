@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, fireEvent } from "@testing-library/react"
 import { describe, it, expect, vi } from "vitest"
 import ApiOptions from "../ApiOptions"
 import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext"
@@ -92,5 +92,61 @@ describe("ApiOptions Component", () => {
 		)
 		const modelIdInput = screen.getByPlaceholderText("Enter Model ID...")
 		expect(modelIdInput).toBeInTheDocument()
+	})
+})
+
+vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
+	const actual = await importOriginal()
+	return {
+		...actual,
+		// your mocked methods
+		useExtensionState: vi.fn(() => ({
+			apiConfiguration: {
+				apiProvider: "openai",
+				requestyApiKey: "",
+				requestyModelId: "",
+			},
+			setApiConfiguration: vi.fn(),
+			uriScheme: "vscode",
+		})),
+	}
+})
+
+describe("OpenApiInfoOptions", () => {
+	const mockPostMessage = vi.fn()
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		global.vscode = { postMessage: mockPostMessage }
+	})
+
+	it("renders OpenAI Supports Images input", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+		const apiKeyInput = screen.getByText("Supports Images")
+		expect(apiKeyInput).toBeInTheDocument()
+	})
+
+	it("renders OpenAI Context Window Size input", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+		const orgIdInput = screen.getByText("Context Window Size")
+		expect(orgIdInput).toBeInTheDocument()
+	})
+
+	it("renders OpenAI Max Output Tokens input", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+		const modelInput = screen.getByText("Max Output Tokens")
+		expect(modelInput).toBeInTheDocument()
 	})
 })
