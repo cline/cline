@@ -95,9 +95,7 @@ export class VertexHandler implements ApiHandler {
 						stream: true,
 					},
 					{
-						headers: {
-							"anthropic-beta": "prompt-caching-2024-07-31",
-						},
+						headers: {},
 					},
 				)
 				break
