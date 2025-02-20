@@ -368,7 +368,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
           <body>
             <noscript>You need to enable JavaScript to run this app.</noscript>
             <div id="root"></div>
-            <script nonce="${nonce}" src="${scriptUri}"></script>
+            <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
           </body>
         </html>
       `
@@ -406,7 +406,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"codicon.css",
 		])
 
-		const scriptEntrypoint = "src/index.tsx"
+		const scriptEntrypoint = "src/main.tsx"
 		const scriptUri = `http://${localServerUrl}/${scriptEntrypoint}`
 
 		const reactRefresh = /*html*/ `
