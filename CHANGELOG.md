@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.3.23]
+
+- Handle errors more gracefully when reading custom instructions from files (thanks @joemanley201!)
+- Bug fix to hitting "Done" on settings page with unsaved changes (thanks @System233!)
+
 ## [3.3.22]
 
 - Improve the Provider Settings configuration with clear Save buttons and warnings about unsaved changes (thanks @System233!)
