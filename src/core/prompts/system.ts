@@ -979,8 +979,12 @@ export function addUserInstructions(
 	settingsCustomInstructions?: string,
 	clineRulesFileInstructions?: string,
 	clineIgnoreInstructions?: string,
+	preferredLanguageInstructions?: string,
 ) {
 	let customInstructions = ""
+	if (preferredLanguageInstructions) {
+		customInstructions += preferredLanguageInstructions + "\n\n"
+	}
 	if (settingsCustomInstructions) {
 		customInstructions += settingsCustomInstructions + "\n\n"
 	}
