@@ -5,7 +5,7 @@ import fs from "fs/promises"
 jest.mock("fs/promises")
 const mockedFs = jest.mocked(fs)
 
-describe("safeReadFile", () => {
+describe("loadRuleFiles", () => {
 	beforeEach(() => {
 		jest.clearAllMocks()
 	})
