@@ -791,6 +791,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "deleteMcpServer": {
+						if (message.serverName) {
+							this.mcpHub?.deleteServer(message.serverName)
+						}
+						break
+					}
 					case "fetchLatestMcpServersFromHub": {
 						this.mcpHub?.sendLatestMcpServers()
 						break

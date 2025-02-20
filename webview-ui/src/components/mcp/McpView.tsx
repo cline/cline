@@ -8,6 +8,7 @@ import McpResourceRow from "./McpResourceRow"
 import McpMarketplaceView from "./marketplace/McpMarketplaceView"
 import styled from "styled-components"
 import { getMcpServerDisplayName } from "../../utils/mcp"
+import DangerButton from "../common/DangerButton"
 
 type McpViewProps = {
 	onDone: () => void
@@ -240,6 +241,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 	const { mcpMarketplaceCatalog } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
+	const [isDeleting, setIsDeleting] = useState(false)
 
 	const getStatusColor = () => {
 		switch (server.status) {
@@ -262,6 +264,14 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		vscode.postMessage({
 			type: "restartMcpServer",
 			text: server.name,
+		})
+	}
+
+	const handleDelete = () => {
+		setIsDeleting(true)
+		vscode.postMessage({
+			type: "deleteMcpServer",
+			serverName: server.name,
 		})
 	}
 
@@ -460,6 +470,17 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							}}>
 							{server.status === "connecting" ? "Restarting..." : "Restart Server"}
 						</VSCodeButton>
+
+						<DangerButton
+							// appearance="secondary"
+							onClick={handleDelete}
+							disabled={isDeleting}
+							style={{
+								width: "calc(100% - 14px)",
+								margin: "5px 7px 3px 7px",
+							}}>
+							{isDeleting ? "Deleting..." : "Delete Server"}
+						</DangerButton>
 					</div>
 				)
 			)}

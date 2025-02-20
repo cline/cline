@@ -636,6 +636,33 @@ export class McpHub {
 		}
 	}
 
+	public async deleteServer(serverName: string) {
+		try {
+			const settingsPath = await this.getMcpSettingsFilePath()
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+			if (!config.mcpServers || typeof config.mcpServers !== "object") {
+				config.mcpServers = {}
+			}
+			if (config.mcpServers[serverName]) {
+				delete config.mcpServers[serverName]
+				const updatedConfig = {
+					mcpServers: config.mcpServers,
+				}
+				await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
+				await this.updateServerConnections(config.mcpServers)
+				vscode.window.showInformationMessage(`Deleted ${serverName} MCP server`)
+			} else {
+				vscode.window.showWarningMessage(`${serverName} not found in MCP configuration`)
+			}
+		} catch (error) {
+			vscode.window.showErrorMessage(
+				`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`,
+			)
+			throw error
+		}
+	}
+
 	async dispose(): Promise<void> {
 		this.removeAllFileWatchers()
 		for (const connection of this.connections) {
