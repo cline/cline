@@ -8,7 +8,7 @@
 - Add a button to delete MCP servers (thanks @hannesrudolph!)
 - Fix a bug where the button to copy the system prompt preview always copied the Code mode version
 - Fix a bug where the .roomodes file was not automatically created when adding custom modes from the Prompts tab
-- Allow setting a wildcard (`*`) for auto-approve commands (use with caution!)
+- Allow setting a wildcard (`*`) to auto-approve all command execution (use with caution!)
 
 ## [3.3.21]
 
