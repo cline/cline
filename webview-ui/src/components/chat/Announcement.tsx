@@ -33,7 +33,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<li>
 					<b>Introducing MCP Marketplace:</b> Discover and install the best MCP servers right from the extension, with
 					new servers added regularly! Get started by going to the{" "}
-					<span className="codicon codicon-server" style={{ marginRight: "4px", fontSize: 10 }}></span>
+					<span className="codicon codicon-extensions" style={{ marginRight: "4px", fontSize: 10 }}></span>
 					<VSCodeLink
 						onClick={() => {
 							vscode.postMessage({ type: "showMcpView" })
