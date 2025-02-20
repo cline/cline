@@ -374,6 +374,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
       `
 	}
 
+	/**
+	 * Connects to the local Vite dev server to allow HMR, with fallback to the bundled assets
+	 *
+	 * @param webview A reference to the extension webview
+	 * @returns A template string literal containing the HTML that should be
+	 * rendered within the webview panel
+	 */
 	private async getHMRHtmlContent(webview: vscode.Webview): Promise<string> {
 		const localPort = 25463
 		const localServerUrl = `localhost:${localPort}`
@@ -383,7 +390,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await axios.get(`http://${localServerUrl}`)
 		} catch (error) {
 			vscode.window.showErrorMessage(
-				"Local development server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR.",
+				"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
 			)
 
 			return this.getHtmlContent(webview)
