@@ -36,20 +36,39 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 
 	if (saveUri) {
 		// Write content to the selected location
-		await vscode.workspace.fs.writeFile(saveUri, Buffer.from(markdownContent))
+		await vscode.workspace.fs.writeFile(saveUri, new Uint8Array(Buffer.from(markdownContent)))
 		vscode.window.showTextDocument(saveUri, { preview: true })
 	}
 }
 
 export function formatContentBlockToMarkdown(
-	block: Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam,
+	block: Anthropic.ContentBlockParam,
 	// messages: Anthropic.MessageParam[]
 ): string {
 	switch (block.type) {
 		case "text":
 			return block.text
-		case "image":
-			return `[Image]`
+		case "image": {
+			const source = block.source as Anthropic.Messages.ImageBlockParam.Source
+			if (source.type === "base64") {
+				const mediaType = source.media_type.split("/")[1].toUpperCase()
+				return `[${mediaType} Image]`
+			}
+			return "[Image]"
+		}
+		case "document":
+			if (block.source.type === "base64" && block.source.media_type === "application/pdf") {
+				return `[PDF Document${block.title ? `: ${block.title}` : ""}]`
+			} else if (block.source.type === "text" && block.source.media_type === "text/plain") {
+				return `[Text Document${block.title ? `: ${block.title}` : ""}]\n${block.source.data}`
+			} else if (block.source.type === "content") {
+				const content =
+					typeof block.source.content === "string"
+						? block.source.content
+						: block.source.content.map((c) => formatContentBlockToMarkdown(c)).join("\n")
+				return `[Content Document${block.title ? `: ${block.title}` : ""}]\n${content}`
+			}
+			return `[Document: Unknown type]`
 		case "tool_use":
 			let input: string
 			if (typeof block.input === "object" && block.input !== null) {
@@ -74,7 +93,7 @@ export function formatContentBlockToMarkdown(
 				return `[${toolName}${block.is_error ? " (Error)" : ""}]`
 			}
 		default:
-			return "[Unexpected content type]"
+			return `[Unexpected content type: ${(block as any).type}]`
 	}
 }
 
