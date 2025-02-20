@@ -54,7 +54,7 @@ import { parseMentions } from "./mentions"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
 import { SYSTEM_PROMPT } from "./prompts/system"
-import { modes, defaultModeSlug, getModeBySlug } from "../shared/modes"
+import { modes, defaultModeSlug, getModeBySlug, getFullModeDetails } from "../shared/modes"
 import { truncateConversationIfNeeded } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { detectCodeOmission } from "../integrations/editor/detect-omission"
@@ -63,7 +63,7 @@ import { OpenRouterHandler } from "../api/providers/openrouter"
 import { McpHub } from "../services/mcp/McpHub"
 import crypto from "crypto"
 import { insertGroups } from "./diff/insert-groups"
-import { EXPERIMENT_IDS, experiments as Experiments } from "../shared/experiments"
+import { EXPERIMENT_IDS, experiments as Experiments, ExperimentId } from "../shared/experiments"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -3235,9 +3235,29 @@ export class Cline {
 		details += `\n\n# Current Context Size (Tokens)\n${contextTokens ? `${contextTokens.toLocaleString()} (${contextPercentage}%)` : "(Not available)"}`
 
 		// Add current mode and any mode-specific warnings
-		const { mode, customModes } = (await this.providerRef.deref()?.getState()) ?? {}
+		const {
+			mode,
+			customModes,
+			customModePrompts,
+			experiments = {} as Record<ExperimentId, boolean>,
+			customInstructions: globalCustomInstructions,
+			preferredLanguage,
+		} = (await this.providerRef.deref()?.getState()) ?? {}
 		const currentMode = mode ?? defaultModeSlug
-		details += `\n\n# Current Mode\n${currentMode}`
+		const modeDetails = await getFullModeDetails(currentMode, customModes, customModePrompts, {
+			cwd,
+			globalCustomInstructions,
+			preferredLanguage,
+		})
+		details += `\n\n# Current Mode\n`
+		details += `<slug>${currentMode}</slug>\n`
+		details += `<name>${modeDetails.name}</name>\n`
+		if (Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.POWER_STEERING)) {
+			details += `<role>${modeDetails.roleDefinition}</role>\n`
+			if (modeDetails.customInstructions) {
+				details += `<custom_instructions>${modeDetails.customInstructions}</custom_instructions>\n`
+			}
+		}
 
 		// Add warning if not in code mode
 		if (
