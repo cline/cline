@@ -180,7 +180,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 										what will be reverted)
 									</p>
 								</RestoreOption>
-								{/* <RestoreOption>
+								<RestoreOption>
 									<VSCodeButton
 										onClick={handleRestoreTask}
 										disabled={restoreTaskDisabled}
@@ -192,7 +192,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 										Restore Task Only
 									</VSCodeButton>
 									<p>Deletes messages after this point (does not affect workspace files)</p>
-								</RestoreOption> */}
+								</RestoreOption>
 								<RestoreOption>
 									<VSCodeButton
 										onClick={handleRestoreBoth}
