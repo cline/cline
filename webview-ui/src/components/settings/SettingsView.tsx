@@ -1,78 +1,137 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { memo, useEffect, useState } from "react"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { ExtensionStateContextType, useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import ExperimentalFeature from "./ExperimentalFeature"
-import { EXPERIMENT_IDS, experimentConfigsMap } from "../../../../src/shared/experiments"
+import { EXPERIMENT_IDS, experimentConfigsMap, ExperimentId } from "../../../../src/shared/experiments"
 import ApiConfigManager from "./ApiConfigManager"
 import { Dropdown } from "vscrui"
 import type { DropdownOption } from "vscrui"
+import { ApiConfiguration } from "../../../../src/shared/api"
+import {
+	AlertDialog,
+	AlertDialogContent,
+	AlertDialogTitle,
+	AlertDialogDescription,
+	AlertDialogCancel,
+	AlertDialogAction,
+	AlertDialogHeader,
+	AlertDialogFooter,
+} from "../ui/alert-dialog"
 
 type SettingsViewProps = {
 	onDone: () => void
 }
 
 const SettingsView = ({ onDone }: SettingsViewProps) => {
-	const {
-		apiConfiguration,
-		version,
-		alwaysAllowReadOnly,
-		setAlwaysAllowReadOnly,
-		alwaysAllowWrite,
-		setAlwaysAllowWrite,
-		alwaysAllowExecute,
-		setAlwaysAllowExecute,
-		alwaysAllowBrowser,
-		setAlwaysAllowBrowser,
-		alwaysAllowMcp,
-		setAlwaysAllowMcp,
-		soundEnabled,
-		setSoundEnabled,
-		soundVolume,
-		setSoundVolume,
-		diffEnabled,
-		setDiffEnabled,
-		checkpointsEnabled,
-		setCheckpointsEnabled,
-		browserViewportSize,
-		setBrowserViewportSize,
-		openRouterModels,
-		glamaModels,
-		setAllowedCommands,
-		allowedCommands,
-		fuzzyMatchThreshold,
-		setFuzzyMatchThreshold,
-		writeDelayMs,
-		setWriteDelayMs,
-		screenshotQuality,
-		setScreenshotQuality,
-		terminalOutputLineLimit,
-		setTerminalOutputLineLimit,
-		mcpEnabled,
-		alwaysApproveResubmit,
-		setAlwaysApproveResubmit,
-		requestDelaySeconds,
-		setRequestDelaySeconds,
-		rateLimitSeconds,
-		setRateLimitSeconds,
-		currentApiConfigName,
-		listApiConfigMeta,
-		experiments,
-		setExperimentEnabled,
-		alwaysAllowModeSwitch,
-		setAlwaysAllowModeSwitch,
-		maxOpenTabsContext,
-		setMaxOpenTabsContext,
-	} = useExtensionState()
+	const extensionState = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [commandInput, setCommandInput] = useState("")
+	const prevApiConfigName = useRef(extensionState.currentApiConfigName)
+	const [isDiscardDialogShow, setDiscardDialogShow] = useState(false)
+
+	// TODO: Reduce WebviewMessage/ExtensionState complexity
+	const [cachedState, setCachedState] = useState(extensionState)
+	const [isChangeDetected, setChangeDetected] = useState(false)
+	const { currentApiConfigName } = extensionState
+	const {
+		apiConfiguration,
+		alwaysAllowReadOnly,
+		allowedCommands,
+		alwaysAllowBrowser,
+		alwaysAllowExecute,
+		alwaysAllowMcp,
+		alwaysAllowModeSwitch,
+		alwaysAllowWrite,
+		alwaysApproveResubmit,
+		browserViewportSize,
+		checkpointsEnabled,
+		diffEnabled,
+		experiments,
+		fuzzyMatchThreshold,
+		maxOpenTabsContext,
+		mcpEnabled,
+		rateLimitSeconds,
+		requestDelaySeconds,
+		screenshotQuality,
+		soundEnabled,
+		soundVolume,
+		terminalOutputLineLimit,
+		writeDelayMs,
+	} = cachedState
+
+	useEffect(() => {
+		// Update only when currentApiConfigName is changed
+		// Expected to be triggered by loadApiConfiguration/upsertApiConfiguration
+		if (prevApiConfigName.current === currentApiConfigName) {
+			return
+		}
+		setCachedState((prevCachedState) => ({
+			...prevCachedState,
+			...extensionState,
+		}))
+		prevApiConfigName.current = currentApiConfigName
+		setChangeDetected(false)
+	}, [currentApiConfigName, extensionState, isChangeDetected])
+
+	const setCachedStateField = useCallback(
+		<K extends keyof ExtensionStateContextType>(field: K, value: ExtensionStateContextType[K]) => {
+			setCachedState((prevState) => {
+				if (prevState[field] === value) {
+					return prevState
+				}
+				setChangeDetected(true)
+				return {
+					...prevState,
+					[field]: value,
+				}
+			})
+		},
+		[],
+	)
+
+	const setApiConfigurationField = useCallback(
+		<K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => {
+			setCachedState((prevState) => {
+				if (prevState.apiConfiguration?.[field] === value) {
+					return prevState
+				}
+				setChangeDetected(true)
+				return {
+					...prevState,
+					apiConfiguration: {
+						...prevState.apiConfiguration,
+						[field]: value,
+					},
+				}
+			})
+		},
+		[],
+	)
+
+	const setExperimentEnabled = useCallback((id: ExperimentId, enabled: boolean) => {
+		setCachedState((prevState) => {
+			if (prevState.experiments?.[id] === enabled) {
+				return prevState
+			}
+			setChangeDetected(true)
+			return {
+				...prevState,
+				experiments: { ...prevState.experiments, [id]: enabled },
+			}
+		})
+	}, [])
 
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
-		const modelIdValidationResult = validateModelId(apiConfiguration, glamaModels, openRouterModels)
+		const modelIdValidationResult = validateModelId(
+			apiConfiguration,
+			extensionState.glamaModels,
+			extensionState.openRouterModels,
+		)
 
 		setApiErrorMessage(apiValidationResult)
 		setModelIdErrorMessage(modelIdValidationResult)
@@ -99,18 +158,18 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "maxOpenTabsContext", value: maxOpenTabsContext })
 			vscode.postMessage({ type: "currentApiConfigName", text: currentApiConfigName })
 			vscode.postMessage({
+				type: "updateExperimental",
+				values: experiments,
+			})
+			vscode.postMessage({ type: "alwaysAllowModeSwitch", bool: alwaysAllowModeSwitch })
+
+			vscode.postMessage({
 				type: "upsertApiConfiguration",
 				text: currentApiConfigName,
 				apiConfiguration,
 			})
-
-			vscode.postMessage({
-				type: "updateExperimental",
-				values: experiments,
-			})
-
-			vscode.postMessage({ type: "alwaysAllowModeSwitch", bool: alwaysAllowModeSwitch })
-			onDone()
+			// onDone()
+			setChangeDetected(false)
 		}
 	}
 
@@ -122,10 +181,32 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	// Initial validation on mount
 	useEffect(() => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
-		const modelIdValidationResult = validateModelId(apiConfiguration, glamaModels, openRouterModels)
+		const modelIdValidationResult = validateModelId(
+			apiConfiguration,
+			extensionState.glamaModels,
+			extensionState.openRouterModels,
+		)
 		setApiErrorMessage(apiValidationResult)
 		setModelIdErrorMessage(modelIdValidationResult)
-	}, [apiConfiguration, glamaModels, openRouterModels])
+	}, [apiConfiguration, extensionState.glamaModels, extensionState.openRouterModels])
+
+	const confirmDialogHandler = useRef<() => void>()
+	const onConfirmDialogResult = useCallback((confirm: boolean) => {
+		if (confirm) {
+			confirmDialogHandler.current?.()
+		}
+	}, [])
+	const checkUnsaveChanges = useCallback(
+		(then: () => void) => {
+			if (isChangeDetected) {
+				confirmDialogHandler.current = then
+				setDiscardDialogShow(true)
+			} else {
+				then()
+			}
+		},
+		[isChangeDetected],
+	)
 
 	const handleResetState = () => {
 		vscode.postMessage({ type: "resetState" })
@@ -135,7 +216,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		const currentCommands = allowedCommands ?? []
 		if (commandInput && !currentCommands.includes(commandInput)) {
 			const newCommands = [...currentCommands, commandInput]
-			setAllowedCommands(newCommands)
+			setCachedStateField("allowedCommands", newCommands)
 			setCommandInput("")
 			vscode.postMessage({
 				type: "allowedCommands",
@@ -151,13 +232,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		paddingBottom: "2px",
 	}
 
-	const sliderStyle = {
-		flexGrow: 1,
-		maxWidth: "80%",
-		accentColor: "var(--vscode-button-background)",
-		height: "2px",
-	}
-
 	return (
 		<div
 			style={{
@@ -171,6 +245,21 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				flexDirection: "column",
 				overflow: "hidden",
 			}}>
+			<AlertDialog open={isDiscardDialogShow} onOpenChange={setDiscardDialogShow}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+						<AlertDialogDescription>
+							<span style={{ fontSize: "2em" }} className={`codicon codicon-warning align-middle mr-1`} />
+							Do you want to discard changes and continue?
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogAction onClick={() => onConfirmDialogResult(true)}>Yes</AlertDialogAction>
+						<AlertDialogCancel onClick={() => onConfirmDialogResult(false)}>No</AlertDialogCancel>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 			<div
 				style={{
 					display: "flex",
@@ -180,7 +269,26 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					paddingRight: 17,
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
-				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
+				<div
+					style={{
+						display: "flex",
+						justifyContent: "space-between",
+						gap: "6px",
+					}}>
+					<VSCodeButton
+						appearance="primary"
+						title={isChangeDetected ? "Save changes" : "Nothing changed"}
+						onClick={handleSubmit}
+						disabled={!isChangeDetected}>
+						Save
+					</VSCodeButton>
+					<VSCodeButton
+						appearance="secondary"
+						title="Discard unsaved changes and close settings panel"
+						onClick={() => checkUnsaveChanges(onDone)}>
+						Done
+					</VSCodeButton>
+				</div>
 			</div>
 			<div
 				style={{ flexGrow: 1, overflowY: "scroll", paddingRight: 8, display: "flex", flexDirection: "column" }}>
@@ -189,16 +297,13 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<div style={{ marginBottom: 15 }}>
 						<ApiConfigManager
 							currentApiConfigName={currentApiConfigName}
-							listApiConfigMeta={listApiConfigMeta}
+							listApiConfigMeta={extensionState.listApiConfigMeta}
 							onSelectConfig={(configName: string) => {
-								vscode.postMessage({
-									type: "saveApiConfiguration",
-									text: currentApiConfigName,
-									apiConfiguration,
-								})
-								vscode.postMessage({
-									type: "loadApiConfiguration",
-									text: configName,
+								checkUnsaveChanges(() => {
+									vscode.postMessage({
+										type: "loadApiConfiguration",
+										text: configName,
+									})
 								})
 							}}
 							onDeleteConfig={(configName: string) => {
@@ -213,6 +318,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									values: { oldName, newName },
 									apiConfiguration,
 								})
+								prevApiConfigName.current = newName
 							}}
 							onUpsertConfig={(configName: string) => {
 								vscode.postMessage({
@@ -222,7 +328,13 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								})
 							}}
 						/>
-						<ApiOptions apiErrorMessage={apiErrorMessage} modelIdErrorMessage={modelIdErrorMessage} />
+						<ApiOptions
+							uriScheme={extensionState.uriScheme}
+							apiConfiguration={apiConfiguration}
+							setApiConfigurationField={setApiConfigurationField}
+							apiErrorMessage={apiErrorMessage}
+							modelIdErrorMessage={modelIdErrorMessage}
+						/>
 					</div>
 				</div>
 
@@ -237,7 +349,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<div style={{ marginBottom: 15 }}>
 						<VSCodeCheckbox
 							checked={alwaysAllowReadOnly}
-							onChange={(e: any) => setAlwaysAllowReadOnly(e.target.checked)}>
+							onChange={(e: any) => setCachedStateField("alwaysAllowReadOnly", e.target.checked)}>
 							<span style={{ fontWeight: "500" }}>Always approve read-only operations</span>
 						</VSCodeCheckbox>
 						<p
@@ -254,7 +366,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<div style={{ marginBottom: 15 }}>
 						<VSCodeCheckbox
 							checked={alwaysAllowWrite}
-							onChange={(e: any) => setAlwaysAllowWrite(e.target.checked)}>
+							onChange={(e: any) => setCachedStateField("alwaysAllowWrite", e.target.checked)}>
 							<span style={{ fontWeight: "500" }}>Always approve write operations</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
@@ -274,12 +386,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 										max="5000"
 										step="100"
 										value={writeDelayMs}
-										onChange={(e) => setWriteDelayMs(parseInt(e.target.value))}
-										style={{
-											flex: 1,
-											accentColor: "var(--vscode-button-background)",
-											height: "2px",
-										}}
+										onChange={(e) => setCachedStateField("writeDelayMs", parseInt(e.target.value))}
+										className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 									/>
 									<span style={{ minWidth: "45px", textAlign: "left" }}>{writeDelayMs}ms</span>
 								</div>
@@ -298,7 +406,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<div style={{ marginBottom: 15 }}>
 						<VSCodeCheckbox
 							checked={alwaysAllowBrowser}
-							onChange={(e: any) => setAlwaysAllowBrowser(e.target.checked)}>
+							onChange={(e: any) => setCachedStateField("alwaysAllowBrowser", e.target.checked)}>
 							<span style={{ fontWeight: "500" }}>Always approve browser actions</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
@@ -311,7 +419,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<div style={{ marginBottom: 15 }}>
 						<VSCodeCheckbox
 							checked={alwaysApproveResubmit}
-							onChange={(e: any) => setAlwaysApproveResubmit(e.target.checked)}>
+							onChange={(e: any) => setCachedStateField("alwaysApproveResubmit", e.target.checked)}>
 							<span style={{ fontWeight: "500" }}>Always retry failed API requests</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
@@ -331,12 +439,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 										max="100"
 										step="1"
 										value={requestDelaySeconds}
-										onChange={(e) => setRequestDelaySeconds(parseInt(e.target.value))}
-										style={{
-											flex: 1,
-											accentColor: "var(--vscode-button-background)",
-											height: "2px",
-										}}
+										onChange={(e) =>
+											setCachedStateField("requestDelaySeconds", parseInt(e.target.value))
+										}
+										className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 									/>
 									<span style={{ minWidth: "45px", textAlign: "left" }}>{requestDelaySeconds}s</span>
 								</div>
@@ -355,7 +461,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<div style={{ marginBottom: 5 }}>
 						<VSCodeCheckbox
 							checked={alwaysAllowMcp}
-							onChange={(e: any) => setAlwaysAllowMcp(e.target.checked)}>
+							onChange={(e: any) => setCachedStateField("alwaysAllowMcp", e.target.checked)}>
 							<span style={{ fontWeight: "500" }}>Always approve MCP tools</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
@@ -367,7 +473,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<div style={{ marginBottom: 15 }}>
 						<VSCodeCheckbox
 							checked={alwaysAllowModeSwitch}
-							onChange={(e: any) => setAlwaysAllowModeSwitch(e.target.checked)}>
+							onChange={(e: any) => setCachedStateField("alwaysAllowModeSwitch", e.target.checked)}>
 							<span style={{ fontWeight: "500" }}>Always approve mode switching & task creation</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
@@ -379,7 +485,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<div style={{ marginBottom: 15 }}>
 						<VSCodeCheckbox
 							checked={alwaysAllowExecute}
-							onChange={(e: any) => setAlwaysAllowExecute(e.target.checked)}>
+							onChange={(e: any) => setCachedStateField("alwaysAllowExecute", e.target.checked)}>
 							<span style={{ fontWeight: "500" }}>Always approve allowed execute operations</span>
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
@@ -430,35 +536,16 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									{(allowedCommands ?? []).map((cmd, index) => (
 										<div
 											key={index}
-											style={{
-												display: "flex",
-												alignItems: "center",
-												gap: "5px",
-												backgroundColor: "var(--vscode-button-secondaryBackground)",
-												padding: "2px 6px",
-												borderRadius: "4px",
-												border: "1px solid var(--vscode-button-secondaryBorder)",
-												height: "24px",
-											}}>
+											className="border border-vscode-input-border bg-primary text-primary-foreground flex items-center gap-1 rounded-xs px-1.5 p-0.5">
 											<span>{cmd}</span>
 											<VSCodeButton
 												appearance="icon"
-												style={{
-													padding: 0,
-													margin: 0,
-													height: "20px",
-													width: "20px",
-													minWidth: "20px",
-													display: "flex",
-													alignItems: "center",
-													justifyContent: "center",
-													color: "var(--vscode-button-foreground)",
-												}}
+												className="text-primary-foreground"
 												onClick={() => {
 													const newCommands = (allowedCommands ?? []).filter(
 														(_, i) => i !== index,
 													)
-													setAllowedCommands(newCommands)
+													setCachedStateField("allowedCommands", newCommands)
 													vscode.postMessage({
 														type: "allowedCommands",
 														commands: newCommands,
@@ -482,7 +569,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							<Dropdown
 								value={browserViewportSize}
 								onChange={(value: unknown) => {
-									setBrowserViewportSize((value as DropdownOption).value)
+									setCachedStateField("browserViewportSize", (value as DropdownOption).value)
 								}}
 								style={{ width: "100%" }}
 								options={[
@@ -514,10 +601,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									max="100"
 									step="1"
 									value={screenshotQuality ?? 75}
-									onChange={(e) => setScreenshotQuality(parseInt(e.target.value))}
-									style={{
-										...sliderStyle,
-									}}
+									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
+									onChange={(e) => setCachedStateField("screenshotQuality", parseInt(e.target.value))}
 								/>
 								<span style={{ ...sliderLabelStyle }}>{screenshotQuality ?? 75}%</span>
 							</div>
@@ -537,7 +622,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				<div style={{ marginBottom: 40 }}>
 					<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 15px 0" }}>Notification Settings</h3>
 					<div style={{ marginBottom: 15 }}>
-						<VSCodeCheckbox checked={soundEnabled} onChange={(e: any) => setSoundEnabled(e.target.checked)}>
+						<VSCodeCheckbox
+							checked={soundEnabled}
+							onChange={(e: any) => setCachedStateField("soundEnabled", e.target.checked)}>
 							<span style={{ fontWeight: "500" }}>Enable sound effects</span>
 						</VSCodeCheckbox>
 						<p
@@ -564,12 +651,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									max="1"
 									step="0.01"
 									value={soundVolume ?? 0.5}
-									onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
-									style={{
-										flexGrow: 1,
-										accentColor: "var(--vscode-button-background)",
-										height: "2px",
-									}}
+									onChange={(e) => setCachedStateField("soundVolume", parseFloat(e.target.value))}
+									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 									aria-label="Volume"
 								/>
 								<span style={{ minWidth: "35px", textAlign: "left" }}>
@@ -592,8 +675,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									max="60"
 									step="1"
 									value={rateLimitSeconds}
-									onChange={(e) => setRateLimitSeconds(parseInt(e.target.value))}
-									style={{ ...sliderStyle }}
+									onChange={(e) => setCachedStateField("rateLimitSeconds", parseInt(e.target.value))}
+									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 								/>
 								<span style={{ ...sliderLabelStyle }}>{rateLimitSeconds}s</span>
 							</div>
@@ -612,8 +695,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									max="5000"
 									step="100"
 									value={terminalOutputLineLimit ?? 500}
-									onChange={(e) => setTerminalOutputLineLimit(parseInt(e.target.value))}
-									style={{ ...sliderStyle }}
+									onChange={(e) =>
+										setCachedStateField("terminalOutputLineLimit", parseInt(e.target.value))
+									}
+									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 								/>
 								<span style={{ ...sliderLabelStyle }}>{terminalOutputLineLimit ?? 500}</span>
 							</div>
@@ -634,8 +719,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 									max="500"
 									step="1"
 									value={maxOpenTabsContext ?? 20}
-									onChange={(e) => setMaxOpenTabsContext(parseInt(e.target.value))}
-									style={{ ...sliderStyle }}
+									onChange={(e) =>
+										setCachedStateField("maxOpenTabsContext", parseInt(e.target.value))
+									}
+									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 								/>
 								<span style={{ ...sliderLabelStyle }}>{maxOpenTabsContext ?? 20}</span>
 							</div>
@@ -650,7 +737,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						<VSCodeCheckbox
 							checked={diffEnabled}
 							onChange={(e: any) => {
-								setDiffEnabled(e.target.checked)
+								setCachedStateField("diffEnabled", e.target.checked)
 								if (!e.target.checked) {
 									// Reset experimental strategy when diffs are disabled
 									setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, false)
@@ -689,11 +776,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 											step="0.005"
 											value={fuzzyMatchThreshold ?? 1.0}
 											onChange={(e) => {
-												setFuzzyMatchThreshold(parseFloat(e.target.value))
+												setCachedStateField("fuzzyMatchThreshold", parseFloat(e.target.value))
 											}}
-											style={{
-												...sliderStyle,
-											}}
+											className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 										/>
 										<span style={{ ...sliderLabelStyle }}>
 											{Math.round((fuzzyMatchThreshold || 1) * 100)}%
@@ -727,7 +812,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								<VSCodeCheckbox
 									checked={checkpointsEnabled}
 									onChange={(e: any) => {
-										setCheckpointsEnabled(e.target.checked)
+										setCachedStateField("checkpointsEnabled", e.target.checked)
 									}}>
 									<span style={{ fontWeight: "500" }}>Enable experimental checkpoints</span>
 								</VSCodeCheckbox>
@@ -783,7 +868,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						</VSCodeLink>
 					</p>
 					<p style={{ fontStyle: "italic", margin: "10px 0 0 0", padding: 0, marginBottom: 100 }}>
-						v{version}
+						v{extensionState.version}
 					</p>
 
 					<p

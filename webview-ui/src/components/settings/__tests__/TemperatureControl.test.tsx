@@ -18,12 +18,12 @@ describe("TemperatureControl", () => {
 		const checkbox = screen.getByRole("checkbox")
 		expect(checkbox).toBeChecked()
 
-		const input = screen.getByRole("textbox")
+		const input = screen.getByRole("slider")
 		expect(input).toBeInTheDocument()
 		expect(input).toHaveValue("0.7")
 	})
 
-	it("updates when checkbox is toggled", () => {
+	it("updates when checkbox is toggled", async () => {
 		const onChange = jest.fn()
 		render(<TemperatureControl value={0.7} onChange={onChange} />)
 
@@ -31,40 +31,50 @@ describe("TemperatureControl", () => {
 
 		// Uncheck - should clear temperature
 		fireEvent.click(checkbox)
+		// Waiting for debounce
+		await new Promise((x) => setTimeout(x, 100))
 		expect(onChange).toHaveBeenCalledWith(undefined)
 
 		// Check - should restore previous temperature
 		fireEvent.click(checkbox)
+		// Waiting for debounce
+		await new Promise((x) => setTimeout(x, 100))
 		expect(onChange).toHaveBeenCalledWith(0.7)
 	})
 
-	it("updates temperature when input loses focus", () => {
+	it("updates temperature when input loses focus", async () => {
 		const onChange = jest.fn()
 		render(<TemperatureControl value={0.7} onChange={onChange} />)
 
-		const input = screen.getByRole("textbox")
+		const input = screen.getByRole("slider")
 		fireEvent.change(input, { target: { value: "0.8" } })
 		fireEvent.blur(input)
 
+		// Waiting for debounce
+		await new Promise((x) => setTimeout(x, 100))
 		expect(onChange).toHaveBeenCalledWith(0.8)
 	})
 
-	it("respects maxValue prop", () => {
+	it("respects maxValue prop", async () => {
 		const onChange = jest.fn()
 		render(<TemperatureControl value={1.5} onChange={onChange} maxValue={2} />)
 
-		const input = screen.getByRole("textbox")
+		const input = screen.getByRole("slider")
 
 		// Valid value within max
 		fireEvent.change(input, { target: { value: "1.8" } })
 		fireEvent.blur(input)
+		// Waiting for debounce
+		await new Promise((x) => setTimeout(x, 100))
 		expect(onChange).toHaveBeenCalledWith(1.8)
 
 		// Invalid value above max
 		fireEvent.change(input, { target: { value: "2.5" } })
 		fireEvent.blur(input)
-		expect(input).toHaveValue("1.5") // Should revert to original value
-		expect(onChange).toHaveBeenCalledTimes(1) // Should not call onChange for invalid value
+		expect(input).toHaveValue("2") // Clamped between 0 and 2
+		// Waiting for debounce
+		await new Promise((x) => setTimeout(x, 100))
+		expect(onChange).toHaveBeenCalledWith(2)
 	})
 
 	it("syncs checkbox state when value prop changes", () => {

@@ -5,19 +5,22 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer active:opacity-90",
+	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xs text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
 	{
 		variants: {
 			variant: {
-				default: "text-primary-foreground bg-primary shadow hover:bg-primary/90",
-				secondary: "text-secondary-foreground bg-secondary shadow-sm hover:bg-secondary/80",
+				default:
+					"border border-vscode-input-border bg-primary text-primary-foreground shadow hover:bg-primary/90 cursor-pointer",
+				destructive:
+					"bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 cursor-pointer",
 				outline:
-					"text-secondary-foreground bg-vscode-editor-background border border-vscode-dropdown-border shadow-sm hover:bg-vscode-editor-background/50",
-				ghost: "text-secondary-foreground hover:bg-accent hover:text-accent-foreground",
-				link: "text-primary underline-offset-4 hover:underline",
-				destructive: "text-destructive-foreground bg-destructive shadow-sm hover:bg-destructive/90",
+					"border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground cursor-pointer",
+				secondary:
+					"border border-vscode-input-border bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 cursor-pointer",
+				ghost: "hover:bg-accent hover:text-accent-foreground cursor-pointer",
+				link: "text-primary underline-offset-4 hover:underline cursor-pointer",
 				combobox:
-					"text-secondary-foreground bg-vscode-input-background border border-vscode-input-border hover:bg-vscode-input-background/80",
+					"text-vscode-font-size font-normal text-popover-foreground bg-vscode-input-background border border-vscode-dropdown-border hover:bg-vscode-input-background/80 cursor-pointer",
 			},
 			size: {
 				default: "h-7 px-3",

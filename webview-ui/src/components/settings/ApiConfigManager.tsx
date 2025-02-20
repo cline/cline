@@ -4,6 +4,7 @@ import { ApiConfigMeta } from "../../../../src/shared/ExtensionMessage"
 import { Dropdown } from "vscrui"
 import type { DropdownOption } from "vscrui"
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog"
+import { Button, Input } from "../ui"
 
 interface ApiConfigManagerProps {
 	currentApiConfigName?: string
@@ -299,10 +300,7 @@ const ApiConfigManager = ({
 					aria-labelledby="new-profile-title">
 					<DialogContent className="p-4 max-w-sm">
 						<DialogTitle>New Configuration Profile</DialogTitle>
-						<button className="absolute right-4 top-4" aria-label="Close dialog" onClick={resetCreateState}>
-							<span className="codicon codicon-close" />
-						</button>
-						<VSCodeTextField
+						<Input
 							ref={newProfileInputRef}
 							value={newProfileName}
 							onInput={(e: unknown) => {
@@ -327,15 +325,12 @@ const ApiConfigManager = ({
 							</p>
 						)}
 						<div className="flex justify-end gap-2 mt-4">
-							<VSCodeButton appearance="secondary" onClick={resetCreateState}>
+							<Button variant="secondary" onClick={resetCreateState}>
 								Cancel
-							</VSCodeButton>
-							<VSCodeButton
-								appearance="primary"
-								disabled={!newProfileName.trim()}
-								onClick={handleNewProfileSave}>
+							</Button>
+							<Button variant="default" disabled={!newProfileName.trim()} onClick={handleNewProfileSave}>
 								Create Profile
-							</VSCodeButton>
+							</Button>
 						</div>
 					</DialogContent>
 				</Dialog>
