@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 
 import { ExtensionMessage } from "../../src/shared/ExtensionMessage"
@@ -7,7 +7,7 @@ import { vscode } from "./utils/vscode"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
-import SettingsView from "./components/settings/SettingsView"
+import SettingsView, { SettingsViewRef } from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
 import McpView from "./components/mcp/McpView"
 import PromptsView from "./components/prompts/PromptsView"
@@ -26,18 +26,33 @@ const App = () => {
 	const { didHydrateState, showWelcome, shouldShowAnnouncement } = useExtensionState()
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [tab, setTab] = useState<Tab>("chat")
+	const settingsRef = useRef<SettingsViewRef>(null)
 
-	const onMessage = useCallback((e: MessageEvent) => {
-		const message: ExtensionMessage = e.data
-
-		if (message.type === "action" && message.action) {
-			const newTab = tabsByMessageAction[message.action]
-
-			if (newTab) {
+	const switchTab = useCallback(
+		(newTab: Tab) => {
+			if (tab === "settings" && settingsRef.current?.checkUnsaveChanges) {
+				settingsRef.current.checkUnsaveChanges(() => setTab(newTab))
+			} else {
 				setTab(newTab)
 			}
-		}
-	}, [])
+		},
+		[tab],
+	)
+
+	const onMessage = useCallback(
+		(e: MessageEvent) => {
+			const message: ExtensionMessage = e.data
+
+			if (message.type === "action" && message.action) {
+				const newTab = tabsByMessageAction[message.action]
+
+				if (newTab) {
+					switchTab(newTab)
+				}
+			}
+		},
+		[switchTab],
+	)
 
 	useEvent("message", onMessage)
 
@@ -58,15 +73,15 @@ const App = () => {
 		<WelcomeView />
 	) : (
 		<>
-			{tab === "settings" && <SettingsView onDone={() => setTab("chat")} />}
-			{tab === "history" && <HistoryView onDone={() => setTab("chat")} />}
-			{tab === "mcp" && <McpView onDone={() => setTab("chat")} />}
-			{tab === "prompts" && <PromptsView onDone={() => setTab("chat")} />}
+			{tab === "settings" && <SettingsView ref={settingsRef} onDone={() => switchTab("chat")} />}
+			{tab === "history" && <HistoryView onDone={() => switchTab("chat")} />}
+			{tab === "mcp" && <McpView onDone={() => switchTab("chat")} />}
+			{tab === "prompts" && <PromptsView onDone={() => switchTab("chat")} />}
 			<ChatView
 				isHidden={tab !== "chat"}
 				showAnnouncement={showAnnouncement}
 				hideAnnouncement={() => setShowAnnouncement(false)}
-				showHistoryView={() => setTab("history")}
+				showHistoryView={() => switchTab("history")}
 			/>
 		</>
 	)
