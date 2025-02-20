@@ -1,30 +1,24 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
-type ContentPartText = OpenAI.Chat.ChatCompletionContentPartText
-type ContentPartImage = OpenAI.Chat.ChatCompletionContentPartImage
-type UserMessage = OpenAI.Chat.ChatCompletionUserMessageParam
-type AssistantMessage = OpenAI.Chat.ChatCompletionAssistantMessageParam
-type Message = OpenAI.Chat.ChatCompletionMessageParam
-type AnthropicMessage = Anthropic.Messages.MessageParam
-
 /**
- * Converts Anthropic messages to OpenAI format while merging consecutive messages with the same role.
+ * Converts Anthropic messages to OpenAI format and merges consecutive messages with the same role.
  * This is required for DeepSeek Reasoner which does not support successive messages with the same role.
+ * DeepSeek highly recommends using 'user' role instead of 'system' role for optimal performance.
  *
  * @param messages Array of Anthropic messages
- * @returns Array of OpenAI messages where consecutive messages with the same role are combined
+ * @returns Array of OpenAI messages where consecutive messages with the same role are merged together
  */
-export function convertToR1Format(messages: AnthropicMessage[]): Message[] {
-	return messages.reduce<Message[]>((merged, message) => {
+export function convertToR1Format(messages: Anthropic.Messages.MessageParam[]): OpenAI.Chat.ChatCompletionMessageParam[] {
+	return messages.reduce<OpenAI.Chat.ChatCompletionMessageParam[]>((merged, message) => {
 		const lastMessage = merged[merged.length - 1]
-		let messageContent: string | (ContentPartText | ContentPartImage)[] = ""
+		let messageContent: string | (OpenAI.Chat.ChatCompletionContentPartText | OpenAI.Chat.ChatCompletionContentPartImage)[] =
+			""
 		let hasImages = false
 
-		// Convert content to appropriate format
 		if (Array.isArray(message.content)) {
 			const textParts: string[] = []
-			const imageParts: ContentPartImage[] = []
+			const imageParts: OpenAI.Chat.ChatCompletionContentPartImage[] = []
 
 			message.content.forEach((part) => {
 				if (part.type === "text") {
@@ -40,7 +34,7 @@ export function convertToR1Format(messages: AnthropicMessage[]): Message[] {
 			})
 
 			if (hasImages) {
-				const parts: (ContentPartText | ContentPartImage)[] = []
+				const parts: (OpenAI.Chat.ChatCompletionContentPartText | OpenAI.Chat.ChatCompletionContentPartImage)[] = []
 				if (textParts.length > 0) {
 					parts.push({ type: "text", text: textParts.join("\n") })
 				}
@@ -53,13 +47,11 @@ export function convertToR1Format(messages: AnthropicMessage[]): Message[] {
 			messageContent = message.content
 		}
 
-		// If last message has same role, merge the content
+		// If the last message has the same role, merge the content
 		if (lastMessage?.role === message.role) {
 			if (typeof lastMessage.content === "string" && typeof messageContent === "string") {
 				lastMessage.content += `\n${messageContent}`
-			}
-			// If either has image content, convert both to array format
-			else {
+			} else {
 				const lastContent = Array.isArray(lastMessage.content)
 					? lastMessage.content
 					: [{ type: "text" as const, text: lastMessage.content || "" }]
@@ -69,30 +61,32 @@ export function convertToR1Format(messages: AnthropicMessage[]): Message[] {
 					: [{ type: "text" as const, text: messageContent }]
 
 				if (message.role === "assistant") {
-					const mergedContent = [...lastContent, ...newContent] as AssistantMessage["content"]
+					const mergedContent = [
+						...lastContent,
+						...newContent,
+					] as OpenAI.Chat.ChatCompletionAssistantMessageParam["content"]
 					lastMessage.content = mergedContent
 				} else {
-					const mergedContent = [...lastContent, ...newContent] as UserMessage["content"]
+					const mergedContent = [...lastContent, ...newContent] as OpenAI.Chat.ChatCompletionUserMessageParam["content"]
 					lastMessage.content = mergedContent
 				}
 			}
 		} else {
-			// Add as new message with the correct type based on role
+			// Adds new message with the correct type based on role
 			if (message.role === "assistant") {
-				const newMessage: AssistantMessage = {
+				const newMessage: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
 					role: "assistant",
-					content: messageContent as AssistantMessage["content"],
+					content: messageContent as OpenAI.Chat.ChatCompletionAssistantMessageParam["content"],
 				}
 				merged.push(newMessage)
 			} else {
-				const newMessage: UserMessage = {
+				const newMessage: OpenAI.Chat.ChatCompletionUserMessageParam = {
 					role: "user",
-					content: messageContent as UserMessage["content"],
+					content: messageContent as OpenAI.Chat.ChatCompletionUserMessageParam["content"],
 				}
 				merged.push(newMessage)
 			}
 		}
-
 		return merged
 	}, [])
 }
