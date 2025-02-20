@@ -3,6 +3,7 @@ import { useState, useEffect } from "react"
 import { vscode } from "../../utils/vscode"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { McpServer } from "../../../../src/shared/mcp"
+import { WebviewMessage } from "../../../../src/shared/WebviewMessage"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import McpMarketplaceView from "./marketplace/McpMarketplaceView"
@@ -15,78 +16,22 @@ type McpViewProps = {
 }
 
 const McpView = ({ onDone }: McpViewProps) => {
-	const { mcpServers: servers } = useExtensionState()
-	const [activeTab, setActiveTab] = useState("marketplace")
+	const { mcpServers: servers, mcpMarketplaceEnabled } = useExtensionState()
+	const [activeTab, setActiveTab] = useState(mcpMarketplaceEnabled ? "marketplace" : "installed")
 
 	const handleTabChange = (tab: string) => {
 		setActiveTab(tab)
 	}
 
 	useEffect(() => {
-		vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" })
-		vscode.postMessage({ type: "fetchLatestMcpServersFromHub" })
-	}, [])
-
-	// const [servers, setServers] = useState<McpServer[]>([
-	// 	// Add some mock servers for testing
-	// 	{
-	// 		name: "local-tools",
-	// 		config: JSON.stringify({
-	// 			mcpServers: {
-	// 				"local-tools": {
-	// 					command: "npx",
-	// 					args: ["-y", "@modelcontextprotocol/server-tools"],
-	// 				},
-	// 			},
-	// 		}),
-	// 		status: "connected",
-	// 		tools: [
-	// 			{
-	// 				name: "execute_command",
-	// 				description: "Run a shell command on the local system",
-	// 			},
-	// 			{
-	// 				name: "read_file",
-	// 				description: "Read contents of a file from the filesystem",
-	// 			},
-	// 		],
-	// 	},
-	// 	{
-	// 		name: "postgres-db",
-	// 		config: JSON.stringify({
-	// 			mcpServers: {
-	// 				"postgres-db": {
-	// 					command: "npx",
-	// 					args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"],
-	// 				},
-	// 			},
-	// 		}),
-	// 		status: "disconnected",
-	// 		error: "Failed to connect to database: Connection refused",
-	// 	},
-	// 	{
-	// 		name: "github-tools",
-	// 		config: JSON.stringify({
-	// 			mcpServers: {
-	// 				"github-tools": {
-	// 					command: "npx",
-	// 					args: ["-y", "@modelcontextprotocol/server-github"],
-	// 				},
-	// 			},
-	// 		}),
-	// 		status: "connecting",
-	// 		resources: [
-	// 			{
-	// 				uri: "github://repo/issues",
-	// 				name: "Repository Issues",
-	// 			},
-	// 			{
-	// 				uri: "github://repo/pulls",
-	// 				name: "Pull Requests",
-	// 			},
-	// 		],
-	// 	},
-	// ])
+		if (mcpMarketplaceEnabled) {
+			vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" } as WebviewMessage)
+			vscode.postMessage({ type: "fetchLatestMcpServersFromHub" } as WebviewMessage)
+		} else if (activeTab === "marketplace") {
+			// If marketplace is disabled and we're on marketplace tab, switch to installed
+			setActiveTab("installed")
+		}
+	}, [mcpMarketplaceEnabled, activeTab])
 
 	return (
 		<div
@@ -119,9 +64,11 @@ const McpView = ({ onDone }: McpViewProps) => {
 						padding: "0 20px 0 20px",
 						borderBottom: "1px solid var(--vscode-panel-border)",
 					}}>
-					<TabButton isActive={activeTab === "marketplace"} onClick={() => handleTabChange("marketplace")}>
-						Marketplace
-					</TabButton>
+					{mcpMarketplaceEnabled && (
+						<TabButton isActive={activeTab === "marketplace"} onClick={() => handleTabChange("marketplace")}>
+							Marketplace
+						</TabButton>
+					)}
 					<TabButton isActive={activeTab === "installed"} onClick={() => handleTabChange("installed")}>
 						Installed
 					</TabButton>
@@ -129,7 +76,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 
 				{/* Content container */}
 				<div style={{ width: "100%" }}>
-					{activeTab === "marketplace" && <McpMarketplaceView />}
+					{mcpMarketplaceEnabled && activeTab === "marketplace" && <McpMarketplaceView />}
 					{activeTab === "installed" && (
 						<div style={{ padding: "16px 20px" }}>
 							<div
@@ -187,7 +134,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 									appearance="secondary"
 									style={{ width: "100%", marginBottom: "5px" }}
 									onClick={() => {
-										vscode.postMessage({ type: "openMcpSettings" })
+										vscode.postMessage({ type: "openMcpSettings" } as WebviewMessage)
 									}}>
 									<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
 									Configure MCP Servers
@@ -199,7 +146,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 											vscode.postMessage({
 												type: "openExtensionSettings",
 												text: "cline.mcp",
-											})
+											} as WebviewMessage)
 										}}
 										style={{ fontSize: "12px" }}>
 										Advanced MCP Settings
@@ -264,7 +211,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		vscode.postMessage({
 			type: "restartMcpServer",
 			text: server.name,
-		})
+		} as WebviewMessage)
 	}
 
 	const handleDelete = () => {
@@ -272,7 +219,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		vscode.postMessage({
 			type: "deleteMcpServer",
 			serverName: server.name,
-		})
+		} as WebviewMessage)
 	}
 
 	return (
@@ -325,7 +272,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 								type: "toggleMcpServer",
 								serverName: server.name,
 								disabled: !server.disabled,
-							})
+							} as WebviewMessage)
 						}}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" || e.key === " ") {
@@ -334,7 +281,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 									type: "toggleMcpServer",
 									serverName: server.name,
 									disabled: !server.disabled,
-								})
+								} as WebviewMessage)
 							}
 						}}>
 						<div
@@ -472,7 +419,6 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 						</VSCodeButton>
 
 						<DangerButton
-							// appearance="secondary"
 							onClick={handleDelete}
 							disabled={isDeleting}
 							style={{
