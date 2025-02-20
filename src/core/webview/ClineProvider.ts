@@ -175,11 +175,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
 	}
 
-	resolveWebviewView(
-		webviewView: vscode.WebviewView | vscode.WebviewPanel,
-		//context: vscode.WebviewViewResolveContext<unknown>, used to recreate a deallocated webview, but we don't need this since we use retainContextWhenHidden
-		//token: vscode.CancellationToken
-	): void | Thenable<void> {
+	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
 		this.outputChannel.appendLine("Resolving webview view")
 		this.view = webviewView
 
@@ -188,7 +184,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			enableScripts: true,
 			localResourceRoots: [this.context.extensionUri],
 		}
-		webviewView.webview.html = this.getHtmlContent(webviewView.webview)
+
+		webviewView.webview.html =
+			this.context.extensionMode === vscode.ExtensionMode.Development
+				? await this.getHMRHtmlContent(webviewView.webview)
+				: this.getHtmlContent(webviewView.webview)
 
 		// Sets up an event listener to listen for messages passed from the webview view context
 		// and executes code based on the message that is received
@@ -372,6 +372,73 @@ export class ClineProvider implements vscode.WebviewViewProvider {
           </body>
         </html>
       `
+	}
+
+	private async getHMRHtmlContent(webview: vscode.Webview): Promise<string> {
+		const localPort = 25463
+		const localServerUrl = `localhost:${localPort}`
+
+		// Check if local dev server is running.
+		try {
+			await axios.get(`http://${localServerUrl}`)
+		} catch (error) {
+			vscode.window.showErrorMessage(
+				"Local development server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR.",
+			)
+
+			return this.getHtmlContent(webview)
+		}
+
+		const nonce = getNonce()
+		const stylesUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "assets", "index.css"])
+		const codiconsUri = getUri(webview, this.context.extensionUri, [
+			"node_modules",
+			"@vscode",
+			"codicons",
+			"dist",
+			"codicon.css",
+		])
+
+		const scriptEntrypoint = "src/index.tsx"
+		const scriptUri = `http://${localServerUrl}/${scriptEntrypoint}`
+
+		const reactRefresh = /*html*/ `
+			<script nonce="${nonce}" type="module">
+				import RefreshRuntime from "http://${localServerUrl}/@react-refresh"
+				RefreshRuntime.injectIntoGlobalHook(window)
+				window.$RefreshReg$ = () => {}
+				window.$RefreshSig$ = () => (type) => type
+				window.__vite_plugin_react_preamble_installed__ = true
+			</script>
+		`
+
+		const csp = [
+			"default-src 'none'",
+			`font-src ${webview.cspSource}`,
+			`style-src ${webview.cspSource} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
+			`img-src ${webview.cspSource} data:`,
+			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
+			`connect-src https://* ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
+		]
+
+		return /*html*/ `
+			<!DOCTYPE html>
+			<html lang="en">
+				<head>
+					<meta charset="utf-8">
+					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
+					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
+					<link rel="stylesheet" type="text/css" href="${stylesUri}">
+					<link href="${codiconsUri}" rel="stylesheet" />
+					<title>Roo Code</title>
+				</head>
+				<body>
+					<div id="root"></div>
+					${reactRefresh}
+					<script type="module" src="${scriptUri}"></script>
+				</body>
+			</html>
+		`
 	}
 
 	/**
