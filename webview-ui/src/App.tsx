@@ -28,16 +28,13 @@ const App = () => {
 	const [tab, setTab] = useState<Tab>("chat")
 	const settingsRef = useRef<SettingsViewRef>(null)
 
-	const switchTab = useCallback(
-		(newTab: Tab) => {
-			if (tab === "settings" && settingsRef.current?.checkUnsaveChanges) {
-				settingsRef.current.checkUnsaveChanges(() => setTab(newTab))
-			} else {
-				setTab(newTab)
-			}
-		},
-		[tab],
-	)
+	const switchTab = useCallback((newTab: Tab) => {
+		if (settingsRef.current?.checkUnsaveChanges) {
+			settingsRef.current.checkUnsaveChanges(() => setTab(newTab))
+		} else {
+			setTab(newTab)
+		}
+	}, [])
 
 	const onMessage = useCallback(
 		(e: MessageEvent) => {
@@ -73,7 +70,7 @@ const App = () => {
 		<WelcomeView />
 	) : (
 		<>
-			{tab === "settings" && <SettingsView ref={settingsRef} onDone={() => switchTab("chat")} />}
+			{tab === "settings" && <SettingsView ref={settingsRef} onDone={() => setTab("chat")} />}
 			{tab === "history" && <HistoryView onDone={() => switchTab("chat")} />}
 			{tab === "mcp" && <McpView onDone={() => switchTab("chat")} />}
 			{tab === "prompts" && <PromptsView onDone={() => switchTab("chat")} />}
