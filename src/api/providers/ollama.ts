@@ -6,6 +6,7 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./openai"
+import { XmlMatcher } from "../../utils/xml-matcher"
 
 const OLLAMA_DEFAULT_TEMPERATURE = 0
 
@@ -35,14 +36,25 @@ export class OllamaHandler implements ApiHandler, SingleCompletionHandler {
 			temperature: this.options.modelTemperature ?? OLLAMA_DEFAULT_TEMPERATURE,
 			stream: true,
 		})
+		const matcher = new XmlMatcher(
+			"think",
+			(chunk) =>
+				({
+					type: chunk.matched ? "reasoning" : "text",
+					text: chunk.data,
+				}) as const,
+		)
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
+
 			if (delta?.content) {
-				yield {
-					type: "text",
-					text: delta.content,
+				for (const chunk of matcher.update(delta.content)) {
+					yield chunk
 				}
 			}
+		}
+		for (const chunk of matcher.final()) {
+			yield chunk
 		}
 	}
 
