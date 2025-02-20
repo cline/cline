@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.3.23
+
+### Patch Changes
+
+- Handle errors more gracefully when reading custom instructions from files
+
 ## [3.3.22]
 
 - Improve the Provider Settings configuration with clear Save buttons and warnings about unsaved changes (thanks @System233!)
