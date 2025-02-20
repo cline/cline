@@ -1,5 +1,14 @@
 # Roo Code Changelog
 
+## 3.3.22
+
+### Patch Changes
+
+- Allow users to choose a custom preferred language
+- v3.3.22
+- Create .roomodes file if needed
+- Allow setting a wildcard for auto-approve commands
+
 ## [3.3.21]
 
 - Fix input box revert issue and configuration loss during profile switch (thanks @System233!)
