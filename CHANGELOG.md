@@ -1,5 +1,15 @@
 # Roo Code Changelog
 
+## [3.3.22]
+
+- Improve the Provider Settings configuration with clear Save buttons and warnings about unsaved changes (thanks @System233!)
+- Correctly parse `<think>` reasoning tags from Ollama models (thanks @System233!)
+- Add support for setting custom preferred languages on the Prompts tab, as well as adding Catalan to the list of languages (thanks @alarno!)
+- Add a button to delete MCP servers (thanks @hannesrudolph!)
+- Fix a bug where the button to copy the system prompt preview always copied the Code mode version
+- Fix a bug where the .roomodes file was not automatically created when adding custom modes from the Prompts tab
+- Allow setting a wildcard (`*`) to auto-approve all command execution (use with caution!)
+
 ## [3.3.21]
 
 - Fix input box revert issue and configuration loss during profile switch (thanks @System233!)
