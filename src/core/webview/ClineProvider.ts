@@ -1585,6 +1585,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			chatSettings,
 			userInfo,
 			authToken,
+			mcpMarketplaceEnabled,
 		} = await this.getState()
 
 		return {
@@ -1603,7 +1604,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			chatSettings,
 			isLoggedIn: !!authToken,
 			userInfo,
-			mcpMarketplaceEnabled: vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true),
+			mcpMarketplaceEnabled,
 		}
 	}
 
@@ -1837,6 +1838,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			mcpMarketplaceEnabled,
 		}
 	}
 

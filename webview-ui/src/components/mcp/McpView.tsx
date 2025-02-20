@@ -1,15 +1,14 @@
 import { VSCodeButton, VSCodeLink, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
-import { useState, useEffect } from "react"
-import { vscode } from "../../utils/vscode"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { McpServer } from "../../../../src/shared/mcp"
-import { WebviewMessage } from "../../../../src/shared/WebviewMessage"
-import McpToolRow from "./McpToolRow"
-import McpResourceRow from "./McpResourceRow"
-import McpMarketplaceView from "./marketplace/McpMarketplaceView"
+import { useEffect, useState } from "react"
 import styled from "styled-components"
+import { McpServer } from "../../../../src/shared/mcp"
+import { useExtensionState } from "../../context/ExtensionStateContext"
 import { getMcpServerDisplayName } from "../../utils/mcp"
+import { vscode } from "../../utils/vscode"
 import DangerButton from "../common/DangerButton"
+import McpMarketplaceView from "./marketplace/McpMarketplaceView"
+import McpResourceRow from "./McpResourceRow"
+import McpToolRow from "./McpToolRow"
 
 type McpViewProps = {
 	onDone: () => void
@@ -24,14 +23,18 @@ const McpView = ({ onDone }: McpViewProps) => {
 	}
 
 	useEffect(() => {
-		if (mcpMarketplaceEnabled) {
-			vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" } as WebviewMessage)
-			vscode.postMessage({ type: "fetchLatestMcpServersFromHub" } as WebviewMessage)
-		} else if (activeTab === "marketplace") {
+		if (!mcpMarketplaceEnabled && activeTab === "marketplace") {
 			// If marketplace is disabled and we're on marketplace tab, switch to installed
 			setActiveTab("installed")
 		}
 	}, [mcpMarketplaceEnabled, activeTab])
+
+	useEffect(() => {
+		if (mcpMarketplaceEnabled) {
+			vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" })
+			vscode.postMessage({ type: "fetchLatestMcpServersFromHub" })
+		}
+	}, [mcpMarketplaceEnabled])
 
 	return (
 		<div
@@ -134,7 +137,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 									appearance="secondary"
 									style={{ width: "100%", marginBottom: "5px" }}
 									onClick={() => {
-										vscode.postMessage({ type: "openMcpSettings" } as WebviewMessage)
+										vscode.postMessage({ type: "openMcpSettings" })
 									}}>
 									<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
 									Configure MCP Servers
@@ -146,7 +149,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 											vscode.postMessage({
 												type: "openExtensionSettings",
 												text: "cline.mcp",
-											} as WebviewMessage)
+											})
 										}}
 										style={{ fontSize: "12px" }}>
 										Advanced MCP Settings
@@ -211,7 +214,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		vscode.postMessage({
 			type: "restartMcpServer",
 			text: server.name,
-		} as WebviewMessage)
+		})
 	}
 
 	const handleDelete = () => {
@@ -219,7 +222,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		vscode.postMessage({
 			type: "deleteMcpServer",
 			serverName: server.name,
-		} as WebviewMessage)
+		})
 	}
 
 	return (
@@ -272,7 +275,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 								type: "toggleMcpServer",
 								serverName: server.name,
 								disabled: !server.disabled,
-							} as WebviewMessage)
+							})
 						}}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" || e.key === " ") {
@@ -281,7 +284,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 									type: "toggleMcpServer",
 									serverName: server.name,
 									disabled: !server.disabled,
-								} as WebviewMessage)
+								})
 							}
 						}}>
 						<div
