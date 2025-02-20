@@ -5,6 +5,45 @@ import fs from "fs/promises"
 jest.mock("fs/promises")
 const mockedFs = jest.mocked(fs)
 
+describe("safeReadFile", () => {
+	beforeEach(() => {
+		jest.clearAllMocks()
+	})
+
+	it("should read and trim file content", async () => {
+		mockedFs.readFile.mockResolvedValue("  content with spaces  ")
+		const result = await loadRuleFiles("/fake/path")
+		expect(mockedFs.readFile).toHaveBeenCalled()
+		expect(result).toBe(
+			"\n# Rules from .clinerules:\ncontent with spaces\n" +
+				"\n# Rules from .cursorrules:\ncontent with spaces\n" +
+				"\n# Rules from .windsurfrules:\ncontent with spaces\n",
+		)
+	})
+
+	it("should handle ENOENT error", async () => {
+		mockedFs.readFile.mockRejectedValue({ code: "ENOENT" })
+		const result = await loadRuleFiles("/fake/path")
+		expect(result).toBe("")
+	})
+
+	it("should handle EISDIR error", async () => {
+		mockedFs.readFile.mockRejectedValue({ code: "EISDIR" })
+		const result = await loadRuleFiles("/fake/path")
+		expect(result).toBe("")
+	})
+
+	it("should throw on unexpected errors", async () => {
+		const error = new Error("Permission denied") as NodeJS.ErrnoException
+		error.code = "EPERM"
+		mockedFs.readFile.mockRejectedValue(error)
+
+		await expect(async () => {
+			await loadRuleFiles("/fake/path")
+		}).rejects.toThrow()
+	})
+})
+
 describe("loadRuleFiles", () => {
 	beforeEach(() => {
 		jest.clearAllMocks()
