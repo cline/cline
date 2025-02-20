@@ -235,7 +235,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.disposables,
 		)
 
-		// Listen for when color changes
+		// Listen for configuration changes
 		vscode.workspace.onDidChangeConfiguration(
 			async (e) => {
 				if (e && e.affectsConfiguration("workbench.colorTheme")) {
@@ -244,6 +244,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						type: "theme",
 						text: JSON.stringify(await getTheme()),
 					})
+				}
+				if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
+					// Update state when marketplace tab setting changes
+					await this.postStateToWebview()
 				}
 			},
 			null,
@@ -1601,6 +1605,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			browserSettings,
 			chatSettings,
 			userInfo,
+			mcpMarketplaceEnabled,
 		} = await this.getState()
 
 		return {
@@ -1618,6 +1623,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			browserSettings,
 			chatSettings,
 			userInfo,
+			mcpMarketplaceEnabled,
 		}
 	}
 
@@ -1795,6 +1801,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			.getConfiguration("cline.modelSettings.o3Mini")
 			.get("reasoningEffort", "medium")
 
+		const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
+
 		return {
 			apiConfiguration: {
 				apiProvider,
@@ -1849,6 +1857,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			mcpMarketplaceEnabled,
 		}
 	}
 
