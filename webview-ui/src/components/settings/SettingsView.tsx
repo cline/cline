@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react"
 import { ExtensionStateContextType, useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
@@ -25,17 +25,22 @@ type SettingsViewProps = {
 	onDone: () => void
 }
 
-const SettingsView = ({ onDone }: SettingsViewProps) => {
+export interface SettingsViewRef {
+	checkUnsaveChanges: (then: () => void) => void
+}
+
+const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone }, ref) => {
 	const extensionState = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [commandInput, setCommandInput] = useState("")
-	const prevApiConfigName = useRef(extensionState.currentApiConfigName)
 	const [isDiscardDialogShow, setDiscardDialogShow] = useState(false)
-
-	// TODO: Reduce WebviewMessage/ExtensionState complexity
 	const [cachedState, setCachedState] = useState(extensionState)
 	const [isChangeDetected, setChangeDetected] = useState(false)
+	const prevApiConfigName = useRef(extensionState.currentApiConfigName)
+	const confirmDialogHandler = useRef<() => void>()
+
+	// TODO: Reduce WebviewMessage/ExtensionState complexity
 	const { currentApiConfigName } = extensionState
 	const {
 		apiConfiguration,
@@ -190,12 +195,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setModelIdErrorMessage(modelIdValidationResult)
 	}, [apiConfiguration, extensionState.glamaModels, extensionState.openRouterModels])
 
-	const confirmDialogHandler = useRef<() => void>()
-	const onConfirmDialogResult = useCallback((confirm: boolean) => {
-		if (confirm) {
-			confirmDialogHandler.current?.()
-		}
-	}, [])
 	const checkUnsaveChanges = useCallback(
 		(then: () => void) => {
 			if (isChangeDetected) {
@@ -207,6 +206,20 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		},
 		[isChangeDetected],
 	)
+
+	useImperativeHandle(
+		ref,
+		() => ({
+			checkUnsaveChanges,
+		}),
+		[checkUnsaveChanges],
+	)
+
+	const onConfirmDialogResult = useCallback((confirm: boolean) => {
+		if (confirm) {
+			confirmDialogHandler.current?.()
+		}
+	}, [])
 
 	const handleResetState = () => {
 		vscode.postMessage({ type: "resetState" })
@@ -250,7 +263,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Unsaved changes</AlertDialogTitle>
 						<AlertDialogDescription>
-							<span style={{ fontSize: "2em" }} className={`codicon codicon-warning align-middle mr-1`} />
+							<span className={`codicon codicon-warning align-middle mr-1`} />
 							Do you want to discard changes and continue?
 						</AlertDialogDescription>
 					</AlertDialogHeader>
@@ -890,6 +903,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			</div>
 		</div>
 	)
-}
+})
 
 export default memo(SettingsView)
