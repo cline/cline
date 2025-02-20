@@ -12,8 +12,8 @@ export async function loadRuleFiles(cwd: string): Promise<string> {
 				combinedRules += `\n# Rules from ${file}:\n${content.trim()}\n`
 			}
 		} catch (err) {
-			// Silently skip if file doesn't exist
-			if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+			const errorCode = (err as NodeJS.ErrnoException).code
+			if (!errorCode || !["ENOENT", "EISDIR"].includes(errorCode)) {
 				throw err
 			}
 		}
@@ -41,8 +41,8 @@ export async function addCustomInstructions(
 				modeRuleContent = content.trim()
 			}
 		} catch (err) {
-			// Silently skip if file doesn't exist
-			if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+			const errorCode = (err as NodeJS.ErrnoException).code
+			if (!errorCode || !["ENOENT", "EISDIR"].includes(errorCode)) {
 				throw err
 			}
 		}
