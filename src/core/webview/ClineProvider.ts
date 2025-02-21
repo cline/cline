@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
-import fs from "fs/promises"
-import os from "os"
 import crypto from "crypto"
 import { execa } from "execa"
+import fs from "fs/promises"
+import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -13,25 +13,24 @@ import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { McpHub } from "../../services/mcp/McpHub"
-import { McpDownloadResponse, McpMarketplaceCatalog, McpMarketplaceItem, McpServer } from "../../shared/mcp"
 import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
+import { McpHub } from "../../services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
+import { ChatContent } from "../../shared/ChatContent"
+import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
+import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
+import { searchCommits } from "../../utils/git"
 import { Cline } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
-import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
-import { DIFF_VIEW_URI_SCHEME } from "../../integrations/editor/DiffViewProvider"
-import { searchCommits } from "../../utils/git"
-import { ChatContent } from "../../shared/ChatContent"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -1009,21 +1008,38 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async getDocumentsPath(): Promise<string> {
 		if (process.platform === "win32") {
-			// If the user is running Win 7/Win Server 2008 r2+, we want to get the correct path to their Documents directory.
 			try {
 				const { stdout: docsPath } = await execa("powershell", [
 					"-NoProfile", // Ignore user's PowerShell profile(s)
 					"-Command",
 					"[System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments)",
 				])
-				return docsPath.trim()
+				const trimmedPath = docsPath.trim()
+				if (trimmedPath) {
+					return trimmedPath
+				}
 			} catch (err) {
 				console.error("Failed to retrieve Windows Documents path. Falling back to homedir/Documents.")
-				return path.join(os.homedir(), "Documents")
 			}
-		} else {
-			return path.join(os.homedir(), "Documents") // On POSIX (macOS, Linux, etc.), assume ~/Documents by default (existing behavior, but may want to implement similar logic here)
+		} else if (process.platform === "linux") {
+			try {
+				// First check if xdg-user-dir exists
+				await execa("which", ["xdg-user-dir"])
+
+				// If it exists, try to get XDG documents path
+				const { stdout } = await execa("xdg-user-dir", ["DOCUMENTS"])
+				const trimmedPath = stdout.trim()
+				if (trimmedPath) {
+					return trimmedPath
+				}
+			} catch {
+				// Log error but continue to fallback
+				console.error("Failed to retrieve XDG Documents path. Falling back to homedir/Documents.")
+			}
 		}
+
+		// Default fallback for all platforms
+		return path.join(os.homedir(), "Documents")
 	}
 
 	async ensureMcpServersDirectoryExists(): Promise<string> {
