@@ -23,7 +23,7 @@ import { fileExistsAtPath } from "../../utils/fs"
  */
 export async function getLegacyShadowGitPath(globalStoragePath: string, taskId: string): Promise<string> {
 	if (!globalStoragePath) {
-		throw new Error("Global storage uri is invalid")
+		throw new Error("Global storage path is invalid")
 	}
 	const checkpointsDir = path.join(globalStoragePath, "tasks", taskId, "checkpoints")
 	await mkdir(checkpointsDir, { recursive: true })
