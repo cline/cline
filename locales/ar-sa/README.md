@@ -2,10 +2,12 @@
 العربية | <a href="https://github.com/cline/cline/blob/main/locales/es/README.md" target="_blank">الإسبانية</a> | <a href="https://github.com/cline/cline/blob/main/locales/de/README.md" target="_blank">الألمانية</a> | <a href="https://github.com/cline/cline/blob/main/locales/ja/README.md" target="_blank">اليابانية</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-cn/README.md" target="_blank">الصينية المبسطة</a> | <a href="https://github.com/cline/cline/blob/main/locales/zh-tw/README.md" target="_blank">الصينية التقليدية</a> | <a href="https://github.com/cline/cline/blob/main/locales/pt-BR/README.md" target="_blank">البرتغالية</a>
 </sub></div>
 
-# Cline – \#1 على OpenRouter
+# Cline: شريكك في الذكاء الاصطناعي التعاوني للعمل الهندسي الجاد
 
 <p align="center">
-  <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />
+  <video alt="عرض توضيحي لوكيل Cline للذكاء الاصطناعي يعرض ميزات التطوير التعاوني" autoplay loop muted playsinline width="100%">
+    <source src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demoForWebsiteNew.mp4" type="video/mp4">
+  </video>
 </p>
 
 <div align="center">
@@ -30,7 +32,7 @@
 </table>
 </div>
 
-التقى Cline، مساعد الذكاء الاصطناعي الذي يمكنه استخدام **سطر الأوامر** و **محرر النصوص** الخاص بك.
+التقى Cline، وكيل الذكاء الاصطناعي الذي يمكنه استخدام **سطر الأوامر** و **محرر النصوص** الخاص بك.
 
 بفضل [قدرات Claude 3.5 Sonnet على التعليمات البرمجية الوكيلة](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf)، يمكن لـ Cline التعامل مع مهام تطوير البرامج المعقدة خطوة بخطوة. مع الأدوات التي تسمح له بإنشاء وتعديل الملفات، واستكشاف المشاريع الكبيرة، واستخدام المتصفح، وتنفيذ أوامر الطرفية (بعد منحك الإذن)، يمكنه مساعدتك بطرق تتجاوز إكمال الكود أو الدعم الفني. يمكن لـ Cline أيضًا استخدام بروتوكول سياق النموذج (MCP) لإنشاء أدوات جديدة وتوسيع قدراته الخاصة. في حين تعمل النصوص البرمجية الآلية المستقلة تقليديًا في بيئات محاصرة، توفر هذه الإضافة واجهة رسومية لموافقة المستخدم على كل تغيير في الملف وأمر طرفية، مما يوفر طريقة آمنة وسهلة الاستخدام لاستكشاف إمكانات الذكاء الاصطناعي الوكيل.
 
@@ -47,7 +49,7 @@
 
 ---
 
-<img align="right" width="340" src="https://github.com/user-attachments/assets/3cf21e04-7ce9-4d22-a7b9-ba2c595e88a4">
+<img align="right" width="340" src="https://github.com/user-attachments/assets/3cf21e04-7ce9-4d22-a7b9-ba2c595e88a4" alt="واجهة تكامل النماذج المرنة من Cline">
 
 ### استخدم أي واجهة برمجة تطبيقات ونموذج
 
@@ -59,7 +61,7 @@
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="left" width="370" src="https://github.com/user-attachments/assets/81be79a8-1fdb-4028-9129-5fe055e01e76">
+<img align="left" width="370" src="https://github.com/user-attachments/assets/81be79a8-1fdb-4028-9129-5fe055e01e76" alt="واجهة تنفيذ أوامر الطرفية من Cline">
 
 ### تشغيل الأوامر في الطرفية
 
@@ -71,7 +73,7 @@
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="right" width="400" src="https://github.com/user-attachments/assets/c5977833-d9b8-491e-90f9-05f9cd38c588">
+<img align="right" width="400" src="https://github.com/user-attachments/assets/c5977833-d9b8-491e-90f9-05f9cd38c588" alt="واجهة تحرير الملفات وعرض الاختلافات من Cline">
 
 ### إنشاء وتعديل الملفات
 
@@ -83,7 +85,7 @@
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="left" width="370" src="https://github.com/user-attachments/assets/bc2e85ba-dfeb-4fe6-9942-7cfc4703cbe5">
+<img align="left" width="370" src="https://github.com/user-attachments/assets/bc2e85ba-dfeb-4fe6-9942-7cfc4703cbe5" alt="واجهة أتمتة المتصفح من Cline">
 
 ### استخدم المتصفح
 
@@ -95,7 +97,7 @@
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="right" width="350" src="https://github.com/user-attachments/assets/ac0efa14-5c1f-4c26-a42d-9d7c56f5fadd">
+<img align="right" width="350" src="https://github.com/user-attachments/assets/ac0efa14-5c1f-4c26-a42d-9d7c56f5fadd" alt="واجهة إنشاء أدوات MCP من Cline">
 
 ### "إضافة أداة التي..."
 
@@ -109,7 +111,7 @@
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="left" width="360" src="https://github.com/user-attachments/assets/7fdf41e6-281a-4b4b-ac19-020b838b6970">
+<img align="left" width="360" src="https://github.com/user-attachments/assets/7fdf41e6-281a-4b4b-ac19-020b838b6970" alt="واجهة إدارة السياق من Cline">
 
 ### إضافة السياق
 
@@ -125,9 +127,9 @@
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="right" width="350" src="https://github.com/user-attachments/assets/140c8606-d3bf-41b9-9a1f-4dbf0d4c90cb">
+<img align="right" width="350" src="https://github.com/user-attachments/assets/140c8606-d3bf-41b9-9a1f-4dbf0d4c90cb" alt="واجهة مقارنة نقاط التحقق من Cline">
 
-### نقاط التحقق: المقارنة والاستعادة
+### أمان جاهز للمؤسسات
 
 أثناء عمل Cline على مهمة، يأخذ الامتداد لقطة من بيئة العمل في كل خطوة. يمكنك استخدام زر "Compare" لرؤية الفرق بين اللقطة وبيئة العمل الحالية، وزر "Restore" للعودة إلى تلك النقطة.
 

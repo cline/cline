@@ -1,7 +1,9 @@
-# Cline – #1 en OpenRouter
+# Cline: Su Socio de IA Colaborativo para Trabajo de Ingeniería Serio
 
 <p align="center">
-        <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />
+  <video alt="Demo de Cline mostrando características de desarrollo colaborativo" autoplay loop muted playsinline width="100%">
+    <source src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demoForWebsiteNew.mp4" type="video/mp4">
+  </video>
 </p>
 
 <div align="center">
@@ -20,22 +22,22 @@
 <a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Solicitudes de Funciones</strong></a>
 </td>
 <td align="center">
-<a href="https://cline.bot/join-us" target="_blank"><strong>Estamos Contratando!</strong></a>
+<a href="https://docs.cline.bot/getting-started/getting-started-new-coders" target="_blank"><strong>Comenzar</strong></a>
 </td>
 </tbody>
 </table>
 </div>
 
-Conozca a Cline, un asistente de IA que puede usar su **CLI** y **E**ditor.
+Conozca a Cline, un agente de IA que puede usar su **CLI** y **E**ditor.
 
 Gracias a las [habilidades de codificación agencial de Claude 3.5 Sonnet](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf), Cline puede abordar tareas complejas de desarrollo de software paso a paso. Con herramientas que le permiten crear y editar archivos, explorar grandes proyectos, usar el navegador y ejecutar comandos de terminal (con su aprobación), puede ayudarle de una manera que va más allá de la autocompletación de código o el soporte técnico. Cline incluso puede usar el Model Context Protocol (MCP) para crear nuevas herramientas y expandir sus propias capacidades. Mientras que los scripts de IA autónomos tradicionalmente se ejecutan en entornos aislados, esta extensión ofrece una GUI con un humano en el bucle para aprobar cada cambio de archivo y comando de terminal, proporcionando una forma segura y accesible de explorar el potencial de la IA agencial.
 
 1. Ingrese su tarea y agregue imágenes para convertir maquetas en aplicaciones funcionales o solucionar errores con capturas de pantalla.
 2. Cline comenzará analizando su estructura de archivos y ASTs de código fuente, realizando búsquedas Regex y leyendo archivos relevantes para orientarse en proyectos existentes. Al gestionar cuidadosamente la información agregada, Cline puede proporcionar asistencia valiosa incluso en proyectos grandes y complejos sin sobrecargar la ventana de contexto.
 3. Una vez que Cline tenga la información necesaria, puede:
-                - Crear y editar archivos + monitorear errores de Linter/Compilador, para que pueda solucionar proactivamente problemas como importaciones faltantes y errores de sintaxis.
-                - Ejecutar comandos directamente en su terminal y monitorear su salida, para que pueda responder a problemas del servidor de desarrollo después de editar un archivo.
-                - Para tareas de desarrollo web, Cline puede iniciar el sitio web en un navegador sin cabeza, hacer clic, escribir, desplazarse y capturar capturas de pantalla + registros de consola, para que pueda solucionar errores de tiempo de ejecución y errores visuales.
+    - Crear y editar archivos + monitorear errores de Linter/Compilador, para que pueda solucionar proactivamente problemas como importaciones faltantes y errores de sintaxis.
+    - Ejecutar comandos directamente en su terminal y monitorear su salida, para que pueda responder a problemas del servidor de desarrollo después de editar un archivo.
+    - Para tareas de desarrollo web, Cline puede iniciar el sitio web en un navegador sin cabeza, hacer clic, escribir, desplazarse y capturar capturas de pantalla + registros de consola, para que pueda solucionar errores de tiempo de ejecución y errores visuales.
 4. Cuando una tarea esté completa, Cline le presentará el resultado con un comando de terminal como `open -a "Google Chrome" index.html`, que puede ejecutar con un clic en un botón.
 
 > [!TIP]
@@ -43,7 +45,7 @@ Gracias a las [habilidades de codificación agencial de Claude 3.5 Sonnet](https
 
 ---
 
-<img align="right" width="340" src="https://github.com/user-attachments/assets/3cf21e04-7ce9-4d22-a7b9-ba2c595e88a4">
+<img align="right" width="340" src="https://github.com/user-attachments/assets/3cf21e04-7ce9-4d22-a7b9-ba2c595e88a4" alt="Interfaz de integración flexible de modelos de Cline">
 
 ### Use cualquier API y modelo
 
@@ -55,7 +57,7 @@ La extensión también rastrea el uso total de tokens y costos de API para todo 
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="left" width="370" src="https://github.com/user-attachments/assets/81be79a8-1fdb-4028-9129-5fe055e01e76">
+<img align="left" width="370" src="https://github.com/user-attachments/assets/81be79a8-1fdb-4028-9129-5fe055e01e76" alt="Interfaz de ejecución de comandos de terminal de Cline">
 
 ### Ejecutar comandos en el terminal
 
@@ -67,7 +69,7 @@ Para procesos de larga duración como servidores de desarrollo, use el botón "C
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="right" width="400" src="https://github.com/user-attachments/assets/c5977833-d9b8-491e-90f9-05f9cd38c588">
+<img align="right" width="400" src="https://github.com/user-attachments/assets/c5977833-d9b8-491e-90f9-05f9cd38c588" alt="Interfaz de edición de archivos de Cline con vista de diferencias">
 
 ### Crear y editar archivos
 
@@ -79,7 +81,7 @@ Todos los cambios realizados por Cline se registran en la línea de tiempo de su
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="left" width="370" src="https://github.com/user-attachments/assets/bc2e85ba-dfeb-4fe6-9942-7cfc4703cbe5">
+<img align="left" width="370" src="https://github.com/user-attachments/assets/bc2e85ba-dfeb-4fe6-9942-7cfc4703cbe5" alt="Interfaz de automatización de navegador de Cline">
 
 ### Usar el navegador
 
@@ -91,7 +93,7 @@ Intente pedirle a Cline que "pruebe la aplicación" y observe cómo ejecuta un c
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="right" width="350" src="https://github.com/user-attachments/assets/ac0efa14-5c1f-4c26-a42d-9d7c56f5fadd">
+<img align="right" width="350" src="https://github.com/user-attachments/assets/ac0efa14-5c1f-4c26-a42d-9d7c56f5fadd" alt="Interfaz de creación de herramientas MCP de Cline">
 
 ### "agregar una herramienta que..."
 
@@ -105,25 +107,25 @@ Gracias al [Model Context Protocol](https://github.com/modelcontextprotocol), Cl
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="left" width="360" src="https://github.com/user-attachments/assets/7fdf41e6-281a-4b4b-ac19-020b838b6970">
+<img align="left" width="360" src="https://github.com/user-attachments/assets/7fdf41e6-281a-4b4b-ac19-020b838b6970" alt="Interfaz de gestión de contexto de Cline">
 
 ### Agregar contexto
 
-**`@url`:** Inserte una URL para que la extensión la recupere y convierta en Markdown, útil cuando desee proporcionar a Cline los documentos más recientes
+**`@url`:** Inserte una URL para que la extensión la recupere y convierta en Markdown, útil cuando desee proporcionar a Cline los documentos más recientes
 
-**`@problems`:** Agregue errores y advertencias del espacio de trabajo (panel 'Problemas') que Cline debe solucionar
+**`@problems`:** Agregue errores y advertencias del espacio de trabajo (panel 'Problemas') que Cline debe solucionar
 
-**`@file`:** Agregue el contenido de un archivo para que no tenga que desperdiciar solicitudes de API para aprobar la lectura del archivo (+ para buscar archivos)
+**`@file`:** Agregue el contenido de un archivo para que no tenga que desperdiciar solicitudes de API para aprobar la lectura del archivo (+ para buscar archivos)
 
-**`@folder`:** Agregue los archivos de una carpeta a la vez para acelerar aún más su flujo de trabajo
+**`@folder`:** Agregue los archivos de una carpeta a la vez para acelerar aún más su flujo de trabajo
 
 <!-- Pixel transparente para crear un salto de línea después de la imagen flotante -->
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
-<img align="right" width="350" src="https://github.com/user-attachments/assets/140c8606-d3bf-41b9-9a1f-4dbf0d4c90cb">
+<img align="right" width="350" src="https://github.com/user-attachments/assets/140c8606-d3bf-41b9-9a1f-4dbf0d4c90cb" alt="Interfaz de comparación de puntos de control de Cline">
 
-### Puntos de control: Comparar y Restaurar
+### Seguridad Lista para Empresas
 
 Mientras Cline trabaja en una tarea, la extensión crea una instantánea de su espacio de trabajo en cada paso. Puede usar el botón 'Comparar' para ver una diferencia entre la instantánea y su espacio de trabajo actual, y el botón 'Restaurar' para volver a ese punto.
 
@@ -141,21 +143,21 @@ Para contribuir al proyecto, comience con nuestra [guía de contribución](CONTR
 <summary>Instrucciones de desarrollo local</summary>
 
 1. Clone el repositorio _(Requiere [git-lfs](https://git-lfs.com/))_:
-                ```bash
-                git clone https://github.com/cline/cline.git
-                ```
+    ```bash
+    git clone https://github.com/cline/cline.git
+    ```
 2. Abra el proyecto en VSCode:
-                ```bash
-                code cline
-                ```
+    ```bash
+    code cline
+    ```
 3. Instale las dependencias necesarias para la extensión y la GUI de Webview:
-                ```bash
-                npm run install:all
-                ```
+    ```bash
+    npm run install:all
+    ```
 4. Inicie presionando `F5` (o `Run`->`Start Debugging`) para abrir una nueva ventana de VSCode con la extensión cargada. (Es posible que deba instalar la [extensión de emparejadores de problemas de esbuild](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) si encuentra problemas al compilar el proyecto.)
 
 </details>
 
 ## Licencia
 
-[Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)
+[Apache 2.0 © 2025 Cline Bot Inc.](./LICENSE)
