@@ -3,79 +3,25 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
-import { fromIni } from "@aws-sdk/credential-providers"
+import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private client: AnthropicBedrock | any
-	private initializationPromise: Promise<void>
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.initializationPromise = this.initializeClient()
-	}
-
-	private async initializeClient() {
-		let clientConfig: any = {
-			awsRegion: this.options.awsRegion || "us-east-1",
-		}
-		try {
-			if (this.options.awsUseProfile) {
-				// Use profile-based credentials if enabled
-				// Use named profile, defaulting to 'default' if not specified
-				var credentials: any
-				if (this.options.awsProfile) {
-					credentials = await fromIni({
-						profile: this.options.awsProfile,
-						ignoreCache: true,
-					})()
-				} else {
-					credentials = await fromIni({
-						ignoreCache: true,
-					})()
-				}
-				clientConfig.awsAccessKey = credentials.accessKeyId
-				clientConfig.awsSecretKey = credentials.secretAccessKey
-				clientConfig.awsSessionToken = credentials.sessionToken
-			} else if (this.options.awsAccessKey && this.options.awsSecretKey) {
-				// Use direct credentials if provided
-				clientConfig.awsAccessKey = this.options.awsAccessKey
-				clientConfig.awsSecretKey = this.options.awsSecretKey
-				if (this.options.awsSessionToken) {
-					clientConfig.awsSessionToken = this.options.awsSessionToken
-				}
-			}
-		} catch (error) {
-			console.error("Failed to initialize Bedrock client:", error)
-			throw error
-		} finally {
-			this.client = new AnthropicBedrock(clientConfig)
-		}
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
-		let modelId: string
-		if (this.options.awsUseCrossRegionInference) {
-			let regionPrefix = (this.options.awsRegion || "").slice(0, 3)
-			switch (regionPrefix) {
-				case "us-":
-					modelId = `us.${this.getModel().id}`
-					break
-				case "eu-":
-					modelId = `eu.${this.getModel().id}`
-					break
-				default:
-					// cross region inference is not supported in this region, falling back to default model
-					modelId = this.getModel().id
-					break
-			}
-		} else {
-			modelId = this.getModel().id
-		}
+		let modelId = await this.getModelId()
 
-		const stream = await this.client.messages.create({
+		// create anthropic client, using sessions created or renewed after this handler's
+		// initialization, and allowing for session renewal if necessary as well
+		let client = await this.getClient()
+
+		const stream = await client.messages.create({
 			model: modelId,
 			max_tokens: this.getModel().info.maxTokens || 8192,
 			temperature: 0,
@@ -140,6 +86,70 @@ export class AwsBedrockHandler implements ApiHandler {
 		return {
 			id: bedrockDefaultModelId,
 			info: bedrockModels[bedrockDefaultModelId],
+		}
+	}
+
+	private async getClient(): Promise<AnthropicBedrock> {
+		// Create AWS credentials by executing a an AWS provider chain exactly as the
+		// Anthropic SDK does it, by wrapping the default chain into a temporary process
+		// environment.
+		const providerChain = fromNodeProviderChain()
+		const credentials = await AwsBedrockHandler.withTempEnv(
+			() => {
+				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
+				AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.options.awsAccessKey)
+				AwsBedrockHandler.setEnv("AWS_SECRET_ACCESS_KEY", this.options.awsSecretKey)
+				AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", this.options.awsSessionToken)
+				AwsBedrockHandler.setEnv("AWS_PROFILE", this.options.awsProfile)
+			},
+			() => providerChain(),
+		)
+
+		// Return an AnthropicBedrock client with the resolved/assumed credentials.
+		//
+		// When AnthropicBedrock creates its AWS client, the chain will execute very
+		// fast as the access/secret keys will already be already provided, and have
+		// a higher precedence than the profiles.
+		return new AnthropicBedrock({
+			awsAccessKey: credentials.accessKeyId,
+			awsSecretKey: credentials.secretAccessKey,
+			awsSessionToken: credentials.sessionToken,
+			awsRegion: this.options.awsRegion || "us-east-1",
+		})
+	}
+
+	private async getModelId(): Promise<string> {
+		if (this.options.awsUseCrossRegionInference) {
+			let regionPrefix = (this.options.awsRegion || "").slice(0, 3)
+			switch (regionPrefix) {
+				case "us-":
+					return `us.${this.getModel().id}`
+				case "eu-":
+					return `eu.${this.getModel().id}`
+					break
+				default:
+					// cross region inference is not supported in this region, falling back to default model
+					return this.getModel().id
+					break
+			}
+		}
+		return this.getModel().id
+	}
+
+	private static async withTempEnv<R>(updateEnv: () => void, fn: () => Promise<R>): Promise<R> {
+		const previousEnv = { ...process.env }
+
+		try {
+			updateEnv()
+			return await fn()
+		} finally {
+			process.env = previousEnv
+		}
+	}
+
+	private static async setEnv(key: string, value: string | undefined) {
+		if (key !== "" && value !== undefined) {
+			process.env[key] = value
 		}
 	}
 }
