@@ -1,4 +1,5 @@
 import React, { memo, useMemo, useState, useEffect } from "react"
+import { DeleteTaskDialog } from "./DeleteTaskDialog"
 import { Fzf } from "fzf"
 import prettyBytes from "pretty-bytes"
 import { Virtuoso } from "react-virtuoso"
@@ -37,8 +38,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
 	}
 
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+	const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
+
 	const handleDeleteHistoryItem = (id: string) => {
-		vscode.postMessage({ type: "deleteTaskWithId", text: id })
+		setTaskToDelete(id)
+		setDeleteDialogOpen(true)
 	}
 
 	const formatDate = (timestamp: number) => {
@@ -398,6 +403,18 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					)}
 				/>
 			</div>
+			{taskToDelete && (
+				<DeleteTaskDialog
+					taskId={taskToDelete}
+					open={deleteDialogOpen}
+					onOpenChange={(open) => {
+						setDeleteDialogOpen(open)
+						if (!open) {
+							setTaskToDelete(null)
+						}
+					}}
+				/>
+			)}
 		</div>
 	)
 }

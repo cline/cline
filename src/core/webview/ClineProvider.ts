@@ -2309,16 +2309,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async deleteTaskWithId(id: string) {
-		const answer = await vscode.window.showInformationMessage(
-			"Are you sure you want to delete this task? This action cannot be undone.",
-			{ modal: true },
-			"Delete",
-		)
-
-		if (answer !== "Delete") {
-			return
-		}
-
 		if (id === this.cline?.taskId) {
 			await this.clearTask()
 		}
