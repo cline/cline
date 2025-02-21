@@ -29,6 +29,7 @@ export interface WebviewMessage {
 		| "refreshOpenAiModels"
 		| "openMcpSettings"
 		| "restartMcpServer"
+		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
 		| "togglePlanActMode"
