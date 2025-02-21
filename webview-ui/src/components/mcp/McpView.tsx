@@ -7,9 +7,9 @@ import {
 	VSCodeDropdown,
 	VSCodeOption,
 } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState, FormEventHandler } from "react"
+import { useEffect, useState } from "react"
 import styled from "styled-components"
-import { McpServer } from "../../../../src/shared/mcp"
+import { DEFAULT_MCP_TIMEOUT_SECONDS, McpServer } from "../../../../src/shared/mcp"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { getMcpServerDisplayName } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
@@ -221,9 +221,9 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 	const [timeout, setTimeout] = useState<string>(() => {
 		try {
 			const config = JSON.parse(server.config)
-			return config.timeout?.toString() || "60"
+			return config.timeout?.toString() || DEFAULT_MCP_TIMEOUT_SECONDS.toString()
 		} catch {
-			return "60"
+			return DEFAULT_MCP_TIMEOUT_SECONDS.toString()
 		}
 	})
 

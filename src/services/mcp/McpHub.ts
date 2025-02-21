@@ -16,6 +16,7 @@ import * as vscode from "vscode"
 import { z } from "zod"
 import { ClineProvider, GlobalFileNames } from "../../core/webview/ClineProvider"
 import {
+	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpMode,
 	McpResource,
 	McpResourceResponse,
@@ -26,7 +27,7 @@ import {
 } from "../../shared/mcp"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
-
+import { secondsToMs } from "../../utils/time"
 export type McpConnection = {
 	server: McpServer
 	client: Client
@@ -42,7 +43,7 @@ const StdioConfigSchema = z.object({
 	env: z.record(z.string()).optional(),
 	autoApprove: AutoApproveSchema.optional(),
 	disabled: z.boolean().optional(),
-	timeout: z.number().min(1).max(3600).optional().default(60),
+	timeout: z.number().min(1).max(3600).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
 })
 
 const McpSettingsSchema = z.object({
@@ -562,12 +563,12 @@ export class McpHub {
 			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
 		}
 
-		let timeout = 60000 // Default timeout of 60 seconds - is also Anthropic's default timeout in their MCP SDK
+		let timeout = secondsToMs(DEFAULT_MCP_TIMEOUT_SECONDS) // sdk expects ms
 
 		try {
 			const config = JSON.parse(connection.server.config)
 			const parsedConfig = StdioConfigSchema.parse(config)
-			timeout = parsedConfig.timeout * 1000 // convert to milliseconds
+			timeout = secondsToMs(parsedConfig.timeout)
 		} catch (error) {
 			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
 			// Continue with default timeout
