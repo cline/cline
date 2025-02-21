@@ -34,4 +34,10 @@ export default defineConfig({
 			allowedHeaders: "*",
 		},
 	},
+	define: {
+		"process.env": {
+			NODE_ENV: JSON.stringify(process.env.IS_DEV ? "development" : "production"),
+			IS_DEV: JSON.stringify(process.env.IS_DEV),
+		},
+	},
 })
