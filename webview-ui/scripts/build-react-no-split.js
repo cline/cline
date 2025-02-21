@@ -12,6 +12,7 @@
 const rewire = require("rewire")
 const defaults = rewire("react-scripts/scripts/build.js")
 const config = defaults.__get__("config")
+const webpack = require("webpack")
 
 /* Modifying Webpack Configuration for 'shared' dir
 This section uses Rewire to modify Create React App's webpack configuration without ejecting. Rewire allows us to inject and alter the internal build scripts of CRA at runtime. This allows us to maintain a flexible project structure that keeps shared code outside the webview-ui/src directory, while still adhering to CRA's security model that typically restricts imports to within src/. 
@@ -98,18 +99,35 @@ config.module.rules[1].oneOf.forEach((rule) => {
 	}
 })
 
-// Disable code splitting
-config.optimization.splitChunks = {
-	cacheGroups: {
-		default: false,
+// Force all code into a single bundle for VS Code webview compatibility.
+// This is necessary for:
+// 1. Mermaid.js to work properly (prevents async chunk loading)
+// 2. Consistent CSP nonce handling (single bundle = single nonce)
+config.optimization = {
+	...config.optimization,
+	splitChunks: {
+		cacheGroups: {
+			default: false,
+		},
+		name: "main", // Forces all chunks (dynamic import() calls, for example those used by Mermaid) into one bundle - this is what actually prevents code splitting
 	},
+	runtimeChunk: false,
 }
 
-// Disable code chunks
-config.optimization.runtimeChunk = false
+// Ensure all chunks are named 'main' to match our CSP nonce setup
+config.output = {
+	...config.output,
+	filename: "static/js/[name].js",
+}
 
-// Rename main.{hash}.js to main.js
-config.output.filename = "static/js/[name].js"
+// Adjust build environment variables for dev/debug builds.
+config.plugins[4] = new webpack.DefinePlugin({
+	"process.env": {
+		...config.plugins[4].definitions["process.env"],
+		NODE_ENV: JSON.stringify(process.env.IS_DEV ? "development" : "production"),
+		IS_DEV: JSON.stringify(process.env.IS_DEV),
+	},
+})
 
 // Rename main.{hash}.css to main.css
 config.plugins[5].options.filename = "static/css/[name].css"

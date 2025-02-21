@@ -115,4 +115,68 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 		}
 		return { id: bedrockDefaultModelId, info: bedrockModels[bedrockDefaultModelId] }
 	}
+
+	private async getClient(): Promise<AnthropicBedrock> {
+		// Create AWS credentials by executing a an AWS provider chain exactly as the
+		// Anthropic SDK does it, by wrapping the default chain into a temporary process
+		// environment.
+		const providerChain = fromNodeProviderChain()
+		const credentials = await AwsBedrockHandler.withTempEnv(
+			() => {
+				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
+				AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.options.awsAccessKey)
+				AwsBedrockHandler.setEnv("AWS_SECRET_ACCESS_KEY", this.options.awsSecretKey)
+				AwsBedrockHandler.setEnv("AWS_SESSION_TOKEN", this.options.awsSessionToken)
+				AwsBedrockHandler.setEnv("AWS_PROFILE", this.options.awsProfile)
+			},
+			() => providerChain(),
+		)
+
+		// Return an AnthropicBedrock client with the resolved/assumed credentials.
+		//
+		// When AnthropicBedrock creates its AWS client, the chain will execute very
+		// fast as the access/secret keys will already be already provided, and have
+		// a higher precedence than the profiles.
+		return new AnthropicBedrock({
+			awsAccessKey: credentials.accessKeyId,
+			awsSecretKey: credentials.secretAccessKey,
+			awsSessionToken: credentials.sessionToken,
+			awsRegion: this.options.awsRegion || "us-east-1",
+		})
+	}
+
+	private async getModelId(): Promise<string> {
+		if (this.options.awsUseCrossRegionInference) {
+			let regionPrefix = (this.options.awsRegion || "").slice(0, 3)
+			switch (regionPrefix) {
+				case "us-":
+					return `us.${this.getModel().id}`
+				case "eu-":
+					return `eu.${this.getModel().id}`
+					break
+				default:
+					// cross region inference is not supported in this region, falling back to default model
+					return this.getModel().id
+					break
+			}
+		}
+		return this.getModel().id
+	}
+
+	private static async withTempEnv<R>(updateEnv: () => void, fn: () => Promise<R>): Promise<R> {
+		const previousEnv = { ...process.env }
+
+		try {
+			updateEnv()
+			return await fn()
+		} finally {
+			process.env = previousEnv
+		}
+	}
+
+	private static async setEnv(key: string, value: string | undefined) {
+		if (key !== "" && value !== undefined) {
+			process.env[key] = value
+		}
+	}
 }
