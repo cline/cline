@@ -24,6 +24,7 @@ export class VolcArkHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const epId = this.options.arkEpId || ""
+		const modelId = this.options.apiModelId || ""
 
 		const preConvertMessages = this.prevConvertMessages(messages)
 
@@ -33,7 +34,7 @@ export class VolcArkHandler implements ApiHandler {
 		]
 
 		const stream = await this.client.chat.completions.create({
-			model: epId,
+			model: epId || modelId,
 			messages: openAiMessages,
 			temperature: 0,
 			stream: true,
