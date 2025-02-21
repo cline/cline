@@ -1265,27 +1265,33 @@ export const xaiModels = {
 // Ark
 // https://www.volcengine.com/docs/82379/1302004
 export type ArkModelId = keyof typeof arkModels
-export const arkDefaultModelId: ArkModelId = "doubao-1.5-pro-32k"
+export const arkDefaultModelId: ArkModelId = "doubao-1.5-pro"
 export const arkModels = {
-	"doubao-1.5-pro-256k": {
+	"doubao-1-5-pro-256k-250115": {
 		maxTokens: 12_288,
 		contextWindow: 131_072,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.68,
 		outputPrice: 1.23,
-		// tool
 	},
-	"doubao-1.5-pro-32k": {
+	"doubao-1.5-pro-32k-250115": {
 		maxTokens: 12_288,
 		contextWindow: 32_768,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.11,
 		outputPrice: 0.27,
-		// tool
 	},
-	"doubao-1.5-vision-pro-32k": {
+	"doubao-1.5-pro": {
+		maxTokens: 12_288,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.11,
+		outputPrice: 0.27,
+	},
+	"doubao-1-5-vision-pro-32k-250115": {
 		maxTokens: 12_288,
 		contextWindow: 32_768,
 		supportsImages: true,
@@ -1293,7 +1299,7 @@ export const arkModels = {
 		inputPrice: 0.41,
 		outputPrice: 1.23,
 	},
-	"deepseek-r1": {
+	"deepseek-r1-250120": {
 		maxTokens: 8192,
 		contextWindow: 64_000,
 		supportsImages: false,
@@ -1301,7 +1307,7 @@ export const arkModels = {
 		inputPrice: 0.54,
 		outputPrice: 2.19,
 	},
-	"deepseek-v3": {
+	"deepseek-v3-241226": {
 		maxTokens: 8192,
 		contextWindow: 64_000,
 		supportsImages: false,

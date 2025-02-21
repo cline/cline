@@ -94,8 +94,8 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				}
 				break;
 			case "ark":
-				if (!apiConfiguration.arkBaseUrl || !apiConfiguration.arkApiKey || !apiConfiguration.arkEpId) {
-					return "You must provide a valid base URL, API key, EP ID."
+				if (!apiConfiguration.arkBaseUrl || !apiConfiguration.arkApiKey) {
+					return "You must provide a valid base URL, API key."
 				}
 				break
 		}
