@@ -184,40 +184,32 @@ class CheckpointTracker {
 
 			console.info(`Using shadow git at: ${gitPath}`)
 
-			// Disable nested git repos before any operations
-			await this.gitOperations.renameNestedGitRepos(true)
-
-			try {
-				if (!this.isLegacyCheckpoint) {
-					await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
-				}
-
-				const addResult = await this.gitOperations.addCheckpointFiles(git, gitPath)
-				if (!addResult.success) {
-					console.warn(addResult.message)
-					return undefined
-				}
-
-				if (addResult.fileCount === 0) {
-					return undefined
-				}
-
-				const commitMessage = this.isLegacyCheckpoint ? "checkpoint" : "checkpoint-" + this.cwdHash + "-" + this.taskId
-
-				console.info(
-					`Creating ${this.isLegacyCheckpoint ? "legacy" : "new"} checkpoint commit with message: ${commitMessage}`,
-				)
-				const result = await git.commit(commitMessage, {
-					"--allow-empty": null,
-				})
-				const commitHash = result.commit || ""
-				this.lastCheckpointHash = commitHash
-				console.warn(`Checkpoint commit created.`)
-				return commitHash
-			} finally {
-				// Always re-enable nested git repos
-				await this.gitOperations.renameNestedGitRepos(false)
+			if (!this.isLegacyCheckpoint) {
+				await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
 			}
+
+			const addResult = await this.gitOperations.addCheckpointFiles(git, gitPath)
+			if (!addResult.success) {
+				console.warn(addResult.message)
+				return undefined
+			}
+
+			if (addResult.fileCount === 0) {
+				return undefined
+			}
+
+			const commitMessage = this.isLegacyCheckpoint ? "checkpoint" : "checkpoint-" + this.cwdHash + "-" + this.taskId
+
+			console.info(
+				`Creating ${this.isLegacyCheckpoint ? "legacy" : "new"} checkpoint commit with message: ${commitMessage}`,
+			)
+			const result = await git.commit(commitMessage, {
+				"--allow-empty": null,
+			})
+			const commitHash = result.commit || ""
+			this.lastCheckpointHash = commitHash
+			console.warn(`Checkpoint commit created.`)
+			return commitHash
 		} catch (error) {
 			console.error("Failed to create checkpoint:", {
 				taskId: this.taskId,

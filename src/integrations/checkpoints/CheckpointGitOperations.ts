@@ -327,58 +327,6 @@ export class GitOperations {
 	}
 
 	/**
-	 * Since we use git to track checkpoints, we need to temporarily disable nested git repos to work around git's
-	 * requirement of using submodules for nested repos.
-	 *
-	 * This method renames nested .git directories by adding/removing a suffix to temporarily disable/enable them.
-	 * The root .git directory is preserved. Uses VS Code's workspace API to find nested .git directories and
-	 * only processes actual directories (not files named .git).
-	 *
-	 * @param disable - If true, adds suffix to disable nested git repos. If false, removes suffix to re-enable them.
-	 * @throws Error if renaming any .git directory fails
-	 */
-	public async renameNestedGitRepos(disable: boolean): Promise<void> {
-		// Find all .git directories that are not at the root level using VS Code API
-		const gitFiles = await vscode.workspace.findFiles(
-			new vscode.RelativePattern(this.cwd, "**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX)),
-			new vscode.RelativePattern(this.cwd, ".git/**"), // Exclude root .git
-		)
-
-		// Filter to only include directories
-		const gitPaths: string[] = []
-		for (const file of gitFiles) {
-			const relativePath = path.relative(this.cwd, file.fsPath)
-			try {
-				const stats = await fs.stat(path.join(this.cwd, relativePath))
-				if (stats.isDirectory()) {
-					gitPaths.push(relativePath)
-				}
-			} catch {
-				// Skip if stat fails
-				continue
-			}
-		}
-
-		// For each nested .git directory, rename it based on the disable flag
-		for (const gitPath of gitPaths) {
-			const fullPath = path.join(this.cwd, gitPath)
-			let newPath: string
-			if (disable) {
-				newPath = fullPath + GIT_DISABLED_SUFFIX
-			} else {
-				newPath = fullPath.endsWith(GIT_DISABLED_SUFFIX) ? fullPath.slice(0, -GIT_DISABLED_SUFFIX.length) : fullPath
-			}
-
-			try {
-				await fs.rename(fullPath, newPath)
-				console.info(`${disable ? "Disabled" : "Enabled"} nested git repo ${gitPath}`)
-			} catch (error) {
-				console.error(`Failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
-			}
-		}
-	}
-
-	/**
 	 * Switches to or creates a task-specific branch in the shadow Git repository.
 	 * For legacy checkpoints, this is a no-op since they use separate repositories.
 	 * For branch-per-task checkpoints, this ensures we're on the correct task branch before operations.
@@ -437,7 +385,6 @@ export class GitOperations {
 		try {
 			// Update exclude patterns before each commit
 			await writeExcludesFile(gitPath, await getLfsPatterns(this.cwd))
-			await this.renameNestedGitRepos(true)
 
 			// Get list of all files git would track (respects .gitignore)
 			const gitFiles = (await git.raw(["ls-files", "--others", "--exclude-standard", "--cached"]))
@@ -482,8 +429,6 @@ export class GitOperations {
 				message: `Failed to prepare files: ${error instanceof Error ? error.message : String(error)}`,
 				fileCount: 0,
 			}
-		} finally {
-			await this.renameNestedGitRepos(false)
 		}
 	}
 }
