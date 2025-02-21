@@ -1,10 +1,9 @@
 # Roo Code Changelog
 
-## 3.3.24
+## [3.3.24]
 
-### Patch Changes
-
-- v3.3.24
+- Fixed a bug with region selection preventing AWS Bedrock profiles from being saved (thanks @oprstchn!)
+- Updated the price of gpt-4o (thanks @marvijo-code!)
 
 ## [3.3.23]
 
