@@ -8,3 +8,9 @@ tmp
 .DS_Store
 
 pnpm-lock.yaml
+
+# python
+.venv/
+.pytest_cache/
+__pycache__/
+.coverage

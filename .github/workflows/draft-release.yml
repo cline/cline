@@ -1,0 +1,47 @@
+name: "Update Draft Release"
+
+on:
+    release:
+        types: [created]
+
+permissions:
+    contents: write
+
+jobs:
+    update-notes:
+        name: Update Draft Release Notes
+        runs-on: ubuntu-latest
+        # Run on both draft and published releases to ensure notes are always populated
+
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.x"
+
+            - name: Install Python Dependencies
+              run: |
+                  pip install requests
+
+            - name: Generate Release Notes
+              id: notes
+              run: |
+                  python .github/scripts/generate_release_notes.py \
+                    --release-type ${{ contains(github.event.release.tag_name, '-pre') && 'pre-release' || 'release' }} \
+                    --version ${{ github.event.release.tag_name }} \
+                    --changesets '[]' \
+                    --github-output $GITHUB_OUTPUT \
+                    --api-key ${{ secrets.OPENROUTER_API_KEY }}
+
+            - name: Update Release Notes
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  gh api \
+                    --method PATCH \
+                    /repos/${{ github.repository }}/releases/${{ github.event.release.id }} \
+                    -f body="${{ steps.notes.outputs.release_notes }}"
