@@ -1,5 +1,13 @@
-import { VSCodeButton, VSCodeLink, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
-import { useState, useEffect } from "react"
+import {
+	VSCodeButton,
+	VSCodeLink,
+	VSCodePanels,
+	VSCodePanelTab,
+	VSCodePanelView,
+	VSCodeDropdown,
+	VSCodeOption,
+} from "@vscode/webview-ui-toolkit/react"
+import { useState, useEffect, FormEventHandler } from "react"
 import { vscode } from "../../utils/vscode"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { McpServer } from "../../../../src/shared/mcp"
@@ -260,6 +268,36 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		}
 	}
 
+	const [timeout, setTimeout] = useState<string>(() => {
+		try {
+			const config = JSON.parse(server.config)
+			return config.timeout?.toString() || "60"
+		} catch {
+			return "60"
+		}
+	})
+
+	const timeoutOptions = [
+		{ value: "30", label: "30 seconds" },
+		{ value: "60", label: "1 minute" },
+		{ value: "300", label: "5 minutes" },
+		{ value: "600", label: "10 minutes" },
+		{ value: "1800", label: "30 minutes" },
+		{ value: "3600", label: "1 hour" },
+	]
+
+	const handleTimeoutChange = (e: any) => {
+		const select = e.target as HTMLSelectElement
+		const value = select.value
+		const num = parseInt(value)
+		setTimeout(value)
+		vscode.postMessage({
+			type: "updateMcpTimeout",
+			serverName: server.name,
+			timeout: num,
+		})
+	}
+
 	const handleRestart = () => {
 		vscode.postMessage({
 			type: "restartMcpServer",
@@ -452,6 +490,16 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							</VSCodePanelView>
 						</VSCodePanels>
 
+						<div style={{ margin: "10px 7px" }}>
+							<label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>Request Timeout</label>
+							<VSCodeDropdown style={{ width: "100%" }} value={timeout} onChange={handleTimeoutChange}>
+								{timeoutOptions.map((option) => (
+									<VSCodeOption key={option.value} value={option.value}>
+										{option.label}
+									</VSCodeOption>
+								))}
+							</VSCodeDropdown>
+						</div>
 						<VSCodeButton
 							appearance="secondary"
 							onClick={handleRestart}
