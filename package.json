@@ -206,7 +206,7 @@
 					],
 					"default": "English",
 					"description": "The language that Cline should use for communication."
-        			},
+				},
 				"cline.mcpMarketplace.enabled": {
 					"type": "boolean",
 					"default": true,
