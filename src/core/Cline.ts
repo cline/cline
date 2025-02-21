@@ -9,9 +9,7 @@ import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "../api"
-import { OpenAiHandler } from "../api/providers/openai"
 import { OpenRouterHandler } from "../api/providers/openrouter"
-import { ApiStream } from "../api/transform/stream"
 import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../integrations/editor/DiffViewProvider"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
@@ -58,6 +56,9 @@ import { parseMentions } from "./mentions"
 import { formatResponse } from "./prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
+import { OpenAiHandler } from "../api/providers/openai"
+import { ApiStream } from "../api/transform/stream"
+import { ClineHandler } from "../api/providers/cline"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1355,7 +1356,7 @@ export class Cline {
 			yield firstChunk.value
 			this.isWaitingForFirstChunk = false
 		} catch (error) {
-			const isOpenRouter = this.api instanceof OpenRouterHandler
+			const isOpenRouter = this.api instanceof OpenRouterHandler || this.api instanceof ClineHandler
 			if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
 				console.log("first chunk failed, waiting 1 second before retrying")
 				await delay(1000)

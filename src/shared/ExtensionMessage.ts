@@ -27,6 +27,7 @@ export interface ExtensionMessage {
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
 		| "emailSubscribed"
+		| "authCallback"
 		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
 		| "commitSearchResults"
@@ -50,6 +51,7 @@ export interface ExtensionMessage {
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
+	customToken?: string
 	mcpMarketplaceCatalog?: McpMarketplaceCatalog
 	error?: string
 	mcpDownloadDetails?: McpDownloadResponse
@@ -73,7 +75,6 @@ export interface ExtensionState {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
-	isLoggedIn: boolean
 	platform: Platform
 	userInfo?: {
 		displayName: string | null
