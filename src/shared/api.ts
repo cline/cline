@@ -15,7 +15,7 @@ export type ApiProvider =
 	| "mistral"
 	| "vscode-lm"
 	| "litellm"
-
+	| "siliconflow"
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
@@ -48,6 +48,7 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	requestyApiKey?: string
 	requestyModelId?: string
+	siliconFlowApiKey?: string
 	togetherApiKey?: string
 	togetherModelId?: string
 	qwenApiKey?: string
@@ -443,6 +444,44 @@ export const deepSeekModels = {
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+export type SiliconFlowModelId = keyof typeof siliconFlowModels
+export const siliconFlowDefaultModelId: SiliconFlowModelId = "deepseek-ai/DeepSeek-V3"
+export const siliconFlowModels = {
+	"deepseek-ai/DeepSeek-V3": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.14,
+		outputPrice: 0.28,
+	},
+	"deepseek-ai/DeepSeek-R1": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.19,
+	},
+	// Pro variation, same model but provide higher QoS it seems
+	"Pro/deepseek-ai/DeepSeek-V3": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.14,
+		outputPrice: 0.28,
+	},
+	"Pro/deepseek-ai/DeepSeek-R1": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.19,
 	},
 } as const satisfies Record<string, ModelInfo>
 
