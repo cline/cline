@@ -15,6 +15,7 @@ export type ApiProvider =
 	| "mistral"
 	| "vscode-lm"
 	| "litellm"
+	| "nebius"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -56,6 +57,8 @@ export interface ApiHandlerOptions {
 	vsCodeLmModelSelector?: any
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
+	nebiusApiKey?: string
+	nebiusModelId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
