@@ -191,7 +191,16 @@ class CheckpointTracker {
 				if (!this.isLegacyCheckpoint) {
 					await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
 				}
-				await this.gitOperations.addCheckpointFiles(git, gitPath)
+
+				const addResult = await this.gitOperations.addCheckpointFiles(git, gitPath)
+				if (!addResult.success) {
+					console.warn(addResult.message)
+					return undefined
+				}
+
+				if (addResult.fileCount === 0) {
+					return undefined
+				}
 
 				const commitMessage = this.isLegacyCheckpoint ? "checkpoint" : "checkpoint-" + this.cwdHash + "-" + this.taskId
 
@@ -327,7 +336,11 @@ class CheckpointTracker {
 		}
 
 		// Stage all changes so that untracked files appear in diff summary
-		await this.gitOperations.addCheckpointFiles(git, gitPath)
+		const addResult = await this.gitOperations.addCheckpointFiles(git, gitPath)
+		if (!addResult.success) {
+			console.warn(addResult.message)
+			return []
+		}
 
 		const diffSummary = rhsHash ? await git.diffSummary([`${baseHash}..${rhsHash}`]) : await git.diffSummary([baseHash])
 		console.info(`Found ${diffSummary.files.length} changed files`)

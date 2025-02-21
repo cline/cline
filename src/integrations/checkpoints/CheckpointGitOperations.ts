@@ -7,6 +7,16 @@ import * as vscode from "vscode"
 import { getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
 import { HistoryItem } from "../../shared/HistoryItem"
 
+// Maximum number of files allowed in a checkpoint
+const MAX_FILES_PER_CHECKPOINT = 50000
+
+// Return success addCheckpointFiles if MAX_FILES_PER_CHECKPOINT is not exceeded
+interface CheckpointAddResult {
+	success: boolean
+	message?: string
+	fileCount: number
+}
+
 interface StorageProvider {
 	context: {
 		globalStorageUri: { fsPath: string }
@@ -421,42 +431,57 @@ export class GitOperations {
 	 *
 	 * @param git - SimpleGit instance configured for the shadow git repo
 	 * @param gitPath - Path to the .git directory
-	 * @returns Promise<void>
-	 * @throws Error if:
-	 *  - File operations fail
-	 *  - Git commands error
-	 *  - LFS pattern updates fail
-	 *  - Nested git repo handling fails
+	 * @returns Promise<CheckpointAddResult> Object containing success status, message, and file count
 	 */
-	public async addCheckpointFiles(git: SimpleGit, gitPath: string): Promise<void> {
+	public async addCheckpointFiles(git: SimpleGit, gitPath: string): Promise<CheckpointAddResult> {
 		try {
 			// Update exclude patterns before each commit
 			await writeExcludesFile(gitPath, await getLfsPatterns(this.cwd))
 			await this.renameNestedGitRepos(true)
-			//console.info("Starting checkpoint add operation...")
 
 			// Get list of all files git would track (respects .gitignore)
 			const gitFiles = (await git.raw(["ls-files", "--others", "--exclude-standard", "--cached"]))
 				.split("\n")
 				.filter(Boolean)
 
+			// Check file count limit
+			if (gitFiles.length > MAX_FILES_PER_CHECKPOINT) {
+				console.warn(
+					`Repository contains ${gitFiles.length} files, which exceeds the maximum limit of ${MAX_FILES_PER_CHECKPOINT}.`,
+				)
+				return {
+					success: false,
+					message: `Repository contains ${gitFiles.length} files, which exceeds the maximum limit of ${MAX_FILES_PER_CHECKPOINT}.`,
+					fileCount: gitFiles.length,
+				}
+			}
+
 			// Add filtered files
 			if (gitFiles.length === 0) {
 				console.info("No files to add to checkpoint")
-				return
+				return { success: true, fileCount: 0 }
 			}
 
 			try {
 				console.info(`Adding ${gitFiles.length} files to checkpoint`)
 				await git.add(gitFiles)
 				console.info("Checkpoint add operation completed successfully")
+				return { success: true, fileCount: gitFiles.length }
 			} catch (error) {
 				console.error("Checkpoint add operation failed:", error)
-				throw error
+				return {
+					success: false,
+					message: `Failed to add files: ${error instanceof Error ? error.message : String(error)}`,
+					fileCount: gitFiles.length,
+				}
 			}
 		} catch (error) {
 			console.error("Failed to add files to checkpoint", error)
-			throw error
+			return {
+				success: false,
+				message: `Failed to prepare files: ${error instanceof Error ? error.message : String(error)}`,
+				fileCount: 0,
+			}
 		} finally {
 			await this.renameNestedGitRepos(false)
 		}
