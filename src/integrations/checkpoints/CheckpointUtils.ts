@@ -108,6 +108,9 @@ export async function getWorkingDirectory(): Promise<string> {
 
 /**
  * Hashes the current working directory to a 13-character numeric hash.
+ * This is the repo identifer that collapses all checkpoints for a workspace into
+ * a single shadow git repository.
+ *
  * @param workingDir - The absolute path to the working directory
  * @returns A 13-character numeric hash string used to identify the workspace
  * @throws {Error} If the working directory path is empty or invalid
@@ -128,8 +131,7 @@ export function hashWorkingDir(workingDir: string): string {
 /**
  * Detects if a task uses the legacy checkpoint structure.
  * Legacy checkpoints stored each task's checkpoints in a separate git repository
- * under the tasks/{taskId}/checkpoints directory. New checkpoints use a single
- * repository with branches per task.
+ * under the tasks/{taskId}/checkpoints directory.
  *
  * @param globalStoragePath - The VS Code global storage path
  * @param taskId - The ID of the task to check

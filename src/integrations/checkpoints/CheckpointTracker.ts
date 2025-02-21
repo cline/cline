@@ -14,7 +14,6 @@ import { getShadowGitPath, hashWorkingDir, getWorkingDirectory, detectLegacyChec
  *
  * Shadow Git Repository:
  * - Creates and manages an isolated Git repository for tracking checkpoints
- * - Handles nested Git repositories by temporarily disabling them
  * - Configures Git settings automatically (identity, LFS, etc.)
  *
  * File Management:
@@ -51,7 +50,6 @@ class CheckpointTracker {
 
 	/**
 	 * Creates a new CheckpointTracker instance to manage checkpoints for a specific task.
-	 * The constructor is private - use the static create() method to instantiate.
 	 *
 	 * @param taskId - Unique identifier for the task being tracked
 	 * @param cwd - The current working directory to track files in
@@ -160,11 +158,6 @@ class CheckpointTracker {
 	 * - Branch-per-task: "checkpoint-{cwdHash}-{taskId}"
 	 * - Always allows empty commits
 	 *
-	 * Dependencies:
-	 * - Requires initialized shadow git (getShadowGitPath)
-	 * - For new checkpoints, requires task branch setup
-	 * - Uses addCheckpointFiles to stage changes
-	 *
 	 * @returns Promise<string | undefined> The created commit hash, or undefined if:
 	 * - Shadow git access fails
 	 * - Branch switch fails
@@ -261,7 +254,7 @@ class CheckpointTracker {
 	/**
 	 * Resets the shadow git repository's HEAD to a specific checkpoint commit.
 	 * This will discard all changes after the target commit and restore the
-	 * working directory to that checkpoint's state.
+	 * working tracked files to that checkpoint's state.
 	 *
 	 * Dependencies:
 	 * - Requires initialized shadow git (getShadowGitPath)
@@ -292,7 +285,6 @@ class CheckpointTracker {
 	 *   - the current working directory (including uncommitted changes).
 	 *
 	 * If `rhsHash` is omitted, compares `lhsHash` to the working directory.
-	 * If you want truly untracked files to appear, `git add` them first.
 	 *
 	 * @param lhsHash - The commit to compare from (older commit)
 	 * @param rhsHash - The commit to compare to (newer commit).
@@ -346,7 +338,7 @@ class CheckpointTracker {
 		// Get list of files that exist in base commit
 		const existingFiles = await this.getExistingFiles(git, baseHash, files)
 
-		// Process files in batches
+		// Process files in batches (Helps with large repos)
 		for (let i = 0; i < files.length; i += batchSize) {
 			const batch = files.slice(i, i + batchSize)
 

@@ -372,10 +372,8 @@ export class GitOperations {
 	 *
 	 * Process:
 	 * 1. Updates exclude patterns from LFS config
-	 * 2. Temporarily disables nested git repos
-	 * 3. Gets list of tracked and untracked files from git (respecting .gitignore)
-	 * 4. Adds all files to git staging
-	 * 5. Re-enables nested git repos
+	 * 2. Gets list of tracked and untracked files from git (respecting .gitignore)
+	 * 3. Adds all files to git staging
 	 *
 	 * @param git - SimpleGit instance configured for the shadow git repo
 	 * @param gitPath - Path to the .git directory
