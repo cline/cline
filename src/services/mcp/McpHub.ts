@@ -26,7 +26,6 @@ import {
 } from "../../shared/mcp"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
-import { Logger } from "../logging/Logger"
 
 export type McpConnection = {
 	server: McpServer
@@ -559,8 +558,6 @@ export class McpHub {
 			)
 		}
 
-		Logger.log(`connection: ${JSON.stringify(connection.server.config)}`)
-
 		if (connection.server.disabled) {
 			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
 		}
@@ -572,11 +569,9 @@ export class McpHub {
 			const parsedConfig = StdioConfigSchema.parse(config)
 			timeout = parsedConfig.timeout * 1000 // convert to milliseconds
 		} catch (error) {
-			Logger.log(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
+			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
 			// Continue with default timeout
 		}
-
-		Logger.log(`Calling tool ${toolName} with timeout ${timeout}`)
 
 		return await connection.client.request(
 			{
