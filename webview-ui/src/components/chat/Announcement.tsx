@@ -1,6 +1,7 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "../../utils/vscStyles"
+import { vscode } from "../../utils/vscode"
 
 interface AnnouncementProps {
 	version: string
@@ -30,29 +31,34 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>Plan/Act mode toggle:</b> Plan mode turns Cline into an architect that gathers information, asks clarifying
-					questions, and designs a solution. Switch back to Act mode to let him execute the plan!{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1881761978986934582" style={{ display: "inline" }}>
-						See a demo here.
+					<b>Introducing MCP Marketplace:</b> Discover and install the best MCP servers right from the extension, with
+					new servers added regularly! Get started by going to the{" "}
+					<span className="codicon codicon-extensions" style={{ marginRight: "4px", fontSize: 10 }}></span>
+					<VSCodeLink
+						onClick={() => {
+							vscode.postMessage({ type: "showMcpView" })
+						}}>
+						MCP Servers tab
 					</VSCodeLink>
+					.
 				</li>
 				<li>
-					<b>Quick API/model switching</b> with a new popup menu under the chat field
+					<b>Mermaid diagrams in Plan mode!</b> Cline can now visualize his plans using flowcharts, sequences,
+					entity-relationships, and more. When he explains his approach using mermaid, you'll see a diagram right in
+					chat that you can click to expand.
 				</li>
 				<li>
-					<b>VS Code LM API</b> lets you use models from other extensions like GitHub Copilot
+					Use <code>@terminal</code> to reference terminal contents, and <code>@git</code> to reference working changes
+					and commits!
 				</li>
 				<li>
-					<b>MCP server improvements:</b> On/off toggle to disable servers when not in use, and Auto-approve option for
-					individual tools
-				</li>
-				<li>
-					In case you missed it, Cline now supports Checkpoints!{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
-						See it in action here.
-					</VSCodeLink>
+					New visual indicator for checkpoints after edits & commands, and automatic checkpoint at the start of each
+					task.
 				</li>
 			</ul>
+			<VSCodeLink href="https://x.com/sdrzn/status/1892262424881090721" style={{ display: "inline" }}>
+				See a demo of the changes here!
+			</VSCodeLink>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
@@ -109,9 +115,12 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				}}
 			/>
 			<p style={{ margin: "0" }}>
-				Join our{" "}
+				Join us on{" "}
+				<VSCodeLink style={{ display: "inline" }} href="https://x.com/cline">
+					X,
+				</VSCodeLink>{" "}
 				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
-					discord
+					discord,
 				</VSCodeLink>{" "}
 				or{" "}
 				<VSCodeLink style={{ display: "inline" }} href="https://www.reddit.com/r/cline/">

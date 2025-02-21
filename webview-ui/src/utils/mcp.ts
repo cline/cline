@@ -50,14 +50,6 @@ export function findMatchingResourceOrTemplate(
 export function getMcpServerDisplayName(serverName: string, mcpMarketplaceCatalog: McpMarketplaceCatalog): string {
 	// Find matching item in marketplace catalog
 	const catalogItem = mcpMarketplaceCatalog.items.find((item) => item.mcpId === serverName)
-	// Log if no matching catalog item found
-	if (!catalogItem) {
-		console.warn(`No marketplace catalog item found for MCP server: ${serverName}`)
-	} else {
-		console.log(`Found marketplace catalog item for MCP server: ${serverName}`, catalogItem)
-	}
-
-	console.log(mcpMarketplaceCatalog)
 
 	// Return display name if found, otherwise return original server name
 	return catalogItem?.name || serverName

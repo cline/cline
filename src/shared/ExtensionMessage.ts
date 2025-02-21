@@ -80,6 +80,7 @@ export interface ExtensionState {
 		email: string | null
 		photoURL: string | null
 	}
+	mcpMarketplaceEnabled?: boolean
 }
 
 export interface ClineMessage {

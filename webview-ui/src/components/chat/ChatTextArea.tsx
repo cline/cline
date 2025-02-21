@@ -655,7 +655,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setTimeout(() => {
 				const newMode = chatSettings.mode === "plan" ? "act" : "plan"
 				vscode.postMessage({
-					type: "chatSettings",
+					type: "togglePlanActMode",
 					chatSettings: {
 						mode: newMode,
 					},
