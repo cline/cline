@@ -1,0 +1,94 @@
+import { expect } from "chai"
+import { describe, it, beforeEach, afterEach } from "mocha"
+import fs from "fs/promises"
+import * as vscode from "vscode"
+import { createTestEnvironment, createTestTracker } from "./Checkpoint-test-utils"
+
+describe("Checkpoint Disabled State", () => {
+    let env: Awaited<ReturnType<typeof createTestEnvironment>>
+    let originalGetConfiguration: typeof vscode.workspace.getConfiguration
+
+    beforeEach(async () => {
+        env = await createTestEnvironment()
+        originalGetConfiguration = vscode.workspace.getConfiguration
+
+        // Mock VS Code configuration to disable checkpoints
+        vscode.workspace.getConfiguration = () =>
+            ({
+                get: (key: string) => (key === "enableCheckpoints" ? false : undefined),
+            }) as any
+    })
+
+    afterEach(async () => {
+        await env.cleanup()
+        // Restore original configuration
+        vscode.workspace.getConfiguration = originalGetConfiguration
+    })
+
+    it("should return undefined when creating tracker", async () => {
+        const tracker = await createTestTracker(env.globalStoragePath)
+        expect(tracker).to.be.undefined
+    })
+
+    it("should allow re-enabling checkpoints", async () => {
+        // First verify disabled state
+        const disabledTracker = await createTestTracker(env.globalStoragePath)
+        expect(disabledTracker).to.be.undefined
+
+        // Mock configuration to enable checkpoints
+        vscode.workspace.getConfiguration = () =>
+            ({
+                get: (key: string) => (key === "enableCheckpoints" ? true : undefined),
+            }) as any
+
+        // Verify tracker can be created when enabled
+        const enabledTracker = await createTestTracker(env.globalStoragePath)
+        expect(enabledTracker).to.not.be.undefined
+
+        // Verify operations work
+        if (!enabledTracker) {throw new Error("Failed to create tracker")}
+        await fs.writeFile(env.testFilePath, "test content")
+        const commit = await enabledTracker.commit()
+        expect(commit).to.be.a("string").and.not.empty
+    })
+
+    it("should prevent operations when disabled mid-session", async () => {
+        // Start with checkpoints enabled
+        vscode.workspace.getConfiguration = () =>
+            ({
+                get: (key: string) => (key === "enableCheckpoints" ? true : undefined),
+            }) as any
+
+        // Create tracker and initial commit
+        const tracker = await createTestTracker(env.globalStoragePath)
+        expect(tracker).to.not.be.undefined
+        if (!tracker) {throw new Error("Failed to create tracker")}
+
+        await fs.writeFile(env.testFilePath, "initial content")
+        const firstCommit = await tracker.commit()
+        expect(firstCommit).to.be.a("string").and.not.empty
+
+        // Disable checkpoints
+        vscode.workspace.getConfiguration = () =>
+            ({
+                get: (key: string) => (key === "enableCheckpoints" ? false : undefined),
+            }) as any
+
+        // Verify new tracker cannot be created
+        const disabledTracker = await createTestTracker(env.globalStoragePath)
+        expect(disabledTracker).to.be.undefined
+
+        // Verify existing tracker still works
+        // This is expected behavior since the tracker was created when enabled
+        await fs.writeFile(env.testFilePath, "modified content")
+        const secondCommit = await tracker.commit()
+        expect(secondCommit).to.be.a("string").and.not.empty
+        expect(secondCommit).to.not.equal(firstCommit)
+
+        // Verify diffs still work on existing tracker
+        const diffSet = await tracker.getDiffSet(firstCommit, secondCommit)
+        expect(diffSet).to.have.lengthOf(1)
+        expect(diffSet[0].before).to.equal("initial content")
+        expect(diffSet[0].after).to.equal("modified content")
+    })
+})
