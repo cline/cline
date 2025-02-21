@@ -2836,8 +2836,6 @@ export class Cline {
 			}
 
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
-				console.log(`[Cline#abortStream] cancelReason = ${cancelReason}`)
-
 				if (this.diffViewProvider.isEditing) {
 					await this.diffViewProvider.revertChanges() // closes diff view
 				}
