@@ -2313,7 +2313,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"Are you sure you want to delete this task? This action cannot be undone.",
 			{ modal: true },
 			"Delete",
-			"Cancel",
 		)
 
 		if (answer !== "Delete") {
