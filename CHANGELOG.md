@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.3.24
+
+### Patch Changes
+
+- v3.3.24
+
 ## [3.3.23]
 
 - Handle errors more gracefully when reading custom instructions from files (thanks @joemanley201!)
