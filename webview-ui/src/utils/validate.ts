@@ -78,6 +78,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid model selector."
 				}
 				break
+			case "ark":
+				if (!apiConfiguration.arkBaseUrl || !apiConfiguration.arkApiKey) {
+					return "You must provide a valid base URL, API key."
+				}
+				break
 		}
 	}
 	return undefined
