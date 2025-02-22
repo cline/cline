@@ -43,8 +43,9 @@ export class BrowserSession {
 		}
 
 		const chromeExecutablePath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
-		if (chromeExecutablePath && !(await fileExistsAtPath(chromeExecutablePath)))
+		if (chromeExecutablePath && !(await fileExistsAtPath(chromeExecutablePath))) {
 			throw new Error(`Chrome executable not found at path: ${chromeExecutablePath}`)
+		}
 		const stats: PCRStats = chromeExecutablePath
 			? { puppeteer: require("puppeteer-core"), executablePath: chromeExecutablePath }
 			: // if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")

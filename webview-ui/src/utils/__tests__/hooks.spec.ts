@@ -45,14 +45,14 @@ describe("useMetaKeyDetection", () => {
 		// mock the detect functions
 		const { result } = renderHook(() => useMetaKeyDetection("win32"))
 		expect(result.current[0]).toBe("windows")
-		expect(result.current[1]).toBe("⊞ Win")
+		expect(result.current[1]).toBe("Win")
 	})
 
 	it("should detect Mac OS and metaKey from platform", () => {
 		// mock the detect functions
 		const { result } = renderHook(() => useMetaKeyDetection("darwin"))
 		expect(result.current[0]).toBe("mac")
-		expect(result.current[1]).toBe("⌘ Command")
+		expect(result.current[1]).toBe("CMD")
 	})
 
 	it("should detect Linux OS and metaKey from platform", () => {

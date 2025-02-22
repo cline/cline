@@ -353,15 +353,17 @@ export class Cline {
 					break
 			}
 
-			// Set isCheckpointCheckedOut flag on the message
-			// Find all checkpoint messages before this one
-			const checkpointMessages = this.clineMessages.filter((m) => m.say === "checkpoint_created")
-			const currentMessageIndex = checkpointMessages.findIndex((m) => m.ts === messageTs)
+			if (restoreType !== "task") {
+				// Set isCheckpointCheckedOut flag on the message
+				// Find all checkpoint messages before this one
+				const checkpointMessages = this.clineMessages.filter((m) => m.say === "checkpoint_created")
+				const currentMessageIndex = checkpointMessages.findIndex((m) => m.ts === messageTs)
 
-			// Set isCheckpointCheckedOut to false for all checkpoint messages
-			checkpointMessages.forEach((m, i) => {
-				m.isCheckpointCheckedOut = i === currentMessageIndex
-			})
+				// Set isCheckpointCheckedOut to false for all checkpoint messages
+				checkpointMessages.forEach((m, i) => {
+					m.isCheckpointCheckedOut = i === currentMessageIndex
+				})
+			}
 
 			await this.saveClineMessages()
 
@@ -1259,12 +1261,12 @@ export class Cline {
 			throw new Error("MCP hub not available")
 		}
 
-		let systemPrompt = await SYSTEM_PROMPT(
-			cwd,
-			this.api.getModel().info.supportsComputerUse ?? false,
-			mcpHub,
-			this.browserSettings,
-		)
+		const disableBrowserTool = vscode.workspace.getConfiguration("cline").get<boolean>("disableBrowserTool") ?? false
+		const modelSupportsComputerUse = this.api.getModel().info.supportsComputerUse ?? false
+
+		const supportsComputerUse = modelSupportsComputerUse && !disableBrowserTool // only enable computer use if the model supports it and the user hasn't disabled it
+
+		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, mcpHub, this.browserSettings)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
@@ -1539,37 +1541,44 @@ export class Cline {
 					this.didAlreadyUseTool = true
 				}
 
+				// The user can approve, reject, or provide feedback (rejection). However the user may also send a message along with an approval, in which case we add a separate user message with this feedback.
+				const pushAdditionalToolFeedback = (feedback?: string, images?: string[]) => {
+					if (!feedback && !images) {
+						return
+					}
+					const content = formatResponse.toolResult(
+						`The user provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`,
+						images,
+					)
+					if (typeof content === "string") {
+						this.userMessageContent.push({
+							type: "text",
+							text: content,
+						})
+					} else {
+						this.userMessageContent.push(...content)
+					}
+				}
+
 				const askApproval = async (type: ClineAsk, partialMessage?: string) => {
 					const { response, text, images } = await this.ask(type, partialMessage, false)
 					if (response !== "yesButtonClicked") {
-						if (response === "messageResponse") {
-							await this.say("user_feedback", text, images)
-							pushToolResult(formatResponse.toolResult(formatResponse.toolDeniedWithFeedback(text), images))
-							// this.userMessageContent.push({
-							// 	type: "text",
-							// 	text: `${toolDescription()}`,
-							// })
-							// this.toolResults.push({
-							// 	type: "tool_result",
-							// 	tool_use_id: toolUseId,
-							// 	content: this.formatToolResponseWithImages(
-							// 		await this.formatToolDeniedFeedback(text),
-							// 		images
-							// 	),
-							// })
-							this.didRejectTool = true
-							return false
-						}
+						// User pressed reject button or responded with a message, which we treat as a rejection
 						pushToolResult(formatResponse.toolDenied())
-						// this.toolResults.push({
-						// 	type: "tool_result",
-						// 	tool_use_id: toolUseId,
-						// 	content: await this.formatToolDenied(),
-						// })
-						this.didRejectTool = true
+						if (text || images?.length) {
+							pushAdditionalToolFeedback(text, images)
+							await this.say("user_feedback", text, images)
+						}
+						this.didRejectTool = true // Prevent further tool uses in this message
 						return false
+					} else {
+						// User hit the approve button, and may have provided feedback
+						if (text || images?.length) {
+							pushAdditionalToolFeedback(text, images)
+							await this.say("user_feedback", text, images)
+						}
+						return true
 					}
-					return true
 				}
 
 				const showNotificationForApprovalIfAutoApprovalEnabled = (message: string) => {
@@ -1808,24 +1817,23 @@ export class Cline {
 									let didApprove = true
 									const { response, text, images } = await this.ask("tool", completeMessage, false)
 									if (response !== "yesButtonClicked") {
+										// User either sent a message or pressed reject button
 										// TODO: add similar context for other tool denial responses, to emphasize ie that a command was not run
 										const fileDeniedNote = fileExists
 											? "The file was not updated, and maintains its original contents."
 											: "The file was not created."
-										if (response === "messageResponse") {
+										pushToolResult(`The user denied this operation. ${fileDeniedNote}`)
+										if (text || images?.length) {
+											pushAdditionalToolFeedback(text, images)
 											await this.say("user_feedback", text, images)
-											pushToolResult(
-												formatResponse.toolResult(
-													`The user denied this operation. ${fileDeniedNote}\nThe user provided the following feedback:\n<feedback>\n${text}\n</feedback>`,
-													images,
-												),
-											)
-											this.didRejectTool = true
-											didApprove = false
-										} else {
-											pushToolResult(`The user denied this operation. ${fileDeniedNote}`)
-											this.didRejectTool = true
-											didApprove = false
+										}
+										this.didRejectTool = true
+										didApprove = false
+									} else {
+										// User hit the approve button, and may have provided feedback
+										if (text || images?.length) {
+											pushAdditionalToolFeedback(text, images)
+											await this.say("user_feedback", text, images)
 										}
 									}
 
@@ -2703,20 +2711,31 @@ export class Cline {
 								// }
 
 								this.isAwaitingPlanResponse = true
-								const { text, images } = await this.ask("plan_mode_response", response, false)
+								let { text, images } = await this.ask("plan_mode_response", response, false)
 								this.isAwaitingPlanResponse = false
 
+								// webview invoke sendMessage will send this marker in order to put webview into the proper state (responding to an ask) and as a flag to extension that the user switched to ACT mode.
+								if (text === "PLAN_MODE_TOGGLE_RESPONSE") {
+									text = ""
+								}
+
 								if (this.didRespondToPlanAskBySwitchingMode) {
-									// await this.say("user_feedback", text ?? "", images)
 									pushToolResult(
 										formatResponse.toolResult(
-											`[The user has switched to ACT MODE, so you may now proceed with the task.]`,
+											`[The user has switched to ACT MODE, so you may now proceed with the task.]` +
+												(text
+													? `\n\nThe user also provided the following message when switching to ACT MODE:\n<user_message>\n${text}\n</user_message>`
+													: ""),
 											images,
 										),
 									)
 								} else {
-									await this.say("user_feedback", text ?? "", images)
+									// if we didn't switch to ACT MODE, then we can just send the user_feedback message
 									pushToolResult(formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images))
+								}
+
+								if (text || images?.length) {
+									await this.say("user_feedback", text ?? "", images)
 								}
 
 								//
@@ -3120,7 +3139,6 @@ export class Cline {
 			try {
 				for await (const chunk of stream) {
 					if (!chunk) {
-						// Sometimes chunk is undefined, no idea that can cause it, but this workaround seems to fix it
 						continue
 					}
 					switch (chunk.type) {

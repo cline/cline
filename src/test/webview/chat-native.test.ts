@@ -28,7 +28,13 @@ describe("Chat Integration Tests", () => {
                                     vscode.postMessage({ type: 'newTask', text: message.text });
                                     break;
                                 case 'toggleMode':
-                                    vscode.postMessage({ type: 'chatSettings', chatSettings: { mode: 'act' } });
+                                    vscode.postMessage({
+                                        type: 'togglePlanActMode',
+                                        chatSettings: { mode: 'act' }, 
+                                        chatContent: {
+                                            message: "message test",
+                                        }
+                                    });
                                     break;
                                 case 'invoke':
                                     if (message.invoke === 'primaryButtonClick') {
@@ -78,7 +84,7 @@ describe("Chat Integration Tests", () => {
 		// Set up state change listener
 		const stateChangePromise = new Promise<any>((resolve) => {
 			panel.webview.onDidReceiveMessage((message) => {
-				if (message.type === "chatSettings") {
+				if (message.type === "togglePlanActMode") {
 					resolve(message)
 				}
 			})
@@ -90,6 +96,25 @@ describe("Chat Integration Tests", () => {
 		// Verify mode changed
 		const stateChange = await stateChangePromise
 		assert.equal(stateChange.chatSettings.mode, "act")
+	})
+
+	it("should toggle between plan and act modes with messages", async () => {
+		// Set up state change listener
+		const stateChangePromise = new Promise<any>((resolve) => {
+			panel.webview.onDidReceiveMessage((message) => {
+				if (message.type === "togglePlanActMode") {
+					resolve(message)
+				}
+			})
+		})
+
+		// Trigger mode toggle
+		await panel.webview.postMessage({ type: "toggleMode" })
+
+		// Verify mode changed
+		const stateChange = await stateChangePromise
+		assert.equal(stateChange.chatSettings.mode, "act")
+		assert.equal(stateChange.chatContent.message, "message test")
 	})
 
 	it("should handle tool approval flow", async () => {
