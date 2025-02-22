@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.3.26
-
-### Patch Changes
+## [3.3.26]
 
 - Tweak the debug prompt
 
