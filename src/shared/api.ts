@@ -219,9 +219,9 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	description:
 		"The new Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: New Sonnet scores ~49% on SWE-Bench Verified, higher than the last best score, and without any fancy prompt scaffolding\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal",
 }
-
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
+// https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
 export type VertexModelId = keyof typeof vertexModels
 export const vertexDefaultModelId: VertexModelId = "claude-3-5-sonnet-v2@20241022"
 export const vertexModels = {
@@ -239,41 +239,51 @@ export const vertexModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
 	},
 	"claude-3-5-sonnet@20240620": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
 	},
 	"claude-3-5-haiku@20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
 	},
 	"claude-3-opus@20240229": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 15.0,
 		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
 	},
 	"claude-3-haiku@20240307": {
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0.25,
 		outputPrice: 1.25,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.03,
 	},
 } as const satisfies Record<string, ModelInfo>
 
