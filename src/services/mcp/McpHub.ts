@@ -215,7 +215,7 @@ export class McpHub {
 					config: JSON.stringify(config),
 					status: "connecting",
 					disabled: parsedConfig.disabled,
-					timeout: parsedConfig.timeout
+					timeout: parsedConfig.timeout,
 				},
 				client,
 				transport,
@@ -598,7 +598,7 @@ export class McpHub {
 				},
 			},
 			CallToolResultSchema,
-			{ timeout: connection.server.timeout }
+			{ timeout: connection.server.timeout },
 		)
 	}
 
