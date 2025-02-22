@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 import { TOOL_GROUPS, ToolGroup, ALWAYS_AVAILABLE_TOOLS } from "./tool-groups"
+import { addCustomInstructions } from "../core/prompts/sections/custom-instructions"
 
 // Mode types
 export type Mode = string
@@ -97,6 +98,15 @@ export const modes: readonly ModeConfig[] = [
 		groups: ["read", "browser", "mcp"],
 		customInstructions:
 			"You can analyze code, explain concepts, and access external resources. Make sure to answer the user's questions and don't rush to switch to implementing code.",
+	},
+	{
+		slug: "debug",
+		name: "Debug",
+		roleDefinition:
+			"You are Roo, an expert software debugger specializing in systematic problem diagnosis and resolution.",
+		groups: ["read", "edit", "browser", "command", "mcp"],
+		customInstructions:
+			"Reflect on 5-7 different possible sources of the problem, prioritizing them based on likelihood, impact on functionality, and frequency in similar issues. Only consider sources that align with the error logs, recent code changes, and system constraints. Ignore external dependencies unless logs indicate otherwise.\n\nOnce you've narrowed it down to the 1-2 most likely sources, cross-check them against previous error logs, relevant system state, and expected behaviors. If inconsistencies arise, refine your hypothesis.\n\nWhen adding logs, ensure they are strategically placed to confirm or eliminate multiple causes. If the logs do not support your assumptions, suggest an alternative debugging strategy before proceeding.\n\nBefore implementing a fix, summarize the issue, validated assumptions, and expected log outputs that would confirm the problem is solved.",
 	},
 ] as const
 
@@ -251,6 +261,46 @@ export async function getAllModesWithPrompts(context: vscode.ExtensionContext): 
 		roleDefinition: customModePrompts[mode.slug]?.roleDefinition ?? mode.roleDefinition,
 		customInstructions: customModePrompts[mode.slug]?.customInstructions ?? mode.customInstructions,
 	}))
+}
+
+// Helper function to get complete mode details with all overrides
+export async function getFullModeDetails(
+	modeSlug: string,
+	customModes?: ModeConfig[],
+	customModePrompts?: CustomModePrompts,
+	options?: {
+		cwd?: string
+		globalCustomInstructions?: string
+		preferredLanguage?: string
+	},
+): Promise<ModeConfig> {
+	// First get the base mode config from custom modes or built-in modes
+	const baseMode = getModeBySlug(modeSlug, customModes) || modes.find((m) => m.slug === modeSlug) || modes[0]
+
+	// Check for any prompt component overrides
+	const promptComponent = customModePrompts?.[modeSlug]
+
+	// Get the base custom instructions
+	const baseCustomInstructions = promptComponent?.customInstructions || baseMode.customInstructions || ""
+
+	// If we have cwd, load and combine all custom instructions
+	let fullCustomInstructions = baseCustomInstructions
+	if (options?.cwd) {
+		fullCustomInstructions = await addCustomInstructions(
+			baseCustomInstructions,
+			options.globalCustomInstructions || "",
+			options.cwd,
+			modeSlug,
+			{ preferredLanguage: options.preferredLanguage },
+		)
+	}
+
+	// Return mode with any overrides applied
+	return {
+		...baseMode,
+		roleDefinition: promptComponent?.roleDefinition || baseMode.roleDefinition,
+		customInstructions: fullCustomInstructions,
+	}
 }
 
 // Helper function to safely get role definition

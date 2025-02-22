@@ -9,12 +9,41 @@ import { setSoundEnabled } from "../../../utils/sound"
 import { defaultModeSlug } from "../../../shared/modes"
 import { experimentDefault } from "../../../shared/experiments"
 
-// Mock custom-instructions module
-const mockAddCustomInstructions = jest.fn()
+// Mock setup must come before imports
+jest.mock("../../prompts/sections/custom-instructions")
 
-jest.mock("../../prompts/sections/custom-instructions", () => ({
-	addCustomInstructions: mockAddCustomInstructions,
-}))
+// Mock dependencies
+jest.mock("vscode")
+jest.mock("delay")
+jest.mock(
+	"@modelcontextprotocol/sdk/types.js",
+	() => ({
+		CallToolResultSchema: {},
+		ListResourcesResultSchema: {},
+		ListResourceTemplatesResultSchema: {},
+		ListToolsResultSchema: {},
+		ReadResourceResultSchema: {},
+		ErrorCode: {
+			InvalidRequest: "InvalidRequest",
+			MethodNotFound: "MethodNotFound",
+			InternalError: "InternalError",
+		},
+		McpError: class McpError extends Error {
+			code: string
+			constructor(code: string, message: string) {
+				super(message)
+				this.code = code
+				this.name = "McpError"
+			}
+		},
+	}),
+	{ virtual: true },
+)
+
+// Initialize mocks
+const mockAddCustomInstructions = jest.fn().mockResolvedValue("Combined instructions")
+;(jest.requireMock("../../prompts/sections/custom-instructions") as any).addCustomInstructions =
+	mockAddCustomInstructions
 
 // Mock delay module
 jest.mock("delay", () => {
