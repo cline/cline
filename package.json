@@ -202,6 +202,7 @@
 		"pretest": "npm run compile-tests && npm run compile && npm run lint",
 		"check-types": "tsc --noEmit",
 		"lint": "eslint src --ext ts",
+		"lint:complexity": "eslint src --ext ts --format json --rule 'complexity: [\"error\", { \"max\": 20 }]' --rule 'max-depth: [\"error\", 4]' --rule 'max-lines-per-function: [\"error\", { \"max\": 50 }]' --rule 'max-nested-callbacks: [\"error\", 3]' --rule 'max-params: [\"error\", 4]' -o complexity-report.json || true",
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
 		"test": "vscode-test",

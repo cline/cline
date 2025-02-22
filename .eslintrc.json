@@ -7,6 +7,11 @@
 	},
 	"plugins": ["@typescript-eslint"],
 	"rules": {
+		"complexity": ["warn", { "max": 20 }],
+		"max-depth": ["warn", 4],
+		"max-lines-per-function": ["warn", { "max": 50, "skipBlankLines": true, "skipComments": true }],
+		"max-nested-callbacks": ["warn", 3],
+		"max-params": ["warn", 4],
 		"@typescript-eslint/naming-convention": [
 			"warn",
 			{

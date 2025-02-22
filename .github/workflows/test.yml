@@ -60,3 +60,55 @@ jobs:
 
             - name: Extension Tests
               run: xvfb-run -a npm run test
+
+    complexity-check:
+        needs: test
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20.15.1
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Analyze Base Branch Complexity
+              id: base-complexity
+              run: |
+                  git fetch origin ${{ github.base_ref }}
+                  git checkout origin/${{ github.base_ref }}
+                  npm run lint:complexity
+                  BASE_VIOLATIONS=$(jq '.length' complexity-report.json || echo "0")
+                  echo "base_violations=$BASE_VIOLATIONS" >> $GITHUB_OUTPUT
+
+            - name: Analyze PR Branch Complexity
+              id: pr-complexity
+              run: |
+                  git checkout ${{ github.head_ref }}
+                  npm run lint:complexity
+                  PR_VIOLATIONS=$(jq '.length' complexity-report.json || echo "0")
+                  echo "pr_violations=$PR_VIOLATIONS" >> $GITHUB_OUTPUT
+
+            - name: Compare Complexity
+              if: ${{ steps.pr-complexity.outputs.pr_violations > steps.base-complexity.outputs.base_violations }}
+              run: |
+                  echo "::warning::Code complexity has increased in this PR"
+                  echo "Base branch violations: ${{ steps.base-complexity.outputs.base_violations }}"
+                  echo "PR branch violations: ${{ steps.pr-complexity.outputs.pr_violations }}"
+                  
+                  # Generate detailed report
+                  echo "### Complexity Analysis Report" > complexity-report.md
+                  echo "| Metric | Base Branch | PR Branch |" >> complexity-report.md
+                  echo "|--------|-------------|-----------|" >> complexity-report.md
+                  echo "| ESLint Complexity Violations | ${{ steps.base-complexity.outputs.base_violations }} | ${{ steps.pr-complexity.outputs.pr_violations }} |" >> complexity-report.md
+                  
+                  # Add PR comment with the report
+                  gh pr comment ${{ github.event.pull_request.number }} --body-file complexity-report.md
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
