@@ -2,7 +2,7 @@
 
 ## [3.3.26]
 
-- Tweak the debug prompt
+- Adjust the default prompt for Debug mode to focus more on diagnosis and to require user confirmation before moving on to implementation
 
 ## [3.3.25]
 
