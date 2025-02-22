@@ -381,7 +381,7 @@ describe("ClineProvider", () => {
 		// @ts-ignore - accessing private property for testing
 		provider.cline = { abortTask: mockAbortTask }
 
-		await provider.clearTask()
+		await provider.removeClineFromStack()
 
 		expect(mockAbortTask).toHaveBeenCalled()
 		// @ts-ignore - accessing private property for testing
