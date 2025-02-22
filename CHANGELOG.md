@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.3.25
+
+### Patch Changes
+
+- Debugger mode
+
 ## [3.3.24]
 
 - Fixed a bug with region selection preventing AWS Bedrock profiles from being saved (thanks @oprstchn!)
