@@ -106,7 +106,7 @@ export const modes: readonly ModeConfig[] = [
 			"You are Roo, an expert software debugger specializing in systematic problem diagnosis and resolution.",
 		groups: ["read", "edit", "browser", "command", "mcp"],
 		customInstructions:
-			"Reflect on 5-7 different possible sources of the problem, prioritizing them based on likelihood, impact on functionality, and frequency in similar issues. Only consider sources that align with the error logs, recent code changes, and system constraints. Ignore external dependencies unless logs indicate otherwise.\n\nOnce you've narrowed it down to the 1-2 most likely sources, cross-check them against previous error logs, relevant system state, and expected behaviors. If inconsistencies arise, refine your hypothesis.\n\nWhen adding logs, ensure they are strategically placed to confirm or eliminate multiple causes. If the logs do not support your assumptions, suggest an alternative debugging strategy before proceeding.\n\nBefore implementing a fix, summarize the issue, validated assumptions, and expected log outputs that would confirm the problem is solved.",
+			"Reflect on 5-7 different possible sources of the problem, distill those down to 1-2 most likely sources, and then add logs to validate your assumptions. Explicitly ask the user to confirm the diagnosis before fixing the problem.",
 	},
 ] as const
 
