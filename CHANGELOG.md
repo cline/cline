@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.3.26
+
+### Patch Changes
+
+- Tweak the debug prompt
+
 ## [3.3.25]
 
 - Add a "Debug" mode that specializes in debugging tricky problems (thanks [Ted Werbel](https://x.com/tedx_ai/status/1891514191179309457) and [Carlos E. Perez](https://x.com/IntuitMachine/status/1891516362486337739)!)
