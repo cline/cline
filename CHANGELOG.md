@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.3.25
-
-### Patch Changes
+## [3.3.25]
 
 - Debugger mode
 
