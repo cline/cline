@@ -42,6 +42,7 @@ const StdioConfigSchema = z.object({
 	env: z.record(z.string()).optional(),
 	autoApprove: AutoApproveSchema.optional(),
 	disabled: z.boolean().optional(),
+	timeout: z.number().optional(),
 })
 
 const McpSettingsSchema = z.object({
@@ -168,6 +169,7 @@ export class McpHub {
 					// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
 				},
 				stderr: "pipe", // necessary for stderr to be available
+				timeout: config.timeout,
 			})
 
 			transport.onerror = async (error) => {
@@ -213,6 +215,7 @@ export class McpHub {
 					config: JSON.stringify(config),
 					status: "connecting",
 					disabled: parsedConfig.disabled,
+					timeout: parsedConfig.timeout
 				},
 				client,
 				transport,
@@ -595,6 +598,7 @@ export class McpHub {
 				},
 			},
 			CallToolResultSchema,
+			{ timeout: connection.server.timeout }
 		)
 	}
 
