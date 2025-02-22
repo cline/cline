@@ -5,8 +5,9 @@
 		"ecmaVersion": 6,
 		"sourceType": "module"
 	},
-	"plugins": ["@typescript-eslint"],
+	"plugins": ["@typescript-eslint", "sonarjs"],
 	"rules": {
+		"sonarjs/cognitive-complexity": ["warn", 15],
 		"complexity": ["warn", { "max": 20 }],
 		"max-depth": ["warn", 4],
 		"max-lines-per-function": ["warn", { "max": 50, "skipBlankLines": true, "skipComments": true }],

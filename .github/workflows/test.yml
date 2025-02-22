@@ -78,37 +78,85 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
-            - name: Analyze Base Branch Complexity
-              id: base-complexity
+            - name: Analyze Base Branch
+              id: base-analysis
               run: |
                   git fetch origin ${{ github.base_ref }}
                   git checkout origin/${{ github.base_ref }}
+
+                  # Run ESLint complexity check
                   npm run lint:complexity
                   BASE_VIOLATIONS=$(jq '.length' complexity-report.json || echo "0")
                   echo "base_violations=$BASE_VIOLATIONS" >> $GITHUB_OUTPUT
 
-            - name: Analyze PR Branch Complexity
-              id: pr-complexity
+                  # Run maintainability analysis
+                  npm run analyze:maintainability
+                  BASE_MI=$(jq '.summary.averageMaintainabilityIndex' maintainability-report.json || echo "0")
+                  echo "base_mi=$BASE_MI" >> $GITHUB_OUTPUT
+
+            - name: Analyze PR Branch
+              id: pr-analysis
               run: |
                   git checkout ${{ github.head_ref }}
+
+                  # Run ESLint complexity check
                   npm run lint:complexity
                   PR_VIOLATIONS=$(jq '.length' complexity-report.json || echo "0")
                   echo "pr_violations=$PR_VIOLATIONS" >> $GITHUB_OUTPUT
 
-            - name: Compare Complexity
-              if: ${{ steps.pr-complexity.outputs.pr_violations > steps.base-complexity.outputs.base_violations }}
+                  # Run maintainability analysis
+                  npm run analyze:maintainability
+                  PR_MI=$(jq '.summary.averageMaintainabilityIndex' maintainability-report.json || echo "0")
+                  echo "pr_mi=$PR_MI" >> $GITHUB_OUTPUT
+
+            - name: Generate Complexity Report
               run: |
-                  echo "::warning::Code complexity has increased in this PR"
-                  echo "Base branch violations: ${{ steps.base-complexity.outputs.base_violations }}"
-                  echo "PR branch violations: ${{ steps.pr-complexity.outputs.pr_violations }}"
-                  
-                  # Generate detailed report
-                  echo "### Complexity Analysis Report" > complexity-report.md
-                  echo "| Metric | Base Branch | PR Branch |" >> complexity-report.md
-                  echo "|--------|-------------|-----------|" >> complexity-report.md
-                  echo "| ESLint Complexity Violations | ${{ steps.base-complexity.outputs.base_violations }} | ${{ steps.pr-complexity.outputs.pr_violations }} |" >> complexity-report.md
-                  
+                  # Extract cognitive complexity violations
+                  PR_COG_VIOLATIONS=$(jq '[.messages[] | select(.ruleId == "sonarjs/cognitive-complexity")] | length' complexity-report.json || echo "0")
+                  BASE_COG_VIOLATIONS=$(git checkout origin/${{ github.base_ref }} && npm run lint:complexity -s && jq '[.messages[] | select(.ruleId == "sonarjs/cognitive-complexity")] | length' complexity-report.json || echo "0")
+
+                  # Create detailed report
+                  echo "### Code Complexity Analysis Report" > complexity-report.md
+                  echo "" >> complexity-report.md
+                  echo "| Metric | Base Branch | PR Branch | Status |" >> complexity-report.md
+                  echo "|--------|-------------|-----------|---------|" >> complexity-report.md
+
+                  # Add ESLint complexity violations
+                  STATUS_ESLINT="✅"
+                  if [ "${{ steps.pr-analysis.outputs.pr_violations }}" -gt "${{ steps.base-analysis.outputs.base_violations }}" ]; then
+                      STATUS_ESLINT="⚠️"
+                  fi
+                  echo "| ESLint Complexity Violations | ${{ steps.base-analysis.outputs.base_violations }} | ${{ steps.pr-analysis.outputs.pr_violations }} | $STATUS_ESLINT |" >> complexity-report.md
+
+                  # Add cognitive complexity violations
+                  STATUS_COG="✅"
+                  if [ "$PR_COG_VIOLATIONS" -gt "$BASE_COG_VIOLATIONS" ]; then
+                      STATUS_COG="⚠️"
+                  fi
+                  echo "| Cognitive Complexity Violations | $BASE_COG_VIOLATIONS | $PR_COG_VIOLATIONS | $STATUS_COG |" >> complexity-report.md
+
+                  # Add maintainability index
+                  STATUS_MI="✅"
+                  if (( $(echo "${{ steps.pr-analysis.outputs.pr_mi }} < ${{ steps.base-analysis.outputs.base_mi }}" | bc -l) )); then
+                      STATUS_MI="⚠️"
+                  fi
+                  echo "| Maintainability Index | ${{ steps.base-analysis.outputs.base_mi }} | ${{ steps.pr-analysis.outputs.pr_mi }} | $STATUS_MI |" >> complexity-report.md
+
+                  # Add explanation
+                  echo "" >> complexity-report.md
+                  echo "#### Legend" >> complexity-report.md
+                  echo "- ✅ No significant increase in complexity" >> complexity-report.md
+                  echo "- ⚠️ Complexity has increased" >> complexity-report.md
+
                   # Add PR comment with the report
                   gh pr comment ${{ github.event.pull_request.number }} --body-file complexity-report.md
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Check Complexity Thresholds
+              if: |
+                  ${{ steps.pr-analysis.outputs.pr_violations > steps.base-analysis.outputs.base_violations ||
+                      steps.pr-analysis.outputs.pr_mi < steps.base-analysis.outputs.base_mi }}
+              run: |
+                  echo "::warning::Code complexity metrics have degraded in this PR"
+                  echo "Please review the complexity report in the PR comments"
