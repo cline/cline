@@ -59,7 +59,7 @@ describe("mode-validator", () => {
 				]
 				// Should allow tools from read and edit groups
 				expect(isToolAllowedForMode("read_file", "custom-mode", customModes)).toBe(true)
-				expect(isToolAllowedForMode("write_to_file", "custom-mode", customModes)).toBe(true)
+				expect(isToolAllowedForMode("create_file", "custom-mode", customModes)).toBe(true)
 				// Should not allow tools from other groups
 				expect(isToolAllowedForMode("execute_command", "custom-mode", customModes)).toBe(false)
 			})
@@ -76,7 +76,7 @@ describe("mode-validator", () => {
 				// Should allow tools from read group
 				expect(isToolAllowedForMode("read_file", codeMode, customModes)).toBe(true)
 				// Should not allow tools from other groups
-				expect(isToolAllowedForMode("write_to_file", codeMode, customModes)).toBe(false)
+				expect(isToolAllowedForMode("create_file", codeMode, customModes)).toBe(false)
 			})
 
 			it("respects tool requirements in custom modes", () => {
@@ -94,7 +94,7 @@ describe("mode-validator", () => {
 				expect(isToolAllowedForMode("edit_file", "custom-mode", customModes, requirements)).toBe(false)
 
 				// Should allow other edit tools
-				expect(isToolAllowedForMode("write_to_file", "custom-mode", customModes, requirements)).toBe(true)
+				expect(isToolAllowedForMode("create_file", "custom-mode", customModes, requirements)).toBe(true)
 			})
 		})
 

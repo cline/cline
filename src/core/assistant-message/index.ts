@@ -11,7 +11,7 @@ export interface TextContent {
 export const toolUseNames = [
 	"execute_command",
 	"read_file",
-	"write_to_file",
+	"create_file",
 	"edit_file",
 	"insert_content",
 	"search_and_replace",
@@ -80,7 +80,7 @@ export interface ReadFileToolUse extends ToolUse {
 }
 
 export interface WriteToFileToolUse extends ToolUse {
-	name: "write_to_file"
+	name: "create_file"
 	params: Partial<Pick<Record<ToolParamName, string>, "path" | "content" | "line_count">>
 }
 

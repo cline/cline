@@ -698,7 +698,7 @@ export class Cline {
 			text:
 				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.${
 					wasRecent
-						? "\n\nIMPORTANT: If the last tool use was a write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
+						? "\n\nIMPORTANT: If the last tool use was a create_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
 						: ""
 				}` +
 				(responseText
@@ -1102,7 +1102,7 @@ export class Cline {
 							return `[${block.name} for '${block.params.command}']`
 						case "read_file":
 							return `[${block.name} for '${block.params.path}']`
-						case "write_to_file":
+						case "create_file":
 							return `[${block.name} for '${block.params.path}']`
 						case "edit_file":
 							return `[${block.name} for '${block.params.path}']`
@@ -1267,7 +1267,7 @@ export class Cline {
 				}
 
 				switch (block.name) {
-					case "write_to_file": {
+					case "create_file": {
 						const relPath: string | undefined = block.params.path
 						let newContent: string | undefined = block.params.content
 						let predictedLineCount: number | undefined = parseInt(block.params.line_count ?? "0")
@@ -1332,20 +1332,20 @@ export class Cline {
 							} else {
 								if (!relPath) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "path"))
+									pushToolResult(await this.sayAndCreateMissingParamError("create_file", "path"))
 									await this.diffViewProvider.reset()
 									break
 								}
 								if (!newContent) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "content"))
+									pushToolResult(await this.sayAndCreateMissingParamError("create_file", "content"))
 									await this.diffViewProvider.reset()
 									break
 								}
 								if (!predictedLineCount) {
 									this.consecutiveMistakeCount++
 									pushToolResult(
-										await this.sayAndCreateMissingParamError("write_to_file", "line_count"),
+										await this.sayAndCreateMissingParamError("create_file", "line_count"),
 									)
 									await this.diffViewProvider.reset()
 									break
@@ -2194,7 +2194,7 @@ export class Cline {
 											formatResponse.toolResult(
 												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
 													browserActionResult.logs || "(No new logs)"
-												}\n\n(REMEMBER: if you need to proceed to using non-\`browser_action\` tools or launch a new browser, you MUST first close this browser. For example, if after analyzing the logs and screenshot you need to edit a file, you must first close the browser before you can use the write_to_file tool.)`,
+												}\n\n(REMEMBER: if you need to proceed to using non-\`browser_action\` tools or launch a new browser, you MUST first close this browser. For example, if after analyzing the logs and screenshot you need to edit a file, you must first close the browser before you can use the create_file tool.)`,
 												browserActionResult.screenshot ? [browserActionResult.screenshot] : [],
 											),
 										)
@@ -2711,7 +2711,7 @@ export class Cline {
 
 		/*
 		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present.
-		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
+		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the create_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
 		*/
 		this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
 		// NOTE: when tool is rejected, iterator stream is interrupted and it waits for userMessageContentReady to be true. Future calls to present will skip execution since didRejectTool and iterate until contentIndex is set to message length and it sets userMessageContentReady to true itself (instead of preemptively doing it in iterator)
@@ -3261,7 +3261,7 @@ export class Cline {
 
 		// Add warning if not in code mode
 		if (
-			!isToolAllowedForMode("write_to_file", currentMode, customModes ?? [], {
+			!isToolAllowedForMode("create_file", currentMode, customModes ?? [], {
 				edit_file: this.diffEnabled,
 			}) &&
 			!isToolAllowedForMode("edit_file", currentMode, customModes ?? [], { edit_file: this.diffEnabled })

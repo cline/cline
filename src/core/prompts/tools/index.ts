@@ -23,7 +23,7 @@ import { ToolArgs } from "./types"
 const toolDescriptionMap: Record<string, (args: ToolArgs) => string | undefined> = {
 	execute_command: (args) => getExecuteCommandDescription(args),
 	read_file: (args) => getReadFileDescription(args),
-	write_to_file: (args) => getWriteToFileDescription(args),
+	create_file: (args) => getWriteToFileDescription(args),
 	search_files: (args) => getSearchFilesDescription(args),
 	list_files: (args) => getListFilesDescription(args),
 	list_code_definition_names: (args) => getListCodeDefinitionNamesDescription(args),

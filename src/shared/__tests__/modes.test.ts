@@ -44,14 +44,14 @@ describe("isToolAllowedForMode", () => {
 	describe("file restrictions", () => {
 		it("allows editing matching files", () => {
 			// Test markdown editor mode
-			const mdResult = isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
+			const mdResult = isToolAllowedForMode("create_file", "markdown-editor", customModes, undefined, {
 				path: "test.md",
 				content: "# Test",
 			})
 			expect(mdResult).toBe(true)
 
 			// Test CSS editor mode
-			const cssResult = isToolAllowedForMode("write_to_file", "css-editor", customModes, undefined, {
+			const cssResult = isToolAllowedForMode("create_file", "css-editor", customModes, undefined, {
 				path: "styles.css",
 				content: ".test { color: red; }",
 			})
@@ -61,13 +61,13 @@ describe("isToolAllowedForMode", () => {
 		it("rejects editing non-matching files", () => {
 			// Test markdown editor mode with non-markdown file
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
+				isToolAllowedForMode("create_file", "markdown-editor", customModes, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
 			).toThrow(FileRestrictionError)
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
+				isToolAllowedForMode("create_file", "markdown-editor", customModes, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
@@ -75,13 +75,13 @@ describe("isToolAllowedForMode", () => {
 
 			// Test CSS editor mode with non-CSS file
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "css-editor", customModes, undefined, {
+				isToolAllowedForMode("create_file", "css-editor", customModes, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
 			).toThrow(FileRestrictionError)
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "css-editor", customModes, undefined, {
+				isToolAllowedForMode("create_file", "css-editor", customModes, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
@@ -91,7 +91,7 @@ describe("isToolAllowedForMode", () => {
 		it("handles partial streaming cases (path only, no content/diff)", () => {
 			// Should allow path-only for matching files (no validation yet since content/diff not provided)
 			expect(
-				isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
+				isToolAllowedForMode("create_file", "markdown-editor", customModes, undefined, {
 					path: "test.js",
 				}),
 			).toBe(true)
@@ -104,15 +104,15 @@ describe("isToolAllowedForMode", () => {
 
 			// Should allow path-only for architect mode too
 			expect(
-				isToolAllowedForMode("write_to_file", "architect", [], undefined, {
+				isToolAllowedForMode("create_file", "architect", [], undefined, {
 					path: "test.js",
 				}),
 			).toBe(true)
 		})
 
-		it("applies restrictions to both write_to_file and edit_file", () => {
-			// Test write_to_file
-			const writeResult = isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
+		it("applies restrictions to both create_file and edit_file", () => {
+			// Test create_file
+			const writeResult = isToolAllowedForMode("create_file", "markdown-editor", customModes, undefined, {
 				path: "test.md",
 				content: "# Test",
 			})
@@ -127,7 +127,7 @@ describe("isToolAllowedForMode", () => {
 
 			// Test both with non-matching file
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
+				isToolAllowedForMode("create_file", "markdown-editor", customModes, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
@@ -155,15 +155,15 @@ describe("isToolAllowedForMode", () => {
 				},
 			]
 
-			// Test write_to_file with non-matching file
+			// Test create_file with non-matching file
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("create_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
 			).toThrow(FileRestrictionError)
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("create_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
@@ -185,14 +185,14 @@ describe("isToolAllowedForMode", () => {
 
 			// Test that matching files are allowed
 			expect(
-				isToolAllowedForMode("write_to_file", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("create_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.md",
 					content: "# Test",
 				}),
 			).toBe(true)
 
 			expect(
-				isToolAllowedForMode("write_to_file", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("create_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.txt",
 					content: "Test content",
 				}),
@@ -200,7 +200,7 @@ describe("isToolAllowedForMode", () => {
 
 			// Test partial streaming cases
 			expect(
-				isToolAllowedForMode("write_to_file", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("create_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.js",
 				}),
 			).toBe(true)
@@ -209,7 +209,7 @@ describe("isToolAllowedForMode", () => {
 		it("allows architect mode to edit markdown files only", () => {
 			// Should allow editing markdown files
 			expect(
-				isToolAllowedForMode("write_to_file", "architect", [], undefined, {
+				isToolAllowedForMode("create_file", "architect", [], undefined, {
 					path: "test.md",
 					content: "# Test",
 				}),
@@ -225,13 +225,13 @@ describe("isToolAllowedForMode", () => {
 
 			// Should reject non-markdown files
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "architect", [], undefined, {
+				isToolAllowedForMode("create_file", "architect", [], undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
 			).toThrow(FileRestrictionError)
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "architect", [], undefined, {
+				isToolAllowedForMode("create_file", "architect", [], undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
@@ -245,15 +245,15 @@ describe("isToolAllowedForMode", () => {
 	})
 
 	it("handles non-existent modes", () => {
-		expect(isToolAllowedForMode("write_to_file", "non-existent", customModes)).toBe(false)
+		expect(isToolAllowedForMode("create_file", "non-existent", customModes)).toBe(false)
 	})
 
 	it("respects tool requirements", () => {
 		const toolRequirements = {
-			write_to_file: false,
+			create_file: false,
 		}
 
-		expect(isToolAllowedForMode("write_to_file", "markdown-editor", customModes, toolRequirements)).toBe(false)
+		expect(isToolAllowedForMode("create_file", "markdown-editor", customModes, toolRequirements)).toBe(false)
 	})
 
 	describe("experimental tools", () => {
@@ -312,7 +312,7 @@ describe("isToolAllowedForMode", () => {
 			).toBe(true)
 			expect(
 				isToolAllowedForMode(
-					"write_to_file",
+					"create_file",
 					"markdown-editor",
 					customModes,
 					undefined,

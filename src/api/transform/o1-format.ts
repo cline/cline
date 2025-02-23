@@ -67,13 +67,13 @@ Description: Perform a regex search across files in a specified directory, provi
 </read_file>
 Description: Read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string.
 
-6. write_to_file:
-<write_to_file>
+6. create_file:
+<create_file>
 <path>File path here</path>
 <content>
 Your file content here
 </content>
-</write_to_file>
+</create_file>
 Description: Write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. Always provide the full intended content of the file, without any truncation. This tool will automatically create any directories needed to write the file.
 
 7. ask_followup_question:
@@ -107,7 +107,7 @@ Example 2: Using multiple tools
 
 Let's create two new configuration files for the web application: one for the frontend and one for the backend.
 
-<write_to_file>
+<create_file>
 <path>./frontend-config.json</path>
 <content>
 {
@@ -125,9 +125,9 @@ Let's create two new configuration files for the web application: one for the fr
   "version": "1.0.0"
 }
 </content>
-</write_to_file>
+</create_file>
 
-<write_to_file>
+<create_file>
 <path>./backend-config.yaml</path>
 <content>
 database:
@@ -154,7 +154,7 @@ externalServices:
   emailProvider: sendgrid
   storageProvider: aws-s3
 </content>
-</write_to_file>
+</create_file>
 
 Example 3: Asking a follow-up question
 
@@ -239,7 +239,7 @@ const toolNames = [
 	"list_code_definition_names",
 	"search_files",
 	"read_file",
-	"write_to_file",
+	"create_file",
 	"ask_followup_question",
 	"attempt_completion",
 ]
@@ -331,7 +331,7 @@ function validateToolInput(toolName: string, tool_input: Record<string, string>)
 			return "path" in tool_input
 		case "search_files":
 			return "path" in tool_input && "regex" in tool_input
-		case "write_to_file":
+		case "create_file":
 			return "path" in tool_input && "content" in tool_input
 		case "ask_followup_question":
 			return "question" in tool_input
@@ -349,10 +349,10 @@ function validateToolInput(toolName: string, tool_input: Record<string, string>)
 //   <command>ls -la</command>
 // </execute_command>
 
-// <write_to_file>
+// <create_file>
 //   <path>./example.txt</path>
 //   <content>Hello, World!</content>
-// </write_to_file>`;
+// </create_file>`;
 //
 // const { normalText, toolCalls } = parseAIResponse(aiResponse);
 // console.log(normalText);

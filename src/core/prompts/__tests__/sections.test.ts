@@ -42,15 +42,15 @@ describe("getCapabilitiesSection", () => {
 	test("includes edit_file in capabilities when diffStrategy is provided", () => {
 		const result = getCapabilitiesSection(cwd, false, mcpHub, mockDiffStrategy)
 
-		expect(result).toContain("or edit_file")
-		expect(result).toContain("then use the write_to_file or edit_file tool")
+		expect(result).toContain("or create_file")
+		expect(result).toContain("then use the edit_file or create_file tool")
 	})
 
 	test("excludes edit_file from capabilities when diffStrategy is undefined", () => {
 		const result = getCapabilitiesSection(cwd, false, mcpHub, undefined)
 
 		expect(result).not.toContain("or edit_file")
-		expect(result).toContain("then use the write_to_file tool")
-		expect(result).not.toContain("write_to_file or edit_file")
+		expect(result).toContain("then use the create_file tool")
+		expect(result).not.toContain("create_file or edit_file")
 	})
 })
