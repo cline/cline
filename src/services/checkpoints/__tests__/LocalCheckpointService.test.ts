@@ -9,6 +9,8 @@ import { simpleGit, SimpleGit } from "simple-git"
 import { CheckpointServiceFactory } from "../CheckpointServiceFactory"
 import { LocalCheckpointService } from "../LocalCheckpointService"
 
+const tmpDir = path.join(os.tmpdir(), "test-LocalCheckpointService")
+
 describe("LocalCheckpointService", () => {
 	const taskId = "test-task"
 
@@ -29,7 +31,7 @@ describe("LocalCheckpointService", () => {
 		textFileContent?: string
 	}) => {
 		// Create a temporary directory for testing.
-		await fs.mkdir(workspaceDir)
+		await fs.mkdir(workspaceDir, { recursive: true })
 
 		// Initialize git repo.
 		const git = simpleGit(workspaceDir)
@@ -49,7 +51,7 @@ describe("LocalCheckpointService", () => {
 	}
 
 	beforeEach(async () => {
-		const workspaceDir = path.join(os.tmpdir(), `checkpoint-service-test-${Date.now()}`)
+		const workspaceDir = path.join(tmpDir, `checkpoint-service-test-${Date.now()}`)
 		const repo = await initRepo({ workspaceDir })
 
 		testFile = repo.testFile
@@ -60,8 +62,11 @@ describe("LocalCheckpointService", () => {
 	})
 
 	afterEach(async () => {
-		await fs.rm(service.workspaceDir, { recursive: true, force: true })
 		jest.restoreAllMocks()
+	})
+
+	afterAll(async () => {
+		await fs.rm(tmpDir, { recursive: true, force: true })
 	})
 
 	describe("getDiff", () => {
@@ -316,7 +321,7 @@ describe("LocalCheckpointService", () => {
 
 	describe("create", () => {
 		it("initializes a git repository if one does not already exist", async () => {
-			const workspaceDir = path.join(os.tmpdir(), `checkpoint-service-test2-${Date.now()}`)
+			const workspaceDir = path.join(tmpDir, `checkpoint-service-test2-${Date.now()}`)
 			await fs.mkdir(workspaceDir)
 			const newTestFile = path.join(workspaceDir, "test.txt")
 			await fs.writeFile(newTestFile, "Hello, world!")
@@ -364,7 +369,7 @@ describe("LocalCheckpointService", () => {
 		})
 
 		it("respects existing git user configuration", async () => {
-			const workspaceDir = path.join(os.tmpdir(), `checkpoint-service-test-config2-${Date.now()}`)
+			const workspaceDir = path.join(tmpDir, `checkpoint-service-test-config2-${Date.now()}`)
 			const userName = "Custom User"
 			const userEmail = "custom@example.com"
 			await initRepo({ workspaceDir, userName, userEmail })
