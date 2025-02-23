@@ -490,26 +490,22 @@ export class Cline {
 		])
 	}
 
-	async resumePausedTask() {
+	async resumePausedTask(lastMessage?: string) {
 		// release this Cline instance from paused state
 		this.isPaused = false
 
-		// Clear any existing ask state and simulate a completed ask response
-		// this.askResponse = "messageResponse";
-		// this.askResponseText = "Sub Task finished Successfully!\nthere is no need to perform this task again, please continue to the next task.";
-		// this.askResponseImages = undefined;
-		// this.lastMessageTs = Date.now();
-
 		// This adds the completion message to conversation history
-		await this.say(
-			"text",
-			"Sub Task finished Successfully!\nthere is no need to perform this task again, please continue to the next task.",
-		)
+		await this.say("text", `new_task finished successfully! ${lastMessage ?? "Please continue to the next task."}`)
 
-		// this.userMessageContent.push({
-		// 	type: "text",
-		// 	text: `${"Result:\\n\\nSub Task finished Successfully!\nthere is no need to perform this task again, please continue to the next task."}`,
-		// })
+		await this.addToApiConversationHistory({
+			role: "assistant",
+			content: [
+				{
+					type: "text",
+					text: `new_task finished successfully! ${lastMessage ?? "Please continue to the next task."}`,
+				},
+			],
+		})
 
 		try {
 			// Resume parent task
@@ -2699,7 +2695,7 @@ export class Cline {
 										await this.say("completion_result", result, undefined, false)
 										if (this.isSubTask) {
 											// tell the provider to remove the current subtask and resume the previous task in the stack
-											this.providerRef.deref()?.finishSubTask()
+											this.providerRef.deref()?.finishSubTask(lastMessage?.text)
 										}
 									}
 
@@ -2720,7 +2716,7 @@ export class Cline {
 									await this.say("completion_result", result, undefined, false)
 									if (this.isSubTask) {
 										// tell the provider to remove the current subtask and resume the previous task in the stack
-										this.providerRef.deref()?.finishSubTask()
+										this.providerRef.deref()?.finishSubTask(lastMessage?.text)
 									}
 								}
 

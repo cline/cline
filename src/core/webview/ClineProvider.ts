@@ -218,11 +218,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// remove the current task/cline instance (at the top of the stack), ao this task is finished
 	// and resume the previous task/cline instance (if it exists)
 	// this is used when a sub task is finished and the parent task needs to be resumed
-	async finishSubTask() {
+	async finishSubTask(lastMessage?: string) {
 		// remove the last cline instance from the stack (this is the finished sub task)
 		await this.removeClineFromStack()
 		// resume the last cline instance in the stack (if it exists - this is the 'parnt' calling task)
-		this.getCurrentCline()?.resumePausedTask()
+		this.getCurrentCline()?.resumePausedTask(lastMessage)
 	}
 
 	/*
