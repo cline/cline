@@ -13,11 +13,12 @@ jest.mock("globby", () => ({
 	globby: jest.fn().mockResolvedValue([]),
 }))
 
+const tmpDir = path.join(os.tmpdir(), "test-ShadowCheckpointService")
+
 describe("ShadowCheckpointService", () => {
 	const taskId = "test-task"
 
 	let workspaceGit: SimpleGit
-	let shadowGit: SimpleGit
 	let testFile: string
 	let service: ShadowCheckpointService
 
@@ -35,7 +36,7 @@ describe("ShadowCheckpointService", () => {
 		textFileContent?: string
 	}) => {
 		// Create a temporary directory for testing.
-		await fs.mkdir(workspaceDir)
+		await fs.mkdir(workspaceDir, { recursive: true })
 
 		// Initialize git repo.
 		const git = simpleGit(workspaceDir)
@@ -57,8 +58,8 @@ describe("ShadowCheckpointService", () => {
 	beforeEach(async () => {
 		jest.mocked(require("globby").globby).mockClear().mockResolvedValue([])
 
-		const shadowDir = path.join(os.tmpdir(), `shadow-${Date.now()}`)
-		const workspaceDir = path.join(os.tmpdir(), `workspace-${Date.now()}`)
+		const shadowDir = path.join(tmpDir, `shadow-${Date.now()}`)
+		const workspaceDir = path.join(tmpDir, `workspace-${Date.now()}`)
 		const repo = await initRepo({ workspaceDir })
 
 		testFile = repo.testFile
@@ -69,13 +70,14 @@ describe("ShadowCheckpointService", () => {
 		})
 
 		workspaceGit = repo.git
-		shadowGit = service.git
 	})
 
 	afterEach(async () => {
-		await fs.rm(service.shadowDir, { recursive: true, force: true })
-		await fs.rm(service.workspaceDir, { recursive: true, force: true })
 		jest.restoreAllMocks()
+	})
+
+	afterAll(async () => {
+		await fs.rm(tmpDir, { recursive: true, force: true })
 	})
 
 	describe("getDiff", () => {
@@ -299,8 +301,8 @@ describe("ShadowCheckpointService", () => {
 
 	describe("create", () => {
 		it("initializes a git repository if one does not already exist", async () => {
-			const shadowDir = path.join(os.tmpdir(), `shadow2-${Date.now()}`)
-			const workspaceDir = path.join(os.tmpdir(), `workspace2-${Date.now()}`)
+			const shadowDir = path.join(tmpDir, `shadow2-${Date.now()}`)
+			const workspaceDir = path.join(tmpDir, `workspace2-${Date.now()}`)
 			await fs.mkdir(workspaceDir)
 
 			const newTestFile = path.join(workspaceDir, "test.txt")
