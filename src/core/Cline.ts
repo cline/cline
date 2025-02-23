@@ -61,6 +61,7 @@ import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 import { telemetryService } from "../services/telemetry/TelemetryService"
+import { getMaxAllowedSize } from "../utils/content-size"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1166,9 +1167,26 @@ export class Cline {
 	// Tools
 
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+		const contextWindow = this.api.getModel().info.contextWindow || 128_000
+		const maxAllowedSize = getMaxAllowedSize(contextWindow)
+		const usedContext = this.apiConversationHistory.reduce((total, msg) => {
+			if (Array.isArray(msg.content)) {
+				return (
+					total +
+					msg.content.reduce((acc, block) => {
+						if (block.type === "text") {
+							return acc + block.text.length / 4 // Rough estimate of tokens
+						}
+						return acc
+					}, 0)
+				)
+			}
+			return total + (typeof msg.content === "string" ? msg.content.length / 4 : 0)
+		}, 0)
+
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = this.terminalManager.runCommand(terminalInfo, command)
+		const process = this.terminalManager.runCommand(terminalInfo, command, maxAllowedSize, usedContext)
 
 		let userFeedback: { text?: string; images?: string[] } | undefined
 		let didContinue = false
@@ -1994,8 +2012,28 @@ export class Cline {
 										break
 									}
 								}
+								// Get context window and used context from API model
+								const contextWindow = this.api.getModel().info.contextWindow || 128_000
+								const maxAllowedSize = getMaxAllowedSize(contextWindow)
+
+								// Calculate used context from current conversation
+								const usedContext = this.apiConversationHistory.reduce((total, msg) => {
+									if (Array.isArray(msg.content)) {
+										return (
+											total +
+											msg.content.reduce((acc, block) => {
+												if (block.type === "text") {
+													return acc + block.text.length / 4 // Rough estimate of tokens
+												}
+												return acc
+											}, 0)
+										)
+									}
+									return total + (typeof msg.content === "string" ? msg.content.length / 4 : 0)
+								}, 0)
+
 								// now execute the tool like normal
-								const content = await extractTextFromFile(absolutePath)
+								const content = await extractTextFromFile(absolutePath, maxAllowedSize, usedContext)
 								pushToolResult(content)
 
 								break

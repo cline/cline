@@ -156,7 +156,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 			if (isBinary) {
 				return "(Binary file, unable to display content)"
 			}
-			const content = await extractTextFromFile(absPath)
+			const content = await extractTextFromFile(absPath, 128_000) // Use standard context window size
 			return content
 		} else if (stats.isDirectory()) {
 			const entries = await fs.readdir(absPath, { withFileTypes: true })
@@ -177,7 +177,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 								if (isBinary) {
 									return undefined
 								}
-								const content = await extractTextFromFile(absoluteFilePath)
+								const content = await extractTextFromFile(absoluteFilePath, 128_000) // Use standard context window size
 								return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
 							} catch (error) {
 								return undefined

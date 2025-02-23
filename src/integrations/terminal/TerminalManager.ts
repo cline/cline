@@ -1,5 +1,33 @@
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
+
+/*
+The new shellIntegration API gives us access to terminal command execution output handling.
+However, we don't update our VSCode type definitions or engine requirements to maintain compatibility
+with older VSCode versions. Users on older versions will automatically fall back to using sendText
+for terminal command execution.
+Interestingly, some environments like Cursor enable these APIs even without the latest VSCode engine.
+This approach allows us to leverage advanced features when available while ensuring broad compatibility.
+*/
+declare module "vscode" {
+	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
+	interface Terminal {
+		shellIntegration?: {
+			cwd?: vscode.Uri
+			executeCommand?: (command: string) => {
+				read: () => AsyncIterable<string>
+			}
+		}
+	}
+	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L10794
+	interface Window {
+		onDidStartTerminalShellExecution?: (
+			listener: (e: any) => any,
+			thisArgs?: any,
+			disposables?: vscode.Disposable[],
+		) => vscode.Disposable
+	}
+}
 import { arePathsEqual } from "../../utils/path"
 import { mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
@@ -61,34 +89,6 @@ Resources:
 - https://github.com/microsoft/vscode-extension-samples/blob/main/shell-integration-sample/src/extension.ts
 */
 
-/*
-The new shellIntegration API gives us access to terminal command execution output handling.
-However, we don't update our VSCode type definitions or engine requirements to maintain compatibility
-with older VSCode versions. Users on older versions will automatically fall back to using sendText
-for terminal command execution.
-Interestingly, some environments like Cursor enable these APIs even without the latest VSCode engine.
-This approach allows us to leverage advanced features when available while ensuring broad compatibility.
-*/
-declare module "vscode" {
-	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
-	interface Terminal {
-		shellIntegration?: {
-			cwd?: vscode.Uri
-			executeCommand?: (command: string) => {
-				read: () => AsyncIterable<string>
-			}
-		}
-	}
-	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L10794
-	interface Window {
-		onDidStartTerminalShellExecution?: (
-			listener: (e: any) => any,
-			thisArgs?: any,
-			disposables?: vscode.Disposable[],
-		) => vscode.Disposable
-	}
-}
-
 export class TerminalManager {
 	private terminalIds: Set<number> = new Set()
 	private processes: Map<number, TerminalProcess> = new Map()
@@ -109,7 +109,12 @@ export class TerminalManager {
 		}
 	}
 
-	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
+	runCommand(
+		terminalInfo: TerminalInfo,
+		command: string,
+		contextLimit?: number,
+		usedContext?: number,
+	): TerminalProcessResultPromise {
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 		const process = new TerminalProcess()
@@ -141,14 +146,14 @@ export class TerminalManager {
 		// if shell integration is already active, run the command immediately
 		if (terminalInfo.terminal.shellIntegration) {
 			process.waitForShellIntegration = false
-			process.run(terminalInfo.terminal, command)
+			process.run(terminalInfo.terminal, command, contextLimit, usedContext)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
 			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 }).finally(() => {
 				const existingProcess = this.processes.get(terminalInfo.id)
 				if (existingProcess && existingProcess.waitForShellIntegration) {
 					existingProcess.waitForShellIntegration = false
-					existingProcess.run(terminalInfo.terminal, command)
+					existingProcess.run(terminalInfo.terminal, command, contextLimit, usedContext)
 				}
 			})
 		}
