@@ -42,7 +42,7 @@ const StdioConfigSchema = z.object({
 	env: z.record(z.string()).optional(),
 	autoApprove: AutoApproveSchema.optional(),
 	disabled: z.boolean().optional(),
-	toolCallTimeoutMillis: z.number().optional(),
+	toolCallTimeoutMillis: z.number().int().nonnegative().optional(),
 })
 
 const McpSettingsSchema = z.object({
