@@ -50,6 +50,7 @@ export enum ContextMenuOptionType {
 	Terminal = "terminal",
 	URL = "url",
 	Git = "git",
+	Tabs = "tabs",
 	NoResults = "noResults",
 }
 
@@ -102,6 +103,7 @@ export function getContextMenuOptions(
 			{ type: ContextMenuOptionType.URL },
 			{ type: ContextMenuOptionType.Problems },
 			{ type: ContextMenuOptionType.Terminal },
+			{ type: ContextMenuOptionType.Tabs },
 			{ type: ContextMenuOptionType.Git },
 			{ type: ContextMenuOptionType.Folder },
 			{ type: ContextMenuOptionType.File },
@@ -123,6 +125,13 @@ export function getContextMenuOptions(
 	}
 	if ("problems".startsWith(lowerQuery)) {
 		suggestions.push({ type: ContextMenuOptionType.Problems })
+	}
+	if ("tabs".startsWith(lowerQuery)) {
+		suggestions.push({
+			type: ContextMenuOptionType.Tabs,
+			label: "Open Tabs",
+			description: "Add all open editor tabs",
+		})
 	}
 	if (query.startsWith("http")) {
 		suggestions.push({ type: ContextMenuOptionType.URL, value: query })
@@ -205,8 +214,13 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
 	// Don't show the menu if it's a URL
 	if (textAfterAt.toLowerCase().startsWith("http")) return false
 
-	// Don't show the menu if it's a problems or terminal
-	if (textAfterAt.toLowerCase().startsWith("problems") || textAfterAt.toLowerCase().startsWith("terminal")) return false
+	// Don't show the menu if it's a problems, terminal, or tabs
+	if (
+		textAfterAt.toLowerCase().startsWith("problems") ||
+		textAfterAt.toLowerCase().startsWith("terminal") ||
+		textAfterAt.toLowerCase().startsWith("tabs")
+	)
+		return false
 
 	// NOTE: it's okay that menu shows when there's trailing punctuation since user could be inputting a path with marks
 
