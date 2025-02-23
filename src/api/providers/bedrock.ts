@@ -21,14 +21,87 @@ export class AwsBedrockHandler implements ApiHandler {
 		// initialization, and allowing for session renewal if necessary as well
 		let client = await this.getClient()
 
-		const stream = await client.messages.create({
-			model: modelId,
-			max_tokens: this.getModel().info.maxTokens || 8192,
-			temperature: 0,
-			system: systemPrompt,
-			messages,
-			stream: true,
-		})
+		let stream
+		const model = this.getModel()
+
+		switch (modelId) {
+			case "anthropic.claude-3-sonnet-20240229-v1:0":
+			case "anthropic.claude-3-haiku-20240307-v1:0": {
+				// Find indices of user messages for cache control
+				const userMsgIndices = messages.reduce(
+					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
+					[] as number[],
+				)
+				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
+				stream = await client.messages.create({
+					model: modelId,
+					max_tokens: model.info.maxTokens || 8192,
+					temperature: 0,
+					system: [
+						{
+							text: systemPrompt,
+							type: "text",
+							cache_control: { type: "ephemeral" },
+						},
+					],
+					messages: messages.map((message, index) => {
+						if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+							return {
+								...message,
+								content:
+									typeof message.content === "string"
+										? [
+												{
+													type: "text",
+													text: message.content,
+													cache_control: {
+														type: "ephemeral",
+													},
+												},
+											]
+										: message.content.map((content, contentIndex) =>
+												contentIndex === message.content.length - 1
+													? {
+															...content,
+															cache_control: {
+																type: "ephemeral",
+															},
+														}
+													: content,
+											),
+							}
+						}
+						return {
+							...message,
+							content:
+								typeof message.content === "string"
+									? [
+											{
+												type: "text",
+												text: message.content,
+											},
+										]
+									: message.content,
+						}
+					}),
+					stream: true,
+				})
+				break
+			}
+			default: {
+				stream = await client.messages.create({
+					model: modelId,
+					max_tokens: model.info.maxTokens || 8192,
+					temperature: 0,
+					system: systemPrompt,
+					messages,
+					stream: true,
+				})
+				break
+			}
+		}
 		for await (const chunk of stream) {
 			switch (chunk.type) {
 				case "message_start":
@@ -37,6 +110,8 @@ export class AwsBedrockHandler implements ApiHandler {
 						type: "usage",
 						inputTokens: usage.input_tokens || 0,
 						outputTokens: usage.output_tokens || 0,
+						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
+						cacheReadTokens: usage.cache_read_input_tokens || undefined,
 					}
 					break
 				case "message_delta":

@@ -237,7 +237,7 @@
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
-		"@anthropic-ai/bedrock-sdk": "^0.10.2",
+		"@anthropic-ai/bedrock-sdk": "^v0.12.4",
 		"@anthropic-ai/sdk": "^0.26.0",
 		"@anthropic-ai/vertex-sdk": "^0.4.1",
 		"@google/generative-ai": "^0.18.0",
