@@ -498,11 +498,11 @@ export class Cline {
 		await this.say("text", `new_task finished successfully! ${lastMessage ?? "Please continue to the next task."}`)
 
 		await this.addToApiConversationHistory({
-			role: "assistant",
+			role: "user",
 			content: [
 				{
 					type: "text",
-					text: `new_task finished successfully! ${lastMessage ?? "Please continue to the next task."}`,
+					text: `[new_task completed] Result: ${lastMessage ?? "Please continue to the next task."}`,
 				},
 			],
 		})
