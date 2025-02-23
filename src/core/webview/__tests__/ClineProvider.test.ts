@@ -107,7 +107,7 @@ jest.mock(
 // Mock DiffStrategy
 jest.mock("../../diff/DiffStrategy", () => ({
 	getDiffStrategy: jest.fn().mockImplementation(() => ({
-		getToolDescription: jest.fn().mockReturnValue("apply_diff tool description"),
+		getToolDescription: jest.fn().mockReturnValue("edit_file tool description"),
 	})),
 }))
 

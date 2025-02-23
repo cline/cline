@@ -8,8 +8,8 @@ export type ToolGroupConfig = {
 export const TOOL_DISPLAY_NAMES = {
 	execute_command: "run commands",
 	read_file: "read files",
-	write_to_file: "write files",
-	apply_diff: "apply changes",
+	create_file: "write files",
+	edit_file: "apply changes",
 	search_files: "search files",
 	list_files: "list files",
 	list_code_definition_names: "list definitions",
@@ -28,7 +28,7 @@ export const TOOL_GROUPS: Record<string, ToolGroupConfig> = {
 		tools: ["read_file", "search_files", "list_files", "list_code_definition_names"],
 	},
 	edit: {
-		tools: ["write_to_file", "apply_diff", "insert_content", "search_and_replace"],
+		tools: ["edit_file", "create_file", "insert_content", "search_and_replace"],
 	},
 	browser: {
 		tools: ["browser_action"],
