@@ -1104,7 +1104,7 @@ export class Cline {
 							return `[${block.name} for '${block.params.path}']`
 						case "write_to_file":
 							return `[${block.name} for '${block.params.path}']`
-						case "apply_diff":
+						case "edit_file":
 							return `[${block.name} for '${block.params.path}']`
 						case "search_files":
 							return `[${block.name} for '${block.params.regex}'${
@@ -1256,7 +1256,7 @@ export class Cline {
 						mode ?? defaultModeSlug,
 						customModes ?? [],
 						{
-							apply_diff: this.diffEnabled,
+							edit_file: this.diffEnabled,
 						},
 						block.params,
 					)
@@ -1382,7 +1382,7 @@ export class Cline {
 											formatResponse.toolError(
 												`Content appears to be truncated (file has ${
 													newContent.split("\n").length
-												} lines but was predicted to have ${predictedLineCount} lines), and found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file.`,
+												} lines but was predicted to have ${predictedLineCount} lines), and found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'edit_file' tool to apply the diff to the original file.`,
 											),
 										)
 										break
@@ -1458,7 +1458,7 @@ export class Cline {
 							break
 						}
 					}
-					case "apply_diff": {
+					case "edit_file": {
 						const relPath: string | undefined = block.params.path
 						const diffContent: string | undefined = block.params.diff
 
@@ -1476,12 +1476,12 @@ export class Cline {
 							} else {
 								if (!relPath) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("apply_diff", "path"))
+									pushToolResult(await this.sayAndCreateMissingParamError("edit_file", "path"))
 									break
 								}
 								if (!diffContent) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("apply_diff", "diff"))
+									pushToolResult(await this.sayAndCreateMissingParamError("edit_file", "diff"))
 									break
 								}
 
@@ -3262,9 +3262,9 @@ export class Cline {
 		// Add warning if not in code mode
 		if (
 			!isToolAllowedForMode("write_to_file", currentMode, customModes ?? [], {
-				apply_diff: this.diffEnabled,
+				edit_file: this.diffEnabled,
 			}) &&
-			!isToolAllowedForMode("apply_diff", currentMode, customModes ?? [], { apply_diff: this.diffEnabled })
+			!isToolAllowedForMode("edit_file", currentMode, customModes ?? [], { edit_file: this.diffEnabled })
 		) {
 			const currentModeName = getModeBySlug(currentMode, customModes)?.name ?? currentMode
 			const defaultModeName = getModeBySlug(defaultModeSlug, customModes)?.name ?? defaultModeSlug

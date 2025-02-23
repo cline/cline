@@ -12,7 +12,7 @@ export const toolUseNames = [
 	"execute_command",
 	"read_file",
 	"write_to_file",
-	"apply_diff",
+	"edit_file",
 	"insert_content",
 	"search_and_replace",
 	"search_files",

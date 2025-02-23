@@ -97,7 +97,7 @@ describe("isToolAllowedForMode", () => {
 			).toBe(true)
 
 			expect(
-				isToolAllowedForMode("apply_diff", "markdown-editor", customModes, undefined, {
+				isToolAllowedForMode("edit_file", "markdown-editor", customModes, undefined, {
 					path: "test.js",
 				}),
 			).toBe(true)
@@ -110,7 +110,7 @@ describe("isToolAllowedForMode", () => {
 			).toBe(true)
 		})
 
-		it("applies restrictions to both write_to_file and apply_diff", () => {
+		it("applies restrictions to both write_to_file and edit_file", () => {
 			// Test write_to_file
 			const writeResult = isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
 				path: "test.md",
@@ -118,8 +118,8 @@ describe("isToolAllowedForMode", () => {
 			})
 			expect(writeResult).toBe(true)
 
-			// Test apply_diff
-			const diffResult = isToolAllowedForMode("apply_diff", "markdown-editor", customModes, undefined, {
+			// Test edit_file
+			const diffResult = isToolAllowedForMode("edit_file", "markdown-editor", customModes, undefined, {
 				path: "test.md",
 				diff: "- old\n+ new",
 			})
@@ -134,7 +134,7 @@ describe("isToolAllowedForMode", () => {
 			).toThrow(FileRestrictionError)
 
 			expect(() =>
-				isToolAllowedForMode("apply_diff", "markdown-editor", customModes, undefined, {
+				isToolAllowedForMode("edit_file", "markdown-editor", customModes, undefined, {
 					path: "test.js",
 					diff: "- old\n+ new",
 				}),
@@ -169,15 +169,15 @@ describe("isToolAllowedForMode", () => {
 				}),
 			).toThrow(/Documentation files only/)
 
-			// Test apply_diff with non-matching file
+			// Test edit_file with non-matching file
 			expect(() =>
-				isToolAllowedForMode("apply_diff", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("edit_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.js",
 					diff: "- old\n+ new",
 				}),
 			).toThrow(FileRestrictionError)
 			expect(() =>
-				isToolAllowedForMode("apply_diff", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("edit_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.js",
 					diff: "- old\n+ new",
 				}),
@@ -217,7 +217,7 @@ describe("isToolAllowedForMode", () => {
 
 			// Should allow applying diffs to markdown files
 			expect(
-				isToolAllowedForMode("apply_diff", "architect", [], undefined, {
+				isToolAllowedForMode("edit_file", "architect", [], undefined, {
 					path: "readme.md",
 					diff: "- old\n+ new",
 				}),

@@ -288,7 +288,7 @@ describe("SYSTEM_PROMPT", () => {
 			true, // enableMcpServerCreation
 		)
 
-		expect(prompt).toContain("apply_diff")
+		expect(prompt).toContain("edit_file")
 		expect(prompt).toMatchSnapshot()
 	})
 
@@ -310,7 +310,7 @@ describe("SYSTEM_PROMPT", () => {
 			true, // enableMcpServerCreation
 		)
 
-		expect(prompt).not.toContain("apply_diff")
+		expect(prompt).not.toContain("edit_file")
 		expect(prompt).toMatchSnapshot()
 	})
 
@@ -332,7 +332,7 @@ describe("SYSTEM_PROMPT", () => {
 			true, // enableMcpServerCreation
 		)
 
-		expect(prompt).not.toContain("apply_diff")
+		expect(prompt).not.toContain("edit_file")
 		expect(prompt).toMatchSnapshot()
 	})
 
@@ -562,7 +562,7 @@ describe("SYSTEM_PROMPT", () => {
 			)
 
 			// Verify base instruction lists all available tools
-			expect(prompt).toContain("apply_diff (for replacing lines in existing files)")
+			expect(prompt).toContain("edit_file (for replacing lines in existing files)")
 			expect(prompt).toContain("write_to_file (for creating new files or complete file rewrites)")
 			expect(prompt).toContain("insert_content (for adding lines to existing files)")
 			expect(prompt).toContain("search_and_replace (for finding and replacing individual pieces of text)")

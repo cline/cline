@@ -3,7 +3,7 @@ import { DiffStrategy, DiffResult } from "../types"
 
 export class UnifiedDiffStrategy implements DiffStrategy {
 	getToolDescription(args: { cwd: string; toolOptions?: { [key: string]: string } }): string {
-		return `## apply_diff
+		return `## edit_file
 Description: Apply a unified diff to a file at the specified path. This tool is useful when you need to make specific modifications to a file based on a set of changes provided in unified diff format (diff -U3).
 
 Parameters:
@@ -100,12 +100,12 @@ Best Practices:
 4. Verify line numbers match the line numbers you have in the file
 
 Usage:
-<apply_diff>
+<edit_file>
 <path>File path here</path>
 <diff>
 Your diff here
 </diff>
-</apply_diff>`
+</edit_file>`
 	}
 
 	async applyDiff(originalContent: string, diffContent: string): Promise<DiffResult> {
