@@ -215,6 +215,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		return this.clineStack[this.clineStack.length - 1]
 	}
 
+	// returns the current clineStack length (how many cline objects are in the stack)
+	getClineStackSize(): number {
+		return this.clineStack.length
+	}
+
 	// remove the current task/cline instance (at the top of the stack), ao this task is finished
 	// and resume the previous task/cline instance (if it exists)
 	// this is used when a sub task is finished and the parent task needs to be resumed
