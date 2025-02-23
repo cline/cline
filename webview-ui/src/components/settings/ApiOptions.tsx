@@ -426,7 +426,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.xAiApiKey && (
 							<VSCodeLink
-								href="https://api.x.ai"
+								href="https://console.x.ai"
 								style={{
 									display: "inline",
 									fontSize: "inherit",
@@ -1186,7 +1186,27 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "qwen" && createDropdown(qwenModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
-							{selectedProvider === "xai" && createDropdown(xAiModels)}
+							{selectedProvider === "xai" && (
+								<VSCodeDropdown
+									id="model-id"
+									value={apiConfiguration?.xAiModelId || xAiDefaultModelId}
+									onChange={handleInputChange("xAiModelId")}
+									style={{ width: "100%" }}>
+									<VSCodeOption value="">Select a model...</VSCodeOption>
+									{Object.keys(xAiModels).map((modelId) => (
+										<VSCodeOption
+											key={modelId}
+											value={modelId}
+											style={{
+												whiteSpace: "normal",
+												wordWrap: "break-word",
+												maxWidth: "100%",
+											}}>
+											{modelId}
+										</VSCodeOption>
+									))}
+								</VSCodeDropdown>
+							)}
 						</DropdownContainer>
 
 						<ModelInfoView
@@ -1398,7 +1418,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 		case "mistral":
 			return getProviderData(mistralModels, mistralDefaultModelId)
 		case "xai":
-			return getProviderData(xAiModels, xAiDefaultModelId)
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.xAiModelId || xAiDefaultModelId,
+				selectedModelInfo:
+					xAiModels[apiConfiguration?.xAiModelId as keyof typeof xAiModels] || xAiModels[xAiDefaultModelId],
+			}
 		case "openrouter":
 			return {
 				selectedProvider: provider,
