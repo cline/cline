@@ -128,7 +128,6 @@ export class AwsBedrockHandler implements ApiHandler {
 					return `eu.${this.getModel().id}`
 				case "ap-":
 					return `apac.${this.getModel().id}`
-					break
 				default:
 					// cross region inference is not supported in this region, falling back to default model
 					return this.getModel().id
