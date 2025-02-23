@@ -15,6 +15,7 @@ export type ApiProvider =
 	| "mistral"
 	| "vscode-lm"
 	| "litellm"
+	| "xai"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -56,7 +57,53 @@ export interface ApiHandlerOptions {
 	vsCodeLmModelSelector?: any
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
+	xAiApiKey?: string
+	xAiModelId?: string
 }
+
+// XAI
+export type XAiModelId = keyof typeof xAiModels
+export const xAiDefaultModelId: XAiModelId = "grok-2-1212"
+export const xAiModels = {
+	"grok-2-1212": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "Latest Grok-2 model for text-based tasks",
+	},
+	"grok-2-vision-1212": {
+		maxTokens: 32768,
+		contextWindow: 32768,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		imageInputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "Latest Grok-2 model with vision capabilities",
+	},
+	"grok-vision-beta": {
+		maxTokens: 8192,
+		contextWindow: 8192,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		imageInputPrice: 5.0,
+		outputPrice: 15.0,
+		description: "Beta version of Grok with vision support",
+	},
+	"grok-beta": {
+		maxTokens: 131072,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 15.0,
+		description: "Legacy Grok model for general tasks",
+	},
+} as const satisfies Record<string, ModelInfo>
 
 export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
@@ -72,6 +119,7 @@ export interface ModelInfo {
 	supportsPromptCache: boolean // this value is hardcoded for now
 	inputPrice?: number
 	outputPrice?: number
+	imageInputPrice?: number // Price per image input token
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
