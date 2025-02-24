@@ -1,5 +1,19 @@
 # Roo Code Changelog
 
+## [3.3.26]
+
+- Adjust the default prompt for Debug mode to focus more on diagnosis and to require user confirmation before moving on to implementation
+
+## [3.3.25]
+
+- Add a "Debug" mode that specializes in debugging tricky problems (thanks [Ted Werbel](https://x.com/tedx_ai/status/1891514191179309457) and [Carlos E. Perez](https://x.com/IntuitMachine/status/1891516362486337739)!)
+- Add an experimental "Power Steering" option to significantly improve adherence to role definitions and custom instructions
+
+## [3.3.24]
+
+- Fixed a bug with region selection preventing AWS Bedrock profiles from being saved (thanks @oprstchn!)
+- Updated the price of gpt-4o (thanks @marvijo-code!)
+
 ## [3.3.23]
 
 - Handle errors more gracefully when reading custom instructions from files (thanks @joemanley201!)
@@ -465,7 +479,7 @@ Join us at https://www.reddit.com/r/RooCode to share your custom modes and be pa
 ## [2.1.14]
 
 - Fix bug where diffs were not being applied correctly and try Aider's [unified diff prompt](https://github.com/Aider-AI/aider/blob/3995accd0ca71cea90ef76d516837f8c2731b9fe/aider/coders/udiff_prompts.py#L75-L105)
-- If diffs are enabled, automatically reject write_to_file commands that lead to truncated output
+- If diffs are enabled, automatically reject create_file commands that lead to truncated output
 
 ## [2.1.13]
 

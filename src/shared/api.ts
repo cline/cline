@@ -622,8 +622,8 @@ export const openAiNativeModels = {
 		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 5,
-		outputPrice: 15,
+		inputPrice: 2.5,
+		outputPrice: 10,
 	},
 	"gpt-4o-mini": {
 		maxTokens: 16_384,

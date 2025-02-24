@@ -28,7 +28,22 @@ jobs:
       - name: Lint
         run: npm run lint
 
-  unit-test:
+  knip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm run install:all
+      - name: Run knip checks
+        run: npm run knip
+
+  test-extension:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -41,7 +56,30 @@ jobs:
       - name: Install dependencies
         run: npm run install:all
       - name: Run unit tests
-        run: npm test
+        run: npx jest --silent
+
+  test-webview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm run install:all
+      - name: Run unit tests
+        working-directory: webview-ui
+        run: npx jest --silent
+
+  unit-test:
+    needs: [test-extension, test-webview]
+    runs-on: ubuntu-latest
+    steps:
+      - name: NO-OP
+        run: echo "All unit tests passed."
 
   check-openrouter-api-key:
     runs-on: ubuntu-latest

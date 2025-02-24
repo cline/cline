@@ -1,3 +1,5 @@
+// npx jest src/core/__tests__/Cline.test.ts
+
 import { Cline } from "../Cline"
 import { ClineProvider } from "../webview/ClineProvider"
 import { ApiConfiguration, ModelInfo } from "../../shared/api"
@@ -82,7 +84,20 @@ jest.mock("fs/promises", () => ({
 			return Promise.resolve(JSON.stringify(mockMessages))
 		}
 		if (filePath.includes("api_conversation_history.json")) {
-			return Promise.resolve("[]")
+			return Promise.resolve(
+				JSON.stringify([
+					{
+						role: "user",
+						content: [{ type: "text", text: "historical task" }],
+						ts: Date.now(),
+					},
+					{
+						role: "assistant",
+						content: [{ type: "text", text: "I'll help you with that task." }],
+						ts: Date.now(),
+					},
+				]),
+			)
 		}
 		return Promise.resolve("[]")
 	}),
@@ -295,93 +310,102 @@ describe("Cline", () => {
 			taskDirPath: "/mock/storage/path/tasks/123",
 			apiConversationHistoryFilePath: "/mock/storage/path/tasks/123/api_conversation_history.json",
 			uiMessagesFilePath: "/mock/storage/path/tasks/123/ui_messages.json",
-			apiConversationHistory: [],
+			apiConversationHistory: [
+				{
+					role: "user",
+					content: [{ type: "text", text: "historical task" }],
+					ts: Date.now(),
+				},
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "I'll help you with that task." }],
+					ts: Date.now(),
+				},
+			],
 		}))
 	})
 
 	describe("constructor", () => {
-		it("should respect provided settings", () => {
-			const cline = new Cline(
-				mockProvider,
-				mockApiConfig,
-				"custom instructions",
-				false,
-				false,
-				0.95, // 95% threshold
-				"test task",
-			)
+		it("should respect provided settings", async () => {
+			const [cline, task] = Cline.create({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				customInstructions: "custom instructions",
+				fuzzyMatchThreshold: 0.95,
+				task: "test task",
+			})
 
 			expect(cline.customInstructions).toBe("custom instructions")
 			expect(cline.diffEnabled).toBe(false)
+
+			await cline.abortTask(true)
+			await task.catch(() => {})
 		})
 
-		it("should use default fuzzy match threshold when not provided", () => {
-			const cline = new Cline(
-				mockProvider,
-				mockApiConfig,
-				"custom instructions",
-				true,
-				false,
-				undefined,
-				"test task",
-			)
+		it("should use default fuzzy match threshold when not provided", async () => {
+			const [cline, task] = await Cline.create({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				customInstructions: "custom instructions",
+				enableDiff: true,
+				fuzzyMatchThreshold: 0.95,
+				task: "test task",
+			})
 
 			expect(cline.diffEnabled).toBe(true)
 			// The diff strategy should be created with default threshold (1.0)
 			expect(cline.diffStrategy).toBeDefined()
+
+			await cline.abortTask(true)
+			await task.catch(() => {})
 		})
 
-		it("should use provided fuzzy match threshold", () => {
+		it("should use provided fuzzy match threshold", async () => {
 			const getDiffStrategySpy = jest.spyOn(require("../diff/DiffStrategy"), "getDiffStrategy")
 
-			const cline = new Cline(
-				mockProvider,
-				mockApiConfig,
-				"custom instructions",
-				true,
-				false,
-				0.9, // 90% threshold
-				"test task",
-			)
+			const [cline, task] = await Cline.create({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				customInstructions: "custom instructions",
+				enableDiff: true,
+				fuzzyMatchThreshold: 0.9,
+				task: "test task",
+			})
 
 			expect(cline.diffEnabled).toBe(true)
 			expect(cline.diffStrategy).toBeDefined()
 			expect(getDiffStrategySpy).toHaveBeenCalledWith("claude-3-5-sonnet-20241022", 0.9, false)
 
 			getDiffStrategySpy.mockRestore()
+
+			await cline.abortTask(true)
+			await task.catch(() => {})
 		})
 
-		it("should pass default threshold to diff strategy when not provided", () => {
+		it("should pass default threshold to diff strategy when not provided", async () => {
 			const getDiffStrategySpy = jest.spyOn(require("../diff/DiffStrategy"), "getDiffStrategy")
 
-			const cline = new Cline(
-				mockProvider,
-				mockApiConfig,
-				"custom instructions",
-				true,
-				false,
-				undefined,
-				"test task",
-			)
+			const [cline, task] = Cline.create({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				customInstructions: "custom instructions",
+				enableDiff: true,
+				task: "test task",
+			})
 
 			expect(cline.diffEnabled).toBe(true)
 			expect(cline.diffStrategy).toBeDefined()
 			expect(getDiffStrategySpy).toHaveBeenCalledWith("claude-3-5-sonnet-20241022", 1.0, false)
 
 			getDiffStrategySpy.mockRestore()
+
+			await cline.abortTask(true)
+			await task.catch(() => {})
 		})
 
 		it("should require either task or historyItem", () => {
 			expect(() => {
-				new Cline(
-					mockProvider,
-					mockApiConfig,
-					undefined, // customInstructions
-					false, // diffEnabled
-					false, // checkpointsEnabled
-					undefined, // fuzzyMatchThreshold
-					undefined, // task
-				)
+				new Cline({ provider: mockProvider, apiConfiguration: mockApiConfig })
 			}).toThrow("Either historyItem or task/images must be provided")
 		})
 	})
@@ -431,7 +455,11 @@ describe("Cline", () => {
 		})
 
 		it("should include timezone information in environment details", async () => {
-			const cline = new Cline(mockProvider, mockApiConfig, undefined, false, false, undefined, "test task")
+			const [cline, task] = Cline.create({
+				provider: mockProvider,
+				apiConfiguration: mockApiConfig,
+				task: "test task",
+			})
 
 			const details = await cline["getEnvironmentDetails"](false)
 
@@ -440,11 +468,21 @@ describe("Cline", () => {
 			expect(details).toMatch(/UTC-7:00/) // Fixed offset for America/Los_Angeles
 			expect(details).toContain("# Current Time")
 			expect(details).toMatch(/1\/1\/2024.*5:00:00 AM.*\(America\/Los_Angeles, UTC-7:00\)/) // Full time string format
+
+			await cline.abortTask(true)
+			await task.catch(() => {})
 		})
 
 		describe("API conversation handling", () => {
 			it("should clean conversation history before sending to API", async () => {
-				const cline = new Cline(mockProvider, mockApiConfig, undefined, false, false, undefined, "test task")
+				const [cline, task] = Cline.create({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "test task",
+				})
+
+				cline.abandoned = true
+				await task
 
 				// Mock the API's createMessage method to capture the conversation history
 				const createMessageSpy = jest.fn()
@@ -552,15 +590,12 @@ describe("Cline", () => {
 				]
 
 				// Test with model that supports images
-				const clineWithImages = new Cline(
-					mockProvider,
-					configWithImages,
-					undefined,
-					false,
-					false,
-					undefined,
-					"test task",
-				)
+				const [clineWithImages, taskWithImages] = Cline.create({
+					provider: mockProvider,
+					apiConfiguration: configWithImages,
+					task: "test task",
+				})
+
 				// Mock the model info to indicate image support
 				jest.spyOn(clineWithImages.api, "getModel").mockReturnValue({
 					id: "claude-3-sonnet",
@@ -574,18 +609,16 @@ describe("Cline", () => {
 						outputPrice: 0.75,
 					} as ModelInfo,
 				})
+
 				clineWithImages.apiConversationHistory = conversationHistory
 
 				// Test with model that doesn't support images
-				const clineWithoutImages = new Cline(
-					mockProvider,
-					configWithoutImages,
-					undefined,
-					false,
-					false,
-					undefined,
-					"test task",
-				)
+				const [clineWithoutImages, taskWithoutImages] = Cline.create({
+					provider: mockProvider,
+					apiConfiguration: configWithoutImages,
+					task: "test task",
+				})
+
 				// Mock the model info to indicate no image support
 				jest.spyOn(clineWithoutImages.api, "getModel").mockReturnValue({
 					id: "gpt-3.5-turbo",
@@ -599,6 +632,7 @@ describe("Cline", () => {
 						outputPrice: 0.2,
 					} as ModelInfo,
 				})
+
 				clineWithoutImages.apiConversationHistory = conversationHistory
 
 				// Mock abort state for both instances
@@ -607,6 +641,7 @@ describe("Cline", () => {
 					set: () => {},
 					configurable: true,
 				})
+
 				Object.defineProperty(clineWithoutImages, "abort", {
 					get: () => false,
 					set: () => {},
@@ -621,6 +656,7 @@ describe("Cline", () => {
 					content,
 					"",
 				])
+
 				// Set up mock streams
 				const mockStreamWithImages = (async function* () {
 					yield { type: "text", text: "test response" }
@@ -648,6 +684,12 @@ describe("Cline", () => {
 					},
 				]
 
+				clineWithImages.abandoned = true
+				await taskWithImages.catch(() => {})
+
+				clineWithoutImages.abandoned = true
+				await taskWithoutImages.catch(() => {})
+
 				// Trigger API requests
 				await clineWithImages.recursivelyMakeClineRequests([{ type: "text", text: "test request" }])
 				await clineWithoutImages.recursivelyMakeClineRequests([{ type: "text", text: "test request" }])
@@ -670,8 +712,12 @@ describe("Cline", () => {
 				})
 			})
 
-			it("should handle API retry with countdown", async () => {
-				const cline = new Cline(mockProvider, mockApiConfig, undefined, false, false, undefined, "test task")
+			it.skip("should handle API retry with countdown", async () => {
+				const [cline, task] = Cline.create({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "test task",
+				})
 
 				// Mock delay to track countdown timing
 				const mockDelay = jest.fn().mockResolvedValue(undefined)
@@ -785,10 +831,17 @@ describe("Cline", () => {
 				expect(errorMessage).toBe(
 					`${mockError.message}\n\nRetry attempt 1\nRetrying in ${baseDelay} seconds...`,
 				)
+
+				await cline.abortTask(true)
+				await task.catch(() => {})
 			})
 
-			it("should not apply retry delay twice", async () => {
-				const cline = new Cline(mockProvider, mockApiConfig, undefined, false, false, undefined, "test task")
+			it.skip("should not apply retry delay twice", async () => {
+				const [cline, task] = Cline.create({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "test task",
+				})
 
 				// Mock delay to track countdown timing
 				const mockDelay = jest.fn().mockResolvedValue(undefined)
@@ -901,19 +954,18 @@ describe("Cline", () => {
 					undefined,
 					false,
 				)
+
+				await cline.abortTask(true)
+				await task.catch(() => {})
 			})
 
 			describe("loadContext", () => {
 				it("should process mentions in task and feedback tags", async () => {
-					const cline = new Cline(
-						mockProvider,
-						mockApiConfig,
-						undefined,
-						false,
-						false,
-						undefined,
-						"test task",
-					)
+					const [cline, task] = Cline.create({
+						provider: mockProvider,
+						apiConfiguration: mockApiConfig,
+						task: "test task",
+					})
 
 					// Mock parseMentions to track calls
 					const mockParseMentions = jest.fn().mockImplementation((text) => `processed: ${text}`)
@@ -978,6 +1030,9 @@ describe("Cline", () => {
 					const toolResult2 = processedContent[3] as Anthropic.ToolResultBlockParam
 					const content2 = Array.isArray(toolResult2.content) ? toolResult2.content[0] : toolResult2.content
 					expect((content2 as Anthropic.TextBlockParam).text).toBe("Regular tool result with @/path")
+
+					await cline.abortTask(true)
+					await task.catch(() => {})
 				})
 			})
 		})

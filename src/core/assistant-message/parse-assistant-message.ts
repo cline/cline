@@ -61,9 +61,9 @@ export function parseAssistantMessage(assistantMessage: string) {
 
 				// there's no current param, and not starting a new param
 
-				// special case for write_to_file where file contents could contain the closing tag, in which case the param would have closed and we end up with the rest of the file contents here. To work around this, we get the string between the starting content tag and the LAST content tag.
+				// special case for create_file where file contents could contain the closing tag, in which case the param would have closed and we end up with the rest of the file contents here. To work around this, we get the string between the starting content tag and the LAST content tag.
 				const contentParamName: ToolParamName = "content"
-				if (currentToolUse.name === "write_to_file" && accumulator.endsWith(`</${contentParamName}>`)) {
+				if (currentToolUse.name === "create_file" && accumulator.endsWith(`</${contentParamName}>`)) {
 					const toolContent = accumulator.slice(currentToolUseStartIndex)
 					const contentStartTag = `<${contentParamName}>`
 					const contentEndTag = `</${contentParamName}>`

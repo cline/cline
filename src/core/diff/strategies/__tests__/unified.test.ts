@@ -12,7 +12,7 @@ describe("UnifiedDiffStrategy", () => {
 			const cwd = "/test/path"
 			const description = strategy.getToolDescription({ cwd })
 
-			expect(description).toContain("apply_diff")
+			expect(description).toContain("edit_file")
 			expect(description).toContain(cwd)
 			expect(description).toContain("Parameters:")
 			expect(description).toContain("Format Requirements:")

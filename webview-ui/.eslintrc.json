@@ -1,3 +1,4 @@
 {
-	"extends": "react-app"
+	"extends": "react-app",
+	"ignorePatterns": ["!.storybook"]
 }

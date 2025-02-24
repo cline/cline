@@ -468,9 +468,7 @@ const ApiOptions = ({
 							id="aws-region-dropdown"
 							value={apiConfiguration?.awsRegion || ""}
 							style={{ width: "100%" }}
-							onChange={(value: unknown) => {
-								handleInputChange("awsRegion", dropdownEventTransform)
-							}}
+							onChange={handleInputChange("awsRegion", dropdownEventTransform)}
 							options={[
 								{ value: "", label: "Select a region..." },
 								{ value: "us-east-1", label: "us-east-1" },

@@ -1,4 +1,13 @@
-import { isToolAllowedForMode, FileRestrictionError, ModeConfig } from "../modes"
+// Mock setup must come before imports
+jest.mock("vscode")
+const mockAddCustomInstructions = jest.fn().mockResolvedValue("Combined instructions")
+jest.mock("../../core/prompts/sections/custom-instructions", () => ({
+	addCustomInstructions: mockAddCustomInstructions,
+}))
+
+import { isToolAllowedForMode, FileRestrictionError, ModeConfig, getFullModeDetails, modes } from "../modes"
+import * as vscode from "vscode"
+import { addCustomInstructions } from "../../core/prompts/sections/custom-instructions"
 
 describe("isToolAllowedForMode", () => {
 	const customModes: ModeConfig[] = [
@@ -35,14 +44,14 @@ describe("isToolAllowedForMode", () => {
 	describe("file restrictions", () => {
 		it("allows editing matching files", () => {
 			// Test markdown editor mode
-			const mdResult = isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
+			const mdResult = isToolAllowedForMode("create_file", "markdown-editor", customModes, undefined, {
 				path: "test.md",
 				content: "# Test",
 			})
 			expect(mdResult).toBe(true)
 
 			// Test CSS editor mode
-			const cssResult = isToolAllowedForMode("write_to_file", "css-editor", customModes, undefined, {
+			const cssResult = isToolAllowedForMode("create_file", "css-editor", customModes, undefined, {
 				path: "styles.css",
 				content: ".test { color: red; }",
 			})
@@ -52,13 +61,13 @@ describe("isToolAllowedForMode", () => {
 		it("rejects editing non-matching files", () => {
 			// Test markdown editor mode with non-markdown file
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
+				isToolAllowedForMode("create_file", "markdown-editor", customModes, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
 			).toThrow(FileRestrictionError)
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
+				isToolAllowedForMode("create_file", "markdown-editor", customModes, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
@@ -66,13 +75,13 @@ describe("isToolAllowedForMode", () => {
 
 			// Test CSS editor mode with non-CSS file
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "css-editor", customModes, undefined, {
+				isToolAllowedForMode("create_file", "css-editor", customModes, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
 			).toThrow(FileRestrictionError)
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "css-editor", customModes, undefined, {
+				isToolAllowedForMode("create_file", "css-editor", customModes, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
@@ -82,35 +91,35 @@ describe("isToolAllowedForMode", () => {
 		it("handles partial streaming cases (path only, no content/diff)", () => {
 			// Should allow path-only for matching files (no validation yet since content/diff not provided)
 			expect(
-				isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
+				isToolAllowedForMode("create_file", "markdown-editor", customModes, undefined, {
 					path: "test.js",
 				}),
 			).toBe(true)
 
 			expect(
-				isToolAllowedForMode("apply_diff", "markdown-editor", customModes, undefined, {
+				isToolAllowedForMode("edit_file", "markdown-editor", customModes, undefined, {
 					path: "test.js",
 				}),
 			).toBe(true)
 
 			// Should allow path-only for architect mode too
 			expect(
-				isToolAllowedForMode("write_to_file", "architect", [], undefined, {
+				isToolAllowedForMode("create_file", "architect", [], undefined, {
 					path: "test.js",
 				}),
 			).toBe(true)
 		})
 
-		it("applies restrictions to both write_to_file and apply_diff", () => {
-			// Test write_to_file
-			const writeResult = isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
+		it("applies restrictions to both create_file and edit_file", () => {
+			// Test create_file
+			const writeResult = isToolAllowedForMode("create_file", "markdown-editor", customModes, undefined, {
 				path: "test.md",
 				content: "# Test",
 			})
 			expect(writeResult).toBe(true)
 
-			// Test apply_diff
-			const diffResult = isToolAllowedForMode("apply_diff", "markdown-editor", customModes, undefined, {
+			// Test edit_file
+			const diffResult = isToolAllowedForMode("edit_file", "markdown-editor", customModes, undefined, {
 				path: "test.md",
 				diff: "- old\n+ new",
 			})
@@ -118,14 +127,14 @@ describe("isToolAllowedForMode", () => {
 
 			// Test both with non-matching file
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "markdown-editor", customModes, undefined, {
+				isToolAllowedForMode("create_file", "markdown-editor", customModes, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
 			).toThrow(FileRestrictionError)
 
 			expect(() =>
-				isToolAllowedForMode("apply_diff", "markdown-editor", customModes, undefined, {
+				isToolAllowedForMode("edit_file", "markdown-editor", customModes, undefined, {
 					path: "test.js",
 					diff: "- old\n+ new",
 				}),
@@ -146,29 +155,29 @@ describe("isToolAllowedForMode", () => {
 				},
 			]
 
-			// Test write_to_file with non-matching file
+			// Test create_file with non-matching file
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("create_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
 			).toThrow(FileRestrictionError)
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("create_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
 			).toThrow(/Documentation files only/)
 
-			// Test apply_diff with non-matching file
+			// Test edit_file with non-matching file
 			expect(() =>
-				isToolAllowedForMode("apply_diff", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("edit_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.js",
 					diff: "- old\n+ new",
 				}),
 			).toThrow(FileRestrictionError)
 			expect(() =>
-				isToolAllowedForMode("apply_diff", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("edit_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.js",
 					diff: "- old\n+ new",
 				}),
@@ -176,14 +185,14 @@ describe("isToolAllowedForMode", () => {
 
 			// Test that matching files are allowed
 			expect(
-				isToolAllowedForMode("write_to_file", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("create_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.md",
 					content: "# Test",
 				}),
 			).toBe(true)
 
 			expect(
-				isToolAllowedForMode("write_to_file", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("create_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.txt",
 					content: "Test content",
 				}),
@@ -191,7 +200,7 @@ describe("isToolAllowedForMode", () => {
 
 			// Test partial streaming cases
 			expect(
-				isToolAllowedForMode("write_to_file", "docs-editor", customModesWithDescription, undefined, {
+				isToolAllowedForMode("create_file", "docs-editor", customModesWithDescription, undefined, {
 					path: "test.js",
 				}),
 			).toBe(true)
@@ -200,7 +209,7 @@ describe("isToolAllowedForMode", () => {
 		it("allows architect mode to edit markdown files only", () => {
 			// Should allow editing markdown files
 			expect(
-				isToolAllowedForMode("write_to_file", "architect", [], undefined, {
+				isToolAllowedForMode("create_file", "architect", [], undefined, {
 					path: "test.md",
 					content: "# Test",
 				}),
@@ -208,7 +217,7 @@ describe("isToolAllowedForMode", () => {
 
 			// Should allow applying diffs to markdown files
 			expect(
-				isToolAllowedForMode("apply_diff", "architect", [], undefined, {
+				isToolAllowedForMode("edit_file", "architect", [], undefined, {
 					path: "readme.md",
 					diff: "- old\n+ new",
 				}),
@@ -216,13 +225,13 @@ describe("isToolAllowedForMode", () => {
 
 			// Should reject non-markdown files
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "architect", [], undefined, {
+				isToolAllowedForMode("create_file", "architect", [], undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
 			).toThrow(FileRestrictionError)
 			expect(() =>
-				isToolAllowedForMode("write_to_file", "architect", [], undefined, {
+				isToolAllowedForMode("create_file", "architect", [], undefined, {
 					path: "test.js",
 					content: "console.log('test')",
 				}),
@@ -236,15 +245,15 @@ describe("isToolAllowedForMode", () => {
 	})
 
 	it("handles non-existent modes", () => {
-		expect(isToolAllowedForMode("write_to_file", "non-existent", customModes)).toBe(false)
+		expect(isToolAllowedForMode("create_file", "non-existent", customModes)).toBe(false)
 	})
 
 	it("respects tool requirements", () => {
 		const toolRequirements = {
-			write_to_file: false,
+			create_file: false,
 		}
 
-		expect(isToolAllowedForMode("write_to_file", "markdown-editor", customModes, toolRequirements)).toBe(false)
+		expect(isToolAllowedForMode("create_file", "markdown-editor", customModes, toolRequirements)).toBe(false)
 	})
 
 	describe("experimental tools", () => {
@@ -303,7 +312,7 @@ describe("isToolAllowedForMode", () => {
 			).toBe(true)
 			expect(
 				isToolAllowedForMode(
-					"write_to_file",
+					"create_file",
 					"markdown-editor",
 					customModes,
 					undefined,
@@ -322,6 +331,98 @@ describe("FileRestrictionError", () => {
 			"This mode (Markdown Editor) can only edit files matching pattern: \\.md$. Got: test.js",
 		)
 		expect(error.name).toBe("FileRestrictionError")
+	})
+
+	describe("debug mode", () => {
+		it("is configured correctly", () => {
+			const debugMode = modes.find((mode) => mode.slug === "debug")
+			expect(debugMode).toBeDefined()
+			expect(debugMode).toMatchObject({
+				slug: "debug",
+				name: "Debug",
+				roleDefinition:
+					"You are Roo, an expert software debugger specializing in systematic problem diagnosis and resolution.",
+				groups: ["read", "edit", "browser", "command", "mcp"],
+			})
+			expect(debugMode?.customInstructions).toContain(
+				"Reflect on 5-7 different possible sources of the problem, distill those down to 1-2 most likely sources, and then add logs to validate your assumptions. Explicitly ask the user to confirm the diagnosis before fixing the problem.",
+			)
+		})
+	})
+
+	describe("getFullModeDetails", () => {
+		beforeEach(() => {
+			jest.clearAllMocks()
+			;(addCustomInstructions as jest.Mock).mockResolvedValue("Combined instructions")
+		})
+
+		it("returns base mode when no overrides exist", async () => {
+			const result = await getFullModeDetails("debug")
+			expect(result).toMatchObject({
+				slug: "debug",
+				name: "Debug",
+				roleDefinition:
+					"You are Roo, an expert software debugger specializing in systematic problem diagnosis and resolution.",
+			})
+		})
+
+		it("applies custom mode overrides", async () => {
+			const customModes = [
+				{
+					slug: "debug",
+					name: "Custom Debug",
+					roleDefinition: "Custom debug role",
+					groups: ["read"],
+				},
+			]
+
+			const result = await getFullModeDetails("debug", customModes)
+			expect(result).toMatchObject({
+				slug: "debug",
+				name: "Custom Debug",
+				roleDefinition: "Custom debug role",
+				groups: ["read"],
+			})
+		})
+
+		it("applies prompt component overrides", async () => {
+			const customModePrompts = {
+				debug: {
+					roleDefinition: "Overridden role",
+					customInstructions: "Overridden instructions",
+				},
+			}
+
+			const result = await getFullModeDetails("debug", undefined, customModePrompts)
+			expect(result.roleDefinition).toBe("Overridden role")
+			expect(result.customInstructions).toBe("Overridden instructions")
+		})
+
+		it("combines custom instructions when cwd provided", async () => {
+			const options = {
+				cwd: "/test/path",
+				globalCustomInstructions: "Global instructions",
+				preferredLanguage: "en",
+			}
+
+			await getFullModeDetails("debug", undefined, undefined, options)
+
+			expect(addCustomInstructions).toHaveBeenCalledWith(
+				expect.any(String),
+				"Global instructions",
+				"/test/path",
+				"debug",
+				{ preferredLanguage: "en" },
+			)
+		})
+
+		it("falls back to first mode for non-existent mode", async () => {
+			const result = await getFullModeDetails("non-existent")
+			expect(result).toMatchObject({
+				...modes[0],
+				customInstructions: "",
+			})
+		})
 	})
 
 	it("formats error message with description when provided", () => {

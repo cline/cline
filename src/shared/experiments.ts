@@ -2,6 +2,7 @@ export const EXPERIMENT_IDS = {
 	DIFF_STRATEGY: "experimentalDiffStrategy",
 	SEARCH_AND_REPLACE: "search_and_replace",
 	INSERT_BLOCK: "insert_content",
+	POWER_STEERING: "powerSteering",
 } as const
 
 export type ExperimentKey = keyof typeof EXPERIMENT_IDS
@@ -33,6 +34,12 @@ export const experimentConfigsMap: Record<ExperimentKey, ExperimentConfig> = {
 
 		description:
 			"Enable the experimental insert content tool, allowing Roo to insert content at specific line numbers without needing to create a diff.",
+		enabled: false,
+	},
+	POWER_STEERING: {
+		name: 'Use experimental "power steering" mode',
+		description:
+			"When enabled, Roo will remind the model about the details of its current mode definition more frequently. This will lead to stronger adherence to role definitions and custom instructions, but will use more tokens per message.",
 		enabled: false,
 	},
 }
