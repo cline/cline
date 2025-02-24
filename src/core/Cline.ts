@@ -73,6 +73,20 @@ type UserContent = Array<
 	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
 >
 
+export type ClineOptions = {
+	provider: ClineProvider
+	apiConfiguration: ApiConfiguration
+	customInstructions?: string
+	enableDiff?: boolean
+	enableCheckpoints?: boolean
+	fuzzyMatchThreshold?: number
+	task?: string
+	images?: string[]
+	historyItem?: HistoryItem
+	experiments?: Record<string, boolean>
+	startTask?: boolean
+}
+
 export class Cline {
 	readonly taskId: string
 	api: ApiHandler
@@ -118,19 +132,19 @@ export class Cline {
 	private didAlreadyUseTool = false
 	private didCompleteReadingStream = false
 
-	constructor(
-		provider: ClineProvider,
-		apiConfiguration: ApiConfiguration,
-		customInstructions?: string,
-		enableDiff?: boolean,
-		enableCheckpoints?: boolean,
-		fuzzyMatchThreshold?: number,
-		task?: string | undefined,
-		images?: string[] | undefined,
-		historyItem?: HistoryItem | undefined,
-		experiments?: Record<string, boolean>,
+	constructor({
+		provider,
+		apiConfiguration,
+		customInstructions,
+		enableDiff,
+		enableCheckpoints,
+		fuzzyMatchThreshold,
+		task,
+		images,
+		historyItem,
+		experiments,
 		startTask = true,
-	) {
+	}: ClineOptions) {
 		if (startTask && !task && !images && !historyItem) {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
@@ -165,21 +179,20 @@ export class Cline {
 		}
 	}
 
-	static create(...args: ConstructorParameters<typeof Cline>): [Cline, Promise<void>] {
-		args[10] = false // startTask
-		const instance = new Cline(...args)
+	static create(options: ClineOptions): [Cline, Promise<void>] {
+		const instance = new Cline({ ...options, startTask: false })
+		const { images, task, historyItem } = options
+		let promise
 
-		let task
-
-		if (args[6] || args[7]) {
-			task = instance.startTask(args[6], args[7])
-		} else if (args[8]) {
-			task = instance.resumeTaskFromHistory()
+		if (images || task) {
+			promise = instance.startTask(task, images)
+		} else if (historyItem) {
+			promise = instance.resumeTaskFromHistory()
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
 
-		return [instance, task]
+		return [instance, promise]
 	}
 
 	// Add method to update diffStrategy

@@ -413,18 +413,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const modePrompt = customModePrompts?.[mode] as PromptComponent
 		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
-		this.cline = new Cline(
-			this,
+		this.cline = new Cline({
+			provider: this,
 			apiConfiguration,
-			effectiveInstructions,
-			diffEnabled,
-			checkpointsEnabled,
+			customInstructions: effectiveInstructions,
+			enableDiff: diffEnabled,
+			enableCheckpoints: checkpointsEnabled,
 			fuzzyMatchThreshold,
 			task,
 			images,
-			undefined,
 			experiments,
-		)
+		})
 	}
 
 	public async initClineWithHistoryItem(historyItem: HistoryItem) {
@@ -444,18 +443,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const modePrompt = customModePrompts?.[mode] as PromptComponent
 		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
-		this.cline = new Cline(
-			this,
+		this.cline = new Cline({
+			provider: this,
 			apiConfiguration,
-			effectiveInstructions,
-			diffEnabled,
-			checkpointsEnabled,
+			customInstructions: effectiveInstructions,
+			enableDiff: diffEnabled,
+			enableCheckpoints: checkpointsEnabled,
 			fuzzyMatchThreshold,
-			undefined,
-			undefined,
 			historyItem,
 			experiments,
-		)
+		})
 	}
 
 	public async postMessageToWebview(message: ExtensionMessage) {
