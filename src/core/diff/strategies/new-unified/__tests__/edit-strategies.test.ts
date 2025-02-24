@@ -1,5 +1,3 @@
-/// <reference types="jest" />
-
 import { applyContextMatching, applyDMP, applyGitFallback } from "../edit-strategies"
 import { Hunk } from "../types"
 
@@ -277,7 +275,7 @@ describe("applyGitFallback", () => {
 		expect(result.result.join("\n")).toEqual("line1\nnew line2\nline3")
 		expect(result.confidence).toBe(1)
 		expect(result.strategy).toBe("git-fallback")
-	}, 10_000)
+	})
 
 	it("should return original content with 0 confidence when changes cannot be applied", async () => {
 		const hunk = {
@@ -293,5 +291,5 @@ describe("applyGitFallback", () => {
 		expect(result.result).toEqual(content)
 		expect(result.confidence).toBe(0)
 		expect(result.strategy).toBe("git-fallback")
-	}, 10_000)
+	})
 })
