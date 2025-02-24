@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.7.0]
+
+- Introducing Roo Code 3.7, with support for the new Claude Sonnet 3.7. Because who cares about skipping version numbers anymore? Thanks @lupuletic and @cte for the PRs!
+
 ## [3.3.26]
 
 - Adjust the default prompt for Debug mode to focus more on diagnosis and to require user confirmation before moving on to implementation
