@@ -28,7 +28,7 @@ export const TOOL_GROUPS: Record<string, ToolGroupConfig> = {
 		tools: ["read_file", "search_files", "list_files", "list_code_definition_names"],
 	},
 	edit: {
-		tools: ["write_to_file", "apply_diff", "insert_content", "search_and_replace"],
+		tools: ["apply_diff", "write_to_file", "insert_content", "search_and_replace"],
 	},
 	browser: {
 		tools: ["browser_action"],
