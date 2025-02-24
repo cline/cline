@@ -193,6 +193,8 @@ export function convertToAnthropicMessage(
 			usage: {
 				input_tokens: streamEvent.metadata.usage.inputTokens || 0,
 				output_tokens: streamEvent.metadata.usage.outputTokens || 0,
+				cache_creation_input_tokens: null,
+				cache_read_input_tokens: null,
 			},
 		}
 	}
@@ -203,7 +205,7 @@ export function convertToAnthropicMessage(
 		return {
 			type: "message",
 			role: "assistant",
-			content: [{ type: "text", text: text }],
+			content: [{ type: "text", text: text, citations: null }],
 			model: modelId,
 		}
 	}

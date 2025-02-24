@@ -11,16 +11,7 @@ import {
 	TextPart,
 } from "@google/generative-ai"
 
-export function convertAnthropicContentToGemini(
-	content:
-		| string
-		| Array<
-				| Anthropic.Messages.TextBlockParam
-				| Anthropic.Messages.ImageBlockParam
-				| Anthropic.Messages.ToolUseBlockParam
-				| Anthropic.Messages.ToolResultBlockParam
-		  >,
-): Part[] {
+export function convertAnthropicContentToGemini(content: Anthropic.Messages.MessageParam["content"]): Part[] {
 	if (typeof content === "string") {
 		return [{ text: content } as TextPart]
 	}
@@ -140,7 +131,7 @@ export function convertGeminiResponseToAnthropic(
 	// Add the main text response
 	const text = response.text()
 	if (text) {
-		content.push({ type: "text", text })
+		content.push({ type: "text", text, citations: null })
 	}
 
 	// Add function calls as tool_use blocks
@@ -190,6 +181,8 @@ export function convertGeminiResponseToAnthropic(
 		usage: {
 			input_tokens: response.usageMetadata?.promptTokenCount ?? 0,
 			output_tokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+			cache_creation_input_tokens: null,
+			cache_read_input_tokens: null,
 		},
 	}
 }
