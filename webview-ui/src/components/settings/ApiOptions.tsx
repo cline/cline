@@ -742,7 +742,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									let modelInfo = apiConfiguration?.openAiModelInfo
 										? apiConfiguration.openAiModelInfo
 										: { ...openAiModelInfoSaneDefaults }
-									modelInfo.supportsComputerUse = isChecked
+									modelInfo = { ...modelInfo, supportsComputerUse: isChecked }
 									setApiConfiguration({
 										...apiConfiguration,
 										openAiModelInfo: modelInfo,
