@@ -1,11 +1,10 @@
-import React, { memo, useEffect } from "react"
+import { memo, useEffect } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
-import MermaidBlock from "./MermaidBlock"
 
 interface MarkdownBlockProps {
 	markdown?: string
@@ -221,27 +220,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 		],
 		rehypeReactOptions: {
 			components: {
-				pre: ({ node, children, ...preProps }: any) => {
-					if (Array.isArray(children) && children.length === 1 && React.isValidElement(children[0])) {
-						const child = children[0] as React.ReactElement<{ className?: string }>
-						if (child.props?.className?.includes("language-mermaid")) {
-							return child
-						}
-					}
-					return (
-						<StyledPre {...preProps} theme={theme}>
-							{children}
-						</StyledPre>
-					)
-				},
-				code: (props: any) => {
-					const className = props.className || ""
-					if (className.includes("language-mermaid")) {
-						const codeText = String(props.children || "")
-						return <MermaidBlock code={codeText} />
-					}
-					return <code {...props} />
-				},
+				pre: ({ node, ...preProps }: any) => <StyledPre {...preProps} theme={theme} />,
 			},
 		},
 	})

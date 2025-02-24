@@ -9,7 +9,6 @@ import {
 } from "../../utils/vscStyles"
 
 interface TooltipProps {
-	visible: boolean
 	hintText: string
 	tipText: string
 	children: React.ReactNode
@@ -39,9 +38,14 @@ const Hint = styled.div`
 	margin-top: 2px;
 `
 
-const Tooltip: React.FC<TooltipProps> = ({ visible, tipText, hintText, children }) => {
+const Tooltip: React.FC<TooltipProps> = ({ tipText, hintText, children }) => {
+	const [visible, setVisible] = useState(false)
+
+	const showTooltip = () => setVisible(true)
+	const hideTooltip = () => setVisible(false)
+
 	return (
-		<div style={{ position: "relative", display: "inline-block" }}>
+		<div style={{ position: "relative", display: "inline-block" }} onMouseEnter={showTooltip} onMouseLeave={hideTooltip}>
 			{children}
 			{visible && (
 				<TooltipBody>

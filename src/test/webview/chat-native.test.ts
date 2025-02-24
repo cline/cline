@@ -29,7 +29,7 @@ describe("Chat Integration Tests", () => {
                                     break;
                                 case 'toggleMode':
                                     vscode.postMessage({
-                                        type: 'togglePlanActMode',
+                                        type: 'chatSettings',
                                         chatSettings: { mode: 'act' }, 
                                         chatContent: {
                                             message: "message test",
@@ -84,7 +84,7 @@ describe("Chat Integration Tests", () => {
 		// Set up state change listener
 		const stateChangePromise = new Promise<any>((resolve) => {
 			panel.webview.onDidReceiveMessage((message) => {
-				if (message.type === "togglePlanActMode") {
+				if (message.type === "chatSettings") {
 					resolve(message)
 				}
 			})
@@ -102,7 +102,7 @@ describe("Chat Integration Tests", () => {
 		// Set up state change listener
 		const stateChangePromise = new Promise<any>((resolve) => {
 			panel.webview.onDidReceiveMessage((message) => {
-				if (message.type === "togglePlanActMode") {
+				if (message.type === "chatSettings") {
 					resolve(message)
 				}
 			})

@@ -1,48 +1,78 @@
-import {
-	VSCodeButton,
-	VSCodeLink,
-	VSCodePanels,
-	VSCodePanelTab,
-	VSCodePanelView,
-	VSCodeDropdown,
-	VSCodeOption,
-} from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState } from "react"
-import styled from "styled-components"
-import { DEFAULT_MCP_TIMEOUT_SECONDS, McpServer } from "../../../../src/shared/mcp"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { getMcpServerDisplayName } from "../../utils/mcp"
+import { VSCodeButton, VSCodeLink, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
+import { useState } from "react"
 import { vscode } from "../../utils/vscode"
-import DangerButton from "../common/DangerButton"
-import McpMarketplaceView from "./marketplace/McpMarketplaceView"
-import McpResourceRow from "./McpResourceRow"
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { McpServer } from "../../../../src/shared/mcp"
 import McpToolRow from "./McpToolRow"
+import McpResourceRow from "./McpResourceRow"
 
 type McpViewProps = {
 	onDone: () => void
 }
 
 const McpView = ({ onDone }: McpViewProps) => {
-	const { mcpServers: servers, mcpMarketplaceEnabled } = useExtensionState()
-	const [activeTab, setActiveTab] = useState(mcpMarketplaceEnabled ? "marketplace" : "installed")
+	const { mcpServers: servers } = useExtensionState()
 
-	const handleTabChange = (tab: string) => {
-		setActiveTab(tab)
-	}
-
-	useEffect(() => {
-		if (!mcpMarketplaceEnabled && activeTab === "marketplace") {
-			// If marketplace is disabled and we're on marketplace tab, switch to installed
-			setActiveTab("installed")
-		}
-	}, [mcpMarketplaceEnabled, activeTab])
-
-	useEffect(() => {
-		if (mcpMarketplaceEnabled) {
-			vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" })
-			vscode.postMessage({ type: "fetchLatestMcpServersFromHub" })
-		}
-	}, [mcpMarketplaceEnabled])
+	// const [servers, setServers] = useState<McpServer[]>([
+	// 	// Add some mock servers for testing
+	// 	{
+	// 		name: "local-tools",
+	// 		config: JSON.stringify({
+	// 			mcpServers: {
+	// 				"local-tools": {
+	// 					command: "npx",
+	// 					args: ["-y", "@modelcontextprotocol/server-tools"],
+	// 				},
+	// 			},
+	// 		}),
+	// 		status: "connected",
+	// 		tools: [
+	// 			{
+	// 				name: "execute_command",
+	// 				description: "Run a shell command on the local system",
+	// 			},
+	// 			{
+	// 				name: "read_file",
+	// 				description: "Read contents of a file from the filesystem",
+	// 			},
+	// 		],
+	// 	},
+	// 	{
+	// 		name: "postgres-db",
+	// 		config: JSON.stringify({
+	// 			mcpServers: {
+	// 				"postgres-db": {
+	// 					command: "npx",
+	// 					args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"],
+	// 				},
+	// 			},
+	// 		}),
+	// 		status: "disconnected",
+	// 		error: "Failed to connect to database: Connection refused",
+	// 	},
+	// 	{
+	// 		name: "github-tools",
+	// 		config: JSON.stringify({
+	// 			mcpServers: {
+	// 				"github-tools": {
+	// 					command: "npx",
+	// 					args: ["-y", "@modelcontextprotocol/server-github"],
+	// 				},
+	// 			},
+	// 		}),
+	// 		status: "connecting",
+	// 		resources: [
+	// 			{
+	// 				uri: "github://repo/issues",
+	// 				name: "Repository Issues",
+	// 			},
+	// 			{
+	// 				uri: "github://repo/pulls",
+	// 				name: "Pull Requests",
+	// 			},
+	// 		],
+	// 	},
+	// ])
 
 	return (
 		<div
@@ -60,146 +90,86 @@ const McpView = ({ onDone }: McpViewProps) => {
 					display: "flex",
 					justifyContent: "space-between",
 					alignItems: "center",
-					padding: "10px 17px 5px 20px",
+					padding: "10px 17px 10px 20px",
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>MCP Servers</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
 
-			<div style={{ flex: 1, overflow: "auto" }}>
-				{/* Tabs container */}
+			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
 				<div
 					style={{
-						display: "flex",
-						gap: "1px",
-						padding: "0 20px 0 20px",
-						borderBottom: "1px solid var(--vscode-panel-border)",
+						color: "var(--vscode-foreground)",
+						fontSize: "13px",
+						marginBottom: "16px",
+						marginTop: "5px",
 					}}>
-					{mcpMarketplaceEnabled && (
-						<TabButton isActive={activeTab === "marketplace"} onClick={() => handleTabChange("marketplace")}>
-							Marketplace
-						</TabButton>
-					)}
-					<TabButton isActive={activeTab === "installed"} onClick={() => handleTabChange("installed")}>
-						Installed
-					</TabButton>
+					The{" "}
+					<VSCodeLink href="https://github.com/modelcontextprotocol" style={{ display: "inline" }}>
+						Model Context Protocol
+					</VSCodeLink>{" "}
+					enables communication with locally running MCP servers that provide additional tools and resources to extend
+					Cline's capabilities. You can use{" "}
+					<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
+						community-made servers
+					</VSCodeLink>{" "}
+					or ask Cline to create new tools specific to your workflow (e.g., "add a tool that gets the latest npm docs").{" "}
+					<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
+						See a demo here.
+					</VSCodeLink>
 				</div>
 
-				{/* Content container */}
-				<div style={{ width: "100%" }}>
-					{mcpMarketplaceEnabled && activeTab === "marketplace" && <McpMarketplaceView />}
-					{activeTab === "installed" && (
-						<div style={{ padding: "16px 20px" }}>
-							<div
-								style={{
-									color: "var(--vscode-foreground)",
-									fontSize: "13px",
-									marginBottom: "16px",
-									marginTop: "5px",
-								}}>
-								The{" "}
-								<VSCodeLink href="https://github.com/modelcontextprotocol" style={{ display: "inline" }}>
-									Model Context Protocol
-								</VSCodeLink>{" "}
-								enables communication with locally running MCP servers that provide additional tools and resources
-								to extend Cline's capabilities. You can use{" "}
-								<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
-									community-made servers
-								</VSCodeLink>{" "}
-								or ask Cline to create new tools specific to your workflow (e.g., "add a tool that gets the latest
-								npm docs").{" "}
-								<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
-									See a demo here.
-								</VSCodeLink>
-							</div>
+				{servers.length > 0 && (
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							gap: "10px",
+						}}>
+						{servers.map((server) => (
+							<ServerRow key={server.name} server={server} />
+						))}
+					</div>
+				)}
 
-							{servers.length > 0 ? (
-								<div
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										gap: "10px",
-									}}>
-									{servers.map((server) => (
-										<ServerRow key={server.name} server={server} />
-									))}
-								</div>
-							) : (
-								<div
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										alignItems: "center",
-										gap: "12px",
-										marginTop: 20,
-										marginBottom: 20,
-										color: "var(--vscode-descriptionForeground)",
-									}}>
-									No MCP servers installed
-								</div>
-							)}
+				{/* Server Configuration Button */}
 
-							{/* Settings Section */}
-							<div style={{ marginBottom: "20px", marginTop: 10 }}>
-								<VSCodeButton
-									appearance="secondary"
-									style={{ width: "100%", marginBottom: "5px" }}
-									onClick={() => {
-										vscode.postMessage({ type: "openMcpSettings" })
-									}}>
-									<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
-									Configure MCP Servers
-								</VSCodeButton>
-
-								<div style={{ textAlign: "center" }}>
-									<VSCodeLink
-										onClick={() => {
-											vscode.postMessage({
-												type: "openExtensionSettings",
-												text: "cline.mcp",
-											})
-										}}
-										style={{ fontSize: "12px" }}>
-										Advanced MCP Settings
-									</VSCodeLink>
-								</div>
-							</div>
-						</div>
-					)}
+				<div style={{ marginTop: "10px", width: "100%" }}>
+					<VSCodeButton
+						appearance="secondary"
+						style={{ width: "100%" }}
+						onClick={() => {
+							vscode.postMessage({ type: "openMcpSettings" })
+						}}>
+						<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
+						Configure MCP Servers
+					</VSCodeButton>
 				</div>
+
+				{/* Advanced Settings Link */}
+				<div style={{ textAlign: "center", marginTop: "5px" }}>
+					<VSCodeLink
+						onClick={() => {
+							vscode.postMessage({
+								type: "openExtensionSettings",
+								text: "cline.mcp",
+							})
+						}}
+						style={{ fontSize: "12px" }}>
+						Advanced MCP Settings
+					</VSCodeLink>
+				</div>
+
+				{/* Bottom padding */}
+				<div style={{ height: "20px" }} />
 			</div>
 		</div>
 	)
 }
 
-const StyledTabButton = styled.button<{ isActive: boolean }>`
-	background: none;
-	border: none;
-	border-bottom: 2px solid ${(props) => (props.isActive ? "var(--vscode-foreground)" : "transparent")};
-	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
-	padding: 8px 16px;
-	cursor: pointer;
-	font-size: 13px;
-	margin-bottom: -1px;
-	font-family: inherit;
-
-	&:hover {
-		color: var(--vscode-foreground);
-	}
-`
-
-const TabButton = ({ children, isActive, onClick }: { children: React.ReactNode; isActive: boolean; onClick: () => void }) => (
-	<StyledTabButton isActive={isActive} onClick={onClick}>
-		{children}
-	</StyledTabButton>
-)
-
 // Server Row Component
 const ServerRow = ({ server }: { server: McpServer }) => {
-	const { mcpMarketplaceCatalog } = useExtensionState()
-
 	const [isExpanded, setIsExpanded] = useState(false)
-	const [isDeleting, setIsDeleting] = useState(false)
 
 	const getStatusColor = () => {
 		switch (server.status) {
@@ -218,48 +188,10 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		}
 	}
 
-	const [timeout, setTimeout] = useState<string>(() => {
-		try {
-			const config = JSON.parse(server.config)
-			return config.timeout?.toString() || DEFAULT_MCP_TIMEOUT_SECONDS.toString()
-		} catch {
-			return DEFAULT_MCP_TIMEOUT_SECONDS.toString()
-		}
-	})
-
-	const timeoutOptions = [
-		{ value: "30", label: "30 seconds" },
-		{ value: "60", label: "1 minute" },
-		{ value: "300", label: "5 minutes" },
-		{ value: "600", label: "10 minutes" },
-		{ value: "1800", label: "30 minutes" },
-		{ value: "3600", label: "1 hour" },
-	]
-
-	const handleTimeoutChange = (e: any) => {
-		const select = e.target as HTMLSelectElement
-		const value = select.value
-		const num = parseInt(value)
-		setTimeout(value)
-		vscode.postMessage({
-			type: "updateMcpTimeout",
-			serverName: server.name,
-			timeout: num,
-		})
-	}
-
 	const handleRestart = () => {
 		vscode.postMessage({
 			type: "restartMcpServer",
 			text: server.name,
-		})
-	}
-
-	const handleDelete = () => {
-		setIsDeleting(true)
-		vscode.postMessage({
-			type: "deleteMcpServer",
-			serverName: server.name,
 		})
 	}
 
@@ -279,18 +211,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 				{!server.error && (
 					<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`} style={{ marginRight: "8px" }} />
 				)}
-				<span
-					style={{
-						flex: 1,
-						overflow: "hidden",
-						wordBreak: "break-all",
-						whiteSpace: "normal",
-						display: "flex",
-						alignItems: "center",
-						marginRight: "4px",
-					}}>
-					{getMcpServerDisplayName(server.name, mcpMarketplaceCatalog)}
-				</span>
+				<span style={{ flex: 1 }}>{server.name}</span>
 				<div style={{ display: "flex", alignItems: "center", marginRight: "8px" }} onClick={(e) => e.stopPropagation()}>
 					<div
 						role="switch"
@@ -448,16 +369,6 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							</VSCodePanelView>
 						</VSCodePanels>
 
-						<div style={{ margin: "10px 7px" }}>
-							<label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>Request Timeout</label>
-							<VSCodeDropdown style={{ width: "100%" }} value={timeout} onChange={handleTimeoutChange}>
-								{timeoutOptions.map((option) => (
-									<VSCodeOption key={option.value} value={option.value}>
-										{option.label}
-									</VSCodeOption>
-								))}
-							</VSCodeDropdown>
-						</div>
 						<VSCodeButton
 							appearance="secondary"
 							onClick={handleRestart}
@@ -468,16 +379,6 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							}}>
 							{server.status === "connecting" ? "Restarting..." : "Restart Server"}
 						</VSCodeButton>
-
-						<DangerButton
-							onClick={handleDelete}
-							disabled={isDeleting}
-							style={{
-								width: "calc(100% - 14px)",
-								margin: "5px 7px 3px 7px",
-							}}>
-							{isDeleting ? "Deleting..." : "Delete Server"}
-						</DangerButton>
 					</div>
 				)
 			)}
