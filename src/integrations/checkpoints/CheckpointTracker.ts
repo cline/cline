@@ -1,6 +1,7 @@
 import fs from "fs/promises"
 import * as path from "path"
 import simpleGit, { type SimpleGit } from "simple-git"
+import * as vscode from "vscode"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { GitOperations } from "./CheckpointGitOperations"
 import { getShadowGitPath, hashWorkingDir, getWorkingDirectory, detectLegacyCheckpoint } from "./CheckpointUtils"
@@ -342,7 +343,7 @@ class CheckpointTracker {
 		const batchSize = 50
 
 		// Get list of files that exist in base commit
-		const existingFiles = await this.getExistingFiles(git, baseHash, files)
+		const existingFiles = await this.getExistingFiles(git, baseHash)
 
 		// Process files in batches (Helps with large repos)
 		for (let i = 0; i < files.length; i += batchSize) {
@@ -371,7 +372,7 @@ class CheckpointTracker {
 			let afterContents: string[] = []
 			if (rhsHash) {
 				// Split after files into existing and new in target commit
-				const afterExistingFiles = await this.getExistingFiles(git, rhsHash, batch)
+				const afterExistingFiles = await this.getExistingFiles(git, rhsHash)
 				const afterExistingBatch = batch.filter((file) => afterExistingFiles.has(file))
 
 				if (afterExistingBatch.length > 0) {
@@ -433,7 +434,7 @@ class CheckpointTracker {
 	/**
 	 * Helper function to get a set of files that exist in a given commit
 	 */
-	private async getExistingFiles(git: SimpleGit, commitHash: string, files: string[]): Promise<Set<string>> {
+	private async getExistingFiles(git: SimpleGit, commitHash: string): Promise<Set<string>> {
 		try {
 			const result = await git.raw(["ls-tree", "-r", "--name-only", commitHash])
 			const existingFiles = new Set<string>(result.split("\n"))
