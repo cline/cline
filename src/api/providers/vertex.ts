@@ -180,26 +180,6 @@ export class VertexHandler implements ApiHandler {
 		}
 	}
 
-	@withRetry()
-	async countTokens(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): Promise<number> {
-		type CountTokensRequest = {
-			model: string
-			system: string
-			messages: Anthropic.Messages.MessageParam[]
-		}
-		type CountTokensResponse = {
-			input_tokens: number
-		}
-		const result = await this.client.post<CountTokensRequest, CountTokensResponse>("/v1/messages/count_tokens?beta=true", {
-			body: {
-				model: this.getModel().id,
-				system: systemPrompt,
-				messages,
-			},
-		})
-		return result.input_tokens
-	}
-
 	getModel(): { id: VertexModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in vertexModels) {
