@@ -16,7 +16,7 @@ export const RequestyModelPicker = () => {
 			}}
 			serviceName="Requesty"
 			serviceUrl="https://requesty.ai"
-			recommendedModel="anthropic/claude-3-5-sonnet-latest"
+			recommendedModel="anthropic/claude-3-7-sonnet-latest"
 		/>
 	)
 }

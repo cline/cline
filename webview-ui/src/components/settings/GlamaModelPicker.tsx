@@ -10,6 +10,6 @@ export const GlamaModelPicker = () => (
 		refreshMessageType="refreshGlamaModels"
 		serviceName="Glama"
 		serviceUrl="https://glama.ai/models"
-		recommendedModel="anthropic/claude-3-5-sonnet"
+		recommendedModel="anthropic/claude-3-7-sonnet"
 	/>
 )

@@ -1,3 +1,5 @@
+// npx jest src/api/providers/__tests__/openrouter.test.ts
+
 import { OpenRouterHandler } from "../openrouter"
 import { ApiHandlerOptions, ModelInfo } from "../../../shared/api"
 import OpenAI from "openai"
@@ -55,7 +57,7 @@ describe("OpenRouterHandler", () => {
 		const handler = new OpenRouterHandler({})
 		const result = handler.getModel()
 
-		expect(result.id).toBe("anthropic/claude-3.5-sonnet:beta")
+		expect(result.id).toBe("anthropic/claude-3.7-sonnet")
 		expect(result.info.supportsPromptCache).toBe(true)
 	})
 

@@ -1,8 +1,10 @@
-import { GlamaHandler } from "../glama"
-import { ApiHandlerOptions } from "../../../shared/api"
-import OpenAI from "openai"
+// npx jest src/api/providers/__tests__/glama.test.ts
+
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
+
+import { GlamaHandler } from "../glama"
+import { ApiHandlerOptions } from "../../../shared/api"
 
 // Mock OpenAI client
 const mockCreate = jest.fn()
@@ -71,8 +73,8 @@ describe("GlamaHandler", () => {
 
 	beforeEach(() => {
 		mockOptions = {
-			apiModelId: "anthropic/claude-3-5-sonnet",
-			glamaModelId: "anthropic/claude-3-5-sonnet",
+			apiModelId: "anthropic/claude-3-7-sonnet",
+			glamaModelId: "anthropic/claude-3-7-sonnet",
 			glamaApiKey: "test-api-key",
 		}
 		handler = new GlamaHandler(mockOptions)

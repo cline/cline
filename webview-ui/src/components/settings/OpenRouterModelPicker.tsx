@@ -10,6 +10,6 @@ export const OpenRouterModelPicker = () => (
 		refreshMessageType="refreshOpenRouterModels"
 		serviceName="OpenRouter"
 		serviceUrl="https://openrouter.ai/models"
-		recommendedModel="anthropic/claude-3.5-sonnet:beta"
+		recommendedModel="anthropic/claude-3.7-sonnet"
 	/>
 )
