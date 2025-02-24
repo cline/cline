@@ -4,6 +4,7 @@ import { withRetry } from "../retry"
 import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "../../shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
+import { RawMessageStreamEvent } from "@anthropic-ai/sdk/resources/index.mjs"
 
 export class AnthropicHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -18,9 +19,9 @@ export class AnthropicHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.MessageParam[]): ApiStream {
 		const model = this.getModel()
-		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
+		let stream: AnthropicStream<RawMessageStreamEvent>
 		const modelId = model.id
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
@@ -38,11 +39,17 @@ export class AnthropicHandler implements ApiHandler {
 				)
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-				stream = await this.client.beta.promptCaching.messages.create(
+				stream = await this.client.messages.create(
 					{
 						model: modelId,
 						max_tokens: model.info.maxTokens || 8192,
-						temperature: 0,
+						thinking: this.shouldEnableThinking()
+							? {
+									type: "enabled",
+									budget_tokens: this.options.anthropicModelInfo?.maxThinkingTokens || 16000,
+								}
+							: undefined,
+						temperature: this.shouldEnableThinking() ? 1 : 0,
 						system: [
 							{
 								text: systemPrompt,
@@ -94,11 +101,6 @@ export class AnthropicHandler implements ApiHandler {
 							case "claude-3-5-haiku-20241022":
 							case "claude-3-opus-20240229":
 							case "claude-3-haiku-20240307":
-								return {
-									headers: {
-										"anthropic-beta": "prompt-caching-2024-07-31",
-									},
-								}
 							default:
 								return undefined
 						}
@@ -110,7 +112,13 @@ export class AnthropicHandler implements ApiHandler {
 				stream = (await this.client.messages.create({
 					model: modelId,
 					max_tokens: model.info.maxTokens || 8192,
-					temperature: 0,
+					thinking: this.shouldEnableThinking()
+						? {
+								type: "enabled",
+								budget_tokens: this.options.anthropicModelInfo?.maxThinkingTokens || 16000,
+							}
+						: undefined,
+					temperature: this.shouldEnableThinking() ? 1 : 0,
 					system: [{ text: systemPrompt, type: "text" }],
 					messages,
 					// tools,
@@ -161,6 +169,18 @@ export class AnthropicHandler implements ApiHandler {
 								text: chunk.content_block.text,
 							}
 							break
+						case "thinking":
+							yield {
+								type: "reasoning",
+								reasoning: chunk.content_block.thinking,
+							}
+							break
+						case "redacted_thinking":
+							yield {
+								type: "reasoning",
+								reasoning: "(Redacted thinking)",
+							}
+							break
 					}
 					break
 				case "content_block_delta":
@@ -171,12 +191,34 @@ export class AnthropicHandler implements ApiHandler {
 								text: chunk.delta.text,
 							}
 							break
+						case "thinking_delta":
+							yield {
+								type: "reasoning",
+								reasoning: chunk.delta.thinking,
+							}
+							break
+						case "signature_delta":
+							// Ignore signature deltas
+							break
 					}
 					break
 				case "content_block_stop":
 					break
 			}
 		}
+	}
+
+	private shouldEnableThinking(): boolean {
+		const model = this.getModel()
+		// Model must explicitly support thinking (=== true)
+		if (model.info.supportsThinking !== true) {
+			return false
+		}
+		// User must not have disabled it (!== false)
+		if (this.options.anthropicModelInfo?.supportsThinking === false) {
+			return false
+		}
+		return true
 	}
 
 	getModel(): { id: AnthropicModelId; info: ModelInfo } {

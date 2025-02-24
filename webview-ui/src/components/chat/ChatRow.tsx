@@ -830,8 +830,14 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										overflow: "hidden",
 									}}>
 									{isExpanded ? (
-										<div style={{ marginTop: -3 }}>
-											<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
+										<div
+											style={{
+												marginTop: -3,
+												backgroundColor: "var(--vscode-textCodeBlock-background)",
+												padding: "8px 8px",
+												borderRadius: "4px",
+											}}>
+											<span style={{ fontWeight: "bold", display: "block", marginBottom: "16px" }}>
 												Reasoning
 												<span
 													className="codicon codicon-chevron-down"
@@ -842,7 +848,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 													}}
 												/>
 											</span>
-											{message.text}
+											<Markdown markdown={message.text} />
 										</div>
 									) : (
 										<div style={{ display: "flex", alignItems: "center" }}>

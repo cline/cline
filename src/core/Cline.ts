@@ -64,7 +64,13 @@ const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<
-	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
+	| Anthropic.TextBlockParam
+	| Anthropic.ImageBlockParam
+	| Anthropic.ToolUseBlockParam
+	| Anthropic.ToolResultBlockParam
+	| Anthropic.DocumentBlockParam
+	| Anthropic.ThinkingBlockParam
+	| Anthropic.RedactedThinkingBlockParam
 >
 
 export class Cline {
@@ -935,7 +941,7 @@ export class Cline {
 
 				const existingUserContent: UserContent = Array.isArray(lastMessage.content)
 					? lastMessage.content
-					: [{ type: "text", text: lastMessage.content }]
+					: [{ type: "text", text: lastMessage.content, citations: [] }]
 				if (previousAssistantMessage && previousAssistantMessage.role === "assistant") {
 					const assistantContent = Array.isArray(previousAssistantMessage.content)
 						? previousAssistantMessage.content
@@ -2910,7 +2916,7 @@ export class Cline {
 		}
 
 		/*
-		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
+		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present.
 		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
 		*/
 		this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked

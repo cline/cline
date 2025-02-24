@@ -19,6 +19,9 @@ export function convertAnthropicContentToGemini(
 				| Anthropic.Messages.ImageBlockParam
 				| Anthropic.Messages.ToolUseBlockParam
 				| Anthropic.Messages.ToolResultBlockParam
+				| Anthropic.Messages.DocumentBlockParam
+				| Anthropic.Messages.ThinkingBlockParam
+				| Anthropic.Messages.RedactedThinkingBlockParam
 		  >,
 ): Part[] {
 	if (typeof content === "string") {
@@ -133,7 +136,7 @@ export function convertGeminiResponseToAnthropic(response: EnhancedGenerateConte
 	// Add the main text response
 	const text = response.text()
 	if (text) {
-		content.push({ type: "text", text })
+		content.push({ type: "text", text, citations: [] })
 	}
 
 	// Add function calls as tool_use blocks
@@ -183,6 +186,8 @@ export function convertGeminiResponseToAnthropic(response: EnhancedGenerateConte
 		usage: {
 			input_tokens: response.usageMetadata?.promptTokenCount ?? 0,
 			output_tokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+			cache_creation_input_tokens: 0, //FIXME: Gemini doesn't provide this information
+			cache_read_input_tokens: response.usageMetadata?.cachedContentTokenCount ?? 0,
 		},
 	}
 }

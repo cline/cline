@@ -234,6 +234,100 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						/>
 					)}
 
+					{selectedModelInfo.supportsThinking === true && (
+						<>
+							<div
+								style={{
+									color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
+									display: "flex",
+									margin: "10px 0",
+									cursor: "pointer",
+									alignItems: "center",
+								}}
+								onClick={() => setModelConfigurationSelected((val) => !val)}>
+								<span
+									className={`codicon ${modelConfigurationSelected ? "codicon-chevron-down" : "codicon-chevron-right"}`}
+									style={{
+										marginRight: "4px",
+									}}></span>
+								<span
+									style={{
+										fontWeight: 700,
+										textTransform: "uppercase",
+									}}>
+									Model Configuration
+								</span>
+							</div>
+							{modelConfigurationSelected && (
+								<div>
+									<VSCodeCheckbox
+										checked={apiConfiguration?.anthropicModelInfo?.supportsThinking !== false}
+										onChange={(e: any) => {
+											const isChecked = e.target.checked === true
+											let modelInfo = apiConfiguration?.anthropicModelInfo
+												? { ...apiConfiguration.anthropicModelInfo }
+												: { ...selectedModelInfo }
+											modelInfo.supportsThinking = isChecked
+											setApiConfiguration({
+												...apiConfiguration,
+												anthropicModelInfo: modelInfo,
+											})
+										}}>
+										Enable Extended Thinking
+									</VSCodeCheckbox>
+									<p
+										style={{
+											fontSize: "12px",
+											marginTop: 3,
+											marginBottom: 10,
+											color: "var(--vscode-descriptionForeground)",
+										}}>
+										When enabled, Claude will show its reasoning process for complex tasks. This helps you
+										understand how it approaches problems and makes decisions.
+									</p>
+
+									{apiConfiguration?.anthropicModelInfo?.supportsThinking !== false && (
+										<div>
+											<VSCodeTextField
+												value={
+													apiConfiguration?.anthropicModelInfo?.maxThinkingTokens?.toString() || "16000"
+												}
+												style={{ width: "100%" }}
+												onInput={(input: any) => {
+													const value = Number(input.target.value)
+													if (value < (selectedModelInfo.minThinkingTokens || 1024)) {
+														return // Enforce minimum thinking budget
+													}
+													if (value > 32000) {
+														return // Enforce maximum thinking budget
+													}
+													let modelInfo = apiConfiguration?.anthropicModelInfo
+														? { ...apiConfiguration.anthropicModelInfo }
+														: { ...selectedModelInfo }
+													modelInfo.maxThinkingTokens = value
+													setApiConfiguration({
+														...apiConfiguration,
+														anthropicModelInfo: modelInfo,
+													})
+												}}>
+												<span style={{ fontWeight: 500 }}>Thinking Budget (tokens)</span>
+											</VSCodeTextField>
+											<p
+												style={{
+													fontSize: "12px",
+													marginTop: 3,
+													color: "var(--vscode-descriptionForeground)",
+												}}>
+												Controls how many tokens Claude can use for reasoning. Minimum:{" "}
+												{selectedModelInfo.minThinkingTokens || 1024} tokens. Maximum: 32,000 tokens.
+												Larger budgets enable more thorough analysis for complex problems.
+											</p>
+										</div>
+									)}
+								</div>
+							)}
+						</>
+					)}
 					<p
 						style={{
 							fontSize: "12px",
@@ -1229,6 +1323,12 @@ export const ModelInfoView = ({
 			isSupported={modelInfo.supportsComputerUse ?? false}
 			supportsLabel="Supports computer use"
 			doesNotSupportLabel="Does not support computer use"
+		/>,
+		<ModelInfoSupportsItem
+			key="supportsThinking"
+			isSupported={modelInfo.supportsThinking ?? false}
+			supportsLabel="Supports extended thinking"
+			doesNotSupportLabel="Does not support extended thinking"
 		/>,
 		!isGemini && (
 			<ModelInfoSupportsItem
