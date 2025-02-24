@@ -19,6 +19,7 @@ import { vscode } from "../../utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import Thumbnails from "../common/Thumbnails"
 import Tooltip from "../common/Tooltip"
+import ThinkingSlider from "../common/ThinkingSlider"
 import ApiOptions, { normalizeApiConfiguration } from "../settings/ApiOptions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
@@ -1131,26 +1132,45 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							)}
 						</ModelContainer>
 					</ButtonGroup>
-					<Tooltip
-						visible={shownTooltipMode !== null}
-						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
-						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
-						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
-							<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
-							<SwitchOption
-								isActive={chatSettings.mode === "plan"}
-								onMouseOver={() => setShownTooltipMode("plan")}
-								onMouseLeave={() => setShownTooltipMode(null)}>
-								Plan
-							</SwitchOption>
-							<SwitchOption
-								isActive={chatSettings.mode === "act"}
-								onMouseOver={() => setShownTooltipMode("act")}
-								onMouseLeave={() => setShownTooltipMode(null)}>
-								Act
-							</SwitchOption>
-						</SwitchContainer>
-					</Tooltip>
+					<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+						{apiConfiguration?.apiModelId?.includes("claude-3-7-sonnet") && (
+							<>
+								<ThinkingSlider
+									value={chatSettings.thinkingValue || 0}
+									onChange={(value) => {
+										vscode.postMessage({
+											type: "togglePlanActMode",
+											chatSettings: {
+												...chatSettings,
+												thinkingValue: value,
+											},
+										})
+									}}
+									disabled={textAreaDisabled}
+								/>
+								<Tooltip
+									visible={shownTooltipMode !== null}
+									tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
+									hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
+									<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+										<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
+										<SwitchOption
+											isActive={chatSettings.mode === "plan"}
+											onMouseOver={() => setShownTooltipMode("plan")}
+											onMouseLeave={() => setShownTooltipMode(null)}>
+											Plan
+										</SwitchOption>
+										<SwitchOption
+											isActive={chatSettings.mode === "act"}
+											onMouseOver={() => setShownTooltipMode("act")}
+											onMouseLeave={() => setShownTooltipMode(null)}>
+											Act
+										</SwitchOption>
+									</SwitchContainer>
+								</Tooltip>
+							</>
+						)}
+					</div>
 				</ControlsContainer>
 			</div>
 		)
