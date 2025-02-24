@@ -11,6 +11,11 @@ on:
                 options:
                     - pre-release
                     - release
+            publish-vscode-extension:
+                description: "Whether to publish to VS Code extensions marketplace (release or pre-release)"
+                required: true
+                default: false
+                type: boolean
 
 permissions:
     contents: write
@@ -26,7 +31,6 @@ jobs:
         needs: test
         name: Publish Extension
         runs-on: ubuntu-latest
-        environment: publish
 
         steps:
             - uses: actions/checkout@v4
@@ -73,19 +77,22 @@ jobs:
               id: create_tag
               run: |
                   VERSION=v${{ steps.get_version.outputs.version }}
-                  echo "tag=$VERSION" >> $GITHUB_OUTPUT
+                  echo "tag=dougnukem-$VERSION" >> $GITHUB_OUTPUT
                   echo "Tagging with $VERSION"
-                  git tag "$VERSION"
-                  git push origin "$VERSION"
+                  git tag "dougnukem-$VERSION"
+                  git push origin "dougnukem-$VERSION"
 
-            - name: Package and Publish Extension
+            - name: Package Extension
+              run: |
+                  # Generate the .vsix package
+                  vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"
+
+            - name: Publish Extension
+              if: ${{ github.event.inputs.publish-vscode-extension == 'true' }}
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
               run: |
-                  # Required to generate the .vsix
-                  vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"
-
                   if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
                     npm run publish:marketplace:prerelease
                     echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
