@@ -55,13 +55,15 @@ export function truncateConversationIfNeeded(
 /**
  * Calculates the maximum allowed tokens for models that support prompt caching.
  *
- * The maximum is computed as the greater of (contextWindow - 40000) and 80% of the contextWindow.
+ * The maximum is computed as the greater of (contextWindow - buffer) and 80% of the contextWindow.
  *
  * @param {ModelInfo} modelInfo - The model information containing the context window size.
  * @returns {number} The maximum number of tokens allowed for prompt caching models.
  */
 function getMaxTokensForPromptCachingModels(modelInfo: ModelInfo): number {
-	return Math.max(modelInfo.contextWindow - 40_000, modelInfo.contextWindow * 0.8)
+	// The buffer needs to be at least as large as `modelInfo.maxTokens`.
+	const buffer = modelInfo.maxTokens ? Math.max(40_000, modelInfo.maxTokens) : 40_000
+	return Math.max(modelInfo.contextWindow - buffer, modelInfo.contextWindow * 0.8)
 }
 
 /**
