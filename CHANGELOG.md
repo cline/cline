@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.7.1]
+
+- Add AWS Bedrock support for Sonnet 3.7 and update some defaults to Sonnet 3.7 instead of 3.5
+
 ## [3.7.0]
 
 - Introducing Roo Code 3.7, with support for the new Claude Sonnet 3.7. Because who cares about skipping version numbers anymore? Thanks @lupuletic and @cte for the PRs!
