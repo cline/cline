@@ -32,7 +32,7 @@ export interface WebviewMessage {
 		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
-		| "togglePlanActMode"
+		| "changeChatSettings"
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"

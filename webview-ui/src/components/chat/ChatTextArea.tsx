@@ -656,7 +656,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setTimeout(() => {
 				const newMode = chatSettings.mode === "plan" ? "act" : "plan"
 				vscode.postMessage({
-					type: "togglePlanActMode",
+					type: "changeChatSettings",
 					chatSettings: {
 						mode: newMode,
 					},
@@ -1139,7 +1139,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									value={chatSettings.thinkingValue || 0}
 									onChange={(value) => {
 										vscode.postMessage({
-											type: "togglePlanActMode",
+											type: "changeChatSettings",
 											chatSettings: {
 												...chatSettings,
 												thinkingValue: value,

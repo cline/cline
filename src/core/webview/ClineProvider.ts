@@ -556,7 +556,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.postStateToWebview()
 						}
 						break
-					case "togglePlanActMode":
+					case "changeChatSettings":
 						if (message.chatSettings) {
 							await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
 						}
