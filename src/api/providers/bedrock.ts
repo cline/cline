@@ -21,6 +21,24 @@ export class AwsBedrockHandler implements ApiHandler {
 		// initialization, and allowing for session renewal if necessary as well
 		let client = await this.getClient()
 
+		const request: {
+			model: string
+			max_tokens?: number
+			temperature: number
+			system: string
+			messages: Anthropic.Messages.MessageParam[]
+			stream: boolean
+		} = {
+			model: modelId,
+			temperature: 0,
+			system: systemPrompt,
+			messages,
+			stream: true,
+		}
+		console.log("TESTING MODEL ID STARTS WITH TEST " + this.getModel().id)
+		if (!this.getModel().id.startsWith("amazon.")) {
+			request.max_tokens = this.getModel().info.maxTokens || 8192
+		}
 		const stream = await client.messages.create({
 			model: modelId,
 			max_tokens: this.getModel().info.maxTokens || 8192,
