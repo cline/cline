@@ -25,7 +25,7 @@ import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
 import { highlightMentions } from "./TaskHeader"
 import { CheckmarkControl } from "../common/CheckmarkControl"
-import McpResponseExtras from "../mcp/McpResponseExtras"
+import McpResponseDisplay from "../mcp/McpResponseDisplay"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -755,30 +755,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 				case "api_req_finished":
 					return null
 				case "mcp_server_response":
-					return (
-						<>
-							<div style={{ paddingTop: 0 }}>
-								<div
-									style={{
-										marginBottom: "4px",
-										opacity: 0.8,
-										fontSize: "12px",
-										textTransform: "uppercase",
-									}}>
-									Response
-								</div>
-								<CodeAccordian
-									code={message.text}
-									language="json"
-									isExpanded={true}
-									onToggleExpand={onToggleExpand}
-								/>
-								<div style={{ marginTop: "10px", padding: "10px", background: "#333" }}>
-									<McpResponseExtras responseText={message.text || ""} />
-								</div>
-							</div>
-						</>
-					)
+					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
 					return (
 						<div>

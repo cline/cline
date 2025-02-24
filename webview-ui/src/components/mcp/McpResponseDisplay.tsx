@@ -67,10 +67,7 @@ export const checkIfImageUrl = async (url: string): Promise<boolean> => {
 	return isImageUrlSync(url)
 }
 
-export const cleanUrl = (str: string): string => {
-	// Remove any prefixes like "image:" or "url:"
-	return str.replace(/^(image|url):\s*/, '')
-}
+// No longer needed as our regex directly extracts the URL part
 
 // Helper to ensure URL is in a format that can be opened
 export const formatUrlForOpening = (url: string): string => {
@@ -96,18 +93,16 @@ export const findUrls = async (obj: any): Promise<{ imageUrls: string[], regular
 	if (typeof obj === 'object' && obj !== null) {
 		for (const value of Object.values(obj)) {
 			if (typeof value === 'string') {
-				const cleanedValue = cleanUrl(value)
-				
 				// First check with synchronous method
-				if (isImageUrlSync(cleanedValue)) {
-					imageUrls.push(cleanedValue)
-				} else if (isUrl(cleanedValue)) {
+				if (isImageUrlSync(value)) {
+					imageUrls.push(value)
+				} else if (isUrl(value)) {
 					// For URLs that don't obviously look like images, we'll check asynchronously
-					const checkPromise = checkIfImageUrl(cleanedValue).then(isImage => {
+					const checkPromise = checkIfImageUrl(value).then(isImage => {
 						if (isImage) {
-							imageUrls.push(cleanedValue)
+							imageUrls.push(value)
 						} else {
-							regularUrls.push(cleanedValue)
+							regularUrls.push(value)
 						}
 					})
 					pendingChecks.push(checkPromise)
@@ -137,8 +132,13 @@ export const extractUrlsFromText = async (text: string): Promise<{ imageUrls: st
 	// Match URLs with image: prefix and extract just the URL part
 	const imageMatches = text.match(/image:\s*(https?:\/\/[^\s]+)/g)
 	if (imageMatches) {
-		const cleanedUrls = imageMatches.map(match => match.replace(/^image:\s*/, ''))
-		imageUrls.push(...cleanedUrls)
+		// Extract just the URL part from matches with image: prefix
+		const extractedUrls = imageMatches.map(match => {
+			const urlMatch = /image:\s*(https?:\/\/[^\s]+)/.exec(match)
+			return urlMatch ? urlMatch[1] : null
+		}).filter(Boolean) as string[]
+		
+		imageUrls.push(...extractedUrls)
 	}
 	
 	// Match all URLs (including those that might be in the middle of paragraphs)
@@ -219,6 +219,12 @@ const ToggleSwitch = styled.div`
 const ResponseContainer = styled.div`
 	position: relative;
 	padding-top: 24px;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: var(--vscode-editor-font-size, 12px);
+	background-color: var(--vscode-textCodeBlock-background, #1e1e1e);
+	color: var(--vscode-editor-foreground, #d4d4d4);
+	border-radius: 3px;
+	padding: 10px;
 `
 
 // Style for URL text to ensure proper wrapping
@@ -226,44 +232,31 @@ const UrlText = styled.div`
 	white-space: pre-wrap;
 	word-break: break-all;
 	overflow-wrap: break-word;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: var(--vscode-editor-font-size, 12px);
 `
 
-interface McpResponseExtrasProps {
+interface McpResponseDisplayProps {
 	responseText: string
 }
 
-// Function to extract URLs and their positions in text
-const extractUrlsWithPositions = (text: string): { url: string; index: number }[] => {
-	// This regex matches both standalone URLs and URLs with image: prefix
-	const urlRegex = /(?:image:\s*)?(https?:\/\/[^\s]+)/g
-	const matches: { url: string; index: number }[] = []
-	let match
-	
-	while ((match = urlRegex.exec(text)) !== null) {
-		// Get the actual URL (group 1) and its position
-		const url = match[1]
-		// Calculate the actual index of the URL itself (not the prefix)
-		const urlIndex = match.index + (match[0].length - url.length)
-		
-		matches.push({
-			url: url,
-			index: urlIndex
-		})
-	}
-	
-	return matches
+// Represents a URL found in the text with its position and metadata
+interface UrlMatch {
+	url: string;            // The actual URL
+	fullMatch: string;      // The full matched text (including any prefix like "image:")
+	index: number;          // Position in the text
+	isImage: boolean;       // Whether this URL is an image
+	isProcessed: boolean;   // Whether we've already processed this URL (to avoid duplicates)
 }
 
-const McpResponseExtras: React.FC<McpResponseExtrasProps> = ({ responseText }) => {
-	const [imageUrls, setImageUrls] = useState<string[]>([])
-	const [regularUrls, setRegularUrls] = useState<string[]>([])
+const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
 	const [isLoading, setIsLoading] = useState(true)
 	const [displayMode, setDisplayMode] = useState<'rich' | 'plain'>(() => {
 		// Get saved preference from localStorage, default to 'rich'
 		const savedMode = localStorage.getItem('mcpDisplayMode')
 		return (savedMode === 'plain' ? 'plain' : 'rich') as 'rich' | 'plain'
 	})
-	const [urlPositions, setUrlPositions] = useState<{[url: string]: number}>({})
+	const [urlMatches, setUrlMatches] = useState<UrlMatch[]>([])
 	
 	const toggleDisplayMode = useCallback(() => {
 		const newMode = displayMode === 'rich' ? 'plain' : 'rich'
@@ -271,37 +264,41 @@ const McpResponseExtras: React.FC<McpResponseExtrasProps> = ({ responseText }) =
 		localStorage.setItem('mcpDisplayMode', newMode)
 	}, [displayMode])
 	
+	// Find all URLs in the text and determine if they're images
 	useEffect(() => {
 		const processResponse = async () => {
 			setIsLoading(true)
+			
 			try {
-				let foundImageUrls: string[] = []
-				let foundRegularUrls: string[] = []
 				const text = responseText || ""
+				const matches: UrlMatch[] = []
 				
-				// Extract URL positions for inline display
-				const extractedUrls = extractUrlsWithPositions(text)
-				const positions: {[url: string]: number} = {}
-				extractedUrls.forEach(item => {
-					positions[item.url] = item.index
-				})
-				setUrlPositions(positions)
+				// Find all URLs in the text
+				const urlRegex = /https?:\/\/[^\s]+/g
+				let urlMatch: RegExpExecArray | null
 				
-				// First try parsing as JSON
-				try {
-					const jsonResponse = JSON.parse(text)
-					const urls = await findUrls(jsonResponse)
-					foundImageUrls = urls.imageUrls
-					foundRegularUrls = urls.regularUrls
-				} catch {
-					// If not JSON, try parsing as formatted text
-					const urls = await extractUrlsFromText(text)
-					foundImageUrls = urls.imageUrls
-					foundRegularUrls = urls.regularUrls
+				while ((urlMatch = urlRegex.exec(text)) !== null) {
+					const url = urlMatch[0]
+					const fullMatch = url
+					
+					matches.push({
+						url,
+						fullMatch,
+						index: urlMatch.index,
+						isImage: false,  // Will check later
+						isProcessed: false
+					})
 				}
 				
-				setImageUrls(foundImageUrls)
-				setRegularUrls(foundRegularUrls)
+				// Check if URLs are images
+				for (const match of matches) {
+					match.isImage = await checkIfImageUrl(match.url)
+				}
+				
+				// Sort by position in the text
+				matches.sort((a, b) => a.index - b.index)
+				
+				setUrlMatches(matches)
 			} catch (error) {
 				console.error('Error processing MCP response:', error)
 			} finally {
@@ -311,71 +308,61 @@ const McpResponseExtras: React.FC<McpResponseExtrasProps> = ({ responseText }) =
 		
 		processResponse()
 	}, [responseText])
-		
+	
 	// Function to render content based on display mode
 	const renderContent = () => {
 		if (isLoading) {
 			return <div>Analyzing response content...</div>
 		}
 		
-		const hasContent = imageUrls.length > 0 || regularUrls.length > 0
-		
-		if (!hasContent) {
-			return <div>No links or images found in response</div>
-		}
-		
 		// For plain text mode, just show the text
 		if (displayMode === 'plain') {
-			return (
-				<UrlText>
-					{responseText}
-				</UrlText>
-			)
+			return <UrlText>{responseText}</UrlText>
 		}
 		
 		// For rich display mode, show the text with embedded content
 		if (displayMode === 'rich') {
-			// Sort URLs by their position in the text
-			const allUrls = [...imageUrls, ...regularUrls]
-			const sortedUrls = allUrls
-				.filter(url => urlPositions[url] !== undefined)
-				.sort((a, b) => urlPositions[a] - urlPositions[b])
-			
 			// Create an array of text segments and embedded content
 			const segments: JSX.Element[] = []
 			let lastIndex = 0
 			let segmentIndex = 0
 			
+			// Reset the processed flag for all URLs
+			const processedUrls = new Set<string>()
+			
 			// Add the text before the first URL
-			if (sortedUrls.length === 0) {
+			if (urlMatches.length === 0) {
 				segments.push(
 					<UrlText key={`segment-${segmentIndex}`}>
 						{responseText}
 					</UrlText>
 				)
 			} else {
-				sortedUrls.forEach((url, index) => {
-					const position = urlPositions[url]
+				for (let i = 0; i < urlMatches.length; i++) {
+					const match = urlMatches[i]
+					const { url, fullMatch, index } = match
 					
 					// Add text segment before this URL
-					if (position > lastIndex) {
+					if (index > lastIndex) {
 						segments.push(
 							<UrlText key={`segment-${segmentIndex++}`}>
-								{responseText.substring(lastIndex, position)}
+								{responseText.substring(lastIndex, index)}
 							</UrlText>
 						)
 					}
 					
-					// Add the URL itself
-					const urlEndIndex = position + url.length
+					// Add the URL text itself
 					segments.push(
 						<UrlText key={`url-${segmentIndex++}`}>
-							{responseText.substring(position, urlEndIndex)}
+							{fullMatch}
 						</UrlText>
 					)
 					
+					// Calculate the end position of this URL in the text
+					const urlEndIndex = index + fullMatch.length
+					
 					// Add embedded content after the URL
-					if (imageUrls.includes(url)) {
+					if (match.isImage) {
 						segments.push(
 							<div key={`embed-${segmentIndex++}`} style={{ margin: '10px 0' }}>
 								<img 
@@ -397,17 +384,21 @@ const McpResponseExtras: React.FC<McpResponseExtrasProps> = ({ responseText }) =
 								/>
 							</div>
 						)
-					} else if (regularUrls.includes(url)) {
+					} else if (!processedUrls.has(url)) {
+						// For non-image URLs, only show the preview once
 						segments.push(
 							<div key={`embed-${segmentIndex++}`} style={{ margin: '10px 0' }}>
 								<LinkPreview url={formatUrlForOpening(url)} />
 							</div>
 						)
+						
+						// Mark this URL as processed
+						processedUrls.add(url)
 					}
 					
 					// Update lastIndex for next segment
 					lastIndex = urlEndIndex
-				})
+				}
 				
 				// Add any remaining text after the last URL
 				if (lastIndex < responseText.length) {
@@ -446,19 +437,14 @@ const McpResponseExtras: React.FC<McpResponseExtrasProps> = ({ responseText }) =
 	} catch (error) {
 		console.error('Error parsing MCP response:', error);
 		return (
-			<div>
+			<ResponseContainer>
 				<div>Error parsing response:</div>
-				<div style={{ 
-					fontFamily: "monospace",
-					fontSize: "12px",
-					marginTop: "5px",
-					opacity: 0.7
-				}}>
+				<UrlText>
 					{responseText}
-				</div>
-			</div>
+				</UrlText>
+			</ResponseContainer>
 		)
 	}
 }
 
-export default McpResponseExtras
+export default McpResponseDisplay
