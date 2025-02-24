@@ -4,963 +4,480 @@
 
 Cline is a VSCode extension that provides AI assistance through a combination of a core extension backend and a React-based webview frontend. The extension is built with TypeScript and follows a modular architecture pattern.
 
-## Core Extension Architecture
+## Architecture Overview
 
-### Operation Modes
+```mermaid
+graph TB
+    subgraph VSCode Extension Host
+        subgraph Core Extension
+            ExtensionEntry[Extension Entry<br/>src/extension.ts]
+            ClineProvider[ClineProvider<br/>src/core/webview/ClineProvider.ts]
+            ClineClass[Cline Class<br/>src/core/Cline.ts]
+            GlobalState[VSCode Global State]
+            SecretsStorage[VSCode Secrets Storage]
+        end
 
-1. **ACT Mode**
-   - Default execution mode
-   - Handles tool usage and task execution
-   - Manages file operations and system commands
-   - Coordinates with MCP servers
+        subgraph Webview UI
+            WebviewApp[React App<br/>webview-ui/src/App.tsx]
+            ExtStateContext[ExtensionStateContext<br/>webview-ui/src/context/ExtensionStateContext.tsx]
+            ReactComponents[React Components]
+        end
 
-2. **PLAN Mode**
-   - Planning and discussion mode
-   - Gathers requirements and context
-   - Creates implementation strategies
-   - Validates approaches with user
+        subgraph Storage
+            TaskStorage[Task Storage<br/>Per-Task Files & History]
+            CheckpointSystem[Git-based Checkpoints]
+        end
+    end
 
-### Task Execution Lifecycle
+    %% Core Extension Data Flow
+    ExtensionEntry --> ClineProvider
+    ClineProvider --> ClineClass
+    ClineClass --> GlobalState
+    ClineClass --> SecretsStorage
+    ClineClass --> TaskStorage
+    ClineClass --> CheckpointSystem
 
-1. **Task Initialization**
-   - Task creation and ID assignment
-   - Context gathering
-   - Environment setup
-   - State initialization
+    %% Webview Data Flow
+    WebviewApp --> ExtStateContext
+    ExtStateContext --> ReactComponents
 
-2. **Message Processing**
-   - Message parsing and validation
-   - Tool use coordination
-   - Response streaming
-   - State updates
+    %% Bidirectional Communication
+    ClineProvider <-->|postMessage| ExtStateContext
 
-3. **Task Completion**
-   - Result verification
-   - State cleanup
-   - Resource release
-   - History updates
+    style GlobalState fill:#f9f,stroke:#333,stroke-width:2px
+    style SecretsStorage fill:#f9f,stroke:#333,stroke-width:2px
+    style ExtStateContext fill:#bbf,stroke:#333,stroke-width:2px
+    style ClineProvider fill:#bfb,stroke:#333,stroke-width:2px
+```
 
-### Message Handling
+## Definitions 
 
-1. **Streaming Implementation**
-   - Chunk processing
-   - Partial updates
-   - Progress indication
+- core extension: Anything inside the src folder starting with the Cline.ts file
+- core extension state: Managed by the ClineProvider class in src/core/webview/ClineProvider.ts, which serves as the single source of truth for the extension's state. It manages multiple types of persistent storage (global state, workspace state, and secrets), handles state distribution to both the core extension and webview components, and coordinates state across multiple extension instances. This includes managing API configurations, task history, settings, and MCP configurations.
+- webview: Anything inside the webview-ui
+- webview state: the webview-ui/src/context/ExtensionStateContext.tsx
+## Core Extension (Cline.ts)
+
+The Cline class is the heart of the extension, managing task execution, state persistence, and tool coordination. Each task runs in its own instance of the Cline class, ensuring isolation and proper state management.
+
+### Task Execution Loop
+
+The core task execution loop follows this pattern:
+
+```typescript
+class Cline {
+  async initiateTaskLoop(userContent: UserContent, isNewTask: boolean) {
+    while (!this.abort) {
+      // 1. Make API request and stream response
+      const stream = this.attemptApiRequest()
+      
+      // 2. Parse and present content blocks
+      for await (const chunk of stream) {
+        switch (chunk.type) {
+          case "text":
+            // Parse into content blocks
+            this.assistantMessageContent = parseAssistantMessage(chunk.text)
+            // Present blocks to user
+            await this.presentAssistantMessage()
+            break
+        }
+      }
+      
+      // 3. Wait for tool execution to complete
+      await pWaitFor(() => this.userMessageContentReady)
+      
+      // 4. Continue loop with tool result
+      const recDidEndLoop = await this.recursivelyMakeClineRequests(
+        this.userMessageContent
+      )
+    }
+  }
+}
+```
+
+### Message Streaming System
+
+The streaming system handles real-time updates and partial content:
+
+```typescript
+class Cline {
+  async presentAssistantMessage() {
+    // Handle streaming locks to prevent race conditions
+    if (this.presentAssistantMessageLocked) {
+      this.presentAssistantMessageHasPendingUpdates = true
+      return
+    }
+    this.presentAssistantMessageLocked = true
+
+    // Present current content block
+    const block = this.assistantMessageContent[this.currentStreamingContentIndex]
+    
+    // Handle different types of content
+    switch (block.type) {
+      case "text":
+        await this.say("text", content, undefined, block.partial)
+        break
+      case "tool_use":
+        // Handle tool execution
+        break
+    }
+
+    // Move to next block if complete
+    if (!block.partial) {
+      this.currentStreamingContentIndex++
+    }
+  }
+}
+```
+
+### Tool Execution Flow
+
+Tools follow a strict execution pattern:
+
+```typescript
+class Cline {
+  async executeToolWithApproval(block: ToolBlock) {
+    // 1. Check auto-approval settings
+    if (this.shouldAutoApproveTool(block.name)) {
+      await this.say("tool", message)
+      this.consecutiveAutoApprovedRequestsCount++
+    } else {
+      // 2. Request user approval
+      const didApprove = await askApproval("tool", message)
+      if (!didApprove) {
+        this.didRejectTool = true
+        return
+      }
+    }
+
+    // 3. Execute tool
+    const result = await this.executeTool(block)
+
+    // 4. Save checkpoint
+    await this.saveCheckpoint()
+
+    // 5. Return result to API
+    return result
+  }
+}
+```
+
+### Error Handling & Recovery
+
+The system includes robust error handling:
+
+```typescript
+class Cline {
+  async handleError(action: string, error: Error) {
+    // 1. Check if task was abandoned
+    if (this.abandoned) return
+    
+    // 2. Format error message
+    const errorString = `Error ${action}: ${error.message}`
+    
+    // 3. Present error to user
+    await this.say("error", errorString)
+    
+    // 4. Add error to tool results
+    pushToolResult(formatResponse.toolError(errorString))
+    
+    // 5. Cleanup resources
+    await this.diffViewProvider.revertChanges()
+    await this.browserSession.closeBrowser()
+  }
+}
+```
+
+### API Request & Token Management
+
+The Cline class handles API requests with built-in retry, streaming, and token management:
+
+```typescript
+class Cline {
+  async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
+    // 1. Wait for MCP servers to connect
+    await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true)
+
+    // 2. Manage context window
+    const previousRequest = this.clineMessages[previousApiReqIndex]
+    if (previousRequest?.text) {
+      const { tokensIn, tokensOut } = JSON.parse(previousRequest.text)
+      const totalTokens = (tokensIn || 0) + (tokensOut || 0)
+      
+      // Truncate conversation if approaching context limit
+      if (totalTokens >= maxAllowedSize) {
+        this.conversationHistoryDeletedRange = getNextTruncationRange(
+          this.apiConversationHistory,
+          this.conversationHistoryDeletedRange,
+          totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
+        )
+      }
+    }
+
+    // 3. Handle streaming with automatic retry
+    try {
+      this.isWaitingForFirstChunk = true
+      const firstChunk = await iterator.next()
+      yield firstChunk.value
+      this.isWaitingForFirstChunk = false
+      
+      // Stream remaining chunks
+      yield* iterator
+    } catch (error) {
+      // 4. Error handling with retry
+      if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
+        await delay(1000)
+        this.didAutomaticallyRetryFailedApiRequest = true
+        yield* this.attemptApiRequest(previousApiReqIndex)
+        return
+      }
+      
+      // 5. Ask user to retry if automatic retry failed
+      const { response } = await this.ask(
+        "api_req_failed",
+        this.formatErrorWithStatusCode(error)
+      )
+      if (response === "yesButtonClicked") {
+        await this.say("api_req_retried")
+        yield* this.attemptApiRequest(previousApiReqIndex)
+        return
+      }
+    }
+  }
+}
+```
+
+Key features:
+
+1. **Context Window Management**
+   - Tracks token usage across requests
+   - Automatically truncates conversation when needed
+   - Preserves important context while freeing space
+   - Handles different model context sizes
+
+2. **Streaming Architecture**
+   - Real-time chunk processing
+   - Partial content handling
+   - Race condition prevention
+   - Error recovery during streaming
+
+3. **Error Handling**
+   - Automatic retry for transient failures
+   - User-prompted retry for persistent issues
+   - Detailed error reporting
+   - State cleanup on failure
+
+4. **Token Tracking**
+   - Per-request token counting
+   - Cumulative usage tracking
+   - Cost calculation
+   - Cache hit monitoring
+
+### Task State & Resumption
+
+The Cline class provides robust task state management and resumption capabilities:
+
+```typescript
+class Cline {
+  async resumeTaskFromHistory() {
+    // 1. Load saved state
+    this.clineMessages = await this.getSavedClineMessages()
+    this.apiConversationHistory = await this.getSavedApiConversationHistory()
+
+    // 2. Handle interrupted tool executions
+    const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+    if (lastMessage.role === "assistant") {
+      const toolUseBlocks = content.filter(block => block.type === "tool_use")
+      if (toolUseBlocks.length > 0) {
+        // Add interrupted tool responses
+        const toolResponses = toolUseBlocks.map(block => ({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: "Task was interrupted before this tool call could be completed."
+        }))
+        modifiedOldUserContent = [...toolResponses]
+      }
+    }
+
+    // 3. Notify about interruption
+    const agoText = this.getTimeAgoText(lastMessage?.ts)
+    newUserContent.push({
+      type: "text",
+      text: `[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context.`
+    })
+
+    // 4. Resume task execution
+    await this.initiateTaskLoop(newUserContent, false)
+  }
+
+  private async saveTaskState() {
+    // Save conversation history
+    await this.saveApiConversationHistory()
+    await this.saveClineMessages()
+    
+    // Create checkpoint
+    const commitHash = await this.checkpointTracker?.commit()
+    
+    // Update task history
+    await this.providerRef.deref()?.updateTaskHistory({
+      id: this.taskId,
+      ts: lastMessage.ts,
+      task: taskMessage.text,
+      // ... other metadata
+    })
+  }
+}
+```
+
+Key aspects of task state management:
+
+1. **Task Persistence**
+   - Each task has a unique ID and dedicated storage directory
+   - Conversation history is saved after each message
+   - File changes are tracked through Git-based checkpoints
+   - Terminal output and browser state are preserved
+
+2. **State Recovery**
+   - Tasks can be resumed from any point
+   - Interrupted tool executions are handled gracefully
+   - File changes can be restored from checkpoints
+   - Context is preserved across VSCode sessions
+
+3. **Workspace Synchronization**
+   - File changes are tracked through Git
+   - Checkpoints are created after tool executions
+   - State can be restored to any checkpoint
+   - Changes can be compared between checkpoints
+
+4. **Error Recovery**
+   - Failed API requests can be retried
+   - Interrupted tool executions are marked
+   - Resources are cleaned up properly
+   - User is notified of state changes
+
+## Data Flow & State Management
+
+### Core Extension Role
+
+The core extension (ClineProvider) acts as the single source of truth for all persistent state. It:
+- Manages VSCode global state and secrets storage
+- Coordinates state updates between components
+- Ensures state consistency across webview reloads
+- Handles task-specific state persistence
+- Manages checkpoint creation and restoration
+
+### Terminal Management
+
+The Cline class manages terminal instances and command execution:
+
+```typescript
+class Cline {
+  async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+    // 1. Get or create terminal
+    const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
+    terminalInfo.terminal.show()
+
+    // 2. Execute command with output streaming
+    const process = this.terminalManager.runCommand(terminalInfo, command)
+    
+    // 3. Handle real-time output
+    let result = ""
+    process.on("line", (line) => {
+      result += line + "\n"
+      if (!didContinue) {
+        sendCommandOutput(line)
+      } else {
+        this.say("command_output", line)
+      }
+    })
+
+    // 4. Wait for completion or user feedback
+    let completed = false
+    process.once("completed", () => {
+      completed = true
+    })
+
+    await process
+
+    // 5. Return result
+    if (completed) {
+      return [false, `Command executed.\n${result}`]
+    } else {
+      return [
+        false,
+        `Command is still running in the user's terminal.\n${result}\n\nYou will be updated on the terminal status and new output in the future.`
+      ]
+    }
+  }
+}
+```
+
+Key features:
+1. **Terminal Instance Management**
+   - Multiple terminal support
+   - Terminal state tracking (busy/inactive)
+   - Process cooldown monitoring
+   - Output history per terminal
+
+2. **Command Execution**
+   - Real-time output streaming
+   - User feedback handling
+   - Process state monitoring
    - Error recovery
 
-2. **Message Types**
-   - System messages
-   - User messages
-   - Assistant messages
-   - Tool responses
+### Browser Session Management
 
-### Workspace Integration
+The Cline class handles browser automation through Puppeteer:
 
-1. **File Watching**
-   - Change detection
-   - Event debouncing
-   - Path filtering
-   - Update notifications
+```typescript
+class Cline {
+  async executeBrowserAction(action: BrowserAction): Promise<BrowserActionResult> {
+    switch (action) {
+      case "launch":
+        // 1. Launch browser with fixed resolution
+        await this.browserSession.launchBrowser()
+        return await this.browserSession.navigateToUrl(url)
 
-2. **Environment Management**
-   - Workspace state tracking
-   - Terminal monitoring
-   - File system access
-   - Path resolution
+      case "click":
+        // 2. Handle click actions with coordinates
+        return await this.browserSession.click(coordinate)
 
-### Key Components
+      case "type":
+        // 3. Handle keyboard input
+        return await this.browserSession.type(text)
 
-1. **ClineProvider (src/core/webview/ClineProvider.ts)**
-   - Main controller for the extension
-   - Manages webview lifecycle
-   - Handles state persistence
-   - Coordinates between webview and extension
-   - Manages task history and checkpoints
-
-2. **Cline Class (src/core/Cline.ts)**
-   - Core business logic
-   - Handles task execution
-   - Manages conversation history
-   - Coordinates API requests
-   - Manages file operations and tool usage
-
-3. **MCP Hub (src/services/mcp/McpHub.ts)**
-   - Manages Model Context Protocol servers
-   - Handles server connections and lifecycle
-   - Coordinates tool execution
-   - Manages server configuration
-
-### State Management (Core)
-
-1. **Global State**
-   - Stored in VSCode's extension context
-   - Persists between sessions
-   - Includes:
-     - API configuration
-     - Custom instructions
-     - Task history
-     - Settings
-     - MCP configuration
-
-2. **Secrets Storage**
-   - Secure storage for sensitive data
-   - Handles:
-     - API keys
-     - Authentication tokens
-     - Other credentials
-
-3. **Task State**
-   - Stored per task in the extension's global storage
-   - Includes:
-     - Conversation history
-     - UI messages
-     - Checkpoints
-     - File changes
-
-### File Structure
-
-```
-src/
-├── api/                 # API providers and transformations
-├── core/               # Core extension logic
-├── integrations/       # VSCode integration points
-├── services/          # Shared services
-└── shared/            # Shared types and utilities
+      case "close":
+        // 4. Clean up resources
+        return await this.browserSession.closeBrowser()
+    }
+  }
+}
 ```
 
-## Webview Architecture
+Key aspects:
+1. **Browser Control**
+   - Fixed 900x600 resolution window
+   - Single instance per task lifecycle
+   - Automatic cleanup on task completion
+   - Console log capture
 
-### Key Components
-
-1. **ExtensionStateContext (webview-ui/src/context/ExtensionStateContext.tsx)**
-   - Central state management for webview
-   - Handles communication with extension
-   - Manages UI state and updates
-
-2. **React Components**
-   - Located in webview-ui/src/components
-   - Modular design for reusability
-   - Follows React best practices
-
-### State Management (Webview)
-
-1. **Extension State Context**
-   - Manages bidirectional communication with extension
-   - Handles state synchronization
-   - Provides state access to components
-
-2. **Local Component State**
-   - Used for UI-specific state
-   - Managed through React hooks
-   - Ephemeral state not requiring persistence
-
-### File Structure
-
-```
-webview-ui/
-├── src/
-│   ├── components/    # React components
-│   ├── context/      # State management
-│   └── utils/        # Utility functions
-└── public/           # Static assets
-```
-
-## Provider System
-
-### API Providers
-
-Located in src/api/providers/, each provider implements:
-- Authentication
-- Request handling
-- Response transformation
-- Error handling
-
-Supported providers include:
-- Anthropic
-- OpenAI
-- OpenRouter
-- AWS Bedrock
-- Google Vertex
-- Local models (Ollama, LM Studio)
-
-### Provider Configuration
-
-1. **Configuration Storage**
-   - API keys stored in secrets
-   - Provider settings in global state
-   - Model configurations
-
-2. **Provider Selection**
-   - Dynamic provider switching
-   - Model selection
-   - Configuration validation
-
-## MCP (Model Context Protocol) Integration
-
-### Server Management
-
-1. **Configuration**
-   - Stored in cline_mcp_settings.json
-   - Includes:
-     - Server commands
-     - Environment variables
-     - Auto-approval settings
-
-2. **Server Lifecycle**
-   - Automatic startup
-   - Health monitoring
-   - Error handling
-   - Graceful shutdown
-
-### Tool Integration
-
-1. **Tool Registration**
-   - Dynamic tool discovery
-   - Schema validation
-   - Capability advertising
-
-2. **Tool Execution**
-   - Request validation
-   - Error handling
-   - Result transformation
-
-## Authentication & User Management
-
-### Firebase Integration
-
-1. **FirebaseAuthManager**
-   - Handles user authentication
-   - Manages login/logout flows
-   - Stores user information
-   - Coordinates with Cline backend
-
-2. **Token Management**
-   - Secure token storage
-   - Token refresh handling
-   - Session management
-   - Auth state synchronization
-
-### User Data
-
-1. **Profile Information**
-   - Display name
-   - Email
-   - Profile picture
-   - Account settings
-
-2. **Preferences Storage**
-   - User settings
-   - Custom configurations
-   - Theme preferences
-   - Tool auto-approvals
-
-## Browser Integration
-
-### Puppeteer Implementation
-
-1. **Browser Session Management**
-   - Launch/close browser instances
-   - Handle navigation
-   - Manage page state
-   - Coordinate screenshots
-
-2. **Interaction Capabilities**
-   - Click handling
-   - Form input
-   - Scrolling
-   - Navigation
+2. **Interaction Handling**
+   - Coordinate-based clicking
+   - Keyboard input simulation
    - Screenshot capture
-
-### Browser Settings
-
-1. **Configuration Options**
-   - Window size
-   - Default timeout
-   - Navigation settings
-   - Screenshot preferences
-
-2. **State Management**
-   - Browser instance tracking
-   - Page state monitoring
-   - Error handling
-   - Resource cleanup
-
-## Terminal Integration
-
-### TerminalManager
-
-1. **Command Execution**
-   - Process spawning
-   - Output capture
-   - Error handling
-   - Environment management
-
-2. **Terminal Instance Management**
-   - Create/dispose terminals
-   - Handle multiple instances
-   - Track active processes
-   - Manage environment variables
-
-### Command Handling
-
-1. **Execution Flow**
-   - Command validation
-   - Environment setup
-   - Process monitoring
-   - Output processing
-
-2. **Security Considerations**
-   - Command sanitization
-   - Permission checking
-   - Resource limitations
-   - Error boundaries
-
-## Diagnostic System
-
-### Debug Capabilities
-
-1. **Logging System**
-   - Error tracking
-   - Performance monitoring
-   - State changes
-   - API interactions
-
-2. **Diagnostic Tools**
-   - Stack trace analysis
-   - Memory usage monitoring
-   - Performance profiling
-   - Network debugging
-
-### Error Handling
-
-1. **Error Types**
-   - API errors
-   - File system errors
-   - Network errors
-   - State management errors
-
-2. **Recovery Strategies**
-   - Automatic retry
-   - Graceful degradation
-   - State recovery
-   - User notification
-
-## Checkpoint System
-
-### Implementation
-
-1. **Checkpoint Creation**
-   - State snapshots
-   - File system state
-   - Conversation history
-   - Tool execution state
-
-2. **Restoration Process**
-   - State verification
-   - File system recovery
-   - History reconstruction
-   - Tool state recovery
-
-### Management
-
-1. **Storage**
-   - Checkpoint organization
-   - Cleanup policies
-   - Space management
-   - Metadata tracking
-
-2. **Operations**
-   - Create checkpoints
-   - Restore from checkpoint
-   - Delete checkpoints
-   - Compare checkpoints
-
-## Best Practices
-
-### Core Extension Development
-
-1. **State Management**
-   - Use appropriate storage for different types of data
-   - Implement proper error handling
-   - Maintain state consistency
-   - Clear state cleanup
-
-2. **File Operations**
-   - Use proper error handling
-   - Implement atomic operations
-   - Maintain backups for critical operations
-   - Handle concurrent access
-
-3. **API Integration**
-   - Implement proper rate limiting
-   - Handle authentication securely
-   - Transform responses consistently
-   - Implement retry logic
-
-### Webview Development
-
-1. **Component Design**
-   - Follow React best practices
-   - Implement proper prop typing
-   - Use hooks effectively
-   - Maintain component isolation
-
-2. **State Management**
-   - Use context appropriately
-   - Implement proper state updates
-   - Handle side effects correctly
-   - Maintain state consistency
-
-3. **Performance**
-   - Implement proper memoization
-   - Optimize re-renders
-   - Handle large datasets efficiently
-   - Implement proper cleanup
-
-### MCP Development
-
-1. **Server Implementation**
-   - Follow MCP protocol specification
-   - Implement proper error handling
-   - Maintain server stability
-   - Handle resource cleanup
-
-2. **Tool Development**
-   - Implement clear schemas
-   - Handle errors gracefully
-   - Provide clear documentation
-   - Maintain backward compatibility
-
-## Libraries & Dependencies
-
-### Core Extension
-- VSCode Extension API
-- TypeScript
-- Axios for HTTP requests
-- fs/promises for file operations
-- Various API client libraries
-
-### Webview
-- React
-- TypeScript
-- react-use for hooks
-- Various UI components
-
-## Additional File Summaries
-
-### Integration Files
-
-1. **src/integrations/terminal/TerminalManager.ts**
-   - Terminal instance management
-   - Command execution
-   - Output handling
-   - Environment control
-
-2. **src/integrations/browser/BrowserManager.ts**
-   - Puppeteer integration
-   - Browser session control
-   - Page interaction
-   - Screenshot management
-
-3. **src/integrations/diagnostics/DiagnosticManager.ts**
-   - Error tracking
-   - Performance monitoring
-   - Debug logging
-   - System health checks
-
-4. **src/integrations/checkpoints/CheckpointManager.ts**
-   - Checkpoint creation
-   - State restoration
-   - File system snapshots
-   - History management
-
-### Service Files
-
-1. **src/services/auth/FirebaseAuthManager.ts**
-   - User authentication
-   - Token management
-   - Session control
-   - Profile management
-
-2. **src/services/logging/LogManager.ts**
-   - Log collection
-   - Error reporting
-   - Performance tracking
-   - Debug information
-
-3. **src/services/browser/BrowserService.ts**
-   - Browser automation
-   - Page manipulation
-   - DOM interaction
-   - Resource management
-
-### Utility Files
-
-1. **src/utils/fs.ts**
-   - File system operations
-   - Path management
-   - Directory handling
-   - File manipulation
-
-2. **src/utils/shell.ts**
-   - Shell command execution
-   - Environment management
-   - Process control
-   - Output parsing
-
-3. **src/utils/string.ts**
-   - String manipulation
-   - Text processing
-   - Pattern matching
-   - Format conversion
-
-## File Summaries
-
-### Core Extension Files
-
-1. **src/extension.ts**
-   - Extension entry point
-   - Registers commands
-   - Initializes providers
-
-2. **src/core/Cline.ts**
-   - Main business logic
-   - Task management
-   - Tool coordination
-
-3. **src/core/webview/ClineProvider.ts**
-   - Webview management
-   - State persistence
-   - Message handling
-
-4. **src/api/index.ts**
-   - API coordination
-   - Provider management
-   - Request handling
-
-5. **src/services/mcp/McpHub.ts**
-   - MCP server management
-   - Tool coordination
-   - Configuration handling
-
-### Webview Files
-
-1. **webview-ui/src/App.tsx**
-   - Main React component
-   - Route management
-   - Layout structure
-
-2. **webview-ui/src/context/ExtensionStateContext.tsx**
-   - State management
-   - Extension communication
-   - Context provider
-
-3. **webview-ui/src/components/**
-   - Reusable UI components
-   - Feature-specific components
-   - Layout components
-
-## Package Management
-
-### Separate Node Modules
-
-1. **Core Extension Dependencies**
-   - Located in root `/node_modules`
-   - Managed by root `package.json`
-   - Contains VSCode API dependencies
-   - Includes extension-specific packages
-   - Install using `npm install` from root
-
-2. **Webview Dependencies**
-   - Located in `webview-ui/node_modules`
-   - Managed by `webview-ui/package.json`
-   - Contains React and UI dependencies
-   - Includes webview-specific packages
-   - Install using `cd webview-ui && npm install`
-
-3. **Best Practices**
-   - Always verify correct directory before installing
-   - Keep dependencies isolated between core and webview
-   - Avoid duplicate dependencies
-   - Use appropriate package.json for each context
-
-## Webview-Extension Communication
-
-### Message System
-
-1. **Message Types**
-   ```typescript
-   // In shared/WebviewMessage.ts
-   interface WebviewMessage {
-     type: "newTask" | "apiConfiguration" | "customInstructions" | /* other types */
-     text?: string
-     images?: string[]
-     // Other type-specific properties
-   }
-
-   // In shared/ExtensionMessage.ts
-   interface ExtensionMessage {
-     type: "state" | "theme" | "workspaceUpdated" | /* other types */
-     state?: ExtensionState
-     text?: string
-     // Other type-specific properties
-   }
-   ```
-
-2. **Sending Messages from Webview**
-   ```typescript
-   // In webview component
-   const handleAction = () => {
-     vscode.postMessage({
-       type: "newTask",
-       text: "Task description"
-     })
-   }
-   ```
-
-3. **Handling Messages in Extension**
-   ```typescript
-   // In ClineProvider.ts
-   private setWebviewMessageListener(webview: vscode.Webview) {
-     webview.onDidReceiveMessage(async (message: WebviewMessage) => {
-       switch (message.type) {
-         case "newTask":
-           await this.initClineWithTask(message.text, message.images)
-           break
-         // Other message handlers
-       }
-     })
-   }
-   ```
-
-4. **Sending Messages from Extension**
-   ```typescript
-   // In ClineProvider.ts
-   async postMessageToWebview(message: ExtensionMessage) {
-     await this.view?.webview.postMessage(message)
-   }
-   ```
-
-### Complex Webview Features
-
-1. **Dynamic Component Loading**
-   ```typescript
-   // In webview-ui/src/components/DynamicComponent.tsx
-   const DynamicComponent: React.FC<Props> = ({ type, data }) => {
-     const [component, setComponent] = useState<JSX.Element | null>(null)
-
-     useEffect(() => {
-       const loadComponent = async () => {
-         switch (type) {
-           case "settings":
-             const Settings = (await import("./Settings")).default
-             setComponent(<Settings data={data} />)
-             break
-           // Other dynamic components
-         }
-       }
-       loadComponent()
-     }, [type, data])
-
-     return component
-   }
-   ```
-
-2. **Advanced State Updates**
-   ```typescript
-   // In ExtensionStateContext.tsx
-   const handleStateUpdate = useCallback((newState: Partial<ExtensionState>) => {
-     setState(prevState => {
-       const updatedState = { ...prevState, ...newState }
-       // Validate state consistency
-       if (updatedState.apiConfiguration?.apiProvider !== prevState.apiConfiguration?.apiProvider) {
-         // Handle provider change side effects
-       }
-       return updatedState
-     })
-   }, [])
-   ```
-
-3. **Complex UI Interactions**
-   ```typescript
-   // Example of a complex settings component
-   const AdvancedSettingsPanel: React.FC = () => {
-     const { state, updateSettings } = useExtensionState()
-     const [localState, setLocalState] = useState(state.settings)
-     
-     const handleComplexUpdate = async (value: any) => {
-       // Validate
-       const isValid = await validateSetting(value)
-       if (!isValid) return
-       
-       // Update local state
-       setLocalState(prev => ({
-         ...prev,
-         [value.key]: value.data
-       }))
-       
-       // Sync with extension
-       updateSettings({
-         type: "complexUpdate",
-         data: value
-       })
-     }
-     
-     return (/* UI implementation */)
-   }
-   ```
-
-## MCP Integration and Tool Usage
-
-### MCP Tool Implementation
-
-1. **Tool Registration**
-   ```typescript
-   // In MCP server implementation
-   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-     tools: [{
-       name: "example_tool",
-       description: "Tool description",
-       inputSchema: {
-         type: "object",
-         properties: {
-           param1: { type: "string" },
-           param2: { type: "number" }
-         },
-         required: ["param1"]
-       }
-     }]
-   }))
-   ```
-
-2. **Tool Execution**
-   ```typescript
-   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-     if (request.params.name === "example_tool") {
-       try {
-         const result = await executeToolLogic(request.params.arguments)
-         return {
-           content: [{
-             type: "text",
-             text: JSON.stringify(result)
-           }]
-         }
-       } catch (error) {
-         return {
-           content: [{
-             type: "text",
-             text: `Error: ${error.message}`
-           }],
-           isError: true
-         }
-       }
-     }
-   })
-   ```
-
-### Tool Usage in Extension
-
-1. **Tool Coordination**
-   ```typescript
-   // In Cline.ts
-   async executeTool(toolName: string, params: any) {
-     const mcpHub = await this.getMcpHub()
-     const result = await mcpHub.executeTool(toolName, params)
-     
-     // Handle result
-     if (result.isError) {
-       await this.handleToolError(result)
-     } else {
-       await this.processToolResult(result)
-     }
-   }
-   ```
-
-2. **Tool Auto-Approval**
-   ```typescript
-   // In ClineProvider.ts
-   shouldAutoApproveTool(toolName: string): boolean {
-     const settings = this.autoApprovalSettings
-     return settings.approvedTools.includes(toolName) ||
-            settings.autoApproveAll
-   }
-   ```
-
-## System Prompt Management
-
-### Important Notes
-
-1. **System Prompt Location**
-   - The system prompt is embedded in the extension's core
-   - Located in the compiled extension code
-   - Not meant to be directly edited
-   - Changes require extension updates
-
-2. **Modifying System Behavior**
-   - Do not edit system prompt directly
-   - Instead, use custom instructions feature
-   - Suggest changes through chat interface
-   - Document proposed changes for review
-
-3. **Custom Instructions**
-   - Use custom instructions for behavioral changes
-   - Maintain in extension settings
-   - Persist across sessions
-   - Override default behaviors safely
-
-### Best Practices
-
-1. **Suggesting Changes**
-   ```typescript
-   // Example of proper custom instruction addition
-   const suggestSystemPromptChange = async (suggestion: string) => {
-     await vscode.window.showInformationMessage(
-       `Suggested system prompt change: ${suggestion}\n` +
-       `Please use custom instructions or report an issue.`
-     )
-   }
-   ```
-
-2. **Custom Instruction Management**
-   ```typescript
-   // In settings management
-   const updateCustomInstructions = async (instructions: string) => {
-     await this.updateGlobalState("customInstructions", instructions)
-     if (this.cline) {
-       this.cline.customInstructions = instructions
-     }
-   }
-   ```
-
-## Webview State Management
-
-### Extension State Context
-
-1. **Core Implementation**
-   ```typescript
-   interface ExtensionStateContextType extends ExtensionState {
-     didHydrateState: boolean
-     showWelcome: boolean
-     theme: any
-     openRouterModels: Record<string, ModelInfo>
-     // Add new state properties here
-   }
-   ```
-
-2. **State Updates**
-   - Use setState for synchronous updates
-   - Handle async updates through message system
-   - Maintain type safety with interfaces
-   - Coordinate with extension through postMessage
-
-3. **Adding New State**
-   - Define types in shared interfaces
-   - Add to ExtensionStateContextType
-   - Update initial state in provider
-   - Add corresponding message handlers
-   - Implement state setters
-
-### Settings Management
-
-1. **Settings Architecture**
-   - Settings stored in extension context
-   - Synced with webview through messages
-   - Persisted across sessions
-   - Type-safe through interfaces
-
-2. **Adding New Settings**
-   ```typescript
-   // 1. Define types in shared/
-   interface NewSettingType {
-     property: string
-     enabled: boolean
-   }
-
-   // 2. Add to extension state
-   interface ExtensionState {
-     newSetting: NewSettingType
-   }
-
-   // 3. Add default values
-   const DEFAULT_NEW_SETTING: NewSettingType = {
-     property: "",
-     enabled: false
-   }
-
-   // 4. Implement in ExtensionStateContext
-   const [newSetting, setNewSetting] = useState(DEFAULT_NEW_SETTING)
-   ```
-
-3. **Settings Persistence**
-   - Use extension's global state
-   - Implement update methods
-   - Handle serialization
-   - Manage default values
-
-### Advanced Settings
-
-1. **Implementation Pattern**
-   ```typescript
-   // Define advanced setting interface
-   interface AdvancedSetting<T> {
-     value: T
-     isAdvanced: boolean
-     validation?: (value: T) => boolean
-   }
-
-   // Create setting with metadata
-   const setting: AdvancedSetting<string> = {
-     value: "default",
-     isAdvanced: true,
-     validation: (value) => value.length > 0
-   }
-   ```
-
-2. **UI Integration**
-   - Conditional rendering based on mode
-   - Advanced toggle controls
-   - Validation feedback
-   - Help text and documentation
-
-3. **State Management**
-   - Track advanced mode state
-   - Persist user preferences
-   - Handle validation
-   - Manage dependencies
-
-4. **Adding New Advanced Settings**
-   - Define in shared interfaces
-   - Implement validation
-   - Add to state management
-   - Create UI components
-   - Handle persistence
-
-## Development Workflow
-
-1. **Setting Up Development Environment**
-   - Clone repository
-   - Install dependencies
-   - Configure VSCode settings
-   - Set up test environment
-
-2. **Making Changes**
-   - Follow TypeScript best practices
-   - Maintain proper typing
-   - Update documentation
-   - Add tests as needed
-
-3. **Testing**
-   - Run unit tests
-   - Perform integration testing
-   - Test in VSCode environment
-   - Verify MCP functionality
-
-4. **Debugging**
-   - Use VSCode debugging tools
-   - Check extension logs
-   - Monitor state changes
-   - Verify tool execution
+   - Error recovery
 
 ## Conclusion
 
-This document serves as a comprehensive guide for developing and maintaining the Cline extension. Follow these guidelines to ensure consistent, maintainable, and efficient code. Regular updates to this document are encouraged as the extension evolves.
+This guide provides a comprehensive overview of the Cline extension architecture, with special focus on state management, data persistence, and code organization. Following these patterns ensures robust feature implementation with proper state handling across the extension's components.
+
+Remember:
+- Always persist important state in the extension
+- The core extension exists in the src/ folder
+- Use proper typing for all state and messages
+- Handle errors and edge cases
+- Test state persistence across webview reloads
+- Follow the established patterns for consistency
+- Place new code in appropriate directories
+- Maintain clear separation of concerns
+- Install dependencies in correct package.json
