@@ -2,7 +2,7 @@
 
 ## [3.7.1]
 
-- v3.7.1
+- Add AWS Bedrock support for Sonnet 3.7 and update some defaults to Sonnet 3.7 instead of 3.5
 
 ## [3.7.0]
 
