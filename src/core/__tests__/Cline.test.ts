@@ -466,6 +466,90 @@ describe("Cline", () => {
 			expect(details).toMatch(/1\/1\/2024.*5:00:00 AM.*\(America\/Los_Angeles, UTC-7:00\)/) // Full time string format
 		})
 
+		it("should maintain correct section order with context size before file listing", async () => {
+			const cline = new Cline(mockProvider, mockApiConfig, undefined, false, false, undefined, "test task")
+
+			const details = await cline["getEnvironmentDetails"](true)
+
+			const contextSizeIndex = details.indexOf("# Current Context Size")
+			const fileListingIndex = details.indexOf("# Current Working Directory")
+
+			expect(contextSizeIndex).toBeGreaterThan(-1)
+			expect(fileListingIndex).toBeGreaterThan(-1)
+			expect(contextSizeIndex).toBeLessThan(fileListingIndex)
+		})
+
+		it("should include power steering content when experiment is enabled", async () => {
+			// Mock provider state
+			mockProvider.getState = jest.fn().mockResolvedValue({
+				customInstructions: "test instructions",
+				mode: "code",
+				customModes: [],
+				customModePrompts: {},
+				preferredLanguage: "en",
+			})
+
+			const cline = new Cline(
+				mockProvider,
+				mockApiConfig,
+				"test instructions",
+				false,
+				false,
+				undefined,
+				"test task",
+			)
+
+			// Mock experiments module
+			const { experiments, EXPERIMENT_IDS } = require("../../shared/experiments")
+			jest.spyOn(experiments, "isEnabled").mockImplementation((config, id) => {
+				return id === EXPERIMENT_IDS.POWER_STEERING ? true : false
+			})
+
+			const details = await cline["getEnvironmentDetails"](false)
+
+			// Verify sections are present
+			expect(details).toContain("# Custom Instructions")
+			expect(details).toContain("# Current Task")
+
+			// Verify task content
+			expect(details).toContain("<task>test task</task>")
+		})
+
+		it("should exclude power steering content when experiment is disabled", async () => {
+			// Mock provider state
+			mockProvider.getState = jest.fn().mockResolvedValue({
+				customInstructions: "test instructions",
+				mode: "code",
+				customModes: [],
+				customModePrompts: {},
+				preferredLanguage: "en",
+			})
+
+			const cline = new Cline(
+				mockProvider,
+				mockApiConfig,
+				"test instructions",
+				false,
+				false,
+				undefined,
+				"test task",
+			)
+
+			// Mock experiments module
+			const { experiments, EXPERIMENT_IDS } = require("../../shared/experiments")
+			jest.spyOn(experiments, "isEnabled").mockImplementation((config, id) => {
+				return id === EXPERIMENT_IDS.POWER_STEERING ? false : true
+			})
+
+			const details = await cline["getEnvironmentDetails"](false)
+
+			// Verify sections are not present
+			expect(details).not.toContain("# Custom Instructions")
+			expect(details).not.toContain("<custom_instructions>")
+			expect(details).not.toContain("# Current Task")
+			expect(details).not.toContain("<task>")
+		})
+
 		describe("API conversation handling", () => {
 			it("should clean conversation history before sending to API", async () => {
 				const cline = new Cline(mockProvider, mockApiConfig, undefined, false, false, undefined, "test task")
