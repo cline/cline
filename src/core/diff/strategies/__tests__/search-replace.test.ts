@@ -1544,8 +1544,8 @@ function two() {
 			expect(description).toContain("<<<<<<< SEARCH")
 			expect(description).toContain("=======")
 			expect(description).toContain(">>>>>>> REPLACE")
-			expect(description).toContain("<edit_file>")
-			expect(description).toContain("</edit_file>")
+			expect(description).toContain("<apply_diff>")
+			expect(description).toContain("</apply_diff>")
 		})
 
 		it("should document start_line and end_line parameters", async () => {

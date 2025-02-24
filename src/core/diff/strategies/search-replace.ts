@@ -40,7 +40,7 @@ export class SearchReplaceDiffStrategy implements DiffStrategy {
 	}
 
 	getToolDescription(args: { cwd: string; toolOptions?: { [key: string]: string } }): string {
-		return `## edit_file
+		return `## apply_diff
 Description: Request to replace existing code using a search and replace block.
 This tool allows for precise, surgical replaces to files by specifying exactly what content to search for and what to replace it with.
 The tool will maintain proper indentation and formatting while making changes.
@@ -91,14 +91,14 @@ def calculate_total(items):
 \`\`\`
 
 Usage:
-<edit_file>
+<apply_diff>
 <path>File path here</path>
 <diff>
 Your search/replace content here
 </diff>
 <start_line>1</start_line>
 <end_line>5</end_line>
-</edit_file>`
+</apply_diff>`
 	}
 
 	async applyDiff(
