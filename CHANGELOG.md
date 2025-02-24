@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.7.1
+
+### Patch Changes
+
+- v3.7.1
+
 ## [3.7.0]
 
 - Introducing Roo Code 3.7, with support for the new Claude Sonnet 3.7. Because who cares about skipping version numbers anymore? Thanks @lupuletic and @cte for the PRs!
