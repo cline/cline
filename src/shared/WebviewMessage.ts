@@ -80,6 +80,5 @@ export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "message
 export type ClineCheckpointRestore = "task" | "workspace" | "taskAndWorkspace"
 
 export interface CheckpointSettings {
-	fileSizeThresholdMB: number
 	enableCheckpoints: boolean
 }

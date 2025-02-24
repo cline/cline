@@ -10,7 +10,6 @@ import { getDefaultExclusions } from "./CheckpointExclusions"
  * Manages user-configurable settings for the Checkpoints system. Key features:
  *
  * Settings Management:
- * - File size threshold for excluding large files
  * - Enable/disable checkpoints functionality
  *
  * File Exclusions Management:
@@ -30,8 +29,6 @@ import { getDefaultExclusions } from "./CheckpointExclusions"
 export interface CheckpointSettings {
 	/** Whether checkpoints are enabled */
 	enableCheckpoints: boolean
-	/** Maximum file size in MB before exclusion */
-	fileSizeThresholdMB: number
 }
 
 /**
@@ -40,7 +37,6 @@ export interface CheckpointSettings {
  */
 const DEFAULT_SETTINGS: CheckpointSettings = {
 	enableCheckpoints: true, // Enabled by default
-	fileSizeThresholdMB: 5, // Default 5MB
 }
 
 /**
@@ -54,7 +50,7 @@ const DEFAULT_SETTINGS: CheckpointSettings = {
  * File Structure:
  * globalStorage/
  *   settings/
- *     cline_checkpoints_settings.json - Contains size threshold and enable flag
+ *     cline_checkpoints_settings.json - Contains enable flag
  *     .checkpointsignore - Contains file exclusion patterns
  */
 export class CheckpointSettingsManager {

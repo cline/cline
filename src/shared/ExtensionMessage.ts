@@ -56,7 +56,6 @@ export interface ExtensionMessage {
 	mcpDownloadDetails?: McpDownloadResponse
 	commits?: GitCommit[]
 	checkpointSettings?: {
-		fileSizeThresholdMB: number
 		enableCheckpoints: boolean
 	}
 }

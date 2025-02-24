@@ -5,7 +5,6 @@
 ## Checkpoints 2.0: **User-Configurable Checkpoints** Settings
 
 ### New Features
-- **Customizable File Size Limits:** Choose how large files can be before being excluded from checkpoints
 - **Global File Exclusions List:** Comprehensive list of files to skip (build outputs, media files, logs, etc.)
 - **Checkpoint Cleanup:** New command to delete all checkpoints and reclaim storage space
 
