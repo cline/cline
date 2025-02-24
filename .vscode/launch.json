@@ -11,12 +11,7 @@
 			"request": "launch",
 			"args": ["--extensionDevelopmentPath=${workspaceFolder}"],
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
-			"preLaunchTask": "${defaultBuildTask}",
-			"env": {
-				"IS_DEV": "true",
-				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
-			}
-			// "postDebugTask": "stop" // This conflicts with VSCode reload extension feature.
+			"preLaunchTask": "${defaultBuildTask}"
 		}
 	]
 }

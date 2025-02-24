@@ -25,11 +25,6 @@
 				"group": "watch",
 				"reveal": "never",
 				"close": true
-			},
-			"options": {
-				"env": {
-					"IS_DEV": "true"
-				}
 			}
 		},
 		{
@@ -59,11 +54,6 @@
 				"group": "watch",
 				"reveal": "never",
 				"close": true
-			},
-			"options": {
-				"env": {
-					"IS_DEV": "true"
-				}
 			}
 		},
 		{
