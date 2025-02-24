@@ -1,6 +1,6 @@
 import fs from "fs/promises"
 import * as path from "path"
-import simpleGit, { SimpleGit } from "simple-git"
+import simpleGit, { type SimpleGit } from "simple-git"
 import * as vscode from "vscode"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { GitOperations } from "./CheckpointGitOperations"
