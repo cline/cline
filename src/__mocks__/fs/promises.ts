@@ -140,7 +140,6 @@ const mockFs = {
 		currentPath += "/" + parts[parts.length - 1]
 		mockDirectories.add(currentPath)
 		return Promise.resolve()
-		return Promise.resolve()
 	}),
 
 	access: jest.fn().mockImplementation(async (path: string) => {

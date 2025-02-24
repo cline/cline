@@ -15,3 +15,33 @@ jest.mock("../utils/logging", () => ({
 		}),
 	},
 }))
+
+// Add toPosix method to String prototype for all tests, mimicking src/utils/path.ts
+// This is needed because the production code expects strings to have this method
+// Note: In production, this is added via import in the entry point (extension.ts)
+export {}
+
+declare global {
+	interface String {
+		toPosix(): string
+	}
+}
+
+// Implementation that matches src/utils/path.ts
+function toPosixPath(p: string) {
+	// Extended-Length Paths in Windows start with "\\?\" to allow longer paths
+	// and bypass usual parsing. If detected, we return the path unmodified.
+	const isExtendedLengthPath = p.startsWith("\\\\?\\")
+
+	if (isExtendedLengthPath) {
+		return p
+	}
+
+	return p.replace(/\\/g, "/")
+}
+
+if (!String.prototype.toPosix) {
+	String.prototype.toPosix = function (this: string): string {
+		return toPosixPath(this)
+	}
+}
