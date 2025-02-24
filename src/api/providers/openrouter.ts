@@ -107,6 +107,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		// (models usually default to max tokens allowed)
 		let maxTokens: number | undefined
 		switch (this.getModel().id) {
+			case "anthropic/claude-3.7-sonnet":
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet-20240620":
