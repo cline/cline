@@ -22,6 +22,7 @@ export interface WebviewMessage {
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
 		| "openImage"
+		| "openImageInWebview"
 		| "openFile"
 		| "openMention"
 		| "cancelTask"

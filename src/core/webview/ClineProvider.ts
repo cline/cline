@@ -10,6 +10,7 @@ import * as vscode from "vscode"
 import { buildApiHandler } from "../../api"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
+import { openImageInWebview } from "../../integrations/misc/open-image-webview"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
@@ -634,6 +635,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "openImage":
 						openImage(message.text!)
+						break
+					case "openImageInWebview":
+						openImageInWebview(message.text!)
 						break
 					case "openFile":
 						openFile(message.text!)

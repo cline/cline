@@ -25,6 +25,7 @@ import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
 import { highlightMentions } from "./TaskHeader"
 import { CheckmarkControl } from "../common/CheckmarkControl"
+import McpResponseExtras from "../mcp/McpResponseExtras"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -75,32 +76,6 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 	)
 })
 
-// Image detection utilities
-const isImageUrl = (str: string): boolean => {
-	// Remove "image:" prefix if present
-	const cleanStr = str.replace(/^image:\s*/, '')
-	return cleanStr.match(/\.(jpg|jpeg|png|gif|webp)$/i) !== null || 
-		cleanStr.startsWith('data:image/') ||
-		(cleanStr.includes('wolframalpha.com') && cleanStr.includes('MSPStoreType=image'))
-}
-
-const cleanUrl = (str: string): string => {
-	return str.replace(/^image:\s*/, '')
-}
-
-const findImageUrls = (obj: any): string[] => {
-	const urls: string[] = []
-	if (typeof obj === 'object' && obj !== null) {
-		Object.values(obj).forEach(value => {
-			if (typeof value === 'string' && isImageUrl(value)) {
-				urls.push(cleanUrl(value))
-			} else if (typeof value === 'object') {
-				urls.push(...findImageUrls(value))
-			}
-		})
-	}
-	return urls
-}
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
@@ -799,72 +774,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									onToggleExpand={onToggleExpand}
 								/>
 								<div style={{ marginTop: "10px", padding: "10px", background: "#333" }}>
-									{(() => {
-										try {
-											let imageUrls: string[] = []
-											const text = message.text || ""
-											
-											// First try parsing as JSON
-											try {
-												const jsonResponse = JSON.parse(text)
-												imageUrls = findImageUrls(jsonResponse)
-											} catch {
-												// If not JSON, try parsing as formatted text
-												const matches = text.match(/image:\s*(https?:\/\/[^\s]+)/g)
-												if (matches) {
-													imageUrls = matches.map(match => match.replace(/^image:\s*/, ''))
-												}
-											}
-											return imageUrls.length > 0 ? (
-												<>
-													<div>Found {imageUrls.length} image{imageUrls.length !== 1 ? 's' : ''} in response:</div>
-													<div style={{ marginTop: "10px", marginBottom: "10px" }}>
-														<div style={{ opacity: 0.7, marginBottom: "5px" }}>Image URLs:</div>
-														{imageUrls.map((url, index) => (
-															<div key={`url-${index}`} style={{ 
-																fontFamily: "monospace",
-																fontSize: "12px",
-																marginBottom: "3px",
-																wordBreak: "break-all"
-															}}>
-																{url}
-															</div>
-														))}
-													</div>
-													<div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "10px" }}>
-														{imageUrls.map((url, index) => (
-															<img 
-																key={`response-${index}`}
-																src={url}
-																alt={`Response ${index + 1}`}
-																className="embed"
-																style={{
-																	maxWidth: "200px",
-																	height: "auto",
-																	borderRadius: "4px"
-																}}
-															/>
-														))}
-													</div>
-												</>
-											) : <div>No images found in response</div>
-										} catch (error) {
-											console.error('Error parsing MCP response:', error);
-											return (
-												<div>
-													<div>Error parsing response:</div>
-													<div style={{ 
-														fontFamily: "monospace",
-														fontSize: "12px",
-														marginTop: "5px",
-														opacity: 0.7
-													}}>
-														{message.text}
-													</div>
-												</div>
-											)
-										}
-									})()}
+									<McpResponseExtras responseText={message.text || ""} />
 								</div>
 							</div>
 						</>
