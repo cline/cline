@@ -3243,9 +3243,6 @@ export class Cline {
 			customInstructions: globalCustomInstructions,
 			preferredLanguage,
 		} = (await this.providerRef.deref()?.getState()) ?? {}
-
-		const powerSteering = Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.POWER_STEERING)
-
 		const currentMode = mode ?? defaultModeSlug
 		const modeDetails = await getFullModeDetails(currentMode, customModes, customModePrompts, {
 			cwd,
@@ -3255,8 +3252,11 @@ export class Cline {
 		details += `\n\n# Current Mode\n`
 		details += `<slug>${currentMode}</slug>\n`
 		details += `<name>${modeDetails.name}</name>\n`
-		if (powerSteering) {
+		if (Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.POWER_STEERING)) {
 			details += `<role>${modeDetails.roleDefinition}</role>\n`
+			if (modeDetails.customInstructions) {
+				details += `<custom_instructions>${modeDetails.customInstructions}</custom_instructions>\n`
+			}
 		}
 
 		// Add warning if not in code mode
@@ -3268,21 +3268,7 @@ export class Cline {
 		) {
 			const currentModeName = getModeBySlug(currentMode, customModes)?.name ?? currentMode
 			const defaultModeName = getModeBySlug(defaultModeSlug, customModes)?.name ?? defaultModeSlug
-			details += `\n\nNOTE: You are currently in '${currentModeName}' mode which only allows read-only operations. To write files or execute commands, the user will need to switch to '${defaultModeName}' mode or another mode with these capabilities. Note that only the user can switch modes.`
-		}
-
-		if (powerSteering) {
-			if (modeDetails.customInstructions) {
-				details += `\n\n# Custom Instructions\n`
-				details += `<custom_instructions>${modeDetails.customInstructions}</custom_instructions>\n`
-			}
-
-			const taskMessage = this.clineMessages[0]?.text ?? ""
-
-			if (taskMessage) {
-				details += `\n\n# Current Task\n\n`
-				details += `<task>${taskMessage}</task>\n`
-			}
+			details += `\n\nNOTE: You are currently in '${currentModeName}' mode which only allows read-only operations. To write files or execute commands, the user will need to switch to '${defaultModeName}' mode. Note that only the user can switch modes.`
 		}
 
 		if (includeFileDetails) {
