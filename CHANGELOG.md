@@ -2,7 +2,9 @@
 
 ## [3.7.2]
 
-- v3.7.2
+- Fix computer use and prompt caching for OpenRouter's `anthropic:claude-3.7-sonnet:beta` (thanks @cte!)
+- Fix sliding window calculations for Sonnet 3.7 that were causing a context window overflow (thanks @cte!)
+- Encourage diff editing more strongly in the system prompt (thanks @hannesrudolph!)
 
 ## [3.7.1]
 
