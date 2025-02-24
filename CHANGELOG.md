@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.4.0
+
+### Minor Changes
+
+- 3.7
+
 ## [3.3.26]
 
 - Adjust the default prompt for Debug mode to focus more on diagnosis and to require user confirmation before moving on to implementation
