@@ -765,7 +765,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 								color: "var(--vscode-descriptionForeground)",
 							}}>
 							When enabled, Roo will be able to edit files more quickly and will automatically reject
-							truncated full-file writes. Works best with the latest Claude 3.5 Sonnet model.
+							truncated full-file writes. Works best with the latest Claude 3.7 Sonnet model.
 						</p>
 
 						{diffEnabled && (

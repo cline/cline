@@ -1900,23 +1900,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 
 			const response = await axios.get("https://router.requesty.ai/v1/models", config)
-			/*
-				{
-					"id": "anthropic/claude-3-5-sonnet-20240620",
-					"object": "model",
-					"created": 1738243330,
-					"owned_by": "system",
-					"input_price": 0.000003,
-					"caching_price": 0.00000375,
-					"cached_price": 3E-7,
-					"output_price": 0.000015,
-					"max_output_tokens": 8192,
-					"context_window": 200000,
-					"supports_caching": true,
-					"description": "Anthropic's most intelligent model. Highest level of intelligence and capability"
-					},
-				}
-			*/
+
 			if (response.data) {
 				const rawModels = response.data.data
 				const parsePrice = (price: any) => {
@@ -2116,34 +2100,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		)
 
 		const models: Record<string, ModelInfo> = {}
+
 		try {
 			const response = await axios.get("https://openrouter.ai/api/v1/models")
-			/*
-			{
-				"id": "anthropic/claude-3.5-sonnet",
-				"name": "Anthropic: Claude 3.5 Sonnet",
-				"created": 1718841600,
-				"description": "Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: Autonomously writes, edits, and runs code with reasoning and troubleshooting\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal",
-				"context_length": 200000,
-				"architecture": {
-					"modality": "text+image-\u003Etext",
-					"tokenizer": "Claude",
-					"instruct_type": null
-				},
-				"pricing": {
-					"prompt": "0.000003",
-					"completion": "0.000015",
-					"image": "0.0048",
-					"request": "0"
-				},
-				"top_provider": {
-					"context_length": 200000,
-					"max_completion_tokens": 8192,
-					"is_moderated": true
-				},
-				"per_request_limits": null
-			},
-			*/
+
 			if (response.data?.data) {
 				const rawModels = response.data.data
 				const parsePrice = (price: any) => {
@@ -2152,6 +2112,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 					return undefined
 				}
+
 				for (const rawModel of rawModels) {
 					const modelInfo: ModelInfo = {
 						maxTokens: rawModel.top_provider?.max_completion_tokens,
@@ -2164,9 +2125,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 
 					switch (rawModel.id) {
+						case "anthropic/claude-3.7-sonnet":
 						case "anthropic/claude-3.5-sonnet":
 						case "anthropic/claude-3.5-sonnet:beta":
-							// NOTE: this needs to be synced with api.ts/openrouter default model info
+							// NOTE: this needs to be synced with api.ts/openrouter default model info.
 							modelInfo.supportsComputerUse = true
 							modelInfo.supportsPromptCache = true
 							modelInfo.cacheWritesPrice = 3.75

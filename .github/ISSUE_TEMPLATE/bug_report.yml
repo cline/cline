@@ -33,7 +33,7 @@ body:
       id: model
       attributes:
           label: Which Model are you using?
-          description: Please specify the model you're using (e.g. Claude 3.5 Sonnet)
+          description: Please specify the model you're using (e.g. Claude 3.7 Sonnet)
       validations:
           required: true
     - type: textarea

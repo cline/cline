@@ -39,7 +39,7 @@ export async function run(): Promise<void> {
 			: await globalThis.extension.activate()
 		globalThis.provider = globalThis.api.sidebarProvider
 		await globalThis.provider.updateGlobalState("apiProvider", "openrouter")
-		await globalThis.provider.updateGlobalState("openRouterModelId", "anthropic/claude-3.5-sonnet")
+		await globalThis.provider.updateGlobalState("openRouterModelId", "anthropic/claude-3.7-sonnet")
 		await globalThis.provider.storeSecret(
 			"openRouterApiKey",
 			process.env.OPENROUTER_API_KEY || "sk-or-v1-fake-api-key",
