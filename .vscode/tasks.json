@@ -24,11 +24,6 @@
 			"presentation": {
 				"group": "watch",
 				"reveal": "never"
-			},
-			"options": {
-				"env": {
-					"IS_DEV": "true"
-				}
 			}
 		},
 		{
