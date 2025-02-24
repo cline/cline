@@ -173,7 +173,7 @@ export interface MessageContent {
 }
 
 export type BedrockModelId = keyof typeof bedrockModels
-export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0"
 export const bedrockModels = {
 	"amazon.nova-pro-v1:0": {
 		maxTokens: 5000,
@@ -208,6 +208,17 @@ export const bedrockModels = {
 		cacheWritesPrice: 0.035, // per million tokens
 		cacheReadsPrice: 0.00875, // per million tokens
 	},
+	"anthropic.claude-3-7-sonnet-20250219-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsComputerUse: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
 	"anthropic.claude-3-5-sonnet-20241022-v2:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -216,8 +227,8 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
-		cacheWritesPrice: 3.75, // per million tokens
-		cacheReadsPrice: 0.3, // per million tokens
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
 	},
 	"anthropic.claude-3-5-haiku-20241022-v1:0": {
 		maxTokens: 8192,
