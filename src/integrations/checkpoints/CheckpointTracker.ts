@@ -15,7 +15,6 @@ import { CheckpointSettingsManager } from "./CheckpointSettings"
  *
  * Shadow Git Repository:
  * - Creates and manages an isolated Git repository for tracking checkpoints
- * - Handles nested Git repositories by temporarily disabling them
  * - Configures Git settings automatically (identity, LFS, etc.)
  *
  * File Management:
@@ -52,7 +51,6 @@ class CheckpointTracker {
 
 	/**
 	 * Creates a new CheckpointTracker instance to manage checkpoints for a specific task.
-	 * The constructor is private - use the static create() method to instantiate.
 	 *
 	 * @param taskId - Unique identifier for the task being tracked
 	 * @param cwd - The current working directory to track files in
@@ -117,14 +115,14 @@ class CheckpointTracker {
 
 			const workingDir = await getWorkingDirectory()
 			const cwdHash = hashWorkingDir(workingDir)
-			console.log(`Repository ID (cwdHash): ${cwdHash}`)
+			console.debug(`Repository ID (cwdHash): ${cwdHash}`)
 
 			const newTracker = new CheckpointTracker(globalStoragePath, taskId, workingDir, cwdHash)
 
 			// Check if this is a legacy task
 			newTracker.isLegacyCheckpoint = await detectLegacyCheckpoint(newTracker.globalStoragePath, newTracker.taskId)
 			if (newTracker.isLegacyCheckpoint) {
-				console.log("Using legacy checkpoint path structure")
+				console.debug("Using legacy checkpoint path structure")
 				const gitPath = await getShadowGitPath(
 					newTracker.globalStoragePath,
 					newTracker.taskId,
@@ -166,11 +164,6 @@ class CheckpointTracker {
 	 * - Branch-per-task: "checkpoint-{cwdHash}-{taskId}"
 	 * - Always allows empty commits
 	 *
-	 * Dependencies:
-	 * - Requires initialized shadow git (getShadowGitPath)
-	 * - For new checkpoints, requires task branch setup
-	 * - Uses addCheckpointFiles to stage changes
-	 *
 	 * @returns Promise<string | undefined> The created commit hash, or undefined if:
 	 * - Shadow git access fails
 	 * - Branch switch fails
@@ -184,25 +177,38 @@ class CheckpointTracker {
 	 */
 	public async commit(): Promise<string | undefined> {
 		try {
-			console.log(`Creating new checkpoint commit for task ${this.taskId}`)
+			console.info(`Creating new checkpoint commit for task ${this.taskId}`)
 			const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash, this.isLegacyCheckpoint)
 			const git = simpleGit(path.dirname(gitPath))
 
-			console.log(`Using shadow git at: ${gitPath}`)
+			console.info(`Using shadow git at: ${gitPath}`)
+
 			if (!this.isLegacyCheckpoint) {
 				await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
 			}
 			await this.gitOperations.addCheckpointFiles(git, gitPath)
 
+			const addResult = await this.gitOperations.addCheckpointFiles(git, gitPath)
+			if (!addResult.success) {
+				console.warn(addResult.message)
+				return undefined
+			}
+
+			if (addResult.fileCount === 0) {
+				return undefined
+			}
+
 			const commitMessage = this.isLegacyCheckpoint ? "checkpoint" : "checkpoint-" + this.cwdHash + "-" + this.taskId
 
-			console.log(`Creating ${this.isLegacyCheckpoint ? "legacy" : "new"} checkpoint commit with message: ${commitMessage}`)
+			console.info(
+				`Creating ${this.isLegacyCheckpoint ? "legacy" : "new"} checkpoint commit with message: ${commitMessage}`,
+			)
 			const result = await git.commit(commitMessage, {
 				"--allow-empty": null,
 			})
 			const commitHash = result.commit || ""
 			this.lastCheckpointHash = commitHash
-			console.log(`Checkpoint commit created.`)
+			console.warn(`Checkpoint commit created.`)
 			return commitHash
 		} catch (error) {
 			console.error("Failed to create checkpoint:", {
@@ -255,7 +261,7 @@ class CheckpointTracker {
 	/**
 	 * Resets the shadow git repository's HEAD to a specific checkpoint commit.
 	 * This will discard all changes after the target commit and restore the
-	 * working directory to that checkpoint's state.
+	 * working tracked files to that checkpoint's state.
 	 *
 	 * Dependencies:
 	 * - Requires initialized shadow git (getShadowGitPath)
@@ -271,13 +277,13 @@ class CheckpointTracker {
 	 * - Reset to target commit
 	 */
 	public async resetHead(commitHash: string): Promise<void> {
-		console.log(`Resetting to checkpoint: ${commitHash}`)
+		console.info(`Resetting to checkpoint: ${commitHash}`)
 		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash, this.isLegacyCheckpoint)
 		const git = simpleGit(path.dirname(gitPath))
-		console.log(`Using shadow git at: ${gitPath}`)
+		console.debug(`Using shadow git at: ${gitPath}`)
 		await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
 		await git.reset(["--hard", commitHash]) // Hard reset to target commit
-		console.log(`Successfully reset to checkpoint: ${commitHash}`)
+		console.debug(`Successfully reset to checkpoint: ${commitHash}`)
 	}
 
 	/**
@@ -286,7 +292,6 @@ class CheckpointTracker {
 	 *   - the current working directory (including uncommitted changes).
 	 *
 	 * If `rhsHash` is omitted, compares `lhsHash` to the working directory.
-	 * If you want truly untracked files to appear, `git add` them first.
 	 *
 	 * @param lhsHash - The commit to compare from (older commit)
 	 * @param rhsHash - The commit to compare to (newer commit).
@@ -311,62 +316,102 @@ class CheckpointTracker {
 			await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
 		}
 
-		console.log(`Getting diff between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
+		console.info(`Getting diff between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
 
 		// If lhsHash is missing, use the initial commit of the repo
 		let baseHash = lhsHash
 		if (!baseHash) {
 			const rootCommit = await git.raw(["rev-list", "--max-parents=0", "HEAD"])
 			baseHash = rootCommit.trim()
-			console.log(`Using root commit as base: ${baseHash}`)
+			console.debug(`Using root commit as base: ${baseHash}`)
 		}
 
 		// Stage all changes so that untracked files appear in diff summary
-		await this.gitOperations.addCheckpointFiles(git, gitPath)
+		const addResult = await this.gitOperations.addCheckpointFiles(git, gitPath)
+		if (!addResult.success) {
+			console.warn(addResult.message)
+			return []
+		}
 
 		const diffSummary = rhsHash ? await git.diffSummary([`${baseHash}..${rhsHash}`]) : await git.diffSummary([baseHash])
-		console.log(`Found ${diffSummary.files.length} changed files`)
+		console.info(`Found ${diffSummary.files.length} changed files`)
 
 		// For each changed file, gather before/after content
 		const result = []
 		const cwdPath = (await this.getShadowGitConfigWorkTree()) || this.cwd || ""
+		const files = diffSummary.files.map((f) => f.file)
+		const batchSize = 50
 
-		for (const file of diffSummary.files) {
-			const filePath = file.file
-			const absolutePath = path.join(cwdPath, filePath)
+		// Get list of files that exist in base commit
+		const existingFiles = await this.getExistingFiles(git, baseHash, files)
 
-			let beforeContent = ""
-			try {
-				beforeContent = await git.show([`${baseHash}:${filePath}`])
-			} catch (_) {
-				// file didn't exist in older commit => remains empty
+		// Process files in batches (Helps with large repos)
+		for (let i = 0; i < files.length; i += batchSize) {
+			const batch = files.slice(i, i + batchSize)
+
+			// Split batch into existing and new files
+			const existingBatch = batch.filter((file) => existingFiles.has(file))
+			const newBatch = batch.filter((file) => !existingFiles.has(file))
+
+			// Get before contents for existing files
+			let beforeContents: string[] = new Array(batch.length).fill("")
+			if (existingBatch.length > 0) {
+				const paths = existingBatch.map((file) => `${baseHash}:${file}`).join(" ")
+				const beforeResult = await git.raw(["show", "--format=", ...paths.split(" ")])
+				const existingContents = beforeResult.split("\n\0\n")
+				// Map contents back to original batch positions
+				existingBatch.forEach((file, index) => {
+					const batchIndex = batch.indexOf(file)
+					if (batchIndex !== -1) {
+						beforeContents[batchIndex] = existingContents[index] || ""
+					}
+				})
 			}
 
-			let afterContent = ""
+			// Get after contents
+			let afterContents: string[] = []
 			if (rhsHash) {
-				// if user provided a newer commit, use git.show at that commit
-				try {
-					afterContent = await git.show([`${rhsHash}:${filePath}`])
-				} catch (_) {
-					// file didn't exist in newer commit => remains empty
+				// Split after files into existing and new in target commit
+				const afterExistingFiles = await this.getExistingFiles(git, rhsHash, batch)
+				const afterExistingBatch = batch.filter((file) => afterExistingFiles.has(file))
+
+				if (afterExistingBatch.length > 0) {
+					const paths = afterExistingBatch.map((file) => `${rhsHash}:${file}`).join(" ")
+					const afterResult = await git.raw(["show", "--format=", ...paths.split(" ")])
+					const existingContents = afterResult.split("\n\0\n")
+					afterContents = new Array(batch.length).fill("")
+					afterExistingBatch.forEach((file, index) => {
+						const batchIndex = batch.indexOf(file)
+						if (batchIndex !== -1) {
+							afterContents[batchIndex] = existingContents[index] || ""
+						}
+					})
 				}
 			} else {
-				// otherwise, read from disk (includes uncommitted changes)
-				try {
-					afterContent = await fs.readFile(absolutePath, "utf8")
-				} catch (_) {
-					// file might be deleted => remains empty
-				}
+				// Read from disk for working directory changes
+				afterContents = await Promise.all(
+					batch.map(async (filePath) => {
+						try {
+							return await fs.readFile(path.join(cwdPath, filePath), "utf8")
+						} catch (_) {
+							return ""
+						}
+					}),
+				)
 			}
 
-			result.push({
-				relativePath: filePath,
-				absolutePath,
-				before: beforeContent,
-				after: afterContent,
-			})
+			// Add results for this batch
+			for (let j = 0; j < batch.length; j++) {
+				const filePath = batch[j]
+				const absolutePath = path.join(cwdPath, filePath)
+				result.push({
+					relativePath: filePath,
+					absolutePath,
+					before: beforeContents[j] || "",
+					after: afterContents[j] || "",
+				})
+			}
 		}
-
 		return result
 	}
 
@@ -384,6 +429,20 @@ class CheckpointTracker {
 			throw new Error("Global storage uri is invalid")
 		}
 		await GitOperations.deleteTaskBranchStatic(taskId, historyItem, globalStoragePath)
+	}
+
+	/**
+	 * Helper function to get a set of files that exist in a given commit
+	 */
+	private async getExistingFiles(git: SimpleGit, commitHash: string, files: string[]): Promise<Set<string>> {
+		try {
+			const result = await git.raw(["ls-tree", "-r", "--name-only", commitHash])
+			const existingFiles = new Set<string>(result.split("\n"))
+			return existingFiles
+		} catch (error) {
+			console.error("Error getting existing files:", error)
+			return new Set()
+		}
 	}
 }
 

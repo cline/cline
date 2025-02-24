@@ -472,6 +472,10 @@ export class McpHub {
 		})
 	}
 
+	async sendLatestMcpServers() {
+		await this.notifyWebviewOfServerChanges()
+	}
+
 	// Using server
 
 	// Public methods for server management
@@ -629,6 +633,33 @@ export class McpHub {
 			console.error("Failed to update autoApprove settings:", error)
 			vscode.window.showErrorMessage("Failed to update autoApprove settings")
 			throw error // Re-throw to ensure the error is properly handled
+		}
+	}
+
+	public async deleteServer(serverName: string) {
+		try {
+			const settingsPath = await this.getMcpSettingsFilePath()
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+			if (!config.mcpServers || typeof config.mcpServers !== "object") {
+				config.mcpServers = {}
+			}
+			if (config.mcpServers[serverName]) {
+				delete config.mcpServers[serverName]
+				const updatedConfig = {
+					mcpServers: config.mcpServers,
+				}
+				await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
+				await this.updateServerConnections(config.mcpServers)
+				vscode.window.showInformationMessage(`Deleted ${serverName} MCP server`)
+			} else {
+				vscode.window.showWarningMessage(`${serverName} not found in MCP configuration`)
+			}
+		} catch (error) {
+			vscode.window.showErrorMessage(
+				`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`,
+			)
+			throw error
 		}
 	}
 

@@ -29,9 +29,10 @@ export interface WebviewMessage {
 		| "refreshOpenAiModels"
 		| "openMcpSettings"
 		| "restartMcpServer"
+		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
-		| "chatSettings"
+		| "togglePlanActMode"
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
@@ -43,11 +44,16 @@ export interface WebviewMessage {
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "subscribeEmail"
+		| "fetchMcpMarketplace"
+		| "downloadMcp"
+		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
 		| "getCheckpointSettings"
 		| "updateCheckpointSettings"
 		| "openCheckpointsIgnore"
 		| "confirmDeleteAllCheckpoints"
+		| "showMcpView"
+		| "fetchLatestMcpServersFromHub"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -61,6 +67,7 @@ export interface WebviewMessage {
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
 	checkpointSettings?: CheckpointSettings
+	mcpId?: string
 
 	// For toggleToolAutoApprove
 	serverName?: string

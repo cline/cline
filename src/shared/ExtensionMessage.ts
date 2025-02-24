@@ -6,7 +6,7 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
-import { McpServer } from "./mcp"
+import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -27,6 +27,8 @@ export interface ExtensionMessage {
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
 		| "emailSubscribed"
+		| "mcpMarketplaceCatalog"
+		| "mcpDownloadDetails"
 		| "commitSearchResults"
 		| "checkpointSettings"
 	text?: string
@@ -49,6 +51,9 @@ export interface ExtensionMessage {
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
+	mcpMarketplaceCatalog?: McpMarketplaceCatalog
+	error?: string
+	mcpDownloadDetails?: McpDownloadResponse
 	commits?: GitCommit[]
 	checkpointSettings?: {
 		fileSizeThresholdMB: number
@@ -80,6 +85,7 @@ export interface ExtensionState {
 		email: string | null
 		photoURL: string | null
 	}
+	mcpMarketplaceEnabled?: boolean
 }
 
 export interface ClineMessage {
