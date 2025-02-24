@@ -172,15 +172,26 @@ export const extractUrlsFromText = async (text: string): Promise<{ imageUrls: st
 	return { imageUrls, regularUrls }
 }
 
+const ResponseHeader = styled.div`
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px;
+	border-bottom: 1px dashed var(--vscode-editorGroup-border, rgba(127, 127, 127, 0.3));
+	margin-bottom: 8px;
+	
+	.header-title {
+		font-size: 12px;
+		text-transform: uppercase;
+		opacity: 0.8;
+	}
+`
+
 const ToggleSwitch = styled.div`
-	position: absolute;
-	top: 0;
-	right: 0;
 	display: flex;
 	align-items: center;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
-	margin-bottom: 10px;
 	
 	.toggle-label {
 		margin-right: 8px;
@@ -218,13 +229,15 @@ const ToggleSwitch = styled.div`
 
 const ResponseContainer = styled.div`
 	position: relative;
-	padding-top: 24px;
 	font-family: var(--vscode-editor-font-family, monospace);
 	font-size: var(--vscode-editor-font-size, 12px);
 	background-color: var(--vscode-textCodeBlock-background, #1e1e1e);
 	color: var(--vscode-editor-foreground, #d4d4d4);
 	border-radius: 3px;
-	padding: 10px;
+	
+	.response-content {
+		padding: 0 10px 10px 10px;
+	}
 `
 
 // Style for URL text to ensure proper wrapping
@@ -273,13 +286,10 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 				const text = responseText || ""
 				const matches: UrlMatch[] = []
 				
-				// Find all URLs in the text (including at the end of the text)
-				// Add the text to a space at the end to ensure we catch URLs at the very end
-				const textWithSpace = text + " "
 				const urlRegex = /https?:\/\/[^\s]+/g
 				let urlMatch: RegExpExecArray | null
 				
-				while ((urlMatch = urlRegex.exec(textWithSpace)) !== null) {
+				while ((urlMatch = urlRegex.exec(text)) !== null) {
 					const url = urlMatch[0]
 					const fullMatch = url
 					
@@ -421,29 +431,39 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	try {
 		return (
 			<ResponseContainer>
-				<ToggleSwitch>
-					<span className="toggle-label">
-						{displayMode === 'rich' ? 'Rich Display' : 'Plain Text'}
-					</span>
-					<div 
-						className={`toggle-container ${displayMode === 'rich' ? 'active' : ''}`}
-						onClick={toggleDisplayMode}
-					>
-						<div className="toggle-handle"></div>
-					</div>
-				</ToggleSwitch>
+				<ResponseHeader>
+					<span className="header-title">Response</span>
+					<ToggleSwitch>
+						<span className="toggle-label">
+							{displayMode === 'rich' ? 'Rich Display' : 'Plain Text'}
+						</span>
+						<div 
+							className={`toggle-container ${displayMode === 'rich' ? 'active' : ''}`}
+							onClick={toggleDisplayMode}
+						>
+							<div className="toggle-handle"></div>
+						</div>
+					</ToggleSwitch>
+				</ResponseHeader>
 				
-				{renderContent()}
+				<div className="response-content">
+					{renderContent()}
+				</div>
 			</ResponseContainer>
 		)
 	} catch (error) {
 		console.error('Error parsing MCP response:', error);
 		return (
 			<ResponseContainer>
-				<div>Error parsing response:</div>
-				<UrlText>
-					{responseText}
-				</UrlText>
+				<ResponseHeader>
+					<span className="header-title">Response</span>
+				</ResponseHeader>
+				<div className="response-content">
+					<div>Error parsing response:</div>
+					<UrlText>
+						{responseText}
+					</UrlText>
+				</div>
 			</ResponseContainer>
 		)
 	}
