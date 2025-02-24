@@ -273,11 +273,13 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 				const text = responseText || ""
 				const matches: UrlMatch[] = []
 				
-				// Find all URLs in the text
+				// Find all URLs in the text (including at the end of the text)
+				// Add the text to a space at the end to ensure we catch URLs at the very end
+				const textWithSpace = text + " "
 				const urlRegex = /https?:\/\/[^\s]+/g
 				let urlMatch: RegExpExecArray | null
 				
-				while ((urlMatch = urlRegex.exec(text)) !== null) {
+				while ((urlMatch = urlRegex.exec(textWithSpace)) !== null) {
 					const url = urlMatch[0]
 					const fullMatch = url
 					
@@ -369,7 +371,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 									src={url}
 									alt={`Image for ${url}`}
 									style={{
-										width: "100%",
+										width: "75%",
 										height: "auto",
 										borderRadius: "4px",
 										cursor: "pointer"
