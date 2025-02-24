@@ -129,8 +129,9 @@ export class Cline {
 		images?: string[] | undefined,
 		historyItem?: HistoryItem | undefined,
 		experiments?: Record<string, boolean>,
+		startTask = true,
 	) {
-		if (!task && !images && !historyItem) {
+		if (startTask && !task && !images && !historyItem) {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
 
@@ -153,11 +154,32 @@ export class Cline {
 		// Initialize diffStrategy based on current state
 		this.updateDiffStrategy(Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.DIFF_STRATEGY))
 
-		if (task || images) {
-			this.startTask(task, images)
-		} else if (historyItem) {
-			this.resumeTaskFromHistory()
+		if (startTask) {
+			if (task || images) {
+				this.startTask(task, images)
+			} else if (historyItem) {
+				this.resumeTaskFromHistory()
+			} else {
+				throw new Error("Either historyItem or task/images must be provided")
+			}
 		}
+	}
+
+	static create(...args: ConstructorParameters<typeof Cline>): [Cline, Promise<void>] {
+		args[10] = false // startTask
+		const instance = new Cline(...args)
+
+		let task
+
+		if (args[6] || args[7]) {
+			task = instance.startTask(args[6], args[7])
+		} else if (args[8]) {
+			task = instance.resumeTaskFromHistory()
+		} else {
+			throw new Error("Either historyItem or task/images must be provided")
+		}
+
+		return [instance, task]
 	}
 
 	// Add method to update diffStrategy
@@ -745,8 +767,12 @@ export class Cline {
 		}
 	}
 
-	async abortTask() {
+	async abortTask(isAbandoned = false) {
 		// Will stop any autonomously running promises.
+		if (isAbandoned) {
+			this.abandoned = true
+		}
+
 		this.abort = true
 
 		this.terminalManager.disposeAll()
@@ -2967,7 +2993,7 @@ export class Cline {
 			}
 
 			// need to call here in case the stream was aborted
-			if (this.abort) {
+			if (this.abort || this.abandoned) {
 				throw new Error("Roo Code instance aborted")
 			}
 
