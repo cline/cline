@@ -1,10 +1,8 @@
 # Roo Code Changelog
 
-## 3.4.0
+## [3.7.0]
 
-### Minor Changes
-
-- 3.7
+- Introducing Roo Code 3.7, with support for the new Claude Sonnet 3.7. Because who cares about skipping version numbers anymore? Thanks @lupuletic and @cte for the PRs!
 
 ## [3.3.26]
 
