@@ -56,6 +56,32 @@ graph TB
 - core extension state: Managed by the ClineProvider class in src/core/webview/ClineProvider.ts, which serves as the single source of truth for the extension's state. It manages multiple types of persistent storage (global state, workspace state, and secrets), handles state distribution to both the core extension and webview components, and coordinates state across multiple extension instances. This includes managing API configurations, task history, settings, and MCP configurations.
 - webview: Anything inside the webview-ui. All the react or view's seen by the user and user interaction compone
 - webview state: Managed by ExtensionStateContext in webview-ui/src/context/ExtensionStateContext.tsx, which provides React components with access to the extension's state through a context provider pattern. It maintains local state for UI components, handles real-time updates through message events, manages partial message updates, and provides methods for state modifications. The context includes extension version, messages, task history, theme, API configurations, MCP servers, marketplace catalog, and workspace file paths. It synchronizes with the core extension through VSCode's message passing system and provides type-safe access to state through a custom hook (useExtensionState).
+
+### Core Extension State
+
+The `ClineProvider` class manages multiple types of persistent storage:
+
+- **Global State:** Stored across all VSCode instances. Used for settings and data that should persist globally.
+- **Workspace State:** Specific to the current workspace. Used for task-specific data and settings.
+- **Secrets:** Secure storage for sensitive information like API keys.
+
+The `ClineProvider` handles the distribution of state to both the core extension and webview components. It also coordinates state across multiple extension instances, ensuring consistency.
+
+### Webview State
+
+The `ExtensionStateContext` in `webview-ui/src/context/ExtensionStateContext.tsx` provides React components with access to the extension's state. It uses a context provider pattern and maintains local state for UI components. The context includes:
+
+- Extension version
+- Messages
+- Task history
+- Theme
+- API configurations
+- MCP servers
+- Marketplace catalog
+- Workspace file paths
+
+It synchronizes with the core extension through VSCode's message passing system and provides type-safe access to the state via a custom hook (`useExtensionState`).
+
 ## Core Extension (Cline.ts)
 
 The Cline class is the heart of the extension, managing task execution, state persistence, and tool coordination. Each task runs in its own instance of the Cline class, ensuring isolation and proper state management.
@@ -481,3 +507,11 @@ Remember:
 - Place new code in appropriate directories
 - Maintain clear separation of concerns
 - Install dependencies in correct package.json
+
+## Contributing
+
+Contributions to the Cline extension are welcome! Please follow these guidelines:
+
+When adding new tools or API providers, follow the existing patterns in the `src/integrations/` and `src/api/providers/` directories, respectively. Ensure that your code is well-documented and includes appropriate error handling.
+
+The `.clineignore` file allows users to specify files and directories that Cline should not access. When implementing new features, respect the `.clineignore` rules and ensure that your code does not attempt to read or modify ignored files.
