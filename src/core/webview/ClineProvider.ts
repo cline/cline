@@ -11,6 +11,7 @@ import { buildApiHandler } from "../../api"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
 import { openImageInWebview } from "../../integrations/misc/open-image-webview"
+import { openLinkPreview, fetchOpenGraphData } from "../../integrations/misc/link-preview"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
@@ -638,6 +639,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "openImageInWebview":
 						openImageInWebview(message.text!)
+						break
+					case "openLinkPreview":
+						openLinkPreview(message.text!)
+						break
+					case "openInBrowser":
+						if (message.url) {
+							vscode.env.openExternal(vscode.Uri.parse(message.url))
+						}
+						break
+					case "fetchOpenGraphData":
+						this.fetchOpenGraphData(message.text!)
+						break
+					case "checkIsImageUrl":
+						this.checkIsImageUrl(message.text!)
 						break
 					case "openFile":
 						openFile(message.text!)
@@ -1908,6 +1923,56 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async getSecret(key: SecretKey) {
 		return await this.context.secrets.get(key)
+	}
+
+	// Open Graph Data
+
+	async fetchOpenGraphData(url: string) {
+		try {
+			// Use the fetchOpenGraphData function from link-preview.ts
+			const ogData = await fetchOpenGraphData(url)
+			
+			// Send the data back to the webview
+			await this.postMessageToWebview({
+				type: "openGraphData",
+				openGraphData: ogData,
+				url: url
+			})
+		} catch (error) {
+			console.error(`Error fetching Open Graph data for ${url}:`, error)
+			// Send an error response
+			await this.postMessageToWebview({
+				type: "openGraphData",
+				error: `Failed to fetch Open Graph data: ${error}`,
+				url: url
+			})
+		}
+	}
+	
+	// Check if a URL is an image
+	async checkIsImageUrl(url: string) {
+		try {
+			// Import the isImageUrl function from link-preview.ts
+			const { isImageUrl } = await import('../../integrations/misc/link-preview')
+			
+			// Check if the URL is an image
+			const isImage = await isImageUrl(url)
+			
+			// Send the result back to the webview
+			await this.postMessageToWebview({
+				type: "isImageUrlResult",
+				isImage,
+				url
+			})
+		} catch (error) {
+			console.error(`Error checking if URL is an image: ${url}`, error)
+			// Send an error response
+			await this.postMessageToWebview({
+				type: "isImageUrlResult",
+				isImage: false,
+				url
+			})
+		}
 	}
 
 	// dev
