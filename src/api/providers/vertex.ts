@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
+import { VertexAI } from "@google-cloud/vertexai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
@@ -9,6 +10,7 @@ import { ApiStream } from "../transform/stream"
 export class VertexHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: AnthropicVertex
+	private vertexAI: VertexAI // new property
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -17,62 +19,122 @@ export class VertexHandler implements ApiHandler {
 			// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
 			region: this.options.vertexRegion,
 		})
+		this.vertexAI = new VertexAI({
+			project: this.options.vertexProjectId,
+			location: this.options.vertexRegion,
+		})
 	}
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const stream = await this.client.messages.create({
-			model: this.getModel().id,
-			max_tokens: this.getModel().info.maxTokens || 8192,
-			temperature: 0,
-			system: systemPrompt,
-			messages,
-			stream: true,
-		})
-		for await (const chunk of stream) {
-			switch (chunk.type) {
-				case "message_start":
-					const usage = chunk.message.usage
-					yield {
-						type: "usage",
-						inputTokens: usage.input_tokens || 0,
-						outputTokens: usage.output_tokens || 0,
-					}
-					break
-				case "message_delta":
-					yield {
-						type: "usage",
-						inputTokens: 0,
-						outputTokens: chunk.usage.output_tokens || 0,
-					}
-					break
+		if (this.getModel().id.includes("claude")) {
+			const stream = await this.client.messages.create({
+				model: this.getModel().id,
+				max_tokens: this.getModel().info.maxTokens || 8192,
+				temperature: 0,
+				system: systemPrompt,
+				messages,
+				stream: true,
+			})
+			for await (const chunk of stream) {
+				switch (chunk.type) {
+					case "message_start":
+						const usage = chunk.message.usage
+						yield {
+							type: "usage",
+							inputTokens: usage.input_tokens || 0,
+							outputTokens: usage.output_tokens || 0,
+						}
+						break
+					case "message_delta":
+						yield {
+							type: "usage",
+							inputTokens: 0,
+							outputTokens: chunk.usage.output_tokens || 0,
+						}
+						break
 
-				case "content_block_start":
-					switch (chunk.content_block.type) {
-						case "text":
-							if (chunk.index > 0) {
+					case "content_block_start":
+						switch (chunk.content_block.type) {
+							case "text":
+								if (chunk.index > 0) {
+									yield {
+										type: "text",
+										text: "\n",
+									}
+								}
 								yield {
 									type: "text",
-									text: "\n",
+									text: chunk.content_block.text,
 								}
+								break
+						}
+						break
+					case "content_block_delta":
+						switch (chunk.delta.type) {
+							case "text_delta":
+								yield {
+									type: "text",
+									text: chunk.delta.text,
+								}
+								break
+						}
+						break
+				}
+			}
+		} else {
+			const generativeModel = this.vertexAI.getGenerativeModel({
+				model: this.getModel().id,
+				systemInstruction: {
+					role: "system",
+					parts: [{ text: systemPrompt }],
+				},
+			})
+			const request = {
+				contents: [
+					{
+						role: "user",
+						parts: messages.map((m) => {
+							if (typeof m.content === "string") {
+								return { text: m.content }
+							} else if (Array.isArray(m.content)) {
+								return {
+									text: m.content
+										.map((block) => {
+											if (typeof block === "string") {
+												return block
+											} else if (block.type === "text") {
+												return block.text
+											} else {
+												console.log("Unsupported block type", block)
+												return ""
+											}
+										})
+										.join(" "),
+								}
+							} else {
+								return { text: "" }
 							}
+						}),
+					},
+				],
+			}
+			const streamingResult = await generativeModel.generateContentStream(request)
+			for await (const chunk of streamingResult.stream) {
+				// If usage data is available, yield it similarly:
+				// yield { type: "usage", inputTokens: 0, outputTokens: 0 }
+				// Otherwise, just yield text:
+				const candidates = chunk.candidates || []
+				for (const candidate of candidates) {
+					for (const part of candidate.content?.parts || []) {
+						if (part.text) {
 							yield {
 								type: "text",
-								text: chunk.content_block.text,
+								text: part.text,
 							}
-							break
+						}
 					}
-					break
-				case "content_block_delta":
-					switch (chunk.delta.type) {
-						case "text_delta":
-							yield {
-								type: "text",
-								text: chunk.delta.text,
-							}
-							break
-					}
-					break
+				}
 			}
 		}
 	}
