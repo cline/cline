@@ -50,6 +50,7 @@ export enum ContextMenuOptionType {
 	Terminal = "terminal",
 	URL = "url",
 	Git = "git",
+	MemoryBank = "memoryBank",
 	NoResults = "noResults",
 }
 
@@ -93,6 +94,19 @@ export function getContextMenuOptions(
 			return folders.length > 0 ? folders : [{ type: ContextMenuOptionType.NoResults }]
 		}
 
+		if (selectedType === ContextMenuOptionType.MemoryBank) {
+			if (query === "" && selectedType === ContextMenuOptionType.MemoryBank) {
+				const memoryBankItems = queryItems.filter((item) => item.type === ContextMenuOptionType.MemoryBank)
+				return [
+					{
+						type: ContextMenuOptionType.MemoryBank,
+						value: "Enable Memory Bank",
+					},
+					...(memoryBankItems.length > 0 ? memoryBankItems : [{ type: ContextMenuOptionType.NoResults }]),
+				]
+			}
+		}
+
 		if (selectedType === ContextMenuOptionType.Git) {
 			const commits = queryItems.filter((item) => item.type === ContextMenuOptionType.Git)
 			return commits.length > 0 ? [workingChanges, ...commits] : [workingChanges]
@@ -105,6 +119,7 @@ export function getContextMenuOptions(
 			{ type: ContextMenuOptionType.Git },
 			{ type: ContextMenuOptionType.Folder },
 			{ type: ContextMenuOptionType.File },
+			{ type: ContextMenuOptionType.MemoryBank },
 		]
 	}
 
@@ -126,6 +141,9 @@ export function getContextMenuOptions(
 	}
 	if (query.startsWith("http")) {
 		suggestions.push({ type: ContextMenuOptionType.URL, value: query })
+	}
+	if ("memorybank".startsWith(lowerQuery)) {
+		suggestions.push({ type: ContextMenuOptionType.MemoryBank })
 	}
 
 	// Add exact SHA matches to suggestions
