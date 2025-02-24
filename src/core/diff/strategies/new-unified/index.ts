@@ -108,7 +108,7 @@ export class NewUnifiedDiffStrategy implements DiffStrategy {
 	}
 
 	getToolDescription(args: { cwd: string; toolOptions?: { [key: string]: string } }): string {
-		return `# edit_file Tool - Generate Precise Code Changes
+		return `# apply_diff Tool - Generate Precise Code Changes
 
 Generate a unified diff that can be cleanly applied to modify code files.
 
@@ -168,12 +168,12 @@ Parameters:
 - diff: (required) Unified diff content in unified format to apply to the file.
 
 Usage:
-<edit_file>
+<apply_diff>
 <path>path/to/file.ext</path>
 <diff>
 Your diff here
 </diff>
-</edit_file>`
+</apply_diff>`
 	}
 
 	// Helper function to split a hunk into smaller hunks based on contiguous changes
