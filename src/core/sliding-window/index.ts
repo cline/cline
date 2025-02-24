@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+
 import { ModelInfo } from "../../shared/api"
 
 /**
@@ -85,7 +86,9 @@ function getTruncFractionForPromptCachingModels(modelInfo: ModelInfo): number {
  * @returns {number} The maximum number of tokens allowed for non-prompt caching models.
  */
 function getMaxTokensForNonPromptCachingModels(modelInfo: ModelInfo): number {
-	return Math.max(modelInfo.contextWindow - 40_000, modelInfo.contextWindow * 0.8)
+	// The buffer needs to be at least as large as `modelInfo.maxTokens`.
+	const buffer = modelInfo.maxTokens ? Math.max(40_000, modelInfo.maxTokens) : 40_000
+	return Math.max(modelInfo.contextWindow - buffer, modelInfo.contextWindow * 0.8)
 }
 
 /**
