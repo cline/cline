@@ -37,7 +37,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
-		isLoggedIn: false,
 		platform: DEFAULT_PLATFORM,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -75,6 +74,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.qwenApiKey,
 							config.mistralApiKey,
 							config.vsCodeLmModelSelector,
+							config.clineApiKey,
 						].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)

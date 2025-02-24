@@ -16,6 +16,7 @@ import { TogetherHandler } from "./providers/together"
 import { QwenHandler } from "./providers/qwen"
 import { MistralHandler } from "./providers/mistral"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
+import { ClineHandler } from "./providers/cline"
 import { LiteLlmHandler } from "./providers/litellm"
 
 export interface ApiHandler {
@@ -60,6 +61,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new MistralHandler(options)
 		case "vscode-lm":
 			return new VsCodeLmHandler(options)
+		case "cline":
+			return new ClineHandler(options)
 		case "litellm":
 			return new LiteLlmHandler(options)
 		default:
