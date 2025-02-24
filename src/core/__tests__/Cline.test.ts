@@ -222,6 +222,7 @@ describe("Cline", () => {
 						return [
 							{
 								id: "123",
+								number: 0,
 								ts: Date.now(),
 								task: "historical task",
 								tokensIn: 100,

@@ -23,6 +23,7 @@ jest.mock("react-virtuoso", () => ({
 const mockTaskHistory = [
 	{
 		id: "1",
+		number: 0,
 		task: "Test task 1",
 		ts: new Date("2022-02-16T00:00:00").getTime(),
 		tokensIn: 100,
@@ -31,6 +32,7 @@ const mockTaskHistory = [
 	},
 	{
 		id: "2",
+		number: 0,
 		task: "Test task 2",
 		ts: new Date("2022-02-17T00:00:00").getTime(),
 		tokensIn: 200,

@@ -120,6 +120,12 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										}}>
 										{formatDate(item.ts)}
 									</span>
+									<span
+										style={{
+											marginLeft: "auto",
+										}}>
+										({item.number === 0 ? "Main" : item.number})
+									</span>
 									<button
 										title="Copy Prompt"
 										aria-label="Copy Prompt"

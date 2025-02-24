@@ -153,6 +153,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private latestAnnouncementId = "jan-21-2025-custom-modes" // update to some unique identifier when we add a new announcement
 	configManager: ConfigManager
 	customModesManager: CustomModesManager
+	private lastTaskNumber = -1
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -180,6 +181,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// The instance is pushed to the top of the stack (LIFO order).
 	// When the task is completed, the top instance is removed, reactivating the previous task.
 	addClineToStack(cline: Cline): void {
+		// if cline.getTaskNumber() is -1, it means it is a new task
+		if (cline.getTaskNumber() === -1) {
+			// increase last cline number by 1
+			this.lastTaskNumber = this.lastTaskNumber + 1
+			cline.setTaskNumber(this.lastTaskNumber)
+		}
+		// if cline.getTaskNumber() > lastTaskNumber, set lastTaskNumber to cline.getTaskNumber()
+		else if (cline.getTaskNumber() > this.lastTaskNumber) {
+			this.lastTaskNumber = cline.getTaskNumber()
+		}
+		// push the cline instance to the stack
 		this.clineStack.push(cline)
 	}
 
@@ -191,6 +203,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await clineToBeRemoved.abortTask()
 			// make sure no reference kept, once promises end it will be garbage collected
 			clineToBeRemoved = undefined
+		}
+		// if the stack is empty, reset the last task number
+		if (this.clineStack.length === 0) {
+			this.lastTaskNumber = -1
 		}
 	}
 
@@ -520,6 +536,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			historyItem,
 			experiments,
 		)
+		// get this cline task number id from the history item and set it to newCline
+		newCline.setTaskNumber(historyItem.number)
 		this.addClineToStack(newCline)
 	}
 
@@ -2384,38 +2402,25 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await downloadTask(historyItem.ts, apiConversationHistory)
 	}
 
+	// this function deletes a task from task hidtory, and deletes it's checkpoints and delete the task folder
 	async deleteTaskWithId(id: string) {
+		// get the task directory full path
+		const { taskDirPath } = await this.getTaskWithId(id)
+
+		// remove task from stack if it's the current task
 		if (id === this.getCurrentCline()?.taskId) {
 			await this.removeClineWithIdFromStack(id)
 		}
 
-		const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
-
+		// delete task from the task history state
 		await this.deleteTaskFromState(id)
 
-		// Delete the task files.
-		const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
-
-		if (apiConversationHistoryFileExists) {
-			await fs.unlink(apiConversationHistoryFilePath)
-		}
-
-		const uiMessagesFileExists = await fileExistsAtPath(uiMessagesFilePath)
-
-		if (uiMessagesFileExists) {
-			await fs.unlink(uiMessagesFilePath)
-		}
-
-		const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
-
-		if (await fileExistsAtPath(legacyMessagesFilePath)) {
-			await fs.unlink(legacyMessagesFilePath)
-		}
-
+		// check if checkpoints are enabled
 		const { checkpointsEnabled } = await this.getState()
+		// get the base directory of the project
 		const baseDir = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 
-		// Delete checkpoints branch.
+		// delete checkpoints branch from project git repo
 		if (checkpointsEnabled && baseDir) {
 			const branchSummary = await simpleGit(baseDir)
 				.branch(["-D", `roo-code-checkpoints-${id}`])
@@ -2426,22 +2431,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
-		// Delete checkpoints directory
-		const checkpointsDir = path.join(taskDirPath, "checkpoints")
-
-		if (await fileExistsAtPath(checkpointsDir)) {
-			try {
-				await fs.rm(checkpointsDir, { recursive: true, force: true })
-				console.log(`[deleteTaskWithId${id}] removed checkpoints repo`)
-			} catch (error) {
-				console.error(
-					`[deleteTaskWithId${id}] failed to remove checkpoints repo: ${error instanceof Error ? error.message : String(error)}`,
-				)
-			}
+		// delete the entire task directory including checkpoints and all content
+		try {
+			await fs.rm(taskDirPath, { recursive: true, force: true })
+			console.log(`[deleteTaskWithId${id}] removed task directory`)
+		} catch (error) {
+			console.error(
+				`[deleteTaskWithId${id}] failed to remove task directory: ${error instanceof Error ? error.message : String(error)}`,
+			)
 		}
-
-		// Succeeds if the dir is empty.
-		await fs.rmdir(taskDirPath)
 	}
 
 	async deleteTaskFromState(id: string) {

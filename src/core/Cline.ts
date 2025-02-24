@@ -75,6 +75,7 @@ type UserContent = Array<
 
 export class Cline {
 	readonly taskId: string
+	private taskNumber: number
 	// a flag that indicated if this Cline instance is a subtask (on finish return control to parent task)
 	private isSubTask: boolean = false
 	// a flag that indicated if this Cline instance is paused (waiting for provider to resume it after subtask completion)
@@ -139,6 +140,7 @@ export class Cline {
 		}
 
 		this.taskId = crypto.randomUUID()
+		this.taskNumber = -1
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
@@ -168,6 +170,16 @@ export class Cline {
 	// and by that set this Cline instance to be a subtask (on finish return control to parent task)
 	setSubTask() {
 		this.isSubTask = true
+	}
+
+	// sets the task number (sequencial number of this task from all the subtask ran from this main task stack)
+	setTaskNumber(taskNumber: number) {
+		this.taskNumber = taskNumber
+	}
+
+	// gets the task number, the sequencial number of this task from all the subtask ran from this main task stack
+	getTaskNumber() {
+		return this.taskNumber
 	}
 
 	// Add method to update diffStrategy
@@ -276,6 +288,7 @@ export class Cline {
 
 			await this.providerRef.deref()?.updateTaskHistory({
 				id: this.taskId,
+				number: this.taskNumber,
 				ts: lastRelevantMessage.ts,
 				task: taskMessage.text ?? "",
 				tokensIn: apiMetrics.totalTokensIn,
