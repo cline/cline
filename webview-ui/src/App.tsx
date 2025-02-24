@@ -9,14 +9,17 @@ import AccountView from "./components/account/AccountView"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import { vscode } from "./utils/vscode"
 import McpView from "./components/mcp/McpView"
+import posthog from "posthog-js"
 
 const AppContent = () => {
-	const { didHydrateState, showWelcome, shouldShowAnnouncement } = useExtensionState()
+	const { didHydrateState, showWelcome, shouldShowAnnouncement, advancedSettings, vscMachineId, hideTelemetryOptIn } =
+		useExtensionState()
 	const [showSettings, setShowSettings] = useState(false)
 	const [showHistory, setShowHistory] = useState(false)
 	const [showMcp, setShowMcp] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
+	const telemetryEnabled = advancedSettings.enableTelemetry
 
 	const handleMessage = useCallback((e: MessageEvent) => {
 		const message: ExtensionMessage = e.data
@@ -61,6 +64,15 @@ const AppContent = () => {
 	useEvent("message", handleMessage)
 
 	useEffect(() => {
+		if (telemetryEnabled) {
+			posthog.identify(vscMachineId)
+			posthog.opt_in_capturing()
+		} else {
+			posthog.opt_out_capturing()
+		}
+	}, [telemetryEnabled, vscMachineId])
+
+	useEffect(() => {
 		if (shouldShowAnnouncement) {
 			setShowAnnouncement(true)
 			vscode.postMessage({ type: "didShowAnnouncement" })
@@ -93,6 +105,7 @@ const AppContent = () => {
 						hideAnnouncement={() => {
 							setShowAnnouncement(false)
 						}}
+						hideTelemetryOptIn={hideTelemetryOptIn}
 					/>
 				</>
 			)}

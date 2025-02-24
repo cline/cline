@@ -59,6 +59,7 @@ import { formatResponse } from "./prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
+import posthog from "../services/analytics/PostHogClient"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -148,6 +149,16 @@ export class Cline {
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
+		// capture start of thread with the state at the beginning
+		posthog.capture({
+			event: "cline created",
+			properties: {
+				taskId: this.taskId,
+				isHistory: !!historyItem,
+				chatMode: this.chatSettings.mode,
+				hasImages: !!images,
+			},
+		})
 	}
 
 	updateBrowserSettings(browserSettings: BrowserSettings) {
@@ -353,17 +364,15 @@ export class Cline {
 					break
 			}
 
-			if (restoreType !== "task") {
-				// Set isCheckpointCheckedOut flag on the message
-				// Find all checkpoint messages before this one
-				const checkpointMessages = this.clineMessages.filter((m) => m.say === "checkpoint_created")
-				const currentMessageIndex = checkpointMessages.findIndex((m) => m.ts === messageTs)
+			// Set isCheckpointCheckedOut flag on the message
+			// Find all checkpoint messages before this one
+			const checkpointMessages = this.clineMessages.filter((m) => m.say === "checkpoint_created")
+			const currentMessageIndex = checkpointMessages.findIndex((m) => m.ts === messageTs)
 
-				// Set isCheckpointCheckedOut to false for all checkpoint messages
-				checkpointMessages.forEach((m, i) => {
-					m.isCheckpointCheckedOut = i === currentMessageIndex
-				})
-			}
+			// Set isCheckpointCheckedOut to false for all checkpoint messages
+			checkpointMessages.forEach((m, i) => {
+				m.isCheckpointCheckedOut = i === currentMessageIndex
+			})
 
 			await this.saveClineMessages()
 
@@ -3139,6 +3148,7 @@ export class Cline {
 			try {
 				for await (const chunk of stream) {
 					if (!chunk) {
+						// Sometimes chunk is undefined, no idea that can cause it, but this workaround seems to fix it
 						continue
 					}
 					switch (chunk.type) {
@@ -3264,6 +3274,27 @@ export class Cline {
 					})
 					this.consecutiveMistakeCount++
 				}
+
+				posthog.capture({
+					event: "message sent",
+					properties: {
+						taskId: this.taskId,
+						chatMode: this.chatSettings.mode,
+						apiConversationHistoryCount: this.apiConversationHistory.length,
+						userMessageCount: this.apiConversationHistory.filter((m) => m.role === "user").length,
+						assistantMessageCount: this.apiConversationHistory.filter((m) => m.role === "assistant").length,
+						clineMessageCount: this.clineMessages.length,
+						textMessageCount: this.clineMessages.filter((m) => !!m.text).length,
+						askMessageCount: this.clineMessages.filter((m) => !!m.ask).length,
+						sayMessageCount: this.clineMessages.filter((m) => !!m.say).length,
+						reasoningMessageCount: this.clineMessages.filter((m) => !!m.reasoning).length,
+						partialMessageCount: this.clineMessages.filter((m) => !!m.partial).length,
+						consecutiveMistakeCount: this.consecutiveMistakeCount,
+						consecutiveAutoApprovedRequestsCount: this.consecutiveAutoApprovedRequestsCount,
+						toolUseCount: this.clineMessages.filter((m) => m.say === "tool").length,
+						checkpointsCount: this.clineMessages.filter((m) => m.say === "checkpoint_created").length,
+					},
+				})
 
 				const recDidEndLoop = await this.recursivelyMakeClineRequests(this.userMessageContent)
 				didEndLoop = recDidEndLoop
