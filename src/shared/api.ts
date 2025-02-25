@@ -23,6 +23,7 @@ export interface ApiHandlerOptions {
 	liteLlmModelId?: string
 	liteLlmApiKey?: string
 	anthropicBaseUrl?: string
+	anthropicModelInfo?: ModelInfo
 	openRouterApiKey?: string
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
@@ -70,6 +71,9 @@ export interface ModelInfo {
 	supportsImages?: boolean
 	supportsComputerUse?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
+	supportsThinking?: boolean // Whether the model supports thinking/reasoning output
+	maxThinkingTokens?: number // Optional max limit for thinking tokens
+	minThinkingTokens?: number // Minimum thinking token budget
 	inputPrice?: number
 	outputPrice?: number
 	cacheWritesPrice?: number
@@ -88,10 +92,15 @@ export const anthropicModels = {
 		supportsImages: true,
 		supportsComputerUse: true,
 		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
+		supportsThinking: true,
+		maxThinkingTokens: 16_000, // Recommended max before using batch processing
+		minThinkingTokens: 1_024, // Minimum thinking budget
+		inputPrice: 3.0, // $3 per million input tokens
+		outputPrice: 15.0, // $15 per million output tokens (including thinking)
+		cacheWritesPrice: 3.75, // $3.75 per million tokens
+		cacheReadsPrice: 0.3, // $0.30 per million tokens
+		description:
+			"The new Claude 3.7 Sonnet delivers enhanced reasoning capabilities through extended thinking, while maintaining the same pricing as 3.5. Key features:\n\n- Extended thinking: Provides detailed step-by-step reasoning for complex tasks\n- Extended output: Up to 128K tokens output (beta)\n- Visual processing: Better at interpreting charts, graphs, and images\n- Agentic tasks: Exceptional tool use for complex, multi-step problem solving\n\n#multimodal #thinking",
 	},
 	"claude-3-5-sonnet-20241022": {
 		maxTokens: 8192,
