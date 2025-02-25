@@ -21,8 +21,9 @@ export class ClineIgnoreController {
 		this.cwd = cwd
 		this.ignoreInstance = ignore()
 		this.clineIgnoreContent = undefined
-		// Set up file watcher for .clineignore
+		//Set up file watcher for .clineignore
 		this.setupFileWatcher()
+		//Adding a comment here for later
 	}
 
 	/**
