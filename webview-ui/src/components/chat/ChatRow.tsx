@@ -78,14 +78,19 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 
 const ChatRow = memo((props: ChatRowProps) => {
 	const { isLast, onHeightChange, message, lastModifiedMessage } = props
+	// Store the previous height to compare with the current height
+	// This allows us to detect changes without causing re-renders
 	const prevHeightRef = useRef(0)
 
+	// NOTE: for tools that are interrupted and not responded to (approved or rejected) there won't be a checkpoint hash
 	let shouldShowCheckpoints =
 		message.lastCheckpointHash != null &&
 		(message.say === "tool" ||
 			message.ask === "tool" ||
 			message.say === "command" ||
 			message.ask === "command" ||
+			// message.say === "completion_result" ||
+			// message.ask === "completion_result" ||
 			message.say === "use_mcp_server" ||
 			message.ask === "use_mcp_server")
 
@@ -101,7 +106,10 @@ const ChatRow = memo((props: ChatRowProps) => {
 	)
 
 	useEffect(() => {
-		const isInitialRender = prevHeightRef.current === 0
+		// used for partials command output etc.
+		// NOTE: it's important we don't distinguish between partial or complete here since our scroll effects in chatview need to handle height change during partial -> complete
+		const isInitialRender = prevHeightRef.current === 0 // prevents scrolling when new element is added since we already scroll for that
+		// height starts off at Infinity
 		if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
 			if (!isInitialRender) {
 				onHeightChange(height > prevHeightRef.current)
@@ -110,8 +118,11 @@ const ChatRow = memo((props: ChatRowProps) => {
 		}
 	}, [height, isLast, onHeightChange, message])
 
+	// we cannot return null as virtuoso does not support it so we use a separate visibleMessages array to filter out messages that should not be rendered
 	return chatrow
-}, deepEqual)
+}, 
+// memo does shallow comparison of props, so we need to do deep comparison of arrays/objects whose properties might change
+deepEqual)
 
 export default ChatRow
 
@@ -126,9 +137,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 		}
 		return [undefined, undefined, undefined]
 	}, [message.text, message.say])
-
+	
+	// when resuming task last won't be api_req_failed but a resume_task message so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
 	const apiRequestFailedMessage =
-		isLast && lastModifiedMessage?.ask === "api_req_failed" ? lastModifiedMessage?.text : undefined
+		isLast && lastModifiedMessage?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
+			? lastModifiedMessage?.text
+			: undefined
 
 	const isCommandExecuting =
 		isLast &&
@@ -305,16 +319,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 			default:
 				return [null, null]
 		}
-	}, [
-		type,
-		cost,
-		apiRequestFailedMessage,
-		isCommandExecuting,
-		apiReqCancelReason,
-		isMcpServerResponding,
-		message.text,
-		mcpMarketplaceCatalog,
-	])
+	}, [type, cost, apiRequestFailedMessage, isCommandExecuting, apiReqCancelReason, isMcpServerResponding, message.text])
 
 	const headerStyle: React.CSSProperties = {
 		display: "flex",
@@ -356,6 +361,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							<span style={{ fontWeight: "bold" }}>Cline wants to edit this file:</span>
 						</div>
 						<CodeAccordian
+							// isLoading={message.partial}
 							code={tool.content}
 							path={tool.path!}
 							isExpanded={isExpanded}
@@ -384,7 +390,10 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					<>
 						<div style={headerStyle}>
 							{toolIcon("file-code")}
-							<span style={{ fontWeight: "bold" }}>Cline wants to read this file:</span>
+							<span style={{ fontWeight: "bold" }}>
+								{/* {message.type === "ask" ? "" : "Cline read this file:"} */}
+								Cline wants to read this file:
+							</span>
 						</div>
 						<div
 							style={{
@@ -705,6 +714,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									}}>
 									{icon}
 									{title}
+									{/* Need to render this every time since it affects height of row by 2px */}
 									<VSCodeBadge
 										style={{
 											opacity: cost != null && cost > 0 ? 1 : 0,
@@ -722,6 +732,39 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 											color: "var(--vscode-errorForeground)",
 										}}>
 										{apiRequestFailedMessage || apiReqStreamingFailedMessage}
+
+										{/* {apiProvider === "" && (
+												<div
+													style={{
+														display: "flex",
+														alignItems: "center",
+														backgroundColor:
+															"color-mix(in srgb, var(--vscode-errorForeground) 20%, transparent)",
+														color: "var(--vscode-editor-foreground)",
+														padding: "6px 8px",
+														borderRadius: "3px",
+														margin: "10px 0 0 0",
+														fontSize: "12px",
+													}}>
+													<i
+														className="codicon codicon-warning"
+														style={{
+															marginRight: 6,
+															fontSize: 16,
+															color: "var(--vscode-errorForeground)",
+														}}></i>
+													<span>
+														Uh-oh this could be a problem on end. We've been alerted and
+														will resolve this ASAP. You can also{" "}
+														<a
+															href=""
+															style={{ color: "inherit", textDecoration: "underline" }}>
+															contact us
+														</a>
+														.
+													</span>
+												</div>
+											)} */}
 										{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
 											<>
 												<br />
@@ -755,7 +798,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						</>
 					)
 				case "api_req_finished":
-					return null
+					return null // we should never see this message type
 				case "mcp_server_response":
 					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
@@ -771,8 +814,10 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								<div
 									onClick={onToggleExpand}
 									style={{
+										// marginBottom: 15,
 										cursor: "pointer",
 										color: "var(--vscode-descriptionForeground)",
+										
 										fontStyle: "italic",
 										overflow: "hidden",
 									}}>
@@ -1144,7 +1189,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							</div>
 						)
 					} else {
-						return null
+						return null // Don't render anything when we get a completion_result ask without text
 					}
 				case "followup":
 					return (
