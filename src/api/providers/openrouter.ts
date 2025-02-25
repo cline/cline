@@ -56,22 +56,8 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 
 		// prompt caching: https://openrouter.ai/docs/prompt-caching
 		// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
-		switch (modelId) {
-			case "anthropic/claude-3.7-sonnet:thinking":
-			case "anthropic/claude-3.7-sonnet":
-			case "anthropic/claude-3.7-sonnet:beta":
-			case "anthropic/claude-3.5-sonnet":
-			case "anthropic/claude-3.5-sonnet:beta":
-			case "anthropic/claude-3.5-sonnet-20240620":
-			case "anthropic/claude-3.5-sonnet-20240620:beta":
-			case "anthropic/claude-3-5-haiku":
-			case "anthropic/claude-3-5-haiku:beta":
-			case "anthropic/claude-3-5-haiku-20241022":
-			case "anthropic/claude-3-5-haiku-20241022:beta":
-			case "anthropic/claude-3-haiku":
-			case "anthropic/claude-3-haiku:beta":
-			case "anthropic/claude-3-opus":
-			case "anthropic/claude-3-opus:beta":
+		switch (true) {
+			case this.getModel().id.startsWith("anthropic/"):
 				openAiMessages[0] = {
 					role: "system",
 					content: [
@@ -107,20 +93,6 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 				break
 		}
 
-		// Not sure how openrouter defaults max tokens when no value is
-		// provided, but the Anthropic API requires this value and since they
-		// offer both 4096 and 8192 variants, we should ensure 8192.
-		// (Models usually default to max tokens allowed.)
-		let maxTokens: number | undefined = undefined
-
-		if (modelId.startsWith("anthropic/claude-3.5")) {
-			maxTokens = modelInfo.maxTokens ?? 8_192
-		}
-
-		if (modelId.startsWith("anthropic/claude-3.7")) {
-			maxTokens = modelInfo.maxTokens ?? 16_384
-		}
-
 		let defaultTemperature = OPENROUTER_DEFAULT_TEMPERATURE
 		let topP: number | undefined = undefined
 
@@ -136,6 +108,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 
 		let temperature = this.options.modelTemperature ?? defaultTemperature
 
+		// Anthropic "Thinking" models require a temperature of 1.0.
 		if (modelInfo.thinking) {
 			temperature = 1.0
 		}
@@ -145,7 +118,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 
 		const completionParams: OpenRouterChatCompletionParams = {
 			model: modelId,
-			max_tokens: maxTokens,
+			max_tokens: modelInfo.maxTokens,
 			temperature,
 			top_p: topP,
 			messages: openAiMessages,
@@ -290,56 +263,46 @@ export async function getOpenRouterModels() {
 				thinking: rawModel.id === "anthropic/claude-3.7-sonnet:thinking",
 			}
 
-			switch (rawModel.id) {
-				case "anthropic/claude-3.7-sonnet:thinking":
-				case "anthropic/claude-3.7-sonnet":
-				case "anthropic/claude-3.7-sonnet:beta":
-					modelInfo.maxTokens = 16_384
+			// NOTE: this needs to be synced with api.ts/openrouter default model info.
+			switch (true) {
+				case rawModel.id.startsWith("anthropic/claude-3.7-sonnet"):
 					modelInfo.supportsComputerUse = true
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 3.75
 					modelInfo.cacheReadsPrice = 0.3
+					modelInfo.maxTokens = 16384
 					break
-				case "anthropic/claude-3.5-sonnet":
-				case "anthropic/claude-3.5-sonnet:beta":
-					// NOTE: This needs to be synced with api.ts/openrouter default model info.
-					modelInfo.maxTokens = 8_192
+				case rawModel.id.startsWith("anthropic/claude-3.5-sonnet-20240620"):
+					modelInfo.supportsPromptCache = true
+					modelInfo.cacheWritesPrice = 3.75
+					modelInfo.cacheReadsPrice = 0.3
+					modelInfo.maxTokens = 8192
+					break
+				case rawModel.id.startsWith("anthropic/claude-3.5-sonnet"):
 					modelInfo.supportsComputerUse = true
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 3.75
 					modelInfo.cacheReadsPrice = 0.3
+					modelInfo.maxTokens = 8192
 					break
-				case "anthropic/claude-3.5-sonnet-20240620":
-				case "anthropic/claude-3.5-sonnet-20240620:beta":
-					modelInfo.maxTokens = 8_192
-					modelInfo.supportsPromptCache = true
-					modelInfo.cacheWritesPrice = 3.75
-					modelInfo.cacheReadsPrice = 0.3
-					break
-				case "anthropic/claude-3-5-haiku":
-				case "anthropic/claude-3-5-haiku:beta":
-				case "anthropic/claude-3-5-haiku-20241022":
-				case "anthropic/claude-3-5-haiku-20241022:beta":
-				case "anthropic/claude-3.5-haiku":
-				case "anthropic/claude-3.5-haiku:beta":
-				case "anthropic/claude-3.5-haiku-20241022":
-				case "anthropic/claude-3.5-haiku-20241022:beta":
-					modelInfo.maxTokens = 8_192
+				case rawModel.id.startsWith("anthropic/claude-3-5-haiku"):
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 1.25
 					modelInfo.cacheReadsPrice = 0.1
+					modelInfo.maxTokens = 8192
 					break
-				case "anthropic/claude-3-opus":
-				case "anthropic/claude-3-opus:beta":
+				case rawModel.id.startsWith("anthropic/claude-3-opus"):
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 18.75
 					modelInfo.cacheReadsPrice = 1.5
+					modelInfo.maxTokens = 8192
 					break
-				case "anthropic/claude-3-haiku":
-				case "anthropic/claude-3-haiku:beta":
+				case rawModel.id.startsWith("anthropic/claude-3-haiku"):
+				default:
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 0.3
 					modelInfo.cacheReadsPrice = 0.03
+					modelInfo.maxTokens = 8192
 					break
 			}
 

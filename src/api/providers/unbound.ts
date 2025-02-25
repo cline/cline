@@ -73,7 +73,7 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 		let maxTokens: number | undefined
 
 		if (this.getModel().id.startsWith("anthropic/")) {
-			maxTokens = 8_192
+			maxTokens = this.getModel().info.maxTokens
 		}
 
 		const { data: completion, response } = await this.client.chat.completions
@@ -152,7 +152,7 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 			}
 
 			if (this.getModel().id.startsWith("anthropic/")) {
-				requestOptions.max_tokens = 8192
+				requestOptions.max_tokens = this.getModel().info.maxTokens
 			}
 
 			const response = await this.client.chat.completions.create(requestOptions)
@@ -176,7 +176,7 @@ export async function getUnboundModels() {
 			const rawModels: Record<string, any> = response.data
 
 			for (const [modelId, model] of Object.entries(rawModels)) {
-				models[modelId] = {
+				const modelInfo: ModelInfo = {
 					maxTokens: model?.maxTokens ? parseInt(model.maxTokens) : undefined,
 					contextWindow: model?.contextWindow ? parseInt(model.contextWindow) : 0,
 					supportsImages: model?.supportsImages ?? false,
@@ -187,6 +187,19 @@ export async function getUnboundModels() {
 					cacheWritesPrice: model?.cacheWritePrice ? parseFloat(model.cacheWritePrice) : undefined,
 					cacheReadsPrice: model?.cacheReadPrice ? parseFloat(model.cacheReadPrice) : undefined,
 				}
+
+				switch (true) {
+					case modelId.startsWith("anthropic/claude-3-7-sonnet"):
+						modelInfo.maxTokens = 16384
+						break
+					case modelId.startsWith("anthropic/"):
+						modelInfo.maxTokens = 8192
+						break
+					default:
+						break
+				}
+
+				models[modelId] = modelInfo
 			}
 		}
 	} catch (error) {
