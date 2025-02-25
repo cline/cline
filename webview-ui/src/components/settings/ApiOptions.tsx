@@ -8,6 +8,7 @@ import {
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
+import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { useEvent, useInterval } from "react-use"
 import {
 	ApiConfiguration,
@@ -1153,38 +1154,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "qwen" && createDropdown(qwenModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 						</DropdownContainer>
-						
+
 						{selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219" && (
-							<div style={{ marginTop: "10px" }}>
-								<label htmlFor="thinking-budget-slider" style={{ fontWeight: 500, display: "block", marginBottom: "5px" }}>
-									Thinking Budget (tokens): {apiConfiguration?.thinkingBudgetTokens || 0}
-								</label>
-								<input
-									id="thinking-budget-slider"
-									type="range"
-									min="0"
-									max="4000"
-									step="100"
-									value={apiConfiguration?.thinkingBudgetTokens || 0}
-									onChange={(e) => {
-										const value = parseInt(e.target.value, 10);
-										setApiConfiguration({
-											...apiConfiguration,
-											thinkingBudgetTokens: value,
-										});
-										
-										// Update VS Code settings
-										vscode.postMessage({
-											type: "updateThinkingBudgetTokens",
-											number: value
-										});
-									}}
-									style={{ width: "100%" }}
-								/>
-								<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
-									Set to 0 to disable extended thinking. Higher values allow Claude to think more deeply before responding.
-								</p>
-							</div>
+							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						)}
 
 						<ModelInfoView

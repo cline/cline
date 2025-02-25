@@ -1810,7 +1810,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		const o3MiniReasoningEffort = vscode.workspace
 			.getConfiguration("cline.modelSettings.o3Mini")
 			.get("reasoningEffort", "medium")
-			
+
 		const thinkingBudgetTokens = vscode.workspace
 			.getConfiguration("cline.modelSettings.anthropic")
 			.get("thinkingBudgetTokens", 0)
