@@ -2,8 +2,9 @@ import { memo, useCallback, useMemo, useState } from "react"
 import { useDebounce, useEvent } from "react-use"
 import { Checkbox, Dropdown, Pane, type DropdownOption } from "vscrui"
 import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { TemperatureControl } from "./TemperatureControl"
 import * as vscodemodels from "vscode"
+
+import { Slider } from "@/components/ui"
 
 import {
 	ApiConfiguration,
@@ -34,6 +35,7 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
+
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import { OpenRouterModelPicker } from "./OpenRouterModelPicker"
@@ -43,7 +45,7 @@ import { UnboundModelPicker } from "./UnboundModelPicker"
 import { ModelInfoView } from "./ModelInfoView"
 import { DROPDOWN_Z_INDEX } from "./styles"
 import { RequestyModelPicker } from "./RequestyModelPicker"
-import { Slider } from "../ui"
+import { TemperatureControl } from "./TemperatureControl"
 
 interface ApiOptionsProps {
 	uriScheme: string | undefined
@@ -66,8 +68,7 @@ const ApiOptions = ({
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
-	const [anthropicThinkingEnabled, setAnthropicThinkingEnabled] = useState(!!apiConfiguration?.anthropicThinking)
-	const [anthropicThinkingBudget, setAnthropicThinkingBudget] = useState(apiConfiguration?.anthropicThinking ?? 1024)
+	const [anthropicThinkingBudget, setAnthropicThinkingBudget] = useState(apiConfiguration?.anthropicThinking)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [openRouterBaseUrlSelected, setOpenRouterBaseUrlSelected] = useState(!!apiConfiguration?.openRouterBaseUrl)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
@@ -188,6 +189,7 @@ const ApiOptions = ({
 						checked={anthropicBaseUrlSelected}
 						onChange={(checked: boolean) => {
 							setAnthropicBaseUrlSelected(checked)
+
 							if (!checked) {
 								setApiConfigurationField("anthropicBaseUrl", "")
 							}
@@ -387,6 +389,7 @@ const ApiOptions = ({
 								checked={openRouterBaseUrlSelected}
 								onChange={(checked: boolean) => {
 									setOpenRouterBaseUrlSelected(checked)
+
 									if (!checked) {
 										setApiConfigurationField("openRouterBaseUrl", "")
 									}
@@ -510,7 +513,7 @@ const ApiOptions = ({
 				</div>
 			)}
 
-			{apiConfiguration?.apiProvider === "vertex" && (
+			{selectedProvider === "vertex" && (
 				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 					<VSCodeTextField
 						value={apiConfiguration?.vertexProjectId || ""}
@@ -624,6 +627,7 @@ const ApiOptions = ({
 						checked={azureApiVersionSelected}
 						onChange={(checked: boolean) => {
 							setAzureApiVersionSelected(checked)
+
 							if (!checked) {
 								setApiConfigurationField("azureApiVersion", "")
 							}
@@ -1260,23 +1264,33 @@ const ApiOptions = ({
 					</>
 				)}
 
-			{selectedProvider === "anthropic" && (
+			{selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219" && (
 				<div className="flex flex-col gap-2 mt-2">
-					<Checkbox checked={anthropicThinkingEnabled} onChange={setAnthropicThinkingEnabled}>
+					<Checkbox
+						checked={!!anthropicThinkingBudget}
+						onChange={(checked) => {
+							const budget = checked ? 16_384 : undefined
+							setAnthropicThinkingBudget(budget)
+							setApiConfigurationField("anthropicThinking", budget)
+						}}>
 						Thinking?
 					</Checkbox>
-					{anthropicThinkingEnabled && (
+					{anthropicThinkingBudget && (
 						<>
 							<div className="text-muted-foreground text-sm">
-								Number of tokens Claude is allowed use for its internal reasoning process
+								Number of tokens Claude is allowed use for its internal reasoning process.
 							</div>
 							<div className="flex items-center gap-2">
 								<Slider
 									min={1024}
-									max={6399}
-									step={100}
+									max={anthropicModels["claude-3-7-sonnet-20250219"].maxTokens - 1}
+									step={1024}
 									value={[anthropicThinkingBudget]}
-									onValueChange={(value) => setAnthropicThinkingBudget(value[0])}
+									onValueChange={(value) => {
+										const budget = value[0]
+										setAnthropicThinkingBudget(budget)
+										setApiConfigurationField("anthropicThinking", budget)
+									}}
 								/>
 								<div className="w-10">{anthropicThinkingBudget}</div>
 							</div>

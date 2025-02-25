@@ -1,15 +1,7 @@
-import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react"
-import { ExtensionStateContextType, useExtensionState } from "../../context/ExtensionStateContext"
-import { validateApiConfiguration, validateModelId } from "../../utils/validate"
-import { vscode } from "../../utils/vscode"
-import ApiOptions from "./ApiOptions"
-import ExperimentalFeature from "./ExperimentalFeature"
-import { EXPERIMENT_IDS, experimentConfigsMap, ExperimentId } from "../../../../src/shared/experiments"
-import ApiConfigManager from "./ApiConfigManager"
-import { Dropdown } from "vscrui"
-import type { DropdownOption } from "vscrui"
-import { ApiConfiguration } from "../../../../src/shared/api"
+import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { Dropdown, type DropdownOption } from "vscrui"
+
 import {
 	AlertDialog,
 	AlertDialogContent,
@@ -19,7 +11,17 @@ import {
 	AlertDialogAction,
 	AlertDialogHeader,
 	AlertDialogFooter,
-} from "../ui/alert-dialog"
+} from "@/components/ui"
+
+import { vscode } from "../../utils/vscode"
+import { validateApiConfiguration, validateModelId } from "../../utils/validate"
+import { ExtensionStateContextType, useExtensionState } from "../../context/ExtensionStateContext"
+import { EXPERIMENT_IDS, experimentConfigsMap, ExperimentId } from "../../../../src/shared/experiments"
+import { ApiConfiguration } from "../../../../src/shared/api"
+
+import ExperimentalFeature from "./ExperimentalFeature"
+import ApiConfigManager from "./ApiConfigManager"
+import ApiOptions from "./ApiOptions"
 
 type SettingsViewProps = {
 	onDone: () => void
@@ -104,7 +106,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 				if (prevState.apiConfiguration?.[field] === value) {
 					return prevState
 				}
+
 				setChangeDetected(true)
+
 				return {
 					...prevState,
 					apiConfiguration: {
@@ -131,7 +135,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 	}, [])
 
 	const handleSubmit = () => {
+		console.log("handleSubmit", apiConfiguration)
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
+
 		const modelIdValidationResult = validateModelId(
 			apiConfiguration,
 			extensionState.glamaModels,
@@ -140,6 +146,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 
 		setApiErrorMessage(apiValidationResult)
 		setModelIdErrorMessage(modelIdValidationResult)
+
 		if (!apiValidationResult && !modelIdValidationResult) {
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
@@ -162,18 +169,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			vscode.postMessage({ type: "rateLimitSeconds", value: rateLimitSeconds })
 			vscode.postMessage({ type: "maxOpenTabsContext", value: maxOpenTabsContext })
 			vscode.postMessage({ type: "currentApiConfigName", text: currentApiConfigName })
-			vscode.postMessage({
-				type: "updateExperimental",
-				values: experiments,
-			})
+			vscode.postMessage({ type: "updateExperimental", values: experiments })
 			vscode.postMessage({ type: "alwaysAllowModeSwitch", bool: alwaysAllowModeSwitch })
-
-			vscode.postMessage({
-				type: "upsertApiConfiguration",
-				text: currentApiConfigName,
-				apiConfiguration,
-			})
-			// onDone()
+			vscode.postMessage({ type: "upsertApiConfiguration", text: currentApiConfigName, apiConfiguration })
 			setChangeDetected(false)
 		}
 	}
