@@ -27,7 +27,7 @@ const TelemetryOptin = () => {
 			}, 1500)
 
 			const closeTimer = setTimeout(() => {
-				vscode.postMessage({ type: "toggleTelemetryOptin", bool: true })
+				vscode.postMessage({ type: "toggleTelemetryOptIn", bool: true })
 			}, 2000)
 
 			return () => {
@@ -42,7 +42,7 @@ const TelemetryOptin = () => {
 	}
 
 	const handleCancel = () => {
-		vscode.postMessage({ type: "toggleTelemetryOptin", bool: false })
+		vscode.postMessage({ type: "toggleTelemetryOptIn", bool: false })
 	}
 
 	if (showThankYou) {

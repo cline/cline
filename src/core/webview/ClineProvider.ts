@@ -916,8 +916,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						)
 						break
 					}
-					case "toggleTelemetryOptin": {
-						await vscode.workspace.getConfiguration().update("cline.enableTelemetry", true, true)
+					case "toggleTelemetryOptIn": {
+						await vscode.workspace.getConfiguration().update("cline.enableTelemetry", message.bool, true)
 						await this.updateGlobalState("hideTelemetryOptIn", true)
 						await this.postStateToWebview()
 						break

@@ -2,4 +2,4 @@
 "claude-dev": minor
 ---
 
-Include optional telemtry to help cline improve
+Include optional telemetry to help cline improve

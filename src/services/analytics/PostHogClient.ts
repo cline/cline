@@ -1,14 +1,17 @@
 import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
 
+const apiKey = "phc_5WnLHpYyC30Bsb7VSJ6DzcPXZ34JSF08DJLyM7svZ15"
+const apiHost = "https://us.i.posthog.com"
+
 class PostHogClient {
 	private static instance: PostHogClient
 	private client: PostHog
 	private distinctId: string = vscode.env.machineId
 
 	private constructor() {
-		this.client = new PostHog("phc_5WnLHpYyC30Bsb7VSJ6DzcPXZ34JSF08DJLyM7svZ15", {
-			host: "https://us.i.posthog.com",
+		this.client = new PostHog(apiKey, {
+			host: apiHost,
 			enableExceptionAutocapture: true,
 		})
 	}

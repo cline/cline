@@ -54,7 +54,7 @@ export interface WebviewMessage {
 		| "updateMcpTimeout"
 		| "fetchOpenGraphData"
 		| "checkIsImageUrl"
-		| "toggleTelemetryOptin"
+		| "toggleTelemetryOptIn"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
