@@ -193,6 +193,9 @@ export function deactivate() {
 }
 
 // TODO: Find a solution for automatically removing DEV related content from production builds.
+//  This type of code is fine in production to keep. We just will want to remove it from production builds
+//  to bring down built asset sizes.
+//
 // This is a workaround to reload the extension when the source code changes
 // since vscode doesn't support hot reload for extensions
 const { IS_DEV, DEV_WORKSPACE_FOLDER } = process.env
