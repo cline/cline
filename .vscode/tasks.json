@@ -23,37 +23,12 @@
 			"label": "npm: build:webview",
 			"presentation": {
 				"group": "watch",
-				"reveal": "never",
-				"close": true
-			}
-		},
-		{
-			"type": "npm",
-			"script": "dev:webview",
-			"group": "build",
-			"problemMatcher": [
-				{
-					"pattern": [
-						{
-							"regexp": ".",
-							"file": 1,
-							"location": 2,
-							"message": 3
-						}
-					],
-					"background": {
-						"activeOnStart": true,
-						"beginsPattern": ".",
-						"endsPattern": "."
-					}
+				"reveal": "never"
+			},
+			"options": {
+				"env": {
+					"IS_DEV": "true"
 				}
-			],
-			"isBackground": true,
-			"label": "npm: dev:webview",
-			"presentation": {
-				"group": "watch",
-				"reveal": "never",
-				"close": true
 			}
 		},
 		{

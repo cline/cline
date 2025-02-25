@@ -25,6 +25,7 @@ import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
 import { highlightMentions } from "./TaskHeader"
 import { CheckmarkControl } from "../common/CheckmarkControl"
+import McpResponseDisplay from "../mcp/McpResponseDisplay"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -46,62 +47,87 @@ interface ChatRowProps {
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
-const ChatRow = memo(
-	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message, lastModifiedMessage } = props
-		// Store the previous height to compare with the current height
-		// This allows us to detect changes without causing re-renders
-		const prevHeightRef = useRef(0)
-
-		// NOTE: for tools that are interrupted and not responded to (approved or rejected), there won't be a checkpoint hash
-		let shouldShowCheckpoints =
-			message.lastCheckpointHash != null &&
-			(message.say === "tool" ||
-				message.ask === "tool" ||
-				message.say === "command" ||
-				message.ask === "command" ||
-				// message.say === "completion_result" ||
-				// message.ask === "completion_result" ||
-				message.say === "use_mcp_server" ||
-				message.ask === "use_mcp_server")
-
-		if (shouldShowCheckpoints && isLast) {
-			shouldShowCheckpoints =
-				lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
-		}
-
-		const [chatrow, { height }] = useSize(
-			<ChatRowContainer>
-				<ChatRowContent {...props} />
-				{shouldShowCheckpoints && <CheckpointOverlay messageTs={message.ts} />}
-			</ChatRowContainer>,
-		)
-
-		useEffect(() => {
-			// used for partials, command output, etc.
-			// NOTE: it's important we don't distinguish between partial or complete here since our scroll effects in chatview need to handle height change during partial -> complete
-			const isInitialRender = prevHeightRef.current === 0 // prevents scrolling when new element is added since we already scroll for that
-			// height starts off at Infinity
-			if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
-				if (!isInitialRender) {
-					onHeightChange(height > prevHeightRef.current)
-				}
-				prevHeightRef.current = height
-			}
-		}, [height, isLast, onHeightChange, message])
-
-		// we cannot return null as virtuoso does not support it, so we use a separate visibleMessages array to filter out messages that should not be rendered
-		return chatrow
-	},
-	// memo does shallow comparison of props, so we need to do deep comparison of arrays/objects whose properties might change
-	deepEqual,
+export const ProgressIndicator = () => (
+	<div
+		style={{
+			width: "16px",
+			height: "16px",
+			display: "flex",
+			alignItems: "center",
+			justifyContent: "center",
+		}}>
+		<div style={{ transform: "scale(0.55)", transformOrigin: "center" }}>
+			<VSCodeProgressRing />
+		</div>
+	</div>
 )
+
+const Markdown = memo(({ markdown }: { markdown?: string }) => {
+	return (
+		<div
+			style={{
+				wordBreak: "break-word",
+				overflowWrap: "anywhere",
+				marginBottom: -15,
+				marginTop: -15,
+			}}>
+			<MarkdownBlock markdown={markdown} />
+		</div>
+	)
+})
+
+const ChatRow = memo((props: ChatRowProps) => {
+	const { isLast, onHeightChange, message, lastModifiedMessage } = props
+	// Store the previous height to compare with the current height
+	// This allows us to detect changes without causing re-renders
+	const prevHeightRef = useRef(0)
+
+	// NOTE: for tools that are interrupted and not responded to (approved or rejected) there won't be a checkpoint hash
+	let shouldShowCheckpoints =
+		message.lastCheckpointHash != null &&
+		(message.say === "tool" ||
+			message.ask === "tool" ||
+			message.say === "command" ||
+			message.ask === "command" ||
+			// message.say === "completion_result" ||
+			// message.ask === "completion_result" ||
+			message.say === "use_mcp_server" ||
+			message.ask === "use_mcp_server")
+
+	if (shouldShowCheckpoints && isLast) {
+		shouldShowCheckpoints = lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
+	}
+
+	const [chatrow, { height }] = useSize(
+		<ChatRowContainer>
+			<ChatRowContent {...props} />
+			{shouldShowCheckpoints && <CheckpointOverlay messageTs={message.ts} />}
+		</ChatRowContainer>,
+	)
+
+	useEffect(() => {
+		// used for partials command output etc.
+		// NOTE: it's important we don't distinguish between partial or complete here since our scroll effects in chatview need to handle height change during partial -> complete
+		const isInitialRender = prevHeightRef.current === 0 // prevents scrolling when new element is added since we already scroll for that
+		// height starts off at Infinity
+		if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
+			if (!isInitialRender) {
+				onHeightChange(height > prevHeightRef.current)
+			}
+			prevHeightRef.current = height
+		}
+	}, [height, isLast, onHeightChange, message])
+
+	// we cannot return null as virtuoso does not support it so we use a separate visibleMessages array to filter out messages that should not be rendered
+	return chatrow
+}, 
+// memo does shallow comparison of props, so we need to do deep comparison of arrays/objects whose properties might change
+deepEqual)
 
 export default ChatRow
 
 export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
-
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
@@ -111,11 +137,13 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 		}
 		return [undefined, undefined, undefined]
 	}, [message.text, message.say])
-	// when resuming task, last wont be api_req_failed but a resume_task message, so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
+	
+	// when resuming task last won't be api_req_failed but a resume_task message so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
 	const apiRequestFailedMessage =
 		isLast && lastModifiedMessage?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
 			? lastModifiedMessage?.text
 			: undefined
+
 	const isCommandExecuting =
 		isLast &&
 		(lastModifiedMessage?.ask === "command" || lastModifiedMessage?.say === "command") &&
@@ -367,12 +395,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								Cline wants to read this file:
 							</span>
 						</div>
-						{/* <CodeAccordian
-							code={tool.content!}
-							path={tool.path!}
-							isExpanded={isExpanded}
-							onToggleExpand={onToggleExpand}
-						/> */}
 						<div
 							style={{
 								borderRadius: 3,
@@ -498,32 +520,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						/>
 					</>
 				)
-			// case "inspectSite":
-			// 	const isInspecting =
-			// 		isLast && lastModifiedMessage?.say === "inspect_site_result" && !lastModifiedMessage?.images
-			// 	return (
-			// 		<>
-			// 			<div style={headerStyle}>
-			// 				{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
-			// 				<span style={{ fontWeight: "bold" }}>
-			// 					{message.type === "ask" ? (
-			// 						<>Cline wants to inspect this website:</>
-			// 					) : (
-			// 						<>Cline is inspecting this website:</>
-			// 					)}
-			// 				</span>
-			// 			</div>
-			// 			<div
-			// 				style={{
-			// 					borderRadius: 3,
-			// 					border: "1px solid var(--vscode-editorGroup-border)",
-			// 					overflow: "hidden",
-			// 					backgroundColor: CODE_BLOCK_BG_COLOR,
-			// 				}}>
-			// 				<CodeBlock source={`${"```"}shell\n${tool.path}\n${"```"}`} forceWrap={true} />
-			// 			</div>
-			// 		</>
-			// 	)
 			default:
 				return null
 		}
@@ -570,10 +566,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					{icon}
 					{title}
 				</div>
-				{/* <Terminal
-					rawOutput={command + (output ? "\n" + output : "")}
-					shouldAllowInput={!!isCommandExecuting && output.length > 0}
-				/> */}
 				<div
 					style={{
 						borderRadius: 3,
@@ -640,7 +632,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					{useMcpServer.type === "access_mcp_resource" && (
 						<McpResourceRow
 							item={{
-								// Use the matched resource/template details, with fallbacks
 								...(findMatchingResourceOrTemplate(
 									useMcpServer.uri || "",
 									server?.resources,
@@ -650,7 +641,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									mimeType: "",
 									description: "",
 								}),
-								// Always use the actual URI from the request
 								uri: useMcpServer.uri || "",
 							}}
 						/>
@@ -742,6 +732,39 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 											color: "var(--vscode-errorForeground)",
 										}}>
 										{apiRequestFailedMessage || apiReqStreamingFailedMessage}
+
+										{/* {apiProvider === "" && (
+												<div
+													style={{
+														display: "flex",
+														alignItems: "center",
+														backgroundColor:
+															"color-mix(in srgb, var(--vscode-errorForeground) 20%, transparent)",
+														color: "var(--vscode-editor-foreground)",
+														padding: "6px 8px",
+														borderRadius: "3px",
+														margin: "10px 0 0 0",
+														fontSize: "12px",
+													}}>
+													<i
+														className="codicon codicon-warning"
+														style={{
+															marginRight: 6,
+															fontSize: 16,
+															color: "var(--vscode-errorForeground)",
+														}}></i>
+													<span>
+														Uh-oh this could be a problem on end. We've been alerted and
+														will resolve this ASAP. You can also{" "}
+														<a
+															href=""
+															style={{ color: "inherit", textDecoration: "underline" }}>
+															contact us
+														</a>
+														.
+													</span>
+												</div>
+											)} */}
 										{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
 											<>
 												<br />
@@ -759,39 +782,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 											</>
 										)}
 									</p>
-
-									{/* {apiProvider === "" && (
-											<div
-												style={{
-													display: "flex",
-													alignItems: "center",
-													backgroundColor:
-														"color-mix(in srgb, var(--vscode-errorForeground) 20%, transparent)",
-													color: "var(--vscode-editor-foreground)",
-													padding: "6px 8px",
-													borderRadius: "3px",
-													margin: "10px 0 0 0",
-													fontSize: "12px",
-												}}>
-												<i
-													className="codicon codicon-warning"
-													style={{
-														marginRight: 6,
-														fontSize: 16,
-														color: "var(--vscode-errorForeground)",
-													}}></i>
-												<span>
-													Uh-oh, this could be a problem on end. We've been alerted and
-													will resolve this ASAP. You can also{" "}
-													<a
-														href=""
-														style={{ color: "inherit", textDecoration: "underline" }}>
-														contact us
-													</a>
-													.
-												</span>
-											</div>
-										)} */}
 								</>
 							)}
 
@@ -809,6 +799,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					)
 				case "api_req_finished":
 					return null // we should never see this message type
+				case "mcp_server_response":
+					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
 					return (
 						<div>
@@ -825,7 +817,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										// marginBottom: 15,
 										cursor: "pointer",
 										color: "var(--vscode-descriptionForeground)",
-
+										
 										fontStyle: "italic",
 										overflow: "hidden",
 									}}>
@@ -1101,28 +1093,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							</div>
 						</>
 					)
-				case "mcp_server_response":
-					return (
-						<>
-							<div style={{ paddingTop: 0 }}>
-								<div
-									style={{
-										marginBottom: "4px",
-										opacity: 0.8,
-										fontSize: "12px",
-										textTransform: "uppercase",
-									}}>
-									Response
-								</div>
-								<CodeAccordian
-									code={message.text}
-									language="json"
-									isExpanded={true}
-									onToggleExpand={onToggleExpand}
-								/>
-							</div>
-						</>
-					)
 				default:
 					return (
 						<>
@@ -1174,7 +1144,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					)
 				case "completion_result":
 					if (message.text) {
-						// FIXME: is this ever even used?
 						const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
 						const text = hasChanges ? message.text.slice(0, -COMPLETION_RESULT_CHANGES_FLAG.length) : message.text
 						return (
@@ -1247,32 +1216,3 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 			}
 	}
 }
-
-export const ProgressIndicator = () => (
-	<div
-		style={{
-			width: "16px",
-			height: "16px",
-			display: "flex",
-			alignItems: "center",
-			justifyContent: "center",
-		}}>
-		<div style={{ transform: "scale(0.55)", transformOrigin: "center" }}>
-			<VSCodeProgressRing />
-		</div>
-	</div>
-)
-
-const Markdown = memo(({ markdown }: { markdown?: string }) => {
-	return (
-		<div
-			style={{
-				wordBreak: "break-word",
-				overflowWrap: "anywhere",
-				marginBottom: -15,
-				marginTop: -15,
-			}}>
-			<MarkdownBlock markdown={markdown} />
-		</div>
-	)
-})

@@ -10,6 +10,7 @@ import * as vscode from "vscode"
 import { buildApiHandler } from "../../api"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
+import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-preview"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
@@ -709,6 +710,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "openImage":
 						openImage(message.text!)
 						break
+					case "openInBrowser":
+						if (message.url) {
+							vscode.env.openExternal(vscode.Uri.parse(message.url))
+						}
+						break
+					case "fetchOpenGraphData":
+						this.fetchOpenGraphData(message.text!)
+						break
+					case "checkIsImageUrl":
+						this.checkIsImageUrl(message.text!)
+						break
 					case "openFile":
 						openFile(message.text!)
 						break
@@ -892,16 +904,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							} catch (error) {
 								console.error(`Error searching commits: ${JSON.stringify(error)}`)
 							}
-						}
-						break
-					}
-					case "updateMcpTimeout": {
-						try {
-							if (message.serverName && message.timeout) {
-								await this.mcpHub?.updateServerTimeout(message.serverName, message.timeout)
-							}
-						} catch (error) {
-							console.error(`Failed to update timeout for server ${message.serverName}:`, error)
 						}
 						break
 					}
@@ -1333,11 +1335,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			// Create task with context from README and added guidelines for MCP server installation
 			const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
 - Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
-- Use commands aligned with the user's shell and operating system best practices. The user's shell is: ${getShell()}.
 - Create the directory for the new MCP server before starting installation.
-- Follow the MCP servers README exactly—only deviate if it clearly conflicts with the user's OS, in which case proceed thoughtfully.
-- Ensure any steps requiring the use of pip, npm, or any other package manager, are followed as required.
-- After running each command, read its output carefully and adjust subsequent steps as needed based on that information.
+- Use commands aligned with the user's shell and operating system best practices.
+- The following README may contain instructions that conflict with the user's OS, in which case proceed thoughtfully.
 - Once installed, demonstrate the server's capabilities by using one of its tools.
 Here is the project's README to help you get started:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
 
@@ -1499,6 +1499,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 					switch (rawModel.id) {
 						case "anthropic/claude-3-7-sonnet":
 						case "anthropic/claude-3-7-sonnet:beta":
+						case "anthropic/claude-3.7-sonnet":
+						case "anthropic/claude-3.7-sonnet:beta":
 						case "anthropic/claude-3.5-sonnet":
 						case "anthropic/claude-3.5-sonnet:beta":
 							// NOTE: this needs to be synced with api.ts/openrouter default model info
@@ -1988,6 +1990,53 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async getSecret(key: SecretKey) {
 		return await this.context.secrets.get(key)
+	}
+
+	// Open Graph Data
+
+	async fetchOpenGraphData(url: string) {
+		try {
+			// Use the fetchOpenGraphData function from link-preview.ts
+			const ogData = await fetchOpenGraphData(url)
+
+			// Send the data back to the webview
+			await this.postMessageToWebview({
+				type: "openGraphData",
+				openGraphData: ogData,
+				url: url,
+			})
+		} catch (error) {
+			console.error(`Error fetching Open Graph data for ${url}:`, error)
+			// Send an error response
+			await this.postMessageToWebview({
+				type: "openGraphData",
+				error: `Failed to fetch Open Graph data: ${error}`,
+				url: url,
+			})
+		}
+	}
+
+	// Check if a URL is an image
+	async checkIsImageUrl(url: string) {
+		try {
+			// Check if the URL is an image
+			const isImage = await isImageUrl(url)
+
+			// Send the result back to the webview
+			await this.postMessageToWebview({
+				type: "isImageUrlResult",
+				isImage,
+				url,
+			})
+		} catch (error) {
+			console.error(`Error checking if URL is an image: ${url}`, error)
+			// Send an error response
+			await this.postMessageToWebview({
+				type: "isImageUrlResult",
+				isImage: false,
+				url,
+			})
+		}
 	}
 
 	// dev
