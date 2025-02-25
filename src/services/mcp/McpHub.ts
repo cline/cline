@@ -42,6 +42,7 @@ const StdioConfigSchema = z.object({
 	env: z.record(z.string()).optional(),
 	autoApprove: AutoApproveSchema.optional(),
 	disabled: z.boolean().optional(),
+	toolCallTimeoutMillis: z.number().int().nonnegative().optional(),
 })
 
 const McpSettingsSchema = z.object({
@@ -213,6 +214,7 @@ export class McpHub {
 					config: JSON.stringify(config),
 					status: "connecting",
 					disabled: parsedConfig.disabled,
+					toolCallTimeoutMillis: parsedConfig.toolCallTimeoutMillis,
 				},
 				client,
 				transport,
@@ -595,6 +597,7 @@ export class McpHub {
 				},
 			},
 			CallToolResultSchema,
+			{ timeout: connection.server.toolCallTimeoutMillis },
 		)
 	}
 
