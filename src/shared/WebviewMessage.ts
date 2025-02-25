@@ -51,6 +51,7 @@ export interface WebviewMessage {
 		| "showMcpView"
 		| "fetchLatestMcpServersFromHub"
 		| "updateMcpTimeout"
+		| "toggleTelemetryOptin"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean

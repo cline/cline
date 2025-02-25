@@ -7,6 +7,8 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
+import { ClineConfiguration } from "./AdvancedSettings"
+import { WorkspaceConfiguration } from "vscode"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -75,6 +77,9 @@ export interface ExtensionState {
 	chatSettings: ChatSettings
 	isLoggedIn: boolean
 	platform: Platform
+	advancedSettings: WorkspaceConfiguration | ClineConfiguration
+	vscMachineId: string
+	hideTelemetryOptIn: boolean
 	userInfo?: {
 		displayName: string | null
 		email: string | null

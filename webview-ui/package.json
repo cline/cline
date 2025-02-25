@@ -10,6 +10,7 @@
 		"fuse.js": "^7.0.0",
 		"fzf": "^0.5.2",
 		"mermaid": "^11.4.1",
+		"posthog-js": "^1.223.3",
 		"pretty-bytes": "^6.1.1",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1",
@@ -60,6 +61,7 @@
 		"@types/node": "^20.x",
 		"@types/react": "^18.3.3",
 		"@types/react-dom": "^18.3.0",
+		"@types/vscode": "^1.84.0",
 		"@types/vscode-webview": "^1.57.5",
 		"jsdom": "^25.0.1",
 		"vitest": "^2.1.9"

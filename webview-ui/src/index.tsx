@@ -4,11 +4,16 @@ import "./index.css"
 import App from "./App"
 import reportWebVitals from "./reportWebVitals"
 import "../../node_modules/@vscode/codicons/dist/codicon.css"
+import { PostHogProvider } from "posthog-js/react"
 
 const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement)
 root.render(
 	<React.StrictMode>
-		<App />
+		<PostHogProvider
+			apiKey="phc_5WnLHpYyC30Bsb7VSJ6DzcPXZ34JSF08DJLyM7svZ15"
+			options={{ api_host: "https://us.i.posthog.com", capture_pageview: false }}>
+			<App />
+		</PostHogProvider>
 	</React.StrictMode>,
 )
 
