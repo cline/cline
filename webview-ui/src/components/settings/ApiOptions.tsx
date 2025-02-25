@@ -33,6 +33,7 @@ import {
 	unboundDefaultModelInfo,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
+	THINKING_BUDGET,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 
@@ -1270,12 +1271,20 @@ const ApiOptions = ({
 					</>
 				)}
 
-			{selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219" && (
+			{selectedModelInfo && selectedModelInfo.thinking && (
 				<div className="flex flex-col gap-2 mt-2">
 					<Checkbox
 						checked={!!anthropicThinkingBudget}
 						onChange={(checked) =>
-							setApiConfigurationField("anthropicThinking", checked ? 16_384 : undefined)
+							setApiConfigurationField(
+								"anthropicThinking",
+								checked
+									? Math.min(
+											THINKING_BUDGET.default,
+											selectedModelInfo.maxTokens ?? THINKING_BUDGET.default,
+										)
+									: undefined,
+							)
 						}>
 						Thinking?
 					</Checkbox>
@@ -1286,13 +1295,13 @@ const ApiOptions = ({
 							</div>
 							<div className="flex items-center gap-2">
 								<Slider
-									min={1024}
-									max={anthropicModels["claude-3-7-sonnet-20250219"].maxTokens - 1}
-									step={1024}
+									min={THINKING_BUDGET.min}
+									max={(selectedModelInfo.maxTokens ?? THINKING_BUDGET.default) - 1}
+									step={THINKING_BUDGET.step}
 									value={[anthropicThinkingBudget]}
 									onValueChange={(value) => setApiConfigurationField("anthropicThinking", value[0])}
 								/>
-								<div className="w-10">{anthropicThinkingBudget}</div>
+								<div className="w-12">{anthropicThinkingBudget}</div>
 							</div>
 						</>
 					)}
