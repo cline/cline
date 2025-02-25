@@ -40,7 +40,9 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 			await vscode.workspace.fs.writeFile(saveUri, new TextEncoder().encode(markdownContent))
 			vscode.window.showTextDocument(saveUri, { preview: true })
 		} catch (error) {
-			vscode.window.showErrorMessage(`Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`)
+			vscode.window.showErrorMessage(
+				`Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,
+			)
 		}
 	}
 }
