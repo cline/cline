@@ -306,6 +306,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			undefined,
 			historyItem,
 		)
+
+		// Open task from history
+		if (telemetryService.isTelemetryEnabled()) {
+			telemetryService.capture({
+				event: "Open task from history",
+				properties: {
+					apiProvider: apiConfiguration.apiProvider,
+				},
+			})
+		}
 	}
 
 	// Send any JSON serializable data to the react app
