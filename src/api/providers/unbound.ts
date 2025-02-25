@@ -71,7 +71,7 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 		let maxTokens: number | undefined
 
 		if (this.getModel().id.startsWith("anthropic/")) {
-			maxTokens = 8_192
+			maxTokens = this.getModel().info.maxTokens
 		}
 
 		const { data: completion, response } = await this.client.chat.completions
@@ -150,7 +150,7 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 			}
 
 			if (this.getModel().id.startsWith("anthropic/")) {
-				requestOptions.max_tokens = 8192
+				requestOptions.max_tokens = this.getModel().info.maxTokens
 			}
 
 			const response = await this.client.chat.completions.create(requestOptions)
