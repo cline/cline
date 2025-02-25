@@ -2,7 +2,7 @@
 
 ## [3.7.3]
 
-- v3.7.3
+- Support for Sonnet 3.7 "Thinking".
 
 ## [3.7.2]
 
