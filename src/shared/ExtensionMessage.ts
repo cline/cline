@@ -30,6 +30,7 @@ export interface ExtensionMessage {
 		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
 		| "commitSearchResults"
+		| "checkpointSettings"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -54,6 +55,9 @@ export interface ExtensionMessage {
 	error?: string
 	mcpDownloadDetails?: McpDownloadResponse
 	commits?: GitCommit[]
+	checkpointSettings?: {
+		enableCheckpoints: boolean
+	}
 }
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"

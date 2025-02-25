@@ -157,11 +157,6 @@
 					"default": "full",
 					"description": "Controls MCP inclusion in prompts, reduces token usage if you only need access to certain functionality."
 				},
-				"cline.enableCheckpoints": {
-					"type": "boolean",
-					"default": true,
-					"description": "Enables extension to save checkpoints of workspace throughout the task."
-				},
 				"cline.disableBrowserTool": {
 					"type": "boolean",
 					"default": false,

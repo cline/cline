@@ -48,6 +48,10 @@ export interface WebviewMessage {
 		| "downloadMcp"
 		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
+		| "getCheckpointSettings"
+		| "updateCheckpointSettings"
+		| "openCheckpointsIgnore"
+		| "confirmDeleteAllCheckpoints"
 		| "showMcpView"
 		| "fetchLatestMcpServersFromHub"
 	// | "relaunchChromeDebugMode"
@@ -62,6 +66,7 @@ export interface WebviewMessage {
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
+	checkpointSettings?: CheckpointSettings
 	mcpId?: string
 
 	// For toggleToolAutoApprove
@@ -73,3 +78,7 @@ export interface WebviewMessage {
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
 
 export type ClineCheckpointRestore = "task" | "workspace" | "taskAndWorkspace"
+
+export interface CheckpointSettings {
+	enableCheckpoints: boolean
+}
