@@ -33,6 +33,8 @@ import {
 	openRouterDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
+	xAiDefaultModelId,
+	xAiModels,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -192,6 +194,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="requesty">Requesty</VSCodeOption>
 					<VSCodeOption value="together">Together</VSCodeOption>
 					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
+					<VSCodeOption value="xai">X.AI</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
@@ -398,6 +401,37 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									fontSize: "inherit",
 								}}>
 								You can get a Mistral API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "xai" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.xAiApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("xAiApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>X.AI API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.xAiApiKey && (
+							<VSCodeLink
+								href="https://console.x.ai"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get an X.AI API key by signing up here.
 							</VSCodeLink>
 						)}
 					</p>
@@ -1152,6 +1186,27 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "qwen" && createDropdown(qwenModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
+							{selectedProvider === "xai" && (
+								<VSCodeDropdown
+									id="model-id"
+									value={apiConfiguration?.xAiModelId || xAiDefaultModelId}
+									onChange={handleInputChange("xAiModelId")}
+									style={{ width: "100%" }}>
+									<VSCodeOption value="">Select a model...</VSCodeOption>
+									{Object.keys(xAiModels).map((modelId) => (
+										<VSCodeOption
+											key={modelId}
+											value={modelId}
+											style={{
+												whiteSpace: "normal",
+												wordWrap: "break-word",
+												maxWidth: "100%",
+											}}>
+											{modelId}
+										</VSCodeOption>
+									))}
+								</VSCodeDropdown>
+							)}
 						</DropdownContainer>
 
 						<ModelInfoView
@@ -1362,6 +1417,13 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(qwenModels, qwenDefaultModelId)
 		case "mistral":
 			return getProviderData(mistralModels, mistralDefaultModelId)
+		case "xai":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.xAiModelId || xAiDefaultModelId,
+				selectedModelInfo:
+					xAiModels[apiConfiguration?.xAiModelId as keyof typeof xAiModels] || xAiModels[xAiDefaultModelId],
+			}
 		case "openrouter":
 			return {
 				selectedProvider: provider,
