@@ -398,9 +398,10 @@ export const openAiNativeModels = {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 1.1,
 		outputPrice: 4.4,
+		cacheReadsPrice: 0.55,
 	},
 	// don't support tool use yet
 	o1: {
@@ -410,38 +411,43 @@ export const openAiNativeModels = {
 		supportsPromptCache: false,
 		inputPrice: 15,
 		outputPrice: 60,
+		cacheReadsPrice: 7.5,
 	},
 	"o1-preview": {
 		maxTokens: 32_768,
 		contextWindow: 128_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 15,
 		outputPrice: 60,
+		cacheReadsPrice: 7.5,
 	},
 	"o1-mini": {
 		maxTokens: 65_536,
 		contextWindow: 128_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 1.1,
 		outputPrice: 4.4,
+		cacheReadsPrice: 0.55,
 	},
 	"gpt-4o": {
 		maxTokens: 4_096,
 		contextWindow: 128_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 2.5,
 		outputPrice: 10,
+		cacheReadsPrice: 1.25,
 	},
 	"gpt-4o-mini": {
 		maxTokens: 16_384,
 		contextWindow: 128_000,
 		supportsImages: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 0.15,
 		outputPrice: 0.6,
+		cacheReadsPrice: 0.075,
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -459,8 +465,8 @@ export const deepSeekModels = {
 		maxTokens: 8_000,
 		contextWindow: 64_000,
 		supportsImages: false,
-		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
-		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
+		supportsPromptCache: true,
+		inputPrice: 0.14,
 		outputPrice: 0.28,
 		cacheWritesPrice: 0.14,
 		cacheReadsPrice: 0.014,
@@ -469,8 +475,8 @@ export const deepSeekModels = {
 		maxTokens: 8_000,
 		contextWindow: 64_000,
 		supportsImages: false,
-		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
-		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
+		supportsPromptCache: true,
+		inputPrice: 0.55,
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,
