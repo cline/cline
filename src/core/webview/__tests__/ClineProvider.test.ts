@@ -409,7 +409,11 @@ describe("ClineProvider", () => {
 	test("clearTask aborts current task", async () => {
 		// prepare the mock object
 		const mockAbortTask = jest.fn()
-		const clineMock = { abortTask: mockAbortTask } as unknown as Cline
+		const clineMock = {
+			abortTask: mockAbortTask,
+			getTaskNumber: jest.fn(),
+			setTaskNumber: jest.fn(),
+		} as unknown as Cline
 
 		// add the mock object to the stack
 		provider.addClineToStack(clineMock)
@@ -432,8 +436,16 @@ describe("ClineProvider", () => {
 
 	test("addClineToStack adds multiple Cline instances to the stack", () => {
 		// prepare test data
-		const mockCline1 = { taskId: "test-task-id-1" } as unknown as Cline
-		const mockCline2 = { taskId: "test-task-id-2" } as unknown as Cline
+		const mockCline1 = {
+			taskId: "test-task-id-1",
+			getTaskNumber: jest.fn(),
+			setTaskNumber: jest.fn(),
+		} as unknown as Cline
+		const mockCline2 = {
+			taskId: "test-task-id-2",
+			getTaskNumber: jest.fn(),
+			setTaskNumber: jest.fn(),
+		} as unknown as Cline
 
 		// add Cline instances to the stack
 		provider.addClineToStack(mockCline1)
