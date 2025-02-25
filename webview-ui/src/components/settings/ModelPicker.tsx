@@ -5,6 +5,7 @@ import { normalizeApiConfiguration } from "./ApiOptions"
 import { ModelInfoView } from "./ModelInfoView"
 import { ApiConfiguration, ModelInfo } from "../../../../src/shared/api"
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem } from "../ui/combobox"
+import ApiErrorMessage from "./ApiErrorMessage"
 
 type ExtractType<T> = NonNullable<
 	{ [K in keyof ApiConfiguration]: Required<ApiConfiguration>[K] extends T ? K : never }[keyof ApiConfiguration]
@@ -30,6 +31,7 @@ interface ModelPickerProps {
 	apiConfiguration: ApiConfiguration
 	setApiConfigurationField: <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => void
 	defaultModelInfo?: ModelInfo
+	errorMessage?: string
 }
 
 export const ModelPicker = ({
@@ -43,6 +45,7 @@ export const ModelPicker = ({
 	apiConfiguration,
 	setApiConfigurationField,
 	defaultModelInfo,
+	errorMessage,
 }: ModelPickerProps) => {
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
@@ -69,11 +72,16 @@ export const ModelPicker = ({
 	return (
 		<>
 			<div className="font-semibold">Model</div>
-			<Combobox type="single" inputValue={apiConfiguration[modelIdKey]} onInputValueChange={onSelect}>
+			<Combobox
+				style={errorMessage ? { "--color-vscode-dropdown-border": "var(--color-vscode-errorForeground)" } : {}}
+				type="single"
+				inputValue={apiConfiguration[modelIdKey]}
+				onInputValueChange={onSelect}>
 				<ComboboxInput
 					className="border-vscode-errorForeground tefat"
 					placeholder="Search model..."
 					data-testid="model-input"
+					aria-errormessage={errorMessage}
 				/>
 				<ComboboxContent>
 					<ComboboxEmpty>No model found.</ComboboxEmpty>
@@ -85,13 +93,30 @@ export const ModelPicker = ({
 				</ComboboxContent>
 			</Combobox>
 
-			{selectedModelId && selectedModelInfo && (
-				<ModelInfoView
-					selectedModelId={selectedModelId}
-					modelInfo={selectedModelInfo}
-					isDescriptionExpanded={isDescriptionExpanded}
-					setIsDescriptionExpanded={setIsDescriptionExpanded}
-				/>
+			{errorMessage ? (
+				<ApiErrorMessage errorMessage={errorMessage}>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							<span style={{ fontWeight: 500 }}>Note:</span> Roo Code uses complex prompts and works best
+							with Claude models. Less capable models may not work as expected.
+						</span>
+					</p>
+				</ApiErrorMessage>
+			) : (
+				selectedModelId &&
+				selectedModelInfo && (
+					<ModelInfoView
+						selectedModelId={selectedModelId}
+						modelInfo={selectedModelInfo}
+						isDescriptionExpanded={isDescriptionExpanded}
+						setIsDescriptionExpanded={setIsDescriptionExpanded}
+					/>
+				)
 			)}
 			<p>
 				The extension automatically fetches the latest list of models available on{" "}

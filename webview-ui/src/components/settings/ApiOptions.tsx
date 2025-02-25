@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from "react"
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useDebounce, useEvent } from "react-use"
 import { Checkbox, Dropdown, Pane, type DropdownOption } from "vscrui"
 import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -42,23 +42,25 @@ import { ModelInfoView } from "./ModelInfoView"
 import { DROPDOWN_Z_INDEX } from "./styles"
 import { ModelPicker } from "./ModelPicker"
 import { TemperatureControl } from "./TemperatureControl"
+import { validateApiConfiguration, validateModelId } from "@/utils/validate"
+import ApiErrorMessage from "./ApiErrorMessage"
 
 interface ApiOptionsProps {
 	uriScheme: string | undefined
 	apiConfiguration: ApiConfiguration
 	setApiConfigurationField: <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => void
-	apiErrorMessage?: string
-	modelIdErrorMessage?: string
 	fromWelcomeView?: boolean
+	errorMessage: string | undefined
+	setErrorMessage: React.Dispatch<React.SetStateAction<string | undefined>>
 }
 
 const ApiOptions = ({
 	uriScheme,
 	apiConfiguration,
 	setApiConfigurationField,
-	apiErrorMessage,
-	modelIdErrorMessage,
 	fromWelcomeView,
+	errorMessage,
+	setErrorMessage,
 }: ApiOptionsProps) => {
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
@@ -145,6 +147,13 @@ const ApiOptions = ({
 			apiConfiguration?.requestyApiKey,
 		],
 	)
+
+	useEffect(() => {
+		const apiValidationResult =
+			validateApiConfiguration(apiConfiguration) ||
+			validateModelId(apiConfiguration, glamaModels, openRouterModels, unboundModels)
+		setErrorMessage(apiValidationResult)
+	}, [apiConfiguration, glamaModels, openRouterModels, setErrorMessage, unboundModels])
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
@@ -626,6 +635,7 @@ const ApiOptions = ({
 							]}
 						/>
 					</div>
+					{errorMessage && <ApiErrorMessage errorMessage={errorMessage} />}
 					<p
 						style={{
 							fontSize: "12px",
@@ -705,6 +715,7 @@ const ApiOptions = ({
 						models={openAiModels}
 						setApiConfigurationField={setApiConfigurationField}
 						defaultModelInfo={openAiModelInfoSaneDefaults}
+						errorMessage={errorMessage}
 					/>
 					<div style={{ display: "flex", alignItems: "center" }}>
 						<Checkbox
@@ -1068,18 +1079,6 @@ const ApiOptions = ({
 					/>
 
 					{/* end Model Info Configuration */}
-
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Roo Code uses complex prompts and works best
-							with Claude models. Less capable models may not work as expected.)
-						</span>
-					</p>
 				</div>
 			)}
 
@@ -1100,6 +1099,7 @@ const ApiOptions = ({
 						placeholder={"e.g. meta-llama-3.1-8b-instruct"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					{errorMessage && <ApiErrorMessage errorMessage={errorMessage} />}
 
 					{lmStudioModels.length > 0 && (
 						<VSCodeRadioGroup
@@ -1245,6 +1245,12 @@ const ApiOptions = ({
 						placeholder={"e.g. llama3.1"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					{errorMessage && (
+						<div className="text-vscode-errorForeground text-sm">
+							<span style={{ fontSize: "2em" }} className={`codicon codicon-close align-middle mr-1`} />
+							{errorMessage}
+						</div>
+					)}
 					{ollamaModels.length > 0 && (
 						<VSCodeRadioGroup
 							value={
@@ -1321,20 +1327,9 @@ const ApiOptions = ({
 						serviceUrl="https://api.getunbound.ai/models"
 						recommendedModel={unboundDefaultModelId}
 						setApiConfigurationField={setApiConfigurationField}
+						errorMessage={errorMessage}
 					/>
 				</div>
-			)}
-
-			{apiErrorMessage && (
-				<p
-					style={{
-						margin: "-10px 0 4px 0",
-						fontSize: 12,
-						color: "var(--vscode-errorForeground)",
-					}}>
-					<span style={{ fontSize: "2em" }} className={`codicon codicon-close align-middle mr-1`} />
-					{apiErrorMessage}
-				</p>
 			)}
 
 			{selectedProvider === "glama" && (
@@ -1349,6 +1344,7 @@ const ApiOptions = ({
 					serviceUrl="https://glama.ai/models"
 					recommendedModel="anthropic/claude-3-7-sonnet"
 					setApiConfigurationField={setApiConfigurationField}
+					errorMessage={errorMessage}
 				/>
 			)}
 
@@ -1364,6 +1360,7 @@ const ApiOptions = ({
 					serviceName="OpenRouter"
 					serviceUrl="https://openrouter.ai/models"
 					recommendedModel="anthropic/claude-3.7-sonnet"
+					errorMessage={errorMessage}
 				/>
 			)}
 			{selectedProvider === "requesty" && (
@@ -1378,6 +1375,7 @@ const ApiOptions = ({
 					serviceName="Requesty"
 					serviceUrl="https://requesty.ai"
 					recommendedModel="anthropic/claude-3-7-sonnet-latest"
+					errorMessage={errorMessage}
 				/>
 			)}
 
@@ -1401,6 +1399,7 @@ const ApiOptions = ({
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 						</div>
+						{errorMessage && <ApiErrorMessage errorMessage={errorMessage} />}
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}
@@ -1447,18 +1446,6 @@ const ApiOptions = ({
 						maxValue={2}
 					/>
 				</div>
-			)}
-
-			{modelIdErrorMessage && (
-				<p
-					style={{
-						margin: "-10px 0 4px 0",
-						fontSize: 12,
-						color: "var(--vscode-errorForeground)",
-					}}>
-					<span style={{ fontSize: "2em" }} className={`codicon codicon-close align-middle mr-1`} />
-					{modelIdErrorMessage}
-				</p>
 			)}
 		</div>
 	)
