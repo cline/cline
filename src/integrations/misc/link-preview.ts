@@ -1,14 +1,14 @@
 import * as vscode from "vscode"
 import axios from "axios"
-import ogs from 'open-graph-scraper'
+import ogs from "open-graph-scraper"
 
 interface OpenGraphData {
-  title?: string
-  description?: string
-  image?: string
-  url?: string
-  siteName?: string
-  type?: string
+	title?: string
+	description?: string
+	image?: string
+	url?: string
+	siteName?: string
+	type?: string
 }
 
 /**
@@ -17,66 +17,71 @@ interface OpenGraphData {
  * @returns Promise resolving to OpenGraphData
  */
 export async function fetchOpenGraphData(url: string): Promise<OpenGraphData> {
-  try {
-    const options = {
-      url: url,
-      timeout: 5000,
-      headers: {
-        'user-agent': 'Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://cline.bot)'
-      },
-      onlyGetOpenGraphInfo: false, // Get all metadata, not just Open Graph
-      fetchOptions: {
-        redirect: 'follow' // Follow redirects
-      } as any
-    }
-    
-    const { result } = await ogs(options)
-    
-    // Use type assertion to avoid TypeScript errors
-    const data = result as any
-    
-    // Handle image URLs
-    let imageUrl = data.ogImage?.[0]?.url || data.twitterImage?.[0]?.url
-    
-    // If the image URL is relative, make it absolute
-    if (imageUrl && (imageUrl.startsWith('/') || imageUrl.startsWith('./'))) {
-      try {
-        // Extract the base URL and make the relative URL absolute
-        const urlObj = new URL(url)
-        const baseUrl = `${urlObj.protocol}//${urlObj.hostname}`
-        imageUrl = new URL(imageUrl, baseUrl).href
-      } catch (error) {
-        console.error(`Error converting relative URL to absolute: ${imageUrl}`, error)
-      }
-    }
-    
-    return {
-      title: data.ogTitle || data.twitterTitle || data.dcTitle || data.title || new URL(url).hostname,
-      description: data.ogDescription || data.twitterDescription || data.dcDescription || data.description || 'No description available',
-      image: imageUrl,
-      url: data.ogUrl || url,
-      siteName: data.ogSiteName || new URL(url).hostname,
-      type: data.ogType
-    }
-  } catch (error) {
-    console.error(`Error fetching Open Graph data for ${url}:`, error)
-    // Return basic information based on the URL
-    try {
-      const urlObj = new URL(url)
-      return {
-        title: urlObj.hostname,
-        description: url,
-        url: url,
-        siteName: urlObj.hostname
-      }
-    } catch {
-      return {
-        title: url,
-        description: url,
-        url: url
-      }
-    }
-  }
+	try {
+		const options = {
+			url: url,
+			timeout: 5000,
+			headers: {
+				"user-agent": "Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://cline.bot)",
+			},
+			onlyGetOpenGraphInfo: false, // Get all metadata, not just Open Graph
+			fetchOptions: {
+				redirect: "follow", // Follow redirects
+			} as any,
+		}
+
+		const { result } = await ogs(options)
+
+		// Use type assertion to avoid TypeScript errors
+		const data = result as any
+
+		// Handle image URLs
+		let imageUrl = data.ogImage?.[0]?.url || data.twitterImage?.[0]?.url
+
+		// If the image URL is relative, make it absolute
+		if (imageUrl && (imageUrl.startsWith("/") || imageUrl.startsWith("./"))) {
+			try {
+				// Extract the base URL and make the relative URL absolute
+				const urlObj = new URL(url)
+				const baseUrl = `${urlObj.protocol}//${urlObj.hostname}`
+				imageUrl = new URL(imageUrl, baseUrl).href
+			} catch (error) {
+				console.error(`Error converting relative URL to absolute: ${imageUrl}`, error)
+			}
+		}
+
+		return {
+			title: data.ogTitle || data.twitterTitle || data.dcTitle || data.title || new URL(url).hostname,
+			description:
+				data.ogDescription ||
+				data.twitterDescription ||
+				data.dcDescription ||
+				data.description ||
+				"No description available",
+			image: imageUrl,
+			url: data.ogUrl || url,
+			siteName: data.ogSiteName || new URL(url).hostname,
+			type: data.ogType,
+		}
+	} catch (error) {
+		console.error(`Error fetching Open Graph data for ${url}:`, error)
+		// Return basic information based on the URL
+		try {
+			const urlObj = new URL(url)
+			return {
+				title: urlObj.hostname,
+				description: url,
+				url: url,
+				siteName: urlObj.hostname,
+			}
+		} catch {
+			return {
+				title: url,
+				description: url,
+				url: url,
+			}
+		}
+	}
 }
 
 /**
@@ -85,21 +90,21 @@ export async function fetchOpenGraphData(url: string): Promise<OpenGraphData> {
  * @returns Promise resolving to boolean indicating if the URL is an image
  */
 export async function isImageUrl(url: string): Promise<boolean> {
-  try {
-    const response = await axios.head(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://cline.bot)'
-      },
-      timeout: 3000
-    })
-    
-    const contentType = response.headers['content-type']
-    return contentType && contentType.startsWith('image/')
-  } catch (error) {
-    console.error(`Error checking if URL is an image: ${url}`, error)
-    // If we can't determine, fall back to checking the file extension
-    return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(url)
-  }
+	try {
+		const response = await axios.head(url, {
+			headers: {
+				"User-Agent": "Mozilla/5.0 (compatible; VSCodeExtension/1.0; +https://cline.bot)",
+			},
+			timeout: 3000,
+		})
+
+		const contentType = response.headers["content-type"]
+		return contentType && contentType.startsWith("image/")
+	} catch (error) {
+		console.error(`Error checking if URL is an image: ${url}`, error)
+		// If we can't determine, fall back to checking the file extension
+		return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(url)
+	}
 }
 
 /**
@@ -107,18 +112,18 @@ export async function isImageUrl(url: string): Promise<boolean> {
  * @param url The URL to preview
  */
 export async function openLinkPreview(url: string): Promise<void> {
-  // First check if it's an image
-  const isImage = await isImageUrl(url)
-  
-  if (isImage) {
-    // If it's an image, show it directly
-    openImagePreview(url)
-    return
-  }
-  
-  // Otherwise, fetch Open Graph data and show a rich preview
-  const ogData = await fetchOpenGraphData(url)
-  openRichLinkPreview(url, ogData)
+	// First check if it's an image
+	const isImage = await isImageUrl(url)
+
+	if (isImage) {
+		// If it's an image, show it directly
+		openImagePreview(url)
+		return
+	}
+
+	// Otherwise, fetch Open Graph data and show a rich preview
+	const ogData = await fetchOpenGraphData(url)
+	openRichLinkPreview(url, ogData)
 }
 
 /**
@@ -126,17 +131,12 @@ export async function openLinkPreview(url: string): Promise<void> {
  * @param imageUrl The URL of the image to preview
  */
 function openImagePreview(imageUrl: string): void {
-  const panel = vscode.window.createWebviewPanel(
-    'linkPreview',
-    'Image Preview',
-    vscode.ViewColumn.One,
-    {
-      enableScripts: true,
-      retainContextWhenHidden: true
-    }
-  )
-  
-  panel.webview.html = getImagePreviewHtml(imageUrl)
+	const panel = vscode.window.createWebviewPanel("linkPreview", "Image Preview", vscode.ViewColumn.One, {
+		enableScripts: true,
+		retainContextWhenHidden: true,
+	})
+
+	panel.webview.html = getImagePreviewHtml(imageUrl)
 }
 
 /**
@@ -145,17 +145,12 @@ function openImagePreview(imageUrl: string): void {
  * @param ogData The Open Graph data for the URL
  */
 function openRichLinkPreview(url: string, ogData: OpenGraphData): void {
-  const panel = vscode.window.createWebviewPanel(
-    'linkPreview',
-    ogData.title || 'Link Preview',
-    vscode.ViewColumn.One,
-    {
-      enableScripts: true,
-      retainContextWhenHidden: true
-    }
-  )
-  
-  panel.webview.html = getRichLinkPreviewHtml(url, ogData)
+	const panel = vscode.window.createWebviewPanel("linkPreview", ogData.title || "Link Preview", vscode.ViewColumn.One, {
+		enableScripts: true,
+		retainContextWhenHidden: true,
+	})
+
+	panel.webview.html = getRichLinkPreviewHtml(url, ogData)
 }
 
 /**
@@ -164,7 +159,7 @@ function openRichLinkPreview(url: string, ogData: OpenGraphData): void {
  * @returns HTML content as a string
  */
 function getImagePreviewHtml(imageUrl: string): string {
-  return `<!DOCTYPE html>
+	return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -246,12 +241,12 @@ function getImagePreviewHtml(imageUrl: string): string {
  * @returns HTML content as a string
  */
 function getRichLinkPreviewHtml(url: string, ogData: OpenGraphData): string {
-  return `<!DOCTYPE html>
+	return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${ogData.title || 'Link Preview'}</title>
+    <title>${ogData.title || "Link Preview"}</title>
     <style>
         body {
             display: flex;
@@ -320,12 +315,12 @@ function getRichLinkPreviewHtml(url: string, ogData: OpenGraphData): string {
 <body>
     <div class="preview-container">
         <div class="preview-header">
-            <div class="preview-title">${ogData.title || 'No title available'}</div>
+            <div class="preview-title">${ogData.title || "No title available"}</div>
             <div class="preview-site">${ogData.siteName || new URL(url).hostname}</div>
             <div class="preview-url">${ogData.url || url}</div>
         </div>
         
-        ${ogData.image ? `<img class="preview-image" src="${ogData.image}" alt="Preview image" />` : ''}
+        ${ogData.image ? `<img class="preview-image" src="${ogData.image}" alt="Preview image" />` : ""}
         
         <div class="preview-description">
             ${ogData.description || '<span class="no-data">No description available</span>'}

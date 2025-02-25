@@ -6,19 +6,14 @@ import * as vscode from "vscode"
  * @param title Optional title for the webview panel
  */
 export function openImageInWebview(imageUrl: string, title: string = "Image Viewer") {
-  // Create and show panel
-  const panel = vscode.window.createWebviewPanel(
-    'imageViewer',
-    title,
-    vscode.ViewColumn.One,
-    {
-      enableScripts: true,
-      retainContextWhenHidden: true
-    }
-  )
+	// Create and show panel
+	const panel = vscode.window.createWebviewPanel("imageViewer", title, vscode.ViewColumn.One, {
+		enableScripts: true,
+		retainContextWhenHidden: true,
+	})
 
-  // Set the webview's HTML content
-  panel.webview.html = getWebviewContent(imageUrl)
+	// Set the webview's HTML content
+	panel.webview.html = getWebviewContent(imageUrl)
 }
 
 /**
@@ -27,7 +22,7 @@ export function openImageInWebview(imageUrl: string, title: string = "Image View
  * @returns HTML content as a string
  */
 function getWebviewContent(imageUrl: string) {
-  return `<!DOCTYPE html>
+	return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">

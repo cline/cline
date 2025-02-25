@@ -1931,12 +1931,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		try {
 			// Use the fetchOpenGraphData function from link-preview.ts
 			const ogData = await fetchOpenGraphData(url)
-			
+
 			// Send the data back to the webview
 			await this.postMessageToWebview({
 				type: "openGraphData",
 				openGraphData: ogData,
-				url: url
+				url: url,
 			})
 		} catch (error) {
 			console.error(`Error fetching Open Graph data for ${url}:`, error)
@@ -1944,25 +1944,25 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			await this.postMessageToWebview({
 				type: "openGraphData",
 				error: `Failed to fetch Open Graph data: ${error}`,
-				url: url
+				url: url,
 			})
 		}
 	}
-	
+
 	// Check if a URL is an image
 	async checkIsImageUrl(url: string) {
 		try {
 			// Import the isImageUrl function from link-preview.ts
-			const { isImageUrl } = await import('../../integrations/misc/link-preview')
-			
+			const { isImageUrl } = await import("../../integrations/misc/link-preview")
+
 			// Check if the URL is an image
 			const isImage = await isImageUrl(url)
-			
+
 			// Send the result back to the webview
 			await this.postMessageToWebview({
 				type: "isImageUrlResult",
 				isImage,
-				url
+				url,
 			})
 		} catch (error) {
 			console.error(`Error checking if URL is an image: ${url}`, error)
@@ -1970,7 +1970,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			await this.postMessageToWebview({
 				type: "isImageUrlResult",
 				isImage: false,
-				url
+				url,
 			})
 		}
 	}

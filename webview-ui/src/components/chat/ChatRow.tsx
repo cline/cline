@@ -76,47 +76,42 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 	)
 })
 
+const ChatRow = memo((props: ChatRowProps) => {
+	const { isLast, onHeightChange, message, lastModifiedMessage } = props
+	const prevHeightRef = useRef(0)
 
-const ChatRow = memo(
-	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message, lastModifiedMessage } = props
-		const prevHeightRef = useRef(0)
+	let shouldShowCheckpoints =
+		message.lastCheckpointHash != null &&
+		(message.say === "tool" ||
+			message.ask === "tool" ||
+			message.say === "command" ||
+			message.ask === "command" ||
+			message.say === "use_mcp_server" ||
+			message.ask === "use_mcp_server")
 
-		let shouldShowCheckpoints =
-			message.lastCheckpointHash != null &&
-			(message.say === "tool" ||
-				message.ask === "tool" ||
-				message.say === "command" ||
-				message.ask === "command" ||
-				message.say === "use_mcp_server" ||
-				message.ask === "use_mcp_server")
+	if (shouldShowCheckpoints && isLast) {
+		shouldShowCheckpoints = lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
+	}
 
-		if (shouldShowCheckpoints && isLast) {
-			shouldShowCheckpoints =
-				lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
-		}
+	const [chatrow, { height }] = useSize(
+		<ChatRowContainer>
+			<ChatRowContent {...props} />
+			{shouldShowCheckpoints && <CheckpointOverlay messageTs={message.ts} />}
+		</ChatRowContainer>,
+	)
 
-		const [chatrow, { height }] = useSize(
-			<ChatRowContainer>
-				<ChatRowContent {...props} />
-				{shouldShowCheckpoints && <CheckpointOverlay messageTs={message.ts} />}
-			</ChatRowContainer>,
-		)
-
-		useEffect(() => {
-			const isInitialRender = prevHeightRef.current === 0
-			if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
-				if (!isInitialRender) {
-					onHeightChange(height > prevHeightRef.current)
-				}
-				prevHeightRef.current = height
+	useEffect(() => {
+		const isInitialRender = prevHeightRef.current === 0
+		if (isLast && height !== 0 && height !== Infinity && height !== prevHeightRef.current) {
+			if (!isInitialRender) {
+				onHeightChange(height > prevHeightRef.current)
 			}
-		}, [height, isLast, onHeightChange, message])
+			prevHeightRef.current = height
+		}
+	}, [height, isLast, onHeightChange, message])
 
-		return chatrow
-	},
-	deepEqual,
-)
+	return chatrow
+}, deepEqual)
 
 export default ChatRow
 
@@ -133,9 +128,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 	}, [message.text, message.say])
 
 	const apiRequestFailedMessage =
-		isLast && lastModifiedMessage?.ask === "api_req_failed"
-			? lastModifiedMessage?.text
-			: undefined
+		isLast && lastModifiedMessage?.ask === "api_req_failed" ? lastModifiedMessage?.text : undefined
 
 	const isCommandExecuting =
 		isLast &&
@@ -312,7 +305,16 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 			default:
 				return [null, null]
 		}
-	}, [type, cost, apiRequestFailedMessage, isCommandExecuting, apiReqCancelReason, isMcpServerResponding, message.text, mcpMarketplaceCatalog])
+	}, [
+		type,
+		cost,
+		apiRequestFailedMessage,
+		isCommandExecuting,
+		apiReqCancelReason,
+		isMcpServerResponding,
+		message.text,
+		mcpMarketplaceCatalog,
+	])
 
 	const headerStyle: React.CSSProperties = {
 		display: "flex",
