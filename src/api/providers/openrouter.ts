@@ -1,28 +1,28 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
+import delay from "delay"
+
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
+import { parseApiPrice } from "../../utils/cost"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
-import delay from "delay"
+import { convertToR1Format } from "../transform/r1-format"
 import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./openai"
+import { ApiHandler, SingleCompletionHandler } from ".."
 
 const OPENROUTER_DEFAULT_TEMPERATURE = 0
 
-// Add custom interface for OpenRouter params
+// Add custom interface for OpenRouter params.
 type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
 	transforms?: string[]
 	include_reasoning?: boolean
 }
 
-// Add custom interface for OpenRouter usage chunk
+// Add custom interface for OpenRouter usage chunk.
 interface OpenRouterApiStreamUsageChunk extends ApiStreamUsageChunk {
 	fullResponseText: string
 }
-
-import { SingleCompletionHandler } from ".."
-import { convertToR1Format } from "../transform/r1-format"
 
 export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions
@@ -221,4 +221,76 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 			throw error
 		}
 	}
+}
+
+export async function getOpenRouterModels() {
+	const models: Record<string, ModelInfo> = {}
+
+	try {
+		const response = await axios.get("https://openrouter.ai/api/v1/models")
+		const rawModels = response.data.data
+
+		for (const rawModel of rawModels) {
+			const modelInfo: ModelInfo = {
+				maxTokens: rawModel.top_provider?.max_completion_tokens,
+				contextWindow: rawModel.context_length,
+				supportsImages: rawModel.architecture?.modality?.includes("image"),
+				supportsPromptCache: false,
+				inputPrice: parseApiPrice(rawModel.pricing?.prompt),
+				outputPrice: parseApiPrice(rawModel.pricing?.completion),
+				description: rawModel.description,
+			}
+
+			// NOTE: this needs to be synced with api.ts/openrouter default model info.
+			switch (true) {
+				case rawModel.id.startsWith("anthropic/claude-3.7-sonnet"):
+					modelInfo.supportsComputerUse = true
+					modelInfo.supportsPromptCache = true
+					modelInfo.cacheWritesPrice = 3.75
+					modelInfo.cacheReadsPrice = 0.3
+					modelInfo.maxTokens = 16384
+					break
+				case rawModel.id.startsWith("anthropic/claude-3.5-sonnet-20240620"):
+					modelInfo.supportsPromptCache = true
+					modelInfo.cacheWritesPrice = 3.75
+					modelInfo.cacheReadsPrice = 0.3
+					modelInfo.maxTokens = 8192
+					break
+				case rawModel.id.startsWith("anthropic/claude-3.5-sonnet"):
+					modelInfo.supportsComputerUse = true
+					modelInfo.supportsPromptCache = true
+					modelInfo.cacheWritesPrice = 3.75
+					modelInfo.cacheReadsPrice = 0.3
+					modelInfo.maxTokens = 8192
+					break
+				case rawModel.id.startsWith("anthropic/claude-3-5-haiku"):
+					modelInfo.supportsPromptCache = true
+					modelInfo.cacheWritesPrice = 1.25
+					modelInfo.cacheReadsPrice = 0.1
+					modelInfo.maxTokens = 8192
+					break
+				case rawModel.id.startsWith("anthropic/claude-3-opus"):
+					modelInfo.supportsPromptCache = true
+					modelInfo.cacheWritesPrice = 18.75
+					modelInfo.cacheReadsPrice = 1.5
+					modelInfo.maxTokens = 8192
+					break
+				case rawModel.id.startsWith("anthropic/claude-3-haiku"):
+				default:
+					modelInfo.supportsPromptCache = true
+					modelInfo.cacheWritesPrice = 0.3
+					modelInfo.cacheReadsPrice = 0.03
+					modelInfo.maxTokens = 8192
+					break
+			}
+
+			models[rawModel.id] = modelInfo
+		}
+	} catch (error) {
+		console.error(
+			`Error fetching OpenRouter models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+		)
+	}
+
+	return models
 }
