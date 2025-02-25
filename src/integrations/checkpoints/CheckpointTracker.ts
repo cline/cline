@@ -355,7 +355,7 @@ class CheckpointTracker {
 				await git.addConfig("core.quotePath", "false")
 				await git.addConfig("core.precomposeunicode", "true")
 				const args = ["show", "--format="]
-				existingBatch.forEach(file => {
+				existingBatch.forEach((file) => {
 					args.push(`${baseHash}:${file}`)
 				})
 				const beforeResult = await git.raw(args)
@@ -378,7 +378,7 @@ class CheckpointTracker {
 
 				if (afterExistingBatch.length > 0) {
 					const args = ["show", "--format="]
-					afterExistingBatch.forEach(file => {
+					afterExistingBatch.forEach((file) => {
 						args.push(`${rhsHash}:${file}`)
 					})
 					const afterResult = await git.raw(args)
