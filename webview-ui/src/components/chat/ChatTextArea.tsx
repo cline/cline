@@ -50,7 +50,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, openedTabs, currentApiConfigName, listApiConfigMeta, customModes } = useExtensionState()
+		const { filePaths, openedTabs, currentApiConfigName, listApiConfigMeta, customModes, cwd } = useExtensionState()
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 		const [showDropdown, setShowDropdown] = useState(false)
 
@@ -589,18 +589,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const files = Array.from(e.dataTransfer.files)
 					const text = e.dataTransfer.getData("text")
 					if (text) {
-						const newValue = inputValue.slice(0, cursorPosition) + text + inputValue.slice(cursorPosition)
+						let mentionText = text
+						const normalizedText = text.replace(/\\/g, "/")
+						const normalizedCwd = cwd ? cwd.replace(/\\/g, "/") : ""
+
+						// Always use case-insensitive comparison for path matching
+						if (normalizedCwd) {
+							const lowerText = normalizedText.toLowerCase()
+							const lowerCwd = normalizedCwd.toLowerCase()
+
+							if (lowerText.startsWith(lowerCwd)) {
+								mentionText = "@" + normalizedText.substring(normalizedCwd.length)
+							}
+						}
+
+						const newValue =
+							inputValue.slice(0, cursorPosition) + mentionText + " " + inputValue.slice(cursorPosition)
 						setInputValue(newValue)
-						const newCursorPosition = cursorPosition + text.length
+						const newCursorPosition = cursorPosition + mentionText.length + 1
 						setCursorPosition(newCursorPosition)
 						setIntendedCursorPosition(newCursorPosition)
 						return
 					}
+
 					const acceptedTypes = ["png", "jpeg", "webp"]
 					const imageFiles = files.filter((file) => {
 						const [type, subtype] = file.type.split("/")
 						return type === "image" && acceptedTypes.includes(subtype)
 					})
+
 					if (!shouldDisableImages && imageFiles.length > 0) {
 						const imagePromises = imageFiles.map((file) => {
 							return new Promise<string | null>((resolve) => {
