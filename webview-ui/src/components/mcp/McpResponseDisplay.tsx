@@ -3,6 +3,7 @@ import { vscode } from "../../utils/vscode"
 import LinkPreview from "./LinkPreview"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import DOMPurify from 'dompurify';
 
 // We'll use the backend isImageUrl function for HEAD requests
 // This is a client-side fallback for data URLs and obvious image extensions
@@ -381,7 +382,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						segments.push(
 							<div key={`embed-${segmentIndex++}`} style={{ margin: "10px 0" }}>
 								<img
-									src={url}
+									src={DOMPurify.sanitize(url)}
 									alt={`Image for ${url}`}
 									style={{
 										width: "85%",
@@ -393,7 +394,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 										const formattedUrl = formatUrlForOpening(url)
 										vscode.postMessage({
 											type: "openInBrowser",
-											url: formattedUrl,
+											url: DOMPurify.sanitize(formattedUrl),
 										})
 									}}
 								/>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react"
 import { vscode } from "../../utils/vscode"
+import DOMPurify from 'dompurify';
 
 interface OpenGraphData {
 	title?: string
@@ -115,13 +116,13 @@ const LinkPreview: React.FC<LinkPreviewProps> = ({ url }) => {
 			onClick={() => {
 				vscode.postMessage({
 					type: "openInBrowser",
-					url: url,
+					url: DOMPurify.sanitize(url),
 				})
 			}}>
 			{data.image && (
 				<div className="link-preview-image" style={{ width: "128px", height: "128px", flexShrink: 0 }}>
 					<img
-						src={data.image}
+						src={DOMPurify.sanitize(data.image)}
 						alt=""
 						style={{
 							width: "100%",
