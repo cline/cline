@@ -16,6 +16,7 @@ import { vscode } from "../../utils/vscode"
 import { WebviewMessage } from "../../../../src/shared/WebviewMessage"
 import { Mode, getAllModes } from "../../../../src/shared/modes"
 import { CaretIcon } from "../common/CaretIcon"
+import { convertToMentionPath } from "../../utils/path-mentions"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -589,19 +590,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const files = Array.from(e.dataTransfer.files)
 					const text = e.dataTransfer.getData("text")
 					if (text) {
-						let mentionText = text
-						const normalizedText = text.replace(/\\/g, "/")
-						const normalizedCwd = cwd ? cwd.replace(/\\/g, "/") : ""
-
-						// Always use case-insensitive comparison for path matching
-						if (normalizedCwd) {
-							const lowerText = normalizedText.toLowerCase()
-							const lowerCwd = normalizedCwd.toLowerCase()
-
-							if (lowerText.startsWith(lowerCwd)) {
-								mentionText = "@" + normalizedText.substring(normalizedCwd.length)
-							}
-						}
+						// Convert the path to a mention-friendly format
+						const mentionText = convertToMentionPath(text, cwd)
 
 						const newValue =
 							inputValue.slice(0, cursorPosition) + mentionText + " " + inputValue.slice(cursorPosition)
