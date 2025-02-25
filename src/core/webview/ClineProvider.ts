@@ -10,8 +10,7 @@ import * as vscode from "vscode"
 import { buildApiHandler } from "../../api"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
-import { openImageInWebview } from "../../integrations/misc/open-image-webview"
-import { openLinkPreview, fetchOpenGraphData } from "../../integrations/misc/link-preview"
+import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-preview"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
@@ -636,12 +635,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "openImage":
 						openImage(message.text!)
-						break
-					case "openImageInWebview":
-						openImageInWebview(message.text!)
-						break
-					case "openLinkPreview":
-						openLinkPreview(message.text!)
 						break
 					case "openInBrowser":
 						if (message.url) {
@@ -1952,9 +1945,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	// Check if a URL is an image
 	async checkIsImageUrl(url: string) {
 		try {
-			// Import the isImageUrl function from link-preview.ts
-			const { isImageUrl } = await import("../../integrations/misc/link-preview")
-
 			// Check if the URL is an image
 			const isImage = await isImageUrl(url)
 

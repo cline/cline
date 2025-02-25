@@ -22,8 +22,6 @@ export interface WebviewMessage {
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
 		| "openImage"
-		| "openImageInWebview"
-		| "openLinkPreview"
 		| "openInBrowser"
 		| "openFile"
 		| "openMention"

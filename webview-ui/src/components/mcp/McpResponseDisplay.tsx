@@ -183,11 +183,9 @@ const ResponseHeader = styled.div`
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
 	user-select: none;
-	webkituserselect: none;
-	mozuserselect: none;
-	msuserselect: none;
-	border-bottom: 1px dashed var(--vscode-editorGroup-border);
-	margin-bottom: 8px;
+	WebkitUserSelect: none;
+	MozUserSelect: none;
+	msUserSelect: none;
 
 	.header-title {
 		display: flex;
@@ -250,10 +248,10 @@ const ResponseContainer = styled.div`
 	overflow: hidden;
 
 	.response-content {
-		padding: 10px;
 		overflow-x: auto;
 		overflow-y: hidden;
 		max-width: 100%;
+		padding: 10px;
 	}
 `
 
