@@ -409,51 +409,53 @@ export class GitOperations {
 
 			try {
 				console.info(`Adding ${gitFiles.length} files to checkpoint`)
-				
+
 				// First, filter out problematic files
-				const safeFiles = [];
-				const skippedFiles = [];
-				
+				const safeFiles = []
+				const skippedFiles = []
+
 				for (const file of gitFiles) {
-					const cleanFile = file.replace(/^"(.*)"$/, '$1');
-					
-					if (cleanFile.match(/[\u4e00-\u9fa5]/) || 
-						cleanFile.includes('M-GW1302') || 
-						cleanFile.includes('(') || 
-						cleanFile.includes(')') ||
-						cleanFile.includes('\xef') ||  // UTF-8 encoded special characters
-						file.startsWith('"') ||        // Files with quotes around them
-						file.endsWith('"')) {
-						console.info(`Skipping file with special characters: ${file}`);
-						skippedFiles.push(file);
+					const cleanFile = file.replace(/^"(.*)"$/, "$1")
+
+					if (
+						cleanFile.match(/[\u4e00-\u9fa5]/) ||
+						cleanFile.includes("(") ||
+						cleanFile.includes(")") ||
+						cleanFile.includes("\xef") || // UTF-8 encoded special characters
+						file.startsWith('"') || // Files with quotes around them
+						file.endsWith('"')
+					) {
+						console.info(`Skipping file with special characters: ${file}`)
+						skippedFiles.push(file)
 					} else {
-						safeFiles.push(file);
+						safeFiles.push(file)
 					}
 				}
-				
+
 				// Then add all safe files in a single operation
 				if (safeFiles.length > 0) {
-					await git.raw(['add', '--', ...safeFiles]);
-					console.info(`Successfully added ${safeFiles.length} files in a single batch`);
+					await git.raw(["add", "--", ...safeFiles])
+					console.info(`Successfully added ${safeFiles.length} files in a single batch`)
 				}
-				
-				console.info(`Successfully added ${safeFiles.length} files, skipped ${skippedFiles.length} files`);
-				
+
+				console.info(`Successfully added ${safeFiles.length} files, skipped ${skippedFiles.length} files`)
+
 				if (safeFiles.length > 0) {
 					// Return success even if some files were skipped
-					return { 
-						success: true, 
-						message: skippedFiles.length > 0 ? 
-							`Added ${safeFiles.length} files. ${skippedFiles.length} files with special characters were skipped.` : 
-							undefined,
-						fileCount: safeFiles.length 
-					};
+					return {
+						success: true,
+						message:
+							skippedFiles.length > 0
+								? `Added ${safeFiles.length} files. ${skippedFiles.length} files with special characters were skipped.`
+								: undefined,
+						fileCount: safeFiles.length,
+					}
 				} else {
 					return {
 						success: false,
 						message: "No files could be added to the checkpoint.",
-						fileCount: 0
-					};
+						fileCount: 0,
+					}
 				}
 			} catch (error) {
 				console.error("Checkpoint add operation failed:", error)
