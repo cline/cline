@@ -1282,15 +1282,31 @@ export class Cline {
 			}
 		}
 
+		const clineRulesLocalFilePath = path.resolve(cwd, GlobalFileNames.clineRulesLocal)
+		let clineRulesLocalFileInstructions: string | undefined
+		if (await fileExistsAtPath(clineRulesLocalFilePath)) {
+			try {
+				const ruleFileContent = (await fs.readFile(clineRulesLocalFilePath, "utf8")).trim()
+				if (ruleFileContent) {
+					clineRulesLocalFileInstructions = `# .clinerules.local\n\nThe following is provided by a root-level .clinerules.local file where the user has specified local-only instructions for this working directory (${cwd.toPosix()})\n\n${ruleFileContent}`
+				}
+			} catch {
+				console.error(`Failed to read .clinerules.local file at ${clineRulesLocalFilePath}`)
+			}
+		}
+
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
 		if (clineIgnoreContent) {
 			clineIgnoreInstructions = `# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${clineIgnoreContent}\n.clineignore`
 		}
 
-		if (settingsCustomInstructions || clineRulesFileInstructions) {
+		if (settingsCustomInstructions || clineRulesFileInstructions || clineRulesLocalFileInstructions) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addUserInstructions(settingsCustomInstructions, clineRulesFileInstructions, clineIgnoreInstructions)
+			const combinedRulesInstructions = [clineRulesFileInstructions, clineRulesLocalFileInstructions]
+				.filter(Boolean)
+				.join("\n\n")
+			systemPrompt += addUserInstructions(settingsCustomInstructions, combinedRulesInstructions, clineIgnoreInstructions)
 		}
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
@@ -2910,7 +2926,7 @@ export class Cline {
 		}
 
 		/*
-		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
+		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present.
 		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
 		*/
 		this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
