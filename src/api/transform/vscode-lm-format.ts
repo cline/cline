@@ -160,6 +160,7 @@ export async function convertToAnthropicMessage(
 	vsCodeLmMessage: vscode.LanguageModelChatMessage,
 ): Promise<Anthropic.Messages.Message> {
 	const anthropicRole: string | null = convertToAnthropicRole(vsCodeLmMessage.role)
+
 	if (anthropicRole !== "assistant") {
 		throw new Error("Roo Code <Language Model API>: Only assistant messages are supported.")
 	}
