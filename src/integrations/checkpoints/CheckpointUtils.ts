@@ -28,7 +28,7 @@ export async function getLegacyShadowGitPath(globalStoragePath: string, taskId: 
 	const checkpointsDir = path.join(globalStoragePath, "tasks", taskId, "checkpoints")
 	await mkdir(checkpointsDir, { recursive: true })
 	const gitPath = path.join(checkpointsDir, ".git")
-	console.log(`Legacy shadow git path: ${gitPath}`)
+	console.info(`Legacy shadow git path: ${gitPath}`)
 	return gitPath
 }
 
@@ -154,6 +154,6 @@ export async function detectLegacyCheckpoint(globalStoragePath: string | undefin
 	}
 	const legacyGitPath = path.join(globalStoragePath, "tasks", taskId, "checkpoints", ".git")
 	const isLegacy = await fileExistsAtPath(legacyGitPath)
-	console.log(`Legacy checkpoint detection result: ${isLegacy}`)
+	console.info(`Legacy checkpoint detection result: ${isLegacy}`)
 	return isLegacy
 }
