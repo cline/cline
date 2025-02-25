@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
-import fs from "fs/promises"
-import os from "os"
 import crypto from "crypto"
 import { execa } from "execa"
+import fs from "fs/promises"
+import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -13,26 +13,25 @@ import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { McpHub } from "../../services/mcp/McpHub"
-import { McpDownloadResponse, McpMarketplaceCatalog, McpMarketplaceItem, McpServer } from "../../shared/mcp"
 import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
+import { McpHub } from "../../services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
+import { ChatContent } from "../../shared/ChatContent"
+import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
+import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
+import { searchCommits } from "../../utils/git"
 import { Cline } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
-import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
-import { DIFF_VIEW_URI_SCHEME } from "../../integrations/editor/DiffViewProvider"
-import { searchCommits } from "../../utils/git"
-import { ChatContent } from "../../shared/ChatContent"
-import { getShell } from "../../utils/shell"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -280,6 +279,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			task,
 			images,
 		)
+
+		// New task started
+		if (telemetryService.isTelemetryEnabled()) {
+			telemetryService.capture({
+				event: "New task started",
+				properties: {
+					apiProvider: apiConfiguration.apiProvider,
+				},
+			})
+		}
 	}
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
@@ -827,6 +836,21 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							"workbench.action.openSettings",
 							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
 						)
+						break
+					}
+					// telemetry
+					case "openTelemetrySettings": {
+						await vscode.commands.executeCommand(
+							"workbench.action.openSettings",
+							"@ext:saoudrizwan.claude-dev cline.telemetryOptIn",
+						)
+						break
+					}
+					case "telemetryOptIn": {
+						if (message.bool !== undefined) {
+							await vscode.workspace.getConfiguration("cline").update("enableTelemetry", message.bool, true)
+							await this.postStateToWebview()
+						}
 						break
 					}
 					// Add more switch case statements here as more webview message commands
@@ -1594,6 +1618,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			userInfo,
 			authToken,
 			mcpMarketplaceEnabled,
+			telemetryOptIn,
 		} = await this.getState()
 
 		return {
@@ -1613,6 +1638,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			isLoggedIn: !!authToken,
 			userInfo,
 			mcpMarketplaceEnabled,
+			telemetryOptIn,
 		}
 	}
 
@@ -1791,6 +1817,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			.get("reasoningEffort", "medium")
 
 		const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
+		const telemetryOptIn = vscode.workspace.getConfiguration("cline").get<boolean | null>("enableTelemetry", null)
 
 		return {
 			apiConfiguration: {
@@ -1847,6 +1874,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelId,
 			previousModeModelInfo,
 			mcpMarketplaceEnabled,
+			telemetryOptIn,
 		}
 	}
 
