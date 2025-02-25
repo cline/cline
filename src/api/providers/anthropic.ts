@@ -131,7 +131,6 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 				case "message_start":
 					// Tells us cache reads/writes/input/output.
 					const usage = chunk.message.usage
-					console.log("usage", usage)
 
 					yield {
 						type: "usage",
