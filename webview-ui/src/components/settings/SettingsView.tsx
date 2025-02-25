@@ -5,7 +5,7 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
 import SettingsButton from "../common/SettingsButton"
-const IS_DEV = false // FIXME: use flags when packaging
+const { IS_DEV } = process.env
 
 type SettingsViewProps = {
 	onDone: () => void

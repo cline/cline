@@ -50,7 +50,6 @@ export interface WebviewMessage {
 		| "searchCommits"
 		| "showMcpView"
 		| "fetchLatestMcpServersFromHub"
-		| "updateMcpTimeout"
 		| "updateThinkingBudgetTokens"
 	// | "relaunchChromeDebugMode"
 	text?: string
@@ -65,7 +64,6 @@ export interface WebviewMessage {
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
 	mcpId?: string
-	timeout?: number // For updateMcpTimeout
 
 	// For toggleToolAutoApprove
 	serverName?: string

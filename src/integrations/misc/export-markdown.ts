@@ -35,20 +35,14 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 	})
 
 	if (saveUri) {
-		try {
-			// Write content to the selected location
-			await vscode.workspace.fs.writeFile(saveUri, new TextEncoder().encode(markdownContent))
-			vscode.window.showTextDocument(saveUri, { preview: true })
-		} catch (error) {
-			vscode.window.showErrorMessage(
-				`Failed to save markdown file: ${error instanceof Error ? error.message : String(error)}`,
-			)
-		}
+		// Write content to the selected location
+		await vscode.workspace.fs.writeFile(saveUri, Buffer.from(markdownContent))
+		vscode.window.showTextDocument(saveUri, { preview: true })
 	}
 }
 
 export function formatContentBlockToMarkdown(
-	block: Anthropic.ContentBlockParam,
+	block: Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam,
 	// messages: Anthropic.MessageParam[]
 ): string {
 	switch (block.type) {
@@ -56,8 +50,6 @@ export function formatContentBlockToMarkdown(
 			return block.text
 		case "image":
 			return `[Image]`
-		case "document":
-			return `[Document]`
 		case "tool_use":
 			let input: string
 			if (typeof block.input === "object" && block.input !== null) {
