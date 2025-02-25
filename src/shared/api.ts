@@ -56,6 +56,7 @@ export interface ApiHandlerOptions {
 	vsCodeLmModelSelector?: any
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
+	thinkingBudgetTokens?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -83,17 +84,6 @@ export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-3-7-sonnet-20250219"
 export const anthropicModels = {
 	"claude-3-7-sonnet-20250219": {
-		maxTokens: 8192,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsComputerUse: true,
-		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
-	"claude-3-7-sonnet-20250219:reasoning": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,

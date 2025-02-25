@@ -186,6 +186,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
+				},
+				"cline.modelSettings.anthropic.thinkingBudgetTokens": {
+					"type": "number",
+					"default": 0,
+					"description": "Controls the token budget for Claude's thinking capability. Set to 0 to disable thinking. Cannot reach 100% of the model's max token output"
 				}
 			}
 		}

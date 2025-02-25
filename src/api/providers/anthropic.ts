@@ -19,13 +19,14 @@ export class AnthropicHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		let budget_tokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = budget_tokens !== 0 ? true : false
 		const model = this.getModel()
 		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent>
 		const modelId = model.id
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
 			case "claude-3-7-sonnet-20250219":
-			case "claude-3-7-sonnet-20250219:reasoning":
 			case "claude-3-5-sonnet-20241022":
 			case "claude-3-5-haiku-20241022":
 			case "claude-3-opus-20240229":
@@ -42,12 +43,11 @@ export class AnthropicHandler implements ApiHandler {
 				stream = await this.client.messages.create(
 					{
 						model: modelId,
-						thinking:
-							modelId === "claude-3-7-sonnet-20250219:reasoning"
-								? { type: "enabled", budget_tokens: 1000 }
-								: undefined,
+						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 						max_tokens: model.info.maxTokens || 8192,
-						temperature: 0,
+						// "Thinking isn’t compatible with temperature, top_p, or top_k modifications as well as forced tool use."
+						// (https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking)
+						temperature: reasoningOn ? 1 : 0,
 						system: [
 							{
 								text: systemPrompt,

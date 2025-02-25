@@ -51,6 +51,7 @@ export interface WebviewMessage {
 		| "showMcpView"
 		| "fetchLatestMcpServersFromHub"
 		| "updateMcpTimeout"
+		| "updateThinkingBudgetTokens"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean

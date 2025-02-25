@@ -255,6 +255,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					// Update state when marketplace tab setting changes
 					await this.postStateToWebview()
 				}
+				if (e && e.affectsConfiguration("cline.modelSettings.anthropic.thinkingBudgetTokens")) {
+					// Update state when thinking budget tokens setting changes
+					await this.postStateToWebview()
+				}
 			},
 			null,
 			this.disposables,
@@ -818,6 +822,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							} catch (error) {
 								console.error(`Error searching commits: ${JSON.stringify(error)}`)
 							}
+						}
+						break
+					}
+					case "updateThinkingBudgetTokens": {
+						if (message.number !== undefined) {
+							const config = vscode.workspace.getConfiguration("cline.modelSettings.anthropic")
+							await config.update("thinkingBudgetTokens", message.number, true)
 						}
 						break
 					}
@@ -1799,6 +1810,10 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		const o3MiniReasoningEffort = vscode.workspace
 			.getConfiguration("cline.modelSettings.o3Mini")
 			.get("reasoningEffort", "medium")
+			
+		const thinkingBudgetTokens = vscode.workspace
+			.getConfiguration("cline.modelSettings.anthropic")
+			.get("thinkingBudgetTokens", 0)
 
 		const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
 
@@ -1841,6 +1856,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
 				o3MiniReasoningEffort,
+				thinkingBudgetTokens,
 				liteLlmBaseUrl,
 				liteLlmModelId,
 				liteLlmApiKey,
