@@ -1926,6 +1926,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						cacheReadsPrice: parsePrice(rawModel.cached_price),
 					}
 
+					switch (rawModel.id) {
+						case rawModel.id.startsWith("anthropic/claude-3-7-sonnet"):
+							modelInfo.maxTokens = 16384
+							break
+						case rawModel.id.startsWith("anthropic/"):
+							modelInfo.maxTokens = 8192
+							break
+						default:
+							break
+					}
+
 					models[rawModel.id] = modelInfo
 				}
 			} else {
@@ -2076,6 +2087,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						cacheReadsPrice: parsePrice(rawModel.pricePerToken?.cacheRead),
 					}
 
+					switch (rawModel.id) {
+						case rawModel.id.startsWith("anthropic/claude-3-7-sonnet"):
+							modelInfo.maxTokens = 16384
+							break
+						case rawModel.id.startsWith("anthropic/"):
+							modelInfo.maxTokens = 8192
+							break
+						default:
+							break
+					}
+
 					models[rawModel.id] = modelInfo
 				}
 			} else {
@@ -2127,46 +2149,46 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						description: rawModel.description,
 					}
 
-					switch (rawModel.id) {
-						case "anthropic/claude-3.7-sonnet":
-						case "anthropic/claude-3.7-sonnet:beta":
-						case "anthropic/claude-3.5-sonnet":
-						case "anthropic/claude-3.5-sonnet:beta":
-							// NOTE: this needs to be synced with api.ts/openrouter default model info.
+					// NOTE: this needs to be synced with api.ts/openrouter default model info.
+					switch (true) {
+						case rawModel.id.startsWith("anthropic/claude-3.7-sonnet"):
 							modelInfo.supportsComputerUse = true
 							modelInfo.supportsPromptCache = true
 							modelInfo.cacheWritesPrice = 3.75
 							modelInfo.cacheReadsPrice = 0.3
+							modelInfo.maxTokens = 16384
 							break
-						case "anthropic/claude-3.5-sonnet-20240620":
-						case "anthropic/claude-3.5-sonnet-20240620:beta":
+						case rawModel.id.startsWith("anthropic/claude-3.5-sonnet-20240620"):
 							modelInfo.supportsPromptCache = true
 							modelInfo.cacheWritesPrice = 3.75
 							modelInfo.cacheReadsPrice = 0.3
+							modelInfo.maxTokens = 8192
 							break
-						case "anthropic/claude-3-5-haiku":
-						case "anthropic/claude-3-5-haiku:beta":
-						case "anthropic/claude-3-5-haiku-20241022":
-						case "anthropic/claude-3-5-haiku-20241022:beta":
-						case "anthropic/claude-3.5-haiku":
-						case "anthropic/claude-3.5-haiku:beta":
-						case "anthropic/claude-3.5-haiku-20241022":
-						case "anthropic/claude-3.5-haiku-20241022:beta":
+						case rawModel.id.startsWith("anthropic/claude-3.5-sonnet"):
+							modelInfo.supportsComputerUse = true
+							modelInfo.supportsPromptCache = true
+							modelInfo.cacheWritesPrice = 3.75
+							modelInfo.cacheReadsPrice = 0.3
+							modelInfo.maxTokens = 8192
+							break
+						case rawModel.id.startsWith("anthropic/claude-3-5-haiku"):
 							modelInfo.supportsPromptCache = true
 							modelInfo.cacheWritesPrice = 1.25
 							modelInfo.cacheReadsPrice = 0.1
+							modelInfo.maxTokens = 8192
 							break
-						case "anthropic/claude-3-opus":
-						case "anthropic/claude-3-opus:beta":
+						case rawModel.id.startsWith("anthropic/claude-3-opus"):
 							modelInfo.supportsPromptCache = true
 							modelInfo.cacheWritesPrice = 18.75
 							modelInfo.cacheReadsPrice = 1.5
+							modelInfo.maxTokens = 8192
 							break
-						case "anthropic/claude-3-haiku":
-						case "anthropic/claude-3-haiku:beta":
+						case rawModel.id.startsWith("anthropic/claude-3-haiku"):
+						default:
 							modelInfo.supportsPromptCache = true
 							modelInfo.cacheWritesPrice = 0.3
 							modelInfo.cacheReadsPrice = 0.03
+							modelInfo.maxTokens = 8192
 							break
 					}
 
@@ -2200,7 +2222,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			if (response.data) {
 				const rawModels: Record<string, any> = response.data
 				for (const [modelId, model] of Object.entries(rawModels)) {
-					models[modelId] = {
+					const modelInfo: ModelInfo = {
 						maxTokens: model?.maxTokens ? parseInt(model.maxTokens) : undefined,
 						contextWindow: model?.contextWindow ? parseInt(model.contextWindow) : 0,
 						supportsImages: model?.supportsImages ?? false,
@@ -2211,6 +2233,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						cacheWritesPrice: model?.cacheWritePrice ? parseFloat(model.cacheWritePrice) : undefined,
 						cacheReadsPrice: model?.cacheReadPrice ? parseFloat(model.cacheReadPrice) : undefined,
 					}
+
+					switch (true) {
+						case modelId.startsWith("anthropic/claude-3-7-sonnet"):
+							modelInfo.maxTokens = 16384
+							break
+						case modelId.startsWith("anthropic/"):
+							modelInfo.maxTokens = 8192
+							break
+						default:
+							break
+					}
+
+					models[modelId] = modelInfo
 				}
 			}
 			await fs.writeFile(unboundModelsFilePath, JSON.stringify(models))
