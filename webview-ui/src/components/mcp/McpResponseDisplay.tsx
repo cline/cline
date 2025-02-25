@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react"
 import { vscode } from "../../utils/vscode"
 import LinkPreview from "./LinkPreview"
 import styled from "styled-components"
+import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 
 // We'll use the backend isImageUrl function for HEAD requests
 // This is a client-side fallback for data URLs and obvious image extensions
@@ -176,14 +177,23 @@ const ResponseHeader = styled.div`
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 8px;
-	border-bottom: 1px dashed var(--vscode-editorGroup-border, rgba(127, 127, 127, 0.3));
+	padding: 9px 10px;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	user-select: none;
+	WebkitUserSelect: none;
+	MozUserSelect: none;
+	msUserSelect: none;
+	border-bottom: 1px dashed var(--vscode-editorGroup-border);
 	margin-bottom: 8px;
 	
 	.header-title {
-		font-size: 12px;
-		text-transform: uppercase;
-		opacity: 0.8;
+		display: flex;
+		align-items: center;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		margin-right: 8px;
 	}
 `
 
@@ -231,12 +241,17 @@ const ResponseContainer = styled.div`
 	position: relative;
 	font-family: var(--vscode-editor-font-family, monospace);
 	font-size: var(--vscode-editor-font-size, 12px);
-	background-color: var(--vscode-textCodeBlock-background, #1e1e1e);
+	background-color: ${CODE_BLOCK_BG_COLOR};
 	color: var(--vscode-editor-foreground, #d4d4d4);
 	border-radius: 3px;
+	border: 1px solid var(--vscode-editorGroup-border);
+	overflow: hidden;
 	
 	.response-content {
-		padding: 0 10px 10px 10px;
+		padding: 10px;
+		overflow-x: auto;
+		overflow-y: hidden;
+		max-width: 100%;
 	}
 `
 
@@ -381,7 +396,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 									src={url}
 									alt={`Image for ${url}`}
 									style={{
-										width: "75%",
+										width: "85%",
 										height: "auto",
 										borderRadius: "4px",
 										cursor: "pointer"
