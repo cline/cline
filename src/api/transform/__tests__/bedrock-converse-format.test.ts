@@ -1,3 +1,5 @@
+// npx jest src/api/transform/__tests__/bedrock-converse-format.test.ts
+
 import { convertToBedrockConverseMessages, convertToAnthropicMessage } from "../bedrock-converse-format"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ContentBlock, ToolResultContentBlock } from "@aws-sdk/client-bedrock-runtime"
@@ -187,6 +189,8 @@ describe("bedrock-converse-format", () => {
 				usage: {
 					input_tokens: 10,
 					output_tokens: 20,
+					cache_creation_input_tokens: null,
+					cache_read_input_tokens: null,
 				},
 			})
 		})
@@ -205,7 +209,7 @@ describe("bedrock-converse-format", () => {
 			expect(result).toEqual({
 				type: "message",
 				role: "assistant",
-				content: [{ type: "text", text: "Hello" }],
+				content: [{ type: "text", text: "Hello", citations: null }],
 				model: "test-model",
 			})
 		})
@@ -224,7 +228,7 @@ describe("bedrock-converse-format", () => {
 			expect(result).toEqual({
 				type: "message",
 				role: "assistant",
-				content: [{ type: "text", text: " world" }],
+				content: [{ type: "text", text: " world", citations: null }],
 				model: "test-model",
 			})
 		})

@@ -1,3 +1,5 @@
+// npx jest src/api/transform/__tests__/vscode-lm-format.test.ts
+
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 import { convertToVsCodeLmMessages, convertToAnthropicRole, convertToAnthropicMessage } from "../vscode-lm-format"
@@ -216,6 +218,7 @@ describe("vscode-lm-format", () => {
 			expect(result.content[0]).toEqual({
 				type: "text",
 				text: "Hello",
+				citations: null,
 			})
 			expect(result.id).toBe("test-uuid")
 		})

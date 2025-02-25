@@ -1,3 +1,5 @@
+// npx jest src/api/transform/__tests__/openai-format.test.ts
+
 import { convertToOpenAiMessages, convertToAnthropicMessage } from "../openai-format"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
@@ -172,11 +174,14 @@ describe("OpenAI Format Transformations", () => {
 			expect(anthropicMessage.content[0]).toEqual({
 				type: "text",
 				text: "Hello there!",
+				citations: null,
 			})
 			expect(anthropicMessage.stop_reason).toBe("end_turn")
 			expect(anthropicMessage.usage).toEqual({
 				input_tokens: 10,
 				output_tokens: 5,
+				cache_creation_input_tokens: null,
+				cache_read_input_tokens: null,
 			})
 		})
 
@@ -221,6 +226,7 @@ describe("OpenAI Format Transformations", () => {
 			expect(anthropicMessage.content[0]).toEqual({
 				type: "text",
 				text: "Let me check the weather.",
+				citations: null,
 			})
 			expect(anthropicMessage.content[1]).toEqual({
 				type: "tool_use",
