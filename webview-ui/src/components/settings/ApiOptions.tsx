@@ -68,15 +68,17 @@ const ApiOptions = ({
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
-	const [anthropicThinkingBudget, setAnthropicThinkingBudget] = useState(apiConfiguration?.anthropicThinking)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [openRouterBaseUrlSelected, setOpenRouterBaseUrlSelected] = useState(!!apiConfiguration?.openRouterBaseUrl)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
-	const inputEventTransform = <E,>(event: E) => (event as { target: HTMLInputElement })?.target?.value as any
+	const anthropicThinkingBudget = apiConfiguration?.anthropicThinking
+
 	const noTransform = <T,>(value: T) => value
+	const inputEventTransform = <E,>(event: E) => (event as { target: HTMLInputElement })?.target?.value as any
 	const dropdownEventTransform = <T,>(event: DropdownOption | string | undefined) =>
 		(typeof event == "string" ? event : event?.value) as T
+
 	const handleInputChange = useCallback(
 		<K extends keyof ApiConfiguration, E>(
 			field: K,
@@ -107,8 +109,10 @@ const ApiOptions = ({
 		250,
 		[selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl],
 	)
+
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
+
 		if (message.type === "ollamaModels" && Array.isArray(message.ollamaModels)) {
 			const newModels = message.ollamaModels
 			setOllamaModels(newModels)
@@ -120,6 +124,7 @@ const ApiOptions = ({
 			setVsCodeLmModels(newModels)
 		}
 	}, [])
+
 	useEvent("message", handleMessage)
 
 	const createDropdown = (models: Record<string, ModelInfo>) => {
@@ -130,6 +135,7 @@ const ApiOptions = ({
 				label: modelId,
 			})),
 		]
+
 		return (
 			<Dropdown
 				id="model-id"
@@ -1268,11 +1274,9 @@ const ApiOptions = ({
 				<div className="flex flex-col gap-2 mt-2">
 					<Checkbox
 						checked={!!anthropicThinkingBudget}
-						onChange={(checked) => {
-							const budget = checked ? 16_384 : undefined
-							setAnthropicThinkingBudget(budget)
-							setApiConfigurationField("anthropicThinking", budget)
-						}}>
+						onChange={(checked) =>
+							setApiConfigurationField("anthropicThinking", checked ? 16_384 : undefined)
+						}>
 						Thinking?
 					</Checkbox>
 					{anthropicThinkingBudget && (
@@ -1286,11 +1290,7 @@ const ApiOptions = ({
 									max={anthropicModels["claude-3-7-sonnet-20250219"].maxTokens - 1}
 									step={1024}
 									value={[anthropicThinkingBudget]}
-									onValueChange={(value) => {
-										const budget = value[0]
-										setAnthropicThinkingBudget(budget)
-										setApiConfigurationField("anthropicThinking", budget)
-									}}
+									onValueChange={(value) => setApiConfigurationField("anthropicThinking", value[0])}
 								/>
 								<div className="w-10">{anthropicThinkingBudget}</div>
 							</div>
