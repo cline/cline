@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## [3.7.2]
+
+- Fix computer use and prompt caching for OpenRouter's `anthropic/claude-3.7-sonnet:beta` (thanks @cte!)
+- Fix sliding window calculations for Sonnet 3.7 that were causing a context window overflow (thanks @cte!)
+- Encourage diff editing more strongly in the system prompt (thanks @hannesrudolph!)
+
 ## [3.7.1]
 
 - Add AWS Bedrock support for Sonnet 3.7 and update some defaults to Sonnet 3.7 instead of 3.5
