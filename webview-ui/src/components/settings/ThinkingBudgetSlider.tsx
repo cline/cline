@@ -8,53 +8,74 @@ interface ThinkingBudgetSliderProps {
 	setApiConfiguration: (apiConfiguration: ApiConfiguration) => void
 }
 
-const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: ThinkingBudgetSliderProps) => {
-	const maxTokens = anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
-	const maxSliderValue = Math.floor(maxTokens * 0.8)
+// Constants
+const MIN_VALID_TOKENS = 1024
+const MAX_PERCENTAGE = 0.8
 
-	// Get the current value from apiConfiguration
+const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: ThinkingBudgetSliderProps) => {
+	// Calculate max tokens based on model
+	const maxTokens = anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
+	const maxSliderValue = Math.floor(maxTokens * MAX_PERCENTAGE)
 	const currentValue = apiConfiguration?.thinkingBudgetTokens || 0
 
-	// Map the slider value to a valid thinking budget value
-	const getValidValue = (value: number): number => {
-		if (value === 0) return 0
-		return value < 1024 ? 1024 : value
+	// Style constants for reasoning level display
+	const labelStyle: React.CSSProperties = { color: "var(--vscode-editor-foreground)" }
+	const valueStyle: React.CSSProperties = {
+		color: "white",
+		backgroundColor: "var(--vscode-button-background)",
+		padding: "2px 6px",
+		borderRadius: "4px",
+		fontWeight: "bold",
 	}
 
-	// This function is called during dragging - just update the UI with raw value
+	// Handlers
 	const handleChange = (value: number) => {
-		// No validation here - just pass the raw value
-		if (apiConfiguration) {
-			setApiConfiguration({
-				...apiConfiguration,
-				thinkingBudgetTokens: value,
-			})
-		}
+		if (!apiConfiguration) return
+		setApiConfiguration({
+			...apiConfiguration,
+			thinkingBudgetTokens: value,
+		})
 	}
 
-	// This function will be called when the user stops dragging
 	const handleChangeEnd = (value: number) => {
-		// Now apply validation when the user is done dragging
+		if (!apiConfiguration) return
 		const validValue = getValidValue(value)
 
-		if (apiConfiguration) {
-			setApiConfiguration({
-				...apiConfiguration,
-				thinkingBudgetTokens: validValue,
-			})
-		}
+		setApiConfiguration({
+			...apiConfiguration,
+			thinkingBudgetTokens: validValue,
+		})
 
-		// Update VS Code settings with the validated value
 		vscode.postMessage({
 			type: "updateThinkingBudgetTokens",
 			number: validValue,
 		})
 	}
 
+	// Utility functions
+	const getValidValue = (value: number): number => (value === 0 ? 0 : Math.max(MIN_VALID_TOKENS, value))
+
+	const getReasoningLevel = (value: number, min: number, max: number): JSX.Element => {
+		let levelText: string
+
+		if (value === 0) {
+			levelText = "Off"
+		} else {
+			const percentage = (value - min) / (max - min)
+			levelText = percentage <= 1 / 3 ? "Low" : percentage <= 2 / 3 ? "Medium" : "High"
+		}
+
+		return (
+			<span>
+				<span style={labelStyle}>Reasoning:</span> <span style={valueStyle}>{levelText}</span>
+			</span>
+		)
+	}
+
 	return (
 		<ClineSlider
 			id="thinking-budget-slider"
-			label="Thinking Budget (tokens)"
+			label="Thinking tokens"
 			value={currentValue}
 			min={0}
 			max={maxSliderValue}
@@ -62,6 +83,8 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 			onChange={handleChange}
 			onChangeEnd={handleChangeEnd}
 			validateValue={getValidValue}
+			dynamicColor={true}
+			getSecondaryLabel={getReasoningLevel}
 			description="Set to 0 to disable extended thinking. Higher values allow Claude to think more deeply before responding."
 		/>
 	)
