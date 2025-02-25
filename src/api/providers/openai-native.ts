@@ -25,7 +25,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: Anthropic.Tool[]): ApiStream {
 		switch (this.getModel().id) {
 			case "o1":
 			case "o1-preview":

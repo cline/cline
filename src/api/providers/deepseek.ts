@@ -20,7 +20,7 @@ export class DeepSeekHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: Anthropic.Tool[]): ApiStream {
 		const model = this.getModel()
 
 		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")

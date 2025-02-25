@@ -13,7 +13,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		this.options = options
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: Anthropic.Tool[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
 		let modelId = await this.getModelId()
 

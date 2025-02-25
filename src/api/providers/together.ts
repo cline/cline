@@ -20,7 +20,7 @@ export class TogetherHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: Anthropic.Tool[]): ApiStream {
 		const modelId = this.options.togetherModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 

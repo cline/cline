@@ -27,7 +27,7 @@ export class MistralHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: Anthropic.Tool[]): ApiStream {
 		const stream = await this.client.chat.stream({
 			model: this.getModel().id,
 			// max_completion_tokens: this.getModel().info.maxTokens,

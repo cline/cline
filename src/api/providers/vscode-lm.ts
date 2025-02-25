@@ -410,7 +410,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		return content
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: Anthropic.Tool[]): ApiStream {
 		// Ensure clean state before starting a new request
 		this.ensureCleanState()
 		const client: vscode.LanguageModelChat = await this.getClient()
