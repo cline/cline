@@ -1,40 +1,35 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
+import { Message, Ollama } from "ollama"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
-import { convertToOpenAiMessages } from "../transform/openai-format"
+import { convertToOllamaMessages } from "../transform/ollama-format"
 import { ApiStream } from "../transform/stream"
 
 export class OllamaHandler implements ApiHandler {
 	private options: ApiHandlerOptions
-	private client: OpenAI
+	private client: Ollama
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new OpenAI({
-			baseURL: (this.options.ollamaBaseUrl || "http://localhost:11434") + "/v1",
-			apiKey: "ollama",
-		})
+		this.client = new Ollama({ host: this.options.ollamaBaseUrl || "http://localhost:11434" })
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
-		]
+		const ollamaMessages: Message[] = [{ role: "system", content: systemPrompt }, ...convertToOllamaMessages(messages)]
 
-		const stream = await this.client.chat.completions.create({
+		const stream = await this.client.chat({
 			model: this.getModel().id,
-			messages: openAiMessages,
-			temperature: 0,
+			messages: ollamaMessages,
 			stream: true,
+			options: {
+				num_ctx: Number(this.options.ollamaApiOptionsCtxNum) || 32768,
+			},
 		})
 		for await (const chunk of stream) {
-			const delta = chunk.choices[0]?.delta
-			if (delta?.content) {
+			if (typeof chunk.message.content === "string") {
 				yield {
 					type: "text",
-					text: delta.content,
+					text: chunk.message.content,
 				}
 			}
 		}
