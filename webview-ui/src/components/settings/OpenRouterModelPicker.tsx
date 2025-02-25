@@ -228,8 +228,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						If you're unsure which model to choose, Cline works best with{" "}
 						<VSCodeLink
 							style={{ display: "inline", fontSize: "inherit" }}
-							onClick={() => handleModelChange("anthropic/claude-3.5-sonnet")}>
-							anthropic/claude-3.5-sonnet.
+							onClick={() => handleModelChange("anthropic/claude-3-7-sonnet")}>
+							anthropic/claude-3-7-sonnet.
 						</VSCodeLink>
 						You can also try searching "free" for no-cost options currently available.
 					</>
