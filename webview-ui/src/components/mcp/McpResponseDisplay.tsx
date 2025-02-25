@@ -3,7 +3,7 @@ import { vscode } from "../../utils/vscode"
 import LinkPreview from "./LinkPreview"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import DOMPurify from 'dompurify';
+import DOMPurify from "dompurify"
 
 // We'll use the backend isImageUrl function for HEAD requests
 // This is a client-side fallback for data URLs and obvious image extensions
