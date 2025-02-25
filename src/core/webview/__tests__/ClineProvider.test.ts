@@ -842,6 +842,8 @@ describe("ClineProvider", () => {
 				apiConversationHistory: mockApiHistory,
 				overwriteClineMessages: jest.fn(),
 				overwriteApiConversationHistory: jest.fn(),
+				getTaskNumber: jest.fn(),
+				setTaskNumber: jest.fn(),
 				taskId: "test-task-id",
 				abortTask: jest.fn(),
 				handleWebviewAskResponse: jest.fn(),
@@ -894,6 +896,8 @@ describe("ClineProvider", () => {
 				apiConversationHistory: mockApiHistory,
 				overwriteClineMessages: jest.fn(),
 				overwriteApiConversationHistory: jest.fn(),
+				getTaskNumber: jest.fn(),
+				setTaskNumber: jest.fn(),
 				taskId: "test-task-id",
 				abortTask: jest.fn(),
 				handleWebviewAskResponse: jest.fn(),
@@ -925,6 +929,8 @@ describe("ClineProvider", () => {
 				apiConversationHistory: [{ ts: 1000 }, { ts: 2000 }],
 				overwriteClineMessages: jest.fn(),
 				overwriteApiConversationHistory: jest.fn(),
+				getTaskNumber: jest.fn(),
+				setTaskNumber: jest.fn(),
 				taskId: "test-task-id",
 			} as unknown as Cline
 			provider.addClineToStack(mockCline)
@@ -1430,6 +1436,8 @@ describe("ClineProvider", () => {
 			// Setup mock Cline instance
 			const mockCline = {
 				api: undefined,
+				getTaskNumber: jest.fn(),
+				setTaskNumber: jest.fn(),
 				abortTask: jest.fn(),
 			} as unknown as Cline
 			provider.addClineToStack(mockCline)
