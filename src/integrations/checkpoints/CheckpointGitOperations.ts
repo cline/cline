@@ -13,6 +13,11 @@ interface StorageProvider {
 	}
 }
 
+interface CheckpointAddResult {
+	success: boolean
+	fileCount: number
+}
+
 /**
  * GitOperations Class
  *
@@ -91,6 +96,8 @@ export class GitOperations {
 		await git.addConfig("commit.gpgSign", "false")
 		await git.addConfig("user.name", "Cline Checkpoint")
 		await git.addConfig("user.email", "checkpoint@cline.bot")
+		await git.addConfig("core.quotePath", "false")
+		await git.addConfig("core.precomposeunicode", "true")
 
 		// Set up LFS patterns
 		const lfsPatterns = await getLfsPatterns(cwd)
@@ -162,7 +169,7 @@ export class GitOperations {
 	 * If the branch to be deleted is currently checked out, the method will:
 	 * 1. Save the current worktree configuration
 	 * 2. Temporarily unset the worktree to prevent workspace modifications
-	 * 3. Force switch to master branch
+	 * 3. Force switch to master/main branch
 	 * 4. Delete the target branch
 	 * 5. Restore the worktree configuration
 	 *
@@ -171,7 +178,7 @@ export class GitOperations {
 	 * @param checkpointsDir - Directory containing the git repository
 	 * @throws Error if:
 	 *  - Branch deletion fails
-	 *  - Unable to switch to master branch after 3 retries
+	 *  - Unable to switch to master/main branch after 3 retries
 	 *  - Git operations fail during the process
 	 */
 	public static async deleteBranchForGit(git: SimpleGit, branchName: string, checkpointsDir: string): Promise<void> {
@@ -182,12 +189,12 @@ export class GitOperations {
 			return // Branch doesn't exist, nothing to delete
 		}
 
-		// First, if we're on the branch to be deleted, switch to master
+		// First, if we're on the branch to be deleted, switch to master/main
 		const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
 		console.info(`Current branch: ${currentBranch}, target branch to delete: ${branchName}`)
 
 		if (currentBranch === branchName) {
-			console.debug("Currently on branch to be deleted, switching to master first")
+			console.debug("Currently on branch to be deleted, switching to master/main first")
 			// Save the current worktree config
 			const worktree = await git.getConfig("core.worktree")
 			console.debug(`Saved current worktree config: ${worktree.value}`)
@@ -202,22 +209,26 @@ export class GitOperations {
 				await git.reset(["--hard"])
 				await git.clean("f", ["-d"]) // Clean mode 'f' for force, -d for directories
 
-				// Switch to master and delete branch
-				console.debug("Attempting to force switch to master branch")
-				await git.checkout(["master", "--force"])
+				// Determine default branch (master or main)
+				const defaultBranch = branches.all.includes("main") ? "main" : "master"
+				console.debug(`Using ${defaultBranch} as default branch`)
+
+				// Switch to default branch and delete branch
+				console.debug(`Attempting to force switch to ${defaultBranch} branch`)
+				await git.checkout([defaultBranch, "--force"])
 
 				// Verify the switch completed
 				let retries = 3
 				while (retries > 0) {
 					const newBranch = await git.revparse(["--abbrev-ref", "HEAD"])
 					console.debug(`Verifying branch switch - current branch: ${newBranch}, attempts left: ${retries}`)
-					if (newBranch === "master") {
-						console.debug("Successfully switched to master branch")
+					if (newBranch === defaultBranch) {
+						console.debug(`Successfully switched to ${defaultBranch} branch`)
 						break
 					}
 					retries--
 					if (retries === 0) {
-						throw new Error("Failed to switch to master branch")
+						throw new Error(`Failed to switch to ${defaultBranch} branch`)
 					}
 				}
 
@@ -421,14 +432,14 @@ export class GitOperations {
 	 *
 	 * @param git - SimpleGit instance configured for the shadow git repo
 	 * @param gitPath - Path to the .git directory
-	 * @returns Promise<void>
+	 * @returns Promise<CheckpointAddResult> Object containing success status, message, and file count
 	 * @throws Error if:
 	 *  - File operations fail
 	 *  - Git commands error
 	 *  - LFS pattern updates fail
 	 *  - Nested git repo handling fails
 	 */
-	public async addCheckpointFiles(git: SimpleGit, gitPath: string): Promise<void> {
+	public async addCheckpointFiles(git: SimpleGit, gitPath: string): Promise<CheckpointAddResult> {
 		try {
 			// Update exclude patterns before each commit
 			await writeExcludesFile(gitPath, await getLfsPatterns(this.cwd))
@@ -436,6 +447,8 @@ export class GitOperations {
 			//console.info("Starting checkpoint add operation...")
 
 			// Get list of all files git would track (respects .gitignore)
+			await git.addConfig("core.quotePath", "false")
+			await git.addConfig("core.precomposeunicode", "true")
 			const gitFiles = (await git.raw(["ls-files", "--others", "--exclude-standard", "--cached"]))
 				.split("\n")
 				.filter(Boolean)
@@ -443,13 +456,16 @@ export class GitOperations {
 			// Add filtered files
 			if (gitFiles.length === 0) {
 				console.info("No files to add to checkpoint")
-				return
+				return { success: true, fileCount: 0 }
 			}
 
 			try {
 				console.info(`Adding ${gitFiles.length} files to checkpoint`)
+				await git.addConfig("core.quotePath", "false")
+				await git.addConfig("core.precomposeunicode", "true")
 				await git.add(gitFiles)
 				console.info("Checkpoint add operation completed successfully")
+				return { success: true, fileCount: gitFiles.length }
 			} catch (error) {
 				console.error("Checkpoint add operation failed:", error)
 				throw error
