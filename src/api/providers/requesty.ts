@@ -38,7 +38,7 @@ export class RequestyHandler implements ApiHandler {
 			temperature: 0,
 			stream: true,
 			stream_options: { include_usage: true },
-			...(modelId === "openai/o3-mini" ? { reasoning_effort: this.options.o3MiniReasoningEffort || "medium" } : {}),
+			...(modelId === "openai/o3-mini" ? { reasoning_effort: this.options.oSeriesReasoningEffortLevel || "medium" } : {}),
 		})
 
 		for await (const chunk of stream) {
