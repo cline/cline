@@ -28,7 +28,7 @@ Welcome to the Cline documentation - your comprehensive guide to using and exten
 
 -   **Interested in contributing?** We welcome your input:
     -   Feel free to submit a pull request
-    -   [Contribution Guidelines](CONTRIBUTING.md)
+    -   [Contribution Guidelines](../CONTRIBUTING.md)
 
 ## Additional Resources
 

@@ -38,6 +38,10 @@ export class OpenRouterHandler implements ApiHandler {
 		// prompt caching: https://openrouter.ai/docs/prompt-caching
 		// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
 		switch (model.id) {
+			case "anthropic/claude-3.7-sonnet":
+			case "anthropic/claude-3.7-sonnet:beta":
+			case "anthropic/claude-3-7-sonnet":
+			case "anthropic/claude-3-7-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet-20240620":
@@ -89,6 +93,10 @@ export class OpenRouterHandler implements ApiHandler {
 		// (models usually default to max tokens allowed)
 		let maxTokens: number | undefined
 		switch (model.id) {
+			case "anthropic/claude-3.7-sonnet":
+			case "anthropic/claude-3.7-sonnet:beta":
+			case "anthropic/claude-3-7-sonnet":
+			case "anthropic/claude-3-7-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet-20240620":
@@ -103,14 +111,11 @@ export class OpenRouterHandler implements ApiHandler {
 
 		let temperature = 0
 		let topP: number | undefined = undefined
-		// Handle models based on deepseek-r1
 		if (this.getModel().id.startsWith("deepseek/deepseek-r1") || this.getModel().id === "perplexity/sonar-reasoning") {
-			// Recommended temperature for DeepSeek reasoning models
-			temperature = 0.6
-			// DeepSeek highly recommends using user instead of system role
-			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-			// Some provider support topP and 0.95 is value that Deepseek used in their benchmarks
+			// Recommended values from DeepSeek
+			temperature = 0.7
 			topP = 0.95
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
 		// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
