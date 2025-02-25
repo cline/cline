@@ -821,16 +821,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
-					case "updateMcpTimeout": {
-						try {
-							if (message.serverName && message.timeout) {
-								await this.mcpHub?.updateServerTimeout(message.serverName, message.timeout)
-							}
-						} catch (error) {
-							console.error(`Failed to update timeout for server ${message.serverName}:`, error)
-						}
-						break
-					}
 					case "openExtensionSettings": {
 						const settingsFilter = message.text || ""
 						await vscode.commands.executeCommand(
