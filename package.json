@@ -216,7 +216,7 @@
 		"version-packages": "changeset version"
 	},
 	"devDependencies": {
-		"@changesets/cli": "^2.27.12",
+		"@changesets/cli": "^2.28.1",
 		"@types/chai": "^5.0.1",
 		"@types/diff": "^5.2.1",
 		"@types/mocha": "^10.0.7",
