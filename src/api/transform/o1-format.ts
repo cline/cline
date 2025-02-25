@@ -376,7 +376,6 @@ export function convertO1ResponseToAnthropicMessage(
 			{
 				type: "text",
 				text: normalText,
-				citations: null,
 			},
 		],
 		model: completion.model,
@@ -397,8 +396,6 @@ export function convertO1ResponseToAnthropicMessage(
 		usage: {
 			input_tokens: completion.usage?.prompt_tokens || 0,
 			output_tokens: completion.usage?.completion_tokens || 0,
-			cache_creation_input_tokens: null,
-			cache_read_input_tokens: null,
 		},
 	}
 
