@@ -121,6 +121,8 @@ Thanks to the [Model Context Protocol](https://github.com/modelcontextprotocol),
 
 **`@folder`:** Adds folder's files all at once to speed up your workflow even more
 
+**`@tabs`:** Add all open tabs to context, useful when you work on a more complex project and want to provide Cline with all the information he needs to understand the task.
+
 <!-- Transparent pixel to create line break after floating image -->
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
