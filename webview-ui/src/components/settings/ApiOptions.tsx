@@ -38,18 +38,14 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import { OpenRouterModelPicker } from "./OpenRouterModelPicker"
-import OpenAiModelPicker from "./OpenAiModelPicker"
-import { GlamaModelPicker } from "./GlamaModelPicker"
-import { UnboundModelPicker } from "./UnboundModelPicker"
 import { ModelInfoView } from "./ModelInfoView"
 import { DROPDOWN_Z_INDEX } from "./styles"
-import { RequestyModelPicker } from "./RequestyModelPicker"
+import { ModelPicker } from "./ModelPicker"
 import { TemperatureControl } from "./TemperatureControl"
 
 interface ApiOptionsProps {
 	uriScheme: string | undefined
-	apiConfiguration: ApiConfiguration | undefined
+	apiConfiguration: ApiConfiguration
 	setApiConfigurationField: <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => void
 	apiErrorMessage?: string
 	modelIdErrorMessage?: string
@@ -67,6 +63,20 @@ const ApiOptions = ({
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
+	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
+		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
+	})
+	const [glamaModels, setGlamaModels] = useState<Record<string, ModelInfo>>({
+		[glamaDefaultModelId]: glamaDefaultModelInfo,
+	})
+	const [unboundModels, setUnboundModels] = useState<Record<string, ModelInfo>>({
+		[unboundDefaultModelId]: unboundDefaultModelInfo,
+	})
+	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
+		[requestyDefaultModelId]: requestyDefaultModelInfo,
+	})
+	const [openAiModels, setOpenAiModels] = useState<Record<string, ModelInfo> | null>(null)
+
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [openRouterBaseUrlSelected, setOpenRouterBaseUrlSelected] = useState(!!apiConfiguration?.openRouterBaseUrl)
@@ -104,24 +114,93 @@ const ApiOptions = ({
 				vscode.postMessage({ type: "requestLmStudioModels", text: apiConfiguration?.lmStudioBaseUrl })
 			} else if (selectedProvider === "vscode-lm") {
 				vscode.postMessage({ type: "requestVsCodeLmModels" })
+			} else if (selectedProvider === "openai") {
+				vscode.postMessage({
+					type: "refreshOpenAiModels",
+					values: {
+						baseUrl: apiConfiguration?.openAiBaseUrl,
+						apiKey: apiConfiguration?.openAiApiKey,
+					},
+				})
+			} else if (selectedProvider === "openrouter") {
+				vscode.postMessage({ type: "refreshOpenRouterModels", values: {} })
+			} else if (selectedProvider === "glama") {
+				vscode.postMessage({ type: "refreshGlamaModels", values: {} })
+			} else if (selectedProvider === "requesty") {
+				vscode.postMessage({
+					type: "refreshRequestyModels",
+					values: {
+						apiKey: apiConfiguration?.requestyApiKey,
+					},
+				})
 			}
 		},
 		250,
-		[selectedProvider, apiConfiguration?.ollamaBaseUrl, apiConfiguration?.lmStudioBaseUrl],
+		[
+			selectedProvider,
+			apiConfiguration?.ollamaBaseUrl,
+			apiConfiguration?.lmStudioBaseUrl,
+			apiConfiguration?.openAiBaseUrl,
+			apiConfiguration?.openAiApiKey,
+			apiConfiguration?.requestyApiKey,
+		],
 	)
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
-
-		if (message.type === "ollamaModels" && Array.isArray(message.ollamaModels)) {
-			const newModels = message.ollamaModels
-			setOllamaModels(newModels)
-		} else if (message.type === "lmStudioModels" && Array.isArray(message.lmStudioModels)) {
-			const newModels = message.lmStudioModels
-			setLmStudioModels(newModels)
-		} else if (message.type === "vsCodeLmModels" && Array.isArray(message.vsCodeLmModels)) {
-			const newModels = message.vsCodeLmModels
-			setVsCodeLmModels(newModels)
+		switch (message.type) {
+			case "ollamaModels":
+				{
+					const newModels = message.ollamaModels ?? []
+					setOllamaModels(newModels)
+				}
+				break
+			case "lmStudioModels":
+				{
+					const newModels = message.lmStudioModels ?? []
+					setLmStudioModels(newModels)
+				}
+				break
+			case "vsCodeLmModels":
+				{
+					const newModels = message.vsCodeLmModels ?? []
+					setVsCodeLmModels(newModels)
+				}
+				break
+			case "glamaModels": {
+				const updatedModels = message.glamaModels ?? {}
+				setGlamaModels({
+					[glamaDefaultModelId]: glamaDefaultModelInfo, // in case the extension sent a model list without the default model
+					...updatedModels,
+				})
+				break
+			}
+			case "openRouterModels": {
+				const updatedModels = message.openRouterModels ?? {}
+				setOpenRouterModels({
+					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
+					...updatedModels,
+				})
+				break
+			}
+			case "openAiModels": {
+				const updatedModels = message.openAiModels ?? []
+				setOpenAiModels(Object.fromEntries(updatedModels.map((item) => [item, openAiModelInfoSaneDefaults])))
+				break
+			}
+			case "unboundModels": {
+				const updatedModels = message.unboundModels ?? {}
+				setUnboundModels(updatedModels)
+				break
+			}
+			case "requestyModels": {
+				const updatedModels = message.requestyModels ?? {}
+				setRequestyModels({
+					[requestyDefaultModelId]: requestyDefaultModelInfo, // in case the extension sent a model list without the default model
+					...updatedModels,
+				})
+				break
+			}
 		}
 	}, [])
 
@@ -616,7 +695,17 @@ const ApiOptions = ({
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
-					<OpenAiModelPicker />
+					<ModelPicker
+						apiConfiguration={apiConfiguration}
+						modelIdKey="openAiModelId"
+						modelInfoKey="openAiCustomModelInfo"
+						serviceName="OpenAI"
+						serviceUrl="https://platform.openai.com"
+						recommendedModel="gpt-4-turbo-preview"
+						models={openAiModels}
+						setApiConfigurationField={setApiConfigurationField}
+						defaultModelInfo={openAiModelInfoSaneDefaults}
+					/>
 					<div style={{ display: "flex", alignItems: "center" }}>
 						<Checkbox
 							checked={apiConfiguration?.openAiStreamingEnabled ?? true}
@@ -704,7 +793,7 @@ const ApiOptions = ({
 												})(),
 											}}
 											title="Maximum number of tokens the model can generate in a single response"
-											onChange={handleInputChange("openAiCustomModelInfo", (e) => {
+											onInput={handleInputChange("openAiCustomModelInfo", (e) => {
 												const value = parseInt((e.target as HTMLInputElement).value)
 												return {
 													...(apiConfiguration?.openAiCustomModelInfo ||
@@ -751,7 +840,7 @@ const ApiOptions = ({
 												})(),
 											}}
 											title="Total number of tokens (input + output) the model can process in a single request"
-											onChange={handleInputChange("openAiCustomModelInfo", (e) => {
+											onInput={handleInputChange("openAiCustomModelInfo", (e) => {
 												const value = (e.target as HTMLInputElement).value
 												const parsed = parseInt(value)
 												return {
@@ -897,7 +986,7 @@ const ApiOptions = ({
 														: "var(--vscode-errorForeground)"
 												})(),
 											}}
-											onChange={handleInputChange("openAiCustomModelInfo", (e) => {
+											onInput={handleInputChange("openAiCustomModelInfo", (e) => {
 												const value = (e.target as HTMLInputElement).value
 												const parsed = parseInt(value)
 												return {
@@ -942,7 +1031,7 @@ const ApiOptions = ({
 														: "var(--vscode-errorForeground)"
 												})(),
 											}}
-											onChange={handleInputChange("openAiCustomModelInfo", (e) => {
+											onInput={handleInputChange("openAiCustomModelInfo", (e) => {
 												const value = (e.target as HTMLInputElement).value
 												const parsed = parseInt(value)
 												return {
@@ -1011,6 +1100,7 @@ const ApiOptions = ({
 						placeholder={"e.g. meta-llama-3.1-8b-instruct"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+
 					{lmStudioModels.length > 0 && (
 						<VSCodeRadioGroup
 							value={
@@ -1220,7 +1310,18 @@ const ApiOptions = ({
 						}}>
 						This key is stored locally and only used to make API requests from this extension.
 					</p>
-					<UnboundModelPicker />
+					<ModelPicker
+						apiConfiguration={apiConfiguration}
+						defaultModelId={unboundDefaultModelId}
+						defaultModelInfo={unboundDefaultModelInfo}
+						models={unboundModels}
+						modelInfoKey="unboundModelInfo"
+						modelIdKey="unboundModelId"
+						serviceName="Unbound"
+						serviceUrl="https://api.getunbound.ai/models"
+						recommendedModel={unboundDefaultModelId}
+						setApiConfigurationField={setApiConfigurationField}
+					/>
 				</div>
 			)}
 
@@ -1236,9 +1337,49 @@ const ApiOptions = ({
 				</p>
 			)}
 
-			{selectedProvider === "glama" && <GlamaModelPicker />}
-			{selectedProvider === "openrouter" && <OpenRouterModelPicker />}
-			{selectedProvider === "requesty" && <RequestyModelPicker />}
+			{selectedProvider === "glama" && (
+				<ModelPicker
+					apiConfiguration={apiConfiguration ?? {}}
+					defaultModelId={glamaDefaultModelId}
+					defaultModelInfo={glamaDefaultModelInfo}
+					models={glamaModels}
+					modelInfoKey="glamaModelInfo"
+					modelIdKey="glamaModelId"
+					serviceName="Glama"
+					serviceUrl="https://glama.ai/models"
+					recommendedModel="anthropic/claude-3-7-sonnet"
+					setApiConfigurationField={setApiConfigurationField}
+				/>
+			)}
+
+			{selectedProvider === "openrouter" && (
+				<ModelPicker
+					apiConfiguration={apiConfiguration}
+					setApiConfigurationField={setApiConfigurationField}
+					defaultModelId={openRouterDefaultModelId}
+					defaultModelInfo={openRouterDefaultModelInfo}
+					models={openRouterModels}
+					modelIdKey="openRouterModelId"
+					modelInfoKey="openRouterModelInfo"
+					serviceName="OpenRouter"
+					serviceUrl="https://openrouter.ai/models"
+					recommendedModel="anthropic/claude-3.7-sonnet"
+				/>
+			)}
+			{selectedProvider === "requesty" && (
+				<ModelPicker
+					apiConfiguration={apiConfiguration}
+					setApiConfigurationField={setApiConfigurationField}
+					defaultModelId={requestyDefaultModelId}
+					defaultModelInfo={requestyDefaultModelInfo}
+					models={requestyModels}
+					modelIdKey="requestyModelId"
+					modelInfoKey="requestyModelInfo"
+					serviceName="Requesty"
+					serviceUrl="https://requesty.ai"
+					recommendedModel="anthropic/claude-3-7-sonnet-latest"
+				/>
+			)}
 
 			{selectedProvider !== "glama" &&
 				selectedProvider !== "openrouter" &&
@@ -1260,7 +1401,6 @@ const ApiOptions = ({
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 						</div>
-
 						<ModelInfoView
 							selectedModelId={selectedModelId}
 							modelInfo={selectedModelInfo}

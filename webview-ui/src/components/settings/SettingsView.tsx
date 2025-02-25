@@ -1,4 +1,4 @@
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react"
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { Dropdown, type DropdownOption } from "vscrui"
 
@@ -45,7 +45,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 	// TODO: Reduce WebviewMessage/ExtensionState complexity
 	const { currentApiConfigName } = extensionState
 	const {
-		apiConfiguration,
 		alwaysAllowReadOnly,
 		allowedCommands,
 		alwaysAllowBrowser,
@@ -69,6 +68,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		terminalOutputLineLimit,
 		writeDelayMs,
 	} = cachedState
+	
+	//Make sure apiConfiguration is initialized and managed by SettingsView
+	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
 
 	useEffect(() => {
 		// Update only when currentApiConfigName is changed
