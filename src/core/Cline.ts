@@ -1073,27 +1073,6 @@ export class Cline {
 				]
 				this.consecutiveMistakeCount++
 			}
-
-			posthog.capture({
-				event: "message sent",
-				properties: {
-					taskId: this.taskId,
-					chatMode: this.chatSettings.mode,
-					apiConversationHistoryCount: this.apiConversationHistory.length,
-					userMessageCount: this.apiConversationHistory.filter((m) => m.role === "user").length,
-					assistantMessageCount: this.apiConversationHistory.filter((m) => m.role === "assistant").length,
-					clineMessageCount: this.clineMessages.length,
-					textMessageCount: this.clineMessages.filter((m) => !!m.text).length,
-					askMessageCount: this.clineMessages.filter((m) => !!m.ask).length,
-					sayMessageCount: this.clineMessages.filter((m) => !!m.say).length,
-					reasoningMessageCount: this.clineMessages.filter((m) => !!m.reasoning).length,
-					partialMessageCount: this.clineMessages.filter((m) => !!m.partial).length,
-					consecutiveMistakeCount: this.consecutiveMistakeCount,
-					consecutiveAutoApprovedRequestsCount: this.consecutiveAutoApprovedRequestsCount,
-					toolUseCount: this.clineMessages.filter((m) => m.say === "tool").length,
-					checkpointsCount: this.clineMessages.filter((m) => m.say === "checkpoint_created").length,
-				},
-			})
 		}
 	}
 
@@ -3296,6 +3275,27 @@ export class Cline {
 					})
 					this.consecutiveMistakeCount++
 				}
+
+				posthog.capture({
+					event: "message sent",
+					properties: {
+						taskId: this.taskId,
+						chatMode: this.chatSettings.mode,
+						apiConversationHistoryCount: this.apiConversationHistory.length,
+						userMessageCount: this.apiConversationHistory.filter((m) => m.role === "user").length,
+						assistantMessageCount: this.apiConversationHistory.filter((m) => m.role === "assistant").length,
+						clineMessageCount: this.clineMessages.length,
+						textMessageCount: this.clineMessages.filter((m) => !!m.text).length,
+						askMessageCount: this.clineMessages.filter((m) => !!m.ask).length,
+						sayMessageCount: this.clineMessages.filter((m) => !!m.say).length,
+						reasoningMessageCount: this.clineMessages.filter((m) => !!m.reasoning).length,
+						partialMessageCount: this.clineMessages.filter((m) => !!m.partial).length,
+						consecutiveMistakeCount: this.consecutiveMistakeCount,
+						consecutiveAutoApprovedRequestsCount: this.consecutiveAutoApprovedRequestsCount,
+						toolUseCount: this.clineMessages.filter((m) => m.say === "tool").length,
+						checkpointsCount: this.clineMessages.filter((m) => m.say === "checkpoint_created").length,
+					},
+				})
 
 				const recDidEndLoop = await this.recursivelyMakeClineRequests(this.userMessageContent)
 				didEndLoop = recDidEndLoop
