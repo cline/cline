@@ -53,6 +53,7 @@ type SecretKey =
 	| "requestyApiKey"
 	| "togetherApiKey"
 	| "qwenApiKey"
+	| "siliconFlowApiKey"
 	| "mistralApiKey"
 	| "liteLlmApiKey"
 	| "authToken"
@@ -489,6 +490,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								liteLlmModelId,
 								liteLlmApiKey,
 								qwenApiLine,
+								siliconFlowApiKey,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -520,6 +522,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("qwenApiKey", qwenApiKey)
 							await this.storeSecret("mistralApiKey", mistralApiKey)
 							await this.storeSecret("liteLlmApiKey", liteLlmApiKey)
+							await this.storeSecret("siliconFlowApiKey", siliconFlowApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
@@ -1721,6 +1724,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelInfo,
 			qwenApiLine,
 			liteLlmApiKey,
+			siliconFlowApiKey,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1772,6 +1776,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
+			this.getSecret("siliconFlowApiKey") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1836,6 +1841,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				liteLlmBaseUrl,
 				liteLlmModelId,
 				liteLlmApiKey,
+				siliconFlowApiKey,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -1930,6 +1936,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			"qwenApiKey",
 			"mistralApiKey",
 			"liteLlmApiKey",
+			"siliconFlowApiKey",
 			"authToken",
 		]
 		for (const key of secretKeys) {
