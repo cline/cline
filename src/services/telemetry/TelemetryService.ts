@@ -25,6 +25,8 @@ class PostHogClient {
 	}
 
 	private updateTelemetryState(): void {
+		this.telemetryEnabled = false
+
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
 		const telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
 		const globalTelemetryEnabled = telemetryLevel === "all"
