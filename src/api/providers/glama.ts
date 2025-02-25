@@ -71,7 +71,7 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 		let maxTokens: number | undefined
 
 		if (this.getModel().id.startsWith("anthropic/")) {
-			maxTokens = 8_192
+			maxTokens = this.getModel().info.maxTokens
 		}
 
 		const requestOptions: OpenAI.Chat.ChatCompletionCreateParams = {
@@ -179,7 +179,7 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 			}
 
 			if (this.getModel().id.startsWith("anthropic/")) {
-				requestOptions.max_tokens = 8192
+				requestOptions.max_tokens = this.getModel().info.maxTokens
 			}
 
 			const response = await this.client.chat.completions.create(requestOptions)
@@ -212,6 +212,17 @@ export async function getGlamaModels() {
 				description: undefined,
 				cacheWritesPrice: parseApiPrice(rawModel.pricePerToken?.cacheWrite),
 				cacheReadsPrice: parseApiPrice(rawModel.pricePerToken?.cacheRead),
+			}
+
+			switch (rawModel.id) {
+				case rawModel.id.startsWith("anthropic/claude-3-7-sonnet"):
+					modelInfo.maxTokens = 16384
+					break
+				case rawModel.id.startsWith("anthropic/"):
+					modelInfo.maxTokens = 8192
+					break
+				default:
+					break
 			}
 
 			models[rawModel.id] = modelInfo

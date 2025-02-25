@@ -70,6 +70,17 @@ export async function getRequestyModels({ apiKey }: { apiKey?: string }) {
 				cacheReadsPrice: parseApiPrice(rawModel.cached_price),
 			}
 
+			switch (rawModel.id) {
+				case rawModel.id.startsWith("anthropic/claude-3-7-sonnet"):
+					modelInfo.maxTokens = 16384
+					break
+				case rawModel.id.startsWith("anthropic/"):
+					modelInfo.maxTokens = 8192
+					break
+				default:
+					break
+			}
+
 			models[rawModel.id] = modelInfo
 		}
 	} catch (error) {
