@@ -81,6 +81,7 @@ export interface ExtensionState {
 		photoURL: string | null
 	}
 	mcpMarketplaceEnabled?: boolean
+	telemetryOptIn: boolean | null
 }
 
 export interface ClineMessage {

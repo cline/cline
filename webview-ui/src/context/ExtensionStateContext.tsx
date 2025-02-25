@@ -39,6 +39,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		chatSettings: DEFAULT_CHAT_SETTINGS,
 		isLoggedIn: false,
 		platform: DEFAULT_PLATFORM,
+		telemetryOptIn: null,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)

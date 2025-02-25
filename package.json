@@ -186,6 +186,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
+				},
+				"cline.enableTelemetry": {
+					"type": "boolean",
+					"default": null,
+					"markdownDescription": "Allow anonymous usage and error reporting to help improve Cline. No code, prompts, or personal information is ever sent. See our [privacy policy](https://github.com/cline/cline/blob/main/docs/PRIVACY.md) for details."
 				}
 			}
 		}
@@ -268,6 +273,7 @@
 		"os-name": "^6.0.0",
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
+		"posthog-node": "^4.7.0",
 		"puppeteer-chromium-resolver": "^23.0.0",
 		"puppeteer-core": "^23.4.0",
 		"serialize-error": "^11.0.3",
