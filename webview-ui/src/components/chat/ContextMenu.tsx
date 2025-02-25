@@ -1,6 +1,9 @@
-import React, { useEffect, useMemo, useRef } from "react"
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions } from "../../utils/context-mentions"
 import { cleanPathPrefix } from "../common/CodeAccordian"
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { vscode } from "../../utils/vscode"
 
 interface ContextMenuProps {
 	onSelect: (type: ContextMenuOptionType, value?: string) => void
@@ -22,6 +25,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	queryItems,
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
+	const { memoryBankSettings } = useExtensionState()
 
 	const filteredOptions = useMemo(
 		() => getContextMenuOptions(searchQuery, selectedType, queryItems),
@@ -44,6 +48,16 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 		}
 	}, [selectedIndex])
 
+	const updateMemoryBank = (enabled: boolean) => {
+		vscode.postMessage({
+			type: "memoryBankSettings",
+			memoryBankSettings: {
+				...memoryBankSettings,
+				enabled,
+			},
+		})
+	}
+
 	const renderOptionContent = (option: ContextMenuQueryItem) => {
 		switch (option.type) {
 			case ContextMenuOptionType.Problems:
@@ -54,6 +68,28 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				return <span>Paste URL to fetch contents</span>
 			case ContextMenuOptionType.NoResults:
 				return <span>No results found</span>
+			case ContextMenuOptionType.MemoryBank:
+				if (option.type === ContextMenuOptionType.MemoryBank && option.value === "Enable Memory Bank") {
+					return (
+						<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+							<VSCodeCheckbox
+								checked={memoryBankSettings.enabled}
+								onChange={(e) => {
+									const isChecked = (e.target as HTMLInputElement).checked
+									updateMemoryBank(isChecked)
+								}}
+								title="Enable Memory Bank"
+								aria-label="Enable Memory Bank"
+							/>
+							<span>Enable Memory Bank</span>
+						</div>
+					)
+				} else if (option.type === ContextMenuOptionType.MemoryBank && option.value) {
+					return <span>{option.value}</span>
+				} else {
+					return <span>Memory Bank</span>
+				}
+
 			case ContextMenuOptionType.Git:
 				if (option.value) {
 					return (
@@ -112,6 +148,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				return "terminal"
 			case ContextMenuOptionType.URL:
 				return "link"
+			case ContextMenuOptionType.MemoryBank:
+				return "database"
 			case ContextMenuOptionType.Git:
 				return "git-commit"
 			case ContextMenuOptionType.NoResults:
@@ -122,6 +160,10 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	}
 
 	const isOptionSelectable = (option: ContextMenuQueryItem): boolean => {
+		if (option.type === ContextMenuOptionType.MemoryBank && option.value === "Enable Memory Bank") {
+			return false
+		}
+
 		return option.type !== ContextMenuOptionType.NoResults && option.type !== ContextMenuOptionType.URL
 	}
 
@@ -190,6 +232,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						</div>
 						{(option.type === ContextMenuOptionType.File ||
 							option.type === ContextMenuOptionType.Folder ||
+							option.type === ContextMenuOptionType.MemoryBank ||
 							option.type === ContextMenuOptionType.Git) &&
 							!option.value && (
 								<i
@@ -209,6 +252,16 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 								option.value)) && (
 							<i
 								className="codicon codicon-add"
+								style={{
+									fontSize: "14px",
+									flexShrink: 0,
+									marginLeft: 8,
+								}}
+							/>
+						)}
+						{option.type === ContextMenuOptionType.MemoryBank && option.value && (
+							<i
+								className="codicon codicon-comment"
 								style={{
 									fontSize: "14px",
 									flexShrink: 0,

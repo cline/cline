@@ -277,6 +277,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			return [
 				{ type: ContextMenuOptionType.Problems, value: "problems" },
 				{ type: ContextMenuOptionType.Terminal, value: "terminal" },
+				{ type: ContextMenuOptionType.MemoryBank, value: "Initialize Memory Bank" },
+				{ type: ContextMenuOptionType.MemoryBank, value: "Update Memory Bank" },
+				{ type: ContextMenuOptionType.MemoryBank, value: "Follow your custom instructions" },
 				...gitCommits,
 				...filePaths
 					.map((file) => "/" + file)
@@ -309,9 +312,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return
 				}
 
+				if (type === ContextMenuOptionType.MemoryBank && value === "Enable Memory Bank") {
+					return
+				}
+
 				if (
 					type === ContextMenuOptionType.File ||
 					type === ContextMenuOptionType.Folder ||
+					type === ContextMenuOptionType.MemoryBank ||
 					type === ContextMenuOptionType.Git
 				) {
 					if (!value) {
@@ -334,11 +342,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = "problems"
 					} else if (type === ContextMenuOptionType.Terminal) {
 						insertValue = "terminal"
+					} else if (type === ContextMenuOptionType.MemoryBank) {
+						insertValue = value || ""
 					} else if (type === ContextMenuOptionType.Git) {
 						insertValue = value || ""
 					}
 
-					const { newValue, mentionIndex } = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
+					let { newValue, mentionIndex } = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
+
+					if (type === ContextMenuOptionType.MemoryBank) {
+						newValue = newValue.replace("@", "")
+					}
 
 					setInputValue(newValue)
 					const newCursorPosition = newValue.indexOf(" ", mentionIndex + insertValue.length) + 1

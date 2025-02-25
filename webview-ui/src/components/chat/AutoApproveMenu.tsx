@@ -50,7 +50,7 @@ const ACTION_METADATA: {
 ]
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
-	const { autoApprovalSettings } = useExtensionState()
+	const { autoApprovalSettings, memoryBankSettings } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
 
@@ -121,6 +121,19 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			})
 		},
 		[autoApprovalSettings],
+	)
+
+	const updateMemoryBank = useCallback(
+		(enabled: boolean) => {
+			vscode.postMessage({
+				type: "memoryBankSettings",
+				memoryBankSettings: {
+					...memoryBankSettings,
+					enabled,
+				},
+			})
+		},
+		[memoryBankSettings],
 	)
 
 	return (
@@ -304,6 +317,22 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							}}>
 							Receive system notifications when Cline requires approval to proceed or when a task is completed.
 						</div>
+					</div>
+					<div style={{ margin: "6px 0" }}>
+						<VSCodeCheckbox
+							checked={memoryBankSettings.enabled}
+							onChange={(e) => {
+								const checked = (e.target as HTMLInputElement).checked
+								updateMemoryBank(checked)
+							}}>
+							Enable Memory Bank
+						</VSCodeCheckbox>
+						<div
+							style={{
+								marginLeft: "28px",
+								color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
+								fontSize: "12px",
+							}}></div>
 					</div>
 				</div>
 			)}
