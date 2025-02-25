@@ -1,10 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import OpenAI from "openai"
-import { ApiHandler, SingleCompletionHandler } from "../"
+
 import { ApiHandlerOptions, ModelInfo, glamaDefaultModelId, glamaDefaultModelInfo } from "../../shared/api"
+import { parseApiPrice } from "../../utils/cost"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { ApiHandler, SingleCompletionHandler } from "../"
 
 const GLAMA_DEFAULT_TEMPERATURE = 0
 
@@ -189,4 +191,34 @@ export class GlamaHandler implements ApiHandler, SingleCompletionHandler {
 			throw error
 		}
 	}
+}
+
+export async function getGlamaModels() {
+	const models: Record<string, ModelInfo> = {}
+
+	try {
+		const response = await axios.get("https://glama.ai/api/gateway/v1/models")
+		const rawModels = response.data
+
+		for (const rawModel of rawModels) {
+			const modelInfo: ModelInfo = {
+				maxTokens: rawModel.maxTokensOutput,
+				contextWindow: rawModel.maxTokensInput,
+				supportsImages: rawModel.capabilities?.includes("input:image"),
+				supportsComputerUse: rawModel.capabilities?.includes("computer_use"),
+				supportsPromptCache: rawModel.capabilities?.includes("caching"),
+				inputPrice: parseApiPrice(rawModel.pricePerToken?.input),
+				outputPrice: parseApiPrice(rawModel.pricePerToken?.output),
+				description: undefined,
+				cacheWritesPrice: parseApiPrice(rawModel.pricePerToken?.cacheWrite),
+				cacheReadsPrice: parseApiPrice(rawModel.pricePerToken?.cacheRead),
+			}
+
+			models[rawModel.id] = modelInfo
+		}
+	} catch (error) {
+		console.error(`Error fetching Glama models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
+	}
+
+	return models
 }

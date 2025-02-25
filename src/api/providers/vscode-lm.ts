@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
+
 import { ApiHandler, SingleCompletionHandler } from "../"
 import { calculateApiCost } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
@@ -543,5 +544,17 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			}
 			throw error
 		}
+	}
+}
+
+export async function getVsCodeLmModels() {
+	try {
+		const models = await vscode.lm.selectChatModels({})
+		return models || []
+	} catch (error) {
+		console.error(
+			`Error fetching VS Code LM models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+		)
+		return []
 	}
 }
