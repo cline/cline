@@ -1278,7 +1278,7 @@ const ApiOptions = ({
 					{anthropicThinkingBudget && (
 						<>
 							<div className="text-muted-foreground text-sm">
-								Number of tokens Claude is allowed use for its internal reasoning process.
+								Number of tokens Claude is allowed to use for its internal reasoning process.
 							</div>
 							<div className="flex items-center gap-2">
 								<Slider
