@@ -8,6 +8,7 @@ import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
+import posthog from "./services/analytics/PostHogClient"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -55,6 +56,22 @@ export function activate(context: vscode.ExtensionContext) {
 				type: "action",
 				action: "mcpButtonClicked",
 			})
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeConfiguration(async (e) => {
+			if (e.affectsConfiguration("cline")) {
+				Logger.log("Configuration changed")
+				await sidebarProvider.postStateToWebview()
+				const config = vscode.workspace.getConfiguration("cline")
+				// we use optIn and optOut because we want to keep posthog active for feature flags
+				if (config.get("enableTelemetry")) {
+					posthog.optIn()
+				} else {
+					posthog.optOut()
+				}
+			}
 		}),
 	)
 
@@ -188,8 +205,9 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {
+export async function deactivate() {
 	Logger.log("Cline extension deactivated")
+	await posthog.shutdown()
 }
 
 // TODO: Find a solution for automatically removing DEV related content from production builds.
