@@ -6,12 +6,13 @@ import reportWebVitals from "./reportWebVitals"
 import "../../node_modules/@vscode/codicons/dist/codicon.css"
 import { PostHogProvider } from "posthog-js/react"
 
+const apiKey = process.env.POSTHOG_PROJECT_API_KEY || ""
+const instanceAddress = process.env.POSTHOG_INSTANCE_ADDRESS || ""
+
 const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement)
 root.render(
 	<React.StrictMode>
-		<PostHogProvider
-			apiKey="phc_5WnLHpYyC30Bsb7VSJ6DzcPXZ34JSF08DJLyM7svZ15"
-			options={{ api_host: "https://us.i.posthog.com", capture_pageview: false }}>
+		<PostHogProvider apiKey={apiKey} options={{ api_host: instanceAddress, capture_pageview: false }}>
 			<App />
 		</PostHogProvider>
 	</React.StrictMode>,

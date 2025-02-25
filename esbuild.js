@@ -1,6 +1,9 @@
 const esbuild = require("esbuild")
 const fs = require("fs")
 const path = require("path")
+const dotenv = require("dotenv")
+// Load environment variables from .env.local
+dotenv.config({ path: ".env" })
 
 const production = process.argv.includes("--production")
 const watch = process.argv.includes("--watch")
@@ -78,6 +81,10 @@ const extensionConfig = {
 	platform: "node",
 	outfile: "dist/extension.js",
 	external: ["vscode"],
+	define: {
+		"process.env.POSTHOG_PROJECT_API_KEY": JSON.stringify(process.env.POSTHOG_PROJECT_API_KEY || ""),
+		"process.env.POSTHOG_INSTANCE_ADDRESS": JSON.stringify(process.env.POSTHOG_INSTANCE_ADDRESS || ""),
+	},
 }
 
 async function main() {

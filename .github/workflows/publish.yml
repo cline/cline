@@ -82,6 +82,8 @@ jobs:
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
+                  POSTHOG_PROJECT_API_KEY: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
+                  POSTHOG_INSTANCE_ADDRESS: ${{ secrets.POSTHOG_INSTANCE_ADDRESS }}
               run: |
                   # Required to generate the .vsix
                   vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"

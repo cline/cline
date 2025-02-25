@@ -12,6 +12,14 @@
 const rewire = require("rewire")
 const defaults = rewire("react-scripts/scripts/build.js")
 const config = defaults.__get__("config")
+const ModuleScopePlugin = require("react-dev-utils/ModuleScopePlugin")
+const path = require("path")
+const fs = require("fs")
+const dotenv = require("dotenv")
+const webpack = require("webpack")
+
+// Load environment variables from root .env.local
+dotenv.config({ path: "../.env" })
 
 /* Modifying Webpack Configuration for 'shared' dir
 This section uses Rewire to modify Create React App's webpack configuration without ejecting. Rewire allows us to inject and alter the internal build scripts of CRA at runtime. This allows us to maintain a flexible project structure that keeps shared code outside the webview-ui/src directory, while still adhering to CRA's security model that typically restricts imports to within src/. 
@@ -21,11 +29,18 @@ Before, we would just import types from shared dir and specifying include (and a
 - Imports from the shared directory must use full paths relative to the src directory, without file extensions.
 - Example: import { someFunction } from '../../src/shared/utils/helpers'
 */
-const ModuleScopePlugin = require("react-dev-utils/ModuleScopePlugin")
-const path = require("path")
-const fs = require("fs")
+
 // Get all files in the shared directory
 const sharedDir = path.resolve(__dirname, "..", "..", "src", "shared")
+
+config.plugins.push(
+	new webpack.DefinePlugin({
+		"process.env": {
+			POSTHOG_PROJECT_API_KEY: JSON.stringify(process.env.POSTHOG_PROJECT_API_KEY || ""),
+			POSTHOG_INSTANCE_ADDRESS: JSON.stringify(process.env.POSTHOG_INSTANCE_ADDRESS || ""),
+		},
+	}),
+)
 
 function getAllFiles(dir) {
 	let files = []
