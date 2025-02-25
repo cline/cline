@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.7.4
+
+### Patch Changes
+
+- Fix a bug that prevented the "Thinking" setting from properly updating when switching profiles.
+
 ## [3.7.3]
 
 - Support for ["Thinking"](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) Sonnet 3.7 when using the Anthropic provider.

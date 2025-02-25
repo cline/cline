@@ -3,7 +3,7 @@
 	"displayName": "Roo Code (prev. Roo Cline)",
 	"description": "An AI-powered autonomous coding agent that lives in your editor.",
 	"publisher": "RooVeterinaryInc",
-	"version": "3.7.3",
+	"version": "3.7.4",
 	"icon": "assets/icons/rocket.png",
 	"galleryBanner": {
 		"color": "#617A91",
