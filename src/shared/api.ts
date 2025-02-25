@@ -70,6 +70,7 @@ export interface ModelInfo {
 	supportsImages?: boolean
 	supportsComputerUse?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
+	supportsTools?: boolean
 	inputPrice?: number
 	outputPrice?: number
 	cacheWritesPrice?: number

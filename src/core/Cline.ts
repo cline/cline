@@ -56,7 +56,7 @@ import { constructNewFileContent } from "./assistant-message/diff"
 import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "./ignore/ClineIgnoreController"
 import { parseMentions } from "./mentions"
 import { formatResponse } from "./prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
+import { addUserInstructions, formatToolCallsClineXml, SYSTEM_PROMPT } from "./prompts/system"
 import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 
@@ -1263,10 +1263,18 @@ export class Cline {
 
 		const disableBrowserTool = vscode.workspace.getConfiguration("cline").get<boolean>("disableBrowserTool") ?? false
 		const modelSupportsComputerUse = this.api.getModel().info.supportsComputerUse ?? false
+		const supportsTools = this.api.getModel().info.supportsTools ?? false
 
 		const supportsComputerUse = modelSupportsComputerUse && !disableBrowserTool // only enable computer use if the model supports it and the user hasn't disabled it
 
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, mcpHub, this.browserSettings)
+		let { systemPrompt, tools } = await SYSTEM_PROMPT({
+			cwd,
+			supportsComputerUse,
+			mcpHub,
+			supportsTools,
+			browserSettings: this.browserSettings,
+			formatToolCalls: this.api.formatToolCalls ?? formatToolCallsClineXml,
+		})
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
@@ -1344,7 +1352,7 @@ export class Cline {
 			this.conversationHistoryDeletedRange,
 		)
 
-		let stream = this.api.createMessage(systemPrompt, truncatedConversationHistory)
+		let stream = this.api.createMessage(systemPrompt, truncatedConversationHistory, tools)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
