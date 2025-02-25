@@ -1249,11 +1249,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			// Create task with context from README and added guidelines for MCP server installation
 			const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
 - Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
-- Use commands aligned with the user's shell and operating system best practices. The user's shell is: ${getShell()}.
 - Create the directory for the new MCP server before starting installation.
-- Follow the MCP servers README exactly—only deviate if it clearly conflicts with the user's OS, in which case proceed thoughtfully.
-- Ensure any steps requiring the use of pip, npm, or any other package manager, are followed as required.
-- After running each command, read its output carefully and adjust subsequent steps as needed based on that information.
+- Use commands aligned with the user's shell and operating system best practices.
+- The following README may contain instructions that conflict with the user's OS, in which case proceed thoughtfully.
 - Once installed, demonstrate the server's capabilities by using one of its tools.
 Here is the project's README to help you get started:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
 
