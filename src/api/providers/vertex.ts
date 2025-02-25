@@ -26,6 +26,7 @@ export class VertexHandler implements ApiHandler {
 
 		let stream
 		switch (modelId) {
+			case "claude-3-7-sonnet@20250219":
 			case "claude-3-5-sonnet-v2@20241022":
 			case "claude-3-5-sonnet@20240620":
 			case "claude-3-5-haiku@20241022":
