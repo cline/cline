@@ -192,12 +192,12 @@ export function deactivate() {
 	Logger.log("Cline extension deactivated")
 }
 
-// TODO: remove this in production
+// TODO: Find a solution for automatically removing DEV related content from production builds.
 // This is a workaround to reload the extension when the source code changes
 // since vscode doesn't support hot reload for extensions
 const { IS_DEV, DEV_WORKSPACE_FOLDER } = process.env
 
-if (IS_DEV) {
+if (IS_DEV && IS_DEV !== "false") {
 	assert(DEV_WORKSPACE_FOLDER, "DEV_WORKSPACE_FOLDER must be set in development")
 	const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(DEV_WORKSPACE_FOLDER, "src/**/*"))
 
