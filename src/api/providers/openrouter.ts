@@ -55,6 +55,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		// prompt caching: https://openrouter.ai/docs/prompt-caching
 		// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
 		switch (this.getModel().id) {
+			case "anthropic/claude-3.7-sonnet":
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet-20240620":
@@ -106,6 +107,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		// (models usually default to max tokens allowed)
 		let maxTokens: number | undefined
 		switch (this.getModel().id) {
+			case "anthropic/claude-3.7-sonnet":
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet-20240620":

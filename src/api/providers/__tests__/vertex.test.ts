@@ -1,6 +1,9 @@
-import { VertexHandler } from "../vertex"
+// npx jest src/api/providers/__tests__/vertex.test.ts
+
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
+
+import { VertexHandler } from "../vertex"
 
 // Mock Vertex SDK
 jest.mock("@anthropic-ai/vertex-sdk", () => ({
@@ -289,7 +292,7 @@ describe("VertexHandler", () => {
 				vertexRegion: "us-central1",
 			})
 			const modelInfo = invalidHandler.getModel()
-			expect(modelInfo.id).toBe("claude-3-5-sonnet-v2@20241022") // Default model
+			expect(modelInfo.id).toBe("claude-3-7-sonnet@20250219") // Default model
 		})
 	})
 })

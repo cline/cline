@@ -10,12 +10,41 @@ import { defaultModeSlug } from "../../../shared/modes"
 import { experimentDefault } from "../../../shared/experiments"
 import { Cline } from "../../Cline"
 
-// Mock custom-instructions module
-const mockAddCustomInstructions = jest.fn()
+// Mock setup must come before imports
+jest.mock("../../prompts/sections/custom-instructions")
 
-jest.mock("../../prompts/sections/custom-instructions", () => ({
-	addCustomInstructions: mockAddCustomInstructions,
-}))
+// Mock dependencies
+jest.mock("vscode")
+jest.mock("delay")
+jest.mock(
+	"@modelcontextprotocol/sdk/types.js",
+	() => ({
+		CallToolResultSchema: {},
+		ListResourcesResultSchema: {},
+		ListResourceTemplatesResultSchema: {},
+		ListToolsResultSchema: {},
+		ReadResourceResultSchema: {},
+		ErrorCode: {
+			InvalidRequest: "InvalidRequest",
+			MethodNotFound: "MethodNotFound",
+			InternalError: "InternalError",
+		},
+		McpError: class McpError extends Error {
+			code: string
+			constructor(code: string, message: string) {
+				super(message)
+				this.code = code
+				this.name = "McpError"
+			}
+		},
+	}),
+	{ virtual: true },
+)
+
+// Initialize mocks
+const mockAddCustomInstructions = jest.fn().mockResolvedValue("Combined instructions")
+;(jest.requireMock("../../prompts/sections/custom-instructions") as any).addCustomInstructions =
+	mockAddCustomInstructions
 
 // Mock delay module
 jest.mock("delay", () => {
@@ -690,19 +719,18 @@ describe("ClineProvider", () => {
 		await provider.initClineWithTask("Test task")
 
 		// Verify Cline was initialized with mode-specific instructions
-		expect(Cline).toHaveBeenCalledWith(
+		expect(Cline).toHaveBeenCalledWith({
 			provider,
-			mockApiConfig,
-			modeCustomInstructions,
-			true,
-			false,
-			1.0,
-			"Test task",
-			undefined,
-			undefined,
-			experimentDefault,
-		)
+			apiConfiguration: mockApiConfig,
+			customInstructions: modeCustomInstructions,
+			enableDiff: true,
+			enableCheckpoints: false,
+			fuzzyMatchThreshold: 1.0,
+			task: "Test task",
+			experiments: experimentDefault,
+		})
 	})
+
 	test("handles mode-specific custom instructions updates", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]

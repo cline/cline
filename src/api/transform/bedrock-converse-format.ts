@@ -1,9 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { MessageContent } from "../../shared/api"
 import { ConversationRole, Message, ContentBlock } from "@aws-sdk/client-bedrock-runtime"
 
-// Import StreamEvent type from bedrock.ts
-import { StreamEvent } from "../providers/bedrock"
+import { MessageContent } from "../../shared/api"
 
 /**
  * Convert Anthropic messages to Bedrock Converse format
@@ -174,50 +172,4 @@ export function convertToBedrockConverseMessages(anthropicMessages: Anthropic.Me
 			content,
 		}
 	})
-}
-
-/**
- * Convert Bedrock Converse stream events to Anthropic message format
- */
-export function convertToAnthropicMessage(
-	streamEvent: StreamEvent,
-	modelId: string,
-): Partial<Anthropic.Messages.Message> {
-	// Handle metadata events
-	if (streamEvent.metadata?.usage) {
-		return {
-			id: "", // Bedrock doesn't provide message IDs
-			type: "message",
-			role: "assistant",
-			model: modelId,
-			usage: {
-				input_tokens: streamEvent.metadata.usage.inputTokens || 0,
-				output_tokens: streamEvent.metadata.usage.outputTokens || 0,
-			},
-		}
-	}
-
-	// Handle content blocks
-	const text = streamEvent.contentBlockStart?.start?.text || streamEvent.contentBlockDelta?.delta?.text
-	if (text !== undefined) {
-		return {
-			type: "message",
-			role: "assistant",
-			content: [{ type: "text", text: text }],
-			model: modelId,
-		}
-	}
-
-	// Handle message stop
-	if (streamEvent.messageStop) {
-		return {
-			type: "message",
-			role: "assistant",
-			stop_reason: streamEvent.messageStop.stopReason || null,
-			stop_sequence: null,
-			model: modelId,
-		}
-	}
-
-	return {}
 }

@@ -137,7 +137,7 @@ describe("HistoryView", () => {
 		})
 	})
 
-	it("handles task deletion", () => {
+	it("handles task deletion", async () => {
 		const onDone = jest.fn()
 		render(<HistoryView onDone={onDone} />)
 
@@ -145,8 +145,13 @@ describe("HistoryView", () => {
 		const taskContainer = screen.getByTestId("virtuoso-item-1")
 		fireEvent.mouseEnter(taskContainer)
 
+		// Click delete button to open confirmation dialog
 		const deleteButton = within(taskContainer).getByTitle("Delete Task")
 		fireEvent.click(deleteButton)
+
+		// Find and click the confirm delete button in the dialog
+		const confirmDeleteButton = screen.getByRole("button", { name: /delete/i })
+		fireEvent.click(confirmDeleteButton)
 
 		// Verify vscode message was sent
 		expect(vscode.postMessage).toHaveBeenCalledWith({
