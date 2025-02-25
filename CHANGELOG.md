@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.7.3
+
+### Patch Changes
+
+- v3.7.3
+
 ## [3.7.2]
 
 - Fix computer use and prompt caching for OpenRouter's `anthropic/claude-3.7-sonnet:beta` (thanks @cte!)
