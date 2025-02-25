@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.7.4
-
-### Patch Changes
+## [3.7.4]
 
 - Fix a bug that prevented the "Thinking" setting from properly updating when switching profiles.
 
