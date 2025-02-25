@@ -42,7 +42,12 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 }
 
 export function formatContentBlockToMarkdown(
-	block: Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam,
+	block:
+		| Anthropic.TextBlockParam
+		| Anthropic.ImageBlockParam
+		| Anthropic.ToolUseBlockParam
+		| Anthropic.ToolResultBlockParam
+		| Anthropic.ContentBlockParam,
 	// messages: Anthropic.MessageParam[]
 ): string {
 	switch (block.type) {
