@@ -195,6 +195,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
+					<VSCodeOption value="dify">Dify</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -1122,6 +1123,37 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
+			{selectedProvider === "dify" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.difyApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("difyApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Dify API Key</span>
+					</VSCodeTextField>
+
+					<VSCodeTextField
+						value={apiConfiguration?.difyBaseUrl || ""}
+						style={{ width: "100%", marginTop: 3 }}
+						type="url"
+						onInput={handleInputChange("difyBaseUrl")}
+						placeholder="Enter Dify Base URL...">
+						<span style={{ fontWeight: 500 }}>Dify Base URL</span>
+					</VSCodeTextField>
+
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						The API key and base URL are stored locally and only used to make API requests from this extension.
+					</p>
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -1402,6 +1434,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.liteLlmModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		case "dify":
+			return {
+				selectedProvider: provider,
+				selectedModelId: "",
+				electedModelInfo: openAiModelInfoSaneDefaults,
 			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
