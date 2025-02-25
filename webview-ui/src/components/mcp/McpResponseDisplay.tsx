@@ -338,17 +338,13 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	
 	// Function to render content based on display mode
 	const renderContent = () => {
-		if (isLoading) {
-			return <div>Analyzing response content...</div>
-		}
-		
 		// For plain text mode, just show the text
-		if (displayMode === 'plain') {
+		if (displayMode === 'plain' || isLoading) {
 			return <UrlText>{responseText}</UrlText>
 		}
 		
 		// For rich display mode, show the text with embedded content
-		if (displayMode === 'rich') {
+		if (displayMode === 'rich' && !isLoading) {
 			// Create an array of text segments and embedded content
 			const segments: JSX.Element[] = []
 			let lastIndex = 0
