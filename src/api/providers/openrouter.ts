@@ -128,15 +128,11 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 			...(this.options.openRouterUseMiddleOutTransform && { transforms: ["middle-out"] }),
 		}
 
-		console.log("OpenRouter completionParams:", completionParams)
-
 		const stream = await this.client.chat.completions.create(completionParams)
 
 		let genId: string | undefined
 
 		for await (const chunk of stream as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>) {
-			console.log("OpenRouter chunk:", chunk)
-
 			// OpenRouter returns an error object instead of the OpenAI SDK throwing an error.
 			if ("error" in chunk) {
 				const error = chunk.error as { message?: string; code?: number }
@@ -189,7 +185,6 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 				})
 
 				const generation = response.data?.data
-				console.log("OpenRouter generation details:", response.data)
 
 				yield {
 					type: "usage",
