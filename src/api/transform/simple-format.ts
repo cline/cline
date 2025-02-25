@@ -3,16 +3,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 /**
  * Convert complex content blocks to simple string content
  */
-export function convertToSimpleContent(
-	content:
-		| string
-		| Array<
-				| Anthropic.Messages.TextBlockParam
-				| Anthropic.Messages.ImageBlockParam
-				| Anthropic.Messages.ToolUseBlockParam
-				| Anthropic.Messages.ToolResultBlockParam
-		  >,
-): string {
+export function convertToSimpleContent(content: Anthropic.Messages.MessageParam["content"]): string {
 	if (typeof content === "string") {
 		return content
 	}

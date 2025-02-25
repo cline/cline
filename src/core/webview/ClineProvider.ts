@@ -89,6 +89,7 @@ type GlobalStateKey =
 	| "lmStudioModelId"
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
+	| "anthropicThinking"
 	| "azureApiVersion"
 	| "openAiStreamingEnabled"
 	| "openRouterModelId"
@@ -1654,6 +1655,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			lmStudioModelId,
 			lmStudioBaseUrl,
 			anthropicBaseUrl,
+			anthropicThinking,
 			geminiApiKey,
 			openAiNativeApiKey,
 			deepSeekApiKey,
@@ -1701,6 +1703,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.updateGlobalState("lmStudioModelId", lmStudioModelId),
 			this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl),
 			this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl),
+			this.updateGlobalState("anthropicThinking", anthropicThinking),
 			this.storeSecret("geminiApiKey", geminiApiKey),
 			this.storeSecret("openAiNativeApiKey", openAiNativeApiKey),
 			this.storeSecret("deepSeekApiKey", deepSeekApiKey),
@@ -2511,6 +2514,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			lmStudioModelId,
 			lmStudioBaseUrl,
 			anthropicBaseUrl,
+			anthropicThinking,
 			geminiApiKey,
 			openAiNativeApiKey,
 			deepSeekApiKey,
@@ -2593,6 +2597,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("anthropicThinking") as Promise<number | undefined>,
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
@@ -2692,6 +2697,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				lmStudioModelId,
 				lmStudioBaseUrl,
 				anthropicBaseUrl,
+				anthropicThinking,
 				geminiApiKey,
 				openAiNativeApiKey,
 				deepSeekApiKey,

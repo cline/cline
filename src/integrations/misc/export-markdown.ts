@@ -41,14 +41,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 	}
 }
 
-export function formatContentBlockToMarkdown(
-	block:
-		| Anthropic.TextBlockParam
-		| Anthropic.ImageBlockParam
-		| Anthropic.ToolUseBlockParam
-		| Anthropic.ToolResultBlockParam,
-	// messages: Anthropic.MessageParam[]
-): string {
+export function formatContentBlockToMarkdown(block: Anthropic.Messages.ContentBlockParam): string {
 	switch (block.type) {
 		case "text":
 			return block.text

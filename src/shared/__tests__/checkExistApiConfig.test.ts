@@ -32,6 +32,7 @@ describe("checkExistKey", () => {
 			apiKey: "test-key",
 			apiProvider: undefined,
 			anthropicBaseUrl: undefined,
+			anthropicThinking: undefined,
 		}
 		expect(checkExistKey(config)).toBe(true)
 	})
