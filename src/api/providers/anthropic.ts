@@ -33,12 +33,16 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 		let stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>
 		const cacheControl: CacheControlEphemeral = { type: "ephemeral" }
 		const modelId = this.getModel().id
+		const maxTokens = this.getModel().info.maxTokens || 8192
+		let temperature = this.options.modelTemperature ?? ANTHROPIC_DEFAULT_TEMPERATURE
 		let thinking: BetaThinkingConfigParam | undefined = undefined
 
 		if (THINKING_MODELS.includes(modelId)) {
 			thinking = this.options.anthropicThinking
 				? { type: "enabled", budget_tokens: this.options.anthropicThinking }
 				: { type: "disabled" }
+
+			temperature = 1.0
 		}
 
 		switch (modelId) {
@@ -62,22 +66,18 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 				stream = await this.client.messages.create(
 					{
 						model: modelId,
-						max_tokens: this.getModel().info.maxTokens || 8192,
-						temperature: this.options.modelTemperature ?? ANTHROPIC_DEFAULT_TEMPERATURE,
-						system: [{ text: systemPrompt, type: "text", cache_control: { type: "ephemeral" } }], // setting cache breakpoint for system prompt so new tasks can reuse it
+						max_tokens: maxTokens,
+						temperature,
+						thinking,
+						// Setting cache breakpoint for system prompt so new tasks can reuse it.
+						system: [{ text: systemPrompt, type: "text", cache_control: cacheControl }],
 						messages: messages.map((message, index) => {
 							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
 								return {
 									...message,
 									content:
 										typeof message.content === "string"
-											? [
-													{
-														type: "text",
-														text: message.content,
-														cache_control: cacheControl,
-													},
-												]
+											? [{ type: "text", text: message.content, cache_control: cacheControl }]
 											: message.content.map((content, contentIndex) =>
 													contentIndex === message.content.length - 1
 														? { ...content, cache_control: cacheControl }
@@ -91,7 +91,6 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 						// tool_choice: { type: "auto" },
 						// tools: tools,
 						stream: true,
-						thinking,
 					},
 					(() => {
 						// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
@@ -132,6 +131,7 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 				case "message_start":
 					// Tells us cache reads/writes/input/output.
 					const usage = chunk.message.usage
+					console.log("usage", usage)
 
 					yield {
 						type: "usage",
@@ -158,6 +158,12 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 				case "content_block_start":
 					switch (chunk.content_block.type) {
 						case "thinking":
+							// We may receive multiple text blocks, in which
+							// case just insert a line break between them.
+							if (chunk.index > 0) {
+								yield { type: "reasoning", text: "\n" }
+							}
+
 							yield { type: "reasoning", text: chunk.content_block.thinking }
 							break
 						case "text":
@@ -173,10 +179,14 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 					break
 				case "content_block_delta":
 					switch (chunk.delta.type) {
+						case "thinking_delta":
+							yield { type: "reasoning", text: chunk.delta.thinking }
+							break
 						case "text_delta":
 							yield { type: "text", text: chunk.delta.text }
 							break
 					}
+
 					break
 				case "content_block_stop":
 					break
@@ -186,10 +196,12 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 
 	getModel(): { id: AnthropicModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
+
 		if (modelId && modelId in anthropicModels) {
 			const id = modelId as AnthropicModelId
 			return { id, info: anthropicModels[id] }
 		}
+
 		return { id: anthropicDefaultModelId, info: anthropicModels[anthropicDefaultModelId] }
 	}
 
@@ -204,14 +216,17 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 			})
 
 			const content = response.content[0]
+
 			if (content.type === "text") {
 				return content.text
 			}
+
 			return ""
 		} catch (error) {
 			if (error instanceof Error) {
 				throw new Error(`Anthropic completion error: ${error.message}`)
 			}
+
 			throw error
 		}
 	}

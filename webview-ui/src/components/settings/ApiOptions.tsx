@@ -43,6 +43,7 @@ import { UnboundModelPicker } from "./UnboundModelPicker"
 import { ModelInfoView } from "./ModelInfoView"
 import { DROPDOWN_Z_INDEX } from "./styles"
 import { RequestyModelPicker } from "./RequestyModelPicker"
+import { Slider } from "../ui"
 
 interface ApiOptionsProps {
 	uriScheme: string | undefined
@@ -65,6 +66,8 @@ const ApiOptions = ({
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
+	const [anthropicThinkingEnabled, setAnthropicThinkingEnabled] = useState(!!apiConfiguration?.anthropicThinking)
+	const [anthropicThinkingBudget, setAnthropicThinkingBudget] = useState(apiConfiguration?.anthropicThinking ?? 1024)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [openRouterBaseUrlSelected, setOpenRouterBaseUrlSelected] = useState(!!apiConfiguration?.openRouterBaseUrl)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
@@ -1224,7 +1227,6 @@ const ApiOptions = ({
 			)}
 
 			{selectedProvider === "glama" && <GlamaModelPicker />}
-
 			{selectedProvider === "openrouter" && <OpenRouterModelPicker />}
 			{selectedProvider === "requesty" && <RequestyModelPicker />}
 
@@ -1258,8 +1260,33 @@ const ApiOptions = ({
 					</>
 				)}
 
+			{selectedProvider === "anthropic" && (
+				<div className="flex flex-col gap-2 mt-2">
+					<Checkbox checked={anthropicThinkingEnabled} onChange={setAnthropicThinkingEnabled}>
+						Thinking?
+					</Checkbox>
+					{anthropicThinkingEnabled && (
+						<>
+							<div className="text-muted-foreground text-sm">
+								Number of tokens Claude is allowed use for its internal reasoning process
+							</div>
+							<div className="flex items-center gap-2">
+								<Slider
+									min={1024}
+									max={6399}
+									step={100}
+									value={[anthropicThinkingBudget]}
+									onValueChange={(value) => setAnthropicThinkingBudget(value[0])}
+								/>
+								<div className="w-10">{anthropicThinkingBudget}</div>
+							</div>
+						</>
+					)}
+				</div>
+			)}
+
 			{!fromWelcomeView && (
-				<div style={{ marginTop: "10px" }}>
+				<div className="mt-2">
 					<TemperatureControl
 						value={apiConfiguration?.modelTemperature}
 						onChange={handleInputChange("modelTemperature", noTransform)}
