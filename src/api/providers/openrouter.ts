@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
 import axios from "axios"
 import OpenAI from "openai"
 import delay from "delay"
@@ -17,6 +18,7 @@ const OPENROUTER_DEFAULT_TEMPERATURE = 0
 type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
 	transforms?: string[]
 	include_reasoning?: boolean
+	thinking?: BetaThinkingConfigParam
 }
 
 // Add custom interface for OpenRouter usage chunk.
@@ -57,7 +59,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		// prompt caching: https://openrouter.ai/docs/prompt-caching
 		// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
 		switch (true) {
-			case this.getModel().id.startsWith("anthropic/"):
+			case modelId.startsWith("anthropic/"):
 				openAiMessages[0] = {
 					role: "system",
 					content: [
@@ -108,8 +110,13 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 
 		let temperature = this.options.modelTemperature ?? defaultTemperature
 
+		const maxTokens = modelInfo.maxTokens
+		const budgetTokens = this.options.anthropicThinking ?? Math.min((maxTokens ?? 8192) - 1, 8192)
+		let thinking: BetaThinkingConfigParam | undefined = undefined
+
 		// Anthropic "Thinking" models require a temperature of 1.0.
 		if (modelInfo.thinking) {
+			thinking = { type: "enabled", budget_tokens: budgetTokens }
 			temperature = 1.0
 		}
 
@@ -118,8 +125,9 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 
 		const completionParams: OpenRouterChatCompletionParams = {
 			model: modelId,
-			max_tokens: modelInfo.maxTokens,
+			max_tokens: maxTokens,
 			temperature,
+			thinking, // OpenRouter is temporarily supporting this.
 			top_p: topP,
 			messages: openAiMessages,
 			stream: true,
