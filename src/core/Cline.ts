@@ -1166,10 +1166,8 @@ export class Cline {
 
 	// Tools
 
-	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
-		const contextWindow = this.api.getModel().info.contextWindow || 128_000
-		const maxAllowedSize = getMaxAllowedSize(contextWindow)
-		const usedContext = this.apiConversationHistory.reduce((total, msg) => {
+	private calculateUsedContext(): number {
+		return this.apiConversationHistory.reduce((total, msg) => {
 			if (Array.isArray(msg.content)) {
 				return (
 					total +
@@ -1183,6 +1181,12 @@ export class Cline {
 			}
 			return total + (typeof msg.content === "string" ? msg.content.length / 4 : 0)
 		}, 0)
+	}
+
+	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+		const contextWindow = this.api.getModel().info.contextWindow || 128_000
+		const maxAllowedSize = getMaxAllowedSize(contextWindow)
+		const usedContext = this.calculateUsedContext()
 
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
@@ -1359,20 +1363,7 @@ export class Cline {
 				if (this.api instanceof OpenAiHandler && this.api.getModel().id.toLowerCase().includes("deepseek")) {
 					contextWindow = 64_000
 				}
-				let maxAllowedSize: number
-				switch (contextWindow) {
-					case 64_000: // deepseek models
-						maxAllowedSize = contextWindow - 27_000
-						break
-					case 128_000: // most models
-						maxAllowedSize = contextWindow - 30_000
-						break
-					case 200_000: // claude models
-						maxAllowedSize = contextWindow - 40_000
-						break
-					default:
-						maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8) // for deepseek, 80% of 64k meant only ~10k buffer which was too small and resulted in users getting context window errors.
-				}
+				const maxAllowedSize = getMaxAllowedSize(contextWindow)
 
 				// This is the most reliable way to know when we're close to hitting the context window.
 				if (totalTokens >= maxAllowedSize) {
@@ -2017,20 +2008,7 @@ export class Cline {
 								const maxAllowedSize = getMaxAllowedSize(contextWindow)
 
 								// Calculate used context from current conversation
-								const usedContext = this.apiConversationHistory.reduce((total, msg) => {
-									if (Array.isArray(msg.content)) {
-										return (
-											total +
-											msg.content.reduce((acc, block) => {
-												if (block.type === "text") {
-													return acc + block.text.length / 4 // Rough estimate of tokens
-												}
-												return acc
-											}, 0)
-										)
-									}
-									return total + (typeof msg.content === "string" ? msg.content.length / 4 : 0)
-								}, 0)
+								const usedContext = this.calculateUsedContext()
 
 								// now execute the tool like normal
 								const content = await extractTextFromFile(absolutePath, maxAllowedSize, usedContext)

@@ -1,4 +1,3 @@
-import fs from "fs/promises"
 import { stat } from "fs/promises"
 
 // Rough approximation: 1 token ≈ 4 characters for English text
@@ -12,11 +11,29 @@ export interface SizeEstimate {
 }
 
 /**
+ * Calculates the maximum allowed size for a single content item (file or terminal output)
+ * We limit to half the context window to ensure no single item can consume too much context
+ */
+export function calculateMaxAllowedSize(contextLimit: number): number {
+	return Math.floor(contextLimit / 2)
+}
+
+/**
  * Estimates tokens from byte count using a simple character ratio
  * This is a rough approximation - actual token count may vary
  */
 export function estimateTokens(bytes: number): number {
 	return Math.ceil(bytes / CHARS_PER_TOKEN)
+}
+
+/**
+ * Checks if the given byte count would exceed the size limit
+ * More efficient than creating a buffer just to check size
+ */
+export function wouldExceedSizeLimit(byteCount: number, contextLimit: number): boolean {
+	const estimatedTokenCount = estimateTokens(byteCount)
+	const maxAllowedSize = calculateMaxAllowedSize(contextLimit)
+	return estimatedTokenCount >= maxAllowedSize
 }
 
 /**
@@ -26,11 +43,12 @@ export function estimateContentSize(content: string | Buffer, contextLimit: numb
 	const bytes = Buffer.isBuffer(content) ? content.length : Buffer.from(content).length
 	const estimatedTokenCount = estimateTokens(bytes)
 	const remainingContext = contextLimit - usedContext
+	const maxAllowedSize = calculateMaxAllowedSize(contextLimit)
 
 	return {
 		bytes,
 		estimatedTokens: estimatedTokenCount,
-		wouldExceedLimit: estimatedTokenCount > remainingContext,
+		wouldExceedLimit: estimatedTokenCount >= maxAllowedSize,
 		remainingContextSize: remainingContext,
 	}
 }
@@ -43,15 +61,21 @@ export async function estimateFileSize(filePath: string, contextLimit: number, u
 	const bytes = stats.size
 	const estimatedTokenCount = estimateTokens(bytes)
 	const remainingContext = contextLimit - usedContext
+	const maxAllowedSize = calculateMaxAllowedSize(contextLimit)
 
 	return {
 		bytes,
 		estimatedTokens: estimatedTokenCount,
-		wouldExceedLimit: estimatedTokenCount > remainingContext,
+		wouldExceedLimit: estimatedTokenCount >= maxAllowedSize,
 		remainingContextSize: remainingContext,
 	}
 }
 
+/**
+ * Gets the maximum allowed size for the API context window
+ * This is different from calculateMaxAllowedSize as it's for the entire context window
+ * rather than a single content item
+ */
 export function getMaxAllowedSize(contextWindow: number): number {
 	// Get context window and used context from API model
 	let maxAllowedSize: number

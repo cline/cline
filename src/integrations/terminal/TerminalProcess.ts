@@ -1,8 +1,8 @@
 import { EventEmitter } from "events"
-import * as stripAnsi from "strip-ansi"
+import stripAnsi from "strip-ansi"
 import * as vscode from "vscode"
 import { ContentTooLargeError } from "../../shared/errors"
-import { estimateContentSize } from "../../utils/content-size"
+import { estimateContentSize, wouldExceedSizeLimit } from "../../utils/content-size"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -52,9 +52,15 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				const dataBytes = Buffer.from(data).length
 				this.totalBytes += dataBytes
 
-				// Check total accumulated size
-				const sizeEstimate = estimateContentSize(Buffer.alloc(this.totalBytes), this.contextLimit, this.usedContext)
-				if (sizeEstimate.wouldExceedLimit) {
+				// Check total accumulated size against half of context limit
+				// Use wouldExceedSizeLimit to avoid creating unnecessary buffer
+				if (wouldExceedSizeLimit(this.totalBytes, this.contextLimit)) {
+					// Create size estimate only when needed for error details
+					const sizeEstimate = estimateContentSize(
+						Buffer.alloc(0, this.totalBytes),
+						this.contextLimit,
+						this.usedContext,
+					)
 					this.emit(
 						"error",
 						new ContentTooLargeError({
@@ -215,10 +221,11 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 	// Inspired by https://github.com/sindresorhus/execa/blob/main/lib/transform/split.js
 	private emitIfEol(chunk: string) {
-		// Check size before adding to buffer
+		// Check size before adding to buffer against half of context limit
 		const newBufferSize = this.buffer.length + chunk.length
-		const sizeEstimate = estimateContentSize(Buffer.alloc(newBufferSize), this.contextLimit, this.usedContext)
-		if (sizeEstimate.wouldExceedLimit) {
+		if (wouldExceedSizeLimit(newBufferSize, this.contextLimit)) {
+			// Create size estimate only when needed for error details
+			const sizeEstimate = estimateContentSize(Buffer.alloc(0, newBufferSize), this.contextLimit, this.usedContext)
 			this.emit(
 				"error",
 				new ContentTooLargeError({
