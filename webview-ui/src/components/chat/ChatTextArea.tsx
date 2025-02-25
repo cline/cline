@@ -755,6 +755,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return `${selectedProvider}:${apiConfiguration.lmStudioModelId}`
 				case "ollama":
 					return `${selectedProvider}:${apiConfiguration.ollamaModelId}`
+				case "llama.cpp":
+					return "undefined"
 				case "litellm":
 					return `${selectedProvider}:${apiConfiguration.liteLlmModelId}`
 				case "requesty":

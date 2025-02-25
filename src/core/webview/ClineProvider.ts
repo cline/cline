@@ -48,6 +48,7 @@ type SecretKey =
 	| "openAiApiKey"
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
+	| "llamaCppApiKey"
 	| "deepSeekApiKey"
 	| "requestyApiKey"
 	| "togetherApiKey"
@@ -73,6 +74,7 @@ type GlobalStateKey =
 	| "openAiModelInfo"
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
+	| "llamaCppBaseUrl"
 	| "lmStudioModelId"
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
@@ -468,6 +470,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openAiModelInfo,
 								ollamaModelId,
 								ollamaBaseUrl,
+								llamaCppBaseUrl,
+								llamaCppApiKey,
 								lmStudioModelId,
 								lmStudioBaseUrl,
 								anthropicBaseUrl,
@@ -508,6 +512,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openAiModelInfo", openAiModelInfo)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
 							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
+							await this.updateGlobalState("llamaCppBaseUrl", llamaCppBaseUrl)
 							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
 							await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
 							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
@@ -519,6 +524,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("qwenApiKey", qwenApiKey)
 							await this.storeSecret("mistralApiKey", mistralApiKey)
 							await this.storeSecret("liteLlmApiKey", liteLlmApiKey)
+							await this.storeSecret("llamaCppApiKey", llamaCppApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
@@ -1680,6 +1686,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			openAiModelInfo,
 			ollamaModelId,
 			ollamaBaseUrl,
+			llamaCppBaseUrl,
+			llamaCppApiKey,
 			lmStudioModelId,
 			lmStudioBaseUrl,
 			anthropicBaseUrl,
@@ -1731,6 +1739,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("openAiModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("llamaCppBaseUrl") as Promise<string | undefined>,
+			this.getSecret("llamaCppApiKey") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
@@ -1805,6 +1815,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				openAiModelInfo,
 				ollamaModelId,
 				ollamaBaseUrl,
+				llamaCppBaseUrl,
+				llamaCppApiKey,
 				lmStudioModelId,
 				lmStudioBaseUrl,
 				anthropicBaseUrl,
