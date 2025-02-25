@@ -29,10 +29,10 @@ import { getUri } from "./getUri"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
-import { DIFF_VIEW_URI_SCHEME } from "../../integrations/editor/DiffViewProvider"
 import { searchCommits } from "../../utils/git"
 import { ChatContent } from "../../shared/ChatContent"
 import { getShell } from "../../utils/shell"
+import { validateThinkingBudget } from "../../utils/validation"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -256,7 +256,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					await this.postStateToWebview()
 				}
 				if (e && e.affectsConfiguration("cline.modelSettings.anthropic.thinkingBudgetTokens")) {
-					// Update state when thinking budget tokens setting changes
+					const config = vscode.workspace.getConfiguration("cline.modelSettings.anthropic")
+					const thinkingBudget = config.get<number>("thinkingBudgetTokens", 0)
+
+					const validatedValue = validateThinkingBudget(thinkingBudget)
+
+					// Only update if the value changed
+					if (validatedValue !== thinkingBudget) {
+						await config.update("thinkingBudgetTokens", validatedValue, true)
+					}
+
 					await this.postStateToWebview()
 				}
 			},
@@ -827,8 +836,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 					case "updateThinkingBudgetTokens": {
 						if (message.number !== undefined) {
+							const validatedValue = validateThinkingBudget(message.number)
+
 							const config = vscode.workspace.getConfiguration("cline.modelSettings.anthropic")
-							await config.update("thinkingBudgetTokens", message.number, true)
+							await config.update("thinkingBudgetTokens", validatedValue, true)
 						}
 						break
 					}

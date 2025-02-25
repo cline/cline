@@ -9,33 +9,63 @@ interface ClineSliderProps {
 	max: number
 	step: number
 	onChange: (value: number) => void
+	onChangeEnd?: (value: number) => void
 	description?: string
 	displayValue?: string | number
+	validateValue?: (value: number) => number // Optional function to validate the value
 }
 
-const ClineSlider = ({ id, label, value, min, max, step, onChange, description, displayValue = value }: ClineSliderProps) => {
+const ClineSlider = ({
+	id,
+	label,
+	value,
+	min,
+	max,
+	step,
+	onChange,
+	onChangeEnd,
+	description,
+	validateValue,
+}: ClineSliderProps) => {
 	// Local state to update UI immediately
 	const [localValue, setLocalValue] = useState(value)
+	// Track if the user is currently dragging
+	const [isDragging, setIsDragging] = useState(false)
 
 	// Update local value when prop value changes
 	useEffect(() => {
-		setLocalValue(value)
-	}, [value])
+		// Only update localValue from props if not currently dragging
+		if (!isDragging) {
+			setLocalValue(value)
+		}
+	}, [value, isDragging])
 
 	// Create debounced onChange handler with useMemo
-	const debouncedFn = useMemo(() => debounce((val: number) => onChange(val), 300), [onChange])
+	const debouncedOnChange = useMemo(() => debounce((val: number) => onChange(val), 300), [onChange])
 
 	// Clear debounce on unmount
 	useEffect(() => {
 		return () => {
-			debouncedFn.clear()
+			debouncedOnChange.clear()
 		}
-	}, [debouncedFn])
+	}, [debouncedOnChange])
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const newValue = parseInt(e.target.value, 10)
 		setLocalValue(newValue) // Update UI immediately
-		debouncedFn(newValue) // Debounce the actual callback
+		setIsDragging(true) // Mark as dragging
+		debouncedOnChange(newValue) // Debounce the onChange callback
+	}
+
+	const handleSlideEnd = () => {
+		if (onChangeEnd) {
+			// If validateValue is provided, use it to validate the value before passing to onChangeEnd
+			const finalValue = validateValue ? validateValue(localValue) : localValue
+			setLocalValue(finalValue)
+			onChangeEnd(finalValue)
+		}
+		// Reset dragging state after a short delay to allow value prop to update
+		setTimeout(() => setIsDragging(false), 50)
 	}
 
 	// Initialize the styles once when the component is first mounted
@@ -53,8 +83,11 @@ const ClineSlider = ({ id, label, value, min, max, step, onChange, description, 
           border-radius: 2px;
           outline: none;
           cursor: pointer;
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
         }
-        
+
         .cline-slider::-webkit-slider-thumb {
           appearance: none;
           width: 12px;
@@ -63,15 +96,7 @@ const ClineSlider = ({ id, label, value, min, max, step, onChange, description, 
           background: var(--vscode-button-background);
           cursor: pointer;
           border: none;
-        }
-        
-        .cline-slider::-moz-range-thumb {
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-          background: var(--vscode-button-background);
-          cursor: pointer;
-          border: none;
+          margin: 0;
         }
         
         .cline-slider:focus {
@@ -82,23 +107,11 @@ const ClineSlider = ({ id, label, value, min, max, step, onChange, description, 
           background: var(--vscode-button-hoverBackground);
         }
         
-        .cline-slider:focus::-moz-range-thumb {
-          background: var(--vscode-button-hoverBackground);
-        }
-        
         .cline-slider:hover::-webkit-slider-thumb {
           background: var(--vscode-button-hoverBackground);
         }
         
-        .cline-slider:hover::-moz-range-thumb {
-          background: var(--vscode-button-hoverBackground);
-        }
-        
         .cline-slider:active::-webkit-slider-thumb {
-          background: var(--vscode-button-hoverBackground);
-        }
-        
-        .cline-slider:active::-moz-range-thumb {
           background: var(--vscode-button-hoverBackground);
         }
       `
@@ -109,7 +122,7 @@ const ClineSlider = ({ id, label, value, min, max, step, onChange, description, 
 	return (
 		<div style={{ marginTop: "10px" }}>
 			<label htmlFor={id} style={{ fontWeight: 500, display: "block", marginBottom: "5px" }}>
-				{label}: {displayValue !== value ? displayValue : localValue}
+				{label}: {localValue}
 			</label>
 			<input
 				id={id}
@@ -119,6 +132,8 @@ const ClineSlider = ({ id, label, value, min, max, step, onChange, description, 
 				step={step}
 				value={localValue}
 				onChange={handleChange}
+				onMouseUp={handleSlideEnd}
+				onTouchEnd={handleSlideEnd}
 				className="cline-slider"
 			/>
 			{description && (
