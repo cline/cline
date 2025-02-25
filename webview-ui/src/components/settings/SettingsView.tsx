@@ -135,7 +135,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 	}, [])
 
 	const handleSubmit = () => {
-		console.log("handleSubmit", apiConfiguration)
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 
 		const modelIdValidationResult = validateModelId(
