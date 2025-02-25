@@ -186,6 +186,8 @@ const ResponseHeader = styled.div`
 	WebkitUserSelect: none;
 	MozUserSelect: none;
 	msUserSelect: none;
+	border-bottom: 1px dashed var(--vscode-editorGroup-border);
+	margin-bottom: 8px;
 
 	.header-title {
 		display: flex;
