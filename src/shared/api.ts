@@ -23,6 +23,7 @@ export interface ApiHandlerOptions {
 	liteLlmModelId?: string
 	liteLlmApiKey?: string
 	anthropicBaseUrl?: string
+	anthropicCustomAuthHeader?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
