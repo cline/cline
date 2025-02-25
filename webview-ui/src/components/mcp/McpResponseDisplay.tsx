@@ -184,9 +184,6 @@ const ResponseHeader = styled.div`
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
 	user-select: none;
-	WebkitUserSelect: none;
-	MozUserSelect: none;
-	msUserSelect: none;
 	border-bottom: 1px dashed var(--vscode-editorGroup-border);
 	margin-bottom: 8px;
 
