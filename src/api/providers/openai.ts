@@ -49,13 +49,13 @@ export class OpenAiHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 		})
-		
+
 		for await (const chunk of stream) {
 			// Skip if there are no choices (like when receiving "data: [DONE]")
 			if (!chunk.choices || chunk.choices.length === 0) {
-				continue;
+				continue
 			}
-			
+
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
 				yield {
