@@ -1,6 +1,30 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
+export function convertToOpenAiTools(tools: Anthropic.Tool[]): OpenAI.Chat.ChatCompletionTool[] {
+	return tools.map((tool) => ({
+		type: "function",
+		function: {
+			name: tool.name,
+			description: tool.description,
+			parameters: tool.input_schema,
+		},
+	}))
+}
+
+export function convertToClineToolCalls(tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[]): string[] {
+	return tool_calls.map((tool_call) =>
+		[
+			`<${tool_call.function.name}>`,
+			...Object.entries(JSON.parse(tool_call.function.arguments)).map(
+				([key, value]) =>
+					`<${key}>${typeof value === "string" && value.includes("\n") ? `\n${value}\n` : value}</${key}>`,
+			),
+			`</${tool_call.function.name}>`,
+		].join("\n"),
+	)
+}
+
 export function convertToOpenAiMessages(
 	anthropicMessages: Anthropic.Messages.MessageParam[],
 ): OpenAI.Chat.ChatCompletionMessageParam[] {

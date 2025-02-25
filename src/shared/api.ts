@@ -5,6 +5,7 @@ export type ApiProvider =
 	| "vertex"
 	| "openai"
 	| "ollama"
+	| "llama.cpp"
 	| "lmstudio"
 	| "gemini"
 	| "openai-native"
@@ -41,6 +42,8 @@ export interface ApiHandlerOptions {
 	openAiModelInfo?: ModelInfo
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
+	llamaCppBaseUrl?: string
+	llamaCppApiKey?: string
 	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
@@ -70,6 +73,7 @@ export interface ModelInfo {
 	supportsImages?: boolean
 	supportsComputerUse?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
+	supportsTools?: boolean
 	inputPrice?: number
 	outputPrice?: number
 	cacheWritesPrice?: number
@@ -282,6 +286,15 @@ export const openAiModelInfoSaneDefaults: ModelInfo = {
 	contextWindow: 128_000,
 	supportsImages: true,
 	supportsPromptCache: false,
+	inputPrice: 0,
+	outputPrice: 0,
+}
+
+export const llamaCppModelInfoSaneDefaults: ModelInfo = {
+	maxTokens: -1,
+	supportsImages: false,
+	supportsPromptCache: true,
+	supportsTools: true,
 	inputPrice: 0,
 	outputPrice: 0,
 }

@@ -33,6 +33,7 @@ import {
 	openRouterDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
+	llamaCppModelInfoSaneDefaults,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -194,6 +195,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="qwen">Alibaba Qwen</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
+					<VSCodeOption value="llama.cpp">llama.cpp</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
@@ -1122,6 +1124,66 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
+			{selectedProvider === "llama.cpp" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.llamaCppBaseUrl || ""}
+						style={{ width: "100%" }}
+						type="url"
+						onInput={handleInputChange("llamaCppBaseUrl")}
+						placeholder={"Default: http://localhost:8080"}>
+						<span style={{ fontWeight: 500 }}>Base URL</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.llamaCppApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("llamaCppApiKey")}
+						placeholder="Default: unset">
+						<span style={{ fontWeight: 500 }}>
+							API Key (if <code>--api-key*</code> set)
+						</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						llama.cpp allows you to run GGUF models locally on your computer. Their documentation explains
+						<VSCodeLink
+							href="https://github.com/ggml-org/llama.cpp?tab=readme-ov-file#building-the-project"
+							style={{ display: "inline", fontSize: "inherit" }}>
+							how to install / build
+						</VSCodeLink>
+						and which options
+						<VSCodeLink
+							href="https://github.com/ggerganov/llama.cpp/blob/master/examples/server/README.md"
+							style={{ display: "inline", fontSize: "inherit" }}>
+							llama-server
+						</VSCodeLink>
+						supports.
+						<br />
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected: for a given model family, try the largest, least
+							quantized model you can fit in your VRAM / RAM for the best results. Also, please only use models that
+							support long context windows (e.g. 128k tokens). Here are configurations known to work (YMMV):
+							<pre>
+								<code>
+									llama-server -hf unsloth/phi-4-GGUF:Q6_K -c 131072 --jinja -fa -ngl 999
+									<br />
+									llama-server -hf unsloth/Qwen2.5-Coder-32B-Instruct-128K-GGUF -c 0 --jinja -fa -ngl 999
+									<br />
+									llama-server -hf bartowski/Mistral-Nemo-Instruct-2407-GGUF:Q6_K_L -c 0 --jinja -fa -ngl 999
+								</code>
+							</pre>
+							<p></p>
+						</span>
+					</p>
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -1379,6 +1441,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.ollamaModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		case "llama.cpp":
+			return {
+				selectedProvider: provider,
+				selectedModelId: "",
+				selectedModelInfo: llamaCppModelInfoSaneDefaults,
 			}
 		case "lmstudio":
 			return {

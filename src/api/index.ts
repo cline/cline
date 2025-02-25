@@ -17,10 +17,12 @@ import { QwenHandler } from "./providers/qwen"
 import { MistralHandler } from "./providers/mistral"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { LiteLlmHandler } from "./providers/litellm"
+import { LlamaCppHandler } from "./providers/llama.cpp"
 
 export interface ApiHandler {
-	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
+	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: Anthropic.Tool[]): ApiStream
 	getModel(): { id: string; info: ModelInfo }
+	formatToolCalls?: (toolCalls: { name: string; args: unknown }[]) => Promise<string>
 }
 
 export interface SingleCompletionHandler {
@@ -42,6 +44,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new OpenAiHandler(options)
 		case "ollama":
 			return new OllamaHandler(options)
+		case "llama.cpp":
+			return new LlamaCppHandler(options)
 		case "lmstudio":
 			return new LmStudioHandler(options)
 		case "gemini":
