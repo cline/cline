@@ -1,5 +1,14 @@
 # Roo Code Changelog
 
+## 3.7.5
+
+### Patch Changes
+
+- v3.7.5
+- Fix model picker
+- Add drag-and-drop for files
+- Pass "thinking" params to OpenRouter
+
 ## [3.7.4]
 
 - Fix a bug that prevented the "Thinking" setting from properly updating when switching profiles.
