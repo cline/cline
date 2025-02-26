@@ -87,6 +87,7 @@ export type ClineOptions = {
 
 export class Cline {
 	readonly taskId: string
+	readonly apiConfiguration: ApiConfiguration
 	api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
@@ -148,6 +149,7 @@ export class Cline {
 		}
 
 		this.taskId = crypto.randomUUID()
+		this.apiConfiguration = apiConfiguration
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
@@ -961,13 +963,21 @@ export class Cline {
 				cacheWrites = 0,
 				cacheReads = 0,
 			}: ClineApiReqInfo = JSON.parse(previousRequest)
+
 			const totalTokens = tokensIn + tokensOut + cacheWrites + cacheReads
 
-			const trimmedMessages = truncateConversationIfNeeded(
-				this.apiConversationHistory,
+			const modelInfo = this.api.getModel().info
+			const maxTokens = modelInfo.thinking
+				? this.apiConfiguration.modelMaxTokens || modelInfo.maxTokens
+				: modelInfo.maxTokens
+			const contextWindow = modelInfo.contextWindow
+
+			const trimmedMessages = truncateConversationIfNeeded({
+				messages: this.apiConversationHistory,
 				totalTokens,
-				this.api.getModel().info,
-			)
+				maxTokens,
+				contextWindow,
+			})
 
 			if (trimmedMessages !== this.apiConversationHistory) {
 				await this.overwriteApiConversationHistory(trimmedMessages)

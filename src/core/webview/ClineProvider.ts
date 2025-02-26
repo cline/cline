@@ -1671,6 +1671,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestyModelId,
 			requestyModelInfo,
 			modelTemperature,
+			modelMaxTokens,
 		} = apiConfiguration
 		await Promise.all([
 			this.updateGlobalState("apiProvider", apiProvider),
@@ -1719,6 +1720,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.updateGlobalState("requestyModelId", requestyModelId),
 			this.updateGlobalState("requestyModelInfo", requestyModelInfo),
 			this.updateGlobalState("modelTemperature", modelTemperature),
+			this.updateGlobalState("modelMaxTokens", modelMaxTokens),
 		])
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
@@ -2210,6 +2212,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestyModelId,
 			requestyModelInfo,
 			modelTemperature,
+			modelMaxTokens,
 			maxOpenTabsContext,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -2293,6 +2296,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("requestyModelId") as Promise<string | undefined>,
 			this.getGlobalState("requestyModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("modelTemperature") as Promise<number | undefined>,
+			this.getGlobalState("modelMaxTokens") as Promise<number | undefined>,
 			this.getGlobalState("maxOpenTabsContext") as Promise<number | undefined>,
 		])
 
@@ -2358,6 +2362,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				requestyModelId,
 				requestyModelInfo,
 				modelTemperature,
+				modelMaxTokens,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
