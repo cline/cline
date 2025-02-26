@@ -64,7 +64,11 @@ const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<
-	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
+	| Anthropic.TextBlockParam
+	| Anthropic.ImageBlockParam
+	| Anthropic.ToolUseBlockParam
+	| Anthropic.ToolResultBlockParam
+	| Anthropic.ContentBlockParam
 >
 
 export class Cline {

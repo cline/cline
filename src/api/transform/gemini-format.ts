@@ -184,8 +184,8 @@ export function convertGeminiResponseToAnthropic(response: EnhancedGenerateConte
 		usage: {
 			input_tokens: response.usageMetadata?.promptTokenCount ?? 0,
 			output_tokens: response.usageMetadata?.candidatesTokenCount ?? 0,
-			cache_creation_input_tokens: response.usageMetadata?.candidatesTokenCount ?? 0, //Are these valid?
-			cache_read_input_tokens: response.usageMetadata?.cachedContentTokenCount ?? 0, //Are these valid?
+			cache_creation_input_tokens: response.usageMetadata?.promptTokenCount ?? 0,
+			cache_read_input_tokens: response.usageMetadata?.candidatesTokenCount ?? 0,
 		},
 	}
 }
