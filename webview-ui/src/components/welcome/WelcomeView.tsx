@@ -12,16 +12,14 @@ const WelcomeView = () => {
 
 	const handleSubmit = useCallback(() => {
 		const error = validateApiConfiguration(apiConfiguration)
+
 		if (error) {
 			setErrorMessage(error)
 			return
 		}
+
 		setErrorMessage(undefined)
-		vscode.postMessage({
-			type: "upsertApiConfiguration",
-			text: currentApiConfigName,
-			apiConfiguration,
-		})
+		vscode.postMessage({ type: "upsertApiConfiguration", text: currentApiConfigName, apiConfiguration })
 	}, [apiConfiguration, currentApiConfigName])
 
 	return (

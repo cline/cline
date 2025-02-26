@@ -66,21 +66,20 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		terminalOutputLineLimit,
 		writeDelayMs,
 	} = cachedState
-	
+
 	//Make sure apiConfiguration is initialized and managed by SettingsView
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
 
 	useEffect(() => {
-		// Update only when currentApiConfigName is changed
-		// Expected to be triggered by loadApiConfiguration/upsertApiConfiguration
+		// Update only when currentApiConfigName is changed.
+		// Expected to be triggered by loadApiConfiguration/upsertApiConfiguration.
 		if (prevApiConfigName.current === currentApiConfigName) {
 			return
 		}
-		setCachedState((prevCachedState) => ({
-			...prevCachedState,
-			...extensionState,
-		}))
+
+		setCachedState((prevCachedState) => ({ ...prevCachedState, ...extensionState }))
 		prevApiConfigName.current = currentApiConfigName
+		// console.log("useEffect: currentApiConfigName changed, setChangeDetected -> false")
 		setChangeDetected(false)
 	}, [currentApiConfigName, extensionState, isChangeDetected])
 
@@ -90,11 +89,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 				if (prevState[field] === value) {
 					return prevState
 				}
+
+				// console.log(`setCachedStateField(${field} -> ${value}): setChangeDetected -> true`)
 				setChangeDetected(true)
-				return {
-					...prevState,
-					[field]: value,
-				}
+				return { ...prevState, [field]: value }
 			})
 		},
 		[],
@@ -107,15 +105,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 					return prevState
 				}
 
+				// console.log(`setApiConfigurationField(${field} -> ${value}): setChangeDetected -> true`)
 				setChangeDetected(true)
 
-				return {
-					...prevState,
-					apiConfiguration: {
-						...prevState.apiConfiguration,
-						[field]: value,
-					},
-				}
+				return { ...prevState, apiConfiguration: { ...prevState.apiConfiguration, [field]: value } }
 			})
 		},
 		[],
@@ -126,14 +119,19 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			if (prevState.experiments?.[id] === enabled) {
 				return prevState
 			}
+
+			// console.log("setExperimentEnabled: setChangeDetected -> true")
 			setChangeDetected(true)
+
 			return {
 				...prevState,
 				experiments: { ...prevState.experiments, [id]: enabled },
 			}
 		})
 	}, [])
+
 	const isSettingValid = !errorMessage
+
 	const handleSubmit = () => {
 		if (isSettingValid) {
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
@@ -160,6 +158,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			vscode.postMessage({ type: "updateExperimental", values: experiments })
 			vscode.postMessage({ type: "alwaysAllowModeSwitch", bool: alwaysAllowModeSwitch })
 			vscode.postMessage({ type: "upsertApiConfiguration", text: currentApiConfigName, apiConfiguration })
+			// console.log("handleSubmit: setChangeDetected -> false")
 			setChangeDetected(false)
 		}
 	}
@@ -176,13 +175,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		[isChangeDetected],
 	)
 
-	useImperativeHandle(
-		ref,
-		() => ({
-			checkUnsaveChanges,
-		}),
-		[checkUnsaveChanges],
-	)
+	useImperativeHandle(ref, () => ({ checkUnsaveChanges }), [checkUnsaveChanges])
 
 	const onConfirmDialogResult = useCallback((confirm: boolean) => {
 		if (confirm) {
@@ -200,10 +193,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			const newCommands = [...currentCommands, commandInput]
 			setCachedStateField("allowedCommands", newCommands)
 			setCommandInput("")
-			vscode.postMessage({
-				type: "allowedCommands",
-				commands: newCommands,
-			})
+			vscode.postMessage({ type: "allowedCommands", commands: newCommands })
 		}
 	}
 

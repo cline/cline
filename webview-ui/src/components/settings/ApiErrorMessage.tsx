@@ -4,13 +4,13 @@ interface ApiErrorMessageProps {
 	errorMessage: string | undefined
 	children?: React.ReactNode
 }
-const ApiErrorMessage = ({ errorMessage, children }: ApiErrorMessageProps) => {
-	return (
-		<div className="text-vscode-errorForeground text-sm">
-			<span style={{ fontSize: "2em" }} className={`codicon codicon-close align-middle mr-1`} />
-			{errorMessage}
-			{children}
+
+export const ApiErrorMessage = ({ errorMessage, children }: ApiErrorMessageProps) => (
+	<div className="flex flex-col gap-2 text-vscode-errorForeground text-sm">
+		<div className="flex flex-row items-center gap-1">
+			<div className="codicon codicon-close" />
+			<div>{errorMessage}</div>
 		</div>
-	)
-}
-export default ApiErrorMessage
+		{children}
+	</div>
+)
