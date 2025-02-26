@@ -3,7 +3,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
-import { fromIni } from "@aws-sdk/credential-providers"
+import { fromIni, fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { EnterpriseHandler } from "./enterprise"
 
 /**
@@ -33,6 +33,8 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 				if (this.options.awsSessionToken) {
 					clientConfig.awsSessionToken = this.options.awsSessionToken
 				}
+			} else {
+				return this.getClientFromNodeProviderChain()
 			}
 		} catch (error) {
 			console.error("Failed to initialize Bedrock client:", error)
@@ -116,7 +118,7 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 		return { id: bedrockDefaultModelId, info: bedrockModels[bedrockDefaultModelId] }
 	}
 
-	private async getClient(): Promise<AnthropicBedrock> {
+	private async getClientFromNodeProviderChain(): Promise<AnthropicBedrock> {
 		// Create AWS credentials by executing a an AWS provider chain exactly as the
 		// Anthropic SDK does it, by wrapping the default chain into a temporary process
 		// environment.
@@ -143,24 +145,6 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 			awsSessionToken: credentials.sessionToken,
 			awsRegion: this.options.awsRegion || "us-east-1",
 		})
-	}
-
-	private async getModelId(): Promise<string> {
-		if (this.options.awsUseCrossRegionInference) {
-			let regionPrefix = (this.options.awsRegion || "").slice(0, 3)
-			switch (regionPrefix) {
-				case "us-":
-					return `us.${this.getModel().id}`
-				case "eu-":
-					return `eu.${this.getModel().id}`
-					break
-				default:
-					// cross region inference is not supported in this region, falling back to default model
-					return this.getModel().id
-					break
-			}
-		}
-		return this.getModel().id
 	}
 
 	private static async withTempEnv<R>(updateEnv: () => void, fn: () => Promise<R>): Promise<R> {
