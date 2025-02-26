@@ -900,7 +900,7 @@ const ApiOptions = ({
 											}}
 											onChange={handleInputChange("openAiCustomModelInfo", (e) => {
 												const value = (e.target as HTMLInputElement).value
-												const parsed = parseInt(value)
+												const parsed = parseFloat(value)
 												return {
 													...(apiConfiguration?.openAiCustomModelInfo ??
 														openAiModelInfoSaneDefaults),
@@ -945,7 +945,7 @@ const ApiOptions = ({
 											}}
 											onChange={handleInputChange("openAiCustomModelInfo", (e) => {
 												const value = (e.target as HTMLInputElement).value
-												const parsed = parseInt(value)
+												const parsed = parseFloat(value)
 												return {
 													...(apiConfiguration?.openAiCustomModelInfo ||
 														openAiModelInfoSaneDefaults),
