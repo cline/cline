@@ -21,6 +21,7 @@
 		"fuse.js": "^7.0.0",
 		"fzf": "^0.5.2",
 		"mermaid": "^11.4.1",
+		"posthog-js": "^1.224.0",
 		"pretty-bytes": "^6.1.1",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1",

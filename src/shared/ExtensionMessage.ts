@@ -95,6 +95,7 @@ export interface ExtensionState {
 	}
 	mcpMarketplaceEnabled?: boolean
 	telemetrySetting: TelemetrySetting
+	vscMachineId: string
 }
 
 export interface ClineMessage {

@@ -26,9 +26,10 @@ class PostHogClient {
 			this.telemetryEnabled = didUserOptIn
 		}
 
-		// Update PostHog client state based on telemetry preference
+		// Update PostHog client state based on telemetry preference and use machineId to tie it to the webview
 		if (this.telemetryEnabled) {
 			this.client.optIn()
+			this.client.identify({ distinctId: this.distinctId })
 			// console.log("Telemetry enabled")
 		} else {
 			this.client.optOut()
