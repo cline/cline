@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react"
 import { vscode } from "../../utils/vscode"
-import DOMPurify from 'dompurify';
+import DOMPurify from "dompurify"
 
 interface OpenGraphData {
 	title?: string
