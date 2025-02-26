@@ -1,13 +1,11 @@
 # Roo Code Changelog
 
-## 3.7.5
+## [3.7.5]
 
-### Patch Changes
-
-- v3.7.5
-- Fix model picker
+- Fix context window truncation math (see [#1173](https://github.com/RooVetGit/Roo-Code/issues/1173))
+- Fix various issues with the model picker
 - Add drag-and-drop for files
-- Pass "thinking" params to OpenRouter
+- Enable the "Thinking Budget" slider for Claude 3.7 Sonnet on OpenRouter
 
 ## [3.7.4]
 
