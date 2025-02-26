@@ -73,7 +73,7 @@ const ApiOptions = ({
 	const [openRouterBaseUrlSelected, setOpenRouterBaseUrlSelected] = useState(!!apiConfiguration?.openRouterBaseUrl)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
-	const anthropicThinkingBudget = apiConfiguration?.anthropicThinking
+	const anthropicThinkingBudget = apiConfiguration?.anthropicThinking ?? THINKING_BUDGET.default
 
 	const noTransform = <T,>(value: T) => value
 	const inputEventTransform = <E,>(event: E) => (event as { target: HTMLInputElement })?.target?.value as any
@@ -1272,39 +1272,21 @@ const ApiOptions = ({
 				)}
 
 			{selectedModelInfo && selectedModelInfo.thinking && (
-				<div className="flex flex-col gap-2 mt-2">
-					<Checkbox
-						checked={!!anthropicThinkingBudget}
-						onChange={(checked) =>
-							setApiConfigurationField(
-								"anthropicThinking",
-								checked
-									? Math.min(
-											THINKING_BUDGET.default,
-											selectedModelInfo.maxTokens ?? THINKING_BUDGET.default,
-										)
-									: undefined,
-							)
-						}>
-						Thinking?
-					</Checkbox>
-					{anthropicThinkingBudget && (
-						<>
-							<div className="text-muted-foreground text-sm">
-								Number of tokens Claude is allowed to use for its internal reasoning process.
-							</div>
-							<div className="flex items-center gap-2">
-								<Slider
-									min={THINKING_BUDGET.min}
-									max={(selectedModelInfo.maxTokens ?? THINKING_BUDGET.default) - 1}
-									step={THINKING_BUDGET.step}
-									value={[anthropicThinkingBudget]}
-									onValueChange={(value) => setApiConfigurationField("anthropicThinking", value[0])}
-								/>
-								<div className="w-12">{anthropicThinkingBudget}</div>
-							</div>
-						</>
-					)}
+				<div className="flex flex-col gap-1 mt-2">
+					<div className="font-medium">Thinking Budget</div>
+					<div className="flex items-center gap-1">
+						<Slider
+							min={THINKING_BUDGET.min}
+							max={(selectedModelInfo.maxTokens ?? THINKING_BUDGET.default) - 1}
+							step={THINKING_BUDGET.step}
+							value={[anthropicThinkingBudget]}
+							onValueChange={(value) => setApiConfigurationField("anthropicThinking", value[0])}
+						/>
+						<div className="w-12 text-sm text-center">{anthropicThinkingBudget}</div>
+					</div>
+					<div className="text-muted-foreground text-sm">
+						Number of tokens Claude is allowed to use for its internal reasoning process.
+					</div>
 				</div>
 			)}
 
