@@ -1,5 +1,4 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import BetaRawMessageStreamEvent from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { withRetry } from "../retry"
 import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "../../shared/api"
