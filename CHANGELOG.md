@@ -1,14 +1,12 @@
 # Roo Code Changelog
 
-## 3.7.6
+## [3.7.6]
 
-### Patch Changes
-
-- Handle really long text in the ChatRow similar to TaskHeader
+- Handle really long text better in the in the ChatRow similar to TaskHeader (thanks @joemanley201!)
 - Support multiple files in drag-and-drop
 - Truncate search_file output to avoid crashing the extension
-- Better OpenRouter error handling
-- Allow control over maxTokens for thinking models
+- Better OpenRouter error handling (no more "Provider Error")
+- Add slider to control max output tokens for thinking models
 
 ## [3.7.5]
 
