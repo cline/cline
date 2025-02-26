@@ -860,7 +860,8 @@ describe("ClineProvider", () => {
 				abortTask: jest.fn(),
 				handleWebviewAskResponse: jest.fn(),
 			} as unknown as Cline
-			provider.addClineToStack(mockCline)
+			const newMockCline = Object.create(mockCline)
+			provider.addClineToStack(newMockCline)
 
 			// Mock getTaskWithId
 			;(provider as any).getTaskWithId = jest.fn().mockResolvedValue({
@@ -872,7 +873,7 @@ describe("ClineProvider", () => {
 			await messageHandler({ type: "deleteMessage", value: 4000 })
 
 			// Verify correct messages were kept
-			expect(mockCline.overwriteClineMessages).toHaveBeenCalledWith([
+			expect(newMockCline.overwriteClineMessages).toHaveBeenCalledWith([
 				mockMessages[0],
 				mockMessages[1],
 				mockMessages[4],
@@ -880,7 +881,7 @@ describe("ClineProvider", () => {
 			])
 
 			// Verify correct API messages were kept
-			expect(mockCline.overwriteApiConversationHistory).toHaveBeenCalledWith([
+			expect(newMockCline.overwriteApiConversationHistory).toHaveBeenCalledWith([
 				mockApiHistory[0],
 				mockApiHistory[1],
 				mockApiHistory[4],
