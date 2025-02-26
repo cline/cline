@@ -89,12 +89,14 @@ describe("mergeExtensionState", () => {
 			customModes: [],
 			maxOpenTabsContext: 20,
 			apiConfiguration: { providerId: "openrouter" } as ApiConfiguration,
+			telemetrySetting: "unset", // Adding the required telemetrySetting property
 		}
 
 		const prevState: ExtensionState = {
 			...baseState,
 			apiConfiguration: { modelMaxTokens: 1234, modelMaxThinkingTokens: 123 },
 		}
+
 		const newState: ExtensionState = {
 			...baseState,
 			apiConfiguration: { modelMaxThinkingTokens: 456, modelTemperature: 0.3 },

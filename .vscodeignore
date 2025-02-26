@@ -48,3 +48,6 @@ webview-ui/node_modules/**
 
 # Include icons
 !assets/icons/**
+
+# Include .env file for telemetry
+!.env

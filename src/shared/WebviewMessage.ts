@@ -98,6 +98,7 @@ export interface WebviewMessage {
 		| "humanRelayResponse"
 		| "humanRelayCancel"
 		| "browserToolEnabled"
+		| "telemetrySetting"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

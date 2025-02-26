@@ -401,6 +401,12 @@ describe("ClineProvider", () => {
 		})
 
 		expect(mockWebviewView.webview.html).toContain("<!DOCTYPE html>")
+
+		// Verify Content Security Policy contains the necessary PostHog domains
+		expect(mockWebviewView.webview.html).toContain("connect-src https://us.i.posthog.com")
+		expect(mockWebviewView.webview.html).toContain("https://us-assets.i.posthog.com")
+		expect(mockWebviewView.webview.html).toContain("script-src 'nonce-")
+		expect(mockWebviewView.webview.html).toContain("https://us-assets.i.posthog.com")
 	})
 
 	test("postMessageToWebview sends message to webview", async () => {
@@ -438,6 +444,7 @@ describe("ClineProvider", () => {
 			experiments: experimentDefault,
 			maxOpenTabsContext: 20,
 			browserToolEnabled: true,
+			telemetrySetting: "unset",
 		}
 
 		const message: ExtensionMessage = {

@@ -5,6 +5,7 @@ import { ExtensionMessage } from "../../src/shared/ExtensionMessage"
 import { ShowHumanRelayDialogMessage } from "../../src/shared/ExtensionMessage"
 
 import { vscode } from "./utils/vscode"
+import { telemetryClient } from "./utils/TelemetryClient"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
@@ -23,9 +24,9 @@ const tabsByMessageAction: Partial<Record<NonNullable<ExtensionMessage["action"]
 	mcpButtonClicked: "mcp",
 	historyButtonClicked: "history",
 }
-
 const App = () => {
-	const { didHydrateState, showWelcome, shouldShowAnnouncement } = useExtensionState()
+	const { didHydrateState, showWelcome, shouldShowAnnouncement, telemetrySetting, telemetryKey, machineId } =
+		useExtensionState()
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [tab, setTab] = useState<Tab>("chat")
 	const settingsRef = useRef<SettingsViewRef>(null)
@@ -98,6 +99,12 @@ const App = () => {
 			vscode.postMessage({ type: "didShowAnnouncement" })
 		}
 	}, [shouldShowAnnouncement])
+
+	useEffect(() => {
+		if (didHydrateState) {
+			telemetryClient.updateTelemetryState(telemetrySetting, telemetryKey, machineId)
+		}
+	}, [telemetrySetting, telemetryKey, machineId, didHydrateState])
 
 	// Tell Extension that we are ready to receive messages
 	useEffect(() => {
