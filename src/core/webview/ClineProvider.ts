@@ -644,9 +644,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							}
 						})
 
-						const requestyApiKey = await this.getSecret("requestyApiKey")
-
-						getRequestyModels({ apiKey: requestyApiKey }).then(async (requestyModels) => {
+						getRequestyModels().then(async (requestyModels) => {
 							if (Object.keys(requestyModels).length > 0) {
 								await fs.writeFile(
 									path.join(cacheDir, GlobalFileNames.requestyModels),
@@ -838,17 +836,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 						break
 					case "refreshRequestyModels":
-						if (message?.values?.apiKey) {
-							const requestyModels = await getRequestyModels({ apiKey: message.values.apiKey })
+						const requestyModels = await getRequestyModels()
 
-							if (Object.keys(requestyModels).length > 0) {
-								const cacheDir = await this.ensureCacheDirectoryExists()
-								await fs.writeFile(
-									path.join(cacheDir, GlobalFileNames.requestyModels),
-									JSON.stringify(requestyModels),
-								)
-								await this.postMessageToWebview({ type: "requestyModels", requestyModels })
-							}
+						if (Object.keys(requestyModels).length > 0) {
+							const cacheDir = await this.ensureCacheDirectoryExists()
+							await fs.writeFile(
+								path.join(cacheDir, GlobalFileNames.requestyModels),
+								JSON.stringify(requestyModels),
+							)
+							await this.postMessageToWebview({ type: "requestyModels", requestyModels })
 						}
 
 						break
