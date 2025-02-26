@@ -32,6 +32,7 @@ import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
+import { TelemetrySetting } from "../../shared/TelemetrySetting"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -93,6 +94,7 @@ type GlobalStateKey =
 	| "requestyModelId"
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
+	| "telemetrySetting"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -452,6 +454,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									await this.postStateToWebview()
 								}
 							}
+						})
+
+						// If user already opted in to telemetry, enable telemetry service
+						this.getStateToPostToWebview().then((state) => {
+							const { telemetrySetting } = state
+							const isOptedIn = telemetrySetting === "enabled"
+							telemetryService.updateTelemetryState(isOptedIn)
 						})
 
 						break
@@ -849,18 +858,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					}
 					// telemetry
-					case "openTelemetrySettings": {
-						await vscode.commands.executeCommand(
-							"workbench.action.openSettings",
-							"@ext:saoudrizwan.claude-dev cline.telemetryOptIn",
-						)
+					case "openSettings": {
+						await this.postMessageToWebview({
+							type: "action",
+							action: "settingsButtonClicked",
+						})
 						break
 					}
-					case "telemetryOptIn": {
-						if (message.bool !== undefined) {
-							await vscode.workspace.getConfiguration("cline").update("enableTelemetry", message.bool, true)
-							await this.postStateToWebview()
-						}
+					case "telemetrySetting": {
+						const telemetrySetting = message.text as TelemetrySetting
+						await this.updateGlobalState("telemetrySetting", telemetrySetting)
+						const isOptedIn = telemetrySetting === "enabled"
+						telemetryService.updateTelemetryState(isOptedIn)
+						await this.postStateToWebview()
 						break
 					}
 					// Add more switch case statements here as more webview message commands
@@ -1628,7 +1638,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			userInfo,
 			authToken,
 			mcpMarketplaceEnabled,
-			telemetryOptIn,
+			telemetrySetting,
 		} = await this.getState()
 
 		return {
@@ -1648,7 +1658,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			isLoggedIn: !!authToken,
 			userInfo,
 			mcpMarketplaceEnabled,
-			telemetryOptIn,
+			telemetrySetting,
 		}
 	}
 
@@ -1755,6 +1765,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelInfo,
 			qwenApiLine,
 			liteLlmApiKey,
+			telemetrySetting,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1806,6 +1817,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
+			this.getGlobalState("telemetrySetting") as Promise<TelemetrySetting | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1827,7 +1839,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			.get("reasoningEffort", "medium")
 
 		const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
-		const telemetryOptIn = vscode.workspace.getConfiguration("cline").get<boolean | null>("enableTelemetry", null)
 
 		return {
 			apiConfiguration: {
@@ -1884,7 +1895,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelId,
 			previousModeModelInfo,
 			mcpMarketplaceEnabled,
-			telemetryOptIn,
+			telemetrySetting: telemetrySetting || "unset",
 		}
 	}
 

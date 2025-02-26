@@ -7,6 +7,7 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
+import { TelemetrySetting } from "./TelemetrySetting"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -81,7 +82,7 @@ export interface ExtensionState {
 		photoURL: string | null
 	}
 	mcpMarketplaceEnabled?: boolean
-	telemetryOptIn: boolean | null
+	telemetrySetting: TelemetrySetting
 }
 
 export interface ClineMessage {

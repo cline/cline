@@ -186,11 +186,6 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
-				},
-				"cline.enableTelemetry": {
-					"type": "boolean",
-					"default": null,
-					"markdownDescription": "Allow anonymous usage and error reporting to help improve Cline. No code, prompts, or personal information is ever sent. See our [privacy policy](https://github.com/cline/cline/blob/main/docs/PRIVACY.md) for details."
 				}
 			}
 		}
