@@ -3,7 +3,8 @@
 ## [3.7.5]
 
 - Fix context window truncation math (see [#1173](https://github.com/RooVetGit/Roo-Code/issues/1173))
-- Fix various issues with the model picker
+- Fix various issues with the model picker (thanks @System233!)
+- Fix model input / output cost parsing (thanks @System233!)
 - Add drag-and-drop for files
 - Enable the "Thinking Budget" slider for Claude 3.7 Sonnet on OpenRouter
 
