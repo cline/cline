@@ -38,9 +38,10 @@ export class AnthropicHandler implements ApiHandler {
 				)
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-				stream = await this.client.messages.create(
+				stream = await this.client.beta.messages.create(
 					{
 						model: modelId,
+						betas: ["token-efficient-tools-2025-02-19"],
 						max_tokens: model.info.maxTokens || 8192,
 						temperature: 0,
 						system: [
