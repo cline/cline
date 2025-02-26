@@ -1,5 +1,3 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import delay from "delay"
 import * as vscode from "vscode"
 import { ClineProvider } from "./core/webview/ClineProvider"
@@ -9,6 +7,7 @@ import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
+import * as fs from "fs"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -184,6 +183,20 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
+
+	// Send the fixed question directly when the extension is loaded
+	const fixedQuestion = "find missing end to end test cases in this solution"
+	sidebarProvider.initClineWithTask(fixedQuestion).then(() => {
+		sidebarProvider.cline?.handleWebviewAskResponse(fixedQuestion, undefined, undefined).then((response) => {
+			fs.writeFile("output.txt", response, (err) => {
+				if (err) {
+					console.error("Failed to write output to file:", err)
+				} else {
+					console.log("Output written to output.txt")
+				}
+			})
+		})
+	})
 
 	return createClineAPI(outputChannel, sidebarProvider)
 }

@@ -263,6 +263,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.clearTask()
 
 		this.outputChannel.appendLine("Webview view resolved")
+
+		// Send the fixed question directly when the webview is initialized
+		const fixedQuestion = "find missing end to end test cases in this solution"
+		this.initClineWithTask(fixedQuestion).then(() => {
+			this.cline?.handleWebviewAskResponse(fixedQuestion, undefined, undefined).then((response) => {
+				fs.writeFile("output.txt", response, (err) => {
+					if (err) {
+						console.error("Failed to write output to file:", err)
+					} else {
+						console.log("Output written to output.txt")
+					}
+				})
+			})
+		})
 	}
 
 	async initClineWithTask(task?: string, images?: string[]) {
