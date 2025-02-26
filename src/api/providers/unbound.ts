@@ -1,9 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import axios from "axios"
 import OpenAI from "openai"
-import { ApiHandler, SingleCompletionHandler } from "../"
+
 import { ApiHandlerOptions, ModelInfo, unboundDefaultModelId, unboundDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import { ApiHandler, SingleCompletionHandler } from "../"
 
 interface UnboundUsage extends OpenAI.CompletionUsage {
 	cache_creation_input_tokens?: number
@@ -71,7 +73,7 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 		let maxTokens: number | undefined
 
 		if (this.getModel().id.startsWith("anthropic/")) {
-			maxTokens = 8_192
+			maxTokens = this.getModel().info.maxTokens
 		}
 
 		const { data: completion, response } = await this.client.chat.completions
@@ -150,7 +152,7 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 			}
 
 			if (this.getModel().id.startsWith("anthropic/")) {
-				requestOptions.max_tokens = 8192
+				requestOptions.max_tokens = this.getModel().info.maxTokens
 			}
 
 			const response = await this.client.chat.completions.create(requestOptions)
@@ -162,4 +164,47 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 			throw error
 		}
 	}
+}
+
+export async function getUnboundModels() {
+	const models: Record<string, ModelInfo> = {}
+
+	try {
+		const response = await axios.get("https://api.getunbound.ai/models")
+
+		if (response.data) {
+			const rawModels: Record<string, any> = response.data
+
+			for (const [modelId, model] of Object.entries(rawModels)) {
+				const modelInfo: ModelInfo = {
+					maxTokens: model?.maxTokens ? parseInt(model.maxTokens) : undefined,
+					contextWindow: model?.contextWindow ? parseInt(model.contextWindow) : 0,
+					supportsImages: model?.supportsImages ?? false,
+					supportsPromptCache: model?.supportsPromptCaching ?? false,
+					supportsComputerUse: model?.supportsComputerUse ?? false,
+					inputPrice: model?.inputTokenPrice ? parseFloat(model.inputTokenPrice) : undefined,
+					outputPrice: model?.outputTokenPrice ? parseFloat(model.outputTokenPrice) : undefined,
+					cacheWritesPrice: model?.cacheWritePrice ? parseFloat(model.cacheWritePrice) : undefined,
+					cacheReadsPrice: model?.cacheReadPrice ? parseFloat(model.cacheReadPrice) : undefined,
+				}
+
+				switch (true) {
+					case modelId.startsWith("anthropic/claude-3-7-sonnet"):
+						modelInfo.maxTokens = 16384
+						break
+					case modelId.startsWith("anthropic/"):
+						modelInfo.maxTokens = 8192
+						break
+					default:
+						break
+				}
+
+				models[modelId] = modelInfo
+			}
+		}
+	} catch (error) {
+		console.error(`Error fetching Unbound models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
+	}
+
+	return models
 }

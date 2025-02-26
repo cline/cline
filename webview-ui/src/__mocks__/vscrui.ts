@@ -8,6 +8,9 @@ export const Dropdown = ({ children, value, onChange }: any) =>
 
 export const Pane = ({ children }: any) => React.createElement("div", { "data-testid": "mock-pane" }, children)
 
+export const Button = ({ children, ...props }: any) =>
+	React.createElement("div", { "data-testid": "mock-button", ...props }, children)
+
 export type DropdownOption = {
 	label: string
 	value: string

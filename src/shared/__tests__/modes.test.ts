@@ -1,4 +1,13 @@
-import { isToolAllowedForMode, FileRestrictionError, ModeConfig } from "../modes"
+// Mock setup must come before imports
+jest.mock("vscode")
+const mockAddCustomInstructions = jest.fn().mockResolvedValue("Combined instructions")
+jest.mock("../../core/prompts/sections/custom-instructions", () => ({
+	addCustomInstructions: mockAddCustomInstructions,
+}))
+
+import { isToolAllowedForMode, FileRestrictionError, ModeConfig, getFullModeDetails, modes } from "../modes"
+import * as vscode from "vscode"
+import { addCustomInstructions } from "../../core/prompts/sections/custom-instructions"
 
 describe("isToolAllowedForMode", () => {
 	const customModes: ModeConfig[] = [
@@ -322,6 +331,98 @@ describe("FileRestrictionError", () => {
 			"This mode (Markdown Editor) can only edit files matching pattern: \\.md$. Got: test.js",
 		)
 		expect(error.name).toBe("FileRestrictionError")
+	})
+
+	describe("debug mode", () => {
+		it("is configured correctly", () => {
+			const debugMode = modes.find((mode) => mode.slug === "debug")
+			expect(debugMode).toBeDefined()
+			expect(debugMode).toMatchObject({
+				slug: "debug",
+				name: "Debug",
+				roleDefinition:
+					"You are Roo, an expert software debugger specializing in systematic problem diagnosis and resolution.",
+				groups: ["read", "edit", "browser", "command", "mcp"],
+			})
+			expect(debugMode?.customInstructions).toContain(
+				"Reflect on 5-7 different possible sources of the problem, distill those down to 1-2 most likely sources, and then add logs to validate your assumptions. Explicitly ask the user to confirm the diagnosis before fixing the problem.",
+			)
+		})
+	})
+
+	describe("getFullModeDetails", () => {
+		beforeEach(() => {
+			jest.clearAllMocks()
+			;(addCustomInstructions as jest.Mock).mockResolvedValue("Combined instructions")
+		})
+
+		it("returns base mode when no overrides exist", async () => {
+			const result = await getFullModeDetails("debug")
+			expect(result).toMatchObject({
+				slug: "debug",
+				name: "Debug",
+				roleDefinition:
+					"You are Roo, an expert software debugger specializing in systematic problem diagnosis and resolution.",
+			})
+		})
+
+		it("applies custom mode overrides", async () => {
+			const customModes = [
+				{
+					slug: "debug",
+					name: "Custom Debug",
+					roleDefinition: "Custom debug role",
+					groups: ["read"],
+				},
+			]
+
+			const result = await getFullModeDetails("debug", customModes)
+			expect(result).toMatchObject({
+				slug: "debug",
+				name: "Custom Debug",
+				roleDefinition: "Custom debug role",
+				groups: ["read"],
+			})
+		})
+
+		it("applies prompt component overrides", async () => {
+			const customModePrompts = {
+				debug: {
+					roleDefinition: "Overridden role",
+					customInstructions: "Overridden instructions",
+				},
+			}
+
+			const result = await getFullModeDetails("debug", undefined, customModePrompts)
+			expect(result.roleDefinition).toBe("Overridden role")
+			expect(result.customInstructions).toBe("Overridden instructions")
+		})
+
+		it("combines custom instructions when cwd provided", async () => {
+			const options = {
+				cwd: "/test/path",
+				globalCustomInstructions: "Global instructions",
+				preferredLanguage: "en",
+			}
+
+			await getFullModeDetails("debug", undefined, undefined, options)
+
+			expect(addCustomInstructions).toHaveBeenCalledWith(
+				expect.any(String),
+				"Global instructions",
+				"/test/path",
+				"debug",
+				{ preferredLanguage: "en" },
+			)
+		})
+
+		it("falls back to first mode for non-existent mode", async () => {
+			const result = await getFullModeDetails("non-existent")
+			expect(result).toMatchObject({
+				...modes[0],
+				customInstructions: "",
+			})
+		})
 	})
 
 	it("formats error message with description when provided", () => {

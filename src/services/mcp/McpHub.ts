@@ -14,7 +14,9 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
-import { ClineProvider, GlobalFileNames } from "../../core/webview/ClineProvider"
+
+import { ClineProvider } from "../../core/webview/ClineProvider"
+import { GlobalFileNames } from "../../shared/globalFileNames"
 import {
 	McpResource,
 	McpResourceResponse,

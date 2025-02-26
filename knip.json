@@ -1,0 +1,27 @@
+{
+	"$schema": "https://unpkg.com/knip@latest/schema.json",
+	"entry": ["src/extension.ts", "src/activate/index.ts", "webview-ui/src/index.tsx"],
+	"project": ["src/**/*.ts", "webview-ui/src/**/*.{ts,tsx}"],
+	"ignore": [
+		"**/__mocks__/**",
+		"**/__tests__/**",
+		"**/test/**",
+		"**/*.test.ts",
+		"**/*.test.tsx",
+		"**/stories/**",
+		"coverage/**",
+		"dist/**",
+		"out/**",
+		"bin/**",
+		"src/activate/**",
+		"src/exports/**",
+		"src/extension.ts",
+		".vscode-test.mjs"
+	],
+	"workspaces": {
+		"webview-ui": {
+			"entry": ["src/index.tsx"],
+			"project": ["src/**/*.{ts,tsx}"]
+		}
+	}
+}

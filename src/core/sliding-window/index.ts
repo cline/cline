@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+
 import { ModelInfo } from "../../shared/api"
 
 /**
@@ -27,13 +28,9 @@ export function truncateConversation(
 /**
  * Conditionally truncates the conversation messages if the total token count exceeds the model's limit.
  *
- * Depending on whether the model supports prompt caching, different maximum token thresholds
- * and truncation fractions are used. If the current total tokens exceed the threshold,
- * the conversation is truncated using the appropriate fraction.
- *
  * @param {Anthropic.Messages.MessageParam[]} messages - The conversation messages.
  * @param {number} totalTokens - The total number of tokens in the conversation.
- * @param {ModelInfo} modelInfo - Model metadata including context window size and prompt cache support.
+ * @param {ModelInfo} modelInfo - Model metadata including context window size.
  * @returns {Anthropic.Messages.MessageParam[]} The original or truncated conversation messages.
  */
 export function truncateConversationIfNeeded(
@@ -41,57 +38,16 @@ export function truncateConversationIfNeeded(
 	totalTokens: number,
 	modelInfo: ModelInfo,
 ): Anthropic.Messages.MessageParam[] {
-	if (modelInfo.supportsPromptCache) {
-		return totalTokens < getMaxTokensForPromptCachingModels(modelInfo)
-			? messages
-			: truncateConversation(messages, getTruncFractionForPromptCachingModels(modelInfo))
-	} else {
-		return totalTokens < getMaxTokensForNonPromptCachingModels(modelInfo)
-			? messages
-			: truncateConversation(messages, getTruncFractionForNonPromptCachingModels(modelInfo))
-	}
+	return totalTokens < getMaxTokens(modelInfo) ? messages : truncateConversation(messages, 0.5)
 }
 
 /**
- * Calculates the maximum allowed tokens for models that support prompt caching.
- *
- * The maximum is computed as the greater of (contextWindow - 40000) and 80% of the contextWindow.
+ * Calculates the maximum allowed tokens
  *
  * @param {ModelInfo} modelInfo - The model information containing the context window size.
- * @returns {number} The maximum number of tokens allowed for prompt caching models.
+ * @returns {number} The maximum number of tokens allowed
  */
-function getMaxTokensForPromptCachingModels(modelInfo: ModelInfo): number {
-	return Math.max(modelInfo.contextWindow - 40_000, modelInfo.contextWindow * 0.8)
-}
-
-/**
- * Provides the fraction of messages to remove for models that support prompt caching.
- *
- * @param {ModelInfo} modelInfo - The model information (unused in current implementation).
- * @returns {number} The truncation fraction for prompt caching models (fixed at 0.5).
- */
-function getTruncFractionForPromptCachingModels(modelInfo: ModelInfo): number {
-	return 0.5
-}
-
-/**
- * Calculates the maximum allowed tokens for models that do not support prompt caching.
- *
- * The maximum is computed as the greater of (contextWindow - 40000) and 80% of the contextWindow.
- *
- * @param {ModelInfo} modelInfo - The model information containing the context window size.
- * @returns {number} The maximum number of tokens allowed for non-prompt caching models.
- */
-function getMaxTokensForNonPromptCachingModels(modelInfo: ModelInfo): number {
-	return Math.max(modelInfo.contextWindow - 40_000, modelInfo.contextWindow * 0.8)
-}
-
-/**
- * Provides the fraction of messages to remove for models that do not support prompt caching.
- *
- * @param {ModelInfo} modelInfo - The model information.
- * @returns {number} The truncation fraction for non-prompt caching models (fixed at 0.1).
- */
-function getTruncFractionForNonPromptCachingModels(modelInfo: ModelInfo): number {
-	return Math.min(40_000 / modelInfo.contextWindow, 0.2)
+function getMaxTokens(modelInfo: ModelInfo): number {
+	// The buffer needs to be at least as large as `modelInfo.maxTokens`, or 20% of the context window if for some reason it's not set.
+	return modelInfo.contextWindow - (modelInfo.maxTokens || modelInfo.contextWindow * 0.2)
 }

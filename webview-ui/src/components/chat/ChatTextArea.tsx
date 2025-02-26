@@ -16,6 +16,7 @@ import { vscode } from "../../utils/vscode"
 import { WebviewMessage } from "../../../../src/shared/WebviewMessage"
 import { Mode, getAllModes } from "../../../../src/shared/modes"
 import { CaretIcon } from "../common/CaretIcon"
+import { convertToMentionPath } from "../../utils/path-mentions"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -50,7 +51,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, openedTabs, currentApiConfigName, listApiConfigMeta, customModes } = useExtensionState()
+		const { filePaths, openedTabs, currentApiConfigName, listApiConfigMeta, customModes, cwd } = useExtensionState()
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 		const [showDropdown, setShowDropdown] = useState(false)
 
@@ -589,18 +590,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const files = Array.from(e.dataTransfer.files)
 					const text = e.dataTransfer.getData("text")
 					if (text) {
-						const newValue = inputValue.slice(0, cursorPosition) + text + inputValue.slice(cursorPosition)
+						// Convert the path to a mention-friendly format
+						const mentionText = convertToMentionPath(text, cwd)
+
+						const newValue =
+							inputValue.slice(0, cursorPosition) + mentionText + " " + inputValue.slice(cursorPosition)
 						setInputValue(newValue)
-						const newCursorPosition = cursorPosition + text.length
+						const newCursorPosition = cursorPosition + mentionText.length + 1
 						setCursorPosition(newCursorPosition)
 						setIntendedCursorPosition(newCursorPosition)
 						return
 					}
+
 					const acceptedTypes = ["png", "jpeg", "webp"]
 					const imageFiles = files.filter((file) => {
 						const [type, subtype] = file.type.split("/")
 						return type === "image" && acceptedTypes.includes(subtype)
 					})
+
 					if (!shouldDisableImages && imageFiles.length > 0) {
 						const imagePromises = imageFiles.map((file) => {
 							return new Promise<string | null>((resolve) => {

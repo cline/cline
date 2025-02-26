@@ -34,204 +34,78 @@ Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
 
 ---
 
-## New in 3.3: Code Actions, More Powerful Modes, and a new Discord! 🚀
+## New in 3.7: Claude 3.7 Sonnet Support 🚀
 
-This release brings significant improvements to how you interact with Roo Code:
+We're excited to announce support for Anthropic's latest model, Claude 3.7 Sonnet! The model shows notable improvements in:
 
-### Code Actions
+- Front-end development and full-stack updates
+- Agentic workflows for multi-step processes
+- More accurate math, coding, and instruction-following
 
-Roo Code now integrates directly with VS Code's native code actions system, providing quick fixes and refactoring options right in your editor. Look for the lightbulb 💡 to access Roo Code's capabilities without switching context.
-
-### Enhanced Mode Capabilities
-
-- **Markdown Editing**: Addressing one of the most requested features, Ask and Architect modes can now create and edit markdown files!
-- **Custom File Restrictions**: In general, custom modes can now be restricted to specific file patterns (for example, a technical writer who can only edit markdown files 👋). There's no UI for this yet, but who needs that when you can just ask Roo to set it up for you?
-- **Self-Initiated Mode Switching**: Modes can intelligently request to switch between each other based on the task at hand. For instance, Code mode might request to switch to Test Engineer mode once it's ready to write tests.
-
-### Join Our Discord!
-
-We've launched a new Discord community! Join us at [https://roocode.com/discord](https://roocode.com/discord) to:
-
-- Share your custom modes
-- Get help and support
-- Connect with other Roo Code users
-- Stay updated on the latest features
-
-## New in 3.2: Introducing Custom Modes, plus rebranding from Roo Cline → Roo Code! 🚀
-
-### Introducing Roo Code
-
-Our biggest update yet is here - we're officially changing our name from Roo Cline to Roo Code! After growing beyond 50,000 installations across VS Marketplace and Open VSX, we're ready to chart our own course. Our heartfelt thanks to everyone in the Cline community who helped us reach this milestone.
-
-### Custom Modes
-
-To mark this new chapter, we're introducing the power to shape Roo Code into any role you need. You can now create an entire team of agents with deeply customized prompts:
-
-- QA Engineers who write thorough test cases and catch edge cases
-- Product Managers who excel at user stories and feature prioritization
-- UI/UX Designers who craft beautiful, accessible interfaces
-- Code Reviewers who ensure quality and maintainability
-
-The best part is that Roo can help you create these new modes! Just type "Create a new mode for <X>" in the chat to get started, and go into the Prompts tab or (carefully) edit the JSON representation to customize the prompt and allowed tools to your liking.
-
-We can't wait to hear more about what you build and how we can continue to evolve the Roo Code platform to support you. Please join us in our new https://www.reddit.com/r/RooCode subreddit to share your custom modes and be part of our next chapter. 🚀
-
-## New in 3.1: Chat Mode Prompt Customization & Prompt Enhancements
-
-Hot off the heels of **v3.0** introducing Code, Architect, and Ask chat modes, one of the most requested features has arrived: **customizable prompts for each mode**! 🎉
-
-You can now tailor the **role definition** and **custom instructions** for every chat mode to perfectly fit your workflow. Want to adjust Architect mode to focus more on system scalability? Or tweak Ask mode for deeper research queries? Done. Plus, you can define these via **mode-specific `.clinerules-[mode]` files**. You’ll find all of this in the new **Prompts** tab in the top menu.
-
-The second big feature in this release is a complete revamp of **prompt enhancements**. This feature helps you craft messages to get even better results from Cline. Here’s what’s new:
-
-- Works with **any provider** and API configuration, not just OpenRouter.
-- Fully customizable prompts to match your unique needs.
-- Same simple workflow: just hit the ✨ **Enhance Prompt** button in the chat input to try it out.
-
-Whether you’re using GPT-4, other APIs, or switching configurations, this gives you total control over how your prompts are optimized.
-
-As always, we’d love to hear your thoughts and ideas! What features do you want to see in **v3.2**? Drop by https://www.reddit.com/r/roocline and join the discussion - we're building Roo Cline together. 🚀
-
-## New in 3.0 - Chat Modes!
-
-You can now choose between different prompts for Roo Cline to better suit your workflow. Here’s what’s available:
-
-- **Code:** (existing behavior) The default mode where Cline helps you write code and execute tasks.
-
-- **Architect:** "You are Cline, a software architecture expert..." Ideal for thinking through high-level technical design and system architecture. Can’t write code or run commands.
-
-- **Ask:** "You are Cline, a knowledgeable technical assistant..." Perfect for asking questions about the codebase or digging into concepts. Also can’t write code or run commands.
-
-**Switching Modes:**
-It’s super simple! There’s a dropdown in the bottom left of the chat input to switch modes. Right next to it, you’ll find a way to switch between the API configuration profiles associated with the current mode (configured on the settings screen).
-
-**Why Add This?**
-
-- It keeps Cline from being overly eager to jump into solving problems when you just want to think or ask questions.
-- Each mode remembers the API configuration you last used with it. For example, you can use more thoughtful models like OpenAI o1 for Architect and Ask, while sticking with Sonnet or DeepSeek for coding tasks.
-- It builds on research suggesting better results when separating "thinking" from "coding," explained well in this very thoughtful [article](https://aider.chat/2024/09/26/architect.html) from aider.
-
-Right now, switching modes is a manual process. In the future, we’d love to give Cline the ability to suggest mode switches based on context. For now, we’d really appreciate your feedback on this feature.
+Try it today in your provider of choice!
 
 ---
+
+## What Can Roo Code Do?
+
+- 🚀 **Generate Code** from natural language descriptions
+- 🔧 **Refactor & Debug** existing code
+- 📝 **Write & Update** documentation
+- 🤔 **Answer Questions** about your codebase
+- 🔄 **Automate** repetitive tasks
+- 🏗️ **Create** new files and projects
+
+## Quick Start
+
+1. [Install Roo Code](https://docs.roocode.com/getting-started/installing)
+2. [Connect Your AI Provider](https://docs.roocode.com/getting-started/connecting-api-provider)
+3. [Try Your First Task](https://docs.roocode.com/getting-started/your-first-task)
 
 ## Key Features
 
-### Adaptive Autonomy
+### Multiple Modes
 
-Roo Code communicates in **natural language** and proposes actions—file edits, terminal commands, browser tests, etc. You choose how it behaves:
+Roo Code adapts to your needs with specialized [modes](https://docs.roocode.com/basic-usage/modes):
 
-- **Manual Approval**: Review and approve every step to keep total control.
-- **Autonomous/Auto-Approve**: Grant Roo Code the ability to run tasks without interruption, speeding up routine workflows.
-- **Hybrid**: Auto-approve specific actions (e.g., file writes) but require confirmation for riskier tasks (like deploying code).
+- **Code Mode:** For general-purpose coding tasks
+- **Architect Mode:** For planning and technical leadership
+- **Ask Mode:** For answering questions and providing information
+- **Debug Mode:** For systematic problem diagnosis
+- **[Custom Modes](https://docs.roocode.com/advanced-usage/custom-modes):** Create unlimited specialized personas for security auditing, performance optimization, documentation, or any other task
 
-No matter your preference, you always have the final say on what Roo Code does.
+### Smart Tools
 
----
+Roo Code comes with powerful [tools](https://docs.roocode.com/basic-usage/using-tools) that can:
 
-### Supports Any API or Model
+- Read and write files in your project
+- Execute commands in your VS Code terminal
+- Control a web browser
+- Use external tools via [MCP (Model Context Protocol)](https://docs.roocode.com/advanced-usage/mcp)
 
-Use Roo Code with:
+MCP extends Roo Code's capabilities by allowing you to add unlimited custom tools. Integrate with external APIs, connect to databases, or create specialized development tools - MCP provides the framework to expand Roo Code's functionality to meet your specific needs.
 
-- **OpenRouter**, Anthropic, Glama, OpenAI, Google Gemini, AWS Bedrock, Azure, GCP Vertex, or local models (LM Studio/Ollama)—anything **OpenAI-compatible**.
-- Different models per mode. For instance, an advanced model for architecture vs. a cheaper model for daily coding tasks.
-- **Usage Tracking**: Roo Code monitors token and cost usage for each session.
+### Customization
 
----
+Make Roo Code work your way with:
 
-### Custom Modes
+- [Custom Instructions](https://docs.roocode.com/advanced-usage/custom-instructions) for personalized behavior
+- [Custom Modes](https://docs.roocode.com/advanced-usage/custom-modes) for specialized tasks
+- [Local Models](https://docs.roocode.com/advanced-usage/local-models) for offline use
+- [Auto-Approval Settings](https://docs.roocode.com/advanced-usage/auto-approving-actions) for faster workflows
 
-**Custom Modes** let you shape Roo Code’s persona, instructions, and permissions:
+## Resources
 
-- **Built-in**:
-    - **Code** – Default, multi-purpose coding assistant
-    - **Architect** – High-level system and design insights
-    - **Ask** – Research and Q&A for deeper exploration
-- **User-Created**: Type `Create a new mode for <X>` and Roo Code generates a brand-new persona for that role—complete with tailored prompts and optional tool restrictions.
+### Documentation
 
-Modes can each have unique instructions and skill sets. Manage them in the **Prompts** tab.
+- [Basic Usage Guide](https://docs.roocode.com/basic-usage/the-chat-interface)
+- [Advanced Features](https://docs.roocode.com/advanced-usage/auto-approving-actions)
+- [Frequently Asked Questions](https://docs.roocode.com/faq)
 
-**Advanced Mode Features:**
+### Community
 
-- **File Restrictions**: Modes can be restricted to specific file types (e.g., Ask and Architect modes can edit markdown files)
-- **Custom File Rules**: Define your own file access patterns (e.g., `.test.ts` for test files only)
-- **Direct Mode Switching**: Modes can request to switch to other modes when needed (e.g., switching to Code mode for implementation)
-- **Self-Creation**: Roo Code can help create new modes, complete with role definitions and file restrictions
-
----
-
-### File & Editor Operations
-
-Roo Code can:
-
-- **Create and edit** files in your project (showing you diffs).
-- **React** to linting or compile-time errors automatically (missing imports, syntax errors, etc.).
-- **Track changes** via your editor’s timeline so you can review or revert if needed.
-
----
-
-### Command Line Integration
-
-Easily run commands in your terminal—Roo Code:
-
-- Installs packages, runs builds, or executes tests.
-- Monitors output and adapts if it detects errors.
-- Lets you keep dev servers running in the background while continuing to work.
-
-You approve or decline each command, or set auto-approval for routine operations.
-
----
-
-### Browser Automation
-
-Roo Code can also open a **browser** session to:
-
-- Launch your local or remote web app.
-- Click, type, scroll, and capture screenshots.
-- Collect console logs to debug runtime or UI/UX issues.
-
-Ideal for **end-to-end testing** or visually verifying changes without constant copy-pasting.
-
----
-
-### Adding Tools with MCP
-
-Extend Roo Code with the **Model Context Protocol (MCP)**:
-
-- “Add a tool that manages AWS EC2 resources.”
-- “Add a tool that queries the company Jira.”
-- “Add a tool that pulls the latest PagerDuty incidents.”
-
-Roo Code can build and configure new tools autonomously (with your approval) to expand its capabilities instantly.
-
----
-
-### Context Mentions
-
-When you need to provide extra context:
-
-- **@file** – Embed a file’s contents in the conversation.
-- **@folder** – Include entire folder structures.
-- **@problems** – Pull in workspace errors/warnings for Roo Code to fix.
-- **@url** – Fetch docs from a URL, converting them to markdown.
-- **@git** – Supply a list of Git commits or diffs for Roo Code to analyze code history.
-
-Help Roo Code focus on the most relevant details without blowing the token budget.
-
----
-
-## Installation
-
-Roo Code is available on:
-
-- **[VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline)**
-- **[Open-VSX](https://open-vsx.org/extension/RooVeterinaryInc/roo-cline)**
-
-1. **Search “Roo Code”** in your editor’s Extensions panel to install directly.
-2. Or grab the `.vsix` file from Marketplace / Open-VSX and **drag-and-drop** into your editor.
-3. **Open** Roo Code from the Activity Bar or Command Palette to start chatting.
-
-> **Tip**: Use `Cmd/Ctrl + Shift + P` → “Roo Code: Open in New Tab” to dock the AI assistant alongside your file explorer.
+- **Discord:** [Join our Discord server](https://discord.gg/roocode) for real-time help and discussions
+- **Reddit:** [Visit our subreddit](https://www.reddit.com/r/RooCode) to share experiences and tips
+- **GitHub:** Report [issues](https://github.com/RooVetGit/Roo-Code/issues) or request [features](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
 
 ---
 
