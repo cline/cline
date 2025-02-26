@@ -1,18 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { ApiConfigMeta, ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
-import {
-	ApiConfiguration,
-	ModelInfo,
-	glamaDefaultModelId,
-	glamaDefaultModelInfo,
-	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
-	unboundDefaultModelId,
-	unboundDefaultModelInfo,
-	requestyDefaultModelId,
-	requestyDefaultModelInfo,
-} from "../../../src/shared/api"
+import { ApiConfiguration } from "../../../src/shared/api"
 import { vscode } from "../utils/vscode"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { findLastIndex } from "../../../src/shared/array"
@@ -26,11 +15,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
 	theme: any
-	glamaModels: Record<string, ModelInfo>
-	requestyModels: Record<string, ModelInfo>
-	openRouterModels: Record<string, ModelInfo>
-	unboundModels: Record<string, ModelInfo>
-	openAiModels: string[]
 	mcpServers: McpServer[]
 	currentCheckpoint?: string
 	filePaths: string[]
@@ -70,7 +54,6 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setRateLimitSeconds: (value: number) => void
 	setCurrentApiConfigName: (value: string) => void
 	setListApiConfigMeta: (value: ApiConfigMeta[]) => void
-	onUpdateApiConfig: (apiConfig: ApiConfiguration) => void
 	mode: Mode
 	setMode: (value: Mode) => void
 	setCustomModePrompts: (value: CustomModePrompts) => void
@@ -125,21 +108,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [theme, setTheme] = useState<any>(undefined)
 	const [filePaths, setFilePaths] = useState<string[]>([])
-	const [glamaModels, setGlamaModels] = useState<Record<string, ModelInfo>>({
-		[glamaDefaultModelId]: glamaDefaultModelInfo,
-	})
 	const [openedTabs, setOpenedTabs] = useState<Array<{ label: string; isActive: boolean; path?: string }>>([])
-	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
-		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
-	})
-	const [unboundModels, setUnboundModels] = useState<Record<string, ModelInfo>>({
-		[unboundDefaultModelId]: unboundDefaultModelInfo,
-	})
-	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
-		[requestyDefaultModelId]: requestyDefaultModelInfo,
-	})
 
-	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [currentCheckpoint, setCurrentCheckpoint] = useState<string>()
 
@@ -147,18 +117,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		(value: ApiConfigMeta[]) => setState((prevState) => ({ ...prevState, listApiConfigMeta: value })),
 		[],
 	)
-
-	const onUpdateApiConfig = useCallback((apiConfig: ApiConfiguration) => {
-		setState((currentState) => {
-			vscode.postMessage({
-				type: "upsertApiConfiguration",
-				text: currentState.currentApiConfigName,
-				apiConfiguration: { ...currentState.apiConfiguration, ...apiConfig },
-			})
-			return currentState // No state update needed
-		})
-	}, [])
-
 	const handleMessage = useCallback(
 		(event: MessageEvent) => {
 			const message: ExtensionMessage = event.data
@@ -203,40 +161,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 					})
 					break
 				}
-				case "glamaModels": {
-					const updatedModels = message.glamaModels ?? {}
-					setGlamaModels({
-						[glamaDefaultModelId]: glamaDefaultModelInfo, // in case the extension sent a model list without the default model
-						...updatedModels,
-					})
-					break
-				}
-				case "openRouterModels": {
-					const updatedModels = message.openRouterModels ?? {}
-					setOpenRouterModels({
-						[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
-						...updatedModels,
-					})
-					break
-				}
-				case "openAiModels": {
-					const updatedModels = message.openAiModels ?? []
-					setOpenAiModels(updatedModels)
-					break
-				}
-				case "unboundModels": {
-					const updatedModels = message.unboundModels ?? {}
-					setUnboundModels(updatedModels)
-					break
-				}
-				case "requestyModels": {
-					const updatedModels = message.requestyModels ?? {}
-					setRequestyModels({
-						[requestyDefaultModelId]: requestyDefaultModelInfo, // in case the extension sent a model list without the default model
-						...updatedModels,
-					})
-					break
-				}
 				case "mcpServers": {
 					setMcpServers(message.mcpServers ?? [])
 					break
@@ -265,11 +189,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		didHydrateState,
 		showWelcome,
 		theme,
-		glamaModels,
-		requestyModels,
-		openRouterModels,
-		openAiModels,
-		unboundModels,
 		mcpServers,
 		currentCheckpoint,
 		filePaths,
@@ -317,7 +236,6 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setRateLimitSeconds: (value) => setState((prevState) => ({ ...prevState, rateLimitSeconds: value })),
 		setCurrentApiConfigName: (value) => setState((prevState) => ({ ...prevState, currentApiConfigName: value })),
 		setListApiConfigMeta,
-		onUpdateApiConfig,
 		setMode: (value: Mode) => setState((prevState) => ({ ...prevState, mode: value })),
 		setCustomModePrompts: (value) => setState((prevState) => ({ ...prevState, customModePrompts: value })),
 		setCustomSupportPrompts: (value) => setState((prevState) => ({ ...prevState, customSupportPrompts: value })),

@@ -1,9 +1,4 @@
-import {
-	ApiConfiguration,
-	glamaDefaultModelId,
-	openRouterDefaultModelId,
-	unboundDefaultModelId,
-} from "../../../src/shared/api"
+import { ApiConfiguration } from "../../../src/shared/api"
 import { ModelInfo } from "../../../src/shared/api"
 export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
@@ -86,7 +81,7 @@ export function validateModelId(
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {
 			case "glama":
-				const glamaModelId = apiConfiguration.glamaModelId || glamaDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
+				const glamaModelId = apiConfiguration.glamaModelId
 				if (!glamaModelId) {
 					return "You must provide a model ID."
 				}
@@ -96,7 +91,7 @@ export function validateModelId(
 				}
 				break
 			case "openrouter":
-				const modelId = apiConfiguration.openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
+				const modelId = apiConfiguration.openRouterModelId
 				if (!modelId) {
 					return "You must provide a model ID."
 				}
@@ -106,7 +101,7 @@ export function validateModelId(
 				}
 				break
 			case "unbound":
-				const unboundModelId = apiConfiguration.unboundModelId || unboundDefaultModelId
+				const unboundModelId = apiConfiguration.unboundModelId
 				if (!unboundModelId) {
 					return "You must provide a model ID."
 				}

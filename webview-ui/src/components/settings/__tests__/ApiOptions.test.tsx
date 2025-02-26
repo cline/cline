@@ -51,6 +51,8 @@ describe("ApiOptions", () => {
 		render(
 			<ExtensionStateContextProvider>
 				<ApiOptions
+					errorMessage={undefined}
+					setErrorMessage={() => {}}
 					uriScheme={undefined}
 					apiConfiguration={{}}
 					setApiConfigurationField={() => {}}
@@ -69,4 +71,6 @@ describe("ApiOptions", () => {
 		renderApiOptions({ fromWelcomeView: true })
 		expect(screen.queryByTestId("temperature-control")).not.toBeInTheDocument()
 	})
+
+	//TODO: More test cases needed
 })

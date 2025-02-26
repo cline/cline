@@ -42,6 +42,8 @@ const WelcomeView = () => {
 					apiConfiguration={apiConfiguration || {}}
 					uriScheme={uriScheme}
 					setApiConfigurationField={(field, value) => setApiConfiguration({ [field]: value })}
+					errorMessage={errorMessage}
+					setErrorMessage={setErrorMessage}
 				/>
 			</div>
 
