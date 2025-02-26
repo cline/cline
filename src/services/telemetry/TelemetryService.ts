@@ -12,29 +12,18 @@ class PostHogClient {
 			host: "https://us.i.posthog.com",
 			enableExceptionAutocapture: false,
 		})
-
-		// Initialize telemetry state based on user settings
-		this.updateTelemetryState()
-
-		// Listen for settings changes
-		vscode.workspace.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration("cline.enableTelemetry") || e.affectsConfiguration("telemetry.telemetryLevel")) {
-				this.updateTelemetryState()
-			}
-		})
 	}
 
-	private updateTelemetryState(): void {
+	public updateTelemetryState(didUserOptIn: boolean): void {
 		this.telemetryEnabled = false
 
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
 		const telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
 		const globalTelemetryEnabled = telemetryLevel === "all"
 
-		// Only check Cline setting if global telemetry is enabled
+		// We only enable telemetry if global vscode telemetry is enabled
 		if (globalTelemetryEnabled) {
-			const clineOptIn = vscode.workspace.getConfiguration("cline").get<boolean | null>("enableTelemetry", null)
-			this.telemetryEnabled = clineOptIn === true
+			this.telemetryEnabled = didUserOptIn
 		}
 
 		// Update PostHog client state based on telemetry preference

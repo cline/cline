@@ -2,6 +2,7 @@ import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo, useState } from "react"
 import styled from "styled-components"
 import { vscode } from "../../utils/vscode"
+import { TelemetrySetting } from "../../../../src/shared/TelemetrySetting"
 
 const BannerContainer = styled.div`
 	background-color: var(--vscode-banner-background);
@@ -10,6 +11,7 @@ const BannerContainer = styled.div`
 	flex-direction: column;
 	gap: 10px;
 	flex-shrink: 0;
+	margin-bottom: 6px;
 `
 
 const ButtonContainer = styled.div`
@@ -27,16 +29,16 @@ const TelemetryBanner = () => {
 
 	const handleAllow = () => {
 		setHasChosen(true)
-		vscode.postMessage({ type: "telemetryOptIn", bool: true })
+		vscode.postMessage({ type: "telemetrySetting", text: "enabled" satisfies TelemetrySetting })
 	}
 
 	const handleDeny = () => {
 		setHasChosen(true)
-		vscode.postMessage({ type: "telemetryOptIn", bool: false })
+		vscode.postMessage({ type: "telemetrySetting", text: "disabled" satisfies TelemetrySetting })
 	}
 
 	const handleOpenSettings = () => {
-		vscode.postMessage({ type: "openTelemetrySettings" })
+		vscode.postMessage({ type: "openSettings" })
 	}
 
 	return (
