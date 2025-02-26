@@ -81,5 +81,37 @@ describe("ApiOptions", () => {
 		const option = screen.getByRole("option", { name: "GCP Vertex AI" })
 		await userEvent.click(option)
 		expect(screen.getByPlaceholderText(/Enter Project ID/i)).toBeInTheDocument()
+
+	it("renders OpenAI Supports Images input", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+		fireEvent.click(screen.getByText("Model Configuration"))
+		const apiKeyInput = screen.getByText("Supports Images")
+		expect(apiKeyInput).toBeInTheDocument()
+	})
+
+	it("renders OpenAI Context Window Size input", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+		fireEvent.click(screen.getByText("Model Configuration"))
+		const orgIdInput = screen.getByText("Context Window Size")
+		expect(orgIdInput).toBeInTheDocument()
+	})
+
+	it("renders OpenAI Max Output Tokens input", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+		fireEvent.click(screen.getByText("Model Configuration"))
+		const modelInput = screen.getByText("Max Output Tokens")
+		expect(modelInput).toBeInTheDocument()
 	})
 })
