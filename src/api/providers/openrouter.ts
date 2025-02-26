@@ -109,13 +109,11 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		}
 
 		let temperature = this.options.modelTemperature ?? defaultTemperature
-
-		const maxTokens = modelInfo.maxTokens
-		const budgetTokens = this.options.anthropicThinking ?? Math.min((maxTokens ?? 8192) - 1, 8192)
 		let thinking: BetaThinkingConfigParam | undefined = undefined
 
-		// Anthropic "Thinking" models require a temperature of 1.0.
 		if (modelInfo.thinking) {
+			const maxTokens = modelInfo.maxTokens || 8192
+			const budgetTokens = this.options.anthropicThinking ?? Math.max(maxTokens * 0.8, 1024)
 			thinking = { type: "enabled", budget_tokens: budgetTokens }
 			temperature = 1.0
 		}
@@ -125,7 +123,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 
 		const completionParams: OpenRouterChatCompletionParams = {
 			model: modelId,
-			max_tokens: maxTokens,
+			max_tokens: modelInfo.maxTokens,
 			temperature,
 			thinking, // OpenRouter is temporarily supporting this.
 			top_p: topP,
