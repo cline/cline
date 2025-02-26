@@ -52,3 +52,13 @@ To give you more control over which files are accessible to Cline, we've impleme
 **In Summary**
 
 The `.clineignore` file provides a powerful and flexible way to control Cline's access to your workspace files, enhancing privacy, performance, and context management. By leveraging familiar `.gitignore` syntax, you can easily tailor Cline's focus to the most relevant parts of your projects.
+
+**Additional Resources**
+
+For more detailed information about using ignore files in Cline, including advanced patterns, best practices, and troubleshooting tips, please refer to our comprehensive guide:
+
+* [Controlling File Access with Ignore Files](./ignore-files.md)
+
+We also provide a sample `.clineignore` file with common patterns for various project types that you can use as a starting point:
+
+* [Sample .clineignore Template](./sample.clineignore)

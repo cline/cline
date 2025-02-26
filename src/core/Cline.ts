@@ -1282,10 +1282,17 @@ export class Cline {
 			}
 		}
 
-		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
+		const { clineIgnore: clineIgnoreContent, gitIgnore: gitIgnoreContent } = this.clineIgnoreController.getIgnoreContent()
 		let clineIgnoreInstructions: string | undefined
+
+		// Create instructions for .clineignore
 		if (clineIgnoreContent) {
 			clineIgnoreInstructions = `# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${clineIgnoreContent}\n.clineignore`
+		}
+
+		// Add .gitignore information if it exists and .clineignore doesn't
+		if (!clineIgnoreContent && gitIgnoreContent) {
+			clineIgnoreInstructions = `# .gitignore (used for file access control)\n\n(The following is provided by a root-level .gitignore file where patterns are being used to control file access. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${gitIgnoreContent}\n.gitignore`
 		}
 
 		if (settingsCustomInstructions || clineRulesFileInstructions) {
