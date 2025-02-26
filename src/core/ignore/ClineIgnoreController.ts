@@ -15,14 +15,29 @@ export class ClineIgnoreController {
 	private cwd: string
 	private ignoreInstance: Ignore
 	private disposables: vscode.Disposable[] = []
-	clineIgnoreContent: string | undefined
+	private clineIgnoreContent: string | undefined
+	private gitIgnoreContent: string | undefined
+	private initialized: boolean = false
+	private initPromise: Promise<void> | null = null
 
 	constructor(cwd: string) {
 		this.cwd = cwd
 		this.ignoreInstance = ignore()
 		this.clineIgnoreContent = undefined
-		// Set up file watcher for .clineignore
+		this.gitIgnoreContent = undefined
+		// Set up file watcher for .clineignore and .gitignore
 		this.setupFileWatcher()
+	}
+
+	/**
+	 * Get the content of the ignore files for external use
+	 * @returns An object containing the content of .clineignore and .gitignore files
+	 */
+	getIgnoreContent(): { clineIgnore?: string; gitIgnore?: string } {
+		return {
+			clineIgnore: this.clineIgnoreContent,
+			gitIgnore: this.gitIgnoreContent,
+		}
 	}
 
 	/**
@@ -30,31 +45,65 @@ export class ClineIgnoreController {
 	 * Must be called after construction and before using the controller
 	 */
 	async initialize(): Promise<void> {
-		await this.loadClineIgnore()
+		if (this.initPromise) {
+			return this.initPromise
+		}
+
+		this.initPromise = this._initialize()
+		return this.initPromise
+	}
+
+	private async _initialize(): Promise<void> {
+		try {
+			await Promise.all([this.loadClineIgnore(), this.loadGitIgnore()])
+			this.initialized = true
+		} catch (error) {
+			console.error("Error initializing ClineIgnoreController:", error)
+			// Still mark as initialized to prevent hanging
+			this.initialized = true
+		}
 	}
 
 	/**
-	 * Set up the file watcher for .clineignore changes
+	 * Set up the file watcher for .clineignore and .gitignore changes
 	 */
 	private setupFileWatcher(): void {
+		// Watch for .clineignore changes
 		const clineignorePattern = new vscode.RelativePattern(this.cwd, ".clineignore")
-		const fileWatcher = vscode.workspace.createFileSystemWatcher(clineignorePattern)
+		const clineignoreWatcher = vscode.workspace.createFileSystemWatcher(clineignorePattern)
 
-		// Watch for changes and updates
+		// Watch for .gitignore changes
+		const gitignorePattern = new vscode.RelativePattern(this.cwd, ".gitignore")
+		const gitignoreWatcher = vscode.workspace.createFileSystemWatcher(gitignorePattern)
+
+		// Watch for changes and updates to .clineignore
 		this.disposables.push(
-			fileWatcher.onDidChange(() => {
+			clineignoreWatcher.onDidChange(() => {
 				this.loadClineIgnore()
 			}),
-			fileWatcher.onDidCreate(() => {
+			clineignoreWatcher.onDidCreate(() => {
 				this.loadClineIgnore()
 			}),
-			fileWatcher.onDidDelete(() => {
+			clineignoreWatcher.onDidDelete(() => {
 				this.loadClineIgnore()
 			}),
 		)
 
-		// Add fileWatcher itself to disposables
-		this.disposables.push(fileWatcher)
+		// Watch for changes and updates to .gitignore
+		this.disposables.push(
+			gitignoreWatcher.onDidChange(() => {
+				this.loadGitIgnore()
+			}),
+			gitignoreWatcher.onDidCreate(() => {
+				this.loadGitIgnore()
+			}),
+			gitignoreWatcher.onDidDelete(() => {
+				this.loadGitIgnore()
+			}),
+		)
+
+		// Add fileWatchers to disposables
+		this.disposables.push(clineignoreWatcher, gitignoreWatcher)
 	}
 
 	/**
@@ -64,18 +113,55 @@ export class ClineIgnoreController {
 		try {
 			// Reset ignore instance to prevent duplicate patterns
 			this.ignoreInstance = ignore()
+
+			// First load .gitignore if it exists
+			if (this.gitIgnoreContent) {
+				this.ignoreInstance.add(this.gitIgnoreContent)
+			}
+
 			const ignorePath = path.join(this.cwd, ".clineignore")
 			if (await fileExistsAtPath(ignorePath)) {
 				const content = await fs.readFile(ignorePath, "utf8")
 				this.clineIgnoreContent = content
 				this.ignoreInstance.add(content)
+				// Always ignore the .clineignore file itself
 				this.ignoreInstance.add(".clineignore")
 			} else {
 				this.clineIgnoreContent = undefined
+				// If no .clineignore but we have .gitignore, we need to re-add .clineignore to the ignore list
+				if (this.gitIgnoreContent) {
+					this.ignoreInstance.add(".clineignore")
+				}
 			}
 		} catch (error) {
 			// Should never happen: reading file failed even though it exists
 			console.error("Unexpected error loading .clineignore:", error)
+		}
+	}
+
+	/**
+	 * Load patterns from .gitignore if it exists
+	 */
+	private async loadGitIgnore(): Promise<void> {
+		try {
+			const gitIgnorePath = path.join(this.cwd, ".gitignore")
+			if (await fileExistsAtPath(gitIgnorePath)) {
+				const content = await fs.readFile(gitIgnorePath, "utf8")
+				this.gitIgnoreContent = content
+
+				// Reload .clineignore to ensure proper order of patterns
+				await this.loadClineIgnore()
+			} else {
+				this.gitIgnoreContent = undefined
+				// If .gitignore was deleted, we need to reload just .clineignore
+				if (this.clineIgnoreContent) {
+					this.ignoreInstance = ignore()
+					this.ignoreInstance.add(this.clineIgnoreContent)
+					this.ignoreInstance.add(".clineignore")
+				}
+			}
+		} catch (error) {
+			console.error("Unexpected error loading .gitignore:", error)
 		}
 	}
 
@@ -85,21 +171,45 @@ export class ClineIgnoreController {
 	 * @returns true if file is accessible, false if ignored
 	 */
 	validateAccess(filePath: string): boolean {
-		// Always allow access if .clineignore does not exist
-		if (!this.clineIgnoreContent) {
+		// Ensure controller is initialized
+		if (!this.initialized) {
+			console.warn("ClineIgnoreController.validateAccess called before initialization completed")
 			return true
 		}
+
+		// Always allow access if neither .clineignore nor .gitignore exist
+		if (!this.clineIgnoreContent && !this.gitIgnoreContent) {
+			return true
+		}
+
 		try {
+			// Handle null or undefined paths
+			if (!filePath) {
+				return true
+			}
+
 			// Normalize path to be relative to cwd and use forward slashes
 			const absolutePath = path.resolve(this.cwd, filePath)
-			const relativePath = path.relative(this.cwd, absolutePath).toPosix()
+
+			// Check if the path is outside the workspace
+			if (!absolutePath.startsWith(this.cwd)) {
+				// For security, we should not allow access to files outside the workspace
+				// This is a change from the previous behavior
+				return false
+			}
+
+			// Get the path relative to cwd
+			let relativePath = path.relative(this.cwd, absolutePath)
+
+			// Convert to posix style for consistent handling across platforms
+			relativePath = relativePath.split(path.sep).join("/")
 
 			// Ignore expects paths to be path.relative()'d
 			return !this.ignoreInstance.ignores(relativePath)
 		} catch (error) {
-			// console.error(`Error validating access for ${filePath}:`, error)
-			// Ignore is designed to work with relative file paths, so will throw error for paths outside cwd. We are allowing access to all files outside cwd.
-			return true
+			console.error(`Error validating access for ${filePath}:`, error)
+			// For security, fail closed (deny access) on errors
+			return false
 		}
 	}
 
@@ -109,8 +219,13 @@ export class ClineIgnoreController {
 	 * @returns path of file that is being accessed if it is being accessed, undefined if command is allowed
 	 */
 	validateCommand(command: string): string | undefined {
-		// Always allow if no .clineignore exists
-		if (!this.clineIgnoreContent) {
+		// Always allow if no ignore files exist
+		if (!this.clineIgnoreContent && !this.gitIgnoreContent) {
+			return undefined
+		}
+
+		// Handle empty commands
+		if (!command || !command.trim()) {
 			return undefined
 		}
 
@@ -165,6 +280,10 @@ export class ClineIgnoreController {
 	 * @returns Array of allowed paths
 	 */
 	filterPaths(paths: string[]): string[] {
+		if (!paths || !Array.isArray(paths)) {
+			return []
+		}
+
 		try {
 			return paths
 				.map((p) => ({

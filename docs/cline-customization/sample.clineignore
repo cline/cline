@@ -1,0 +1,184 @@
+# Sample .clineignore file
+# Copy this file to your workspace root and customize as needed
+
+# Sensitive files
+#----------------
+# Environment variables and secrets
+.env
+.env.*
+*.env
+*.secret
+*secret*
+*password*
+*credential*
+*token*
+*key*
+*auth*
+*config.json
+*config.js
+*config.ts
+*settings.json
+
+# Private directories
+#-------------------
+private/
+secrets/
+personal/
+.git/
+.github/
+.vscode/
+
+# Large directories to improve performance
+#----------------------------------------
+# Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.pnpm-debug.log
+.npm/
+.yarn/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+venv/
+ENV/
+.venv/
+.env/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Java/Maven/Gradle
+target/
+.gradle/
+build/
+out/
+.mvn/
+
+# C#/.NET
+bin/
+obj/
+.vs/
+packages/
+*.suo
+*.user
+*.userosscache
+*.dbmdl
+*.jfm
+
+# Distribution directories
+#------------------------
+dist/
+build/
+out/
+public/dist/
+public/build/
+.next/
+.nuxt/
+.output/
+.cache/
+
+# Temporary files
+#---------------
+tmp/
+temp/
+.tmp/
+.temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*.bak
+*.log
+logs/
+
+# Large files
+#-----------
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.iso
+*.dmg
+*.exe
+*.dll
+*.so
+*.dylib
+*.jar
+*.war
+*.ear
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.mp3
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.ico
+*.svg
+*.ttf
+*.woff
+*.woff2
+*.eot
+
+# Exceptions (examples of negation patterns)
+#------------------------------------------
+# Allow specific important files even if they match patterns above
+!README.md
+!LICENSE
+!CONTRIBUTING.md
+!.gitignore
+!package.json
+!package-lock.json
+!yarn.lock
+!pnpm-lock.yaml
+!requirements.txt
+!Pipfile
+!Pipfile.lock
+!Cargo.toml
+!Cargo.lock
+!go.mod
+!go.sum
+!Gemfile
+!Gemfile.lock
+!composer.json
+!composer.lock
+
+# Allow specific directories even if they match patterns above
+!public/assets/
+!src/assets/icons/
+!docs/images/
+
+# Project-specific examples (uncomment and customize as needed)
+#------------------------------------------------------------
+# # Ignore all markdown files except in the docs directory
+# *.md
+# !docs/*.md
+# !README.md
+# 
+# # Ignore all test data except specific examples
+# test/data/
+# !test/data/examples/
+# 
+# # Ignore all logs except critical ones
+# logs/
+# !logs/critical/ 
