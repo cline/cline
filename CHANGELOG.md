@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## [3.7.6]
+
+- Handle really long text better in the in the ChatRow similar to TaskHeader (thanks @joemanley201!)
+- Support multiple files in drag-and-drop
+- Truncate search_file output to avoid crashing the extension
+- Better OpenRouter error handling (no more "Provider Error")
+- Add slider to control max output tokens for thinking models
+
 ## [3.7.5]
 
 - Fix context window truncation math (see [#1173](https://github.com/RooVetGit/Roo-Code/issues/1173))
