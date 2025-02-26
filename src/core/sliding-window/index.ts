@@ -49,5 +49,5 @@ export function truncateConversationIfNeeded(
  */
 function getMaxTokens(modelInfo: ModelInfo): number {
 	// The buffer needs to be at least as large as `modelInfo.maxTokens`, or 20% of the context window if for some reason it's not set.
-	return modelInfo.contextWindow - Math.max(modelInfo.maxTokens || modelInfo.contextWindow * 0.2)
+	return modelInfo.contextWindow - (modelInfo.maxTokens || modelInfo.contextWindow * 0.2)
 }
