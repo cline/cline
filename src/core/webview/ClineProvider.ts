@@ -95,6 +95,7 @@ type GlobalStateKey =
 	| "requestyModelId"
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
+	| "hideTelemetryOptIn"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -366,9 +367,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
             <meta name="theme-color" content="#000000">
-            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}';">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
             <link href="${codiconsUri}" rel="stylesheet" />
+						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://*.posthog.com; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' https://*.posthog.com;">
             <title>Cline</title>
           </head>
           <body>
@@ -913,6 +914,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							"workbench.action.openSettings",
 							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
 						)
+						break
+					}
+					case "toggleTelemetryOptIn": {
+						await vscode.workspace.getConfiguration().update("cline.enableTelemetry", message.bool, true)
+						await this.updateGlobalState("hideTelemetryOptIn", true)
+						await this.postStateToWebview()
 						break
 					}
 					// Add more switch case statements here as more webview message commands
@@ -1680,6 +1687,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			userInfo,
 			authToken,
 			mcpMarketplaceEnabled,
+			hideTelemetryOptIn,
 		} = await this.getState()
 
 		return {
@@ -1697,8 +1705,11 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			browserSettings,
 			chatSettings,
 			isLoggedIn: !!authToken,
+			advancedSettings: vscode.workspace.getConfiguration("cline"),
+			vscMachineId: vscode.env.machineId,
 			userInfo,
 			mcpMarketplaceEnabled,
+			hideTelemetryOptIn: hideTelemetryOptIn ?? false,
 		}
 	}
 
@@ -1805,6 +1816,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelInfo,
 			qwenApiLine,
 			liteLlmApiKey,
+			hideTelemetryOptIn,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1856,6 +1868,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
+			this.getGlobalState("hideTelemetryOptIn") as Promise<boolean | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1933,6 +1946,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelId,
 			previousModeModelInfo,
 			mcpMarketplaceEnabled,
+			hideTelemetryOptIn,
 		}
 	}
 
