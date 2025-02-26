@@ -99,7 +99,7 @@ export abstract class ClaudeStreamingHandler<ClientType extends Anthropic | Anth
 
 	/**
 	 * Handles an error that occurs during message stream creation.  Override to handle provider-specific errors.
-	 * @param error - The error that
+	 * @param error - The error that threw during message stream creation.
 	 * @throws An error with a message indicating the failure.
 	 */
 	protected handleMessageStreamError(error: any) {
