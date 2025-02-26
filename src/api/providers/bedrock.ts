@@ -4,18 +4,19 @@ import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { fromIni, fromNodeProviderChain } from "@aws-sdk/credential-providers"
-import { EnterpriseHandler } from "./enterprise"
+import { ClaudeStreamingHandler } from "./claude-streaming"
 
 /**
  * Handles interactions with the Anthropic Bedrock service using AWS credentials.
  */
-export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
-	override async getClient() {
+export class AwsBedrockHandler extends ClaudeStreamingHandler<AnthropicBedrock> {
+	async getClient() {
 		const clientConfig: any = {
 			awsRegion: this.options.awsRegion || "us-west-2",
 		}
 
 		try {
+			this.saveClientToNodeProviderChain()
 			// Use AWS profile credentials if specified.
 			if (this.options.awsUseProfile) {
 				const credentials = await fromIni({
@@ -33,8 +34,6 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 				if (this.options.awsSessionToken) {
 					clientConfig.awsSessionToken = this.options.awsSessionToken
 				}
-			} else {
-				return this.getClientFromNodeProviderChain()
 			}
 		} catch (error) {
 			console.error("Failed to initialize Bedrock client:", error)
@@ -43,24 +42,24 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 		return new AnthropicBedrock(clientConfig)
 	}
 
-	async *createEnterpriseMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createStreamingMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
 		const modelId = this.getModelId()
 
 		let stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>
 
 		if (Object.keys(bedrockModels).includes(modelId)) {
-			stream = await this.createEnterpriseModelStream(
+			stream = await this.createModelStream(
 				systemPrompt,
 				messages,
 				modelId,
-				model.info.maxTokens ?? EnterpriseHandler.DEFAULT_TOKEN_SIZE,
+				model.info.maxTokens ?? ClaudeStreamingHandler.DEFAULT_TOKEN_SIZE,
 			)
 		} else {
 			stream = await this.client.messages.create({
 				model: modelId,
-				max_tokens: model.info.maxTokens || EnterpriseHandler.DEFAULT_TOKEN_SIZE,
-				temperature: EnterpriseHandler.DEFAULT_TEMPERATURE,
+				max_tokens: model.info.maxTokens || ClaudeStreamingHandler.DEFAULT_TOKEN_SIZE,
+				temperature: ClaudeStreamingHandler.DEFAULT_TEMPERATURE,
 				system: systemPrompt,
 				messages,
 				stream: true,
@@ -70,7 +69,7 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 		yield* this.processStream(stream)
 	}
 
-	async createEnterpriseModelStream(
+	async createModelStream(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		modelId: string,
@@ -80,8 +79,8 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 
 		return await this.client.messages.create({
 			model: modelId,
-			max_tokens: maxTokens || EnterpriseHandler.DEFAULT_TOKEN_SIZE,
-			temperature: EnterpriseHandler.DEFAULT_TEMPERATURE,
+			max_tokens: maxTokens || ClaudeStreamingHandler.DEFAULT_TOKEN_SIZE,
+			temperature: ClaudeStreamingHandler.DEFAULT_TEMPERATURE,
 			system: [
 				{
 					text: systemPrompt,
@@ -118,12 +117,12 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 		return { id: bedrockDefaultModelId, info: bedrockModels[bedrockDefaultModelId] }
 	}
 
-	private async getClientFromNodeProviderChain(): Promise<AnthropicBedrock> {
+	private async saveClientToNodeProviderChain() {
 		// Create AWS credentials by executing a an AWS provider chain exactly as the
 		// Anthropic SDK does it, by wrapping the default chain into a temporary process
 		// environment.
 		const providerChain = fromNodeProviderChain()
-		const credentials = await AwsBedrockHandler.withTempEnv(
+		await AwsBedrockHandler.withTempEnv(
 			() => {
 				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
 				AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.options.awsAccessKey)
@@ -133,18 +132,6 @@ export class AwsBedrockHandler extends EnterpriseHandler<AnthropicBedrock> {
 			},
 			() => providerChain(),
 		)
-
-		// Return an AnthropicBedrock client with the resolved/assumed credentials.
-		//
-		// When AnthropicBedrock creates its AWS client, the chain will execute very
-		// fast as the access/secret keys will already be already provided, and have
-		// a higher precedence than the profiles.
-		return new AnthropicBedrock({
-			awsAccessKey: credentials.accessKeyId,
-			awsSecretKey: credentials.secretAccessKey,
-			awsSessionToken: credentials.sessionToken,
-			awsRegion: this.options.awsRegion || "us-east-1",
-		})
 	}
 
 	private static async withTempEnv<R>(updateEnv: () => void, fn: () => Promise<R>): Promise<R> {

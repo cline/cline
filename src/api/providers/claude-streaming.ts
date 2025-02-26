@@ -4,11 +4,13 @@ import { ApiHandlerOptions, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { withRetry } from "../retry"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
+import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
+import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 
 /**
- * Abstract base class for enterprise providers.
+ * Abstract base class for Claude-based streaming providers.
  *
- * This class provides a standardized framework for handling enterprise API interactions,
+ * This class provides a standardized framework for handling Claude-based API interactions,
  * ensuring consistency and reusability. It enforces a contract for subclasses to implement
  * specific methods, promoting a clear and maintainable architecture.
  *
@@ -20,19 +22,22 @@ import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
  * Caching improves performance by storing frequently accessed data, reducing latency and load
  * on external services, and optimizing data handling.
  *
- * @template ClientType - The type of the enterprise client.
+ * @template ClientType - The type of client. Must be one of Anthropic, AnthropicVertex, or AnthropicBedrock.
  * @implements ApiHandler
  */
-export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
+
+export abstract class ClaudeStreamingHandler<ClientType extends Anthropic | AnthropicVertex | AnthropicBedrock>
+	implements ApiHandler
+{
 	static readonly DEFAULT_TOKEN_SIZE: number = 8192 // The default token size for message generation.
 	static readonly DEFAULT_TEMPERATURE: number = 0 // The default temperature for message generation.
-	protected options: ApiHandlerOptions // The options for the enterprise handler.
+	protected options: ApiHandlerOptions // The options for the handler.
 	protected cache: Map<string, ApiStream> // A cache of message streams.
-	protected client!: ClientType // The enterprise client.
+	protected client!: ClientType // The client.
 
 	/**
-	 * Creates a new enterprise handler.
-	 * @param options - The options for the enterprise handler.
+	 * Creates a new handler.
+	 * @param options - The options for the handler.
 	 */
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -41,7 +46,7 @@ export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
 	}
 
 	/**
-	 * Initializes the enterprise handler.
+	 * Initializes the client.
 	 */
 	private _initialize() {
 		const client = this.getClient()
@@ -59,12 +64,12 @@ export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
 	}
 
 	/**
-	 * Creates a message stream to an enterprise model.
+	 * Creates a message stream to a Claude model.
 	 * @param systemPrompt - The system prompt to initialize the conversation.
 	 * @param messages - An array of message parameters.
 	 * @returns An asynchronous generator yielding ApiStream events.
 	 */
-	protected abstract createEnterpriseModelStream(
+	protected abstract createModelStream(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		modelId: string,
@@ -72,7 +77,7 @@ export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
 	): Promise<AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>>
 
 	/**
-	 * Initializes the enterprise handler.
+	 * Initializes the client.
 	 * This method must be implemented by subclasses.
 	 */
 	protected abstract getClient(): ClientType | Promise<ClientType>
@@ -85,33 +90,17 @@ export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
 	 */
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const cacheKey = this.generateCacheKey(systemPrompt, messages)
-		if (this.cache.has(cacheKey)) {
-			yield* this.cache.get(cacheKey)!
-			return
-		}
-		let resultStream = yield* this.createEnterpriseMessage(systemPrompt, messages)
-		this.cache.set(cacheKey, resultStream)
+		yield* this.createStreamingMessage(systemPrompt, messages)
 	}
 
 	/**
-	 * Creates an enterprise message stream.
+	 * Creates a streaming message stream.
 	 * This method must be implemented by subclasses.
 	 * @param systemPrompt - The system prompt to initialize the conversation.
 	 * @param messages - An array of message parameters.
 	 * @returns An asynchronous generator yielding ApiStream events.
 	 */
-	protected abstract createEnterpriseMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
-
-	/**
-	 * Generates a unique cache key based on the system prompt and messages.
-	 * @param systemPrompt - The system prompt to initialize the conversation.
-	 * @param messages - An array of message parameters.
-	 * @returns A string representing the unique cache key.
-	 */
-	private generateCacheKey(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): string {
-		return `${systemPrompt}:${JSON.stringify(messages)}`
-	}
+	protected abstract createStreamingMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
 
 	/**
 	 * Processes a stream of raw message events.
@@ -199,7 +188,7 @@ export abstract class EnterpriseHandler<ClientType> implements ApiHandler {
 	}
 
 	/**
-	 * Gets the model ID and info for the enterprise handler.
+	 * Gets the model ID and info for the handler.
 	 * This method must be implemented by subclasses.
 	 * @returns The model ID and info.
 	 */

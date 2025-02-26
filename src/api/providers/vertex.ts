@@ -1,38 +1,38 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import { EnterpriseHandler } from "./enterprise"
+import { ClaudeStreamingHandler } from "./claude-streaming"
 import { ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 
 /**
  * Handles interactions with the Anthropic Vertex service.
  */
-export class VertexHandler extends EnterpriseHandler<AnthropicVertex> {
-	override getClient() {
+export class VertexHandler extends ClaudeStreamingHandler<AnthropicVertex> {
+	getClient() {
 		return new AnthropicVertex({
 			projectId: this.options.vertexProjectId,
 			region: this.options.vertexRegion,
 		})
 	}
 
-	async *createEnterpriseMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createStreamingMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
 		const modelId = model.id
 		let stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>
 
 		if (Object.keys(vertexModels).includes(modelId)) {
-			stream = await this.createEnterpriseModelStream(
+			stream = await this.createModelStream(
 				systemPrompt,
 				messages,
 				modelId,
-				model.info.maxTokens ?? EnterpriseHandler.DEFAULT_TOKEN_SIZE,
+				model.info.maxTokens ?? ClaudeStreamingHandler.DEFAULT_TOKEN_SIZE,
 			)
 		} else {
 			stream = this.client.messages.create({
 				model: modelId,
-				max_tokens: model.info.maxTokens || EnterpriseHandler.DEFAULT_TOKEN_SIZE,
-				temperature: EnterpriseHandler.DEFAULT_TEMPERATURE,
+				max_tokens: model.info.maxTokens || ClaudeStreamingHandler.DEFAULT_TOKEN_SIZE,
+				temperature: ClaudeStreamingHandler.DEFAULT_TEMPERATURE,
 				system: [{ text: systemPrompt, type: "text" }],
 				messages,
 				stream: true,
@@ -42,7 +42,7 @@ export class VertexHandler extends EnterpriseHandler<AnthropicVertex> {
 		yield* this.processStream(stream)
 	}
 
-	async createEnterpriseModelStream(
+	async createModelStream(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		modelId: string,
@@ -54,8 +54,8 @@ export class VertexHandler extends EnterpriseHandler<AnthropicVertex> {
 
 		return this.client.messages.create({
 			model: modelId,
-			max_tokens: maxTokens || EnterpriseHandler.DEFAULT_TOKEN_SIZE,
-			temperature: EnterpriseHandler.DEFAULT_TEMPERATURE,
+			max_tokens: maxTokens || ClaudeStreamingHandler.DEFAULT_TOKEN_SIZE,
+			temperature: ClaudeStreamingHandler.DEFAULT_TEMPERATURE,
 			system: [
 				{
 					text: systemPrompt,
