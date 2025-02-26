@@ -68,6 +68,7 @@ export interface ApiHandlerOptions {
 	requestyModelId?: string
 	requestyModelInfo?: ModelInfo
 	modelTemperature?: number
+	modelMaxTokens?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -92,19 +93,13 @@ export interface ModelInfo {
 	thinking?: boolean
 }
 
-export const THINKING_BUDGET = {
-	step: 1024,
-	min: 1024,
-	default: 8 * 1024,
-}
-
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-3-7-sonnet-20250219"
 export const anthropicModels = {
 	"claude-3-7-sonnet-20250219:thinking": {
-		maxTokens: 16384,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,
@@ -116,7 +111,7 @@ export const anthropicModels = {
 		thinking: true,
 	},
 	"claude-3-7-sonnet-20250219": {
-		maxTokens: 16384,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,

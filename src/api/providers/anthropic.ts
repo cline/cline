@@ -31,7 +31,7 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 		let stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>
 		const cacheControl: CacheControlEphemeral = { type: "ephemeral" }
 		let { id: modelId, info: modelInfo } = this.getModel()
-		const maxTokens = modelInfo.maxTokens || 8192
+		const maxTokens = this.options.modelMaxTokens || modelInfo.maxTokens || 8192
 		let temperature = this.options.modelTemperature ?? ANTHROPIC_DEFAULT_TEMPERATURE
 		let thinking: BetaThinkingConfigParam | undefined = undefined
 
@@ -41,7 +41,15 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 			// `claude-3-7-sonnet-20250219` model with a thinking budget.
 			// We can handle this more elegantly in the future.
 			modelId = "claude-3-7-sonnet-20250219"
-			const budgetTokens = this.options.anthropicThinking ?? Math.max(maxTokens * 0.8, 1024)
+
+			// Clamp the thinking budget to be at most 80% of max tokens and at
+			// least 1024 tokens.
+			const maxBudgetTokens = Math.floor(maxTokens * 0.8)
+			const budgetTokens = Math.max(
+				Math.min(this.options.anthropicThinking ?? maxBudgetTokens, maxBudgetTokens),
+				1024,
+			)
+
 			thinking = { type: "enabled", budget_tokens: budgetTokens }
 			temperature = 1.0
 		}

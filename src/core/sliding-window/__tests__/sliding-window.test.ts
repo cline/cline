@@ -119,11 +119,21 @@ describe("getMaxTokens", () => {
 		// Max tokens = 100000 - 50000 = 50000
 
 		// Below max tokens - no truncation
-		const result1 = truncateConversationIfNeeded(messages, 49999, modelInfo)
+		const result1 = truncateConversationIfNeeded({
+			messages,
+			totalTokens: 49999,
+			contextWindow: modelInfo.contextWindow,
+			maxTokens: modelInfo.maxTokens,
+		})
 		expect(result1).toEqual(messages)
 
 		// Above max tokens - truncate
-		const result2 = truncateConversationIfNeeded(messages, 50001, modelInfo)
+		const result2 = truncateConversationIfNeeded({
+			messages,
+			totalTokens: 50001,
+			contextWindow: modelInfo.contextWindow,
+			maxTokens: modelInfo.maxTokens,
+		})
 		expect(result2).not.toEqual(messages)
 		expect(result2.length).toBe(3) // Truncated with 0.5 fraction
 	})
@@ -133,11 +143,21 @@ describe("getMaxTokens", () => {
 		// Max tokens = 100000 - (100000 * 0.2) = 80000
 
 		// Below max tokens - no truncation
-		const result1 = truncateConversationIfNeeded(messages, 79999, modelInfo)
+		const result1 = truncateConversationIfNeeded({
+			messages,
+			totalTokens: 79999,
+			contextWindow: modelInfo.contextWindow,
+			maxTokens: modelInfo.maxTokens,
+		})
 		expect(result1).toEqual(messages)
 
 		// Above max tokens - truncate
-		const result2 = truncateConversationIfNeeded(messages, 80001, modelInfo)
+		const result2 = truncateConversationIfNeeded({
+			messages,
+			totalTokens: 80001,
+			contextWindow: modelInfo.contextWindow,
+			maxTokens: modelInfo.maxTokens,
+		})
 		expect(result2).not.toEqual(messages)
 		expect(result2.length).toBe(3) // Truncated with 0.5 fraction
 	})
@@ -147,11 +167,21 @@ describe("getMaxTokens", () => {
 		// Max tokens = 50000 - 10000 = 40000
 
 		// Below max tokens - no truncation
-		const result1 = truncateConversationIfNeeded(messages, 39999, modelInfo)
+		const result1 = truncateConversationIfNeeded({
+			messages,
+			totalTokens: 39999,
+			contextWindow: modelInfo.contextWindow,
+			maxTokens: modelInfo.maxTokens,
+		})
 		expect(result1).toEqual(messages)
 
 		// Above max tokens - truncate
-		const result2 = truncateConversationIfNeeded(messages, 40001, modelInfo)
+		const result2 = truncateConversationIfNeeded({
+			messages,
+			totalTokens: 40001,
+			contextWindow: modelInfo.contextWindow,
+			maxTokens: modelInfo.maxTokens,
+		})
 		expect(result2).not.toEqual(messages)
 		expect(result2.length).toBe(3) // Truncated with 0.5 fraction
 	})
@@ -161,11 +191,21 @@ describe("getMaxTokens", () => {
 		// Max tokens = 200000 - 30000 = 170000
 
 		// Below max tokens - no truncation
-		const result1 = truncateConversationIfNeeded(messages, 169999, modelInfo)
+		const result1 = truncateConversationIfNeeded({
+			messages,
+			totalTokens: 169999,
+			contextWindow: modelInfo.contextWindow,
+			maxTokens: modelInfo.maxTokens,
+		})
 		expect(result1).toEqual(messages)
 
 		// Above max tokens - truncate
-		const result2 = truncateConversationIfNeeded(messages, 170001, modelInfo)
+		const result2 = truncateConversationIfNeeded({
+			messages,
+			totalTokens: 170001,
+			contextWindow: modelInfo.contextWindow,
+			maxTokens: modelInfo.maxTokens,
+		})
 		expect(result2).not.toEqual(messages)
 		expect(result2.length).toBe(3) // Truncated with 0.5 fraction
 	})
@@ -194,7 +234,12 @@ describe("truncateConversationIfNeeded", () => {
 		const maxTokens = 100000 - 30000 // 70000
 		const totalTokens = 69999 // Below threshold
 
-		const result = truncateConversationIfNeeded(messages, totalTokens, modelInfo)
+		const result = truncateConversationIfNeeded({
+			messages,
+			totalTokens,
+			contextWindow: modelInfo.contextWindow,
+			maxTokens: modelInfo.maxTokens,
+		})
 		expect(result).toEqual(messages) // No truncation occurs
 	})
 
@@ -207,7 +252,12 @@ describe("truncateConversationIfNeeded", () => {
 		// With 4 messages after the first, 0.5 fraction means remove 2 messages
 		const expectedResult = [messages[0], messages[3], messages[4]]
 
-		const result = truncateConversationIfNeeded(messages, totalTokens, modelInfo)
+		const result = truncateConversationIfNeeded({
+			messages,
+			totalTokens,
+			contextWindow: modelInfo.contextWindow,
+			maxTokens: modelInfo.maxTokens,
+		})
 		expect(result).toEqual(expectedResult)
 	})
 
@@ -218,14 +268,38 @@ describe("truncateConversationIfNeeded", () => {
 
 		// Test below threshold
 		const belowThreshold = 69999
-		expect(truncateConversationIfNeeded(messages, belowThreshold, modelInfo1)).toEqual(
-			truncateConversationIfNeeded(messages, belowThreshold, modelInfo2),
+		expect(
+			truncateConversationIfNeeded({
+				messages,
+				totalTokens: belowThreshold,
+				contextWindow: modelInfo1.contextWindow,
+				maxTokens: modelInfo1.maxTokens,
+			}),
+		).toEqual(
+			truncateConversationIfNeeded({
+				messages,
+				totalTokens: belowThreshold,
+				contextWindow: modelInfo2.contextWindow,
+				maxTokens: modelInfo2.maxTokens,
+			}),
 		)
 
 		// Test above threshold
 		const aboveThreshold = 70001
-		expect(truncateConversationIfNeeded(messages, aboveThreshold, modelInfo1)).toEqual(
-			truncateConversationIfNeeded(messages, aboveThreshold, modelInfo2),
+		expect(
+			truncateConversationIfNeeded({
+				messages,
+				totalTokens: aboveThreshold,
+				contextWindow: modelInfo1.contextWindow,
+				maxTokens: modelInfo1.maxTokens,
+			}),
+		).toEqual(
+			truncateConversationIfNeeded({
+				messages,
+				totalTokens: aboveThreshold,
+				contextWindow: modelInfo2.contextWindow,
+				maxTokens: modelInfo2.maxTokens,
+			}),
 		)
 	})
 })
