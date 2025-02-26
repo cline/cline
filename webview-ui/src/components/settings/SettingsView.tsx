@@ -1,6 +1,6 @@
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react"
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { Dropdown, type DropdownOption } from "vscrui"
+import { Button, Dropdown, type DropdownOption } from "vscrui"
 
 import {
 	AlertDialog,
@@ -14,7 +14,6 @@ import {
 } from "@/components/ui"
 
 import { vscode } from "../../utils/vscode"
-import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { ExtensionStateContextType, useExtensionState } from "../../context/ExtensionStateContext"
 import { EXPERIMENT_IDS, experimentConfigsMap, ExperimentId } from "../../../../src/shared/experiments"
 import { ApiConfiguration } from "../../../../src/shared/api"
@@ -33,19 +32,17 @@ export interface SettingsViewRef {
 
 const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone }, ref) => {
 	const extensionState = useExtensionState()
-	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
-	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [commandInput, setCommandInput] = useState("")
 	const [isDiscardDialogShow, setDiscardDialogShow] = useState(false)
 	const [cachedState, setCachedState] = useState(extensionState)
 	const [isChangeDetected, setChangeDetected] = useState(false)
 	const prevApiConfigName = useRef(extensionState.currentApiConfigName)
 	const confirmDialogHandler = useRef<() => void>()
+	const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
 
 	// TODO: Reduce WebviewMessage/ExtensionState complexity
 	const { currentApiConfigName } = extensionState
 	const {
-		apiConfiguration,
 		alwaysAllowReadOnly,
 		allowedCommands,
 		alwaysAllowBrowser,
@@ -70,17 +67,19 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		writeDelayMs,
 	} = cachedState
 
+	//Make sure apiConfiguration is initialized and managed by SettingsView
+	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
+
 	useEffect(() => {
-		// Update only when currentApiConfigName is changed
-		// Expected to be triggered by loadApiConfiguration/upsertApiConfiguration
+		// Update only when currentApiConfigName is changed.
+		// Expected to be triggered by loadApiConfiguration/upsertApiConfiguration.
 		if (prevApiConfigName.current === currentApiConfigName) {
 			return
 		}
-		setCachedState((prevCachedState) => ({
-			...prevCachedState,
-			...extensionState,
-		}))
+
+		setCachedState((prevCachedState) => ({ ...prevCachedState, ...extensionState }))
 		prevApiConfigName.current = currentApiConfigName
+		// console.log("useEffect: currentApiConfigName changed, setChangeDetected -> false")
 		setChangeDetected(false)
 	}, [currentApiConfigName, extensionState, isChangeDetected])
 
@@ -90,11 +89,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 				if (prevState[field] === value) {
 					return prevState
 				}
+
+				// console.log(`setCachedStateField(${field} -> ${value}): setChangeDetected -> true`)
 				setChangeDetected(true)
-				return {
-					...prevState,
-					[field]: value,
-				}
+				return { ...prevState, [field]: value }
 			})
 		},
 		[],
@@ -107,15 +105,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 					return prevState
 				}
 
+				// console.log(`setApiConfigurationField(${field} -> ${value}): setChangeDetected -> true`)
 				setChangeDetected(true)
 
-				return {
-					...prevState,
-					apiConfiguration: {
-						...prevState.apiConfiguration,
-						[field]: value,
-					},
-				}
+				return { ...prevState, apiConfiguration: { ...prevState.apiConfiguration, [field]: value } }
 			})
 		},
 		[],
@@ -126,7 +119,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			if (prevState.experiments?.[id] === enabled) {
 				return prevState
 			}
+
+			// console.log("setExperimentEnabled: setChangeDetected -> true")
 			setChangeDetected(true)
+
 			return {
 				...prevState,
 				experiments: { ...prevState.experiments, [id]: enabled },
@@ -134,19 +130,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		})
 	}, [])
 
+	const isSettingValid = !errorMessage
+
 	const handleSubmit = () => {
-		const apiValidationResult = validateApiConfiguration(apiConfiguration)
-
-		const modelIdValidationResult = validateModelId(
-			apiConfiguration,
-			extensionState.glamaModels,
-			extensionState.openRouterModels,
-		)
-
-		setApiErrorMessage(apiValidationResult)
-		setModelIdErrorMessage(modelIdValidationResult)
-
-		if (!apiValidationResult && !modelIdValidationResult) {
+		if (isSettingValid) {
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
 			vscode.postMessage({ type: "alwaysAllowExecute", bool: alwaysAllowExecute })
@@ -171,26 +158,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			vscode.postMessage({ type: "updateExperimental", values: experiments })
 			vscode.postMessage({ type: "alwaysAllowModeSwitch", bool: alwaysAllowModeSwitch })
 			vscode.postMessage({ type: "upsertApiConfiguration", text: currentApiConfigName, apiConfiguration })
+			// console.log("handleSubmit: setChangeDetected -> false")
 			setChangeDetected(false)
 		}
 	}
-
-	useEffect(() => {
-		setApiErrorMessage(undefined)
-		setModelIdErrorMessage(undefined)
-	}, [apiConfiguration])
-
-	// Initial validation on mount
-	useEffect(() => {
-		const apiValidationResult = validateApiConfiguration(apiConfiguration)
-		const modelIdValidationResult = validateModelId(
-			apiConfiguration,
-			extensionState.glamaModels,
-			extensionState.openRouterModels,
-		)
-		setApiErrorMessage(apiValidationResult)
-		setModelIdErrorMessage(modelIdValidationResult)
-	}, [apiConfiguration, extensionState.glamaModels, extensionState.openRouterModels])
 
 	const checkUnsaveChanges = useCallback(
 		(then: () => void) => {
@@ -204,13 +175,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		[isChangeDetected],
 	)
 
-	useImperativeHandle(
-		ref,
-		() => ({
-			checkUnsaveChanges,
-		}),
-		[checkUnsaveChanges],
-	)
+	useImperativeHandle(ref, () => ({ checkUnsaveChanges }), [checkUnsaveChanges])
 
 	const onConfirmDialogResult = useCallback((confirm: boolean) => {
 		if (confirm) {
@@ -228,10 +193,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			const newCommands = [...currentCommands, commandInput]
 			setCachedStateField("allowedCommands", newCommands)
 			setCommandInput("")
-			vscode.postMessage({
-				type: "allowedCommands",
-				commands: newCommands,
-			})
+			vscode.postMessage({ type: "allowedCommands", commands: newCommands })
 		}
 	}
 
@@ -285,13 +247,14 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 						justifyContent: "space-between",
 						gap: "6px",
 					}}>
-					<VSCodeButton
-						appearance="primary"
-						title={isChangeDetected ? "Save changes" : "Nothing changed"}
+					<Button
+						appearance={isSettingValid ? "primary" : "secondary"}
+						className={!isSettingValid ? "!border-vscode-errorForeground" : ""}
+						title={!isSettingValid ? errorMessage : isChangeDetected ? "Save changes" : "Nothing changed"}
 						onClick={handleSubmit}
-						disabled={!isChangeDetected}>
+						disabled={!isChangeDetected || !isSettingValid}>
 						Save
-					</VSCodeButton>
+					</Button>
 					<VSCodeButton
 						appearance="secondary"
 						title="Discard unsaved changes and close settings panel"
@@ -342,8 +305,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 							uriScheme={extensionState.uriScheme}
 							apiConfiguration={apiConfiguration}
 							setApiConfigurationField={setApiConfigurationField}
-							apiErrorMessage={apiErrorMessage}
-							modelIdErrorMessage={modelIdErrorMessage}
+							errorMessage={errorMessage}
+							setErrorMessage={setErrorMessage}
 						/>
 					</div>
 				</div>

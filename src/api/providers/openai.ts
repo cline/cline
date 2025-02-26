@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI, { AzureOpenAI } from "openai"
+import axios from "axios"
 
 import {
 	ApiHandlerOptions,
@@ -164,5 +165,29 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 			}
 			throw error
 		}
+	}
+}
+
+export async function getOpenAiModels(baseUrl?: string, apiKey?: string) {
+	try {
+		if (!baseUrl) {
+			return []
+		}
+
+		if (!URL.canParse(baseUrl)) {
+			return []
+		}
+
+		const config: Record<string, any> = {}
+
+		if (apiKey) {
+			config["headers"] = { Authorization: `Bearer ${apiKey}` }
+		}
+
+		const response = await axios.get(`${baseUrl}/models`, config)
+		const modelsArray = response.data?.data?.map((model: any) => model.id) || []
+		return [...new Set<string>(modelsArray)]
+	} catch (error) {
+		return []
 	}
 }

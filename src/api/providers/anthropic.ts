@@ -14,8 +14,6 @@ import { ApiStream } from "../transform/stream"
 
 const ANTHROPIC_DEFAULT_TEMPERATURE = 0
 
-const THINKING_MODELS = ["claude-3-7-sonnet-20250219"]
-
 export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions
 	private client: Anthropic
@@ -32,16 +30,19 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		let stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>
 		const cacheControl: CacheControlEphemeral = { type: "ephemeral" }
-		const modelId = this.getModel().id
-		const maxTokens = this.getModel().info.maxTokens || 8192
+		let { id: modelId, info: modelInfo } = this.getModel()
+		const maxTokens = modelInfo.maxTokens || 8192
 		let temperature = this.options.modelTemperature ?? ANTHROPIC_DEFAULT_TEMPERATURE
 		let thinking: BetaThinkingConfigParam | undefined = undefined
 
-		if (THINKING_MODELS.includes(modelId)) {
-			thinking = this.options.anthropicThinking
-				? { type: "enabled", budget_tokens: this.options.anthropicThinking }
-				: { type: "disabled" }
-
+		// Anthropic "Thinking" models require a temperature of 1.0.
+		if (modelId === "claude-3-7-sonnet-20250219:thinking") {
+			// The `:thinking` variant is a virtual identifier for the
+			// `claude-3-7-sonnet-20250219` model with a thinking budget.
+			// We can handle this more elegantly in the future.
+			modelId = "claude-3-7-sonnet-20250219"
+			const budgetTokens = this.options.anthropicThinking ?? Math.max(maxTokens * 0.8, 1024)
+			thinking = { type: "enabled", budget_tokens: budgetTokens }
 			temperature = 1.0
 		}
 
@@ -114,8 +115,8 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 			default: {
 				stream = (await this.client.messages.create({
 					model: modelId,
-					max_tokens: this.getModel().info.maxTokens || 8192,
-					temperature: this.options.modelTemperature ?? ANTHROPIC_DEFAULT_TEMPERATURE,
+					max_tokens: maxTokens,
+					temperature,
 					system: [{ text: systemPrompt, type: "text" }],
 					messages,
 					// tools,

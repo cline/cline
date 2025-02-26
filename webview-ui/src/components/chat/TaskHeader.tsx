@@ -354,7 +354,7 @@ const TaskActions = ({ item }: { item: HistoryItem | undefined }) => (
 		<Button variant="ghost" size="sm" onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}>
 			<span className="codicon codicon-cloud-download" />
 		</Button>
-		{item?.size && (
+		{!!item?.size && item.size > 0 && (
 			<Button
 				variant="ghost"
 				size="sm"

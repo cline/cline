@@ -22,3 +22,5 @@ export function calculateApiCost(
 	const totalCost = cacheWritesCost + cacheReadsCost + baseInputCost + outputCost
 	return totalCost
 }
+
+export const parseApiPrice = (price: any) => (price ? parseFloat(price) * 1_000_000 : undefined)

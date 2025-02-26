@@ -89,6 +89,13 @@ export interface ModelInfo {
 	cacheReadsPrice?: number
 	description?: string
 	reasoningEffort?: "low" | "medium" | "high"
+	thinking?: boolean
+}
+
+export const THINKING_BUDGET = {
+	step: 1024,
+	min: 1024,
+	default: 8 * 1024,
 }
 
 // Anthropic
@@ -96,8 +103,8 @@ export interface ModelInfo {
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-3-7-sonnet-20250219"
 export const anthropicModels = {
-	"claude-3-7-sonnet-20250219": {
-		maxTokens: 64_000,
+	"claude-3-7-sonnet-20250219:thinking": {
+		maxTokens: 16384,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,
@@ -106,6 +113,19 @@ export const anthropicModels = {
 		outputPrice: 15.0, // $15 per million output tokens
 		cacheWritesPrice: 3.75, // $3.75 per million tokens
 		cacheReadsPrice: 0.3, // $0.30 per million tokens
+		thinking: true,
+	},
+	"claude-3-7-sonnet-20250219": {
+		maxTokens: 16384,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsComputerUse: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0, // $3 per million input tokens
+		outputPrice: 15.0, // $15 per million output tokens
+		cacheWritesPrice: 3.75, // $3.75 per million tokens
+		cacheReadsPrice: 0.3, // $0.30 per million tokens
+		thinking: false,
 	},
 	"claude-3-5-sonnet-20241022": {
 		maxTokens: 8192,
