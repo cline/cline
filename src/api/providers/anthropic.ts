@@ -29,14 +29,7 @@ export class AnthropicHandler extends ClaudeStreamingHandler<Anthropic> {
 				model.info.maxTokens ?? AnthropicHandler.DEFAULT_TOKEN_SIZE,
 			)
 		} else {
-			stream = this.client.messages.create({
-				model: modelId,
-				max_tokens: model.info.maxTokens || AnthropicHandler.DEFAULT_TOKEN_SIZE,
-				temperature: AnthropicHandler.DEFAULT_TEMPERATURE,
-				system: [{ text: systemPrompt, type: "text" }],
-				messages,
-				stream: true,
-			}) as any
+			throw new Error(`Invalid model ID: ${modelId}`)
 		}
 
 		yield* this.processStream(stream)
