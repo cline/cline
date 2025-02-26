@@ -590,15 +590,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const files = Array.from(e.dataTransfer.files)
 					const text = e.dataTransfer.getData("text")
 					if (text) {
-						// Convert the path to a mention-friendly format
-						const mentionText = convertToMentionPath(text, cwd)
+						// Split text on newlines to handle multiple files
+						const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "")
 
-						const newValue =
-							inputValue.slice(0, cursorPosition) + mentionText + " " + inputValue.slice(cursorPosition)
-						setInputValue(newValue)
-						const newCursorPosition = cursorPosition + mentionText.length + 1
-						setCursorPosition(newCursorPosition)
-						setIntendedCursorPosition(newCursorPosition)
+						if (lines.length > 0) {
+							// Process each line as a separate file path
+							let newValue = inputValue.slice(0, cursorPosition)
+							let totalLength = 0
+
+							lines.forEach((line, index) => {
+								// Convert each path to a mention-friendly format
+								const mentionText = convertToMentionPath(line, cwd)
+								newValue += mentionText
+								totalLength += mentionText.length
+
+								// Add space after each mention except the last one
+								if (index < lines.length - 1) {
+									newValue += " "
+									totalLength += 1
+								}
+							})
+
+							// Add space after the last mention and append the rest of the input
+							newValue += " " + inputValue.slice(cursorPosition)
+							totalLength += 1
+
+							setInputValue(newValue)
+							const newCursorPosition = cursorPosition + totalLength
+							setCursorPosition(newCursorPosition)
+							setIntendedCursorPosition(newCursorPosition)
+						}
 						return
 					}
 
