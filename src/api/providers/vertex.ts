@@ -42,6 +42,19 @@ export class VertexHandler extends ClaudeStreamingHandler<AnthropicVertex> {
 		yield* this.processStream(stream)
 	}
 
+	protected override handleMessageStreamError(error: any): void {
+		if (error.error === "invalid_grant" && error.error_subtype === "invalid_rapt") {
+			// Handle reauthentication-related error (invalid_rapt)
+			console.error("Reauthentication-related error (invalid_rapt): ", error.error_description)
+			console.info(
+				`To resolve this issue, please visit the following link for reauthentication instructions: ${error.error_uri}, or execute \`gcloud auth application-default login\`.`,
+			)
+			throw new Error(`Invalid grant: Please visit ${error.error_uri} or reauthenticate via the gcloud CLI to proceed.`)
+		} else {
+			super.handleMessageStreamError(error)
+		}
+	}
+
 	async createModelStream(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],

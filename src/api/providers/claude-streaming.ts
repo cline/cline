@@ -90,7 +90,20 @@ export abstract class ClaudeStreamingHandler<ClientType extends Anthropic | Anth
 	 */
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		yield* this.createStreamingMessage(systemPrompt, messages)
+		try {
+			yield* this.createStreamingMessage(systemPrompt, messages)
+		} catch (error) {
+			this.handleMessageStreamError(error)
+		}
+	}
+
+	/**
+	 * Handles an error that occurs during message stream creation.  Override to handle provider-specific errors.
+	 * @param error - The error that
+	 * @throws An error with a message indicating the failure.
+	 */
+	protected handleMessageStreamError(error: any) {
+		throw new Error(`Failed to create message stream: ${error instanceof Error ? error.message : "Unknown error"}`)
 	}
 
 	/**
