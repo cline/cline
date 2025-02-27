@@ -5,12 +5,41 @@ import axios from "axios"
 
 import { ClineProvider } from "../ClineProvider"
 import { ExtensionMessage, ExtensionState } from "../../../shared/ExtensionMessage"
+import { GlobalStateKey, SecretKey } from "../../../shared/globalState"
 import { setSoundEnabled } from "../../../utils/sound"
 import { defaultModeSlug } from "../../../shared/modes"
 import { experimentDefault } from "../../../shared/experiments"
 
 // Mock setup must come before imports
 jest.mock("../../prompts/sections/custom-instructions")
+
+// Mock ContextProxy
+jest.mock("../../contextProxy", () => {
+	return {
+		ContextProxy: jest.fn().mockImplementation((context) => ({
+			originalContext: context,
+			extensionUri: context.extensionUri,
+			extensionPath: context.extensionPath,
+			globalStorageUri: context.globalStorageUri,
+			logUri: context.logUri,
+			extension: context.extension,
+			extensionMode: context.extensionMode,
+			getGlobalState: jest
+				.fn()
+				.mockImplementation((key, defaultValue) => context.globalState.get(key, defaultValue)),
+			updateGlobalState: jest.fn().mockImplementation((key, value) => context.globalState.update(key, value)),
+			getSecret: jest.fn().mockImplementation((key) => context.secrets.get(key)),
+			storeSecret: jest
+				.fn()
+				.mockImplementation((key, value) =>
+					value ? context.secrets.store(key, value) : context.secrets.delete(key),
+				),
+			saveChanges: jest.fn().mockResolvedValue(undefined),
+			dispose: jest.fn().mockResolvedValue(undefined),
+			hasPendingChanges: jest.fn().mockReturnValue(false),
+		})),
+	}
+})
 
 // Mock dependencies
 jest.mock("vscode")
@@ -153,6 +182,16 @@ jest.mock("../../../utils/sound", () => ({
 	setSoundEnabled: jest.fn(),
 }))
 
+// Mock logger
+jest.mock("../../../utils/logging", () => ({
+	logger: {
+		debug: jest.fn(),
+		error: jest.fn(),
+		warn: jest.fn(),
+		info: jest.fn(),
+	},
+}))
+
 // Mock ESM modules
 jest.mock("p-wait-for", () => ({
 	__esModule: true,
@@ -235,6 +274,12 @@ describe("ClineProvider", () => {
 	let mockOutputChannel: vscode.OutputChannel
 	let mockWebviewView: vscode.WebviewView
 	let mockPostMessage: jest.Mock
+	let mockContextProxy: {
+		updateGlobalState: jest.Mock
+		getGlobalState: jest.Mock
+		storeSecret: jest.Mock
+		dispose: jest.Mock
+	}
 
 	beforeEach(() => {
 		// Reset mocks
@@ -307,6 +352,8 @@ describe("ClineProvider", () => {
 		} as unknown as vscode.WebviewView
 
 		provider = new ClineProvider(mockContext, mockOutputChannel)
+		// @ts-ignore - Access private property for testing
+		mockContextProxy = provider.contextProxy
 
 		// @ts-ignore - Accessing private property for testing.
 		provider.customModesManager = mockCustomModesManager
@@ -478,6 +525,7 @@ describe("ClineProvider", () => {
 
 		await messageHandler({ type: "writeDelayMs", value: 2000 })
 
+		expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("writeDelayMs", 2000)
 		expect(mockContext.globalState.update).toHaveBeenCalledWith("writeDelayMs", 2000)
 		expect(mockPostMessage).toHaveBeenCalled()
 	})
@@ -491,6 +539,7 @@ describe("ClineProvider", () => {
 		// Simulate setting sound to enabled
 		await messageHandler({ type: "soundEnabled", bool: true })
 		expect(setSoundEnabled).toHaveBeenCalledWith(true)
+		expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("soundEnabled", true)
 		expect(mockContext.globalState.update).toHaveBeenCalledWith("soundEnabled", true)
 		expect(mockPostMessage).toHaveBeenCalled()
 
@@ -613,6 +662,7 @@ describe("ClineProvider", () => {
 
 		// Test alwaysApproveResubmit
 		await messageHandler({ type: "alwaysApproveResubmit", bool: true })
+		expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("alwaysApproveResubmit", true)
 		expect(mockContext.globalState.update).toHaveBeenCalledWith("alwaysApproveResubmit", true)
 		expect(mockPostMessage).toHaveBeenCalled()
 
@@ -1253,6 +1303,17 @@ describe("ClineProvider", () => {
 			// Verify state was posted to webview
 			expect(mockPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "state" }))
 		})
+
+		test("disposes the contextProxy when provider is disposed", async () => {
+			// Setup mock Cline instance
+			const mockCline = {
+				abortTask: jest.fn(),
+			}
+			// @ts-ignore - accessing private property for testing
+			provider.cline = mockCline
+			await provider.dispose()
+			expect(mockContextProxy.dispose).toHaveBeenCalled()
+		})
 	})
 
 	describe("updateCustomMode", () => {
@@ -1474,6 +1535,7 @@ describe("ClineProvider", () => {
 				apiConfiguration: testApiConfig,
 			})
 
+			// Reset jest.mock calls tracking
 			// Verify config was saved
 			expect(provider.configManager.saveConfig).toHaveBeenCalledWith("test-config", testApiConfig)
 
@@ -1481,6 +1543,74 @@ describe("ClineProvider", () => {
 			expect(mockContext.globalState.update).toHaveBeenCalledWith("listApiConfigMeta", [
 				{ name: "test-config", id: "test-id", apiProvider: "anthropic" },
 			])
+			expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("listApiConfigMeta", [
+				{ name: "test-config", id: "test-id", apiProvider: "anthropic" },
+			])
+
+			// Reset jest.mock calls tracking for subsequent tests
+			jest.clearAllMocks()
 		})
+	})
+})
+
+describe("ContextProxy integration", () => {
+	let provider: ClineProvider
+	let mockContext: vscode.ExtensionContext
+	let mockOutputChannel: vscode.OutputChannel
+	let mockContextProxy: any
+
+	beforeEach(() => {
+		// Reset mocks
+		jest.clearAllMocks()
+
+		// Setup basic mocks
+		mockContext = {
+			globalState: { get: jest.fn(), update: jest.fn(), keys: jest.fn().mockReturnValue([]) },
+			secrets: { get: jest.fn(), store: jest.fn(), delete: jest.fn() },
+			extensionUri: {} as vscode.Uri,
+			globalStorageUri: { fsPath: "/test/path" },
+			extension: { packageJSON: { version: "1.0.0" } },
+		} as unknown as vscode.ExtensionContext
+
+		mockOutputChannel = { appendLine: jest.fn() } as unknown as vscode.OutputChannel
+		provider = new ClineProvider(mockContext, mockOutputChannel)
+
+		// @ts-ignore - accessing private property for testing
+		mockContextProxy = provider.contextProxy
+	})
+
+	test("updateGlobalState uses contextProxy", async () => {
+		await provider.updateGlobalState("currentApiConfigName" as GlobalStateKey, "testValue")
+		expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("currentApiConfigName", "testValue")
+	})
+
+	test("getGlobalState uses contextProxy", async () => {
+		mockContextProxy.getGlobalState.mockResolvedValueOnce("testValue")
+		const result = await provider.getGlobalState("currentApiConfigName" as GlobalStateKey)
+		expect(mockContextProxy.getGlobalState).toHaveBeenCalledWith("currentApiConfigName")
+		expect(result).toBe("testValue")
+	})
+
+	test("storeSecret uses contextProxy", async () => {
+		await provider.storeSecret("apiKey" as SecretKey, "test-secret")
+		expect(mockContextProxy.storeSecret).toHaveBeenCalledWith("apiKey", "test-secret")
+	})
+
+	test("contextProxy methods are available", () => {
+		// Verify the contextProxy has all the required methods
+		expect(mockContextProxy.getGlobalState).toBeDefined()
+		expect(mockContextProxy.updateGlobalState).toBeDefined()
+		expect(mockContextProxy.storeSecret).toBeDefined()
+	})
+
+	test("contextProxy is properly disposed", async () => {
+		// Setup mock Cline instance
+		const mockCline = {
+			abortTask: jest.fn(),
+		}
+		// @ts-ignore - accessing private property for testing
+		provider.cline = mockCline
+		await provider.dispose()
+		expect(mockContextProxy.dispose).toHaveBeenCalled()
 	})
 })

@@ -12,7 +12,7 @@ import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { CustomSupportPrompts, supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
-import type { SecretKey, GlobalStateKey } from "../../shared/globalState"
+import { SecretKey, GlobalStateKey, SECRET_KEYS, GLOBAL_STATE_KEYS } from "../../shared/globalState"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { ApiConfigMeta, ExtensionMessage } from "../../shared/ExtensionMessage"
 import { checkoutDiffPayloadSchema, checkoutRestorePayloadSchema, WebviewMessage } from "../../shared/WebviewMessage"
@@ -34,6 +34,7 @@ import { getDiffStrategy } from "../diff/DiffStrategy"
 import { SYSTEM_PROMPT } from "../prompts/system"
 import { ConfigManager } from "../config/ConfigManager"
 import { CustomModesManager } from "../config/CustomModesManager"
+import { ContextProxy } from "../contextProxy"
 import { buildApiHandler } from "../../api"
 import { getOpenRouterModels } from "../../api/providers/openrouter"
 import { getGlamaModels } from "../../api/providers/glama"
@@ -65,6 +66,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private workspaceTracker?: WorkspaceTracker
 	protected mcpHub?: McpHub // Change from private to protected
 	private latestAnnouncementId = "feb-27-2025-automatic-checkpoints" // update to some unique identifier when we add a new announcement
+	private contextProxy: ContextProxy
 	configManager: ConfigManager
 	customModesManager: CustomModesManager
 
@@ -73,6 +75,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
+		this.contextProxy = new ContextProxy(context)
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.configManager = new ConfigManager(this.context)
@@ -115,6 +118,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.mcpHub = undefined
 		this.customModesManager?.dispose()
 		this.outputChannel.appendLine("Disposed all disposables")
+		// Dispose the context proxy to commit any pending changes
+		await this.contextProxy.dispose()
+		this.outputChannel.appendLine("Disposed context proxy")
 		ClineProvider.activeInstances.delete(this)
 
 		// Unregister from McpServerManager
@@ -241,11 +247,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		webviewView.webview.options = {
 			// Allow scripts in the webview
 			enableScripts: true,
-			localResourceRoots: [this.context.extensionUri],
+			localResourceRoots: [this.contextProxy.extensionUri],
 		}
 
 		webviewView.webview.html =
-			this.context.extensionMode === vscode.ExtensionMode.Development
+			this.contextProxy.extensionMode === vscode.ExtensionMode.Development
 				? await this.getHMRHtmlContent(webviewView.webview)
 				: this.getHtmlContent(webviewView.webview)
 
@@ -389,8 +395,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 
 		const nonce = getNonce()
-		const stylesUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "assets", "index.css"])
-		const codiconsUri = getUri(webview, this.context.extensionUri, [
+		const stylesUri = getUri(webview, this.contextProxy.extensionUri, [
+			"webview-ui",
+			"build",
+			"assets",
+			"index.css",
+		])
+		const codiconsUri = getUri(webview, this.contextProxy.extensionUri, [
 			"node_modules",
 			"@vscode",
 			"codicons",
@@ -456,15 +467,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// then convert it to a uri we can use in the webview.
 
 		// The CSS file from the React build output
-		const stylesUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "assets", "index.css"])
+		const stylesUri = getUri(webview, this.contextProxy.extensionUri, [
+			"webview-ui",
+			"build",
+			"assets",
+			"index.css",
+		])
 		// The JS file from the React build output
-		const scriptUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "assets", "index.js"])
+		const scriptUri = getUri(webview, this.contextProxy.extensionUri, ["webview-ui", "build", "assets", "index.js"])
 
 		// The codicon font from the React build output
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-codicons-sample/src/extension.ts
 		// we installed this package in the extension so that we can access it how its intended from the extension (the font file is likely bundled in vscode), and we just import the css fileinto our react app we don't have access to it
 		// don't forget to add font-src ${webview.cspSource};
-		const codiconsUri = getUri(webview, this.context.extensionUri, [
+		const codiconsUri = getUri(webview, this.contextProxy.extensionUri, [
 			"node_modules",
 			"@vscode",
 			"codicons",
@@ -1249,7 +1265,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								// Try to get enhancement config first, fall back to current config
 								let configToUse: ApiConfiguration = apiConfiguration
 								if (enhancementApiConfigId) {
-									const config = listApiConfigMeta?.find((c) => c.id === enhancementApiConfigId)
+									const config = listApiConfigMeta?.find(
+										(c: ApiConfigMeta) => c.id === enhancementApiConfigId,
+									)
 									if (config?.name) {
 										const loadedConfig = await this.configManager.loadConfig(config.name)
 										if (loadedConfig.apiProvider) {
@@ -1628,108 +1646,21 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
-		const {
-			apiProvider,
-			apiModelId,
-			apiKey,
-			glamaModelId,
-			glamaModelInfo,
-			glamaApiKey,
-			openRouterApiKey,
-			awsAccessKey,
-			awsSecretKey,
-			awsSessionToken,
-			awsRegion,
-			awsUseCrossRegionInference,
-			awsProfile,
-			awsUseProfile,
-			vertexProjectId,
-			vertexRegion,
-			openAiBaseUrl,
-			openAiApiKey,
-			openAiModelId,
-			openAiCustomModelInfo,
-			openAiUseAzure,
-			ollamaModelId,
-			ollamaBaseUrl,
-			lmStudioModelId,
-			lmStudioBaseUrl,
-			anthropicBaseUrl,
-			geminiApiKey,
-			openAiNativeApiKey,
-			deepSeekApiKey,
-			azureApiVersion,
-			openAiStreamingEnabled,
-			openRouterModelId,
-			openRouterBaseUrl,
-			openRouterModelInfo,
-			openRouterUseMiddleOutTransform,
-			vsCodeLmModelSelector,
-			mistralApiKey,
-			mistralCodestralUrl,
-			unboundApiKey,
-			unboundModelId,
-			unboundModelInfo,
-			requestyApiKey,
-			requestyModelId,
-			requestyModelInfo,
-			modelTemperature,
-			modelMaxTokens,
-			modelMaxThinkingTokens,
-			lmStudioDraftModelId,
-			lmStudioSpeculativeDecodingEnabled,
-		} = apiConfiguration
-		await Promise.all([
-			this.updateGlobalState("apiProvider", apiProvider),
-			this.updateGlobalState("apiModelId", apiModelId),
-			this.storeSecret("apiKey", apiKey),
-			this.updateGlobalState("glamaModelId", glamaModelId),
-			this.updateGlobalState("glamaModelInfo", glamaModelInfo),
-			this.storeSecret("glamaApiKey", glamaApiKey),
-			this.storeSecret("openRouterApiKey", openRouterApiKey),
-			this.storeSecret("awsAccessKey", awsAccessKey),
-			this.storeSecret("awsSecretKey", awsSecretKey),
-			this.storeSecret("awsSessionToken", awsSessionToken),
-			this.updateGlobalState("awsRegion", awsRegion),
-			this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference),
-			this.updateGlobalState("awsProfile", awsProfile),
-			this.updateGlobalState("awsUseProfile", awsUseProfile),
-			this.updateGlobalState("vertexProjectId", vertexProjectId),
-			this.updateGlobalState("vertexRegion", vertexRegion),
-			this.updateGlobalState("openAiBaseUrl", openAiBaseUrl),
-			this.storeSecret("openAiApiKey", openAiApiKey),
-			this.updateGlobalState("openAiModelId", openAiModelId),
-			this.updateGlobalState("openAiCustomModelInfo", openAiCustomModelInfo),
-			this.updateGlobalState("openAiUseAzure", openAiUseAzure),
-			this.updateGlobalState("ollamaModelId", ollamaModelId),
-			this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl),
-			this.updateGlobalState("lmStudioModelId", lmStudioModelId),
-			this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl),
-			this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl),
-			this.storeSecret("geminiApiKey", geminiApiKey),
-			this.storeSecret("openAiNativeApiKey", openAiNativeApiKey),
-			this.storeSecret("deepSeekApiKey", deepSeekApiKey),
-			this.updateGlobalState("azureApiVersion", azureApiVersion),
-			this.updateGlobalState("openAiStreamingEnabled", openAiStreamingEnabled),
-			this.updateGlobalState("openRouterModelId", openRouterModelId),
-			this.updateGlobalState("openRouterModelInfo", openRouterModelInfo),
-			this.updateGlobalState("openRouterBaseUrl", openRouterBaseUrl),
-			this.updateGlobalState("openRouterUseMiddleOutTransform", openRouterUseMiddleOutTransform),
-			this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector),
-			this.storeSecret("mistralApiKey", mistralApiKey),
-			this.updateGlobalState("mistralCodestralUrl", mistralCodestralUrl),
-			this.storeSecret("unboundApiKey", unboundApiKey),
-			this.updateGlobalState("unboundModelId", unboundModelId),
-			this.updateGlobalState("unboundModelInfo", unboundModelInfo),
-			this.storeSecret("requestyApiKey", requestyApiKey),
-			this.updateGlobalState("requestyModelId", requestyModelId),
-			this.updateGlobalState("requestyModelInfo", requestyModelInfo),
-			this.updateGlobalState("modelTemperature", modelTemperature),
-			this.updateGlobalState("modelMaxTokens", modelMaxTokens),
-			this.updateGlobalState("anthropicThinking", modelMaxThinkingTokens),
-			this.updateGlobalState("lmStudioDraftModelId", lmStudioDraftModelId),
-			this.updateGlobalState("lmStudioSpeculativeDecodingEnabled", lmStudioSpeculativeDecodingEnabled),
-		])
+		// Create an array of promises to update state
+		const promises: Promise<any>[] = []
+
+		// For each property in apiConfiguration, update the appropriate state
+		Object.entries(apiConfiguration).forEach(([key, value]) => {
+			// Check if this key is a secret
+			if (SECRET_KEYS.includes(key as SecretKey)) {
+				promises.push(this.storeSecret(key as SecretKey, value))
+			} else {
+				promises.push(this.updateGlobalState(key as GlobalStateKey, value))
+			}
+		})
+
+		await Promise.all(promises)
+
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
 		}
@@ -1790,13 +1721,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	async ensureSettingsDirectoryExists(): Promise<string> {
-		const settingsDir = path.join(this.context.globalStorageUri.fsPath, "settings")
+		const settingsDir = path.join(this.contextProxy.globalStorageUri.fsPath, "settings")
 		await fs.mkdir(settingsDir, { recursive: true })
 		return settingsDir
 	}
 
 	private async ensureCacheDirectoryExists() {
-		const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache")
+		const cacheDir = path.join(this.contextProxy.globalStorageUri.fsPath, "cache")
 		await fs.mkdir(cacheDir, { recursive: true })
 		return cacheDir
 	}
@@ -1884,7 +1815,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
-			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
+			const taskDirPath = path.join(this.contextProxy.globalStorageUri.fsPath, "tasks", id)
 			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
 			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
 			const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
@@ -2049,7 +1980,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowModeSwitch: alwaysAllowModeSwitch ?? false,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.cline?.taskId
-				? (taskHistory || []).find((item) => item.id === this.cline?.taskId)
+				? (taskHistory || []).find((item: HistoryItem) => item.id === this.cline?.taskId)
 				: undefined,
 			clineMessages: this.cline?.clineMessages || [],
 			taskHistory: (taskHistory || [])
@@ -2140,189 +2071,41 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	*/
 
 	async getState() {
-		const [
-			storedApiProvider,
-			apiModelId,
-			apiKey,
-			glamaApiKey,
-			glamaModelId,
-			glamaModelInfo,
-			openRouterApiKey,
-			awsAccessKey,
-			awsSecretKey,
-			awsSessionToken,
-			awsRegion,
-			awsUseCrossRegionInference,
-			awsProfile,
-			awsUseProfile,
-			vertexProjectId,
-			vertexRegion,
-			openAiBaseUrl,
-			openAiApiKey,
-			openAiModelId,
-			openAiCustomModelInfo,
-			openAiUseAzure,
-			ollamaModelId,
-			ollamaBaseUrl,
-			lmStudioModelId,
-			lmStudioBaseUrl,
-			anthropicBaseUrl,
-			geminiApiKey,
-			openAiNativeApiKey,
-			deepSeekApiKey,
-			mistralApiKey,
-			mistralCodestralUrl,
-			azureApiVersion,
-			openAiStreamingEnabled,
-			openRouterModelId,
-			openRouterModelInfo,
-			openRouterBaseUrl,
-			openRouterUseMiddleOutTransform,
-			lastShownAnnouncementId,
-			customInstructions,
-			alwaysAllowReadOnly,
-			alwaysAllowWrite,
-			alwaysAllowExecute,
-			alwaysAllowBrowser,
-			alwaysAllowMcp,
-			alwaysAllowModeSwitch,
-			taskHistory,
-			allowedCommands,
-			soundEnabled,
-			diffEnabled,
-			enableCheckpoints,
-			soundVolume,
-			browserViewportSize,
-			fuzzyMatchThreshold,
-			preferredLanguage,
-			writeDelayMs,
-			screenshotQuality,
-			terminalOutputLineLimit,
-			mcpEnabled,
-			enableMcpServerCreation,
-			alwaysApproveResubmit,
-			requestDelaySeconds,
-			rateLimitSeconds,
-			currentApiConfigName,
-			listApiConfigMeta,
-			vsCodeLmModelSelector,
-			mode,
-			modeApiConfigs,
-			customModePrompts,
-			customSupportPrompts,
-			enhancementApiConfigId,
-			autoApprovalEnabled,
-			customModes,
-			experiments,
-			unboundApiKey,
-			unboundModelId,
-			unboundModelInfo,
-			requestyApiKey,
-			requestyModelId,
-			requestyModelInfo,
-			modelTemperature,
-			modelMaxTokens,
-			modelMaxThinkingTokens,
-			maxOpenTabsContext,
-			browserToolEnabled,
-			lmStudioSpeculativeDecodingEnabled,
-			lmStudioDraftModelId,
-		] = await Promise.all([
-			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
-			this.getGlobalState("apiModelId") as Promise<string | undefined>,
-			this.getSecret("apiKey") as Promise<string | undefined>,
-			this.getSecret("glamaApiKey") as Promise<string | undefined>,
-			this.getGlobalState("glamaModelId") as Promise<string | undefined>,
-			this.getGlobalState("glamaModelInfo") as Promise<ModelInfo | undefined>,
-			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
-			this.getSecret("awsAccessKey") as Promise<string | undefined>,
-			this.getSecret("awsSecretKey") as Promise<string | undefined>,
-			this.getSecret("awsSessionToken") as Promise<string | undefined>,
-			this.getGlobalState("awsRegion") as Promise<string | undefined>,
-			this.getGlobalState("awsUseCrossRegionInference") as Promise<boolean | undefined>,
-			this.getGlobalState("awsProfile") as Promise<string | undefined>,
-			this.getGlobalState("awsUseProfile") as Promise<boolean | undefined>,
-			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
-			this.getGlobalState("vertexRegion") as Promise<string | undefined>,
-			this.getGlobalState("openAiBaseUrl") as Promise<string | undefined>,
-			this.getSecret("openAiApiKey") as Promise<string | undefined>,
-			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
-			this.getGlobalState("openAiCustomModelInfo") as Promise<ModelInfo | undefined>,
-			this.getGlobalState("openAiUseAzure") as Promise<boolean | undefined>,
-			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
-			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
-			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
-			this.getGlobalState("lmStudioBaseUrl") as Promise<string | undefined>,
-			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
-			this.getSecret("geminiApiKey") as Promise<string | undefined>,
-			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
-			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
-			this.getSecret("mistralApiKey") as Promise<string | undefined>,
-			this.getGlobalState("mistralCodestralUrl") as Promise<string | undefined>,
-			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
-			this.getGlobalState("openAiStreamingEnabled") as Promise<boolean | undefined>,
-			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
-			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
-			this.getGlobalState("openRouterBaseUrl") as Promise<string | undefined>,
-			this.getGlobalState("openRouterUseMiddleOutTransform") as Promise<boolean | undefined>,
-			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
-			this.getGlobalState("customInstructions") as Promise<string | undefined>,
-			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
-			this.getGlobalState("alwaysAllowWrite") as Promise<boolean | undefined>,
-			this.getGlobalState("alwaysAllowExecute") as Promise<boolean | undefined>,
-			this.getGlobalState("alwaysAllowBrowser") as Promise<boolean | undefined>,
-			this.getGlobalState("alwaysAllowMcp") as Promise<boolean | undefined>,
-			this.getGlobalState("alwaysAllowModeSwitch") as Promise<boolean | undefined>,
-			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
-			this.getGlobalState("allowedCommands") as Promise<string[] | undefined>,
-			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
-			this.getGlobalState("diffEnabled") as Promise<boolean | undefined>,
-			this.getGlobalState("enableCheckpoints") as Promise<boolean | undefined>,
-			this.getGlobalState("soundVolume") as Promise<number | undefined>,
-			this.getGlobalState("browserViewportSize") as Promise<string | undefined>,
-			this.getGlobalState("fuzzyMatchThreshold") as Promise<number | undefined>,
-			this.getGlobalState("preferredLanguage") as Promise<string | undefined>,
-			this.getGlobalState("writeDelayMs") as Promise<number | undefined>,
-			this.getGlobalState("screenshotQuality") as Promise<number | undefined>,
-			this.getGlobalState("terminalOutputLineLimit") as Promise<number | undefined>,
-			this.getGlobalState("mcpEnabled") as Promise<boolean | undefined>,
-			this.getGlobalState("enableMcpServerCreation") as Promise<boolean | undefined>,
-			this.getGlobalState("alwaysApproveResubmit") as Promise<boolean | undefined>,
-			this.getGlobalState("requestDelaySeconds") as Promise<number | undefined>,
-			this.getGlobalState("rateLimitSeconds") as Promise<number | undefined>,
-			this.getGlobalState("currentApiConfigName") as Promise<string | undefined>,
-			this.getGlobalState("listApiConfigMeta") as Promise<ApiConfigMeta[] | undefined>,
-			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
-			this.getGlobalState("mode") as Promise<Mode | undefined>,
-			this.getGlobalState("modeApiConfigs") as Promise<Record<Mode, string> | undefined>,
-			this.getGlobalState("customModePrompts") as Promise<CustomModePrompts | undefined>,
-			this.getGlobalState("customSupportPrompts") as Promise<CustomSupportPrompts | undefined>,
-			this.getGlobalState("enhancementApiConfigId") as Promise<string | undefined>,
-			this.getGlobalState("autoApprovalEnabled") as Promise<boolean | undefined>,
-			this.customModesManager.getCustomModes(),
-			this.getGlobalState("experiments") as Promise<Record<ExperimentId, boolean> | undefined>,
-			this.getSecret("unboundApiKey") as Promise<string | undefined>,
-			this.getGlobalState("unboundModelId") as Promise<string | undefined>,
-			this.getGlobalState("unboundModelInfo") as Promise<ModelInfo | undefined>,
-			this.getSecret("requestyApiKey") as Promise<string | undefined>,
-			this.getGlobalState("requestyModelId") as Promise<string | undefined>,
-			this.getGlobalState("requestyModelInfo") as Promise<ModelInfo | undefined>,
-			this.getGlobalState("modelTemperature") as Promise<number | undefined>,
-			this.getGlobalState("modelMaxTokens") as Promise<number | undefined>,
-			this.getGlobalState("anthropicThinking") as Promise<number | undefined>,
-			this.getGlobalState("maxOpenTabsContext") as Promise<number | undefined>,
-			this.getGlobalState("browserToolEnabled") as Promise<boolean | undefined>,
-			this.getGlobalState("lmStudioSpeculativeDecodingEnabled") as Promise<boolean | undefined>,
-			this.getGlobalState("lmStudioDraftModelId") as Promise<string | undefined>,
+		// Create an object to store all fetched values
+		const stateValues: Record<GlobalStateKey | SecretKey, any> = {} as Record<GlobalStateKey | SecretKey, any>
+		const secretValues: Record<SecretKey, any> = {} as Record<SecretKey, any>
+
+		// Create promise arrays for global state and secrets
+		const statePromises = GLOBAL_STATE_KEYS.map((key) => this.getGlobalState(key))
+		const secretPromises = SECRET_KEYS.map((key) => this.getSecret(key))
+
+		// Add promise for custom modes which is handled separately
+		const customModesPromise = this.customModesManager.getCustomModes()
+
+		// Wait for all promises to resolve
+		const [stateResults, secretResults, customModes] = await Promise.all([
+			Promise.all(statePromises),
+			Promise.all(secretPromises),
+			customModesPromise,
 		])
 
+		// Populate stateValues and secretValues
+		GLOBAL_STATE_KEYS.forEach((key, index) => {
+			stateValues[key] = stateResults[index]
+		})
+
+		SECRET_KEYS.forEach((key, index) => {
+			secretValues[key] = secretResults[index]
+		})
+
+		// Determine apiProvider with the same logic as before
 		let apiProvider: ApiProvider
-		if (storedApiProvider) {
-			apiProvider = storedApiProvider
+		if (stateValues.apiProvider) {
+			apiProvider = stateValues.apiProvider
 		} else {
 			// Either new user or legacy user that doesn't have the apiProvider stored in state
 			// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
-			if (apiKey) {
+			if (secretValues.apiKey) {
 				apiProvider = "anthropic"
 			} else {
 				// New users should default to openrouter
@@ -2330,80 +2113,73 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
+		// Build the apiConfiguration object combining state values and secrets
+		const apiConfiguration: ApiConfiguration = {
+			apiProvider,
+			apiModelId: stateValues.apiModelId,
+			glamaModelId: stateValues.glamaModelId,
+			glamaModelInfo: stateValues.glamaModelInfo,
+			awsRegion: stateValues.awsRegion,
+			awsUseCrossRegionInference: stateValues.awsUseCrossRegionInference,
+			awsProfile: stateValues.awsProfile,
+			awsUseProfile: stateValues.awsUseProfile,
+			vertexProjectId: stateValues.vertexProjectId,
+			vertexRegion: stateValues.vertexRegion,
+			openAiBaseUrl: stateValues.openAiBaseUrl,
+			openAiModelId: stateValues.openAiModelId,
+			openAiCustomModelInfo: stateValues.openAiCustomModelInfo,
+			openAiUseAzure: stateValues.openAiUseAzure,
+			ollamaModelId: stateValues.ollamaModelId,
+			ollamaBaseUrl: stateValues.ollamaBaseUrl,
+			lmStudioModelId: stateValues.lmStudioModelId,
+			lmStudioBaseUrl: stateValues.lmStudioBaseUrl,
+			anthropicBaseUrl: stateValues.anthropicBaseUrl,
+			modelMaxThinkingTokens: stateValues.modelMaxThinkingTokens,
+			mistralCodestralUrl: stateValues.mistralCodestralUrl,
+			azureApiVersion: stateValues.azureApiVersion,
+			openAiStreamingEnabled: stateValues.openAiStreamingEnabled,
+			openRouterModelId: stateValues.openRouterModelId,
+			openRouterModelInfo: stateValues.openRouterModelInfo,
+			openRouterBaseUrl: stateValues.openRouterBaseUrl,
+			openRouterUseMiddleOutTransform: stateValues.openRouterUseMiddleOutTransform,
+			vsCodeLmModelSelector: stateValues.vsCodeLmModelSelector,
+			unboundModelId: stateValues.unboundModelId,
+			unboundModelInfo: stateValues.unboundModelInfo,
+			requestyModelId: stateValues.requestyModelId,
+			requestyModelInfo: stateValues.requestyModelInfo,
+			modelTemperature: stateValues.modelTemperature,
+			modelMaxTokens: stateValues.modelMaxTokens,
+			lmStudioSpeculativeDecodingEnabled: stateValues.lmStudioSpeculativeDecodingEnabled,
+			lmStudioDraftModelId: stateValues.lmStudioDraftModelId,
+			// Add all secrets
+			...secretValues,
+		}
+
+		// Return the same structure as before
 		return {
-			apiConfiguration: {
-				apiProvider,
-				apiModelId,
-				apiKey,
-				glamaApiKey,
-				glamaModelId,
-				glamaModelInfo,
-				openRouterApiKey,
-				awsAccessKey,
-				awsSecretKey,
-				awsSessionToken,
-				awsRegion,
-				awsUseCrossRegionInference,
-				awsProfile,
-				awsUseProfile,
-				vertexProjectId,
-				vertexRegion,
-				openAiBaseUrl,
-				openAiApiKey,
-				openAiModelId,
-				openAiCustomModelInfo,
-				openAiUseAzure,
-				ollamaModelId,
-				ollamaBaseUrl,
-				lmStudioModelId,
-				lmStudioBaseUrl,
-				anthropicBaseUrl,
-				geminiApiKey,
-				openAiNativeApiKey,
-				deepSeekApiKey,
-				mistralApiKey,
-				mistralCodestralUrl,
-				azureApiVersion,
-				openAiStreamingEnabled,
-				openRouterModelId,
-				openRouterModelInfo,
-				openRouterBaseUrl,
-				openRouterUseMiddleOutTransform,
-				vsCodeLmModelSelector,
-				unboundApiKey,
-				unboundModelId,
-				unboundModelInfo,
-				requestyApiKey,
-				requestyModelId,
-				requestyModelInfo,
-				modelTemperature,
-				modelMaxTokens,
-				modelMaxThinkingTokens,
-				lmStudioSpeculativeDecodingEnabled,
-				lmStudioDraftModelId,
-			},
-			lastShownAnnouncementId,
-			customInstructions,
-			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
-			alwaysAllowWrite: alwaysAllowWrite ?? false,
-			alwaysAllowExecute: alwaysAllowExecute ?? false,
-			alwaysAllowBrowser: alwaysAllowBrowser ?? false,
-			alwaysAllowMcp: alwaysAllowMcp ?? false,
-			alwaysAllowModeSwitch: alwaysAllowModeSwitch ?? false,
-			taskHistory,
-			allowedCommands,
-			soundEnabled: soundEnabled ?? false,
-			diffEnabled: diffEnabled ?? true,
-			enableCheckpoints: enableCheckpoints ?? true,
-			soundVolume,
-			browserViewportSize: browserViewportSize ?? "900x600",
-			screenshotQuality: screenshotQuality ?? 75,
-			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
-			writeDelayMs: writeDelayMs ?? 1000,
-			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
-			mode: mode ?? defaultModeSlug,
+			apiConfiguration,
+			lastShownAnnouncementId: stateValues.lastShownAnnouncementId,
+			customInstructions: stateValues.customInstructions,
+			alwaysAllowReadOnly: stateValues.alwaysAllowReadOnly ?? false,
+			alwaysAllowWrite: stateValues.alwaysAllowWrite ?? false,
+			alwaysAllowExecute: stateValues.alwaysAllowExecute ?? false,
+			alwaysAllowBrowser: stateValues.alwaysAllowBrowser ?? false,
+			alwaysAllowMcp: stateValues.alwaysAllowMcp ?? false,
+			alwaysAllowModeSwitch: stateValues.alwaysAllowModeSwitch ?? false,
+			taskHistory: stateValues.taskHistory,
+			allowedCommands: stateValues.allowedCommands,
+			soundEnabled: stateValues.soundEnabled ?? false,
+			diffEnabled: stateValues.diffEnabled ?? true,
+			enableCheckpoints: stateValues.enableCheckpoints ?? false,
+			soundVolume: stateValues.soundVolume,
+			browserViewportSize: stateValues.browserViewportSize ?? "900x600",
+			screenshotQuality: stateValues.screenshotQuality ?? 75,
+			fuzzyMatchThreshold: stateValues.fuzzyMatchThreshold ?? 1.0,
+			writeDelayMs: stateValues.writeDelayMs ?? 1000,
+			terminalOutputLineLimit: stateValues.terminalOutputLineLimit ?? 500,
+			mode: stateValues.mode ?? defaultModeSlug,
 			preferredLanguage:
-				preferredLanguage ??
+				stateValues.preferredLanguage ??
 				(() => {
 					// Get VSCode's locale setting
 					const vscodeLang = vscode.env.language
@@ -2433,23 +2209,23 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					// Return mapped language or default to English
 					return langMap[vscodeLang] ?? langMap[vscodeLang.split("-")[0]] ?? "English"
 				})(),
-			mcpEnabled: mcpEnabled ?? true,
-			enableMcpServerCreation: enableMcpServerCreation ?? true,
-			alwaysApproveResubmit: alwaysApproveResubmit ?? false,
-			requestDelaySeconds: Math.max(5, requestDelaySeconds ?? 10),
-			rateLimitSeconds: rateLimitSeconds ?? 0,
-			currentApiConfigName: currentApiConfigName ?? "default",
-			listApiConfigMeta: listApiConfigMeta ?? [],
-			modeApiConfigs: modeApiConfigs ?? ({} as Record<Mode, string>),
-			customModePrompts: customModePrompts ?? {},
-			customSupportPrompts: customSupportPrompts ?? {},
-			enhancementApiConfigId,
-			experiments: experiments ?? experimentDefault,
-			autoApprovalEnabled: autoApprovalEnabled ?? false,
+			mcpEnabled: stateValues.mcpEnabled ?? true,
+			enableMcpServerCreation: stateValues.enableMcpServerCreation ?? true,
+			alwaysApproveResubmit: stateValues.alwaysApproveResubmit ?? false,
+			requestDelaySeconds: Math.max(5, stateValues.requestDelaySeconds ?? 10),
+			rateLimitSeconds: stateValues.rateLimitSeconds ?? 0,
+			currentApiConfigName: stateValues.currentApiConfigName ?? "default",
+			listApiConfigMeta: stateValues.listApiConfigMeta ?? [],
+			modeApiConfigs: stateValues.modeApiConfigs ?? ({} as Record<Mode, string>),
+			customModePrompts: stateValues.customModePrompts ?? {},
+			customSupportPrompts: stateValues.customSupportPrompts ?? {},
+			enhancementApiConfigId: stateValues.enhancementApiConfigId,
+			experiments: stateValues.experiments ?? experimentDefault,
+			autoApprovalEnabled: stateValues.autoApprovalEnabled ?? false,
 			customModes,
-			maxOpenTabsContext: maxOpenTabsContext ?? 20,
-			openRouterUseMiddleOutTransform: openRouterUseMiddleOutTransform ?? true,
-			browserToolEnabled: browserToolEnabled ?? true,
+			maxOpenTabsContext: stateValues.maxOpenTabsContext ?? 20,
+			openRouterUseMiddleOutTransform: stateValues.openRouterUseMiddleOutTransform ?? true,
+			browserToolEnabled: stateValues.browserToolEnabled ?? true,
 		}
 	}
 
@@ -2469,25 +2245,29 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// global
 
 	async updateGlobalState(key: GlobalStateKey, value: any) {
-		await this.context.globalState.update(key, value)
+		this.outputChannel.appendLine(`Updating global state: ${key}`)
+		await this.contextProxy.updateGlobalState(key, value)
+
+		// // If we have a lot of pending changes, consider saving them periodically
+		// if (this.contextProxy.hasPendingChanges() && Math.random() < 0.1) { // 10% chance to save changes
+		// 	this.outputChannel.appendLine("Periodically flushing context state changes")
+		// 	await this.contextProxy.saveChanges()
+		// }
 	}
 
 	async getGlobalState(key: GlobalStateKey) {
-		return await this.context.globalState.get(key)
+		return await this.contextProxy.getGlobalState(key)
 	}
 
 	// secrets
 
 	public async storeSecret(key: SecretKey, value?: string) {
-		if (value) {
-			await this.context.secrets.store(key, value)
-		} else {
-			await this.context.secrets.delete(key)
-		}
+		this.outputChannel.appendLine(`Storing secret: ${key}`)
+		await this.contextProxy.storeSecret(key, value)
 	}
 
 	private async getSecret(key: SecretKey) {
-		return await this.context.secrets.get(key)
+		return await this.contextProxy.getSecret(key)
 	}
 
 	// dev
@@ -2504,24 +2284,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 
 		for (const key of this.context.globalState.keys()) {
-			await this.context.globalState.update(key, undefined)
+			// Still using original context for listing keys
+			await this.contextProxy.updateGlobalState(key, undefined)
 		}
-		const secretKeys: SecretKey[] = [
-			"apiKey",
-			"glamaApiKey",
-			"openRouterApiKey",
-			"awsAccessKey",
-			"awsSecretKey",
-			"awsSessionToken",
-			"openAiApiKey",
-			"geminiApiKey",
-			"openAiNativeApiKey",
-			"deepSeekApiKey",
-			"mistralApiKey",
-			"unboundApiKey",
-			"requestyApiKey",
-		]
-		for (const key of secretKeys) {
+
+		for (const key of SECRET_KEYS) {
 			await this.storeSecret(key, undefined)
 		}
 		await this.configManager.resetAllConfigs()
