@@ -617,8 +617,10 @@ export const ChatRowContent = ({
 								color: "var(--vscode-badge-foreground)",
 								borderRadius: "3px",
 								padding: "9px",
-								whiteSpace: "pre-line",
-								wordWrap: "break-word",
+								overflow: "hidden",
+								whiteSpace: "pre-wrap",
+								wordBreak: "break-word",
+								overflowWrap: "anywhere",
 							}}>
 							<div
 								style={{

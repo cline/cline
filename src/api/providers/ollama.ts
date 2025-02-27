@@ -1,5 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import axios from "axios"
+
 import { ApiHandler, SingleCompletionHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -86,5 +88,19 @@ export class OllamaHandler implements ApiHandler, SingleCompletionHandler {
 			}
 			throw error
 		}
+	}
+}
+
+export async function getOllamaModels(baseUrl = "http://localhost:11434") {
+	try {
+		if (!URL.canParse(baseUrl)) {
+			return []
+		}
+
+		const response = await axios.get(`${baseUrl}/api/tags`)
+		const modelsArray = response.data?.models?.map((model: any) => model.name) || []
+		return [...new Set<string>(modelsArray)]
+	} catch (error) {
+		return []
 	}
 }

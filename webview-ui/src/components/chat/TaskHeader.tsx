@@ -180,7 +180,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							${totalCost?.toFixed(4)}
 						</div>
 					)}
-					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>
+					<VSCodeButton
+						appearance="icon"
+						onClick={onClose}
+						style={{ marginLeft: 6, flexShrink: 0 }}
+						title="Close task and start a new one">
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
 				</div>
@@ -348,13 +352,18 @@ export const highlightMentions = (text?: string, withShadow = true) => {
 
 const TaskActions = ({ item }: { item: HistoryItem | undefined }) => (
 	<div className="flex flex-row gap-1">
-		<Button variant="ghost" size="sm" onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}>
+		<Button
+			variant="ghost"
+			size="sm"
+			title="Export task history"
+			onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}>
 			<span className="codicon codicon-cloud-download" />
 		</Button>
-		{item?.size && (
+		{!!item?.size && item.size > 0 && (
 			<Button
 				variant="ghost"
 				size="sm"
+				title="Delete task from history"
 				onClick={() => vscode.postMessage({ type: "deleteTaskWithId", text: item.id })}>
 				<span className="codicon codicon-trash" />
 				{prettyBytes(item.size)}

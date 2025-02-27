@@ -27,10 +27,11 @@ export interface ExtensionMessage {
 		| "workspaceUpdated"
 		| "invoke"
 		| "partialMessage"
-		| "glamaModels"
 		| "openRouterModels"
-		| "openAiModels"
+		| "glamaModels"
+		| "unboundModels"
 		| "requestyModels"
+		| "openAiModels"
 		| "mcpServers"
 		| "enhancedPrompt"
 		| "commitSearchResults"
@@ -43,8 +44,6 @@ export interface ExtensionMessage {
 		| "autoApprovalEnabled"
 		| "updateCustomMode"
 		| "deleteCustomMode"
-		| "unboundModels"
-		| "refreshUnboundModels"
 		| "currentCheckpointUpdated"
 	text?: string
 	action?:
@@ -67,11 +66,11 @@ export interface ExtensionMessage {
 		path?: string
 	}>
 	partialMessage?: ClineMessage
-	glamaModels?: Record<string, ModelInfo>
-	requestyModels?: Record<string, ModelInfo>
 	openRouterModels?: Record<string, ModelInfo>
-	openAiModels?: string[]
+	glamaModels?: Record<string, ModelInfo>
 	unboundModels?: Record<string, ModelInfo>
+	requestyModels?: Record<string, ModelInfo>
+	openAiModels?: string[]
 	mcpServers?: McpServer[]
 	commits?: GitCommit[]
 	listApiConfig?: ApiConfigMeta[]
@@ -129,6 +128,7 @@ export interface ExtensionState {
 	customModes: ModeConfig[]
 	toolRequirements?: Record<string, boolean> // Map of tool names to their requirements (e.g. {"apply_diff": true} if diffEnabled)
 	maxOpenTabsContext: number // Maximum number of VSCode open tabs to include in context (0-500)
+	cwd?: string // Current working directory
 }
 
 export interface ClineMessage {

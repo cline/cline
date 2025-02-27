@@ -1,5 +1,25 @@
 # Roo Code Changelog
 
+## [3.7.6]
+
+- Handle really long text better in the in the ChatRow similar to TaskHeader (thanks @joemanley201!)
+- Support multiple files in drag-and-drop
+- Truncate search_file output to avoid crashing the extension
+- Better OpenRouter error handling (no more "Provider Error")
+- Add slider to control max output tokens for thinking models
+
+## [3.7.5]
+
+- Fix context window truncation math (see [#1173](https://github.com/RooVetGit/Roo-Code/issues/1173))
+- Fix various issues with the model picker (thanks @System233!)
+- Fix model input / output cost parsing (thanks @System233!)
+- Add drag-and-drop for files
+- Enable the "Thinking Budget" slider for Claude 3.7 Sonnet on OpenRouter
+
+## [3.7.4]
+
+- Fix a bug that prevented the "Thinking" setting from properly updating when switching profiles.
+
 ## [3.7.3]
 
 - Support for ["Thinking"](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) Sonnet 3.7 when using the Anthropic provider.
