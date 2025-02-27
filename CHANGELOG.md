@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.7.8
+
+### Patch Changes
+
+- Add gpt-4.5-preview
+
 ## [3.7.7]
 
 - Graduate checkpoints out of beta
