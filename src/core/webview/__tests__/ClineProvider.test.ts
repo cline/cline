@@ -415,7 +415,7 @@ describe("ClineProvider", () => {
 		const mockCline = new Cline() // Create a new mocked instance
 
 		// add the mock object to the stack
-		provider.addClineToStack(mockCline)
+		await provider.addClineToStack(mockCline)
 
 		// get the stack size before the abort call
 		const stackSizeBeforeAbort = provider.getClineStackSize()
@@ -433,7 +433,7 @@ describe("ClineProvider", () => {
 		expect(stackSizeBeforeAbort - stackSizeAfterAbort).toBe(1)
 	})
 
-	test("addClineToStack adds multiple Cline instances to the stack", () => {
+	test("addClineToStack adds multiple Cline instances to the stack", async () => {
 		// Setup Cline instance with auto-mock from the top of the file
 		const { Cline } = require("../../Cline") // Get the mocked class
 		const mockCline1 = new Cline() // Create a new mocked instance
@@ -442,8 +442,8 @@ describe("ClineProvider", () => {
 		Object.defineProperty(mockCline2, "taskId", { value: "test-task-id-2", writable: true })
 
 		// add Cline instances to the stack
-		provider.addClineToStack(mockCline1)
-		provider.addClineToStack(mockCline2)
+		await provider.addClineToStack(mockCline1)
+		await provider.addClineToStack(mockCline2)
 
 		// verify cline instances were added to the stack
 		expect(provider.getClineStackSize()).toBe(2)
@@ -847,7 +847,7 @@ describe("ClineProvider", () => {
 			const mockCline = new Cline() // Create a new mocked instance
 			mockCline.clineMessages = mockMessages // Set test-specific messages
 			mockCline.apiConversationHistory = mockApiHistory // Set API history
-			provider.addClineToStack(mockCline) // Add the mocked instance to the stack
+			await provider.addClineToStack(mockCline) // Add the mocked instance to the stack
 
 			// Mock getTaskWithId
 			;(provider as any).getTaskWithId = jest.fn().mockResolvedValue({
@@ -894,7 +894,7 @@ describe("ClineProvider", () => {
 			const mockCline = new Cline() // Create a new mocked instance
 			mockCline.clineMessages = mockMessages
 			mockCline.apiConversationHistory = mockApiHistory
-			provider.addClineToStack(mockCline)
+			await provider.addClineToStack(mockCline)
 
 			// Mock getTaskWithId
 			;(provider as any).getTaskWithId = jest.fn().mockResolvedValue({
@@ -921,7 +921,7 @@ describe("ClineProvider", () => {
 			const mockCline = new Cline() // Create a new mocked instance
 			mockCline.clineMessages = [{ ts: 1000 }, { ts: 2000 }]
 			mockCline.apiConversationHistory = [{ ts: 1000 }, { ts: 2000 }]
-			provider.addClineToStack(mockCline)
+			await provider.addClineToStack(mockCline)
 
 			// Trigger message deletion
 			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
@@ -1424,7 +1424,7 @@ describe("ClineProvider", () => {
 			// Setup Cline instance with auto-mock from the top of the file
 			const { Cline } = require("../../Cline") // Get the mocked class
 			const mockCline = new Cline() // Create a new mocked instance
-			provider.addClineToStack(mockCline)
+			await provider.addClineToStack(mockCline)
 
 			const testApiConfig = {
 				apiProvider: "anthropic" as const,

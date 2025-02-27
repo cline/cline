@@ -92,6 +92,7 @@ export class Cline {
 	private isSubTask: boolean = false
 	// a flag that indicated if this Cline instance is paused (waiting for provider to resume it after subtask completion)
 	private isPaused: boolean = false
+	private pausedModeSlug: string = defaultModeSlug
 	api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
@@ -2642,15 +2643,24 @@ export class Cline {
 									break
 								}
 
+								// before switching roo mode (currently a global settings), save the current mode so we can
+								// resume the parent task (this Cline instance) later with the same mode
+								const currentMode =
+									(await this.providerRef.deref()?.getState())?.mode ?? defaultModeSlug
+								this.pausedModeSlug = currentMode
+
 								// Switch mode first, then create new task instance
 								const provider = this.providerRef.deref()
 								if (provider) {
 									await provider.handleModeSwitch(mode)
+									this.providerRef
+										.deref()
+										?.log(`[subtasks] Task: ${this.taskNumber} creating new task in '${mode}' mode`)
 									await provider.initClineWithSubTask(message)
 									pushToolResult(
 										`Successfully created new task in ${targetMode.name} mode with message: ${message}`,
 									)
-									// pasue the current task and start the new task
+									// set the isPaused flag to true so the parent task can wait for the sub-task to finish
 									this.isPaused = true
 								} else {
 									pushToolResult(
@@ -2899,7 +2909,20 @@ export class Cline {
 		// in this Cline request loop, we need to check if this cline (Task) instance has been asked to wait
 		// for a sub-task (it has launched) to finish before continuing
 		if (this.isPaused) {
+			this.providerRef.deref()?.log(`[subtasks] Task: ${this.taskNumber} has paused`)
 			await this.waitForResume()
+			this.providerRef.deref()?.log(`[subtasks] Task: ${this.taskNumber} has resumed`)
+			// waiting for resume is done, resume the task mode
+			const currentMode = (await this.providerRef.deref()?.getState())?.mode ?? defaultModeSlug
+			if (currentMode !== this.pausedModeSlug) {
+				// the mode has changed, we need to switch back to the paused mode
+				await this.providerRef.deref()?.handleModeSwitch(this.pausedModeSlug)
+				this.providerRef
+					.deref()
+					?.log(
+						`[subtasks] Task: ${this.taskNumber} has switched back to mode: '${this.pausedModeSlug}' from mode: '${currentMode}'`,
+					)
+			}
 		}
 
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds

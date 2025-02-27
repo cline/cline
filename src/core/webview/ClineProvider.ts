@@ -94,7 +94,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// Adds a new Cline instance to clineStack, marking the start of a new task.
 	// The instance is pushed to the top of the stack (LIFO order).
 	// When the task is completed, the top instance is removed, reactivating the previous task.
-	addClineToStack(cline: Cline): void {
+	async addClineToStack(cline: Cline) {
 		// if cline.getTaskNumber() is -1, it means it is a new task
 		if (cline.getTaskNumber() === -1) {
 			// increase last cline number by 1
@@ -107,6 +107,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 		// push the cline instance to the stack
 		this.clineStack.push(cline)
+		// get the current mode
+		const currentMode = (await this.getState()).mode
+		// log the task number and the mode
+		this.log(`[subtasks] Task: ${cline.getTaskNumber()} started at '${currentMode}' mode`)
 	}
 
 	// Removes and destroys the top Cline instance (the current finished task), activating the previous one (resuming the parent task).
@@ -114,9 +118,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// pop the top Cline instance from the stack
 		var clineToBeRemoved = this.clineStack.pop()
 		if (clineToBeRemoved) {
+			const removedTaskNumber = clineToBeRemoved.getTaskNumber()
 			await clineToBeRemoved.abortTask()
 			// make sure no reference kept, once promises end it will be garbage collected
 			clineToBeRemoved = undefined
+			this.log(`[subtasks] Task: ${removedTaskNumber} stopped`)
 		}
 		// if the stack is empty, reset the last task number
 		if (this.clineStack.length === 0) {
@@ -417,7 +423,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			images,
 			experiments,
 		})
-		this.addClineToStack(newCline)
+		await this.addClineToStack(newCline)
 	}
 
 	public async initClineWithHistoryItem(historyItem: HistoryItem) {
@@ -449,7 +455,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		})
 		// get this cline task number id from the history item and set it to newCline
 		newCline.setTaskNumber(historyItem.number)
-		this.addClineToStack(newCline)
+		await this.addClineToStack(newCline)
 	}
 
 	public async postMessageToWebview(message: ExtensionMessage) {
