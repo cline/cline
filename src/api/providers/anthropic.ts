@@ -30,29 +30,7 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		let stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>
 		const cacheControl: CacheControlEphemeral = { type: "ephemeral" }
-		let { id: modelId, info: modelInfo } = this.getModel()
-		const maxTokens = this.options.modelMaxTokens || modelInfo.maxTokens || 8192
-		let temperature = this.options.modelTemperature ?? ANTHROPIC_DEFAULT_TEMPERATURE
-		let thinking: BetaThinkingConfigParam | undefined = undefined
-
-		// Anthropic "Thinking" models require a temperature of 1.0.
-		if (modelId === "claude-3-7-sonnet-20250219:thinking") {
-			// The `:thinking` variant is a virtual identifier for the
-			// `claude-3-7-sonnet-20250219` model with a thinking budget.
-			// We can handle this more elegantly in the future.
-			modelId = "claude-3-7-sonnet-20250219"
-
-			// Clamp the thinking budget to be at most 80% of max tokens and at
-			// least 1024 tokens.
-			const maxBudgetTokens = Math.floor(maxTokens * 0.8)
-			const budgetTokens = Math.max(
-				Math.min(this.options.anthropicThinking ?? maxBudgetTokens, maxBudgetTokens),
-				1024,
-			)
-
-			thinking = { type: "enabled", budget_tokens: budgetTokens }
-			temperature = 1.0
-		}
+		let { id: modelId, temperature, maxTokens, thinking } = this.getModel()
 
 		switch (modelId) {
 			case "claude-3-7-sonnet-20250219":
@@ -202,40 +180,62 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	getModel(): { id: AnthropicModelId; info: ModelInfo } {
+	getModel() {
 		const modelId = this.options.apiModelId
+		let temperature = this.options.modelTemperature ?? ANTHROPIC_DEFAULT_TEMPERATURE
+		let thinking: BetaThinkingConfigParam | undefined = undefined
 
 		if (modelId && modelId in anthropicModels) {
-			const id = modelId as AnthropicModelId
-			return { id, info: anthropicModels[id] }
+			let id = modelId as AnthropicModelId
+			const info: ModelInfo = anthropicModels[id]
+
+			// The `:thinking` variant is a virtual identifier for the
+			// `claude-3-7-sonnet-20250219` model with a thinking budget.
+			// We can handle this more elegantly in the future.
+			if (id === "claude-3-7-sonnet-20250219:thinking") {
+				id = "claude-3-7-sonnet-20250219"
+			}
+
+			const maxTokens = this.options.modelMaxTokens || info.maxTokens || 8192
+
+			if (info.thinking) {
+				// Anthropic "Thinking" models require a temperature of 1.0.
+				temperature = 1.0
+
+				// Clamp the thinking budget to be at most 80% of max tokens and at
+				// least 1024 tokens.
+				const maxBudgetTokens = Math.floor(maxTokens * 0.8)
+				const budgetTokens = Math.max(
+					Math.min(this.options.anthropicThinking ?? maxBudgetTokens, maxBudgetTokens),
+					1024,
+				)
+
+				thinking = { type: "enabled", budget_tokens: budgetTokens }
+			}
+
+			return { id, info, temperature, maxTokens, thinking }
 		}
 
-		return { id: anthropicDefaultModelId, info: anthropicModels[anthropicDefaultModelId] }
+		const id = anthropicDefaultModelId
+		const info: ModelInfo = anthropicModels[id]
+		const maxTokens = this.options.modelMaxTokens || info.maxTokens || 8192
+
+		return { id, info, temperature, maxTokens, thinking }
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
-		try {
-			const response = await this.client.messages.create({
-				model: this.getModel().id,
-				max_tokens: this.getModel().info.maxTokens || 8192,
-				temperature: this.options.modelTemperature ?? ANTHROPIC_DEFAULT_TEMPERATURE,
-				messages: [{ role: "user", content: prompt }],
-				stream: false,
-			})
+	async completePrompt(prompt: string) {
+		let { id: modelId, temperature, maxTokens, thinking } = this.getModel()
 
-			const content = response.content[0]
+		const message = await this.client.messages.create({
+			model: modelId,
+			max_tokens: maxTokens,
+			temperature,
+			thinking,
+			messages: [{ role: "user", content: prompt }],
+			stream: false,
+		})
 
-			if (content.type === "text") {
-				return content.text
-			}
-
-			return ""
-		} catch (error) {
-			if (error instanceof Error) {
-				throw new Error(`Anthropic completion error: ${error.message}`)
-			}
-
-			throw error
-		}
+		const content = message.content.find(({ type }) => type === "text")
+		return content?.type === "text" ? content.text : ""
 	}
 }
