@@ -18,8 +18,8 @@ import { MistralHandler } from "./providers/mistral"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { LiteLlmHandler } from "./providers/litellm"
 
-export interface ApiHandler<MessageType = Anthropic.Messages.MessageParam> {
-	createMessage(systemPrompt: string, messages: MessageType[]): ApiStream
+export interface ApiHandler {
+	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
 	getModel(): { id: string; info: ModelInfo }
 }
 

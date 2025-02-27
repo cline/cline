@@ -36,18 +36,13 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 
 	if (saveUri) {
 		// Write content to the selected location
-		await vscode.workspace.fs.writeFile(saveUri, new Uint8Array(Buffer.from(markdownContent)))
+		await vscode.workspace.fs.writeFile(saveUri, Buffer.from(markdownContent))
 		vscode.window.showTextDocument(saveUri, { preview: true })
 	}
 }
 
 export function formatContentBlockToMarkdown(
-	block:
-		| Anthropic.TextBlockParam
-		| Anthropic.ImageBlockParam
-		| Anthropic.ToolUseBlockParam
-		| Anthropic.ToolResultBlockParam
-		| Anthropic.DocumentBlockParam,
+	block: Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam,
 	// messages: Anthropic.MessageParam[]
 ): string {
 	switch (block.type) {
