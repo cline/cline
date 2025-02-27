@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { ApiHandler, SingleCompletionHandler } from "../"
+import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
 import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 
@@ -70,15 +71,25 @@ interface VertexMessageStreamEvent {
 	usage?: {
 		output_tokens: number
 	}
-	content_block?: {
-		type: "text"
-		text: string
-	}
+	content_block?:
+		| {
+				type: "text"
+				text: string
+		  }
+		| {
+				type: "thinking"
+				thinking: string
+		  }
 	index?: number
-	delta?: {
-		type: "text_delta"
-		text: string
-	}
+	delta?:
+		| {
+				type: "text_delta"
+				text: string
+		  }
+		| {
+				type: "thinking_delta"
+				thinking: string
+		  }
 }
 
 // https://docs.anthropic.com/en/api/claude-on-vertex-ai
@@ -145,6 +156,7 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
+		let { id, info, temperature, maxTokens, thinking } = model
 		const useCache = model.info.supportsPromptCache
 
 		// Find indices of user messages that we want to cache
@@ -158,9 +170,10 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 
 		// Create the stream with appropriate caching configuration
 		const params = {
-			model: model.id,
-			max_tokens: model.info.maxTokens || 8192,
-			temperature: this.options.modelTemperature ?? 0,
+			model: id,
+			max_tokens: maxTokens,
+			temperature,
+			thinking,
 			// Cache the system prompt if caching is enabled
 			system: useCache
 				? [
@@ -220,6 +233,19 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 							}
 							break
 						}
+						case "thinking": {
+							if (chunk.index! > 0) {
+								yield {
+									type: "reasoning",
+									text: "\n",
+								}
+							}
+							yield {
+								type: "reasoning",
+								text: (chunk.content_block as any).thinking,
+							}
+							break
+						}
 					}
 					break
 				}
@@ -232,6 +258,13 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 							}
 							break
 						}
+						case "thinking_delta": {
+							yield {
+								type: "reasoning",
+								text: (chunk.delta as any).thinking,
+							}
+							break
+						}
 					}
 					break
 				}
@@ -239,24 +272,63 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	getModel(): { id: VertexModelId; info: ModelInfo } {
+	getModel(): {
+		id: VertexModelId
+		info: ModelInfo
+		temperature: number
+		maxTokens: number
+		thinking?: BetaThinkingConfigParam
+	} {
 		const modelId = this.options.apiModelId
+		let temperature = this.options.modelTemperature ?? 0
+		let thinking: BetaThinkingConfigParam | undefined = undefined
+
 		if (modelId && modelId in vertexModels) {
 			const id = modelId as VertexModelId
-			return { id, info: vertexModels[id] }
+			const info: ModelInfo = vertexModels[id]
+
+			// The `:thinking` variant is a virtual identifier for thinking-enabled models
+			// Similar to how it's handled in the Anthropic provider
+			let actualId = id
+			if (id.endsWith(":thinking")) {
+				actualId = id.replace(":thinking", "") as VertexModelId
+			}
+
+			const maxTokens = this.options.modelMaxTokens || info.maxTokens || 8192
+
+			if (info.thinking) {
+				temperature = 1.0 // Thinking requires temperature 1.0
+				const maxBudgetTokens = Math.floor(maxTokens * 0.8)
+				const budgetTokens = Math.max(
+					Math.min(
+						this.options.vertexThinking ?? this.options.anthropicThinking ?? maxBudgetTokens,
+						maxBudgetTokens,
+					),
+					1024,
+				)
+				thinking = { type: "enabled", budget_tokens: budgetTokens }
+			}
+
+			return { id: actualId, info, temperature, maxTokens, thinking }
 		}
-		return { id: vertexDefaultModelId, info: vertexModels[vertexDefaultModelId] }
+
+		const id = vertexDefaultModelId
+		const info = vertexModels[id]
+		const maxTokens = this.options.modelMaxTokens || info.maxTokens || 8192
+
+		return { id, info, temperature, maxTokens, thinking }
 	}
 
 	async completePrompt(prompt: string): Promise<string> {
 		try {
-			const model = this.getModel()
-			const useCache = model.info.supportsPromptCache
+			let { id, info, temperature, maxTokens, thinking } = this.getModel()
+			const useCache = info.supportsPromptCache
 
 			const params = {
-				model: model.id,
-				max_tokens: model.info.maxTokens || 8192,
-				temperature: this.options.modelTemperature ?? 0,
+				model: id,
+				max_tokens: maxTokens,
+				temperature,
+				thinking,
 				system: "", // No system prompt needed for single completions
 				messages: [
 					{

@@ -1,5 +1,5 @@
-import { useEffect } from "react"
-
+import { useEffect, useMemo } from "react"
+import { ApiProvider } from "../../../../src/shared/api"
 import { Slider } from "@/components/ui"
 
 import { ApiConfiguration, ModelInfo } from "../../../../src/shared/api"
@@ -8,24 +8,38 @@ interface ThinkingBudgetProps {
 	apiConfiguration: ApiConfiguration
 	setApiConfigurationField: <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => void
 	modelInfo?: ModelInfo
+	provider?: ApiProvider
 }
 
-export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, modelInfo }: ThinkingBudgetProps) => {
+export const ThinkingBudget = ({
+	apiConfiguration,
+	setApiConfigurationField,
+	modelInfo,
+	provider,
+}: ThinkingBudgetProps) => {
+	const isVertexProvider = provider === "vertex"
+	const budgetField = isVertexProvider ? "vertexThinking" : "anthropicThinking"
+
 	const tokens = apiConfiguration?.modelMaxTokens || modelInfo?.maxTokens || 64_000
 	const tokensMin = 8192
 	const tokensMax = modelInfo?.maxTokens || 64_000
 
-	const thinkingTokens = apiConfiguration?.anthropicThinking || 8192
+	// Get the appropriate thinking tokens based on provider
+	const thinkingTokens = useMemo(() => {
+		const value = isVertexProvider ? apiConfiguration?.vertexThinking : apiConfiguration?.anthropicThinking
+		return value || Math.min(Math.floor(0.8 * tokens), 8192)
+	}, [apiConfiguration, isVertexProvider, tokens])
+
 	const thinkingTokensMin = 1024
 	const thinkingTokensMax = Math.floor(0.8 * tokens)
 
 	useEffect(() => {
 		if (thinkingTokens > thinkingTokensMax) {
-			setApiConfigurationField("anthropicThinking", thinkingTokensMax)
+			setApiConfigurationField(budgetField, thinkingTokensMax)
 		}
-	}, [thinkingTokens, thinkingTokensMax, setApiConfigurationField])
+	}, [thinkingTokens, thinkingTokensMax, setApiConfigurationField, budgetField])
 
-	if (!modelInfo || !modelInfo.thinking) {
+	if (!modelInfo?.thinking) {
 		return null
 	}
 
@@ -52,7 +66,7 @@ export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, mod
 						max={thinkingTokensMax}
 						step={1024}
 						value={[thinkingTokens]}
-						onValueChange={([value]) => setApiConfigurationField("anthropicThinking", value)}
+						onValueChange={([value]) => setApiConfigurationField(budgetField, value)}
 					/>
 					<div className="w-12 text-sm text-center">{thinkingTokens}</div>
 				</div>
