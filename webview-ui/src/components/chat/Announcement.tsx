@@ -25,6 +25,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<VSCodeButton
 				appearance="icon"
 				onClick={hideAnnouncement}
+				title="Hide announcement"
 				style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
