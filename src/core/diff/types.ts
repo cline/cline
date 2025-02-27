@@ -3,10 +3,10 @@
  */
 
 export type DiffResult =
-	| { success: true; content: string }
-	| {
+	| { success: true; content: string; failParts?: DiffResult[] }
+	| ({
 			success: false
-			error: string
+			error?: string
 			details?: {
 				similarity?: number
 				threshold?: number
@@ -14,7 +14,8 @@ export type DiffResult =
 				searchContent?: string
 				bestMatch?: string
 			}
-	  }
+			failParts?: DiffResult[]
+	  } & ({ error: string } | { failParts: DiffResult[] }))
 
 export interface DiffStrategy {
 	/**

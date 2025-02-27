@@ -1482,6 +1482,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						if (message.values[EXPERIMENT_IDS.DIFF_STRATEGY] !== undefined && this.cline) {
 							await this.cline.updateDiffStrategy(
 								Experiments.isEnabled(updatedExperiments, EXPERIMENT_IDS.DIFF_STRATEGY),
+								Experiments.isEnabled(updatedExperiments, EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE),
 							)
 						}
 

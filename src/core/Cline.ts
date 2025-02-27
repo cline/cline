@@ -163,7 +163,10 @@ export class Cline {
 		this.enableCheckpoints = enableCheckpoints ?? false
 
 		// Initialize diffStrategy based on current state
-		this.updateDiffStrategy(Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.DIFF_STRATEGY))
+		this.updateDiffStrategy(
+			Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.DIFF_STRATEGY),
+			Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE),
+		)
 
 		if (startTask) {
 			if (task || images) {
@@ -193,13 +196,23 @@ export class Cline {
 	}
 
 	// Add method to update diffStrategy
-	async updateDiffStrategy(experimentalDiffStrategy?: boolean) {
+	async updateDiffStrategy(experimentalDiffStrategy?: boolean, multiSearchReplaceDiffStrategy?: boolean) {
 		// If not provided, get from current state
-		if (experimentalDiffStrategy === undefined) {
+		if (experimentalDiffStrategy === undefined || multiSearchReplaceDiffStrategy === undefined) {
 			const { experiments: stateExperimental } = (await this.providerRef.deref()?.getState()) ?? {}
-			experimentalDiffStrategy = stateExperimental?.[EXPERIMENT_IDS.DIFF_STRATEGY] ?? false
+			if (experimentalDiffStrategy === undefined) {
+				experimentalDiffStrategy = stateExperimental?.[EXPERIMENT_IDS.DIFF_STRATEGY] ?? false
+			}
+			if (multiSearchReplaceDiffStrategy === undefined) {
+				multiSearchReplaceDiffStrategy = stateExperimental?.[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE] ?? false
+			}
 		}
-		this.diffStrategy = getDiffStrategy(this.api.getModel().id, this.fuzzyMatchThreshold, experimentalDiffStrategy)
+		this.diffStrategy = getDiffStrategy(
+			this.api.getModel().id,
+			this.fuzzyMatchThreshold,
+			experimentalDiffStrategy,
+			multiSearchReplaceDiffStrategy,
+		)
 	}
 
 	// Storing task to disk for history
@@ -1578,17 +1591,36 @@ export class Cline {
 									success: false,
 									error: "No diff strategy available",
 								}
+								let partResults = ""
+
 								if (!diffResult.success) {
 									this.consecutiveMistakeCount++
 									const currentCount =
 										(this.consecutiveMistakeCountForApplyDiff.get(relPath) || 0) + 1
 									this.consecutiveMistakeCountForApplyDiff.set(relPath, currentCount)
-									const errorDetails = diffResult.details
-										? JSON.stringify(diffResult.details, null, 2)
-										: ""
-									const formattedError = `Unable to apply diff to file: ${absolutePath}\n\n<error_details>\n${
-										diffResult.error
-									}${errorDetails ? `\n\nDetails:\n${errorDetails}` : ""}\n</error_details>`
+									let formattedError = ""
+									if (diffResult.failParts && diffResult.failParts.length > 0) {
+										for (const failPart of diffResult.failParts) {
+											if (failPart.success) {
+												continue
+											}
+											const errorDetails = failPart.details
+												? JSON.stringify(failPart.details, null, 2)
+												: ""
+											formattedError = `<error_details>\n${
+												failPart.error
+											}${errorDetails ? `\n\nDetails:\n${errorDetails}` : ""}\n</error_details>`
+											partResults += formattedError
+										}
+									} else {
+										const errorDetails = diffResult.details
+											? JSON.stringify(diffResult.details, null, 2)
+											: ""
+										formattedError = `Unable to apply diff to file: ${absolutePath}\n\n<error_details>\n${
+											diffResult.error
+										}${errorDetails ? `\n\nDetails:\n${errorDetails}` : ""}\n</error_details>`
+									}
+
 									if (currentCount >= 2) {
 										await this.say("error", formattedError)
 									}
@@ -1618,6 +1650,10 @@ export class Cline {
 								const { newProblemsMessage, userEdits, finalContent } =
 									await this.diffViewProvider.saveChanges()
 								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
+								let partFailHint = ""
+								if (diffResult.failParts && diffResult.failParts.length > 0) {
+									partFailHint = `But unable to apply all diff parts to file: ${absolutePath}, silently use <read_file> tool to check newest file version and re-apply diffs\n`
+								}
 								if (userEdits) {
 									await this.say(
 										"user_feedback_diff",
@@ -1629,6 +1665,7 @@ export class Cline {
 									)
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
+											partFailHint +
 											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
 											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(
 												finalContent || "",
@@ -1641,7 +1678,8 @@ export class Cline {
 									)
 								} else {
 									pushToolResult(
-										`Changes successfully applied to ${relPath.toPosix()}:\n\n${newProblemsMessage}`,
+										`Changes successfully applied to ${relPath.toPosix()}:\n\n${newProblemsMessage}\n` +
+											partFailHint,
 									)
 								}
 								await this.diffViewProvider.reset()
