@@ -110,6 +110,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					data = lines.join("\n")
 				}
 
+				// FIXME: right now it seems that data chunks returned to us from the shell integration stream contains random commas, which from what I can tell is not the expected behavior. There has to be a better solution here than just removing all commas.
+				data = data.replace(/,/g, "")
+
 				// 2. Set isHot depending on the command
 				// Set to hot to stall API requests until terminal is cool again
 				this.isHot = true
