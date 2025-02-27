@@ -41,6 +41,7 @@ export interface ApiHandlerOptions {
 	awsUseProfile?: boolean
 	vertexProjectId?: string
 	vertexRegion?: string
+	vertexThinking?: number
 	openAiBaseUrl?: string
 	openAiApiKey?: string
 	openAiModelId?: string
@@ -436,6 +437,18 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 export type VertexModelId = keyof typeof vertexModels
 export const vertexDefaultModelId: VertexModelId = "claude-3-7-sonnet@20250219"
 export const vertexModels = {
+	"claude-3-7-sonnet@20250219:thinking": {
+		maxTokens: 64000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsComputerUse: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		thinking: true,
+	},
 	"claude-3-7-sonnet@20250219": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -446,6 +459,7 @@ export const vertexModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
+		thinking: false,
 	},
 	"claude-3-5-sonnet-v2@20241022": {
 		maxTokens: 8192,

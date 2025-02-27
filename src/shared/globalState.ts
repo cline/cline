@@ -24,6 +24,7 @@ export type GlobalStateKey =
 	| "awsUseProfile"
 	| "vertexProjectId"
 	| "vertexRegion"
+	| "vertexThinking"
 	| "lastShownAnnouncementId"
 	| "customInstructions"
 	| "alwaysAllowReadOnly"
