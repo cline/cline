@@ -50,6 +50,8 @@ export interface WebviewMessage {
 		| "searchCommits"
 		| "showMcpView"
 		| "fetchLatestMcpServersFromHub"
+		| "telemetrySetting"
+		| "openSettings"
 		| "updateMcpTimeout"
 	// | "relaunchChromeDebugMode"
 	text?: string
