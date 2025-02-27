@@ -45,6 +45,9 @@ export interface ExtensionMessage {
 		| "updateCustomMode"
 		| "deleteCustomMode"
 		| "currentCheckpointUpdated"
+		| "showHumanRelayDialog"
+		| "humanRelayResponse"
+		| "humanRelayCancel"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -237,6 +240,24 @@ export interface ClineApiReqInfo {
 	cost?: number
 	cancelReason?: ClineApiReqCancelReason
 	streamingFailedMessage?: string
+}
+
+// Human relay related message types
+export interface ShowHumanRelayDialogMessage {
+	type: "showHumanRelayDialog"
+	requestId: string
+	promptText: string
+}
+
+export interface HumanRelayResponseMessage {
+	type: "humanRelayResponse"
+	requestId: string
+	text: string
+}
+
+export interface HumanRelayCancelMessage {
+	type: "humanRelayCancel"
+	requestId: string
 }
 
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"

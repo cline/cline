@@ -28,3 +28,8 @@ docs/_site/
 
 #Logging
 logs
+.clinerules-architect
+.clinerules-ask
+.clinerules-code
+MemoryBank
+.github/copilot-instructions.md

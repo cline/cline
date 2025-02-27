@@ -259,6 +259,7 @@ const ApiOptions = ({
 						{ value: "ollama", label: "Ollama" },
 						{ value: "unbound", label: "Unbound" },
 						{ value: "requesty", label: "Requesty" },
+						{ value: "human-relay", label: "Human Relay" },
 					]}
 				/>
 			</div>
@@ -1303,6 +1304,30 @@ const ApiOptions = ({
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						This key is stored locally and only used to make API requests from this extension.
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "human-relay" && (
+				<div>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 5,
+							color: "var(--vscode-descriptionForeground)",
+							lineHeight: "1.4",
+						}}>
+						不需要API key，但需要用户协助复制粘贴信息给web的聊天AI。
+					</p>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 10,
+							color: "var(--vscode-descriptionForeground)",
+							lineHeight: "1.4",
+						}}>
+						在使用过程中，系统会弹出对话框，并自动复制当前消息到剪贴板。您需要将这些内容粘贴给网页版AI（如ChatGPT或Claude），
+						然后将AI的回复复制回对话框中点击确认按钮。
 					</p>
 				</div>
 			)}
