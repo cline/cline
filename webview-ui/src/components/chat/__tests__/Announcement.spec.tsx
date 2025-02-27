@@ -24,16 +24,16 @@ describe("Announcement", () => {
 
 	it("renders the mcp server improvements announcement", () => {
 		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
-		expect(screen.getByText(/MCP server improvements:/)).toBeInTheDocument()
+		expect(screen.getByText(/Introducing MCP Marketplace/)).toBeInTheDocument()
 	})
 
 	it("renders the 'See new changes' button feature", () => {
 		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
-		expect(screen.getByText(/See it in action here./)).toBeInTheDocument()
+		expect(screen.getByText(/See a demo of the changes here!/)).toBeInTheDocument()
 	})
 
 	it("renders the demo link", () => {
 		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
-		expect(screen.getByText(/See a demo here./)).toBeInTheDocument()
+		expect(screen.getByText(/Join us on/)).toBeInTheDocument()
 	})
 })

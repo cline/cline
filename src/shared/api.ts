@@ -245,7 +245,7 @@ export const vertexModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 	},
-	"claude-3-5-sonnet@20240620": {
+	"claude-3-sonnet@20240229": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
