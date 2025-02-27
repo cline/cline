@@ -218,7 +218,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		}
 	}
 
-	const [timeout, setTimeout] = useState<string>(() => {
+	const [timeoutValue, setTimeoutValue] = useState<string>(() => {
 		try {
 			const config = JSON.parse(server.config)
 			return config.timeout?.toString() || DEFAULT_MCP_TIMEOUT_SECONDS.toString()
@@ -240,7 +240,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		const select = e.target as HTMLSelectElement
 		const value = select.value
 		const num = parseInt(value)
-		setTimeout(value)
+		setTimeoutValue(value)
 		vscode.postMessage({
 			type: "updateMcpTimeout",
 			serverName: server.name,
@@ -450,7 +450,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 
 						<div style={{ margin: "10px 7px" }}>
 							<label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>Request Timeout</label>
-							<VSCodeDropdown style={{ width: "100%" }} value={timeout} onChange={handleTimeoutChange}>
+							<VSCodeDropdown style={{ width: "100%" }} value={timeoutValue} onChange={handleTimeoutChange}>
 								{timeoutOptions.map((option) => (
 									<VSCodeOption key={option.value} value={option.value}>
 										{option.label}
