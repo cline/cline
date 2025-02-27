@@ -59,7 +59,6 @@ import { formatResponse } from "./prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
-import { ImageBlockParam, TextBlockParam, ToolResultBlockParam, ToolUseBlockParam } from "@anthropic-ai/sdk/resources/index.mjs"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 import { telemetryService } from "../services/telemetry/TelemetryService"
 
@@ -960,10 +959,7 @@ export class Cline {
 					existingApiConversationHistory[existingApiConversationHistory.length - 2]
 
 				const existingUserContent: UserContent = Array.isArray(lastMessage.content)
-					? lastMessage.content.filter(
-							(block): block is TextBlockParam | ImageBlockParam | ToolUseBlockParam | ToolResultBlockParam =>
-								block.type !== "document",
-						)
+					? lastMessage.content
 					: [{ type: "text", text: lastMessage.content }]
 				if (previousAssistantMessage && previousAssistantMessage.role === "assistant") {
 					const assistantContent = Array.isArray(previousAssistantMessage.content)
