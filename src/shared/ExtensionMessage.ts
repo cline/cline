@@ -7,7 +7,8 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
-import { TelemetrySetting } from "./TelemetrySetting"
+import { ClineConfiguration } from "./AdvancedSettings"
+import { WorkspaceConfiguration } from "vscode"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -31,6 +32,8 @@ export interface ExtensionMessage {
 		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
 		| "commitSearchResults"
+		| "openGraphData"
+		| "isImageUrlResult"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -55,6 +58,16 @@ export interface ExtensionMessage {
 	error?: string
 	mcpDownloadDetails?: McpDownloadResponse
 	commits?: GitCommit[]
+	openGraphData?: {
+		title?: string
+		description?: string
+		image?: string
+		url?: string
+		siteName?: string
+		type?: string
+	}
+	url?: string
+	isImage?: boolean
 }
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
@@ -76,6 +89,9 @@ export interface ExtensionState {
 	chatSettings: ChatSettings
 	isLoggedIn: boolean
 	platform: Platform
+	advancedSettings: WorkspaceConfiguration | ClineConfiguration
+	vscMachineId: string
+	hideTelemetryOptIn: boolean
 	userInfo?: {
 		displayName: string | null
 		email: string | null

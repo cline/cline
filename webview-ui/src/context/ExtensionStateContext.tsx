@@ -9,7 +9,7 @@ import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
-import { TelemetrySetting } from "../../../src/shared/TelemetrySetting"
+import { DEFAULT_ADVANCED_SETTINGS } from "../../../src/shared/AdvancedSettings"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -41,7 +41,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		chatSettings: DEFAULT_CHAT_SETTINGS,
 		isLoggedIn: false,
 		platform: DEFAULT_PLATFORM,
-		telemetrySetting: "unset",
+		vscMachineId: "",
+		advancedSettings: DEFAULT_ADVANCED_SETTINGS,
+		hideTelemetryOptIn: false,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)

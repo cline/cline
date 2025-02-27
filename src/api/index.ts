@@ -19,8 +19,8 @@ import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { LiteLlmHandler } from "./providers/litellm"
 import { XAIHandler } from "./providers/xai"
 
-export interface ApiHandler {
-	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
+export interface ApiHandler<MessageType = Anthropic.Messages.MessageParam> {
+	createMessage(systemPrompt: string, messages: MessageType[]): ApiStream
 	getModel(): { id: string; info: ModelInfo }
 }
 
