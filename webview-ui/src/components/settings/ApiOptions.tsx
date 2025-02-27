@@ -747,7 +747,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					{modelConfigurationSelected && (
 						<>
 							<VSCodeCheckbox
-								checked={apiConfiguration?.openAiModelInfo?.supportsImages}
+								checked={!!apiConfiguration?.openAiModelInfo?.supportsImages}
 								onChange={(e: any) => {
 									const isChecked = e.target.checked === true
 									let modelInfo = apiConfiguration?.openAiModelInfo
