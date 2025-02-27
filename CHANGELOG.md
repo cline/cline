@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## [3.7.8]
+
+- Add Vertex AI prompt caching support for Claude models (thanks @aitoroses and @lupuletic!)
+- Add gpt-4.5-preview
+- Add an advanced feature to customize the system prompt
+
 ## [3.7.7]
 
 - Graduate checkpoints out of beta
