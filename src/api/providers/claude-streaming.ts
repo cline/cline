@@ -139,6 +139,8 @@ export abstract class ClaudeStreamingHandler<ClientType extends Anthropic | Anth
 					type: "usage",
 					inputTokens: chunk.message.usage.input_tokens || 0,
 					outputTokens: chunk.message.usage.output_tokens || 0,
+					cacheWriteTokens: chunk.message.usage.cache_creation_input_tokens || undefined,
+					cacheReadTokens: chunk.message.usage.cache_read_input_tokens || undefined,
 				}
 				break
 			case "message_delta":
