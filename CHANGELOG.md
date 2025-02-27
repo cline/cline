@@ -1,10 +1,22 @@
 # Changelog
 
+## [3.4.9]
+
+-   Add toggle to let users opt-in to anonymous telemetry and error reporting
+
+## [3.4.6]
+
+-   Add support for Claude 3.7 Sonnet
+
 ## [3.4.0]
 
--   Send current textfield contents as additional feedback when toggling from Plan to Act Mode, or when hitting 'Approve' button
+-   Introducing MCP Marketplace! You can now discover and install the best MCP servers right from within the extension, with new servers added regularly
+-   Add mermaid diagram support in Plan mode! You can now see visual representations of mermaid code blocks in chat, and click on them to see an expanded view
+-   Use more visual checkpoints indicators after editing files & running commands
+-   Create a checkpoint at the beginning of each task to easily revert to the initial state
 -   Add 'Terminal' context mention to reference the active terminal's contents
 -   Add 'Git Commits' context mention to reference current working changes or specific commits (thanks @mrubens!)
+-   Send current textfield contents as additional feedback when toggling from Plan to Act Mode, or when hitting 'Approve' button
 -   Add advanced configuration options for OpenAI Compatible (context window, max output, pricing, etc.)
 -   Add Alibaba Qwen 2.5 coder models, VL models, and DeepSeek-R1/V3 support
 -   Improve support for AWS Bedrock Profiles

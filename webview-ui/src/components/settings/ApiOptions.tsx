@@ -750,7 +750,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					{modelConfigurationSelected && (
 						<>
 							<VSCodeCheckbox
-								checked={apiConfiguration?.openAiModelInfo?.supportsImages}
+								checked={!!apiConfiguration?.openAiModelInfo?.supportsImages}
 								onChange={(e: any) => {
 									const isChecked = e.target.checked === true
 									let modelInfo = apiConfiguration?.openAiModelInfo
@@ -967,7 +967,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								}}>
 								The VS Code Language Model API allows you to run models provided by other VS Code extensions
 								(including but not limited to GitHub Copilot). The easiest way to get started is to install the
-								Copilot extension from the VS Marketplace and enabling Claude 3.5 Sonnet.
+								Copilot extension from the VS Marketplace and enabling Claude 3.7 Sonnet.
 							</p>
 						)}
 

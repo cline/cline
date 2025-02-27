@@ -29,9 +29,10 @@ export interface WebviewMessage {
 		| "refreshOpenAiModels"
 		| "openMcpSettings"
 		| "restartMcpServer"
+		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
-		| "chatSettings"
+		| "togglePlanActMode"
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
@@ -47,6 +48,10 @@ export interface WebviewMessage {
 		| "downloadMcp"
 		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
+		| "showMcpView"
+		| "fetchLatestMcpServersFromHub"
+		| "telemetrySetting"
+		| "openSettings"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean

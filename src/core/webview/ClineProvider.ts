@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
-import fs from "fs/promises"
-import os from "os"
 import crypto from "crypto"
 import { execa } from "execa"
+import fs from "fs/promises"
+import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -13,24 +13,26 @@ import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { McpHub } from "../../services/mcp/McpHub"
-import { McpDownloadResponse, McpMarketplaceCatalog, McpMarketplaceItem, McpServer } from "../../shared/mcp"
 import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
+import { McpHub } from "../../services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
+import { ChatContent } from "../../shared/ChatContent"
+import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
+import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
+import { searchCommits } from "../../utils/git"
 import { Cline } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
-import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
-import { DIFF_VIEW_URI_SCHEME } from "../../integrations/editor/DiffViewProvider"
-import { searchCommits } from "../../utils/git"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
+import { TelemetrySetting } from "../../shared/TelemetrySetting"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -92,6 +94,7 @@ type GlobalStateKey =
 	| "requestyModelId"
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
+	| "telemetrySetting"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -111,7 +114,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	private authManager: FirebaseAuthManager
-	private latestAnnouncementId = "jan-20-2025" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "feb-19-2025" // update to some unique identifier when we add a new announcement
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -239,7 +242,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.disposables,
 		)
 
-		// Listen for when color changes
+		// Listen for configuration changes
 		vscode.workspace.onDidChangeConfiguration(
 			async (e) => {
 				if (e && e.affectsConfiguration("workbench.colorTheme")) {
@@ -248,6 +251,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						type: "theme",
 						text: JSON.stringify(await getTheme()),
 					})
+				}
+				if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
+					// Update state when marketplace tab setting changes
+					await this.postStateToWebview()
 				}
 			},
 			null,
@@ -274,6 +281,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			task,
 			images,
 		)
+
+		// New task started
+		if (telemetryService.isTelemetryEnabled()) {
+			telemetryService.capture({
+				event: "New task started",
+				properties: {
+					apiProvider: apiConfiguration.apiProvider,
+				},
+			})
+		}
 	}
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
@@ -291,6 +308,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			undefined,
 			historyItem,
 		)
+
+		// Open task from history
+		if (telemetryService.isTelemetryEnabled()) {
+			telemetryService.capture({
+				event: "Open task from history",
+				properties: {
+					apiProvider: apiConfiguration.apiProvider,
+				},
+			})
+		}
 	}
 
 	// Send any JSON serializable data to the react app
@@ -406,7 +433,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						// (see normalizeApiConfiguration > openrouter)
 						// Prefetch marketplace and OpenRouter models
 
-						this.prefetchMcpMarketplace()
+						this.getGlobalState("mcpMarketplaceCatalog").then((mcpMarketplaceCatalog) => {
+							if (mcpMarketplaceCatalog) {
+								this.postMessageToWebview({
+									type: "mcpMarketplaceCatalog",
+									mcpMarketplaceCatalog: mcpMarketplaceCatalog as McpMarketplaceCatalog,
+								})
+							}
+						})
+						this.silentlyRefreshMcpMarketplace()
 						this.refreshOpenRouterModels().then(async (openRouterModels) => {
 							if (openRouterModels) {
 								// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
@@ -419,6 +454,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									await this.postStateToWebview()
 								}
 							}
+						})
+
+						// If user already opted in to telemetry, enable telemetry service
+						this.getStateToPostToWebview().then((state) => {
+							const { telemetrySetting } = state
+							const isOptedIn = telemetrySetting === "enabled"
+							telemetryService.updateTelemetryState(isOptedIn)
 						})
 
 						break
@@ -542,105 +584,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.postStateToWebview()
 						}
 						break
-					case "chatSettings":
+					case "togglePlanActMode":
 						if (message.chatSettings) {
-							const didSwitchToActMode = message.chatSettings.mode === "act"
-
-							// Get previous model info that we will revert to after saving current mode api info
-							const {
-								apiConfiguration,
-								previousModeApiProvider: newApiProvider,
-								previousModeModelId: newModelId,
-								previousModeModelInfo: newModelInfo,
-							} = await this.getState()
-
-							// Save the last model used in this mode
-							await this.updateGlobalState("previousModeApiProvider", apiConfiguration.apiProvider)
-							switch (apiConfiguration.apiProvider) {
-								case "anthropic":
-								case "bedrock":
-								case "vertex":
-								case "gemini":
-									await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
-									break
-								case "openrouter":
-									await this.updateGlobalState("previousModeModelId", apiConfiguration.openRouterModelId)
-									await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openRouterModelInfo)
-									break
-								case "vscode-lm":
-									await this.updateGlobalState("previousModeModelId", apiConfiguration.vsCodeLmModelSelector)
-									break
-								case "openai":
-									await this.updateGlobalState("previousModeModelId", apiConfiguration.openAiModelId)
-									await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openAiModelInfo)
-									break
-								case "ollama":
-									await this.updateGlobalState("previousModeModelId", apiConfiguration.ollamaModelId)
-									break
-								case "lmstudio":
-									await this.updateGlobalState("previousModeModelId", apiConfiguration.lmStudioModelId)
-									break
-								case "litellm":
-									await this.updateGlobalState("previousModeModelId", apiConfiguration.liteLlmModelId)
-									break
-							}
-
-							// Restore the model used in previous mode
-							if (newApiProvider && newModelId) {
-								await this.updateGlobalState("apiProvider", newApiProvider)
-								switch (newApiProvider) {
-									case "anthropic":
-									case "bedrock":
-									case "vertex":
-									case "gemini":
-										await this.updateGlobalState("apiModelId", newModelId)
-										break
-									case "openrouter":
-										await this.updateGlobalState("openRouterModelId", newModelId)
-										await this.updateGlobalState("openRouterModelInfo", newModelInfo)
-										break
-									case "vscode-lm":
-										await this.updateGlobalState("vsCodeLmModelSelector", newModelId)
-										break
-									case "openai":
-										await this.updateGlobalState("openAiModelId", newModelId)
-										await this.updateGlobalState("openAiModelInfo", newModelInfo)
-										break
-									case "ollama":
-										await this.updateGlobalState("ollamaModelId", newModelId)
-										break
-									case "lmstudio":
-										await this.updateGlobalState("lmStudioModelId", newModelId)
-										break
-									case "litellm":
-										await this.updateGlobalState("liteLlmModelId", newModelId)
-										break
-								}
-
-								if (this.cline) {
-									const { apiConfiguration: updatedApiConfiguration } = await this.getState()
-									this.cline.api = buildApiHandler(updatedApiConfiguration)
-								}
-							}
-
-							await this.updateGlobalState("chatSettings", message.chatSettings)
-							await this.postStateToWebview()
-							// console.log("chatSettings", message.chatSettings)
-							if (this.cline) {
-								this.cline.updateChatSettings(message.chatSettings)
-								if (this.cline.isAwaitingPlanResponse && didSwitchToActMode) {
-									this.cline.didRespondToPlanAskBySwitchingMode = true
-									// this is necessary for the webview to update accordingly, but Cline instance will not send text back as feedback message
-									await this.postMessageToWebview({
-										type: "invoke",
-										invoke: "sendMessage",
-										text: message.chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
-										images: message.chatContent?.images,
-									})
-								} else {
-									this.cancelTask()
-								}
-							}
+							await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
 						}
 						break
 					// case "relaunchChromeDebugMode":
@@ -780,6 +726,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.handleSignOut()
 						break
 					}
+					case "showMcpView": {
+						await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked" })
+						break
+					}
 					case "openMcpSettings": {
 						const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
 						if (mcpSettingsFilePath) {
@@ -793,6 +743,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 					case "downloadMcp": {
 						if (message.mcpId) {
+							// 1. Toggle to act mode if we are in plan mode
+							const { chatSettings } = await this.getStateToPostToWebview()
+							if (chatSettings.mode === "plan") {
+								await this.togglePlanActModeWithChatSettings({ mode: "act" })
+							}
+
+							// 2. Enable MCP settings if disabled
+							// Enable MCP mode if disabled
+							const mcpConfig = vscode.workspace.getConfiguration("cline.mcp")
+							if (mcpConfig.get<string>("mode") !== "full") {
+								await mcpConfig.update("mode", "full", true)
+							}
+
+							// 3. download MCP
 							await this.downloadMcp(message.mcpId)
 						}
 						break
@@ -860,6 +824,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "deleteMcpServer": {
+						if (message.serverName) {
+							this.mcpHub?.deleteServer(message.serverName)
+						}
+						break
+					}
+					case "fetchLatestMcpServersFromHub": {
+						this.mcpHub?.sendLatestMcpServers()
+						break
+					}
 					case "searchCommits": {
 						const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 						if (cwd) {
@@ -883,6 +857,22 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						)
 						break
 					}
+					// telemetry
+					case "openSettings": {
+						await this.postMessageToWebview({
+							type: "action",
+							action: "settingsButtonClicked",
+						})
+						break
+					}
+					case "telemetrySetting": {
+						const telemetrySetting = message.text as TelemetrySetting
+						await this.updateGlobalState("telemetrySetting", telemetrySetting)
+						const isOptedIn = telemetrySetting === "enabled"
+						telemetryService.updateTelemetryState(isOptedIn)
+						await this.postStateToWebview()
+						break
+					}
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
@@ -890,6 +880,106 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables,
 		)
+	}
+
+	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent) {
+		const didSwitchToActMode = chatSettings.mode === "act"
+
+		// Get previous model info that we will revert to after saving current mode api info
+		const {
+			apiConfiguration,
+			previousModeApiProvider: newApiProvider,
+			previousModeModelId: newModelId,
+			previousModeModelInfo: newModelInfo,
+		} = await this.getState()
+
+		// Save the last model used in this mode
+		await this.updateGlobalState("previousModeApiProvider", apiConfiguration.apiProvider)
+		switch (apiConfiguration.apiProvider) {
+			case "anthropic":
+			case "bedrock":
+			case "vertex":
+			case "gemini":
+				await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
+				break
+			case "openrouter":
+				await this.updateGlobalState("previousModeModelId", apiConfiguration.openRouterModelId)
+				await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openRouterModelInfo)
+				break
+			case "vscode-lm":
+				await this.updateGlobalState("previousModeModelId", apiConfiguration.vsCodeLmModelSelector)
+				break
+			case "openai":
+				await this.updateGlobalState("previousModeModelId", apiConfiguration.openAiModelId)
+				await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openAiModelInfo)
+				break
+			case "ollama":
+				await this.updateGlobalState("previousModeModelId", apiConfiguration.ollamaModelId)
+				break
+			case "lmstudio":
+				await this.updateGlobalState("previousModeModelId", apiConfiguration.lmStudioModelId)
+				break
+			case "litellm":
+				await this.updateGlobalState("previousModeModelId", apiConfiguration.liteLlmModelId)
+				break
+		}
+
+		// Restore the model used in previous mode
+		if (newApiProvider && newModelId) {
+			await this.updateGlobalState("apiProvider", newApiProvider)
+			switch (newApiProvider) {
+				case "anthropic":
+				case "bedrock":
+				case "vertex":
+				case "gemini":
+					await this.updateGlobalState("apiModelId", newModelId)
+					break
+				case "openrouter":
+					await this.updateGlobalState("openRouterModelId", newModelId)
+					await this.updateGlobalState("openRouterModelInfo", newModelInfo)
+					break
+				case "vscode-lm":
+					await this.updateGlobalState("vsCodeLmModelSelector", newModelId)
+					break
+				case "openai":
+					await this.updateGlobalState("openAiModelId", newModelId)
+					await this.updateGlobalState("openAiModelInfo", newModelInfo)
+					break
+				case "ollama":
+					await this.updateGlobalState("ollamaModelId", newModelId)
+					break
+				case "lmstudio":
+					await this.updateGlobalState("lmStudioModelId", newModelId)
+					break
+				case "litellm":
+					await this.updateGlobalState("liteLlmModelId", newModelId)
+					break
+			}
+
+			if (this.cline) {
+				const { apiConfiguration: updatedApiConfiguration } = await this.getState()
+				this.cline.api = buildApiHandler(updatedApiConfiguration)
+			}
+		}
+
+		await this.updateGlobalState("chatSettings", chatSettings)
+		await this.postStateToWebview()
+		// console.log("chatSettings", message.chatSettings)
+		if (this.cline) {
+			this.cline.updateChatSettings(chatSettings)
+			if (this.cline.isAwaitingPlanResponse && didSwitchToActMode) {
+				this.cline.didRespondToPlanAskBySwitchingMode = true
+				// this is necessary for the webview to update accordingly, but Cline instance will not send text back as feedback message
+				await this.postMessageToWebview({
+					type: "invoke",
+					invoke: "sendMessage",
+					text: chatContent?.message || "PLAN_MODE_TOGGLE_RESPONSE",
+					images: chatContent?.images,
+				})
+			} else {
+				this.cancelTask()
+			}
+		}
 	}
 
 	async subscribeEmail(email?: string) {
@@ -1114,14 +1204,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
-	async prefetchMcpMarketplace() {
-		try {
-			await this.fetchMcpMarketplaceFromApi(true)
-		} catch (error) {
-			console.error("Failed to prefetch MCP marketplace:", error)
-		}
-	}
-
 	async silentlyRefreshMcpMarketplace() {
 		try {
 			const catalog = await this.fetchMcpMarketplaceFromApi(true)
@@ -1208,8 +1290,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				mcpDownloadDetails: mcpDetails,
 			})
 
-			// Create task with context from README
-			const task = `Set up the MCP server from ${mcpDetails.githubUrl}. Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json. Here is the project's README to help you get started:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
+			// Create task with context from README and added guidelines for MCP server installation
+			const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
+- Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
+- Create the directory for the new MCP server before starting installation.
+- Use commands aligned with the user's shell and operating system best practices.
+- The following README may contain instructions that conflict with the user's OS, in which case proceed thoughtfully.
+- Once installed, demonstrate the server's capabilities by using one of its tools.
+Here is the project's README to help you get started:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
 
 			// Initialize task and show chat view
 			await this.initClineWithTask(task)
@@ -1367,6 +1455,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 
 					switch (rawModel.id) {
+						case "anthropic/claude-3-7-sonnet":
+						case "anthropic/claude-3-7-sonnet:beta":
+						case "anthropic/claude-3.7-sonnet":
+						case "anthropic/claude-3.7-sonnet:beta":
 						case "anthropic/claude-3.5-sonnet":
 						case "anthropic/claude-3.5-sonnet:beta":
 							// NOTE: this needs to be synced with api.ts/openrouter default model info
@@ -1545,6 +1637,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			chatSettings,
 			userInfo,
 			authToken,
+			mcpMarketplaceEnabled,
+			telemetrySetting,
 		} = await this.getState()
 
 		return {
@@ -1563,6 +1657,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			chatSettings,
 			isLoggedIn: !!authToken,
 			userInfo,
+			mcpMarketplaceEnabled,
+			telemetrySetting,
 		}
 	}
 
@@ -1669,6 +1765,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeModelInfo,
 			qwenApiLine,
 			liteLlmApiKey,
+			telemetrySetting,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1720,6 +1817,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
+			this.getGlobalState("telemetrySetting") as Promise<TelemetrySetting | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1739,6 +1837,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const o3MiniReasoningEffort = vscode.workspace
 			.getConfiguration("cline.modelSettings.o3Mini")
 			.get("reasoningEffort", "medium")
+
+		const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
 
 		return {
 			apiConfiguration: {
@@ -1794,6 +1894,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			mcpMarketplaceEnabled,
+			telemetrySetting: telemetrySetting || "unset",
 		}
 	}
 
