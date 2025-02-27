@@ -3,7 +3,7 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { ChatContent } from "./ChatContent"
-import { CheckpointSettings } from "../integrations/checkpoints/CheckpointSettings"
+import { CheckpointSettings } from "./Checkpoints"
 
 export interface WebviewMessage {
 	type:

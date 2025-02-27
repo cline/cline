@@ -3,6 +3,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { fileExistsAtPath } from "../../utils/fs"
 import { getDefaultExclusions } from "./CheckpointExclusions"
+import { CheckpointSettings } from "../../shared/Checkpoints"
 
 /**
  * CheckpointSettings Module
@@ -25,11 +26,6 @@ import { getDefaultExclusions } from "./CheckpointExclusions"
  * - Used by CheckpointTracker for file filtering
  * - Consumed by CheckpointExclusions for pattern management
  */
-
-export interface CheckpointSettings {
-	/** Whether checkpoints are enabled */
-	enableCheckpoints: boolean
-}
 
 /**
  * Default settings values.
