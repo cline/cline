@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.7.8
-
-### Patch Changes
+## [3.7.8]
 
 - Add gpt-4.5-preview
 
