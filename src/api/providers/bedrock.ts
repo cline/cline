@@ -123,7 +123,6 @@ export class AwsBedrockHandler implements ApiHandler {
 	// Automatically enable cross-region inference for Claude 3.7 Sonnet
 	if (this.getModel().id === "anthropic.claude-3-7-sonnet-20250219-v1:0") {
 		this.options.awsUseCrossRegionInference = true;
-		return `us.${this.getModel().id}`
 	}
 	// Handle cross-region inference if enabled
 	if (this.options.awsUseCrossRegionInference) {
