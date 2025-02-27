@@ -44,7 +44,6 @@ export type GlobalStateKey =
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
 	| "anthropicThinking"
-	| "vertexThinking"
 	| "azureApiVersion"
 	| "openAiStreamingEnabled"
 	| "openRouterModelId"
