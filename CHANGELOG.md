@@ -1,11 +1,10 @@
 # Roo Code Changelog
 
-## 3.7.7
-
-### Patch Changes
+## [3.7.7]
 
 - Graduate checkpoints out of beta
-- v3.7.7
+- Fix enhance prompt button when using Thinking Sonnet
+- Add tooltips to make what buttons do more obvious
 
 ## [3.7.6]
 
