@@ -3,6 +3,7 @@ import os from "os"
 import osName from "os-name"
 import { McpHub } from "../../services/mcp/McpHub"
 import { BrowserSettings } from "../../shared/BrowserSettings"
+import { DEFAULT_MCP_TIMEOUT_SECONDS } from "../../shared/mcp"
 
 export const SYSTEM_PROMPT = async (
 	cwd: string,
@@ -760,7 +761,7 @@ IMPORTANT: Regardless of what else you see in the MCP settings file, you must de
       "env": {
         "OPENWEATHER_API_KEY": "user-provided-api-key"
       },
-      "timeout": 60, // 60 seconds should be set as the default timeout for all MCP servers
+      "timeout": ${DEFAULT_MCP_TIMEOUT_SECONDS}, // ${DEFAULT_MCP_TIMEOUT_SECONDS} seconds should be set as the default timeout for all MCP servers
     }
   }
 }
