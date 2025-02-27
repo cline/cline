@@ -369,7 +369,7 @@ describe("ClineProvider", () => {
 			uriScheme: "vscode",
 			soundEnabled: false,
 			diffEnabled: false,
-			checkpointsEnabled: false,
+			enableCheckpoints: false,
 			writeDelayMs: 1000,
 			browserViewportSize: "900x600",
 			fuzzyMatchThreshold: 1.0,
@@ -677,7 +677,7 @@ describe("ClineProvider", () => {
 			},
 			mode: "code",
 			diffEnabled: true,
-			checkpointsEnabled: false,
+			enableCheckpoints: false,
 			fuzzyMatchThreshold: 1.0,
 			experiments: experimentDefault,
 		} as any)

@@ -52,7 +52,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		alwaysAllowWrite,
 		alwaysApproveResubmit,
 		browserViewportSize,
-		checkpointsEnabled,
+		enableCheckpoints,
 		diffEnabled,
 		experiments,
 		fuzzyMatchThreshold,
@@ -143,7 +143,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			vscode.postMessage({ type: "soundEnabled", bool: soundEnabled })
 			vscode.postMessage({ type: "soundVolume", value: soundVolume })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
-			vscode.postMessage({ type: "checkpointsEnabled", bool: checkpointsEnabled })
+			vscode.postMessage({ type: "enableCheckpoints", bool: enableCheckpoints })
 			vscode.postMessage({ type: "browserViewportSize", text: browserViewportSize })
 			vscode.postMessage({ type: "fuzzyMatchThreshold", value: fuzzyMatchThreshold ?? 1.0 })
 			vscode.postMessage({ type: "writeDelayMs", value: writeDelayMs })
@@ -708,6 +708,25 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 
 					<div style={{ marginBottom: 15 }}>
 						<VSCodeCheckbox
+							checked={enableCheckpoints}
+							onChange={(e: any) => {
+								setCachedStateField("enableCheckpoints", e.target.checked)
+							}}>
+							<span style={{ fontWeight: "500" }}>Enable automatic checkpoints</span>
+						</VSCodeCheckbox>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							When enabled, Roo will automatically create checkpoints during task execution, making it
+							easy to review changes or revert to earlier states.
+						</p>
+					</div>
+
+					<div style={{ marginBottom: 15 }}>
+						<VSCodeCheckbox
 							checked={diffEnabled}
 							onChange={(e: any) => {
 								setCachedStateField("diffEnabled", e.target.checked)
@@ -778,28 +797,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 								</div>
 							</div>
 						)}
-
-						<div style={{ marginBottom: 15 }}>
-							<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-								<span style={{ color: "var(--vscode-errorForeground)" }}>⚠️</span>
-								<VSCodeCheckbox
-									checked={checkpointsEnabled}
-									onChange={(e: any) => {
-										setCachedStateField("checkpointsEnabled", e.target.checked)
-									}}>
-									<span style={{ fontWeight: "500" }}>Enable experimental checkpoints</span>
-								</VSCodeCheckbox>
-							</div>
-							<p
-								style={{
-									fontSize: "12px",
-									marginTop: "5px",
-									color: "var(--vscode-descriptionForeground)",
-								}}>
-								When enabled, Roo will save a checkpoint whenever a file in the workspace is modified,
-								added or deleted, letting you easily revert to a previous state.
-							</p>
-						</div>
 
 						{Object.entries(experimentConfigsMap)
 							.filter((config) => config[0] !== "DIFF_STRATEGY")
