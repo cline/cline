@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## 3.7.7
+
+### Patch Changes
+
+- Graduate checkpoints out of beta
+- v3.7.7
+
 ## [3.7.6]
 
 - Handle really long text better in the in the ChatRow similar to TaskHeader (thanks @joemanley201!)
