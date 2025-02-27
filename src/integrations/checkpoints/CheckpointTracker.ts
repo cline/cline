@@ -15,6 +15,7 @@ import { CheckpointSettingsManager } from "./CheckpointSettings"
  *
  * Shadow Git Repository:
  * - Creates and manages an isolated Git repository for tracking checkpoints
+ * - Handles nested Git repositories by temporarily disabling them
  * - Configures Git settings automatically (identity, LFS, etc.)
  *
  * File Management:
@@ -51,6 +52,7 @@ class CheckpointTracker {
 
 	/**
 	 * Creates a new CheckpointTracker instance to manage checkpoints for a specific task.
+	 * The constructor is private - use the static create() method to instantiate.
 	 *
 	 * @param taskId - Unique identifier for the task being tracked
 	 * @param cwd - The current working directory to track files in
@@ -92,9 +94,8 @@ class CheckpointTracker {
 		if (!globalStoragePath) {
 			throw new Error("Global storage path is required to create a checkpoint tracker")
 		}
-
 		try {
-			console.log(`Creating new CheckpointTracker for task ${taskId}`)
+			console.info(`Creating new CheckpointTracker for task ${taskId}`)
 
 			// Get settings manager instance and reinitialize
 			const settingsManager = CheckpointSettingsManager.getInstance()
@@ -164,6 +165,11 @@ class CheckpointTracker {
 	 * - Branch-per-task: "checkpoint-{cwdHash}-{taskId}"
 	 * - Always allows empty commits
 	 *
+	 * Dependencies:
+	 * - Requires initialized shadow git (getShadowGitPath)
+	 * - For new checkpoints, requires task branch setup
+	 * - Uses addCheckpointFiles to stage changes
+	 *
 	 * @returns Promise<string | undefined> The created commit hash, or undefined if:
 	 * - Shadow git access fails
 	 * - Branch switch fails
@@ -183,33 +189,31 @@ class CheckpointTracker {
 
 			console.info(`Using shadow git at: ${gitPath}`)
 
-			if (!this.isLegacyCheckpoint) {
-				await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
+			// Disable nested git repos before any operations
+			await this.gitOperations.renameNestedGitRepos(true)
+
+			try {
+				if (!this.isLegacyCheckpoint) {
+					await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
+				}
+				await this.gitOperations.addCheckpointFiles(git, gitPath)
+
+				const commitMessage = this.isLegacyCheckpoint ? "checkpoint" : "checkpoint-" + this.cwdHash + "-" + this.taskId
+
+				console.info(
+					`Creating ${this.isLegacyCheckpoint ? "legacy" : "new"} checkpoint commit with message: ${commitMessage}`,
+				)
+				const result = await git.commit(commitMessage, {
+					"--allow-empty": null,
+				})
+				const commitHash = result.commit || ""
+				this.lastCheckpointHash = commitHash
+				console.warn(`Checkpoint commit created.`)
+				return commitHash
+			} finally {
+				// Always re-enable nested git repos
+				await this.gitOperations.renameNestedGitRepos(false)
 			}
-			await this.gitOperations.addCheckpointFiles(git, gitPath)
-
-			const addResult = await this.gitOperations.addCheckpointFiles(git, gitPath)
-			if (!addResult.success) {
-				console.warn(addResult.message)
-				return undefined
-			}
-
-			if (addResult.fileCount === 0) {
-				return undefined
-			}
-
-			const commitMessage = this.isLegacyCheckpoint ? "checkpoint" : "checkpoint-" + this.cwdHash + "-" + this.taskId
-
-			console.info(
-				`Creating ${this.isLegacyCheckpoint ? "legacy" : "new"} checkpoint commit with message: ${commitMessage}`,
-			)
-			const result = await git.commit(commitMessage, {
-				"--allow-empty": null,
-			})
-			const commitHash = result.commit || ""
-			this.lastCheckpointHash = commitHash
-			console.warn(`Checkpoint commit created.`)
-			return commitHash
 		} catch (error) {
 			console.error("Failed to create checkpoint:", {
 				taskId: this.taskId,
@@ -261,7 +265,7 @@ class CheckpointTracker {
 	/**
 	 * Resets the shadow git repository's HEAD to a specific checkpoint commit.
 	 * This will discard all changes after the target commit and restore the
-	 * working tracked files to that checkpoint's state.
+	 * working directory to that checkpoint's state.
 	 *
 	 * Dependencies:
 	 * - Requires initialized shadow git (getShadowGitPath)
@@ -327,11 +331,7 @@ class CheckpointTracker {
 		}
 
 		// Stage all changes so that untracked files appear in diff summary
-		const addResult = await this.gitOperations.addCheckpointFiles(git, gitPath)
-		if (!addResult.success) {
-			console.warn(addResult.message)
-			return []
-		}
+		await this.gitOperations.addCheckpointFiles(git, gitPath)
 
 		const diffSummary = rhsHash ? await git.diffSummary([`${baseHash}..${rhsHash}`]) : await git.diffSummary([baseHash])
 		console.info(`Found ${diffSummary.files.length} changed files`)
@@ -345,7 +345,7 @@ class CheckpointTracker {
 		// Get list of files that exist in base commit
 		const existingFiles = await this.getExistingFiles(git, baseHash)
 
-		// Process files in batches (Helps with large repos)
+		// Process files in batches
 		for (let i = 0; i < files.length; i += batchSize) {
 			const batch = files.slice(i, i + batchSize)
 
@@ -356,8 +356,13 @@ class CheckpointTracker {
 			// Get before contents for existing files
 			let beforeContents: string[] = new Array(batch.length).fill("")
 			if (existingBatch.length > 0) {
-				const paths = existingBatch.map((file) => `${baseHash}:${file}`).join(" ")
-				const beforeResult = await git.raw(["show", "--format=", ...paths.split(" ")])
+				await git.addConfig("core.quotePath", "false")
+				await git.addConfig("core.precomposeunicode", "true")
+				const args = ["show", "--format="]
+				existingBatch.forEach((file) => {
+					args.push(`${baseHash}:${file}`)
+				})
+				const beforeResult = await git.raw(args)
 				const existingContents = beforeResult.split("\n\0\n")
 				// Map contents back to original batch positions
 				existingBatch.forEach((file, index) => {
@@ -376,8 +381,11 @@ class CheckpointTracker {
 				const afterExistingBatch = batch.filter((file) => afterExistingFiles.has(file))
 
 				if (afterExistingBatch.length > 0) {
-					const paths = afterExistingBatch.map((file) => `${rhsHash}:${file}`).join(" ")
-					const afterResult = await git.raw(["show", "--format=", ...paths.split(" ")])
+					const args = ["show", "--format="]
+					afterExistingBatch.forEach((file) => {
+						args.push(`${rhsHash}:${file}`)
+					})
+					const afterResult = await git.raw(args)
 					const existingContents = afterResult.split("\n\0\n")
 					afterContents = new Array(batch.length).fill("")
 					afterExistingBatch.forEach((file, index) => {

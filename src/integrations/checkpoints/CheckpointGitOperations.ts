@@ -7,20 +7,15 @@ import * as vscode from "vscode"
 import { getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
 import { HistoryItem } from "../../shared/HistoryItem"
 
-// Maximum number of files allowed in a checkpoint
-const MAX_FILES_PER_CHECKPOINT = 50000
-
-// Return success addCheckpointFiles if MAX_FILES_PER_CHECKPOINT is not exceeded
-interface CheckpointAddResult {
-	success: boolean
-	message?: string
-	fileCount: number
-}
-
 interface StorageProvider {
 	context: {
 		globalStorageUri: { fsPath: string }
 	}
+}
+
+interface CheckpointAddResult {
+	success: boolean
+	fileCount: number
 }
 
 /**
@@ -101,6 +96,8 @@ export class GitOperations {
 		await git.addConfig("commit.gpgSign", "false")
 		await git.addConfig("user.name", "Cline Checkpoint")
 		await git.addConfig("user.email", "checkpoint@cline.bot")
+		await git.addConfig("core.quotePath", "false")
+		await git.addConfig("core.precomposeunicode", "true")
 
 		// Set up LFS patterns
 		const lfsPatterns = await getLfsPatterns(cwd)
@@ -172,7 +169,7 @@ export class GitOperations {
 	 * If the branch to be deleted is currently checked out, the method will:
 	 * 1. Save the current worktree configuration
 	 * 2. Temporarily unset the worktree to prevent workspace modifications
-	 * 3. Force switch to master branch
+	 * 3. Force switch to master/main branch
 	 * 4. Delete the target branch
 	 * 5. Restore the worktree configuration
 	 *
@@ -181,7 +178,7 @@ export class GitOperations {
 	 * @param checkpointsDir - Directory containing the git repository
 	 * @throws Error if:
 	 *  - Branch deletion fails
-	 *  - Unable to switch to master branch after 3 retries
+	 *  - Unable to switch to master/main branch after 3 retries
 	 *  - Git operations fail during the process
 	 */
 	public static async deleteBranchForGit(git: SimpleGit, branchName: string, checkpointsDir: string): Promise<void> {
@@ -192,12 +189,12 @@ export class GitOperations {
 			return // Branch doesn't exist, nothing to delete
 		}
 
-		// First, if we're on the branch to be deleted, switch to master
+		// First, if we're on the branch to be deleted, switch to master/main
 		const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
 		console.info(`Current branch: ${currentBranch}, target branch to delete: ${branchName}`)
 
 		if (currentBranch === branchName) {
-			console.debug("Currently on branch to be deleted, switching to master first")
+			console.debug("Currently on branch to be deleted, switching to master/main first")
 			// Save the current worktree config
 			const worktree = await git.getConfig("core.worktree")
 			console.debug(`Saved current worktree config: ${worktree.value}`)
@@ -212,22 +209,26 @@ export class GitOperations {
 				await git.reset(["--hard"])
 				await git.clean("f", ["-d"]) // Clean mode 'f' for force, -d for directories
 
-				// Switch to master and delete branch
-				console.debug("Attempting to force switch to master branch")
-				await git.checkout(["master", "--force"])
+				// Determine default branch (master or main)
+				const defaultBranch = branches.all.includes("main") ? "main" : "master"
+				console.debug(`Using ${defaultBranch} as default branch`)
+
+				// Switch to default branch and delete branch
+				console.debug(`Attempting to force switch to ${defaultBranch} branch`)
+				await git.checkout([defaultBranch, "--force"])
 
 				// Verify the switch completed
 				let retries = 3
 				while (retries > 0) {
 					const newBranch = await git.revparse(["--abbrev-ref", "HEAD"])
 					console.debug(`Verifying branch switch - current branch: ${newBranch}, attempts left: ${retries}`)
-					if (newBranch === "master") {
-						console.debug("Successfully switched to master branch")
+					if (newBranch === defaultBranch) {
+						console.debug(`Successfully switched to ${defaultBranch} branch`)
 						break
 					}
 					retries--
 					if (retries === 0) {
-						throw new Error("Failed to switch to master branch")
+						throw new Error(`Failed to switch to ${defaultBranch} branch`)
 					}
 				}
 
@@ -327,6 +328,58 @@ export class GitOperations {
 	}
 
 	/**
+	 * Since we use git to track checkpoints, we need to temporarily disable nested git repos to work around git's
+	 * requirement of using submodules for nested repos.
+	 *
+	 * This method renames nested .git directories by adding/removing a suffix to temporarily disable/enable them.
+	 * The root .git directory is preserved. Uses VS Code's workspace API to find nested .git directories and
+	 * only processes actual directories (not files named .git).
+	 *
+	 * @param disable - If true, adds suffix to disable nested git repos. If false, removes suffix to re-enable them.
+	 * @throws Error if renaming any .git directory fails
+	 */
+	public async renameNestedGitRepos(disable: boolean): Promise<void> {
+		// Find all .git directories that are not at the root level using VS Code API
+		const gitFiles = await vscode.workspace.findFiles(
+			new vscode.RelativePattern(this.cwd, "**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX)),
+			new vscode.RelativePattern(this.cwd, ".git/**"), // Exclude root .git
+		)
+
+		// Filter to only include directories
+		const gitPaths: string[] = []
+		for (const file of gitFiles) {
+			const relativePath = path.relative(this.cwd, file.fsPath)
+			try {
+				const stats = await fs.stat(path.join(this.cwd, relativePath))
+				if (stats.isDirectory()) {
+					gitPaths.push(relativePath)
+				}
+			} catch {
+				// Skip if stat fails
+				continue
+			}
+		}
+
+		// For each nested .git directory, rename it based on the disable flag
+		for (const gitPath of gitPaths) {
+			const fullPath = path.join(this.cwd, gitPath)
+			let newPath: string
+			if (disable) {
+				newPath = fullPath + GIT_DISABLED_SUFFIX
+			} else {
+				newPath = fullPath.endsWith(GIT_DISABLED_SUFFIX) ? fullPath.slice(0, -GIT_DISABLED_SUFFIX.length) : fullPath
+			}
+
+			try {
+				await fs.rename(fullPath, newPath)
+				console.info(`${disable ? "Disabled" : "Enabled"} nested git repo ${gitPath}`)
+			} catch (error) {
+				console.error(`Failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
+			}
+		}
+	}
+
+	/**
 	 * Switches to or creates a task-specific branch in the shadow Git repository.
 	 * For legacy checkpoints, this is a no-op since they use separate repositories.
 	 * For branch-per-task checkpoints, this ensures we're on the correct task branch before operations.
@@ -372,34 +425,33 @@ export class GitOperations {
 	 *
 	 * Process:
 	 * 1. Updates exclude patterns from LFS config
-	 * 2. Gets list of tracked and untracked files from git (respecting .gitignore)
-	 * 3. Adds all files to git staging
+	 * 2. Temporarily disables nested git repos
+	 * 3. Gets list of tracked and untracked files from git (respecting .gitignore)
+	 * 4. Adds all files to git staging
+	 * 5. Re-enables nested git repos
 	 *
 	 * @param git - SimpleGit instance configured for the shadow git repo
 	 * @param gitPath - Path to the .git directory
 	 * @returns Promise<CheckpointAddResult> Object containing success status, message, and file count
+	 * @throws Error if:
+	 *  - File operations fail
+	 *  - Git commands error
+	 *  - LFS pattern updates fail
+	 *  - Nested git repo handling fails
 	 */
 	public async addCheckpointFiles(git: SimpleGit, gitPath: string): Promise<CheckpointAddResult> {
 		try {
 			// Update exclude patterns before each commit
 			await writeExcludesFile(gitPath, await getLfsPatterns(this.cwd))
+			await this.renameNestedGitRepos(true)
+			//console.info("Starting checkpoint add operation...")
 
 			// Get list of all files git would track (respects .gitignore)
+			await git.addConfig("core.quotePath", "false")
+			await git.addConfig("core.precomposeunicode", "true")
 			const gitFiles = (await git.raw(["ls-files", "--others", "--exclude-standard", "--cached"]))
 				.split("\n")
 				.filter(Boolean)
-
-			// Check file count limit
-			if (gitFiles.length > MAX_FILES_PER_CHECKPOINT) {
-				console.warn(
-					`Repository contains ${gitFiles.length} files, which exceeds the maximum limit of ${MAX_FILES_PER_CHECKPOINT}.`,
-				)
-				return {
-					success: false,
-					message: `Repository contains ${gitFiles.length} files, which exceeds the maximum limit of ${MAX_FILES_PER_CHECKPOINT}.`,
-					fileCount: gitFiles.length,
-				}
-			}
 
 			// Add filtered files
 			if (gitFiles.length === 0) {
@@ -409,24 +461,20 @@ export class GitOperations {
 
 			try {
 				console.info(`Adding ${gitFiles.length} files to checkpoint`)
+				await git.addConfig("core.quotePath", "false")
+				await git.addConfig("core.precomposeunicode", "true")
 				await git.add(gitFiles)
 				console.info("Checkpoint add operation completed successfully")
 				return { success: true, fileCount: gitFiles.length }
 			} catch (error) {
 				console.error("Checkpoint add operation failed:", error)
-				return {
-					success: false,
-					message: `Failed to add files: ${error instanceof Error ? error.message : String(error)}`,
-					fileCount: gitFiles.length,
-				}
+				throw error
 			}
 		} catch (error) {
 			console.error("Failed to add files to checkpoint", error)
-			return {
-				success: false,
-				message: `Failed to prepare files: ${error instanceof Error ? error.message : String(error)}`,
-				fileCount: 0,
-			}
+			throw error
+		} finally {
+			await this.renameNestedGitRepos(false)
 		}
 	}
 }

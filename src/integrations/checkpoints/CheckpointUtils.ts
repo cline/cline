@@ -1,6 +1,6 @@
-import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
+import fs from "fs/promises"
 import os from "os"
 import { fileExistsAtPath } from "../../utils/fs"
 
@@ -27,6 +27,7 @@ export async function getLegacyShadowGitPath(globalStoragePath: string, taskId: 
 	}
 	const checkpointsDir = path.join(globalStoragePath, "tasks", taskId, "checkpoints")
 	await fs.mkdir(checkpointsDir, { recursive: true })
+
 	const gitPath = path.join(checkpointsDir, ".git")
 	console.log(`Legacy shadow git path: ${gitPath}`)
 	return gitPath
@@ -64,6 +65,7 @@ export async function getShadowGitPath(
 	}
 	const checkpointsDir = path.join(globalStoragePath, "checkpoints", cwdHash)
 	await fs.mkdir(checkpointsDir, { recursive: true })
+
 	const gitPath = path.join(checkpointsDir, ".git")
 	return gitPath
 }
@@ -108,9 +110,6 @@ export async function getWorkingDirectory(): Promise<string> {
 
 /**
  * Hashes the current working directory to a 13-character numeric hash.
- * This is the repo identifer that collapses all checkpoints for a workspace into
- * a single shadow git repository.
- *
  * @param workingDir - The absolute path to the working directory
  * @returns A 13-character numeric hash string used to identify the workspace
  * @throws {Error} If the working directory path is empty or invalid
@@ -131,7 +130,8 @@ export function hashWorkingDir(workingDir: string): string {
 /**
  * Detects if a task uses the legacy checkpoint structure.
  * Legacy checkpoints stored each task's checkpoints in a separate git repository
- * under the tasks/{taskId}/checkpoints directory.
+ * under the tasks/{taskId}/checkpoints directory. New checkpoints use a single
+ * repository with branches per task.
  *
  * @param globalStoragePath - The VS Code global storage path
  * @param taskId - The ID of the task to check
@@ -156,7 +156,8 @@ export async function detectLegacyCheckpoint(globalStoragePath: string | undefin
 	}
 	const legacyGitPath = path.join(globalStoragePath, "tasks", taskId, "checkpoints", ".git")
 	const isLegacy = await fileExistsAtPath(legacyGitPath)
-	console.log(`Legacy checkpoint detection result: ${isLegacy}`)
+
+	console.info(`Legacy checkpoint detection result: ${isLegacy}`)
 	return isLegacy
 }
 
