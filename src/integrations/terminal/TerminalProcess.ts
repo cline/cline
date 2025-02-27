@@ -96,7 +96,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				// Check for command output start marker
 				if (!commandOutputStarted) {
 					preOutput += data
-					const match = this.stringIndexMatch(data, "\x1b]633;C\x07", undefined)
+					const match = this.matchAfterVsceStartMarkers(data)
 					if (match !== undefined) {
 						commandOutputStarted = true
 						data = match
@@ -167,16 +167,16 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				this.emitRemainingBufferIfListening()
 			} else {
 				console.error(
-					"[Terminal Process] VSCE output start escape sequence (]633;C) not received! VSCE Bug? preOutput: " +
+					"[Terminal Process] VSCE output start escape sequence (]633;C or ]133;C) not received! VSCE Bug? preOutput: " +
 						inspect(preOutput, { colors: false, breakLength: Infinity }),
 				)
 			}
 
 			// console.debug("[Terminal Process] raw output: " + inspect(output, { colors: false, breakLength: Infinity }))
 
-			// fullOutput begins after "\x1b]633;C" so we only need to trim off "\x1b]633;D"
-			// (if "D" exists, see VSCode bug# 237208):
-			const match = this.stringIndexMatch(preOutput, undefined, "\x1b]633;D")
+			// fullOutput begins after C marker so we only need to trim off D marker
+			// (if D exists, see VSCode bug# 237208):
+			const match = this.matchBeforeVsceEndMarkers(this.fullOutput)
 			if (match !== undefined) {
 				this.fullOutput = match
 			}
@@ -227,10 +227,20 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		// Get raw unretrieved output
 		let outputToProcess = this.fullOutput.slice(this.lastRetrievedIndex)
 
-		// Check for VSCE command end marker
-		let endIndex = outputToProcess.indexOf("\x1b]633;D")
+		// Check for VSCE command end markers
+		const index633 = outputToProcess.indexOf("\x1b]633;D")
+		const index133 = outputToProcess.indexOf("\x1b]133;D")
+		let endIndex = -1
 
-		// If no end marker was found yet (possibly due to VSCode bug#237208):
+		if (index633 !== -1 && index133 !== -1) {
+			endIndex = Math.min(index633, index133)
+		} else if (index633 !== -1) {
+			endIndex = index633
+		} else if (index133 !== -1) {
+			endIndex = index133
+		}
+
+		// If no end markers were found yet (possibly due to VSCode bug#237208):
 		//   For active streams: return only complete lines (up to last \n).
 		//   For closed streams: return all remaining content.
 		if (endIndex === -1) {
@@ -258,7 +268,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		return this.removeEscapeSequences(outputToProcess)
 	}
 
-	private stringIndexMatch(data: string, prefix?: string, suffix?: string): string | undefined {
+	private stringIndexMatch(data: string, prefix?: string, suffix?: string, bell: string = "\x07"): string | undefined {
 		let startIndex: number
 		let endIndex: number
 		let prefixLength: number
@@ -271,7 +281,19 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			if (startIndex === -1) {
 				return undefined
 			}
-			prefixLength = prefix.length
+			if (bell.length > 0) {
+				// Find the bell character after the prefix
+				const bellIndex = data.indexOf(bell, startIndex + prefix.length)
+				if (bellIndex === -1) {
+					return undefined
+				}
+
+				const distanceToBell = bellIndex - startIndex
+
+				prefixLength = distanceToBell + bell.length
+			} else {
+				prefixLength = prefix.length
+			}
 		}
 
 		const contentStart = startIndex + prefixLength
@@ -298,7 +320,76 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	// should be carefully considered to ensure they only remove control codes and don't
 	// alter the actual content or behavior of the output stream.
 	private removeEscapeSequences(str: string): string {
-		return stripAnsi(str.replace(/\x1b\]633;[^\x07]+\x07/gs, ""))
+		return stripAnsi(str.replace(/\x1b\]633;[^\x07]+\x07/gs, "").replace(/\x1b\]133;[^\x07]+\x07/gs, ""))
+	}
+
+	/**
+	 * Helper function to match VSCode shell integration start markers (C).
+	 * Looks for content after ]633;C or ]133;C markers.
+	 * If both exist, takes the content after the last marker found.
+	 */
+	private matchAfterVsceStartMarkers(data: string): string | undefined {
+		return this.matchVsceMarkers(data, "\x1b]633;C", "\x1b]133;C", undefined, undefined)
+	}
+
+	/**
+	 * Helper function to match VSCode shell integration end markers (D).
+	 * Looks for content before ]633;D or ]133;D markers.
+	 * If both exist, takes the content before the first marker found.
+	 */
+	private matchBeforeVsceEndMarkers(data: string): string | undefined {
+		return this.matchVsceMarkers(data, undefined, undefined, "\x1b]633;D", "\x1b]133;D")
+	}
+
+	/**
+	 * Handles VSCode shell integration markers for command output:
+	 *
+	 * For C (Command Start):
+	 * - Looks for content after ]633;C or ]133;C markers
+	 * - These markers indicate the start of command output
+	 * - If both exist, takes the content after the last marker found
+	 * - This ensures we get the actual command output after any shell integration prefixes
+	 *
+	 * For D (Command End):
+	 * - Looks for content before ]633;D or ]133;D markers
+	 * - These markers indicate command completion
+	 * - If both exist, takes the content before the first marker found
+	 * - This ensures we don't include shell integration suffixes in the output
+	 *
+	 * In both cases, checks 633 first since it's more commonly used in VSCode shell integration
+	 *
+	 * @param data The string to search for markers in
+	 * @param prefix633 The 633 marker to match after (for C markers)
+	 * @param prefix133 The 133 marker to match after (for C markers)
+	 * @param suffix633 The 633 marker to match before (for D markers)
+	 * @param suffix133 The 133 marker to match before (for D markers)
+	 * @returns The content between/after markers, or undefined if no markers found
+	 *
+	 * Note: Always makes exactly 2 calls to stringIndexMatch regardless of match results.
+	 * Using string indexOf matching is ~500x faster than regular expressions, so even
+	 * matching twice is still very efficient comparatively.
+	 */
+	private matchVsceMarkers(
+		data: string,
+		prefix633: string | undefined,
+		prefix133: string | undefined,
+		suffix633: string | undefined,
+		suffix133: string | undefined,
+	): string | undefined {
+		// Support both VSCode shell integration markers (633 and 133)
+		// Check 633 first since it's more commonly used in VSCode shell integration
+		let match133: string | undefined
+		const match633 = this.stringIndexMatch(data, prefix633, suffix633)
+
+		// Must check explicitly for undefined because stringIndexMatch can return empty strings
+		// that are valid matches (e.g., when a marker exists but has no content between markers)
+		if (match633 !== undefined) {
+			match133 = this.stringIndexMatch(match633, prefix133, suffix133)
+		} else {
+			match133 = this.stringIndexMatch(data, prefix133, suffix133)
+		}
+
+		return match133 !== undefined ? match133 : match633
 	}
 }
 
