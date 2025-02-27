@@ -1,7 +1,7 @@
 import { VSCodeButton, VSCodeLink, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import { vscode } from "../../utils/vscode"
-import type { CheckpointSettings } from "../../../../src/shared/WebviewMessage"
+import { CheckpointSettings } from "../../../../src/integrations/checkpoints/CheckpointSettings"
 
 const CheckpointsSettingsView = () => {
 	const [settings, setSettings] = useState<CheckpointSettings>({

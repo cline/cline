@@ -3,6 +3,7 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { ChatContent } from "./ChatContent"
+import { CheckpointSettings } from "../integrations/checkpoints/CheckpointSettings"
 
 export interface WebviewMessage {
 	type:
@@ -86,7 +87,3 @@ export interface WebviewMessage {
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
 
 export type ClineCheckpointRestore = "task" | "workspace" | "taskAndWorkspace"
-
-export interface CheckpointSettings {
-	enableCheckpoints: boolean
-}

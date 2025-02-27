@@ -959,6 +959,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									}
 								}
 							})
+						break
 					}
 					case "toggleTelemetryOptIn": {
 						await vscode.workspace.getConfiguration().update("cline.enableTelemetry", message.bool, true)
