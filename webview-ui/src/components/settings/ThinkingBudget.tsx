@@ -17,27 +17,24 @@ export const ThinkingBudget = ({
 	modelInfo,
 	provider,
 }: ThinkingBudgetProps) => {
-	const isVertexProvider = provider === "vertex"
-	const budgetField = isVertexProvider ? "vertexThinking" : "anthropicThinking"
-
 	const tokens = apiConfiguration?.modelMaxTokens || modelInfo?.maxTokens || 64_000
 	const tokensMin = 8192
 	const tokensMax = modelInfo?.maxTokens || 64_000
 
 	// Get the appropriate thinking tokens based on provider
 	const thinkingTokens = useMemo(() => {
-		const value = isVertexProvider ? apiConfiguration?.vertexThinking : apiConfiguration?.anthropicThinking
+		const value = apiConfiguration?.modelMaxThinkingTokens
 		return value || Math.min(Math.floor(0.8 * tokens), 8192)
-	}, [apiConfiguration, isVertexProvider, tokens])
+	}, [apiConfiguration, tokens])
 
 	const thinkingTokensMin = 1024
 	const thinkingTokensMax = Math.floor(0.8 * tokens)
 
 	useEffect(() => {
 		if (thinkingTokens > thinkingTokensMax) {
-			setApiConfigurationField(budgetField, thinkingTokensMax)
+			setApiConfigurationField("modelMaxThinkingTokens", thinkingTokensMax)
 		}
-	}, [thinkingTokens, thinkingTokensMax, setApiConfigurationField, budgetField])
+	}, [thinkingTokens, thinkingTokensMax, setApiConfigurationField])
 
 	if (!modelInfo?.thinking) {
 		return null
@@ -66,7 +63,7 @@ export const ThinkingBudget = ({
 						max={thinkingTokensMax}
 						step={1024}
 						value={[thinkingTokens]}
-						onValueChange={([value]) => setApiConfigurationField(budgetField, value)}
+						onValueChange={([value]) => setApiConfigurationField("modelMaxThinkingTokens", value)}
 					/>
 					<div className="w-12 text-sm text-center">{thinkingTokens}</div>
 				</div>

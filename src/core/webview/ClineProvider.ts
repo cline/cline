@@ -1651,8 +1651,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			lmStudioModelId,
 			lmStudioBaseUrl,
 			anthropicBaseUrl,
-			anthropicThinking,
-			vertexThinking,
 			geminiApiKey,
 			openAiNativeApiKey,
 			deepSeekApiKey,
@@ -1673,6 +1671,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestyModelInfo,
 			modelTemperature,
 			modelMaxTokens,
+			modelMaxThinkingTokens,
 		} = apiConfiguration
 		await Promise.all([
 			this.updateGlobalState("apiProvider", apiProvider),
@@ -1701,8 +1700,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.updateGlobalState("lmStudioModelId", lmStudioModelId),
 			this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl),
 			this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl),
-			this.updateGlobalState("anthropicThinking", anthropicThinking),
-			this.updateGlobalState("vertexThinking", vertexThinking),
 			this.storeSecret("geminiApiKey", geminiApiKey),
 			this.storeSecret("openAiNativeApiKey", openAiNativeApiKey),
 			this.storeSecret("deepSeekApiKey", deepSeekApiKey),
@@ -1723,6 +1720,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.updateGlobalState("requestyModelInfo", requestyModelInfo),
 			this.updateGlobalState("modelTemperature", modelTemperature),
 			this.updateGlobalState("modelMaxTokens", modelMaxTokens),
+			this.updateGlobalState("anthropicThinking", modelMaxThinkingTokens),
 		])
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
@@ -2159,8 +2157,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			lmStudioModelId,
 			lmStudioBaseUrl,
 			anthropicBaseUrl,
-			anthropicThinking,
-			vertexThinking,
 			geminiApiKey,
 			openAiNativeApiKey,
 			deepSeekApiKey,
@@ -2216,6 +2212,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			requestyModelInfo,
 			modelTemperature,
 			modelMaxTokens,
+			modelMaxThinkingTokens,
 			maxOpenTabsContext,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
@@ -2244,8 +2241,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
-			this.getGlobalState("anthropicThinking") as Promise<number | undefined>,
-			this.getGlobalState("vertexThinking") as Promise<number | undefined>,
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
@@ -2301,6 +2296,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("requestyModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("modelTemperature") as Promise<number | undefined>,
 			this.getGlobalState("modelMaxTokens") as Promise<number | undefined>,
+			this.getGlobalState("anthropicThinking") as Promise<number | undefined>,
 			this.getGlobalState("maxOpenTabsContext") as Promise<number | undefined>,
 		])
 
@@ -2346,8 +2342,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				lmStudioModelId,
 				lmStudioBaseUrl,
 				anthropicBaseUrl,
-				anthropicThinking,
-				vertexThinking,
 				geminiApiKey,
 				openAiNativeApiKey,
 				deepSeekApiKey,
@@ -2368,6 +2362,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				requestyModelInfo,
 				modelTemperature,
 				modelMaxTokens,
+				modelMaxThinkingTokens,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

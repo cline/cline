@@ -300,10 +300,7 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 				temperature = 1.0 // Thinking requires temperature 1.0
 				const maxBudgetTokens = Math.floor(maxTokens * 0.8)
 				const budgetTokens = Math.max(
-					Math.min(
-						this.options.vertexThinking ?? this.options.anthropicThinking ?? maxBudgetTokens,
-						maxBudgetTokens,
-					),
+					Math.min(this.options.modelMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens),
 					1024,
 				)
 				thinking = { type: "enabled", budget_tokens: budgetTokens }

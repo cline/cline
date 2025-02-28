@@ -206,7 +206,7 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 				// least 1024 tokens.
 				const maxBudgetTokens = Math.floor(maxTokens * 0.8)
 				const budgetTokens = Math.max(
-					Math.min(this.options.anthropicThinking ?? maxBudgetTokens, maxBudgetTokens),
+					Math.min(this.options.modelMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens),
 					1024,
 				)
 
