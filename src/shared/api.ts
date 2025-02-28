@@ -111,7 +111,7 @@ export const anthropicModels = {
 		thinking: true,
 	},
 	"claude-3-7-sonnet-20250219": {
-		maxTokens: 64_000,
+		maxTokens: 16_384,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,
@@ -437,7 +437,7 @@ export type VertexModelId = keyof typeof vertexModels
 export const vertexDefaultModelId: VertexModelId = "claude-3-7-sonnet@20250219"
 export const vertexModels = {
 	"claude-3-7-sonnet@20250219:thinking": {
-		maxTokens: 64000,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,
@@ -449,7 +449,7 @@ export const vertexModels = {
 		thinking: true,
 	},
 	"claude-3-7-sonnet@20250219": {
-		maxTokens: 8192,
+		maxTokens: 16_384,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,
