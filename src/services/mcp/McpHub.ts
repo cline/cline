@@ -571,7 +571,6 @@ export class McpHub {
 			timeout = secondsToMs(parsedConfig.timeout)
 		} catch (error) {
 			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
-			// Continue with default timeout
 		}
 
 		return await connection.client.request(
@@ -611,7 +610,6 @@ export class McpHub {
 				autoApprove.splice(toolIndex, 1)
 			}
 
-			// Write updated config back to file
 			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 
 			// Update the tools list to reflect the change
@@ -670,16 +668,13 @@ export class McpHub {
 				throw new Error(`Server "${serverName}" not found in settings`)
 			}
 
-			// Update the timeout in the config
 			config.mcpServers[serverName] = {
 				...config.mcpServers[serverName],
 				timeout,
 			}
 
-			// Write updated config back to file
 			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 
-			// Update server connections to apply the new timeout
 			await this.updateServerConnections(config.mcpServers)
 
 			vscode.window.showInformationMessage(`Updated timeout to ${timeout} seconds`)
