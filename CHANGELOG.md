@@ -1,9 +1,5 @@
 # Changelog
 
-## [3.4.10]
-
--   Add support for GPT-4.5 preview model
-
 ## [3.4.9]
 
 -   Add toggle to let users opt-in to anonymous telemetry and error reporting
