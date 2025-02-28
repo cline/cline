@@ -46,6 +46,16 @@ jest.mock("../TemperatureControl", () => ({
 	),
 }))
 
+// Mock ThinkingBudget component
+jest.mock("../ThinkingBudget", () => ({
+	ThinkingBudget: ({ apiConfiguration, setApiConfigurationField, modelInfo, provider }: any) =>
+		modelInfo?.thinking ? (
+			<div data-testid="thinking-budget" data-provider={provider}>
+				<input data-testid="thinking-tokens" value={apiConfiguration?.modelMaxThinkingTokens} />
+			</div>
+		) : null,
+}))
+
 describe("ApiOptions", () => {
 	const renderApiOptions = (props = {}) => {
 		render(
@@ -72,5 +82,45 @@ describe("ApiOptions", () => {
 		expect(screen.queryByTestId("temperature-control")).not.toBeInTheDocument()
 	})
 
-	//TODO: More test cases needed
+	describe("thinking functionality", () => {
+		it("should show ThinkingBudget for Anthropic models that support thinking", () => {
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "anthropic",
+					apiModelId: "claude-3-7-sonnet-20250219:thinking",
+				},
+			})
+
+			expect(screen.getByTestId("thinking-budget")).toBeInTheDocument()
+			expect(screen.getByTestId("thinking-budget")).toHaveAttribute("data-provider", "anthropic")
+		})
+
+		it("should show ThinkingBudget for Vertex models that support thinking", () => {
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "vertex",
+					apiModelId: "claude-3-7-sonnet@20250219:thinking",
+				},
+			})
+
+			expect(screen.getByTestId("thinking-budget")).toBeInTheDocument()
+			expect(screen.getByTestId("thinking-budget")).toHaveAttribute("data-provider", "vertex")
+		})
+
+		it("should not show ThinkingBudget for models that don't support thinking", () => {
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "anthropic",
+					apiModelId: "claude-3-opus-20240229",
+					modelInfo: { thinking: false }, // Non-thinking model
+				},
+			})
+
+			expect(screen.queryByTestId("thinking-budget")).not.toBeInTheDocument()
+		})
+
+		// Note: We don't need to test the actual ThinkingBudget component functionality here
+		// since we have separate tests for that component. We just need to verify that
+		// it's included in the ApiOptions component when appropriate.
+	})
 })

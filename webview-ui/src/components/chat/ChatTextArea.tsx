@@ -798,6 +798,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<select
 								value={mode}
 								disabled={textAreaDisabled}
+								title="Select mode for interaction"
 								onChange={(e) => {
 									const value = e.target.value
 									if (value === "prompts-action") {
@@ -849,6 +850,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<select
 								value={currentApiConfigName || ""}
 								disabled={textAreaDisabled}
+								title="Select API configuration"
 								onChange={(e) => {
 									const value = e.target.value
 									if (value === "settings-action") {
@@ -915,6 +917,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									role="button"
 									aria-label="enhance prompt"
 									data-testid="enhance-prompt-button"
+									title="Enhance prompt with additional context"
 									className={`input-icon-button ${
 										textAreaDisabled ? "disabled" : ""
 									} codicon codicon-sparkle`}
@@ -927,11 +930,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							className={`input-icon-button ${
 								shouldDisableImages ? "disabled" : ""
 							} codicon codicon-device-camera`}
+							title="Add images to message"
 							onClick={() => !shouldDisableImages && onSelectImages()}
 							style={{ fontSize: 16.5 }}
 						/>
 						<span
 							className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
+							title="Send message"
 							onClick={() => !textAreaDisabled && onSend()}
 							style={{ fontSize: 15 }}
 						/>

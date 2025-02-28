@@ -1,8 +1,5 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
-// import VSCodeButtonLink from "./VSCodeButtonLink"
-// import { getOpenRouterAuthUrl } from "./ApiOptions"
-// import { vscode } from "../utils/vscode"
 
 interface AnnouncementProps {
 	version: string
@@ -25,39 +22,42 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<VSCodeButton
 				appearance="icon"
 				onClick={hideAnnouncement}
+				title="Hide announcement"
 				style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
-			<h2 style={{ margin: "0 0 8px" }}>🎉{"  "}Introducing Roo Code 3.2</h2>
+			<h2 style={{ margin: "0 0 8px" }}>🎉{"  "}Automatic Checkpoints Now Enabled</h2>
 
 			<p style={{ margin: "5px 0px" }}>
-				Our biggest update yet is here - we're officially changing our name from Roo Cline to Roo Code! After
-				growing beyond 50,000 installations, we're ready to chart our own course. Our heartfelt thanks to
-				everyone in the Cline community who helped us reach this milestone.
+				We're thrilled to announce that our experimental Checkpoints feature is now enabled by default for all
+				users. This powerful feature automatically tracks your project changes during a task, allowing you to
+				quickly review or revert to earlier states if needed.
 			</p>
 
-			<h3 style={{ margin: "12px 0 8px" }}>Custom Modes: Celebrating Our New Identity</h3>
+			<h3 style={{ margin: "12px 0 8px" }}>What's New</h3>
 			<p style={{ margin: "5px 0px" }}>
-				To mark this new chapter, we're introducing the power to shape Roo Code into any role you need! Create
-				specialized personas and create an entire team of agents with deeply customized prompts:
+				Automatic Checkpoints provide you with:
 				<ul style={{ margin: "4px 0 6px 20px", padding: 0 }}>
-					<li>QA Engineers who write thorough test cases and catch edge cases</li>
-					<li>Product Managers who excel at user stories and feature prioritization</li>
-					<li>UI/UX Designers who craft beautiful, accessible interfaces</li>
-					<li>Code Reviewers who ensure quality and maintainability</li>
+					<li>Peace of mind when making significant changes</li>
+					<li>Ability to visually inspect changes between steps</li>
+					<li>Easy rollback if you're not satisfied with certain code modifications</li>
+					<li>Improved navigation through complex task execution</li>
 				</ul>
-				Just click the <span className="codicon codicon-notebook" style={{ fontSize: "10px" }}></span> icon to
-				get started with Custom Modes!
 			</p>
 
-			<h3 style={{ margin: "12px 0 8px" }}>Join Us for the Next Chapter</h3>
+			<h3 style={{ margin: "12px 0 8px" }}>Customize Your Experience</h3>
 			<p style={{ margin: "5px 0px" }}>
-				We can't wait to see how you'll push Roo Code's potential even further! Share your custom modes and join
-				the discussion at{" "}
-				<VSCodeLink href="https://www.reddit.com/r/RooCode" style={{ display: "inline" }}>
-					reddit.com/r/RooCode
-				</VSCodeLink>
-				.
+				While we recommend keeping this feature enabled, you can disable it if needed.{" "}
+				<VSCodeLink
+					href="#"
+					onClick={(e) => {
+						e.preventDefault()
+						window.postMessage({ type: "action", action: "settingsButtonClicked" }, "*")
+					}}
+					style={{ display: "inline", padding: "0 2px" }}>
+					Open Settings
+				</VSCodeLink>{" "}
+				and look for the "Enable automatic checkpoints" option in the Advanced Settings section.
 			</p>
 		</div>
 	)

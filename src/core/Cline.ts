@@ -93,6 +93,7 @@ export class Cline {
 	// a flag that indicated if this Cline instance is paused (waiting for provider to resume it after subtask completion)
 	private isPaused: boolean = false
 	private pausedModeSlug: string = defaultModeSlug
+	readonly apiConfiguration: ApiConfiguration
 	api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
@@ -120,7 +121,7 @@ export class Cline {
 	isInitialized = false
 
 	// checkpoints
-	checkpointsEnabled: boolean = false
+	enableCheckpoints: boolean = false
 	private checkpointService?: CheckpointService
 
 	// streaming
@@ -155,6 +156,7 @@ export class Cline {
 
 		this.taskId = crypto.randomUUID()
 		this.taskNumber = -1
+		this.apiConfiguration = apiConfiguration
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
@@ -164,7 +166,7 @@ export class Cline {
 		this.fuzzyMatchThreshold = fuzzyMatchThreshold ?? 1.0
 		this.providerRef = new WeakRef(provider)
 		this.diffViewProvider = new DiffViewProvider(cwd)
-		this.checkpointsEnabled = enableCheckpoints ?? false
+		this.enableCheckpoints = enableCheckpoints ?? false
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -1018,13 +1020,21 @@ export class Cline {
 				cacheWrites = 0,
 				cacheReads = 0,
 			}: ClineApiReqInfo = JSON.parse(previousRequest)
+
 			const totalTokens = tokensIn + tokensOut + cacheWrites + cacheReads
 
-			const trimmedMessages = truncateConversationIfNeeded(
-				this.apiConversationHistory,
+			const modelInfo = this.api.getModel().info
+			const maxTokens = modelInfo.thinking
+				? this.apiConfiguration.modelMaxTokens || modelInfo.maxTokens
+				: modelInfo.maxTokens
+			const contextWindow = modelInfo.contextWindow
+
+			const trimmedMessages = truncateConversationIfNeeded({
+				messages: this.apiConversationHistory,
 				totalTokens,
-				this.api.getModel().info,
-			)
+				maxTokens,
+				contextWindow,
+			})
 
 			if (trimmedMessages !== this.apiConversationHistory) {
 				await this.overwriteApiConversationHistory(trimmedMessages)
@@ -3436,7 +3446,7 @@ export class Cline {
 	// Checkpoints
 
 	private async getCheckpointService() {
-		if (!this.checkpointsEnabled) {
+		if (!this.enableCheckpoints) {
 			throw new Error("Checkpoints are disabled")
 		}
 
@@ -3477,7 +3487,7 @@ export class Cline {
 		commitHash: string
 		mode: "full" | "checkpoint"
 	}) {
-		if (!this.checkpointsEnabled) {
+		if (!this.enableCheckpoints) {
 			return
 		}
 
@@ -3516,12 +3526,12 @@ export class Cline {
 			)
 		} catch (err) {
 			this.providerRef.deref()?.log("[checkpointDiff] disabling checkpoints for this task")
-			this.checkpointsEnabled = false
+			this.enableCheckpoints = false
 		}
 	}
 
 	public async checkpointSave({ isFirst }: { isFirst: boolean }) {
-		if (!this.checkpointsEnabled) {
+		if (!this.enableCheckpoints) {
 			return
 		}
 
@@ -3542,7 +3552,7 @@ export class Cline {
 			}
 		} catch (err) {
 			this.providerRef.deref()?.log("[checkpointSave] disabling checkpoints for this task")
-			this.checkpointsEnabled = false
+			this.enableCheckpoints = false
 		}
 	}
 
@@ -3555,7 +3565,7 @@ export class Cline {
 		commitHash: string
 		mode: "preview" | "restore"
 	}) {
-		if (!this.checkpointsEnabled) {
+		if (!this.enableCheckpoints) {
 			return
 		}
 
@@ -3610,7 +3620,7 @@ export class Cline {
 			this.providerRef.deref()?.cancelTask()
 		} catch (err) {
 			this.providerRef.deref()?.log("[checkpointRestore] disabling checkpoints for this task")
-			this.checkpointsEnabled = false
+			this.enableCheckpoints = false
 		}
 	}
 }

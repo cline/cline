@@ -357,7 +357,7 @@ describe("OpenAiNativeHandler", () => {
 			const modelInfo = handler.getModel()
 			expect(modelInfo.id).toBe(mockOptions.apiModelId)
 			expect(modelInfo.info).toBeDefined()
-			expect(modelInfo.info.maxTokens).toBe(4096)
+			expect(modelInfo.info.maxTokens).toBe(16384)
 			expect(modelInfo.info.contextWindow).toBe(128_000)
 		})
 
