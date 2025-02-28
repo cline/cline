@@ -114,7 +114,7 @@ export interface ExtensionState {
 	soundEnabled?: boolean
 	soundVolume?: number
 	diffEnabled?: boolean
-	checkpointsEnabled: boolean
+	enableCheckpoints: boolean
 	browserViewportSize?: string
 	screenshotQuality?: number
 	fuzzyMatchThreshold?: number

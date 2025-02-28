@@ -115,7 +115,7 @@ export class Cline {
 	isInitialized = false
 
 	// checkpoints
-	checkpointsEnabled: boolean = false
+	enableCheckpoints: boolean = false
 	private checkpointService?: CheckpointService
 
 	// streaming
@@ -159,7 +159,7 @@ export class Cline {
 		this.fuzzyMatchThreshold = fuzzyMatchThreshold ?? 1.0
 		this.providerRef = new WeakRef(provider)
 		this.diffViewProvider = new DiffViewProvider(cwd)
-		this.checkpointsEnabled = enableCheckpoints ?? false
+		this.enableCheckpoints = enableCheckpoints ?? false
 
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -3337,7 +3337,7 @@ export class Cline {
 	// Checkpoints
 
 	private async getCheckpointService() {
-		if (!this.checkpointsEnabled) {
+		if (!this.enableCheckpoints) {
 			throw new Error("Checkpoints are disabled")
 		}
 
@@ -3378,7 +3378,7 @@ export class Cline {
 		commitHash: string
 		mode: "full" | "checkpoint"
 	}) {
-		if (!this.checkpointsEnabled) {
+		if (!this.enableCheckpoints) {
 			return
 		}
 
@@ -3417,12 +3417,12 @@ export class Cline {
 			)
 		} catch (err) {
 			this.providerRef.deref()?.log("[checkpointDiff] disabling checkpoints for this task")
-			this.checkpointsEnabled = false
+			this.enableCheckpoints = false
 		}
 	}
 
 	public async checkpointSave({ isFirst }: { isFirst: boolean }) {
-		if (!this.checkpointsEnabled) {
+		if (!this.enableCheckpoints) {
 			return
 		}
 
@@ -3443,7 +3443,7 @@ export class Cline {
 			}
 		} catch (err) {
 			this.providerRef.deref()?.log("[checkpointSave] disabling checkpoints for this task")
-			this.checkpointsEnabled = false
+			this.enableCheckpoints = false
 		}
 	}
 
@@ -3456,7 +3456,7 @@ export class Cline {
 		commitHash: string
 		mode: "preview" | "restore"
 	}) {
-		if (!this.checkpointsEnabled) {
+		if (!this.enableCheckpoints) {
 			return
 		}
 
@@ -3511,7 +3511,7 @@ export class Cline {
 			this.providerRef.deref()?.cancelTask()
 		} catch (err) {
 			this.providerRef.deref()?.log("[checkpointRestore] disabling checkpoints for this task")
-			this.checkpointsEnabled = false
+			this.enableCheckpoints = false
 		}
 	}
 }

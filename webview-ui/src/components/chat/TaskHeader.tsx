@@ -3,15 +3,18 @@ import { useWindowSize } from "react-use"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import prettyBytes from "pretty-bytes"
 
+import { vscode } from "@/utils/vscode"
+import { formatLargeNumber } from "@/utils/format"
+import { Button } from "@/components/ui"
+
 import { ClineMessage } from "../../../../src/shared/ExtensionMessage"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
-import Thumbnails from "../common/Thumbnails"
 import { mentionRegexGlobal } from "../../../../src/shared/context-mentions"
-import { formatLargeNumber } from "../../utils/format"
-import { normalizeApiConfiguration } from "../settings/ApiOptions"
-import { Button } from "../ui"
 import { HistoryItem } from "../../../../src/shared/HistoryItem"
+
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import Thumbnails from "../common/Thumbnails"
+import { normalizeApiConfiguration } from "../settings/ApiOptions"
+import { DeleteTaskDialog } from "../history/DeleteTaskDialog"
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -46,7 +49,21 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const contextWindow = selectedModelInfo?.contextWindow || 1
 
 	/*
-	When dealing with event listeners in React components that depend on state variables, we face a challenge. We want our listener to always use the most up-to-date version of a callback function that relies on current state, but we don't want to constantly add and remove event listeners as that function updates. This scenario often arises with resize listeners or other window events. Simply adding the listener in a useEffect with an empty dependency array risks using stale state, while including the callback in the dependencies can lead to unnecessary re-registrations of the listener. There are react hook libraries that provide a elegant solution to this problem by utilizing the useRef hook to maintain a reference to the latest callback function without triggering re-renders or effect re-runs. This approach ensures that our event listener always has access to the most current state while minimizing performance overhead and potential memory leaks from multiple listener registrations. 
+	When dealing with event listeners in React components that depend on state
+	variables, we face a challenge. We want our listener to always use the most
+	up-to-date version of a callback function that relies on current state, but
+	we don't want to constantly add and remove event listeners as that function
+	updates. This scenario often arises with resize listeners or other window
+	events. Simply adding the listener in a useEffect with an empty dependency
+	array risks using stale state, while including the callback in the
+	dependencies can lead to unnecessary re-registrations of the listener. There
+	are react hook libraries that provide a elegant solution to this problem by
+	utilizing the useRef hook to maintain a reference to the latest callback
+	function without triggering re-renders or effect re-runs. This approach
+	ensures that our event listener always has access to the most current state
+	while minimizing performance overhead and potential memory leaks from
+	multiple listener registrations. 
+
 	Sources
 	- https://usehooks-ts.com/react-hook/use-event-listener
 	- https://streamich.github.io/react-use/?path=/story/sensors-useevent--docs
@@ -180,7 +197,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							${totalCost?.toFixed(4)}
 						</div>
 					)}
-					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>
+					<VSCodeButton
+						appearance="icon"
+						onClick={onClose}
+						style={{ marginLeft: 6, flexShrink: 0 }}
+						title="Close task and start a new one">
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
 				</div>
@@ -346,22 +367,48 @@ export const highlightMentions = (text?: string, withShadow = true) => {
 	})
 }
 
-const TaskActions = ({ item }: { item: HistoryItem | undefined }) => (
-	<div className="flex flex-row gap-1">
-		<Button variant="ghost" size="sm" onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}>
-			<span className="codicon codicon-cloud-download" />
-		</Button>
-		{!!item?.size && item.size > 0 && (
+const TaskActions = ({ item }: { item: HistoryItem | undefined }) => {
+	const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
+
+	return (
+		<div className="flex flex-row gap-1">
 			<Button
 				variant="ghost"
 				size="sm"
-				onClick={() => vscode.postMessage({ type: "deleteTaskWithId", text: item.id })}>
-				<span className="codicon codicon-trash" />
-				{prettyBytes(item.size)}
+				title="Export task history"
+				onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}>
+				<span className="codicon codicon-cloud-download" />
 			</Button>
-		)}
-	</div>
-)
+			{!!item?.size && item.size > 0 && (
+				<>
+					<Button
+						variant="ghost"
+						size="sm"
+						title="Delete Task (Shift + Click to skip confirmation)"
+						onClick={(e) => {
+							e.stopPropagation()
+
+							if (e.shiftKey) {
+								vscode.postMessage({ type: "deleteTaskWithId", text: item.id })
+							} else {
+								setDeleteTaskId(item.id)
+							}
+						}}>
+						<span className="codicon codicon-trash" />
+						{prettyBytes(item.size)}
+					</Button>
+					{deleteTaskId && (
+						<DeleteTaskDialog
+							taskId={deleteTaskId}
+							onOpenChange={(open) => !open && setDeleteTaskId(null)}
+							open
+						/>
+					)}
+				</>
+			)}
+		</div>
+	)
+}
 
 const ContextWindowProgress = ({ contextWindow, contextTokens }: { contextWindow: number; contextTokens: number }) => (
 	<>

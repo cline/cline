@@ -52,7 +52,7 @@ export interface WebviewMessage {
 		| "soundEnabled"
 		| "soundVolume"
 		| "diffEnabled"
-		| "checkpointsEnabled"
+		| "enableCheckpoints"
 		| "browserViewportSize"
 		| "screenshotQuality"
 		| "openMcpSettings"

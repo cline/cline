@@ -88,6 +88,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const [showConfigMenu, setShowConfigMenu] = useState(false)
 	const [isCreateModeDialogOpen, setIsCreateModeDialogOpen] = useState(false)
 	const [activeSupportTab, setActiveSupportTab] = useState<SupportPromptType>("ENHANCE")
+	const [isSystemPromptDisclosureOpen, setIsSystemPromptDisclosureOpen] = useState(false)
 
 	// Direct update functions
 	const updateAgentPrompt = useCallback(
@@ -970,6 +971,45 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							data-testid="copy-prompt-button">
 							<span className="codicon codicon-copy"></span>
 						</VSCodeButton>
+					</div>
+
+					{/* Custom System Prompt Disclosure */}
+					<div className="mb-3 mt-12">
+						<button
+							onClick={() => setIsSystemPromptDisclosureOpen(!isSystemPromptDisclosureOpen)}
+							className="flex items-center text-xs text-vscode-foreground hover:text-vscode-textLink-foreground focus:outline-none"
+							aria-expanded={isSystemPromptDisclosureOpen}>
+							<span
+								className={`codicon codicon-${isSystemPromptDisclosureOpen ? "chevron-down" : "chevron-right"} mr-1`}></span>
+							<span>Advanced: Override System Prompt</span>
+						</button>
+
+						{isSystemPromptDisclosureOpen && (
+							<div className="text-xs text-vscode-descriptionForeground mt-2 ml-5">
+								You can completely replace the system prompt for this mode (aside from the role
+								definition and custom instructions) by creating a file at{" "}
+								<span
+									className="text-vscode-textLink-foreground cursor-pointer underline"
+									onClick={() => {
+										const currentMode = getCurrentMode()
+										if (!currentMode) return
+
+										// Open or create an empty file
+										vscode.postMessage({
+											type: "openFile",
+											text: `./.roo/system-prompt-${currentMode.slug}`,
+											values: {
+												create: true,
+												content: "",
+											},
+										})
+									}}>
+									.roo/system-prompt-{getCurrentMode()?.slug || "code"}
+								</span>{" "}
+								in your workspace. This is a very advanced feature that bypasses built-in safeguards and
+								consistency checks (especially around tool usage), so be careful!
+							</div>
+						)}
 					</div>
 				</div>
 

@@ -1,5 +1,17 @@
 # Roo Code Changelog
 
+## [3.7.8]
+
+- Add Vertex AI prompt caching support for Claude models (thanks @aitoroses and @lupuletic!)
+- Add gpt-4.5-preview
+- Add an advanced feature to customize the system prompt
+
+## [3.7.7]
+
+- Graduate checkpoints out of beta
+- Fix enhance prompt button when using Thinking Sonnet
+- Add tooltips to make what buttons do more obvious
+
 ## [3.7.6]
 
 - Handle really long text better in the in the ChatRow similar to TaskHeader (thanks @joemanley201!)

@@ -42,7 +42,6 @@ export type GlobalStateKey =
 	| "lmStudioModelId"
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
-	| "anthropicThinking"
 	| "azureApiVersion"
 	| "openAiStreamingEnabled"
 	| "openRouterModelId"
@@ -53,7 +52,7 @@ export type GlobalStateKey =
 	| "soundEnabled"
 	| "soundVolume"
 	| "diffEnabled"
-	| "checkpointsEnabled"
+	| "enableCheckpoints"
 	| "browserViewportSize"
 	| "screenshotQuality"
 	| "fuzzyMatchThreshold"
@@ -82,5 +81,6 @@ export type GlobalStateKey =
 	| "unboundModelInfo"
 	| "modelTemperature"
 	| "modelMaxTokens"
+	| "anthropicThinking" // TODO: Rename to `modelMaxThinkingTokens`.
 	| "mistralCodestralUrl"
 	| "maxOpenTabsContext"
