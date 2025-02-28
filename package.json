@@ -217,6 +217,7 @@
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.12",
+		"@floating-ui/react": "^0.27.5",
 		"@types/chai": "^5.0.1",
 		"@types/diff": "^5.2.1",
 		"@types/mocha": "^10.0.7",
@@ -230,7 +231,9 @@
 		"chai": "^4.3.10",
 		"esbuild": "^0.25.0",
 		"eslint": "^8.57.0",
+		"fzf": "^0.5.2",
 		"husky": "^9.1.7",
+		"mermaid": "^11.4.1",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
 		"should": "^13.2.3",
