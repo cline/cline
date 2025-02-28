@@ -7,7 +7,6 @@ import * as vscodemodels from "vscode"
 import {
 	ApiConfiguration,
 	ModelInfo,
-	ApiProvider,
 	anthropicDefaultModelId,
 	anthropicModels,
 	azureOpenAiDefaultApiVersion,
@@ -1385,7 +1384,6 @@ const ApiOptions = ({
 						apiConfiguration={apiConfiguration}
 						setApiConfigurationField={setApiConfigurationField}
 						modelInfo={selectedModelInfo}
-						provider={selectedProvider as ApiProvider}
 					/>
 					<ModelInfoView
 						selectedModelId={selectedModelId}

@@ -92,7 +92,6 @@ describe("ApiOptions", () => {
 			})
 
 			expect(screen.getByTestId("thinking-budget")).toBeInTheDocument()
-			expect(screen.getByTestId("thinking-budget")).toHaveAttribute("data-provider", "anthropic")
 		})
 
 		it("should show ThinkingBudget for Vertex models that support thinking", () => {
@@ -104,7 +103,6 @@ describe("ApiOptions", () => {
 			})
 
 			expect(screen.getByTestId("thinking-budget")).toBeInTheDocument()
-			expect(screen.getByTestId("thinking-budget")).toHaveAttribute("data-provider", "vertex")
 		})
 
 		it("should not show ThinkingBudget for models that don't support thinking", () => {
