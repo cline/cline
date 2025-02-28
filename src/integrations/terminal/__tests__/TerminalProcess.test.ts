@@ -175,7 +175,7 @@ describe("TerminalProcess", () => {
 	})
 
 	describe("getUnretrievedOutput", () => {
-		it.only("returns and clears unretrieved output", () => {
+		it("returns and clears unretrieved output", () => {
 			terminalProcess["fullOutput"] = `\x1b]633;C\x07previous\nnew output\x1b]633;D\x07`
 			terminalProcess["lastRetrievedIndex"] = 17 // After "previous\n"
 
