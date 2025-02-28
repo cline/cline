@@ -42,8 +42,8 @@ Cline functions solely as a client-side VS Code extension that facilitates commu
 1. **Local-Only Processing**:
 
     - All operations happen on your local machine
-    - No central servers or data collection
-    - No telemetry or usage statistics gathered
+    - No central servers or data collection by default
+    - Anonymous telemetry and usage statistics are only collected if you explicitly opt in
     - No account creation required
 
 2. **API Key Security**:
@@ -73,7 +73,8 @@ When you request assistance:
 
 -   Error logs are processed locally
 -   No automatic error reporting to Cline
--   You control what information to include when reporting issues
+    - Optional anonymous telemetry and error reporting via PostHog if you opt in
+-   You control what information to include when manually reporting issues
 
 ## Children's Privacy
 
@@ -89,6 +90,22 @@ We will post any changes to this policy on our GitHub repository. Significant ch
 -   Our client-side architecture ensures no central point of data collection
 -   You can inspect exactly what data is being sent to AI providers
 -   Enterprise users can implement additional access controls through VS Code
+
+## Telemetry & Usage Statistics
+
+If you choose to opt in to anonymous telemetry:
+
+-   Basic usage statistics and error reports are collected via PostHog
+-   A stable, anonymous identifier (VS Code's `machineId`) is used to understand unique usage patterns
+    - This identifier is not linked to any personal information
+    - It helps us understand how features are used across sessions
+    - It cannot be used to identify you personally
+-   All data is anonymized and cannot be linked to individual users
+-   No code content or sensitive information is ever included
+-   You can opt out at any time through:
+    - VS Code Settings > Cline > Enable Telemetry
+    - VS Code Settings > Telemetry > Telemetry Level (setting this to anything other than "all" will disable Cline's telemetry)
+-   Collected data helps us improve the extension's functionality and stability
 
 ## Contact Us
 
