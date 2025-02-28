@@ -1,9 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
-import fs from "fs/promises"
-import os from "os"
 import crypto from "crypto"
 import { execa } from "execa"
+import fs from "fs/promises"
+import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
@@ -13,25 +13,26 @@ import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { McpHub } from "../../services/mcp/McpHub"
-import { McpDownloadResponse, McpMarketplaceCatalog, McpMarketplaceItem, McpServer } from "../../shared/mcp"
 import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
+import { McpHub } from "../../services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
+import { ChatContent } from "../../shared/ChatContent"
+import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
+import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
+import { searchCommits } from "../../utils/git"
 import { Cline } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
-import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
-import { DIFF_VIEW_URI_SCHEME } from "../../integrations/editor/DiffViewProvider"
-import { searchCommits } from "../../utils/git"
-import { ChatContent } from "../../shared/ChatContent"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
+import { TelemetrySetting } from "../../shared/TelemetrySetting"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -93,6 +94,7 @@ type GlobalStateKey =
 	| "requestyModelId"
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
+	| "telemetrySetting"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -279,6 +281,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			task,
 			images,
 		)
+
+		// New task started
+		if (telemetryService.isTelemetryEnabled()) {
+			telemetryService.capture({
+				event: "New task started",
+				properties: {
+					apiProvider: apiConfiguration.apiProvider,
+				},
+			})
+		}
 	}
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
@@ -296,6 +308,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			undefined,
 			historyItem,
 		)
+
+		// Open task from history
+		if (telemetryService.isTelemetryEnabled()) {
+			telemetryService.capture({
+				event: "Open task from history",
+				properties: {
+					apiProvider: apiConfiguration.apiProvider,
+				},
+			})
+		}
 	}
 
 	// Send any JSON serializable data to the react app
@@ -432,6 +454,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 									await this.postStateToWebview()
 								}
 							}
+						})
+
+						// If user already opted in to telemetry, enable telemetry service
+						this.getStateToPostToWebview().then((state) => {
+							const { telemetrySetting } = state
+							const isOptedIn = telemetrySetting === "enabled"
+							telemetryService.updateTelemetryState(isOptedIn)
 						})
 
 						break
@@ -826,6 +855,22 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							"workbench.action.openSettings",
 							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
 						)
+						break
+					}
+					// telemetry
+					case "openSettings": {
+						await this.postMessageToWebview({
+							type: "action",
+							action: "settingsButtonClicked",
+						})
+						break
+					}
+					case "telemetrySetting": {
+						const telemetrySetting = message.text as TelemetrySetting
+						await this.updateGlobalState("telemetrySetting", telemetrySetting)
+						const isOptedIn = telemetrySetting === "enabled"
+						telemetryService.updateTelemetryState(isOptedIn)
+						await this.postStateToWebview()
 						break
 					}
 					// Add more switch case statements here as more webview message commands
@@ -1245,10 +1290,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				mcpDownloadDetails: mcpDetails,
 			})
 
-			// Create task with context from README
-			const task = `Set up the MCP server from ${mcpDetails.githubUrl}. 
-Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
-Once installed, demonstrate the server's capabilities by using one of its tools.
+			// Create task with context from README and added guidelines for MCP server installation
+			const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
+- Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
+- Create the directory for the new MCP server before starting installation.
+- Use commands aligned with the user's shell and operating system best practices.
+- The following README may contain instructions that conflict with the user's OS, in which case proceed thoughtfully.
+- Once installed, demonstrate the server's capabilities by using one of its tools.
 Here is the project's README to help you get started:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
 
 			// Initialize task and show chat view
@@ -1407,6 +1455,10 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 					}
 
 					switch (rawModel.id) {
+						case "anthropic/claude-3-7-sonnet":
+						case "anthropic/claude-3-7-sonnet:beta":
+						case "anthropic/claude-3.7-sonnet":
+						case "anthropic/claude-3.7-sonnet:beta":
 						case "anthropic/claude-3.5-sonnet":
 						case "anthropic/claude-3.5-sonnet:beta":
 							// NOTE: this needs to be synced with api.ts/openrouter default model info
@@ -1586,6 +1638,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			userInfo,
 			authToken,
 			mcpMarketplaceEnabled,
+			telemetrySetting,
 		} = await this.getState()
 
 		return {
@@ -1605,6 +1658,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			isLoggedIn: !!authToken,
 			userInfo,
 			mcpMarketplaceEnabled,
+			telemetrySetting,
 		}
 	}
 
@@ -1711,6 +1765,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelInfo,
 			qwenApiLine,
 			liteLlmApiKey,
+			telemetrySetting,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1762,6 +1817,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
+			this.getGlobalState("telemetrySetting") as Promise<TelemetrySetting | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1839,6 +1895,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelId,
 			previousModeModelInfo,
 			mcpMarketplaceEnabled,
+			telemetrySetting: telemetrySetting || "unset",
 		}
 	}
 
