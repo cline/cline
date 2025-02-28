@@ -42,6 +42,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		isLoggedIn: false,
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
+		vscMachineId: "",
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
