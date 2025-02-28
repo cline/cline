@@ -118,9 +118,9 @@ export class AwsBedrockHandler implements ApiHandler {
 		})
 	}
 
-	private async getModelId(): Promise<string> {
+	async getModelId(): Promise<string> {
 		if (this.options.awsUseCrossRegionInference) {
-			let regionPrefix = (this.options.awsRegion || "").slice(0, 3)
+			let regionPrefix = this.options.awsRegion ? this.options.awsRegion.slice(0, 3) : "us-"
 			switch (regionPrefix) {
 				case "us-":
 					return `us.${this.getModel().id}`
@@ -131,7 +131,6 @@ export class AwsBedrockHandler implements ApiHandler {
 				default:
 					// cross region inference is not supported in this region, falling back to default model
 					return this.getModel().id
-					break
 			}
 		}
 		return this.getModel().id
