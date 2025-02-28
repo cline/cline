@@ -96,7 +96,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// When the task is completed, the top instance is removed, reactivating the previous task.
 	async addClineToStack(cline: Cline) {
 		try {
-			if (!cline || !(cline instanceof Cline)) {
+			if (!cline) {
 				throw new Error("Error invalid Cline instance provided.")
 			}
 
