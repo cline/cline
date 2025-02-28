@@ -70,6 +70,15 @@ Interestingly, some environments like Cursor enable these APIs even without the 
 This approach allows us to leverage advanced features when available while ensuring broad compatibility.
 */
 declare module "vscode" {
+	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
+	// interface Terminal {
+	// 	shellIntegration?: {
+	// 		cwd?: vscode.Uri
+	// 		executeCommand?: (command: string) => {
+	// 			read: () => AsyncIterable<string>
+	// 		}
+	// 	}
+	// }
 	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L10794
 	interface Window {
 		onDidStartTerminalShellExecution?: (
@@ -77,17 +86,19 @@ declare module "vscode" {
 			thisArgs?: any,
 			disposables?: vscode.Disposable[],
 		) => vscode.Disposable
+		onDidEndTerminalShellExecution?: (
+			listener: (e: { terminal: vscode.Terminal; exitCode?: number; shellType?: string }) => any,
+			thisArgs?: any,
+			disposables?: vscode.Disposable[],
+		) => vscode.Disposable
 	}
 }
 
-// Extend the Terminal type to include our custom properties
-type ExtendedTerminal = vscode.Terminal & {
-	shellIntegration?: {
-		cwd?: vscode.Uri
-		executeCommand?: (command: string) => {
-			read: () => AsyncIterable<string>
-		}
-	}
+export interface ExitCodeDetails {
+	exitCode: number | undefined
+	signal?: number | undefined
+	signalName?: string
+	coreDumpPossible?: boolean
 }
 
 export class TerminalManager {
@@ -95,18 +106,156 @@ export class TerminalManager {
 	private processes: Map<number, TerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
 
+	private interpretExitCode(exitCode: number | undefined): ExitCodeDetails {
+		if (exitCode === undefined) {
+			return { exitCode }
+		}
+
+		if (exitCode <= 128) {
+			return { exitCode }
+		}
+
+		const signal = exitCode - 128
+		const signals: Record<number, string> = {
+			// Standard signals
+			1: "SIGHUP",
+			2: "SIGINT",
+			3: "SIGQUIT",
+			4: "SIGILL",
+			5: "SIGTRAP",
+			6: "SIGABRT",
+			7: "SIGBUS",
+			8: "SIGFPE",
+			9: "SIGKILL",
+			10: "SIGUSR1",
+			11: "SIGSEGV",
+			12: "SIGUSR2",
+			13: "SIGPIPE",
+			14: "SIGALRM",
+			15: "SIGTERM",
+			16: "SIGSTKFLT",
+			17: "SIGCHLD",
+			18: "SIGCONT",
+			19: "SIGSTOP",
+			20: "SIGTSTP",
+			21: "SIGTTIN",
+			22: "SIGTTOU",
+			23: "SIGURG",
+			24: "SIGXCPU",
+			25: "SIGXFSZ",
+			26: "SIGVTALRM",
+			27: "SIGPROF",
+			28: "SIGWINCH",
+			29: "SIGIO",
+			30: "SIGPWR",
+			31: "SIGSYS",
+
+			// Real-time signals base
+			34: "SIGRTMIN",
+
+			// SIGRTMIN+n signals
+			35: "SIGRTMIN+1",
+			36: "SIGRTMIN+2",
+			37: "SIGRTMIN+3",
+			38: "SIGRTMIN+4",
+			39: "SIGRTMIN+5",
+			40: "SIGRTMIN+6",
+			41: "SIGRTMIN+7",
+			42: "SIGRTMIN+8",
+			43: "SIGRTMIN+9",
+			44: "SIGRTMIN+10",
+			45: "SIGRTMIN+11",
+			46: "SIGRTMIN+12",
+			47: "SIGRTMIN+13",
+			48: "SIGRTMIN+14",
+			49: "SIGRTMIN+15",
+
+			// SIGRTMAX-n signals
+			50: "SIGRTMAX-14",
+			51: "SIGRTMAX-13",
+			52: "SIGRTMAX-12",
+			53: "SIGRTMAX-11",
+			54: "SIGRTMAX-10",
+			55: "SIGRTMAX-9",
+			56: "SIGRTMAX-8",
+			57: "SIGRTMAX-7",
+			58: "SIGRTMAX-6",
+			59: "SIGRTMAX-5",
+			60: "SIGRTMAX-4",
+			61: "SIGRTMAX-3",
+			62: "SIGRTMAX-2",
+			63: "SIGRTMAX-1",
+			64: "SIGRTMAX",
+		}
+
+		// These signals may produce core dumps:
+		//   SIGQUIT, SIGILL, SIGABRT, SIGBUS, SIGFPE, SIGSEGV
+		const coreDumpPossible = new Set([3, 4, 6, 7, 8, 11])
+
+		return {
+			exitCode,
+			signal,
+			signalName: signals[signal] || `Unknown Signal (${signal})`,
+			coreDumpPossible: coreDumpPossible.has(signal),
+		}
+	}
+
 	constructor() {
-		let disposable: vscode.Disposable | undefined
+		let startDisposable: vscode.Disposable | undefined
+		let endDisposable: vscode.Disposable | undefined
 		try {
-			disposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
-				// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
-				e?.execution?.read()
+			// onDidStartTerminalShellExecution
+			startDisposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
+				// Get a handle to the stream as early as possible:
+				const stream = e?.execution.read()
+				const terminalInfo = TerminalRegistry.getTerminalInfoByTerminal(e.terminal)
+				if (stream && terminalInfo) {
+					const process = this.processes.get(terminalInfo.id)
+					if (process) {
+						terminalInfo.stream = stream
+						terminalInfo.running = true
+						terminalInfo.streamClosed = false
+						process.emit("stream_available", terminalInfo.id, stream)
+					}
+				} else {
+					console.error("[TerminalManager] Stream failed, not registered for terminal")
+				}
+
+				console.info("[TerminalManager] Shell execution started:", {
+					hasExecution: !!e?.execution,
+					command: e?.execution?.commandLine?.value,
+					terminalId: terminalInfo?.id,
+				})
+			})
+
+			// onDidEndTerminalShellExecution
+			endDisposable = (vscode.window as vscode.Window).onDidEndTerminalShellExecution?.(async (e) => {
+				const exitDetails = this.interpretExitCode(e?.exitCode)
+				console.info("[TerminalManager] Shell execution ended:", {
+					...exitDetails,
+				})
+
+				// Signal completion to any waiting processes
+				for (const id of this.terminalIds) {
+					const info = TerminalRegistry.getTerminal(id)
+					if (info && info.terminal === e.terminal) {
+						info.running = false
+						const process = this.processes.get(id)
+						if (process) {
+							process.emit("shell_execution_complete", id, exitDetails)
+						}
+						break
+					}
+				}
 			})
 		} catch (error) {
-			// console.error("Error setting up onDidEndTerminalShellExecution", error)
+			console.error("[TerminalManager] Error setting up shell execution handlers:", error)
 		}
-		if (disposable) {
-			this.disposables.push(disposable)
+		if (startDisposable) {
+			this.disposables.push(startDisposable)
+		}
+		if (endDisposable) {
+			this.disposables.push(endDisposable)
 		}
 	}
 
@@ -140,19 +289,16 @@ export class TerminalManager {
 		})
 
 		// if shell integration is already active, run the command immediately
-		const terminal = terminalInfo.terminal as ExtendedTerminal
-		if (terminal.shellIntegration) {
+		if (terminalInfo.terminal.shellIntegration) {
 			process.waitForShellIntegration = false
-			process.run(terminal, command)
+			process.run(terminalInfo.terminal, command)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
-			pWaitFor(() => (terminalInfo.terminal as ExtendedTerminal).shellIntegration !== undefined, {
-				timeout: 4000,
-			}).finally(() => {
+			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 }).finally(() => {
 				const existingProcess = this.processes.get(terminalInfo.id)
 				if (existingProcess && existingProcess.waitForShellIntegration) {
 					existingProcess.waitForShellIntegration = false
-					existingProcess.run(terminal, command)
+					existingProcess.run(terminalInfo.terminal, command)
 				}
 			})
 		}
@@ -168,8 +314,7 @@ export class TerminalManager {
 			if (t.busy) {
 				return false
 			}
-			const terminal = t.terminal as ExtendedTerminal
-			const terminalCwd = terminal.shellIntegration?.cwd // one of cline's commands could have changed the cwd of the terminal
+			const terminalCwd = t.terminal.shellIntegration?.cwd // one of cline's commands could have changed the cwd of the terminal
 			if (!terminalCwd) {
 				return false
 			}
