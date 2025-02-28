@@ -32,7 +32,25 @@ If you're planning to work on a bigger feature, please create a [feature request
     - Before submitting PR, run `npm run format:fix` to format your code
 
 3. **Linux-specific Setup**
-    If you're developing on Linux, you'll need to install additional system libraries required for running VSCode extension tests:
+    VS Code extension tests on Linux require the following system libraries:
+
+    - `libatk1.0-0`
+    - `libatk-bridge2.0-0`
+    - `libxkbfile1`
+    - `libx11-xcb1`
+    - `libxcomposite1`
+    - `libxdamage1`
+    - `libxfixes3`
+    - `libxrandr2`
+    - `libgbm1`
+    - `libdrm2`
+    - `libgtk-3-0`
+    - `dbus`
+    - `xvfb`
+
+    These libraries provide necessary GUI components and system services for the test environment.
+
+    For example, on Debian-based distributions (e.g., Ubuntu), you can install these libraries using apt:
     ```bash
     sudo apt update
     sudo apt install -y \
@@ -40,9 +58,8 @@ If you're planning to work on a bigger feature, please create a [feature request
       libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
       libdrm2 libgtk-3-0 dbus xvfb
     ```
-    These libraries provide necessary GUI components and system services for the test environment.
 
-    - Run `npm run test:dev` to run tests locally
+    - Run `npm run test:ci` to run tests locally
 
 ## Writing and Submitting Code
 
