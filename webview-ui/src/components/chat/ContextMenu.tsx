@@ -187,10 +187,12 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							display: "flex",
 							alignItems: "center",
 							justifyContent: "space-between",
-							backgroundColor:
-								index === selectedIndex && isOptionSelectable(option)
-									? "var(--vscode-list-activeSelectionBackground)"
-									: "",
+							...(index === selectedIndex && isOptionSelectable(option)
+								? {
+										backgroundColor: "var(--vscode-list-activeSelectionBackground)",
+										color: "var(--vscode-list-activeSelectionForeground)",
+									}
+								: {}),
 						}}
 						onMouseEnter={() => isOptionSelectable(option) && setSelectedIndex(index)}>
 						<div
