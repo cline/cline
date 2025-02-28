@@ -1,37 +1,40 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
-import fs from "fs/promises"
-import os from "os"
 import crypto from "crypto"
 import { execa } from "execa"
+import fs from "fs/promises"
+import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import { buildApiHandler } from "../../api"
+import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
+import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-preview"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { McpHub } from "../../services/mcp/McpHub"
-import { McpDownloadResponse, McpMarketplaceCatalog, McpMarketplaceItem, McpServer } from "../../shared/mcp"
 import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
+import { McpHub } from "../../services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
+import { ChatContent } from "../../shared/ChatContent"
+import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
+import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
+import { searchCommits } from "../../utils/git"
 import { Cline } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
-import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
-import { DIFF_VIEW_URI_SCHEME } from "../../integrations/editor/DiffViewProvider"
-import { searchCommits } from "../../utils/git"
-import { ChatContent } from "../../shared/ChatContent"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
+import { TelemetrySetting } from "../../shared/TelemetrySetting"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -94,6 +97,7 @@ type GlobalStateKey =
 	| "requestyModelInfo"
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
+	| "telemetrySetting"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -177,11 +181,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
 	}
 
-	resolveWebviewView(
-		webviewView: vscode.WebviewView | vscode.WebviewPanel,
-		//context: vscode.WebviewViewResolveContext<unknown>, used to recreate a deallocated webview, but we don't need this since we use retainContextWhenHidden
-		//token: vscode.CancellationToken
-	): void | Thenable<void> {
+	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
 		this.outputChannel.appendLine("Resolving webview view")
 		this.view = webviewView
 
@@ -190,7 +190,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			enableScripts: true,
 			localResourceRoots: [this.context.extensionUri],
 		}
-		webviewView.webview.html = this.getHtmlContent(webviewView.webview)
+
+		webviewView.webview.html =
+			this.context.extensionMode === vscode.ExtensionMode.Development
+				? await this.getHMRHtmlContent(webviewView.webview)
+				: this.getHtmlContent(webviewView.webview)
 
 		// Sets up an event listener to listen for messages passed from the webview view context
 		// and executes code based on the message that is received
@@ -281,6 +285,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			task,
 			images,
 		)
+
+		// New task started
+		if (telemetryService.isTelemetryEnabled()) {
+			telemetryService.capture({
+				event: "New task started",
+				properties: {
+					apiProvider: apiConfiguration.apiProvider,
+				},
+			})
+		}
 	}
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
@@ -298,6 +312,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			undefined,
 			historyItem,
 		)
+
+		// Open task from history
+		if (telemetryService.isTelemetryEnabled()) {
+			telemetryService.capture({
+				event: "Open task from history",
+				properties: {
+					apiProvider: apiConfiguration.apiProvider,
+				},
+			})
+		}
 	}
 
 	// Send any JSON serializable data to the react app
@@ -321,9 +345,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// then convert it to a uri we can use in the webview.
 
 		// The CSS file from the React build output
-		const stylesUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "static", "css", "main.css"])
+		const stylesUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "assets", "index.css"])
 		// The JS file from the React build output
-		const scriptUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "static", "js", "main.js"])
+		const scriptUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "assets", "index.js"])
 
 		// The codicon font from the React build output
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-codicons-sample/src/extension.ts
@@ -366,18 +390,92 @@ export class ClineProvider implements vscode.WebviewViewProvider {
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
             <meta name="theme-color" content="#000000">
-            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}';">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
-			<link href="${codiconsUri}" rel="stylesheet" />
+            <link href="${codiconsUri}" rel="stylesheet" />
+						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://*.posthog.com; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' https://*.posthog.com;">
             <title>Cline</title>
           </head>
           <body>
             <noscript>You need to enable JavaScript to run this app.</noscript>
             <div id="root"></div>
-            <script nonce="${nonce}" src="${scriptUri}"></script>
+            <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
           </body>
         </html>
       `
+	}
+
+	/**
+	 * Connects to the local Vite dev server to allow HMR, with fallback to the bundled assets
+	 *
+	 * @param webview A reference to the extension webview
+	 * @returns A template string literal containing the HTML that should be
+	 * rendered within the webview panel
+	 */
+	private async getHMRHtmlContent(webview: vscode.Webview): Promise<string> {
+		const localPort = 25463
+		const localServerUrl = `localhost:${localPort}`
+
+		// Check if local dev server is running.
+		try {
+			await axios.get(`http://${localServerUrl}`)
+		} catch (error) {
+			vscode.window.showErrorMessage(
+				"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
+			)
+
+			return this.getHtmlContent(webview)
+		}
+
+		const nonce = getNonce()
+		const stylesUri = getUri(webview, this.context.extensionUri, ["webview-ui", "build", "assets", "index.css"])
+		const codiconsUri = getUri(webview, this.context.extensionUri, [
+			"node_modules",
+			"@vscode",
+			"codicons",
+			"dist",
+			"codicon.css",
+		])
+
+		const scriptEntrypoint = "src/main.tsx"
+		const scriptUri = `http://${localServerUrl}/${scriptEntrypoint}`
+
+		const reactRefresh = /*html*/ `
+			<script nonce="${nonce}" type="module">
+				import RefreshRuntime from "http://${localServerUrl}/@react-refresh"
+				RefreshRuntime.injectIntoGlobalHook(window)
+				window.$RefreshReg$ = () => {}
+				window.$RefreshSig$ = () => (type) => type
+				window.__vite_plugin_react_preamble_installed__ = true
+			</script>
+		`
+
+		const csp = [
+			"default-src 'none'",
+			`font-src ${webview.cspSource}`,
+			`style-src ${webview.cspSource} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
+			`img-src ${webview.cspSource} https: data:`,
+			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
+			`connect-src https://* ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
+		]
+
+		return /*html*/ `
+			<!DOCTYPE html>
+			<html lang="en">
+				<head>
+					<meta charset="utf-8">
+					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
+					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
+					<link rel="stylesheet" type="text/css" href="${stylesUri}">
+					<link href="${codiconsUri}" rel="stylesheet" />
+					<title>Roo Code</title>
+				</head>
+				<body>
+					<div id="root"></div>
+					${reactRefresh}
+					<script type="module" src="${scriptUri}"></script>
+				</body>
+			</html>
+		`
 	}
 
 	/**
@@ -435,6 +533,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								}
 							}
 						})
+
+						// If user already opted in to telemetry, enable telemetry service
+						this.getStateToPostToWebview().then((state) => {
+							const { telemetrySetting } = state
+							const isOptedIn = telemetrySetting === "enabled"
+							telemetryService.updateTelemetryState(isOptedIn)
+						})
+
+            
 						// post last cached models in case the call to endpoint fails
 						this.readDynamicProviderModels(GlobalFileNames.requestyModels).then((requestyModels) => {
 							if (requestyModels) {
@@ -444,6 +551,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								})
 							}
 						})
+            
 						// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
 						// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
 						// (see normalizeApiConfiguration > openrouter)
@@ -460,6 +568,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								}
 							}
 						})
+            
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
@@ -665,6 +774,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "openImage":
 						openImage(message.text!)
 						break
+					case "openInBrowser":
+						if (message.url) {
+							vscode.env.openExternal(vscode.Uri.parse(message.url))
+						}
+						break
+					case "fetchOpenGraphData":
+						this.fetchOpenGraphData(message.text!)
+						break
+					case "checkIsImageUrl":
+						this.checkIsImageUrl(message.text!)
+						break
 					case "openFile":
 						openFile(message.text!)
 						break
@@ -857,6 +977,22 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							"workbench.action.openSettings",
 							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
 						)
+						break
+					}
+					// telemetry
+					case "openSettings": {
+						await this.postMessageToWebview({
+							type: "action",
+							action: "settingsButtonClicked",
+						})
+						break
+					}
+					case "telemetrySetting": {
+						const telemetrySetting = message.text as TelemetrySetting
+						await this.updateGlobalState("telemetrySetting", telemetrySetting)
+						const isOptedIn = telemetrySetting === "enabled"
+						telemetryService.updateTelemetryState(isOptedIn)
+						await this.postStateToWebview()
 						break
 					}
 					// Add more switch case statements here as more webview message commands
@@ -1284,10 +1420,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				mcpDownloadDetails: mcpDetails,
 			})
 
-			// Create task with context from README
-			const task = `Set up the MCP server from ${mcpDetails.githubUrl}.
-Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
-Once installed, demonstrate the server's capabilities by using one of its tools.
+			// Create task with context from README and added guidelines for MCP server installation
+			const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
+- Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
+- Create the directory for the new MCP server before starting installation.
+- Use commands aligned with the user's shell and operating system best practices.
+- The following README may contain instructions that conflict with the user's OS, in which case proceed thoughtfully.
+- Once installed, demonstrate the server's capabilities by using one of its tools.
 Here is the project's README to help you get started:\n\n${mcpDetails.readmeContent}\n${mcpDetails.llmsInstallationContent}`
 
 			// Initialize task and show chat view
@@ -1485,6 +1624,10 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 					}
 
 					switch (rawModel.id) {
+						case "anthropic/claude-3-7-sonnet":
+						case "anthropic/claude-3-7-sonnet:beta":
+						case "anthropic/claude-3.7-sonnet":
+						case "anthropic/claude-3.7-sonnet:beta":
 						case "anthropic/claude-3.5-sonnet":
 						case "anthropic/claude-3.5-sonnet:beta":
 							// NOTE: this needs to be synced with api.ts/openrouter default model info
@@ -1601,11 +1744,28 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	}
 
 	async deleteTaskWithId(id: string) {
+		console.info("deleteTaskWithId: ", id)
+
 		if (id === this.cline?.taskId) {
 			await this.clearTask()
+			console.debug("cleared task")
 		}
 
 		const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
+
+		// Delete checkpoints
+		// deleteCheckpoints will determine if the task has legacy checkpoints or not and handle it accordingly
+		console.info("deleting checkpoints")
+		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+		const historyItem = taskHistory.find((item) => item.id === id)
+		//console.log("historyItem: ", historyItem)
+		if (historyItem) {
+			try {
+				await CheckpointTracker.deleteCheckpoints(id, historyItem, this.context.globalStorageUri.fsPath)
+			} catch (error) {
+				console.error(`Failed to delete checkpoints for task ${id}:`, error)
+			}
+		}
 
 		await this.deleteTaskFromState(id)
 
@@ -1623,21 +1783,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			await fs.unlink(legacyMessagesFilePath)
 		}
 
-		// Delete the checkpoints directory if it exists
-		const checkpointsDir = path.join(taskDirPath, "checkpoints")
-		if (await fileExistsAtPath(checkpointsDir)) {
-			try {
-				await fs.rm(checkpointsDir, { recursive: true, force: true })
-			} catch (error) {
-				console.error(`Failed to delete checkpoints directory for task ${id}:`, error)
-				// Continue with deletion of task directory - don't throw since this is a cleanup operation
-			}
-		}
-
 		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
 	}
 
 	async deleteTaskFromState(id: string) {
+		console.log("deleteTaskFromState: ", id)
+
 		// Remove the task from history
 		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
@@ -1664,6 +1815,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			userInfo,
 			authToken,
 			mcpMarketplaceEnabled,
+			telemetrySetting,
 		} = await this.getState()
 
 		return {
@@ -1683,6 +1835,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			isLoggedIn: !!authToken,
 			userInfo,
 			mcpMarketplaceEnabled,
+			telemetrySetting,
+			vscMachineId: vscode.env.machineId,
 		}
 	}
 
@@ -1705,7 +1859,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	/*
 	It seems that some API messages do not comply with vscode state requirements. Either the Anthropic library is manipulating these values somehow in the backend in a way thats creating cyclic references, or the API returns a function or a Symbol as part of the message content.
-	VSCode docs about state: "The value must be JSON-stringifyable ... value — A value. MUST not contain cyclic references."
+	VSCode docs about state: "The value must be JSON-stringifyable ... value  A value. MUST not contain cyclic references."
 	For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
 	*/
 
@@ -1790,6 +1944,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelInfo,
 			qwenApiLine,
 			liteLlmApiKey,
+			telemetrySetting,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1842,6 +1997,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
+			this.getGlobalState("telemetrySetting") as Promise<TelemetrySetting | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1920,6 +2076,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelId,
 			previousModeModelInfo,
 			mcpMarketplaceEnabled,
+			telemetrySetting: telemetrySetting || "unset",
 		}
 	}
 
@@ -1977,6 +2134,53 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async getSecret(key: SecretKey) {
 		return await this.context.secrets.get(key)
+	}
+
+	// Open Graph Data
+
+	async fetchOpenGraphData(url: string) {
+		try {
+			// Use the fetchOpenGraphData function from link-preview.ts
+			const ogData = await fetchOpenGraphData(url)
+
+			// Send the data back to the webview
+			await this.postMessageToWebview({
+				type: "openGraphData",
+				openGraphData: ogData,
+				url: url,
+			})
+		} catch (error) {
+			console.error(`Error fetching Open Graph data for ${url}:`, error)
+			// Send an error response
+			await this.postMessageToWebview({
+				type: "openGraphData",
+				error: `Failed to fetch Open Graph data: ${error}`,
+				url: url,
+			})
+		}
+	}
+
+	// Check if a URL is an image
+	async checkIsImageUrl(url: string) {
+		try {
+			// Check if the URL is an image
+			const isImage = await isImageUrl(url)
+
+			// Send the result back to the webview
+			await this.postMessageToWebview({
+				type: "isImageUrlResult",
+				isImage,
+				url,
+			})
+		} catch (error) {
+			console.error(`Error checking if URL is an image: ${url}`, error)
+			// Send an error response
+			await this.postMessageToWebview({
+				type: "isImageUrlResult",
+				isImage: false,
+				url,
+			})
+		}
 	}
 
 	// dev

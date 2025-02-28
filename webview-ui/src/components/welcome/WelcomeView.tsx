@@ -1,11 +1,11 @@
-import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState, useCallback } from "react"
+import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { useCallback, useEffect, useState } from "react"
+import { useEvent } from "react-use"
+import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "../settings/ApiOptions"
-import { useEvent } from "react-use"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 
 const WelcomeView = () => {
 	const { apiConfiguration } = useExtensionState()
@@ -58,18 +58,13 @@ const WelcomeView = () => {
 				}}>
 				<h2>Hi, I'm Cline</h2>
 				<p>
-					I can do all kinds of tasks thanks to the latest breakthroughs in{" "}
-					<VSCodeLink
-						href="https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf"
-						style={{ display: "inline" }}>
-						Claude 3.5 Sonnet's agentic coding capabilities
-					</VSCodeLink>{" "}
-					and access to tools that let me create & edit files, explore complex projects, use the browser, and execute
+					I can do all kinds of tasks thanks to breakthroughs in Claude 3.7 Sonnet's agentic coding capabilities and
+					access to tools that let me create & edit files, explore complex projects, use the browser, and execute
 					terminal commands (with your permission, of course). I can even use MCP to create new tools and extend my own
 					capabilities.
 				</p>
 
-				<b>To get started, this extension needs an API provider for Claude 3.5 Sonnet.</b>
+				<b>To get started, this extension needs an API provider for Claude 3.7 Sonnet.</b>
 
 				<div
 					style={{

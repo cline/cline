@@ -20,10 +20,11 @@ export class AnthropicHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
-		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
+		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent>
 		const modelId = model.id
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
+			case "claude-3-7-sonnet-20250219":
 			case "claude-3-5-sonnet-20241022":
 			case "claude-3-5-haiku-20241022":
 			case "claude-3-opus-20240229":
@@ -37,7 +38,7 @@ export class AnthropicHandler implements ApiHandler {
 				)
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-				stream = await this.client.beta.promptCaching.messages.create(
+				stream = await this.client.messages.create(
 					{
 						model: modelId,
 						max_tokens: model.info.maxTokens || 8192,
@@ -88,6 +89,7 @@ export class AnthropicHandler implements ApiHandler {
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
 						switch (modelId) {
+							case "claude-3-7-sonnet-20250219":
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":
 							case "claude-3-opus-20240229":
