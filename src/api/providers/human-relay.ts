@@ -5,7 +5,7 @@ import { ApiHandler, SingleCompletionHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 import * as vscode from "vscode"
 import { ExtensionMessage } from "../../shared/ExtensionMessage"
-import { getPanel } from "../../activate/registerCommands" // 导入 getPanel 函数
+import { getPanel } from "../../activate/registerCommands" // Import the getPanel function
 
 /**
  * Human Relay API processor
@@ -115,10 +115,10 @@ function getMessageContent(message: Anthropic.Messages.MessageParam): string {
  */
 async function showHumanRelayDialog(promptText: string): Promise<string | undefined> {
 	return new Promise<string | undefined>((resolve) => {
-		// 创建一个唯一的请求 ID
+		// Create a unique request ID
 		const requestId = Date.now().toString()
 
-		// 注册全局回调函数
+		// Register a global callback function
 		vscode.commands.executeCommand(
 			"roo-code.registerHumanRelayCallback",
 			requestId,
@@ -127,27 +127,27 @@ async function showHumanRelayDialog(promptText: string): Promise<string | undefi
 			},
 		)
 
-		// 检查 panel 是否已经初始化
+		// Check if the panel has been initialized
 		if (!getPanel()) {
-			// 如果 panel 不存在，首先打开一个新面板
+			// If the panel does not exist, first open a new panel
 			vscode.commands.executeCommand("roo-cline.openInNewTab").then(() => {
-				// 等待面板创建完成后再显示人工中继对话框
+				// Wait for the panel to be created before showing the human relay dialog
 				setTimeout(() => {
 					vscode.commands.executeCommand("roo-code.showHumanRelayDialog", {
 						requestId,
 						promptText,
 					})
-				}, 500) // 给面板创建留出一点时间
+				}, 500) // Allow some time for the panel to be created
 			})
 		} else {
-			// 如果 panel 已存在，直接显示对话框
+			// If the panel already exists, directly show the dialog
 			vscode.commands.executeCommand("roo-code.showHumanRelayDialog", {
 				requestId,
 				promptText,
 			})
 		}
 
-		// 提供临时 UI，以防 WebView 加载失败
+		// Provide a temporary UI in case the WebView fails to load
 		vscode.window
 			.showInformationMessage(
 				"Please paste the copied message to the AI, then copy the response back into the dialog",
@@ -159,7 +159,7 @@ async function showHumanRelayDialog(promptText: string): Promise<string | undefi
 			)
 			.then((selection) => {
 				if (selection === "Use Input Box") {
-					// 注销回调
+					// Unregister the callback
 					vscode.commands.executeCommand("roo-code.unregisterHumanRelayCallback", requestId)
 
 					vscode.window
