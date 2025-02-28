@@ -32,4 +32,4 @@ A "How To Test" section can look something like this:
 
 ## Get in Touch
 
-<!-- We'd love to have a way to chat with you about your changes if necessary. If you're in the Roo Code discord, please share your handle here. -->
+<!-- We'd love to have a way to chat with you about your changes if necessary. If you're in the [Roo Code Discord](https://discord.gg/roocode), please share your handle here. -->
