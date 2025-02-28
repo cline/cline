@@ -15,6 +15,7 @@ export type ApiProvider =
 	| "mistral"
 	| "vscode-lm"
 	| "litellm"
+	| "xai"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -57,6 +58,7 @@ export interface ApiHandlerOptions {
 	vsCodeLmModelSelector?: any
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
+	xaiApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -816,3 +818,83 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	cacheReadsPrice: 0.3,
 	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
 }
+
+// X AI
+// https://docs.x.ai/docs/api-reference
+export type XAIModelId = keyof typeof xaiModels
+export const xaiDefaultModelId: XAIModelId = "grok-2-latest"
+export const xaiModels = {
+	"grok-2-latest": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "X AI's Grok-2 model - latest version with 131K context window",
+	},
+	"grok-2": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "X AI's Grok-2 model with 131K context window",
+	},
+	"grok-2-1212": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "X AI's Grok-2 model (version 1212) with 131K context window",
+	},
+	"grok-2-vision-latest": {
+		maxTokens: 8192,
+		contextWindow: 32768,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "X AI's Grok-2 Vision model - latest version with image support and 32K context window",
+	},
+	"grok-2-vision": {
+		maxTokens: 8192,
+		contextWindow: 32768,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "X AI's Grok-2 Vision model with image support and 32K context window",
+	},
+	"grok-2-vision-1212": {
+		maxTokens: 8192,
+		contextWindow: 32768,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 10.0,
+		description: "X AI's Grok-2 Vision model (version 1212) with image support and 32K context window",
+	},
+	"grok-vision-beta": {
+		maxTokens: 8192,
+		contextWindow: 8192,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 15.0,
+		description: "X AI's Grok Vision Beta model with image support and 8K context window",
+	},
+	"grok-beta": {
+		maxTokens: 8192,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 15.0,
+		description: "X AI's Grok Beta model (legacy) with 131K context window",
+	},
+} as const satisfies Record<string, ModelInfo>
+
