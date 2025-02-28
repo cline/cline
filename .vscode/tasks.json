@@ -5,7 +5,7 @@
 	"tasks": [
 		{
 			"label": "watch",
-			"dependsOn": ["npm: build:webview", "npm: watch:tsc", "npm: watch:esbuild"],
+			"dependsOn": ["npm: build:webview", "npm: dev:webview", "npm: watch:tsc", "npm: watch:esbuild"],
 			"presentation": {
 				"reveal": "never"
 			},
@@ -23,7 +23,47 @@
 			"label": "npm: build:webview",
 			"presentation": {
 				"group": "watch",
-				"reveal": "never"
+				"reveal": "never",
+				"close": true
+			},
+			"options": {
+				"env": {
+					"IS_DEV": "true"
+				}
+			}
+		},
+		{
+			"type": "npm",
+			"script": "dev:webview",
+			"group": "build",
+			"problemMatcher": [
+				{
+					"pattern": [
+						{
+							"regexp": ".",
+							"file": 1,
+							"location": 2,
+							"message": 3
+						}
+					],
+					"background": {
+						"activeOnStart": true,
+						"beginsPattern": ".",
+						"endsPattern": "."
+					}
+				}
+			],
+			"isBackground": true,
+			"label": "npm: dev:webview",
+			"presentation": {
+				"group": "watch",
+				"reveal": "never",
+				"close": true
+			},
+			"options": {
+				"env": {
+					"IS_DEV": "true"
+				}
 			}
 		},
 		{
@@ -35,7 +75,8 @@
 			"label": "npm: watch:esbuild",
 			"presentation": {
 				"group": "watch",
-				"reveal": "never"
+				"reveal": "never",
+				"close": true
 			}
 		},
 		{
@@ -47,7 +88,8 @@
 			"label": "npm: watch:tsc",
 			"presentation": {
 				"group": "watch",
-				"reveal": "never"
+				"reveal": "never",
+				"close": true
 			}
 		},
 		{
@@ -65,6 +107,19 @@
 			"label": "tasks: watch-tests",
 			"dependsOn": ["npm: watch", "npm: watch-tests"],
 			"problemMatcher": []
+		},
+		{
+			"label": "stop",
+			"command": "echo ${input:terminate}",
+			"type": "shell"
+		}
+	],
+	"inputs": [
+		{
+			"id": "terminate",
+			"type": "command",
+			"command": "workbench.action.tasks.terminate",
+			"args": "terminateAll"
 		}
 	]
 }

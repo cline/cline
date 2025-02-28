@@ -759,9 +759,8 @@ IMPORTANT: Regardless of what else you see in the MCP settings file, you must de
       "args": ["/path/to/weather-server/build/index.js"],
       "env": {
         "OPENWEATHER_API_KEY": "user-provided-api-key"
-      },
-      "timeout": 60, // 60 seconds should be set as the default timeout for all MCP servers
-    }
+      }
+    },
   }
 }
 \`\`\`
@@ -980,8 +979,12 @@ export function addUserInstructions(
 	settingsCustomInstructions?: string,
 	clineRulesFileInstructions?: string,
 	clineIgnoreInstructions?: string,
+	preferredLanguageInstructions?: string,
 ) {
 	let customInstructions = ""
+	if (preferredLanguageInstructions) {
+		customInstructions += preferredLanguageInstructions + "\n\n"
+	}
 	if (settingsCustomInstructions) {
 		customInstructions += settingsCustomInstructions + "\n\n"
 	}
