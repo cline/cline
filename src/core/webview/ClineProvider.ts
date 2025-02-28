@@ -57,6 +57,7 @@ type SecretKey =
 	| "liteLlmApiKey"
 	| "authToken"
 	| "authNonce"
+	| "asksageApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -95,6 +96,7 @@ type GlobalStateKey =
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
+	| "asksageApiUrl"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -517,6 +519,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								liteLlmModelId,
 								liteLlmApiKey,
 								qwenApiLine,
+								asksageApiKey,
+								asksageApiUrl,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -557,6 +561,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("qwenApiLine", qwenApiLine)
 							await this.updateGlobalState("requestyModelId", requestyModelId)
 							await this.updateGlobalState("togetherModelId", togetherModelId)
+							await this.storeSecret("asksageApiKey", asksageApiKey)
+							await this.updateGlobalState("asksageApiUrl", asksageApiUrl)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -900,6 +906,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			case "bedrock":
 			case "vertex":
 			case "gemini":
+			case "asksage":
 				await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
 				break
 			case "openrouter":
@@ -932,6 +939,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				case "bedrock":
 				case "vertex":
 				case "gemini":
+				case "asksage":
 					await this.updateGlobalState("apiModelId", newModelId)
 					break
 				case "openrouter":
@@ -1766,6 +1774,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			qwenApiLine,
 			liteLlmApiKey,
 			telemetrySetting,
+			asksageApiKey,
+			asksageApiUrl,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1818,6 +1828,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
 			this.getGlobalState("telemetrySetting") as Promise<TelemetrySetting | undefined>,
+			this.getSecret("asksageApiKey") as Promise<string | undefined>,
+			this.getGlobalState("asksageApiUrl") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1882,6 +1894,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				liteLlmBaseUrl,
 				liteLlmModelId,
 				liteLlmApiKey,
+				asksageApiKey,
+				asksageApiUrl,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -1978,6 +1992,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			"mistralApiKey",
 			"liteLlmApiKey",
 			"authToken",
+			"asksageApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)

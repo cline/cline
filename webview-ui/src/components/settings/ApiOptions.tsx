@@ -33,6 +33,9 @@ import {
 	openRouterDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
+	askSageModels,
+	askSageDefaultModelId,
+	askSageDefaultURL,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -195,8 +198,38 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
+					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
+
+			{selectedProvider === "asksage" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.asksageApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("asksageApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>AskSage API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+					</p>
+					<VSCodeTextField
+						value={apiConfiguration?.asksageApiUrl || askSageDefaultURL}
+						style={{ width: "100%" }}
+						type="url"
+						onInput={handleInputChange("asksageApiUrl")}
+						placeholder="Enter AskSage API URL...">
+						<span style={{ fontWeight: 500 }}>AskSage API URL</span>
+					</VSCodeTextField>
+				</div>
+			)}
 
 			{selectedProvider === "anthropic" && (
 				<div>
@@ -1152,6 +1185,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "qwen" && createDropdown(qwenModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
+							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 						</DropdownContainer>
 
 						<ModelInfoView
@@ -1362,6 +1396,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(qwenModels, qwenDefaultModelId)
 		case "mistral":
 			return getProviderData(mistralModels, mistralDefaultModelId)
+		case "asksage":
+			return getProviderData(askSageModels, askSageDefaultModelId)
 		case "openrouter":
 			return {
 				selectedProvider: provider,
