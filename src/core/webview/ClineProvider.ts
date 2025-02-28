@@ -223,7 +223,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			// remove the last cline instance from the stack (this is the finished sub task)
 			await this.removeClineFromStack()
 			// resume the last cline instance in the stack (if it exists - this is the 'parnt' calling task)
-			this.getCurrentCline()?.resumePausedTask(lastMessage)
+			this.getCurrentCline()?.resumePausedTask(`new_task finished successfully! ${lastMessage}`)
 		} catch (error) {
 			this.log(`Error in finishSubTask: ${error.message}`)
 			throw error
@@ -925,6 +925,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "clearTask":
 						// newTask will start a new task with a given task text, while clear task resets the current session and allows for a new task to be started
 						await this.removeClineFromStack()
+						// resume previouse task with subtask failed error
+						this.getCurrentCline()?.resumePausedTask(
+							`new_task finished with an error!, it was stopped and canceled by the user.`,
+						)
+
 						await this.postStateToWebview()
 						break
 					case "didShowAnnouncement":
@@ -2083,6 +2088,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// remove task from stack if it's the current task
 		if (id === this.getCurrentCline()?.taskId) {
 			await this.removeClineWithIdFromStack(id)
+			// resume previouse task with subtask failed error
+			this.getCurrentCline()?.resumePausedTask(
+				`new_task finished with an error!, it was stopped and delted by the user.`,
+			)
 		}
 
 		// delete task from the task history state
