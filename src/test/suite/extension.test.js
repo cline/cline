@@ -4,6 +4,25 @@ const vscode = require("vscode")
 describe("Extension Tests", function () {
 	this.timeout(60000) // Increased timeout for extension operations
 
+	let originalGetConfiguration
+
+	beforeEach(() => {
+		// Save original configuration
+		originalGetConfiguration = vscode.workspace.getConfiguration
+		// Setup mock configuration
+		const mockUpdate = async () => Promise.resolve()
+		const mockConfig = {
+			get: () => true,
+			update: mockUpdate,
+		}
+		vscode.workspace.getConfiguration = () => mockConfig
+	})
+
+	afterEach(() => {
+		// Restore original configuration
+		vscode.workspace.getConfiguration = originalGetConfiguration
+	})
+
 	it("should activate extension successfully", async () => {
 		// Get the extension
 		const extension = vscode.extensions.getExtension("saoudrizwan.claude-dev")
