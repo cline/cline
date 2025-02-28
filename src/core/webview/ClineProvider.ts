@@ -129,7 +129,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.authManager = new FirebaseAuthManager(this)
 	}
 
-	/* Utility function to build CSP rules bot non-dev and dev environments.
+	/* Utility function to build CSP rules both non-dev and dev environments.
 
 	*/
 	buildCSP(webview: vscode.Webview, nonce: string) {
