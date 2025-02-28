@@ -38,13 +38,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
 	}
 
-	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-	const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
-
-	const handleDeleteHistoryItem = (id: string) => {
-		setTaskToDelete(id)
-		setDeleteDialogOpen(true)
-	}
+	const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
 
 	const formatDate = (timestamp: number) => {
 		const date = new Date(timestamp)
@@ -230,10 +224,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										<Button
 											variant="ghost"
 											size="sm"
-											title="Delete Task"
+											title="Delete Task (Shift + Click to skip confirmation)"
 											onClick={(e) => {
 												e.stopPropagation()
-												handleDeleteHistoryItem(item.id)
+
+												if (e.shiftKey) {
+													vscode.postMessage({ type: "deleteTaskWithId", text: item.id })
+												} else {
+													setDeleteTaskId(item.id)
+												}
 											}}>
 											<span className="codicon codicon-trash" />
 											{item.size && prettyBytes(item.size)}
@@ -403,17 +402,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					)}
 				/>
 			</div>
-			{taskToDelete && (
-				<DeleteTaskDialog
-					taskId={taskToDelete}
-					open={deleteDialogOpen}
-					onOpenChange={(open) => {
-						setDeleteDialogOpen(open)
-						if (!open) {
-							setTaskToDelete(null)
-						}
-					}}
-				/>
+			{deleteTaskId && (
+				<DeleteTaskDialog taskId={deleteTaskId} onOpenChange={(open) => !open && setDeleteTaskId(null)} open />
 			)}
 		</div>
 	)
