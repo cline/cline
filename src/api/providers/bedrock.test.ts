@@ -98,17 +98,6 @@ describe("AwsBedrockHandler", () => {
 			modelId.should.equal(bedrockDefaultModelId)
 		})
 
-		it("should use US prefix when region is undefined with cross-region inference", async () => {
-			const options: ApiHandlerOptions = {
-				awsUseCrossRegionInference: true,
-				apiModelId: bedrockDefaultModelId,
-			}
-
-			const handler = new AwsBedrockHandler(options)
-			const modelId = await handler.getModelId()
-			modelId.should.equal(`us.${bedrockDefaultModelId}`)
-		})
-
 		it("should not add prefix when region is undefined and cross-region inference is disabled", async () => {
 			const options: ApiHandlerOptions = {
 				awsUseCrossRegionInference: false,

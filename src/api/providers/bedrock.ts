@@ -120,7 +120,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	async getModelId(): Promise<string> {
 		if (this.options.awsUseCrossRegionInference) {
-			let regionPrefix = this.options.awsRegion ? this.options.awsRegion.slice(0, 3) : "us-"
+			let regionPrefix = (this.options.awsRegion || "").slice(0, 3)
 			switch (regionPrefix) {
 				case "us-":
 					return `us.${this.getModel().id}`
