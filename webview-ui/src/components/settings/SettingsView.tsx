@@ -18,7 +18,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		customInstructions,
 		setCustomInstructions,
 		openRouterModels,
-    requestyModels,
+		requestyModels,
 		telemetrySetting,
 		setTelemetrySetting,
 	} = useExtensionState()
