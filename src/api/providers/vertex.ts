@@ -5,6 +5,8 @@ import { ApiHandler, SingleCompletionHandler } from "../"
 import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
 import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
+import { VertexAI } from "@google-cloud/vertexai"
+import { convertAnthropicMessageToVertexGemini } from "../transform/vertex-gemini-format"
 
 // Types for Vertex SDK
 
@@ -91,18 +93,36 @@ interface VertexMessageStreamEvent {
 				thinking: string
 		  }
 }
-
 // https://docs.anthropic.com/en/api/claude-on-vertex-ai
 export class VertexHandler implements ApiHandler, SingleCompletionHandler {
+	MODEL_CLAUDE = "claude"
+	MODEL_GEMINI = "gemini"
+
 	private options: ApiHandlerOptions
-	private client: AnthropicVertex
+	private anthropicClient: AnthropicVertex
+	private geminiClient: VertexAI
+	private modelType: string
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
-		this.client = new AnthropicVertex({
+
+		if (this.options.apiModelId?.startsWith(this.MODEL_CLAUDE)) {
+			this.modelType = this.MODEL_CLAUDE
+		} else if (this.options.apiModelId?.startsWith(this.MODEL_GEMINI)) {
+			this.modelType = this.MODEL_GEMINI
+		} else {
+			throw new Error(`Unknown model ID: ${this.options.apiModelId}`)
+		}
+
+		this.anthropicClient = new AnthropicVertex({
 			projectId: this.options.vertexProjectId ?? "not-provided",
 			// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
 			region: this.options.vertexRegion ?? "us-east5",
+		})
+
+		this.geminiClient = new VertexAI({
+			project: this.options.vertexProjectId ?? "not-provided",
+			location: this.options.vertexRegion ?? "us-east5",
 		})
 	}
 
@@ -154,7 +174,42 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	private async *createGeminiMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.geminiClient.getGenerativeModel({
+			model: this.getModel().id,
+			systemInstruction: systemPrompt,
+		})
+
+		const result = await model.generateContentStream({
+			contents: messages.map(convertAnthropicMessageToVertexGemini),
+			generationConfig: {
+				maxOutputTokens: this.getModel().info.maxTokens,
+				temperature: this.options.modelTemperature ?? 0,
+			},
+		})
+
+		for await (const chunk of result.stream) {
+			if (chunk.candidates?.[0]?.content?.parts) {
+				for (const part of chunk.candidates[0].content.parts) {
+					if (part.text) {
+						yield {
+							type: "text",
+							text: part.text,
+						}
+					}
+				}
+			}
+		}
+
+		const response = await result.response
+		yield {
+			type: "usage",
+			inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
+			outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+		}
+	}
+
+	private async *createClaudeMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
 		let { id, info, temperature, maxTokens, thinking } = model
 		const useCache = model.info.supportsPromptCache
@@ -192,7 +247,7 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 			stream: true,
 		}
 
-		const stream = (await this.client.messages.create(
+		const stream = (await this.anthropicClient.messages.create(
 			params as Anthropic.Messages.MessageCreateParamsStreaming,
 		)) as unknown as AnthropicStream<VertexMessageStreamEvent>
 
@@ -272,6 +327,22 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		switch (this.modelType) {
+			case this.MODEL_CLAUDE: {
+				yield* this.createClaudeMessage(systemPrompt, messages)
+				break
+			}
+			case this.MODEL_GEMINI: {
+				yield* this.createGeminiMessage(systemPrompt, messages)
+				break
+			}
+			default: {
+				throw new Error(`Invalid model type: ${this.modelType}`)
+			}
+		}
+	}
+
 	getModel(): {
 		id: VertexModelId
 		info: ModelInfo
@@ -316,7 +387,36 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		return { id, info, temperature, maxTokens, thinking }
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	private async completePromptGemini(prompt: string): Promise<string> {
+		try {
+			const model = this.geminiClient.getGenerativeModel({
+				model: this.getModel().id,
+			})
+
+			const result = await model.generateContent({
+				contents: [{ role: "user", parts: [{ text: prompt }] }],
+				generationConfig: {
+					temperature: this.options.modelTemperature ?? 0,
+				},
+			})
+
+			let text = ""
+			result.response.candidates?.forEach((candidate) => {
+				candidate.content.parts.forEach((part) => {
+					text += part.text
+				})
+			})
+
+			return text
+		} catch (error) {
+			if (error instanceof Error) {
+				throw new Error(`Vertex completion error: ${error.message}`)
+			}
+			throw error
+		}
+	}
+
+	private async completePromptClaude(prompt: string): Promise<string> {
 		try {
 			let { id, info, temperature, maxTokens, thinking } = this.getModel()
 			const useCache = info.supportsPromptCache
@@ -344,7 +444,7 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 				stream: false,
 			}
 
-			const response = (await this.client.messages.create(
+			const response = (await this.anthropicClient.messages.create(
 				params as Anthropic.Messages.MessageCreateParamsNonStreaming,
 			)) as unknown as VertexMessageResponse
 
@@ -358,6 +458,20 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 				throw new Error(`Vertex completion error: ${error.message}`)
 			}
 			throw error
+		}
+	}
+
+	async completePrompt(prompt: string): Promise<string> {
+		switch (this.modelType) {
+			case this.MODEL_CLAUDE: {
+				return this.completePromptClaude(prompt)
+			}
+			case this.MODEL_GEMINI: {
+				return this.completePromptGemini(prompt)
+			}
+			default: {
+				throw new Error(`Invalid model type: ${this.modelType}`)
+			}
 		}
 	}
 }
