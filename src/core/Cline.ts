@@ -22,7 +22,7 @@ import {
 	everyLineHasLineNumbers,
 	truncateOutput,
 } from "../integrations/misc/extract-text"
-import { TerminalManager } from "../integrations/terminal/TerminalManager"
+import { TerminalManager, ExitCodeDetails } from "../integrations/terminal/TerminalManager"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
@@ -834,8 +834,19 @@ export class Cline {
 		})
 
 		let completed = false
-		process.once("completed", () => {
+		let exitDetails: ExitCodeDetails | undefined
+		process.once("completed", (output?: string) => {
+			// Use provided output if available, otherwise keep existing result.
+			if (output) {
+				lines = output.split("\n")
+			}
 			completed = true
+		})
+
+		process.once("shell_execution_complete", (id: number, details: ExitCodeDetails) => {
+			if (id === terminalInfo.id) {
+				exitDetails = details
+			}
 		})
 
 		process.once("no_shell_integration", async () => {
@@ -869,7 +880,18 @@ export class Cline {
 		}
 
 		if (completed) {
-			return [false, `Command executed.${result.length > 0 ? `\nOutput:\n${result}` : ""}`]
+			let exitStatus = "No exit code available"
+			if (exitDetails !== undefined) {
+				if (exitDetails.signal) {
+					exitStatus = `Process terminated by signal ${exitDetails.signal} (${exitDetails.signalName})`
+					if (exitDetails.coreDumpPossible) {
+						exitStatus += " - core dump possible"
+					}
+				} else {
+					exitStatus = `Exit code: ${exitDetails.exitCode}`
+				}
+			}
+			return [false, `Command executed. ${exitStatus}${result.length > 0 ? `\nOutput:\n${result}` : ""}`]
 		} else {
 			return [
 				false,
