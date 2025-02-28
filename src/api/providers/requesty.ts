@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { calculateApiCostOpenAI } from "../../utils/cost"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults, requestyDefaultModelId, requestyDefaultModelInfo  } from "../../shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -25,7 +25,7 @@ export class RequestyHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const modelId = this.options.requestyModelId ?? ""
+		const model = this.getModel()
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -34,12 +34,13 @@ export class RequestyHandler implements ApiHandler {
 
 		// @ts-ignore-next-line
 		const stream = await this.client.chat.completions.create({
-			model: modelId,
+			model: model.id,
+			max_tokens: model.info.maxTokens || undefined,
 			messages: openAiMessages,
 			temperature: 0,
 			stream: true,
 			stream_options: { include_usage: true },
-			...(modelId === "openai/o3-mini" ? { reasoning_effort: this.options.o3MiniReasoningEffort || "medium" } : {}),
+			...(model.id === "openai/o3-mini" ? { reasoning_effort: this.options.o3MiniReasoningEffort || "medium" } : {}),
 		})
 
 		for await (const chunk of stream) {
@@ -89,9 +90,11 @@ export class RequestyHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		return {
-			id: this.options.requestyModelId ?? "",
-			info: openAiModelInfoSaneDefaults,
+		const modelId = this.options.requestyModelId
+		const modelInfo = this.options.requestyModelInfo
+		if (modelId && modelInfo) {
+			return { id: modelId, info: modelInfo }
 		}
+		return { id: requestyDefaultModelId, info: requestyDefaultModelInfo }
 	}
 }

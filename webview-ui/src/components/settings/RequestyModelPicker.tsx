@@ -3,19 +3,19 @@ import Fuse from "fuse.js"
 import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import { openRouterDefaultModelId } from "../../../../src/shared/api"
+import { requestyDefaultModelId } from "../../../../src/shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 
-export interface OpenRouterModelPickerProps {
+export interface RequestyModelPickerProps {
 	isPopup?: boolean
 }
 
-const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }) => {
-	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
-	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openRouterModelId || openRouterDefaultModelId)
+const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup }) => {
+	const { apiConfiguration, setApiConfiguration, requestyModels } = useExtensionState()
+	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.requestyModelId || requestyDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
 	const dropdownRef = useRef<HTMLDivElement>(null)
@@ -28,8 +28,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 		setApiConfiguration({
 			...apiConfiguration,
 			...{
-				openRouterModelId: newModelId,
-				openRouterModelInfo: openRouterModels[newModelId],
+				requestyModelId: newModelId,
+				requestyModelInfo: requestyModels[newModelId],
 			},
 		})
 		setSearchTerm(newModelId)
@@ -40,7 +40,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [apiConfiguration])
 
 	useMount(() => {
-		vscode.postMessage({ type: "refreshOpenRouterModels" })
+		vscode.postMessage({ type: "refreshRequestyModels" })
 	})
 
 	useEffect(() => {
@@ -57,8 +57,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [])
 
 	const modelIds = useMemo(() => {
-		return Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
-	}, [openRouterModels])
+		return Object.keys(requestyModels).sort((a, b) => a.localeCompare(b))
+	}, [requestyModels])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -83,7 +83,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 		let results: { id: string; html: string }[] = searchTerm
 			? highlight(fuse.search(searchTerm), "model-item-highlight")
 			: searchableItems
-		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
 		return results
 	}, [searchableItems, searchTerm, fuse])
 
@@ -160,7 +159,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						onKeyDown={handleKeyDown}
 						style={{
 							width: "100%",
-							zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX,
+							zIndex: REQUESTY_MODEL_PICKER_Z_INDEX,
 							position: "relative",
 						}}>
 						{searchTerm && (
@@ -220,16 +219,15 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 					}}>
 					<>
 						The extension automatically fetches the latest list of models available on{" "}
-						<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://openrouter.ai/models">
-							OpenRouter.
+						<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://app.requesty.ai/router/list">
+							Requesty.
 						</VSCodeLink>
 						If you're unsure which model to choose, Cline works best with{" "}
 						<VSCodeLink
 							style={{ display: "inline", fontSize: "inherit" }}
-							onClick={() => handleModelChange("anthropic/claude-3.7-sonnet")}>
-							anthropic/claude-3.7-sonnet.
+							onClick={() => handleModelChange("anthropic/claude-3-5-sonnet-latest")}>
+							anthropic/claude-3-5-sonnet-latest.
 						</VSCodeLink>
-						You can also try searching "free" for no-cost options currently available.
 					</>
 				</p>
 			)}
@@ -237,7 +235,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	)
 }
 
-export default OpenRouterModelPicker
+export default RequestyModelPicker
 
 // Dropdown
 
@@ -246,7 +244,7 @@ const DropdownWrapper = styled.div`
 	width: 100%;
 `
 
-export const OPENROUTER_MODEL_PICKER_Z_INDEX = 1_000
+export const REQUESTY_MODEL_PICKER_Z_INDEX = 1_000
 
 const DropdownList = styled.div`
 	position: absolute;
@@ -257,7 +255,7 @@ const DropdownList = styled.div`
 	overflow-y: auto;
 	background-color: var(--vscode-dropdown-background);
 	border: 1px solid var(--vscode-list-activeSelectionBackground);
-	z-index: ${OPENROUTER_MODEL_PICKER_Z_INDEX - 1};
+	z-index: ${REQUESTY_MODEL_PICKER_Z_INDEX - 1};
 	border-bottom-left-radius: 3px;
 	border-bottom-right-radius: 3px;
 `
