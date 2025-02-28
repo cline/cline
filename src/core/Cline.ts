@@ -148,7 +148,8 @@ export class Cline {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
 
-		this.taskId = crypto.randomUUID()
+		this.taskId = historyItem ? historyItem.id : crypto.randomUUID()
+
 		this.apiConfiguration = apiConfiguration
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
@@ -160,10 +161,6 @@ export class Cline {
 		this.providerRef = new WeakRef(provider)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.enableCheckpoints = enableCheckpoints ?? false
-
-		if (historyItem) {
-			this.taskId = historyItem.id
-		}
 
 		// Initialize diffStrategy based on current state
 		this.updateDiffStrategy(Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.DIFF_STRATEGY))
