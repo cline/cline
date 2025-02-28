@@ -31,6 +31,7 @@ interface ChatTextAreaProps {
 	onHeightChange?: (height: number) => void
 	mode: Mode
 	setMode: (value: Mode) => void
+	modeShortcutText: string
 }
 
 const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
@@ -48,6 +49,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onHeightChange,
 			mode,
 			setMode,
+			modeShortcutText,
 		},
 		ref,
 	) => {
@@ -816,6 +818,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									minWidth: "70px",
 									flex: "0 0 auto",
 								}}>
+								<option
+									disabled
+									style={{ ...optionStyle, fontStyle: "italic", opacity: 0.6, padding: "2px 8px" }}>
+									{modeShortcutText}
+								</option>
 								{getAllModes(customModes).map((mode) => (
 									<option key={mode.slug} value={mode.slug} style={{ ...optionStyle }}>
 										{mode.name}
