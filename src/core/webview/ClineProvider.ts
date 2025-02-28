@@ -95,50 +95,102 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// The instance is pushed to the top of the stack (LIFO order).
 	// When the task is completed, the top instance is removed, reactivating the previous task.
 	async addClineToStack(cline: Cline) {
-		// if cline.getTaskNumber() is -1, it means it is a new task
-		if (cline.getTaskNumber() === -1) {
-			// increase last cline number by 1
-			this.lastTaskNumber = this.lastTaskNumber + 1
-			cline.setTaskNumber(this.lastTaskNumber)
+		try {
+			if (!cline || !(cline instanceof Cline)) {
+				throw new Error("Error invalid Cline instance provided.")
+			}
+
+			// Ensure lastTaskNumber is a valid number
+			if (typeof this.lastTaskNumber !== "number") {
+				this.lastTaskNumber = -1
+			}
+
+			const taskNumber = cline.getTaskNumber()
+
+			if (taskNumber === -1) {
+				this.lastTaskNumber += 1
+				cline.setTaskNumber(this.lastTaskNumber)
+			} else if (taskNumber > this.lastTaskNumber) {
+				this.lastTaskNumber = taskNumber
+			}
+
+			this.clineStack.push(cline)
+
+			// Ensure getState() resolves correctly
+			const state = await this.getState()
+			if (!state || typeof state.mode !== "string") {
+				throw new Error("Error failed to retrieve current mode from state.")
+			}
+
+			this.log(`[subtasks] Task: ${cline.getTaskNumber()} started at '${state.mode}' mode`)
+		} catch (error) {
+			this.log(`Error in addClineToStack: ${error.message}`)
+			throw error
 		}
-		// if cline.getTaskNumber() > lastTaskNumber, set lastTaskNumber to cline.getTaskNumber()
-		else if (cline.getTaskNumber() > this.lastTaskNumber) {
-			this.lastTaskNumber = cline.getTaskNumber()
-		}
-		// push the cline instance to the stack
-		this.clineStack.push(cline)
-		// get the current mode
-		const currentMode = (await this.getState()).mode
-		// log the task number and the mode
-		this.log(`[subtasks] Task: ${cline.getTaskNumber()} started at '${currentMode}' mode`)
 	}
 
 	// Removes and destroys the top Cline instance (the current finished task), activating the previous one (resuming the parent task).
 	async removeClineFromStack() {
-		// pop the top Cline instance from the stack
-		var clineToBeRemoved = this.clineStack.pop()
-		if (clineToBeRemoved) {
-			const removedTaskNumber = clineToBeRemoved.getTaskNumber()
-			await clineToBeRemoved.abortTask()
-			// make sure no reference kept, once promises end it will be garbage collected
-			clineToBeRemoved = undefined
-			this.log(`[subtasks] Task: ${removedTaskNumber} stopped`)
-		}
-		// if the stack is empty, reset the last task number
-		if (this.clineStack.length === 0) {
-			this.lastTaskNumber = -1
+		try {
+			if (!Array.isArray(this.clineStack)) {
+				throw new Error("Error clineStack is not an array.")
+			}
+
+			if (this.clineStack.length === 0) {
+				this.log("[subtasks] No active tasks to remove.")
+			} else {
+				// pop the top Cline instance from the stack
+				var clineToBeRemoved = this.clineStack.pop()
+				if (clineToBeRemoved) {
+					const removedTaskNumber = clineToBeRemoved.getTaskNumber()
+
+					try {
+						await clineToBeRemoved.abortTask()
+					} catch (abortError) {
+						this.log(`Error failed aborting task ${removedTaskNumber}: ${abortError.message}`)
+					}
+
+					// make sure no reference kept, once promises end it will be garbage collected
+					clineToBeRemoved = undefined
+					this.log(`[subtasks] Task: ${removedTaskNumber} stopped`)
+				}
+
+				// if the stack is empty, reset the last task number
+				if (this.clineStack.length === 0) {
+					this.lastTaskNumber = -1
+				}
+			}
+		} catch (error) {
+			this.log(`Error in removeClineFromStack: ${error.message}`)
+			throw error
 		}
 	}
 
 	// remove the cline object with the received clineId, and all the cline objects bove it in the stack
 	// for each cline object removed, pop it from the stack, abort the task and set it to undefined
 	async removeClineWithIdFromStack(clineId: string) {
-		const index = this.clineStack.findIndex((c) => c.taskId === clineId)
-		if (index === -1) {
-			return
-		}
-		for (let i = this.clineStack.length - 1; i >= index; i--) {
-			this.removeClineFromStack()
+		try {
+			if (typeof clineId !== "string" || !clineId.trim()) {
+				throw new Error("Error Invalid clineId provided.")
+			}
+
+			const index = this.clineStack.findIndex((c) => c.taskId === clineId)
+
+			if (index === -1) {
+				this.log(`[subtasks] No task found with ID: ${clineId}`)
+				return
+			}
+
+			for (let i = this.clineStack.length - 1; i >= index; i--) {
+				try {
+					await this.removeClineFromStack()
+				} catch (removalError) {
+					this.log(`Error removing task at stack index ${i}: ${removalError.message}`)
+				}
+			}
+		} catch (error) {
+			this.log(`Error in removeClineWithIdFromStack: ${error.message}`)
+			throw error
 		}
 	}
 
@@ -160,10 +212,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// and resume the previous task/cline instance (if it exists)
 	// this is used when a sub task is finished and the parent task needs to be resumed
 	async finishSubTask(lastMessage?: string) {
-		// remove the last cline instance from the stack (this is the finished sub task)
-		await this.removeClineFromStack()
-		// resume the last cline instance in the stack (if it exists - this is the 'parnt' calling task)
-		this.getCurrentCline()?.resumePausedTask(lastMessage)
+		try {
+			// remove the last cline instance from the stack (this is the finished sub task)
+			await this.removeClineFromStack()
+			// resume the last cline instance in the stack (if it exists - this is the 'parnt' calling task)
+			this.getCurrentCline()?.resumePausedTask(lastMessage)
+		} catch (error) {
+			this.log(`Error in finishSubTask: ${error.message}`)
+			throw error
+		}
 	}
 
 	/*
@@ -2031,7 +2088,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		// delete checkpoints branch from project git repo
 		if (enableCheckpoints && baseDir) {
-
 			const branchSummary = await simpleGit(baseDir)
 				.branch(["-D", `roo-code-checkpoints-${id}`])
 				.catch(() => undefined)
@@ -2591,6 +2647,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	public log(message: string) {
 		this.outputChannel.appendLine(message)
+		console.log(message)
 	}
 
 	// integration tests

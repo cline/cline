@@ -543,18 +543,28 @@ export class Cline {
 		// release this Cline instance from paused state
 		this.isPaused = false
 
-		// This adds the completion message to conversation history
-		await this.say("text", `new_task finished successfully! ${lastMessage ?? "Please continue to the next task."}`)
+		try {
+			// This adds the completion message to conversation history
+			await this.say(
+				"text",
+				`new_task finished successfully! ${lastMessage ?? "Please continue to the next task."}`,
+			)
 
-		await this.addToApiConversationHistory({
-			role: "user",
-			content: [
-				{
-					type: "text",
-					text: `[new_task completed] Result: ${lastMessage ?? "Please continue to the next task."}`,
-				},
-			],
-		})
+			await this.addToApiConversationHistory({
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: `[new_task completed] Result: ${lastMessage ?? "Please continue to the next task."}`,
+					},
+				],
+			})
+		} catch (error) {
+			this.providerRef
+				.deref()
+				?.log(`Error failed to add reply from subtast into conversation of parent task, error: ${error}`)
+			throw error
+		}
 
 		try {
 			// Resume parent task
