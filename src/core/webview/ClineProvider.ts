@@ -468,7 +468,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
 					<link rel="stylesheet" type="text/css" href="${stylesUri}">
 					<link href="${codiconsUri}" rel="stylesheet" />
-					<title>Roo Code</title>
+					<title>Cline</title>
 				</head>
 				<body>
 					<div id="root"></div>
