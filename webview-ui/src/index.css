@@ -64,6 +64,8 @@
 	--color-vscode-editor-foreground: var(--vscode-editor-foreground);
 	--color-vscode-editor-background: var(--vscode-editor-background);
 
+	--color-vscode-editorGroup-border: var(--vscode-editorGroup-border);
+
 	--color-vscode-button-foreground: var(--vscode-button-foreground);
 	--color-vscode-button-background: var(--vscode-button-background);
 	--color-vscode-button-secondaryForeground: var(--vscode-button-secondaryForeground);
