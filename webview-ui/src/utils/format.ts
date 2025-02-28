@@ -10,3 +10,18 @@ export function formatLargeNumber(num: number): string {
 	}
 	return num.toString()
 }
+
+export const formatDate = (timestamp: number) => {
+	const date = new Date(timestamp)
+	return date
+		.toLocaleString("en-US", {
+			month: "long",
+			day: "numeric",
+			hour: "numeric",
+			minute: "2-digit",
+			hour12: true,
+		})
+		.replace(", ", " ")
+		.replace(" at", ",")
+		.toUpperCase()
+}

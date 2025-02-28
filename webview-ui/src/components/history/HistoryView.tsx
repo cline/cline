@@ -5,12 +5,14 @@ import prettyBytes from "pretty-bytes"
 import { Virtuoso } from "react-virtuoso"
 import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
 
+import { vscode } from "@/utils/vscode"
+import { formatLargeNumber, formatDate } from "@/utils/format"
+import { highlightFzfMatch } from "@/utils/highlight"
+import { Button } from "@/components/ui"
+
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
-import { formatLargeNumber } from "../../utils/format"
-import { highlightFzfMatch } from "../../utils/highlight"
-import { useCopyToClipboard } from "../../utils/clipboard"
-import { Button } from "../ui"
+import { ExportButton } from "./ExportButton"
+import { CopyButton } from "./CopyButton"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -39,21 +41,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}
 
 	const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
-
-	const formatDate = (timestamp: number) => {
-		const date = new Date(timestamp)
-		return date
-			?.toLocaleString("en-US", {
-				month: "long",
-				day: "numeric",
-				hour: "numeric",
-				minute: "2-digit",
-				hour12: true,
-			})
-			.replace(", ", " ")
-			.replace(" at", ",")
-			.toUpperCase()
-	}
 
 	const presentableTasks = useMemo(() => {
 		return taskHistory.filter((item) => item.ts && item.task)
@@ -408,29 +395,5 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		</div>
 	)
 }
-
-const CopyButton = ({ itemTask }: { itemTask: string }) => {
-	const { showCopyFeedback, copyWithFeedback } = useCopyToClipboard()
-
-	return (
-		<Button variant="ghost" size="icon" title="Copy Prompt" onClick={(e) => copyWithFeedback(itemTask, e)}>
-			{showCopyFeedback ? <span className="codicon codicon-check" /> : <span className="codicon codicon-copy" />}
-		</Button>
-	)
-}
-
-const ExportButton = ({ itemId }: { itemId: string }) => (
-	<Button
-		data-testid="export"
-		variant="ghost"
-		size="icon"
-		title="Export Task"
-		onClick={(e) => {
-			e.stopPropagation()
-			vscode.postMessage({ type: "exportTaskWithId", text: itemId })
-		}}>
-		<span className="codicon codicon-cloud-download" />
-	</Button>
-)
 
 export default memo(HistoryView)
