@@ -7,6 +7,7 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import simpleGit from "simple-git"
+import { setPanel } from "../../activate/registerCommands"
 
 import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
@@ -232,6 +233,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
 		this.outputChannel.appendLine("Resolving webview view")
 		this.view = webviewView
+
+		// Set panel reference according to webview type
+		if ("onDidChangeViewState" in webviewView) {
+			// Tag page type
+			setPanel(webviewView, "tab")
+		} else if ("onDidChangeVisibility" in webviewView) {
+			// Sidebar Type
+			setPanel(webviewView, "sidebar")
+		}
 
 		// Initialize sound enabled state
 		this.getState().then(({ soundEnabled }) => {

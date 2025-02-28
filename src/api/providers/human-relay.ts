@@ -127,51 +127,10 @@ async function showHumanRelayDialog(promptText: string): Promise<string | undefi
 			},
 		)
 
-		// Check if the panel has been initialized
-		if (!getPanel()) {
-			// If the panel does not exist, first open a new panel
-			vscode.commands.executeCommand("roo-cline.openInNewTab").then(() => {
-				// Wait for the panel to be created before showing the human relay dialog
-				setTimeout(() => {
-					vscode.commands.executeCommand("roo-code.showHumanRelayDialog", {
-						requestId,
-						promptText,
-					})
-				}, 500) // Allow some time for the panel to be created
-			})
-		} else {
-			// If the panel already exists, directly show the dialog
-			vscode.commands.executeCommand("roo-code.showHumanRelayDialog", {
-				requestId,
-				promptText,
-			})
-		}
-
-		// Provide a temporary UI in case the WebView fails to load
-		vscode.window
-			.showInformationMessage(
-				"Please paste the copied message to the AI, then copy the response back into the dialog",
-				{
-					modal: true,
-					detail: "The message has been copied to the clipboard. If the dialog does not open, please try using the input box.",
-				},
-				"Use Input Box",
-			)
-			.then((selection) => {
-				if (selection === "Use Input Box") {
-					// Unregister the callback
-					vscode.commands.executeCommand("roo-code.unregisterHumanRelayCallback", requestId)
-
-					vscode.window
-						.showInputBox({
-							prompt: "Please paste the AI's response here",
-							placeHolder: "Paste the AI's response here...",
-							ignoreFocusOut: true,
-						})
-						.then((input) => {
-							resolve(input || undefined)
-						})
-				}
-			})
+		// Open the dialog box directly using the current panel
+		vscode.commands.executeCommand("roo-code.showHumanRelayDialog", {
+			requestId,
+			promptText,
+		})
 	})
 }

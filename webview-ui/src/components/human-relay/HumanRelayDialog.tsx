@@ -27,12 +27,20 @@ export const HumanRelayDialog: React.FC<HumanRelayDialogProps> = ({
 	onCancel,
 }) => {
 	const [response, setResponse] = React.useState("")
-	const { onCopy } = useClipboard(promptText)
+	const { copy } = useClipboard()
 	const [isCopyClicked, setIsCopyClicked] = React.useState(false)
+
+	// Listen to isOpen changes, clear the input box when the dialog box is opened
+	React.useEffect(() => {
+		if (isOpen) {
+			setResponse("")
+			setIsCopyClicked(false)
+		}
+	}, [isOpen])
 
 	// Copy to clipboard and show a success message
 	const handleCopy = () => {
-		onCopy()
+		copy(promptText)
 		setIsCopyClicked(true)
 		setTimeout(() => {
 			setIsCopyClicked(false)
