@@ -1522,8 +1522,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							// Switch back to default mode after deletion
 							await this.updateGlobalState("mode", defaultModeSlug)
 							await this.postStateToWebview()
-							break
 						}
+						break
 					case "humanRelayResponse":
 						if (message.requestId && message.text) {
 							vscode.commands.executeCommand("roo-code.handleHumanRelayResponse", {

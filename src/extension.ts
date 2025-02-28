@@ -57,6 +57,16 @@ export function activate(context: vscode.ExtensionContext) {
 
 	registerCommands({ context, outputChannel, provider: sidebarProvider })
 
+	// Register human relay callback registration command
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			"roo-code.registerHumanRelayCallback",
+			(requestId: string, callback: (response: string | undefined) => void) => {
+				registerHumanRelayCallback(requestId, callback)
+			},
+		),
+	)
+
 	// Register human relay response processing command
 	context.subscriptions.push(
 		vscode.commands.registerCommand(

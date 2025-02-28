@@ -1317,7 +1317,8 @@ const ApiOptions = ({
 							color: "var(--vscode-descriptionForeground)",
 							lineHeight: "1.4",
 						}}>
-						不需要API key，但需要用户协助复制粘贴信息给web的聊天AI。
+						The API key is not required, but the user needs to help copy and paste the information to the
+						web chat AI.
 					</p>
 					<p
 						style={{
@@ -1326,8 +1327,9 @@ const ApiOptions = ({
 							color: "var(--vscode-descriptionForeground)",
 							lineHeight: "1.4",
 						}}>
-						在使用过程中，系统会弹出对话框，并自动复制当前消息到剪贴板。您需要将这些内容粘贴给网页版AI（如ChatGPT或Claude），
-						然后将AI的回复复制回对话框中点击确认按钮。
+						During use, a dialog box will pop up and the current message will be copied to the clipboard
+						automatically. You need to paste these to web versions of AI (such as ChatGPT or Claude),Then
+						copy the AI's reply back to the dialog box and click the confirm button.
 					</p>
 				</div>
 			)}

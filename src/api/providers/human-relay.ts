@@ -5,6 +5,7 @@ import { ApiHandler, SingleCompletionHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 import * as vscode from "vscode"
 import { ExtensionMessage } from "../../shared/ExtensionMessage"
+import { getPanel } from "../../activate/registerCommands" // 导入 getPanel 函数
 
 /**
  * Human Relay API processor
@@ -114,10 +115,10 @@ function getMessageContent(message: Anthropic.Messages.MessageParam): string {
  */
 async function showHumanRelayDialog(promptText: string): Promise<string | undefined> {
 	return new Promise<string | undefined>((resolve) => {
-		// Create a unique request ID
+		// 创建一个唯一的请求 ID
 		const requestId = Date.now().toString()
 
-		// Register callback to the global callback map
+		// 注册全局回调函数
 		vscode.commands.executeCommand(
 			"roo-code.registerHumanRelayCallback",
 			requestId,
@@ -126,13 +127,27 @@ async function showHumanRelayDialog(promptText: string): Promise<string | undefi
 			},
 		)
 
-		// Show the WebView dialog
-		vscode.commands.executeCommand("roo-code.showHumanRelayDialog", {
-			requestId,
-			promptText,
-		})
+		// 检查 panel 是否已经初始化
+		if (!getPanel()) {
+			// 如果 panel 不存在，首先打开一个新面板
+			vscode.commands.executeCommand("roo-cline.openInNewTab").then(() => {
+				// 等待面板创建完成后再显示人工中继对话框
+				setTimeout(() => {
+					vscode.commands.executeCommand("roo-code.showHumanRelayDialog", {
+						requestId,
+						promptText,
+					})
+				}, 500) // 给面板创建留出一点时间
+			})
+		} else {
+			// 如果 panel 已存在，直接显示对话框
+			vscode.commands.executeCommand("roo-code.showHumanRelayDialog", {
+				requestId,
+				promptText,
+			})
+		}
 
-		// Provide a temporary UI in case the WebView fails to load
+		// 提供临时 UI，以防 WebView 加载失败
 		vscode.window
 			.showInformationMessage(
 				"Please paste the copied message to the AI, then copy the response back into the dialog",
@@ -144,7 +159,7 @@ async function showHumanRelayDialog(promptText: string): Promise<string | undefi
 			)
 			.then((selection) => {
 				if (selection === "Use Input Box") {
-					// Unregister the callback
+					// 注销回调
 					vscode.commands.executeCommand("roo-code.unregisterHumanRelayCallback", requestId)
 
 					vscode.window

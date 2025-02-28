@@ -94,8 +94,8 @@ export interface WebviewMessage {
 		| "checkpointRestore"
 		| "deleteMcpServer"
 		| "maxOpenTabsContext"
-		| "HumanRelayResponseMessage"
-		| "HumanRelayCancelMessage"
+		| "humanRelayResponse"
+		| "humanRelayCancel"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
@@ -119,16 +119,17 @@ export interface WebviewMessage {
 	timeout?: number
 	payload?: WebViewMessagePayload
 	source?: "global" | "project"
+	requestId?: string
 }
 
 // Human relay related message types
-export interface HumanRelayResponseMessage {
+export interface HumanRelayResponseMessage extends WebviewMessage {
 	type: "humanRelayResponse"
 	requestId: string
 	text: string
 }
 
-export interface HumanRelayCancelMessage {
+export interface HumanRelayCancelMessage extends WebviewMessage {
 	type: "humanRelayCancel"
 	requestId: string
 }
