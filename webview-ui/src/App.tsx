@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 
 import { ExtensionMessage } from "../../src/shared/ExtensionMessage"
+import { ShowHumanRelayDialogMessage } from "../../src/shared/ExtensionMessage"
 
 import { vscode } from "./utils/vscode"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
@@ -59,13 +60,13 @@ const App = () => {
 					switchTab(newTab)
 				}
 			}
-
+			const mes: ShowHumanRelayDialogMessage = message as ShowHumanRelayDialogMessage
 			// Processing displays human relay dialog messages
-			if (message.type === "showHumanRelayDialog" && message.requestId && message.promptText) {
+			if (mes.type === "showHumanRelayDialog" && mes.requestId && mes.promptText) {
 				setHumanRelayDialogState({
 					isOpen: true,
-					requestId: message.requestId,
-					promptText: message.promptText,
+					requestId: mes.requestId,
+					promptText: mes.promptText,
 				})
 			}
 		},
