@@ -209,6 +209,8 @@ jest.mock("../../Cline", () => ({
 				overwriteApiConversationHistory: jest.fn(),
 				getTaskNumber: jest.fn().mockReturnValue(0),
 				setTaskNumber: jest.fn(),
+				setParentTask: jest.fn(),
+				setRootTask: jest.fn(),
 				taskId: taskId || "test-task-id",
 			}),
 		),

@@ -114,6 +114,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				this.lastTaskNumber = taskNumber
 			}
 
+			// set this cline task parent cline (the task that launched it), and the root cline (the top most task that eventually launched it)
+			if (this.clineStack.length >= 1) {
+				cline.setParentTask(this.getCurrentCline())
+				cline.setRootTask(this.clineStack[0])
+			}
+
+			// add this cline instance into the stack that represents the order of all the called tasks
 			this.clineStack.push(cline)
 
 			// Ensure getState() resolves correctly

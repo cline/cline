@@ -92,7 +92,12 @@ export class Cline {
 	private isSubTask: boolean = false
 	// a flag that indicated if this Cline instance is paused (waiting for provider to resume it after subtask completion)
 	private isPaused: boolean = false
+	// this is the parent task work mode when it launched the subtask to be used when it is restored (so the last used mode by parent task will also be restored)
 	private pausedModeSlug: string = defaultModeSlug
+	// if this is a subtask then this member holds a pointer to the parent task that launched it
+	private parentTask: Cline | undefined = undefined
+	// if this is a subtask then this member holds a pointer to the top parent task that launched it
+	private rootTask: Cline | undefined = undefined
 	readonly apiConfiguration: ApiConfiguration
 	api: ApiHandler
 	private terminalManager: TerminalManager
@@ -216,6 +221,30 @@ export class Cline {
 	// gets the task number, the sequencial number of this task from all the subtask ran from this main task stack
 	getTaskNumber() {
 		return this.taskNumber
+	}
+
+	// this method returns the cline instance that is the parent task that launched this subtask (assuming this cline is a subtask)
+	// if undefined is returned, then there is no parent task and this is not a subtask or connection has been severed
+	getParentTask(): Cline | undefined {
+		return this.parentTask
+	}
+
+	// this method sets a cline instance that is the parent task that called this task (assuming this cline is a subtask)
+	// if undefined is set, then the connection is broken and the parent is no longer saved in the subtask member
+	setParentTask(parentToSet: Cline | undefined) {
+		this.parentTask = parentToSet
+	}
+
+	// this method returns the cline instance that is the root task (top most parent) that eventually launched this subtask (assuming this cline is a subtask)
+	// if undefined is returned, then there is no root task and this is not a subtask or connection has been severed
+	getRootTask(): Cline | undefined {
+		return this.rootTask
+	}
+
+	// this method sets a cline instance that is the root task (top most patrnt) that called this task (assuming this cline is a subtask)
+	// if undefined is set, then the connection is broken and the root is no longer saved in the subtask member
+	setRootTask(rootToSet: Cline | undefined) {
+		this.rootTask = rootToSet
 	}
 
 	// Add method to update diffStrategy
