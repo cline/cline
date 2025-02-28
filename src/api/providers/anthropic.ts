@@ -22,7 +22,7 @@ export class AnthropicHandler implements ApiHandler {
 		let budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = budget_tokens !== 0 ? true : false
 		const model = this.getModel()
-		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
+		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent>
 		const modelId = model.id
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
@@ -40,7 +40,7 @@ export class AnthropicHandler implements ApiHandler {
 				)
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-				stream = await this.client.beta.promptCaching.messages.create(
+				stream = await this.client.messages.create(
 					{
 						model: modelId,
 						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
