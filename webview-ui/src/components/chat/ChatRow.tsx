@@ -16,7 +16,7 @@ import { vscode } from "../../utils/vscode"
 import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
-import ReasoningBlock from "./ReasoningBlock"
+import { ReasoningBlock } from "./ReasoningBlock"
 import Thumbnails from "../common/Thumbnails"
 import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
@@ -25,12 +25,12 @@ import { CheckpointSaved } from "./checkpoints/CheckpointSaved"
 
 interface ChatRowProps {
 	message: ClineMessage
-	isExpanded: boolean
-	onToggleExpand: () => void
 	lastModifiedMessage?: ClineMessage
+	isExpanded: boolean
 	isLast: boolean
-	onHeightChange: (isTaller: boolean) => void
 	isStreaming: boolean
+	onToggleExpand: () => void
+	onHeightChange: (isTaller: boolean) => void
 }
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
@@ -43,10 +43,7 @@ const ChatRow = memo(
 		const prevHeightRef = useRef(0)
 
 		const [chatrow, { height }] = useSize(
-			<div
-				style={{
-					padding: "10px 6px 10px 15px",
-				}}>
+			<div className="px-[15px] py-[10px] pr-[6px]">
 				<ChatRowContent {...props} />
 			</div>,
 		)
@@ -75,33 +72,32 @@ export default ChatRow
 
 export const ChatRowContent = ({
 	message,
-	isExpanded,
-	onToggleExpand,
 	lastModifiedMessage,
+	isExpanded,
 	isLast,
 	isStreaming,
+	onToggleExpand,
 }: ChatRowContentProps) => {
 	const { mcpServers, alwaysAllowMcp, currentCheckpoint } = useExtensionState()
-	const [reasoningCollapsed, setReasoningCollapsed] = useState(false)
+	const [reasoningCollapsed, setReasoningCollapsed] = useState(true)
 
-	// Auto-collapse reasoning when new messages arrive
-	useEffect(() => {
-		if (!isLast && message.say === "reasoning") {
-			setReasoningCollapsed(true)
-		}
-	}, [isLast, message.say])
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text !== null && message.text !== undefined && message.say === "api_req_started") {
 			const info: ClineApiReqInfo = JSON.parse(message.text)
 			return [info.cost, info.cancelReason, info.streamingFailedMessage]
 		}
+
 		return [undefined, undefined, undefined]
 	}, [message.text, message.say])
-	// when resuming task, last wont be api_req_failed but a resume_task message, so api_req_started will show loading spinner. that's why we just remove the last api_req_started that failed without streaming anything
+
+	// When resuming task, last wont be api_req_failed but a resume_task
+	// message, so api_req_started will show loading spinner. That's why we just
+	// remove the last api_req_started that failed without streaming anything.
 	const apiRequestFailedMessage =
 		isLast && lastModifiedMessage?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
 			? lastModifiedMessage?.text
 			: undefined
+
 	const isCommandExecuting =
 		isLast && lastModifiedMessage?.ask === "command" && lastModifiedMessage?.text?.includes(COMMAND_OUTPUT_STRING)
 
@@ -428,32 +424,6 @@ export const ChatRowContent = ({
 						/>
 					</>
 				)
-			// case "inspectSite":
-			// 	const isInspecting =
-			// 		isLast && lastModifiedMessage?.say === "inspect_site_result" && !lastModifiedMessage?.images
-			// 	return (
-			// 		<>
-			// 			<div style={headerStyle}>
-			// 				{isInspecting ? <ProgressIndicator /> : toolIcon("inspect")}
-			// 				<span style={{ fontWeight: "bold" }}>
-			// 					{message.type === "ask" ? (
-			// 						<>Roo wants to inspect this website:</>
-			// 					) : (
-			// 						<>Roo is inspecting this website:</>
-			// 					)}
-			// 				</span>
-			// 			</div>
-			// 			<div
-			// 				style={{
-			// 					borderRadius: 3,
-			// 					border: "1px solid var(--vscode-editorGroup-border)",
-			// 					overflow: "hidden",
-			// 					backgroundColor: CODE_BLOCK_BG_COLOR,
-			// 				}}>
-			// 				<CodeBlock source={`${"```"}shell\n${tool.path}\n${"```"}`} forceWrap={true} />
-			// 			</div>
-			// 		</>
-			// 	)
 			case "switchMode":
 				return (
 					<>
@@ -501,6 +471,7 @@ export const ChatRowContent = ({
 					return (
 						<ReasoningBlock
 							content={message.text || ""}
+							elapsed={isLast && isStreaming ? Date.now() - message.ts : undefined}
 							isCollapsed={reasoningCollapsed}
 							onToggleCollapse={() => setReasoningCollapsed(!reasoningCollapsed)}
 						/>

@@ -5,12 +5,14 @@ import prettyBytes from "pretty-bytes"
 import { Virtuoso } from "react-virtuoso"
 import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
 
+import { vscode } from "@/utils/vscode"
+import { formatLargeNumber, formatDate } from "@/utils/format"
+import { highlightFzfMatch } from "@/utils/highlight"
+import { Button } from "@/components/ui"
+
 import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
-import { formatLargeNumber } from "../../utils/format"
-import { highlightFzfMatch } from "../../utils/highlight"
-import { useCopyToClipboard } from "../../utils/clipboard"
-import { Button } from "../ui"
+import { ExportButton } from "./ExportButton"
+import { CopyButton } from "./CopyButton"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -38,28 +40,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
 	}
 
-	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-	const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
-
-	const handleDeleteHistoryItem = (id: string) => {
-		setTaskToDelete(id)
-		setDeleteDialogOpen(true)
-	}
-
-	const formatDate = (timestamp: number) => {
-		const date = new Date(timestamp)
-		return date
-			?.toLocaleString("en-US", {
-				month: "long",
-				day: "numeric",
-				hour: "numeric",
-				minute: "2-digit",
-				hour12: true,
-			})
-			.replace(", ", " ")
-			.replace(" at", ",")
-			.toUpperCase()
-	}
+	const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
 
 	const presentableTasks = useMemo(() => {
 		return taskHistory.filter((item) => item.ts && item.task)
@@ -230,10 +211,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										<Button
 											variant="ghost"
 											size="sm"
-											title="Delete Task"
+											title="Delete Task (Shift + Click to skip confirmation)"
 											onClick={(e) => {
 												e.stopPropagation()
-												handleDeleteHistoryItem(item.id)
+
+												if (e.shiftKey) {
+													vscode.postMessage({ type: "deleteTaskWithId", text: item.id })
+												} else {
+													setDeleteTaskId(item.id)
+												}
 											}}>
 											<span className="codicon codicon-trash" />
 											{item.size && prettyBytes(item.size)}
@@ -403,44 +389,11 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					)}
 				/>
 			</div>
-			{taskToDelete && (
-				<DeleteTaskDialog
-					taskId={taskToDelete}
-					open={deleteDialogOpen}
-					onOpenChange={(open) => {
-						setDeleteDialogOpen(open)
-						if (!open) {
-							setTaskToDelete(null)
-						}
-					}}
-				/>
+			{deleteTaskId && (
+				<DeleteTaskDialog taskId={deleteTaskId} onOpenChange={(open) => !open && setDeleteTaskId(null)} open />
 			)}
 		</div>
 	)
 }
-
-const CopyButton = ({ itemTask }: { itemTask: string }) => {
-	const { showCopyFeedback, copyWithFeedback } = useCopyToClipboard()
-
-	return (
-		<Button variant="ghost" size="icon" title="Copy Prompt" onClick={(e) => copyWithFeedback(itemTask, e)}>
-			{showCopyFeedback ? <span className="codicon codicon-check" /> : <span className="codicon codicon-copy" />}
-		</Button>
-	)
-}
-
-const ExportButton = ({ itemId }: { itemId: string }) => (
-	<Button
-		data-testid="export"
-		variant="ghost"
-		size="icon"
-		title="Export Task"
-		onClick={(e) => {
-			e.stopPropagation()
-			vscode.postMessage({ type: "exportTaskWithId", text: itemId })
-		}}>
-		<span className="codicon codicon-cloud-download" />
-	</Button>
-)
 
 export default memo(HistoryView)
