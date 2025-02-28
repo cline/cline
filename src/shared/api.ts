@@ -21,7 +21,6 @@ export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
 	anthropicBaseUrl?: string
-	anthropicThinking?: number
 	vsCodeLmModelSelector?: vscode.LanguageModelChatSelector
 	glamaModelId?: string
 	glamaModelInfo?: ModelInfo
@@ -41,7 +40,6 @@ export interface ApiHandlerOptions {
 	awsUseProfile?: boolean
 	vertexProjectId?: string
 	vertexRegion?: string
-	vertexThinking?: number
 	openAiBaseUrl?: string
 	openAiApiKey?: string
 	openAiModelId?: string
@@ -70,6 +68,7 @@ export interface ApiHandlerOptions {
 	requestyModelInfo?: ModelInfo
 	modelTemperature?: number
 	modelMaxTokens?: number
+	modelMaxThinkingTokens?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

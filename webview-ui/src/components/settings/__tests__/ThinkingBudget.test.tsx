@@ -60,13 +60,13 @@ describe("ThinkingBudget", () => {
 		expect(screen.getAllByTestId("slider")).toHaveLength(2)
 	})
 
-	it("should use anthropicThinking field for Anthropic provider", () => {
+	it("should use modelMaxThinkingTokens field for Anthropic provider", () => {
 		const setApiConfigurationField = jest.fn()
 
 		render(
 			<ThinkingBudget
 				{...defaultProps}
-				apiConfiguration={{ anthropicThinking: 4096 }}
+				apiConfiguration={{ modelMaxThinkingTokens: 4096 }}
 				setApiConfigurationField={setApiConfigurationField}
 				provider="anthropic"
 			/>,
@@ -75,16 +75,16 @@ describe("ThinkingBudget", () => {
 		const sliders = screen.getAllByTestId("slider")
 		fireEvent.change(sliders[1], { target: { value: "5000" } })
 
-		expect(setApiConfigurationField).toHaveBeenCalledWith("anthropicThinking", 5000)
+		expect(setApiConfigurationField).toHaveBeenCalledWith("modelMaxThinkingTokens", 5000)
 	})
 
-	it("should use vertexThinking field for Vertex provider", () => {
+	it("should use modelMaxThinkingTokens field for Vertex provider", () => {
 		const setApiConfigurationField = jest.fn()
 
 		render(
 			<ThinkingBudget
 				{...defaultProps}
-				apiConfiguration={{ vertexThinking: 4096 }}
+				apiConfiguration={{ modelMaxThinkingTokens: 4096 }}
 				setApiConfigurationField={setApiConfigurationField}
 				provider="vertex"
 			/>,
@@ -93,7 +93,7 @@ describe("ThinkingBudget", () => {
 		const sliders = screen.getAllByTestId("slider")
 		fireEvent.change(sliders[1], { target: { value: "5000" } })
 
-		expect(setApiConfigurationField).toHaveBeenCalledWith("vertexThinking", 5000)
+		expect(setApiConfigurationField).toHaveBeenCalledWith("modelMaxThinkingTokens", 5000)
 	})
 
 	it("should cap thinking tokens at 80% of max tokens", () => {
@@ -102,13 +102,13 @@ describe("ThinkingBudget", () => {
 		render(
 			<ThinkingBudget
 				{...defaultProps}
-				apiConfiguration={{ modelMaxTokens: 10000, anthropicThinking: 9000 }}
+				apiConfiguration={{ modelMaxTokens: 10000, modelMaxThinkingTokens: 9000 }}
 				setApiConfigurationField={setApiConfigurationField}
 			/>,
 		)
 
 		// Effect should trigger and cap the value
-		expect(setApiConfigurationField).toHaveBeenCalledWith("anthropicThinking", 8000) // 80% of 10000
+		expect(setApiConfigurationField).toHaveBeenCalledWith("modelMaxThinkingTokens", 8000) // 80% of 10000
 	})
 
 	it("should use default thinking tokens if not provided", () => {

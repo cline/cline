@@ -24,7 +24,6 @@ export type GlobalStateKey =
 	| "awsUseProfile"
 	| "vertexProjectId"
 	| "vertexRegion"
-	| "vertexThinking"
 	| "lastShownAnnouncementId"
 	| "customInstructions"
 	| "alwaysAllowReadOnly"
@@ -43,7 +42,6 @@ export type GlobalStateKey =
 	| "lmStudioModelId"
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
-	| "anthropicThinking"
 	| "azureApiVersion"
 	| "openAiStreamingEnabled"
 	| "openRouterModelId"
@@ -83,5 +81,6 @@ export type GlobalStateKey =
 	| "unboundModelInfo"
 	| "modelTemperature"
 	| "modelMaxTokens"
+	| "anthropicThinking" // TODO: Rename to `modelMaxThinkingTokens`.
 	| "mistralCodestralUrl"
 	| "maxOpenTabsContext"

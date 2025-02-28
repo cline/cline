@@ -51,12 +51,7 @@ jest.mock("../ThinkingBudget", () => ({
 	ThinkingBudget: ({ apiConfiguration, setApiConfigurationField, modelInfo, provider }: any) =>
 		modelInfo?.thinking ? (
 			<div data-testid="thinking-budget" data-provider={provider}>
-				<input
-					data-testid="thinking-tokens"
-					value={
-						provider === "vertex" ? apiConfiguration?.vertexThinking : apiConfiguration?.anthropicThinking
-					}
-				/>
+				<input data-testid="thinking-tokens" value={apiConfiguration?.modelMaxThinkingTokens} />
 			</div>
 		) : null,
 }))

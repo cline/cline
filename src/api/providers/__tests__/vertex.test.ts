@@ -641,7 +641,7 @@ describe("VertexHandler", () => {
 				vertexProjectId: "test-project",
 				vertexRegion: "us-central1",
 				modelMaxTokens: 16384,
-				vertexThinking: 4096,
+				modelMaxThinkingTokens: 4096,
 			})
 
 			const modelInfo = thinkingHandler.getModel()
@@ -662,7 +662,7 @@ describe("VertexHandler", () => {
 				vertexProjectId: "test-project",
 				vertexRegion: "us-central1",
 				modelMaxTokens: 16384,
-				vertexThinking: 5000,
+				modelMaxThinkingTokens: 5000,
 			})
 
 			expect((handlerWithBudget.getModel().thinking as any).budget_tokens).toBe(5000)
@@ -688,25 +688,13 @@ describe("VertexHandler", () => {
 			expect((handlerWithSmallMaxTokens.getModel().thinking as any).budget_tokens).toBe(1024)
 		})
 
-		it("should use anthropicThinking value if vertexThinking is not provided", () => {
-			const handler = new VertexHandler({
-				apiModelId: "claude-3-7-sonnet@20250219:thinking",
-				vertexProjectId: "test-project",
-				vertexRegion: "us-central1",
-				modelMaxTokens: 16384,
-				anthropicThinking: 6000, // Should be used as fallback
-			})
-
-			expect((handler.getModel().thinking as any).budget_tokens).toBe(6000)
-		})
-
 		it("should pass thinking configuration to API", async () => {
 			const thinkingHandler = new VertexHandler({
 				apiModelId: "claude-3-7-sonnet@20250219:thinking",
 				vertexProjectId: "test-project",
 				vertexRegion: "us-central1",
 				modelMaxTokens: 16384,
-				vertexThinking: 4096,
+				modelMaxThinkingTokens: 4096,
 			})
 
 			const mockCreate = jest.fn().mockImplementation(async (options) => {
