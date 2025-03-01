@@ -1,4 +1,4 @@
-import { ANTHROPIC_THINKING_BUDGET_TOKENS_MIN, anthropicModels } from "../shared/api"
+import { anthropicModels } from "../shared/api"
 
 /**
  * Validates the thinking budget token value according to the specified rules:
@@ -21,8 +21,8 @@ export function validateThinkingBudget(
 	}
 
 	// If enabled but less than minimum, set to minimum
-	if (value > 0 && value < ANTHROPIC_THINKING_BUDGET_TOKENS_MIN) {
-		return ANTHROPIC_THINKING_BUDGET_TOKENS_MIN
+	if (value > 0 && value < 1024) {
+		return 1024
 	}
 
 	// If greater than or equal to max allowed tokens (80% of max tokens), cap at that value

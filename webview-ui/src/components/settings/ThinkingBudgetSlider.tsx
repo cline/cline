@@ -1,5 +1,5 @@
 import { memo } from "react"
-import { ANTHROPIC_THINKING_BUDGET_TOKENS_MIN, anthropicModels, ApiConfiguration } from "../../../../src/shared/api"
+import { anthropicModels, ApiConfiguration } from "../../../../src/shared/api"
 import { vscode } from "../../utils/vscode"
 import ClineSlider from "../common/cline-ui/ClineSlider"
 
@@ -9,7 +9,7 @@ interface ThinkingBudgetSliderProps {
 }
 
 // Constants
-const MIN_VALID_TOKENS = ANTHROPIC_THINKING_BUDGET_TOKENS_MIN
+const MIN_VALID_TOKENS = 1024
 const MAX_PERCENTAGE = 0.8
 
 const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: ThinkingBudgetSliderProps) => {
