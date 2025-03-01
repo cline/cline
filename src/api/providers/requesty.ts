@@ -2,7 +2,13 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
 import { calculateApiCostOpenAI } from "../../utils/cost"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults, requestyDefaultModelId, requestyDefaultModelInfo  } from "../../shared/api"
+import {
+	ApiHandlerOptions,
+	ModelInfo,
+	openAiModelInfoSaneDefaults,
+	requestyDefaultModelId,
+	requestyDefaultModelInfo,
+} from "../../shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"

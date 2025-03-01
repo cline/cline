@@ -482,7 +482,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
 					<link rel="stylesheet" type="text/css" href="${stylesUri}">
 					<link href="${codiconsUri}" rel="stylesheet" />
-					<title>Roo Code</title>
+					<title>Cline</title>
 				</head>
 				<body>
 					<div id="root"></div>
@@ -556,7 +556,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							telemetryService.updateTelemetryState(isOptedIn)
 						})
 
-            
 						// post last cached models in case the call to endpoint fails
 						this.readDynamicProviderModels(GlobalFileNames.requestyModels).then((requestyModels) => {
 							if (requestyModels) {
@@ -566,7 +565,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								})
 							}
 						})
-            
+
 						// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
 						// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
 						// (see normalizeApiConfiguration > openrouter)
@@ -583,7 +582,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								}
 							}
 						})
-            
+
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
