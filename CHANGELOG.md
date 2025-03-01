@@ -1,13 +1,14 @@
 # Roo Code Changelog
 
-## 3.7.9
-
-### Patch Changes
+## [3.7.9]
 
 - Delete task confirmation enhancements
-- Add a dynamic token buffer
-- Fix maxTokens defaults for Claude 3.7 Sonnet models
+- Smarter context window management
 - Prettier thinking blocks
+- Fix maxTokens defaults for Claude 3.7 Sonnet models
+- Terminal output parsing improvements (thanks @KJ7LNW!)
+- UI fix to dropdown hover colors (thanks @SamirSaji!)
+- Add support for Claude Sonnet 3.7 thinking via Vertex AI (thanks @lupuletic!)
 
 ## [3.7.8]
 
