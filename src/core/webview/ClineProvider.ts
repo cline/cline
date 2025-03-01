@@ -8,7 +8,6 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import { buildApiHandler } from "../../api"
-import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
 import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-preview"
@@ -35,6 +34,7 @@ import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
+import { validateThinkingBudget } from "../../utils/validation"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -59,11 +59,14 @@ type SecretKey =
 	| "liteLlmApiKey"
 	| "authToken"
 	| "authNonce"
+	| "asksageApiKey"
+	| "xaiApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
 	| "awsRegion"
 	| "awsUseCrossRegionInference"
+	| "awsBedrockUsePromptCache"
 	| "awsProfile"
 	| "awsUseProfile"
 	| "vertexProjectId"
@@ -89,6 +92,7 @@ type GlobalStateKey =
 	| "userInfo"
 	| "previousModeApiProvider"
 	| "previousModeModelId"
+	| "previousModeThinkingBudgetTokens"
 	| "previousModeModelInfo"
 	| "liteLlmBaseUrl"
 	| "liteLlmModelId"
@@ -97,6 +101,8 @@ type GlobalStateKey =
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
+	| "asksageApiUrl"
+	| "thinkingBudgetTokens"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -465,7 +471,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
 					<link rel="stylesheet" type="text/css" href="${stylesUri}">
 					<link href="${codiconsUri}" rel="stylesheet" />
-					<title>Roo Code</title>
+					<title>Cline</title>
 				</head>
 				<body>
 					<div id="root"></div>
@@ -538,7 +544,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							const isOptedIn = telemetrySetting === "enabled"
 							telemetryService.updateTelemetryState(isOptedIn)
 						})
-
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
@@ -563,6 +568,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								awsSessionToken,
 								awsRegion,
 								awsUseCrossRegionInference,
+								awsBedrockUsePromptCache,
 								awsProfile,
 								awsUseProfile,
 								vertexProjectId,
@@ -593,6 +599,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								liteLlmModelId,
 								liteLlmApiKey,
 								qwenApiLine,
+								asksageApiKey,
+								asksageApiUrl,
+								xaiApiKey,
+								thinkingBudgetTokens,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -603,6 +613,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("awsSessionToken", awsSessionToken)
 							await this.updateGlobalState("awsRegion", awsRegion)
 							await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
+							await this.updateGlobalState("awsBedrockUsePromptCache", awsBedrockUsePromptCache)
 							await this.updateGlobalState("awsProfile", awsProfile)
 							await this.updateGlobalState("awsUseProfile", awsUseProfile)
 							await this.updateGlobalState("vertexProjectId", vertexProjectId)
@@ -624,6 +635,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("qwenApiKey", qwenApiKey)
 							await this.storeSecret("mistralApiKey", mistralApiKey)
 							await this.storeSecret("liteLlmApiKey", liteLlmApiKey)
+							await this.storeSecret("xaiApiKey", xaiApiKey)
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
@@ -633,6 +645,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("qwenApiLine", qwenApiLine)
 							await this.updateGlobalState("requestyModelId", requestyModelId)
 							await this.updateGlobalState("togetherModelId", togetherModelId)
+							await this.storeSecret("asksageApiKey", asksageApiKey)
+							await this.updateGlobalState("asksageApiUrl", asksageApiUrl)
+							await this.updateGlobalState("thinkingBudgetTokens", thinkingBudgetTokens)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -936,6 +951,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "updateMcpTimeout": {
+						try {
+							if (message.serverName && message.timeout) {
+								await this.mcpHub?.updateServerTimeout(message.serverName, message.timeout)
+							}
+						} catch (error) {
+							console.error(`Failed to update timeout for server ${message.serverName}:`, error)
+						}
+						break
+					}
 					case "openExtensionSettings": {
 						const settingsFilter = message.text || ""
 						await vscode.commands.executeCommand(
@@ -978,15 +1003,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeApiProvider: newApiProvider,
 			previousModeModelId: newModelId,
 			previousModeModelInfo: newModelInfo,
+			previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
 		} = await this.getState()
 
 		// Save the last model used in this mode
 		await this.updateGlobalState("previousModeApiProvider", apiConfiguration.apiProvider)
+		await this.updateGlobalState("previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
 		switch (apiConfiguration.apiProvider) {
 			case "anthropic":
 			case "bedrock":
 			case "vertex":
 			case "gemini":
+			case "asksage":
 				await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
 				break
 			case "openrouter":
@@ -1009,16 +1037,21 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			case "litellm":
 				await this.updateGlobalState("previousModeModelId", apiConfiguration.liteLlmModelId)
 				break
+			case "requesty":
+				await this.updateGlobalState("previousModeModelId", apiConfiguration.requestyModelId)
+				break
 		}
 
 		// Restore the model used in previous mode
 		if (newApiProvider && newModelId) {
 			await this.updateGlobalState("apiProvider", newApiProvider)
+			await this.updateGlobalState("thinkingBudgetTokens", newThinkingBudgetTokens)
 			switch (newApiProvider) {
 				case "anthropic":
 				case "bedrock":
 				case "vertex":
 				case "gemini":
+				case "asksage":
 					await this.updateGlobalState("apiModelId", newModelId)
 					break
 				case "openrouter":
@@ -1040,6 +1073,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					break
 				case "litellm":
 					await this.updateGlobalState("liteLlmModelId", newModelId)
+					break
+				case "requesty":
+					await this.updateGlobalState("requestyModelId", newModelId)
 					break
 			}
 
@@ -1563,6 +1599,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 						case "anthropic/claude-3-7-sonnet:beta":
 						case "anthropic/claude-3.7-sonnet":
 						case "anthropic/claude-3.7-sonnet:beta":
+						case "anthropic/claude-3.7-sonnet:thinking":
 						case "anthropic/claude-3.5-sonnet":
 						case "anthropic/claude-3.5-sonnet:beta":
 							// NOTE: this needs to be synced with api.ts/openrouter default model info
@@ -1688,20 +1725,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
 
-		// Delete checkpoints
-		// deleteCheckpoints will determine if the task has legacy checkpoints or not and handle it accordingly
-		console.info("deleting checkpoints")
-		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
-		const historyItem = taskHistory.find((item) => item.id === id)
-		//console.log("historyItem: ", historyItem)
-		if (historyItem) {
-			try {
-				await CheckpointTracker.deleteCheckpoints(id, historyItem, this.context.globalStorageUri.fsPath)
-			} catch (error) {
-				console.error(`Failed to delete checkpoints for task ${id}:`, error)
-			}
-		}
-
 		await this.deleteTaskFromState(id)
 
 		// Delete the task files
@@ -1718,12 +1741,21 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			await fs.unlink(legacyMessagesFilePath)
 		}
 
+		// Delete the checkpoints directory if it exists
+		const checkpointsDir = path.join(taskDirPath, "checkpoints")
+		if (await fileExistsAtPath(checkpointsDir)) {
+			try {
+				await fs.rm(checkpointsDir, { recursive: true, force: true })
+			} catch (error) {
+				console.error(`Failed to delete checkpoints directory for task ${id}:`, error)
+				// Continue with deletion of task directory - don't throw since this is a cleanup operation
+			}
+		}
+
 		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
 	}
 
 	async deleteTaskFromState(id: string) {
-		console.log("deleteTaskFromState: ", id)
-
 		// Remove the task from history
 		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
@@ -1794,7 +1826,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	/*
 	It seems that some API messages do not comply with vscode state requirements. Either the Anthropic library is manipulating these values somehow in the backend in a way thats creating cyclic references, or the API returns a function or a Symbol as part of the message content.
-	VSCode docs about state: "The value must be JSON-stringifyable ... value  A value. MUST not contain cyclic references."
+	VSCode docs about state: "The value must be JSON-stringifyable ... value — A value. MUST not contain cyclic references."
 	For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
 	*/
 
@@ -1837,6 +1869,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			awsSessionToken,
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsBedrockUsePromptCache,
 			awsProfile,
 			awsUseProfile,
 			vertexProjectId,
@@ -1876,9 +1909,14 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			previousModeThinkingBudgetTokens,
 			qwenApiLine,
 			liteLlmApiKey,
 			telemetrySetting,
+			asksageApiKey,
+			asksageApiUrl,
+			xaiApiKey,
+			thinkingBudgetTokens,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1889,6 +1927,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getSecret("awsSessionToken") as Promise<string | undefined>,
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
 			this.getGlobalState("awsUseCrossRegionInference") as Promise<boolean | undefined>,
+			this.getGlobalState("awsBedrockUsePromptCache") as Promise<boolean | undefined>,
 			this.getGlobalState("awsProfile") as Promise<string | undefined>,
 			this.getGlobalState("awsUseProfile") as Promise<boolean | undefined>,
 			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
@@ -1928,9 +1967,14 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("previousModeThinkingBudgetTokens") as Promise<number | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
 			this.getGlobalState("telemetrySetting") as Promise<TelemetrySetting | undefined>,
+			this.getSecret("asksageApiKey") as Promise<string | undefined>,
+			this.getGlobalState("asksageApiUrl") as Promise<string | undefined>,
+			this.getSecret("xaiApiKey") as Promise<string | undefined>,
+			this.getGlobalState("thinkingBudgetTokens") as Promise<number | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1964,6 +2008,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				awsSessionToken,
 				awsRegion,
 				awsUseCrossRegionInference,
+				awsBedrockUsePromptCache,
 				awsProfile,
 				awsUseProfile,
 				vertexProjectId,
@@ -1992,9 +2037,13 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
 				o3MiniReasoningEffort,
+				thinkingBudgetTokens,
 				liteLlmBaseUrl,
 				liteLlmModelId,
 				liteLlmApiKey,
+				asksageApiKey,
+				asksageApiUrl,
+				xaiApiKey,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -2007,6 +2056,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			previousModeThinkingBudgetTokens,
 			mcpMarketplaceEnabled,
 			telemetrySetting: telemetrySetting || "unset",
 		}
@@ -2138,6 +2188,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			"mistralApiKey",
 			"liteLlmApiKey",
 			"authToken",
+			"asksageApiKey",
+			"xaiApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)

@@ -17,6 +17,8 @@ import { QwenHandler } from "./providers/qwen"
 import { MistralHandler } from "./providers/mistral"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { LiteLlmHandler } from "./providers/litellm"
+import { AskSageHandler } from "./providers/asksage"
+import { XAIHandler } from "./providers/xai"
 
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
@@ -62,6 +64,10 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new VsCodeLmHandler(options)
 		case "litellm":
 			return new LiteLlmHandler(options)
+		case "asksage":
+			return new AskSageHandler(options)
+		case "xai":
+			return new XAIHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
