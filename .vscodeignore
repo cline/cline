@@ -23,7 +23,6 @@ demo.gif
 # Ignore all webview-ui files except the build directory (https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/frameworks/hello-world-react-cra/.vscodeignore)
 webview-ui/src/**
 webview-ui/public/**
-webview-ui/scripts/**
 webview-ui/index.html
 webview-ui/README.md
 webview-ui/package.json

@@ -7,6 +7,7 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
+import { TelemetrySetting } from "./TelemetrySetting"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -21,6 +22,7 @@ export interface ExtensionMessage {
 		| "invoke"
 		| "partialMessage"
 		| "openRouterModels"
+		| "requestyModels"
 		| "openAiModels"
 		| "mcpServers"
 		| "relinquishControl"
@@ -30,6 +32,8 @@ export interface ExtensionMessage {
 		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
 		| "commitSearchResults"
+		| "openGraphData"
+		| "isImageUrlResult"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -48,12 +52,23 @@ export interface ExtensionMessage {
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
+	requestyModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
 	mcpMarketplaceCatalog?: McpMarketplaceCatalog
 	error?: string
 	mcpDownloadDetails?: McpDownloadResponse
 	commits?: GitCommit[]
+	openGraphData?: {
+		title?: string
+		description?: string
+		image?: string
+		url?: string
+		siteName?: string
+		type?: string
+	}
+	url?: string
+	isImage?: boolean
 }
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
@@ -81,6 +96,8 @@ export interface ExtensionState {
 		photoURL: string | null
 	}
 	mcpMarketplaceEnabled?: boolean
+	telemetrySetting: TelemetrySetting
+	vscMachineId: string
 }
 
 export interface ClineMessage {

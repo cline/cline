@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.4.10]
+
+-   Add support for GPT-4.5 preview model
+
+## [3.4.9]
+
+-   Add toggle to let users opt-in to anonymous telemetry and error reporting
+
+## [3.4.6]
+
+-   Add support for Claude 3.7 Sonnet
+
 ## [3.4.0]
 
 -   Introducing MCP Marketplace! You can now discover and install the best MCP servers right from within the extension, with new servers added regularly

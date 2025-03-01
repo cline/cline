@@ -22,10 +22,12 @@ export interface WebviewMessage {
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
 		| "openImage"
+		| "openInBrowser"
 		| "openFile"
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
+		| "refreshRequestyModels"
 		| "refreshOpenAiModels"
 		| "openMcpSettings"
 		| "restartMcpServer"
@@ -50,6 +52,12 @@ export interface WebviewMessage {
 		| "searchCommits"
 		| "showMcpView"
 		| "fetchLatestMcpServersFromHub"
+		| "telemetrySetting"
+		| "openSettings"
+		| "updateMcpTimeout"
+		| "fetchOpenGraphData"
+		| "checkIsImageUrl"
+		| "updateThinkingBudgetTokens"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -68,6 +76,9 @@ export interface WebviewMessage {
 	serverName?: string
 	toolName?: string
 	autoApprove?: boolean
+
+	// For openInBrowser
+	url?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
