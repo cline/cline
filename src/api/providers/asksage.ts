@@ -95,7 +95,9 @@ export class AskSageHandler implements ApiHandler {
 				text: result.message,
 			}
 		} catch (error) {
-			throw new Error(`AskSage request failed: ${error.message}`)
+			if (error instanceof Error) {
+				throw new Error(`AskSage request failed: ${error.message}`)
+			}
 		}
 	}
 
