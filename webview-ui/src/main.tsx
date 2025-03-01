@@ -5,7 +5,7 @@ import "./index.css"
 import App from "./App.tsx"
 import "../../node_modules/@vscode/codicons/dist/codicon.css"
 
-const apiKey = "phc_5WnLHpYyC30Bsb7VSJ6DzcPXZ34JSF08DJLyM7svZ15"
+const apiKey = "phc_uY24EJXNBcc9kwO1K8TJUl5hPQntGM6LL1Mtrz0CBD4"
 const apiHost = "https://us.i.posthog.com"
 
 createRoot(document.getElementById("root")!).render(

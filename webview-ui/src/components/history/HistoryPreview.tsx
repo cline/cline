@@ -92,6 +92,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 									</span>
 								</div>
 								<div
+									className="ph-no-capture"
 									style={{
 										fontSize: "var(--vscode-font-size)",
 										color: "var(--vscode-descriptionForeground)",

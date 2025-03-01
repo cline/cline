@@ -8,7 +8,7 @@ class PostHogClient {
 	private telemetryEnabled: boolean = false
 
 	private constructor() {
-		this.client = new PostHog("phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K", {
+		this.client = new PostHog("phc_uY24EJXNBcc9kwO1K8TJUl5hPQntGM6LL1Mtrz0CBD4", {
 			host: "https://us.i.posthog.com",
 			enableExceptionAutocapture: false,
 		})
