@@ -35,6 +35,7 @@ import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
+import { validateThinkingBudget } from "../../utils/validation"
 import { MemoryBankSettings, DEFAULT_MEMORY_BANK_SETTINGS } from "../../shared/MemoryBankSettings"
 
 /*
@@ -261,6 +262,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 				if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
 					// Update state when marketplace tab setting changes
+					await this.postStateToWebview()
+				}
+				if (e && e.affectsConfiguration("cline.modelSettings.anthropic.thinkingBudgetTokens")) {
+					const config = vscode.workspace.getConfiguration("cline.modelSettings.anthropic")
+					const thinkingBudget = config.get<number>("thinkingBudgetTokens", 0)
+
+					const validatedValue = validateThinkingBudget(thinkingBudget)
+
+					// Only update if the value changed
+					if (validatedValue !== thinkingBudget) {
+						await config.update("thinkingBudgetTokens", validatedValue, true)
+					}
+
 					await this.postStateToWebview()
 				}
 			},
@@ -544,32 +558,35 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							const { telemetrySetting } = state
 							const isOptedIn = telemetrySetting === "enabled"
 							telemetryService.updateTelemetryState(isOptedIn)
-						})
 
-						// post last cached models in case the call to endpoint fails
-						this.readDynamicProviderModels(GlobalFileNames.requestyModels).then((requestyModels) => {
-							if (requestyModels) {
-								this.postMessageToWebview({
-									type: "requestyModels",
-									requestyModels,
+							// only fetch requesty api key if api key is set
+							if (state.apiConfiguration?.requestyApiKey) {
+								// post last cached models in case the call to endpoint fails
+								this.readDynamicProviderModels(GlobalFileNames.requestyModels).then((requestyModels) => {
+									if (requestyModels) {
+										this.postMessageToWebview({
+											type: "requestyModels",
+											requestyModels,
+										})
+									}
 								})
-							}
-						})
 
-						// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
-						// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
-						// (see normalizeApiConfiguration > openrouter)
-						this.refreshRequestyModels().then(async (requestyModels) => {
-							if (requestyModels) {
-								// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-								const { apiConfiguration } = await this.getState()
-								if (apiConfiguration.requestyModelId) {
-									await this.updateGlobalState(
-										"requestyModelInfo",
-										requestyModels[apiConfiguration.requestyModelId],
-									)
-									await this.postStateToWebview()
-								}
+								// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
+								// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
+								// (see normalizeApiConfiguration > openrouter)
+								this.refreshRequestyModels().then(async (requestyModels) => {
+									if (requestyModels) {
+										// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+										const { apiConfiguration } = await this.getState()
+										if (apiConfiguration.requestyModelId) {
+											await this.updateGlobalState(
+												"requestyModelInfo",
+												requestyModels[apiConfiguration.requestyModelId],
+											)
+											await this.postStateToWebview()
+										}
+									}
+								})
 							}
 						})
 
@@ -983,6 +1000,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							} catch (error) {
 								console.error(`Error searching commits: ${JSON.stringify(error)}`)
 							}
+						}
+						break
+					}
+					case "updateThinkingBudgetTokens": {
+						if (message.number !== undefined) {
+							const validatedValue = validateThinkingBudget(message.number)
+
+							const config = vscode.workspace.getConfiguration("cline.modelSettings.anthropic")
+							await config.update("thinkingBudgetTokens", validatedValue, true)
 						}
 						break
 					}
@@ -2056,6 +2082,10 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			.getConfiguration("cline.modelSettings.o3Mini")
 			.get("reasoningEffort", "medium")
 
+		const thinkingBudgetTokens = vscode.workspace
+			.getConfiguration("cline.modelSettings.anthropic")
+			.get("thinkingBudgetTokens", 0)
+
 		const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
 
 		return {
@@ -2098,6 +2128,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
 				o3MiniReasoningEffort,
+				thinkingBudgetTokens,
 				liteLlmBaseUrl,
 				liteLlmModelId,
 				liteLlmApiKey,

@@ -59,6 +59,7 @@ export interface ApiHandlerOptions {
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 	xaiApiKey?: string
+	thinkingBudgetTokens?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
