@@ -541,7 +541,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							const isOptedIn = telemetrySetting === "enabled"
 							telemetryService.updateTelemetryState(isOptedIn)
 						})
-
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
@@ -942,6 +941,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							} catch (error) {
 								console.error(`Error searching commits: ${JSON.stringify(error)}`)
 							}
+						}
+						break
+					}
+					case "updateMcpTimeout": {
+						try {
+							if (message.serverName && message.timeout) {
+								await this.mcpHub?.updateServerTimeout(message.serverName, message.timeout)
+							}
+						} catch (error) {
+							console.error(`Failed to update timeout for server ${message.serverName}:`, error)
 						}
 						break
 					}

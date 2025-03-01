@@ -69,7 +69,7 @@ export interface WebviewMessage {
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
 	mcpId?: string
-
+	timeout?: number
 	// For toggleToolAutoApprove
 	serverName?: string
 	toolName?: string
