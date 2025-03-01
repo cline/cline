@@ -215,7 +215,7 @@
 				"cline.modelSettings.anthropic.thinkingBudgetTokens": {
 					"type": "number",
 					"default": 0,
-					"description": "Controls the token budget for Claude's thinking capability. Set to 0 to disable thinking. When enabled, must be ≥ 1024 and less than the model's max token output."
+					"description": "Controls the token budget for Claude's thinking capability. Set to 0 to disable thinking. When enabled, must be ≥1024 and less than the model's max token output."
 				}
 			}
 		}
