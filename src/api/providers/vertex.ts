@@ -21,14 +21,117 @@ export class VertexHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const stream = await this.client.messages.create({
-			model: this.getModel().id,
-			max_tokens: this.getModel().info.maxTokens || 8192,
-			temperature: 0,
-			system: systemPrompt,
-			messages,
-			stream: true,
-		})
+		const model = this.getModel()
+		const modelId = model.id
+
+		let budget_tokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = budget_tokens !== 0 ? true : false
+
+		let stream
+		switch (modelId) {
+			case "claude-3-7-sonnet@20250219":
+			case "claude-3-5-sonnet-v2@20241022":
+			case "claude-3-5-sonnet@20240620":
+			case "claude-3-5-haiku@20241022":
+			case "claude-3-opus@20240229":
+			case "claude-3-haiku@20240307": {
+				// Find indices of user messages for cache control
+				const userMsgIndices = messages.reduce(
+					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
+					[] as number[],
+				)
+				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
+				stream = await this.client.beta.messages.create(
+					{
+						model: modelId,
+						max_tokens: model.info.maxTokens || 8192,
+						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+						temperature: reasoningOn ? undefined : 0,
+						system: [
+							{
+								text: systemPrompt,
+								type: "text",
+								cache_control: { type: "ephemeral" },
+							},
+						],
+						messages: messages.map((message, index) => {
+							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+								return {
+									...message,
+									content:
+										typeof message.content === "string"
+											? [
+													{
+														type: "text",
+														text: message.content,
+														cache_control: {
+															type: "ephemeral",
+														},
+													},
+												]
+											: message.content.map((content, contentIndex) =>
+													contentIndex === message.content.length - 1
+														? {
+																...content,
+																cache_control: {
+																	type: "ephemeral",
+																},
+															}
+														: content,
+												),
+								}
+							}
+							return {
+								...message,
+								content:
+									typeof message.content === "string"
+										? [
+												{
+													type: "text",
+													text: message.content,
+												},
+											]
+										: message.content,
+							}
+						}),
+						stream: true,
+					},
+					{
+						headers: {},
+					},
+				)
+				break
+			}
+			default: {
+				stream = await this.client.beta.messages.create({
+					model: modelId,
+					max_tokens: model.info.maxTokens || 8192,
+					temperature: 0,
+					system: [
+						{
+							text: systemPrompt,
+							type: "text",
+						},
+					],
+					messages: messages.map((message) => ({
+						...message,
+						content:
+							typeof message.content === "string"
+								? [
+										{
+											type: "text",
+											text: message.content,
+										},
+									]
+								: message.content,
+					})),
+					stream: true,
+				})
+				break
+			}
+		}
 		for await (const chunk of stream) {
 			switch (chunk.type) {
 				case "message_start":
@@ -37,6 +140,8 @@ export class VertexHandler implements ApiHandler {
 						type: "usage",
 						inputTokens: usage.input_tokens || 0,
 						outputTokens: usage.output_tokens || 0,
+						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
+						cacheReadTokens: usage.cache_read_input_tokens || undefined,
 					}
 					break
 				case "message_delta":
@@ -46,7 +151,8 @@ export class VertexHandler implements ApiHandler {
 						outputTokens: chunk.usage.output_tokens || 0,
 					}
 					break
-
+				case "message_stop":
+					break
 				case "content_block_start":
 					switch (chunk.content_block.type) {
 						case "text":
@@ -72,6 +178,8 @@ export class VertexHandler implements ApiHandler {
 							}
 							break
 					}
+					break
+				case "content_block_stop":
 					break
 			}
 		}

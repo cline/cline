@@ -32,6 +32,7 @@ export interface ApiHandlerOptions {
 	awsSessionToken?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
+	awsBedrockUsePromptCache?: boolean
 	awsUseProfile?: boolean
 	awsProfile?: string
 	vertexProjectId?: string
@@ -49,7 +50,6 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	requestyApiKey?: string
 	requestyModelId?: string
-	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
 	togetherModelId?: string
 	qwenApiKey?: string
@@ -59,6 +59,7 @@ export interface ApiHandlerOptions {
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
 	xaiApiKey?: string
+	thinkingBudgetTokens?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -160,17 +161,21 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
 	},
 	"anthropic.claude-3-5-haiku-20241022-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 5.0,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.08,
 	},
 	"anthropic.claude-3-5-sonnet-20240620-v1:0": {
 		maxTokens: 8192,
@@ -801,22 +806,6 @@ export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	supportsPromptCache: false,
 	inputPrice: 0,
 	outputPrice: 0,
-}
-
-// Requesty
-// https://requesty.ai/models
-export const requestyDefaultModelId = "anthropic/claude-3-5-sonnet-latest"
-export const requestyDefaultModelInfo: ModelInfo = {
-	maxTokens: 8192,
-	contextWindow: 200_000,
-	supportsImages: true,
-	supportsComputerUse: false,
-	supportsPromptCache: true,
-	inputPrice: 3.0,
-	outputPrice: 15.0,
-	cacheWritesPrice: 3.75,
-	cacheReadsPrice: 0.3,
-	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
 }
 
 // X AI
