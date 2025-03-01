@@ -28,6 +28,7 @@ import TaskHeader from "./TaskHeader"
 import AutoApproveMenu from "./AutoApproveMenu"
 import { AudioType } from "../../../../src/shared/WebviewMessage"
 import { validateCommand } from "../../utils/command-validation"
+import { modes } from "../../../../src/shared/modes"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -37,6 +38,9 @@ interface ChatViewProps {
 }
 
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
+
+const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0
+const modeShortcutText = `${isMac ? "⌘" : "Ctrl"} + . for next mode`
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const {
@@ -963,6 +967,33 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		isWriteToolAction,
 	])
 
+	// Add this new function to handle mode switching
+	const switchToNextMode = useCallback(() => {
+		const currentModeIndex = modes.findIndex((m) => m.slug === mode)
+		const nextModeIndex = (currentModeIndex + 1) % modes.length
+		setMode(modes[nextModeIndex].slug)
+	}, [mode, setMode])
+
+	// Add keyboard event handler
+	const handleKeyDown = useCallback(
+		(event: KeyboardEvent) => {
+			// Check for Command + . (period)
+			if ((event.metaKey || event.ctrlKey) && event.key === ".") {
+				event.preventDefault() // Prevent default browser behavior
+				switchToNextMode()
+			}
+		},
+		[switchToNextMode],
+	)
+
+	// Add event listener
+	useEffect(() => {
+		window.addEventListener("keydown", handleKeyDown)
+		return () => {
+			window.removeEventListener("keydown", handleKeyDown)
+		}
+	}, [handleKeyDown])
+
 	return (
 		<div
 			style={{
@@ -1171,6 +1202,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				}}
 				mode={mode}
 				setMode={setMode}
+				modeShortcutText={modeShortcutText}
 			/>
 
 			<div id="chat-view-portal" />
