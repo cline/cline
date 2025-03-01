@@ -4,7 +4,10 @@ import { Tiktoken } from "js-tiktoken/lite"
 import o200kBase from "js-tiktoken/ranks/o200k_base"
 
 export const TOKEN_FUDGE_FACTOR = 1.5
-export const TOKEN_BUFFER = 5000
+/**
+ * Default percentage of the context window to use as a buffer when deciding when to truncate
+ */
+export const TOKEN_BUFFER_PERCENTAGE = 0.1
 
 /**
  * Counts tokens for user content using tiktoken for text
@@ -108,9 +111,9 @@ export function truncateConversationIfNeeded({
 	const effectiveTokens = totalTokens + lastMessageTokens
 
 	// Calculate available tokens for conversation history
-	const allowedTokens = contextWindow - reservedTokens
+	// Truncate if we're within TOKEN_BUFFER_PERCENTAGE of the context window
+	const allowedTokens = contextWindow * (1 - TOKEN_BUFFER_PERCENTAGE) - reservedTokens
 
 	// Determine if truncation is needed and apply if necessary
-	// Truncate if we're within TOKEN_BUFFER of the limit
-	return effectiveTokens > allowedTokens - TOKEN_BUFFER ? truncateConversation(messages, 0.5) : messages
+	return effectiveTokens > allowedTokens ? truncateConversation(messages, 0.5) : messages
 }
