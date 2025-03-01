@@ -7,7 +7,7 @@
 		"compile": "tsc -p tsconfig.json",
 		"lint": "eslint src --ext ts",
 		"check-types": "tsc --noEmit",
-		"test": "npm run compile && npx dotenvx run -f .env.integration -- node ./out/e2e/src/runTest.js",
+		"test": "npm run compile && npx dotenvx run -f .env.integration -- node ./out/runTest.js",
 		"ci": "npm run build && npm run test"
 	},
 	"dependencies": {},
