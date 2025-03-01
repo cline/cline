@@ -1,5 +1,14 @@
 # Roo Code Changelog
 
+## 3.7.9
+
+### Patch Changes
+
+- Delete task confirmation enhancements
+- Add a dynamic token buffer
+- Fix maxTokens defaults for Claude 3.7 Sonnet models
+- Prettier thinking blocks
+
 ## [3.7.8]
 
 - Add Vertex AI prompt caching support for Claude models (thanks @aitoroses and @lupuletic!)
