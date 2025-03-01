@@ -75,7 +75,6 @@ export class Cline {
 	browserSession: BrowserSession
 	private didEditFile: boolean = false
 	customInstructions?: string
-	preferredLanguage?: LanguageKey
 	autoApprovalSettings: AutoApprovalSettings
 	private browserSettings: BrowserSettings
 	private chatSettings: ChatSettings
@@ -136,9 +135,6 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context, browserSettings)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
-		this.preferredLanguage = getLanguageKey(
-			vscode.workspace.getConfiguration("cline").get<LanguageDisplay>("preferredLanguage"),
-		)
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
@@ -152,16 +148,6 @@ export class Cline {
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
-		// capture start of thread with the state at the beginning
-		telemetryService.capture({
-			event: "cline created",
-			properties: {
-				taskId: this.taskId,
-				isHistory: !!historyItem,
-				chatMode: this.chatSettings.mode,
-				hasImages: !!images,
-			},
-		})
 	}
 
 	updateBrowserSettings(browserSettings: BrowserSettings) {
@@ -1292,9 +1278,12 @@ export class Cline {
 		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, mcpHub, this.browserSettings)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
+		const preferredLanguage = getLanguageKey(
+			vscode.workspace.getConfiguration("cline").get<LanguageDisplay>("preferredLanguage"),
+		)
 		const preferredLanguageInstructions =
-			this.preferredLanguage && this.preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
-				? `# Preferred Language\n\nSpeak in ${this.preferredLanguage}.`
+			preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
+				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
@@ -1318,8 +1307,8 @@ export class Cline {
 		if (
 			settingsCustomInstructions ||
 			clineRulesFileInstructions ||
-			preferredLanguageInstructions ||
-			clineIgnoreInstructions
+			clineIgnoreInstructions ||
+			preferredLanguageInstructions
 		) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			systemPrompt += addUserInstructions(
@@ -3310,14 +3299,6 @@ export class Cline {
 					})
 					this.consecutiveMistakeCount++
 				}
-
-				telemetryService.capture({
-					event: "message sent",
-					properties: {
-						taskId: this.taskId,
-						chatMode: this.chatSettings.mode,
-					},
-				})
 
 				const recDidEndLoop = await this.recursivelyMakeClineRequests(this.userMessageContent)
 				didEndLoop = recDidEndLoop
