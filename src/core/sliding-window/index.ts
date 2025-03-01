@@ -3,7 +3,8 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { Tiktoken } from "js-tiktoken/lite"
 import o200kBase from "js-tiktoken/ranks/o200k_base"
 
-const TOKEN_FUDGE_FACTOR = 1.5
+export const TOKEN_FUDGE_FACTOR = 1.5
+export const TOKEN_BUFFER = 5000
 
 /**
  * Counts tokens for user content using tiktoken for text
@@ -110,5 +111,6 @@ export function truncateConversationIfNeeded({
 	const allowedTokens = contextWindow - reservedTokens
 
 	// Determine if truncation is needed and apply if necessary
-	return effectiveTokens < allowedTokens ? messages : truncateConversation(messages, 0.5)
+	// Truncate if we're within TOKEN_BUFFER of the limit
+	return effectiveTokens > allowedTokens - TOKEN_BUFFER ? truncateConversation(messages, 0.5) : messages
 }
