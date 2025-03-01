@@ -537,17 +537,43 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
 						</VSCodeDropdown>
 					</DropdownContainer>
-					<VSCodeCheckbox
-						checked={apiConfiguration?.awsUseCrossRegionInference || false}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							setApiConfiguration({
-								...apiConfiguration,
-								awsUseCrossRegionInference: isChecked,
-							})
-						}}>
-						Use cross-region inference
-					</VSCodeCheckbox>
+					<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+						<VSCodeCheckbox
+							checked={apiConfiguration?.awsUseCrossRegionInference || false}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								setApiConfiguration({
+									...apiConfiguration,
+									awsUseCrossRegionInference: isChecked,
+								})
+							}}>
+							Use cross-region inference
+						</VSCodeCheckbox>
+
+						{selectedModelInfo.supportsPromptCache && (
+							<>
+								<VSCodeCheckbox
+									checked={apiConfiguration?.awsBedrockUsePromptCache || false}
+									onChange={(e: any) => {
+										const isChecked = e.target.checked === true
+										setApiConfiguration({
+											...apiConfiguration,
+											awsBedrockUsePromptCache: isChecked,
+										})
+									}}>
+									Use prompt caching (Beta)
+								</VSCodeCheckbox>
+								<p
+									style={{
+										fontSize: "12px",
+										marginTop: "-5px",
+										color: "var(--vscode-descriptionForeground)",
+									}}>
+									Prompt caching can significantly reduce API costs by reusing responses for similar prompts.
+								</p>
+							</>
+						)}
+					</div>
 					<p
 						style={{
 							fontSize: "12px",
