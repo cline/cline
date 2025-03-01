@@ -85,6 +85,7 @@ export interface ModelInfo {
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-3-7-sonnet-20250219"
+export const ANTHROPIC_THINKING_BUDGET_TOKENS_MIN = 1024
 export const anthropicModels = {
 	"claude-3-7-sonnet-20250219": {
 		maxTokens: 8192,

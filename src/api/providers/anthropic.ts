@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { withRetry } from "../retry"
-import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "../../shared/api"
+import { ANTHROPIC_THINKING_BUDGET_TOKENS_MIN, anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "../../shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 
@@ -44,7 +44,7 @@ export class AnthropicHandler implements ApiHandler {
 						model: modelId === "claude-3-7-sonnet-20250219:thinking" ? "claude-3-7-sonnet-20250219" : modelId,
 						thinking:
 							modelId === "claude-3-7-sonnet-20250219:thinking"
-								? { type: "enabled", budget_tokens: this.options.thinkingBudgetTokens || 0 }
+								? { type: "enabled", budget_tokens: this.options.thinkingBudgetTokens || ANTHROPIC_THINKING_BUDGET_TOKENS_MIN }
 								: undefined,
 						max_tokens: model.info.maxTokens || 8192,
 						// "Thinking isn’t compatible with temperature, top_p, or top_k modifications as well as forced tool use."
