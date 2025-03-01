@@ -214,8 +214,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration, openRouterModels, requestyModels, platform, memoryBankSettings } =
-			useExtensionState()
+		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform, memoryBankSettings } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 
@@ -675,14 +674,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Separate the API config submission logic
 		const submitApiConfig = useCallback(() => {
 			const apiValidationResult = validateApiConfiguration(apiConfiguration)
-			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels, requestyModels)
+			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
 			if (!apiValidationResult && !modelIdValidationResult) {
 				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			} else {
 				vscode.postMessage({ type: "getLatestState" })
 			}
-		}, [apiConfiguration, openRouterModels, requestyModels])
+		}, [apiConfiguration, openRouterModels])
 
 		const onModeToggle = useCallback(() => {
 			// if (textAreaDisabled) return
