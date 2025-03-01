@@ -52,7 +52,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				// Use wouldExceedSizeLimit to avoid creating unnecessary buffer
 				if (wouldExceedSizeLimit(this.totalBytes, this.contextLimit)) {
 					// Create size estimate only when needed for error details
-					const sizeEstimate = estimateContentSize(Buffer.alloc(0, this.totalBytes), this.contextLimit)
+					const sizeEstimate = estimateContentSize(Buffer.alloc(this.totalBytes), this.contextLimit)
 					this.emit(
 						"error",
 						new ContentTooLargeError({
