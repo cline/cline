@@ -96,7 +96,6 @@ type GlobalStateKey =
 	| "liteLlmModelId"
 	| "qwenApiLine"
 	| "requestyModelId"
-	| "requestyModelInfo"
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
@@ -105,7 +104,6 @@ export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	uiMessages: "ui_messages.json",
 	openRouterModels: "openrouter_models.json",
-	requestyModels: "requesty_models.json",
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
 }
@@ -513,7 +511,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							}),
 						)
 						// post last cached models in case the call to endpoint fails
-						this.readDynamicProviderModels(GlobalFileNames.openRouterModels).then((openRouterModels) => {
+						this.readOpenRouterModels().then((openRouterModels) => {
 							if (openRouterModels) {
 								this.postMessageToWebview({
 									type: "openRouterModels",
@@ -554,36 +552,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							const { telemetrySetting } = state
 							const isOptedIn = telemetrySetting === "enabled"
 							telemetryService.updateTelemetryState(isOptedIn)
-
-							// only fetch requesty api key if api key is set
-							if (state.apiConfiguration?.requestyApiKey) {
-								// post last cached models in case the call to endpoint fails
-								this.readDynamicProviderModels(GlobalFileNames.requestyModels).then((requestyModels) => {
-									if (requestyModels) {
-										this.postMessageToWebview({
-											type: "requestyModels",
-											requestyModels,
-										})
-									}
-								})
-
-								// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
-								// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
-								// (see normalizeApiConfiguration > openrouter)
-								this.refreshRequestyModels().then(async (requestyModels) => {
-									if (requestyModels) {
-										// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-										const { apiConfiguration } = await this.getState()
-										if (apiConfiguration.requestyModelId) {
-											await this.updateGlobalState(
-												"requestyModelInfo",
-												requestyModels[apiConfiguration.requestyModelId],
-											)
-											await this.postStateToWebview()
-										}
-									}
-								})
-							}
 						})
 
 						break
@@ -628,7 +596,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								deepSeekApiKey,
 								requestyApiKey,
 								requestyModelId,
-								requestyModelInfo,
 								togetherApiKey,
 								togetherModelId,
 								qwenApiKey,
@@ -682,7 +649,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
 							await this.updateGlobalState("qwenApiLine", qwenApiLine)
 							await this.updateGlobalState("requestyModelId", requestyModelId)
-							await this.updateGlobalState("requestyModelInfo", requestyModelInfo)
 							await this.updateGlobalState("togetherModelId", togetherModelId)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
@@ -778,9 +744,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "refreshOpenRouterModels":
 						await this.refreshOpenRouterModels()
-						break
-					case "refreshRequestyModels":
-						await this.refreshRequestyModels()
 						break
 					case "refreshOpenAiModels":
 						const { apiConfiguration } = await this.getState()
@@ -1056,10 +1019,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				await this.updateGlobalState("previousModeModelId", apiConfiguration.openRouterModelId)
 				await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openRouterModelInfo)
 				break
-			case "requesty":
-				await this.updateGlobalState("previousModeModelId", apiConfiguration.requestyModelId)
-				await this.updateGlobalState("previousModeModelInfo", apiConfiguration.requestyModelInfo)
-				break
 			case "vscode-lm":
 				await this.updateGlobalState("previousModeModelId", apiConfiguration.vsCodeLmModelSelector)
 				break
@@ -1075,6 +1034,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				break
 			case "litellm":
 				await this.updateGlobalState("previousModeModelId", apiConfiguration.liteLlmModelId)
+				break
+			case "requesty":
+				await this.updateGlobalState("previousModeModelId", apiConfiguration.requestyModelId)
 				break
 		}
 
@@ -1092,10 +1054,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					await this.updateGlobalState("openRouterModelId", newModelId)
 					await this.updateGlobalState("openRouterModelInfo", newModelInfo)
 					break
-				case "requesty":
-					await this.updateGlobalState("requestyModelId", newModelId)
-					await this.updateGlobalState("requestyModelInfo", newModelInfo)
-					break
 				case "vscode-lm":
 					await this.updateGlobalState("vsCodeLmModelSelector", newModelId)
 					break
@@ -1111,6 +1069,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					break
 				case "litellm":
 					await this.updateGlobalState("liteLlmModelId", newModelId)
+					break
+				case "requesty":
+					await this.updateGlobalState("requestyModelId", newModelId)
 					break
 			}
 
@@ -1568,59 +1529,14 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		return cacheDir
 	}
 
-	async readDynamicProviderModels(filename: string): Promise<Record<string, ModelInfo> | undefined> {
-		const filePath = path.join(await this.ensureCacheDirectoryExists(), filename)
-		const fileExists = await fileExistsAtPath(filePath)
+	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
+		const openRouterModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
+		const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
 		if (fileExists) {
-			const fileContents = await fs.readFile(filePath, "utf8")
+			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
 			return JSON.parse(fileContents)
 		}
 		return undefined
-	}
-
-	adjustPriceToMillionTokens(price: any) {
-		if (price) {
-			return parseFloat(price) * 1_000_000
-		}
-		return undefined
-	}
-
-	async refreshRequestyModels() {
-		const requestyModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.requestyModels)
-
-		let models: Record<string, ModelInfo> = {}
-		try {
-			const response = await axios.get("https://router.requesty.ai/v1/models")
-			if (response.data?.data) {
-				for (const model of response.data.data) {
-					const modelInfo: ModelInfo = {
-						maxTokens: model.max_output_tokens,
-						contextWindow: model.context_window,
-						supportsImages: model.supports_images || undefined,
-						supportsComputerUse: model.supports_computer_use || undefined,
-						supportsPromptCache: model.supports_caching || undefined,
-						inputPrice: this.adjustPriceToMillionTokens(model.input_price),
-						outputPrice: this.adjustPriceToMillionTokens(model.output_price),
-						cacheWritesPrice: this.adjustPriceToMillionTokens(model.caching_price),
-						cacheReadsPrice: this.adjustPriceToMillionTokens(model.cached_price),
-						description: model.description,
-					}
-					models[model.id] = modelInfo
-				}
-				await fs.writeFile(requestyModelsFilePath, JSON.stringify(models))
-				console.log("Requesty models fetched and saved", models)
-			} else {
-				console.error("Invalid response from Requesty API")
-			}
-		} catch (error) {
-			console.error("Error fetching Requesty models:", error)
-		}
-
-		await this.postMessageToWebview({
-			type: "requestyModels",
-			requestyModels: models,
-		})
-		return models
 	}
 
 	async refreshOpenRouterModels() {
@@ -1657,14 +1573,20 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			*/
 			if (response.data?.data) {
 				const rawModels = response.data.data
+				const parsePrice = (price: any) => {
+					if (price) {
+						return parseFloat(price) * 1_000_000
+					}
+					return undefined
+				}
 				for (const rawModel of rawModels) {
 					const modelInfo: ModelInfo = {
 						maxTokens: rawModel.top_provider?.max_completion_tokens,
 						contextWindow: rawModel.context_length,
 						supportsImages: rawModel.architecture?.modality?.includes("image"),
 						supportsPromptCache: false,
-						inputPrice: this.adjustPriceToMillionTokens(rawModel.pricing?.prompt),
-						outputPrice: this.adjustPriceToMillionTokens(rawModel.pricing?.completion),
+						inputPrice: parsePrice(rawModel.pricing?.prompt),
+						outputPrice: parsePrice(rawModel.pricing?.completion),
 						description: rawModel.description,
 					}
 
@@ -1965,7 +1887,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			deepSeekApiKey,
 			requestyApiKey,
 			requestyModelId,
-			requestyModelInfo,
 			togetherApiKey,
 			togetherModelId,
 			qwenApiKey,
@@ -2019,7 +1940,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
 			this.getSecret("requestyApiKey") as Promise<string | undefined>,
 			this.getGlobalState("requestyModelId") as Promise<string | undefined>,
-			this.getGlobalState("requestyModelInfo") as Promise<ModelInfo | undefined>,
 			this.getSecret("togetherApiKey") as Promise<string | undefined>,
 			this.getGlobalState("togetherModelId") as Promise<string | undefined>,
 			this.getSecret("qwenApiKey") as Promise<string | undefined>,
@@ -2100,7 +2020,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				deepSeekApiKey,
 				requestyApiKey,
 				requestyModelId,
-				requestyModelInfo,
 				togetherApiKey,
 				togetherModelId,
 				qwenApiKey,
