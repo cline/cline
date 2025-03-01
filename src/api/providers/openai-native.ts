@@ -10,7 +10,6 @@ import {
 	openAiNativeModels,
 } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions.mjs"
 
@@ -25,25 +24,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 		})
 	}
 
-	private async *yieldUsage(info: ModelInfo, usage: OpenAI.Completions.CompletionUsage | undefined): ApiStream {
-		const inputTokens = usage?.prompt_tokens || 0
-		const outputTokens = usage?.completion_tokens || 0
-		const cacheReadTokens = usage?.prompt_tokens_details?.cached_tokens || 0
-		const cacheWriteTokens = 0
-		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
-		yield {
-			type: "usage",
-			inputTokens: inputTokens,
-			outputTokens: outputTokens,
-			cacheWriteTokens: cacheWriteTokens,
-			cacheReadTokens: cacheReadTokens,
-			totalCost: totalCost,
-		}
-	}
-
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const model = this.getModel()
 		switch (this.getModel().id) {
 			//o1-series doesnt support streaming, non-1 temp
 			case "o1": {
@@ -68,7 +50,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "o1-mini": {
 				// o1-preview and o1-mini doesnt support system prompt and 'Reasoning effort'
 				const response = await this.client.chat.completions.create({
-					model: model.id,
+					model: this.getModel().id,
 					messages: [{ role: "user", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 				})
 				yield {
@@ -76,14 +58,18 @@ export class OpenAiNativeHandler implements ApiHandler {
 					text: response.choices[0]?.message.content || "",
 				}
 
-				yield* this.yieldUsage(model.info, response.usage)
+				yield {
+					type: "usage",
+					inputTokens: response.usage?.prompt_tokens || 0,
+					outputTokens: response.usage?.completion_tokens || 0,
+				}
 
 				break
 			}
 			case "o3-mini": {
 				// o3-mini suggests changing message role from 'system' to 'developer'
 				const stream = await this.client.chat.completions.create({
-					model: model.id,
+					model: this.getModel().id,
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
@@ -98,15 +84,18 @@ export class OpenAiNativeHandler implements ApiHandler {
 						}
 					}
 					if (chunk.usage) {
-						// Only last chunk contains usage
-						yield* this.yieldUsage(model.info, chunk.usage)
+						yield {
+							type: "usage",
+							inputTokens: chunk.usage.prompt_tokens || 0,
+							outputTokens: chunk.usage.completion_tokens || 0,
+						}
 					}
 				}
 				break
 			}
 			default: {
 				const stream = await this.client.chat.completions.create({
-					model: model.id,
+					model: this.getModel().id,
 					// max_completion_tokens: this.getModel().info.maxTokens,
 					temperature: 0,
 					messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
@@ -122,9 +111,14 @@ export class OpenAiNativeHandler implements ApiHandler {
 							text: delta.content,
 						}
 					}
+
+					// contains a null value except for the last chunk which contains the token usage statistics for the entire request
 					if (chunk.usage) {
-						// Only last chunk contains usage
-						yield* this.yieldUsage(model.info, chunk.usage)
+						yield {
+							type: "usage",
+							inputTokens: chunk.usage.prompt_tokens || 0,
+							outputTokens: chunk.usage.completion_tokens || 0,
+						}
 					}
 				}
 			}
