@@ -9,9 +9,8 @@
 		"strict": true,
 		"skipLibCheck": true,
 		"useUnknownInCatchVariables": false,
-		"rootDir": "src",
-		"outDir": "out-integration"
+		"outDir": "out"
 	},
-	"include": ["**/*.ts"],
-	"exclude": [".vscode-test", "benchmark", "dist", "**/node_modules/**", "out", "out-integration", "webview-ui"]
+	"include": ["src", "../src/exports"],
+	"exclude": [".vscode-test", "**/node_modules/**", "out"]
 }

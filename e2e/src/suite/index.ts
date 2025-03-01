@@ -1,8 +1,7 @@
 import * as path from "path"
 import Mocha from "mocha"
 import { glob } from "glob"
-import { ClineAPI } from "../../exports/cline"
-import { ClineProvider } from "../../core/webview/ClineProvider"
+import { ClineAPI, ClineProvider } from "../../../src/exports/cline"
 import * as vscode from "vscode"
 
 declare global {
