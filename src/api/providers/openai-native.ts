@@ -43,6 +43,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.getModel()
 		switch (this.getModel().id) {
 			//o1-series doesnt support streaming, non-1 temp
 			case "o1": {
