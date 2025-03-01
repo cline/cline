@@ -1533,12 +1533,17 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		}
 	}
 
-	// OpenRouter
+	getOpenRouterBaseUrl() {
+		const openRouterCustomBaseUrl = vscode.workspace.getConfiguration("cline").get<string>("openRouterCustomBaseUrl")
+		return openRouterCustomBaseUrl || "https://openrouter.ai/api/v1"
+	}
 
+	// OpenRouter
 	async handleOpenRouterCallback(code: string) {
 		let apiKey: string
 		try {
-			const response = await axios.post("https://openrouter.ai/api/v1/auth/keys", { code })
+			const baseUrl = this.getOpenRouterBaseUrl()
+			const response = await axios.post(`${baseUrl}/auth/keys`, { code })
 			if (response.data && response.data.key) {
 				apiKey = response.data.key
 			} else {
@@ -1628,7 +1633,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		let models: Record<string, ModelInfo> = {}
 		try {
-			const response = await axios.get("https://openrouter.ai/api/v1/models")
+			const baseUrl = this.getOpenRouterBaseUrl()
+			const response = await axios.get(`${baseUrl}/models`)
 			/*
 			{
 				"id": "anthropic/claude-3.5-sonnet",
@@ -2061,6 +2067,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			}
 		}
 
+		const openRouterBaseUrl = this.getOpenRouterBaseUrl()
+
 		const o3MiniReasoningEffort = vscode.workspace
 			.getConfiguration("cline.modelSettings.o3Mini")
 			.get("reasoningEffort", "medium")
@@ -2076,6 +2084,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				apiProvider,
 				apiModelId,
 				apiKey,
+				openRouterBaseUrl,
 				openRouterApiKey,
 				awsAccessKey,
 				awsSecretKey,

@@ -177,6 +177,11 @@
 					"default": "medium",
 					"description": "Controls the reasoning effort when using the o3-mini model. Higher values may result in more thorough but slower responses."
 				},
+				"cline.openRouterCustomBaseUrl": {
+					"type": "string",
+					"default": null,
+					"description": "Custom base URL for OpenRouter API calls. If not specified, defaults to https://openrouter.ai/api/v1"
+				},
 				"cline.chromeExecutablePath": {
 					"type": "string",
 					"default": null,
