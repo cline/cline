@@ -2,10 +2,10 @@
 
 ## [3.5.0]
 
--   Add 'Enable extended thinking' option Claude 3.7 Sonnet, with ability to set different budgets for Plan and Act modes (thanks @celestial-vault!)
--   New rich MCP responses with automatic image previews, website thumbnails, and WolframAlpha visualizations right in your conversation (thanks @Garoth!)
--   Add xAI Provider Integration with support for all Grok models, including the massive 131K token context window for large codebases (thanks @andrewmonostate!)
--   Add language preferences option in Advanced Settings (thanks @brownrw8!)
+-   Add 'Enable extended thinking' option for Claude 3.7 Sonnet, with ability to set different budgets for Plan and Act modes
+-   Add support for rich MCP responses with automatic image previews, website thumbnails, and WolframAlpha visualizations
+-   Add language preference option in Advanced Settings
+-   Add xAI Provider Integration with support for all Grok models (thanks @andrewmonostate!)
 -   Fix issue with Linux XDG pointing to incorrect path for Document folder (thanks @jonatkinson!)
 
 ## [3.4.10]
