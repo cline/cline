@@ -16,9 +16,11 @@ describe("content-size", () => {
 
 	describe("wouldExceedSizeLimit", () => {
 		it("checks if byte count would exceed max allowed size", () => {
-			expect(wouldExceedSizeLimit(100, 64_000)).to.equal(false) // 25 tokens < (64k - 27k) tokens
-			expect(wouldExceedSizeLimit(148000, 64_000)).to.equal(true) // 37k tokens > (64k - 27k) tokens
-			expect(wouldExceedSizeLimit(392000, 128_000)).to.equal(true) // 98k tokens > (128k - 30k) tokens
+			// For deepseek (64k - 27k = 37k tokens)
+			expect(wouldExceedSizeLimit(100, 37_000)).to.equal(false) // 25 tokens < 37k tokens
+			expect(wouldExceedSizeLimit(148000, 37_000)).to.equal(true) // 37k tokens = 37k tokens
+			// For standard models (128k - 30k = 98k tokens)
+			expect(wouldExceedSizeLimit(392000, 98_000)).to.equal(true) // 98k tokens = 98k tokens
 		})
 	})
 

@@ -29,12 +29,12 @@ describe("extract-text", () => {
 	})
 
 	it("throws ContentTooLargeError when file would exceed max allowed size", async () => {
-		// Create content that would exceed max allowed size for deepseek (64k - 27k tokens)
-		const largeContent = "x".repeat(148000) // 37k tokens > (64k - 27k) tokens
+		// Create content that would exceed max allowed size (37k tokens)
+		const largeContent = "x".repeat(148000) // 37k tokens
 		await fs.writeFile(tempFilePath, largeContent)
 
 		try {
-			await extractTextFromFile(tempFilePath, 64_000)
+			await extractTextFromFile(tempFilePath, 37_000) // Pass pre-processed maxAllowedSize
 			throw new Error("Should have thrown error")
 		} catch (error) {
 			expect(error).to.be.instanceOf(ContentTooLargeError)

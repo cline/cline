@@ -23,8 +23,7 @@ export function estimateTokens(bytes: number): number {
  */
 export function wouldExceedSizeLimit(byteCount: number, contextLimit: number): boolean {
 	const estimatedTokenCount = estimateTokens(byteCount)
-	const maxAllowedSize = getMaxAllowedSize(contextLimit)
-	return estimatedTokenCount >= maxAllowedSize
+	return estimatedTokenCount >= getMaxAllowedSize(contextLimit)
 }
 
 /**
