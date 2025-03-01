@@ -152,7 +152,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					const removedTaskNumber = clineToBeRemoved.getTaskNumber()
 
 					try {
-						await clineToBeRemoved.abortTask()
+						// abort the running task and set isAbandoned to true so all running promises will exit as well
+						await clineToBeRemoved.abortTask(true)
 					} catch (abortError) {
 						this.log(`Error failed aborting task ${removedTaskNumber}: ${abortError.message}`)
 					}
@@ -223,7 +224,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			// remove the last cline instance from the stack (this is the finished sub task)
 			await this.removeClineFromStack()
 			// resume the last cline instance in the stack (if it exists - this is the 'parnt' calling task)
-			this.getCurrentCline()?.resumePausedTask(`new_task finished successfully! ${lastMessage}`)
+			this.getCurrentCline()?.resumePausedTask(lastMessage)
 		} catch (error) {
 			this.log(`Error in finishSubTask: ${error.message}`)
 			throw error
@@ -923,13 +924,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						)
 						break
 					case "clearTask":
-						// newTask will start a new task with a given task text, while clear task resets the current session and allows for a new task to be started
-						await this.removeClineFromStack()
-						// resume previouse task with subtask failed error
-						this.getCurrentCline()?.resumePausedTask(
+						// clear task resets the current session and allows for a new task to be started, if this session is a subtask - it allows the parent task to be resumed
+						await this.finishSubTask(
 							`new_task finished with an error!, it was stopped and canceled by the user.`,
 						)
-
 						await this.postStateToWebview()
 						break
 					case "didShowAnnouncement":
@@ -2087,11 +2085,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		// remove task from stack if it's the current task
 		if (id === this.getCurrentCline()?.taskId) {
-			await this.removeClineWithIdFromStack(id)
-			// resume previouse task with subtask failed error
-			this.getCurrentCline()?.resumePausedTask(
-				`new_task finished with an error!, it was stopped and delted by the user.`,
-			)
+			// if we found the taskid to delete - call finish to abort this task and allow a new task to be started,
+			// if we are deleting a subtask and parent task is still waiting for subtask to finish - it allows the parent to resume (this case should neve exist)
+			await this.finishSubTask(`new_task finished with an error!, it was stopped and delted by the user.`)
 		}
 
 		// delete task from the task history state
