@@ -62,7 +62,7 @@ export interface ApiHandlerOptions {
 	asksageApiUrl?: string
 	asksageApiKey?: string
 	xaiApiKey?: string
-	thinkingBudgetTokens?: number\
+	thinkingBudgetTokens?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
