@@ -16,7 +16,9 @@
 		"src/activate/**",
 		"src/exports/**",
 		"src/extension.ts",
-		".vscode-test.mjs"
+		"e2e/.vscode-test.mjs",
+		"e2e/src/runTest.ts",
+		"e2e/src/suite/index.ts"
 	],
 	"workspaces": {
 		"webview-ui": {

@@ -36,7 +36,11 @@ export type CustomModePrompts = {
 
 // Helper to extract group name regardless of format
 export function getGroupName(group: GroupEntry): ToolGroup {
-	return Array.isArray(group) ? group[0] : group
+	if (typeof group === "string") {
+		return group
+	}
+
+	return group[0]
 }
 
 // Helper to get group options if they exist
