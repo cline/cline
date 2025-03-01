@@ -29,10 +29,7 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install -g vsce ovsx
-          npm install
-          cd webview-ui
-          npm install
-          cd ..
+          npm run install:ci
       - name: Package and Publish Extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
