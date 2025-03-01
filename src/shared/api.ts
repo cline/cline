@@ -15,6 +15,7 @@ export type ApiProvider =
 	| "mistral"
 	| "vscode-lm"
 	| "litellm"
+	| "asksage"
 	| "xai"
 
 export interface ApiHandlerOptions {
@@ -58,6 +59,8 @@ export interface ApiHandlerOptions {
 	vsCodeLmModelSelector?: any
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
+	asksageApiUrl?: string
+	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
 }
@@ -806,6 +809,38 @@ export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	supportsPromptCache: false,
 	inputPrice: 0,
 	outputPrice: 0,
+}
+
+// AskSage Models
+// https://docs.asksage.ai/
+export type AskSageModelId = keyof typeof askSageModels
+export const askSageDefaultModelId: AskSageModelId = "claude-35-sonnet"
+export const askSageDefaultURL: string = "https://api.asksage.ai/server"
+export const askSageModels = {
+	"gpt-4o": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gpt-4o-gov": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"claude-35-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 }
 
 // X AI
