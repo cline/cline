@@ -35,6 +35,7 @@ import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
+import { validateThinkingBudget } from "../../utils/validation"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -259,6 +260,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 				if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
 					// Update state when marketplace tab setting changes
+					await this.postStateToWebview()
+				}
+				if (e && e.affectsConfiguration("cline.modelSettings.anthropic.thinkingBudgetTokens")) {
+					const config = vscode.workspace.getConfiguration("cline.modelSettings.anthropic")
+					const thinkingBudget = config.get<number>("thinkingBudgetTokens", 0)
+
+					const validatedValue = validateThinkingBudget(thinkingBudget)
+
+					// Only update if the value changed
+					if (validatedValue !== thinkingBudget) {
+						await config.update("thinkingBudgetTokens", validatedValue, true)
+					}
+
 					await this.postStateToWebview()
 				}
 			},
@@ -973,6 +987,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							} catch (error) {
 								console.error(`Error searching commits: ${JSON.stringify(error)}`)
 							}
+						}
+						break
+					}
+					case "updateThinkingBudgetTokens": {
+						if (message.number !== undefined) {
+							const validatedValue = validateThinkingBudget(message.number)
+
+							const config = vscode.workspace.getConfiguration("cline.modelSettings.anthropic")
+							await config.update("thinkingBudgetTokens", validatedValue, true)
 						}
 						break
 					}
@@ -2042,6 +2065,10 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			.getConfiguration("cline.modelSettings.o3Mini")
 			.get("reasoningEffort", "medium")
 
+		const thinkingBudgetTokens = vscode.workspace
+			.getConfiguration("cline.modelSettings.anthropic")
+			.get("thinkingBudgetTokens", 0)
+
 		const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
 
 		return {
@@ -2084,6 +2111,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				openRouterModelInfo,
 				vsCodeLmModelSelector,
 				o3MiniReasoningEffort,
+				thinkingBudgetTokens,
 				liteLlmBaseUrl,
 				liteLlmModelId,
 				liteLlmApiKey,
