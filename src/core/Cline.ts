@@ -2628,10 +2628,7 @@ export class Cline {
 								}
 
 								// Switch the mode using shared handler
-								const provider = this.providerRef.deref()
-								if (provider) {
-									await provider.handleModeSwitch(mode_slug)
-								}
+								await this.providerRef.deref()?.handleModeSwitch(mode_slug)
 								pushToolResult(
 									`Successfully switched from ${getModeBySlug(currentMode)?.name ?? currentMode} mode to ${
 										targetMode.name
@@ -2700,23 +2697,18 @@ export class Cline {
 								this.pausedModeSlug = currentMode
 
 								// Switch mode first, then create new task instance
-								const provider = this.providerRef.deref()
-								if (provider) {
-									await provider.handleModeSwitch(mode)
-									this.providerRef
-										.deref()
-										?.log(`[subtasks] Task: ${this.taskNumber} creating new task in '${mode}' mode`)
-									await provider.initClineWithSubTask(message)
-									pushToolResult(
-										`Successfully created new task in ${targetMode.name} mode with message: ${message}`,
-									)
-									// set the isPaused flag to true so the parent task can wait for the sub-task to finish
-									this.isPaused = true
-								} else {
-									pushToolResult(
-										formatResponse.toolError("Failed to create new task: provider not available"),
-									)
-								}
+								await this.providerRef.deref()?.handleModeSwitch(mode)
+								// wait for mode to actually switch in UI and in State
+								await delay(500) // delay to allow mode change to take effect before next tool is executed
+								this.providerRef
+									.deref()
+									?.log(`[subtasks] Task: ${this.taskNumber} creating new task in '${mode}' mode`)
+								await this.providerRef.deref()?.initClineWithSubTask(message)
+								pushToolResult(
+									`Successfully created new task in ${targetMode.name} mode with message: ${message}`,
+								)
+								// set the isPaused flag to true so the parent task can wait for the sub-task to finish
+								this.isPaused = true
 								break
 							}
 						} catch (error) {
@@ -2772,6 +2764,15 @@ export class Cline {
 											undefined,
 											false,
 										)
+
+										if (this.isSubTask) {
+											// tell the provider to remove the current subtask and resume the previous task in the stack (it might decide to run the command)
+											await this.providerRef
+												.deref()
+												?.finishSubTask(`new_task finished successfully! ${lastMessage?.text}`)
+											break
+										}
+
 										await this.ask(
 											"command",
 											removeClosingTag("command", command),
@@ -2973,6 +2974,8 @@ export class Cline {
 			if (currentMode !== this.pausedModeSlug) {
 				// the mode has changed, we need to switch back to the paused mode
 				await this.providerRef.deref()?.handleModeSwitch(this.pausedModeSlug)
+				// wait for mode to actually switch in UI and in State
+				await delay(500) // delay to allow mode change to take effect before next tool is executed
 				this.providerRef
 					.deref()
 					?.log(
