@@ -40,3 +40,96 @@ export interface ClineAPI {
 	 */
 	sidebarProvider: ClineSidebarProvider
 }
+
+export interface ClineProvider {
+	readonly context: vscode.ExtensionContext
+	readonly viewLaunched: boolean
+	readonly messages: ClineMessage[]
+
+	/**
+	 * Resolves the webview view for the provider
+	 * @param webviewView The webview view or panel to resolve
+	 */
+	resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel): Promise<void>
+
+	/**
+	 * Initializes Cline with a task
+	 */
+	initClineWithTask(task?: string, images?: string[]): Promise<void>
+
+	/**
+	 * Initializes Cline with a history item
+	 */
+	initClineWithHistoryItem(historyItem: HistoryItem): Promise<void>
+
+	/**
+	 * Posts a message to the webview
+	 */
+	postMessageToWebview(message: ExtensionMessage): Promise<void>
+
+	/**
+	 * Handles mode switching
+	 */
+	handleModeSwitch(newMode: Mode): Promise<void>
+
+	/**
+	 * Updates custom instructions
+	 */
+	updateCustomInstructions(instructions?: string): Promise<void>
+
+	/**
+	 * Cancels the current task
+	 */
+	cancelTask(): Promise<void>
+
+	/**
+	 * Clears the current task
+	 */
+	clearTask(): Promise<void>
+
+	/**
+	 * Gets the current state
+	 */
+	getState(): Promise<any>
+
+	/**
+	 * Updates a value in the global state
+	 * @param key The key to update
+	 * @param value The value to set
+	 */
+	updateGlobalState(key: GlobalStateKey, value: any): Promise<void>
+
+	/**
+	 * Gets a value from the global state
+	 * @param key The key to get
+	 */
+	getGlobalState(key: GlobalStateKey): Promise<any>
+
+	/**
+	 * Stores a secret value in secure storage
+	 * @param key The key to store the secret under
+	 * @param value The secret value to store, or undefined to remove the secret
+	 */
+	storeSecret(key: SecretKey, value?: string): Promise<void>
+
+	/**
+	 * Retrieves a secret value from secure storage
+	 * @param key The key of the secret to retrieve
+	 */
+	getSecret(key: SecretKey): Promise<string | undefined>
+
+	/**
+	 * Resets the state
+	 */
+	resetState(): Promise<void>
+
+	/**
+	 * Logs a message
+	 */
+	log(message: string): void
+
+	/**
+	 * Disposes of the provider
+	 */
+	dispose(): Promise<void>
+}

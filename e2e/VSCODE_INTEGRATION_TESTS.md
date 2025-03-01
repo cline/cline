@@ -11,8 +11,8 @@ The integration tests use the `@vscode/test-electron` package to run tests in a 
 ### Directory Structure
 
 ```
-src/test/
-├── runTest.ts           # Main test runner
+e2e/src/
+├── runTest.ts          # Main test runner
 ├── suite/
 │   ├── index.ts        # Test suite configuration
 │   ├── modes.test.ts   # Mode switching tests

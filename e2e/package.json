@@ -1,0 +1,21 @@
+{
+	"name": "e2e",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"build": "cd .. && npm run build",
+		"compile": "tsc -p tsconfig.json",
+		"lint": "eslint src --ext ts",
+		"check-types": "tsc --noEmit",
+		"test": "npm run compile && npx dotenvx run -f .env.integration -- node ./out/runTest.js",
+		"ci": "npm run build && npm run test"
+	},
+	"dependencies": {},
+	"devDependencies": {
+		"@types/mocha": "^10.0.10",
+		"@vscode/test-cli": "^0.0.9",
+		"@vscode/test-electron": "^2.4.0",
+		"mocha": "^11.1.0",
+		"typescript": "^5.4.5"
+	}
+}
