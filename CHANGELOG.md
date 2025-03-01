@@ -2,11 +2,12 @@
 
 ## [3.5.0]
 
-- Update checkpoints with improved storage optimization & faster performance (thanks @tiki_brc!)
-- New Rich MCP Responses with automatic image previews, website thumbnails, and WolframAlpha visualizations right in your conversation (thanks @.lung!)
-- Added xAI Provider Integration with support for all Grok models, including the massive 131K token context window for large codebases (thanks @ocasta181!)
-- Language preferences feature to set your preferred language in settings (thanks @brownrw8!)
-- Added Linux XDG Support for user's document folder settings (thanks @jonatkinson!)
+-   Add Sonnet 3.7 thinking model option to Anthropic provider
+-   Update checkpoints with improved storage optimization & faster performance (thanks @tiki_brc!)
+-   New Rich MCP Responses with automatic image previews, website thumbnails, and WolframAlpha visualizations right in your conversation (thanks @.lung!)
+-   Added xAI Provider Integration with support for all Grok models, including the massive 131K token context window for large codebases (thanks @ocasta181!)
+-   Language preferences feature to set your preferred language in settings (thanks @brownrw8!)
+-   Added Linux XDG Support for user's document folder settings (thanks @jonatkinson!)
 
 ## [3.4.10]
 
