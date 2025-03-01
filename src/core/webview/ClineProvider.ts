@@ -540,32 +540,35 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							const { telemetrySetting } = state
 							const isOptedIn = telemetrySetting === "enabled"
 							telemetryService.updateTelemetryState(isOptedIn)
-						})
 
-						// post last cached models in case the call to endpoint fails
-						this.readDynamicProviderModels(GlobalFileNames.requestyModels).then((requestyModels) => {
-							if (requestyModels) {
-								this.postMessageToWebview({
-									type: "requestyModels",
-									requestyModels,
+							// only fetch requesty api key if api key is set
+							if (state.apiConfiguration?.requestyApiKey) {
+								// post last cached models in case the call to endpoint fails
+								this.readDynamicProviderModels(GlobalFileNames.requestyModels).then((requestyModels) => {
+									if (requestyModels) {
+										this.postMessageToWebview({
+											type: "requestyModels",
+											requestyModels,
+										})
+									}
 								})
-							}
-						})
 
-						// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
-						// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
-						// (see normalizeApiConfiguration > openrouter)
-						this.refreshRequestyModels().then(async (requestyModels) => {
-							if (requestyModels) {
-								// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-								const { apiConfiguration } = await this.getState()
-								if (apiConfiguration.requestyModelId) {
-									await this.updateGlobalState(
-										"requestyModelInfo",
-										requestyModels[apiConfiguration.requestyModelId],
-									)
-									await this.postStateToWebview()
-								}
+								// gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
+								// we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
+								// (see normalizeApiConfiguration > openrouter)
+								this.refreshRequestyModels().then(async (requestyModels) => {
+									if (requestyModels) {
+										// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
+										const { apiConfiguration } = await this.getState()
+										if (apiConfiguration.requestyModelId) {
+											await this.updateGlobalState(
+												"requestyModelInfo",
+												requestyModels[apiConfiguration.requestyModelId],
+											)
+											await this.postStateToWebview()
+										}
+									}
+								})
 							}
 						})
 
