@@ -1,7 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { withRetry } from "../retry"
-import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerOptions, ModelInfo } from "../../shared/api"
+import {
+	ANTHROPIC_THINKING_BUDGET_TOKENS_MIN,
+	anthropicDefaultModelId,
+	AnthropicModelId,
+	anthropicModels,
+	ApiHandlerOptions,
+	ModelInfo,
+} from "../../shared/api"
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 
@@ -19,14 +26,13 @@ export class AnthropicHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		let budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = budget_tokens !== 0 ? true : false
 		const model = this.getModel()
 		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent>
 		const modelId = model.id
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
 			case "claude-3-7-sonnet-20250219":
+			case "claude-3-7-sonnet-20250219:thinking":
 			case "claude-3-5-sonnet-20241022":
 			case "claude-3-5-haiku-20241022":
 			case "claude-3-opus-20240229":
@@ -42,12 +48,18 @@ export class AnthropicHandler implements ApiHandler {
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 				stream = await this.client.messages.create(
 					{
-						model: modelId,
-						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+						model: modelId === "claude-3-7-sonnet-20250219:thinking" ? "claude-3-7-sonnet-20250219" : modelId,
+						thinking:
+							modelId === "claude-3-7-sonnet-20250219:thinking"
+								? {
+										type: "enabled",
+										budget_tokens: this.options.thinkingBudgetTokens || ANTHROPIC_THINKING_BUDGET_TOKENS_MIN,
+									}
+								: undefined,
 						max_tokens: model.info.maxTokens || 8192,
 						// "Thinking isn’t compatible with temperature, top_p, or top_k modifications as well as forced tool use."
 						// (https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking)
-						temperature: reasoningOn ? 1 : 0,
+						temperature: modelId === "claude-3-7-sonnet-20250219:thinking" ? 1 : 0,
 						system: [
 							{
 								text: systemPrompt,
@@ -95,6 +107,7 @@ export class AnthropicHandler implements ApiHandler {
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
 						switch (modelId) {
 							case "claude-3-7-sonnet-20250219":
+							case "claude-3-7-sonnet-20250219:thinking":
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":
 							case "claude-3-opus-20240229":
