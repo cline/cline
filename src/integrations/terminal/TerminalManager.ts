@@ -109,12 +109,7 @@ export class TerminalManager {
 		}
 	}
 
-	runCommand(
-		terminalInfo: TerminalInfo,
-		command: string,
-		contextLimit?: number,
-		usedContext?: number,
-	): TerminalProcessResultPromise {
+	runCommand(terminalInfo: TerminalInfo, command: string, contextLimit?: number): TerminalProcessResultPromise {
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 		const process = new TerminalProcess()
@@ -146,14 +141,14 @@ export class TerminalManager {
 		// if shell integration is already active, run the command immediately
 		if (terminalInfo.terminal.shellIntegration) {
 			process.waitForShellIntegration = false
-			process.run(terminalInfo.terminal, command, contextLimit, usedContext)
+			process.run(terminalInfo.terminal, command, contextLimit)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
 			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 }).finally(() => {
 				const existingProcess = this.processes.get(terminalInfo.id)
 				if (existingProcess && existingProcess.waitForShellIntegration) {
 					existingProcess.waitForShellIntegration = false
-					existingProcess.run(terminalInfo.terminal, command, contextLimit, usedContext)
+					existingProcess.run(terminalInfo.terminal, command, contextLimit)
 				}
 			})
 		}

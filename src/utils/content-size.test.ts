@@ -11,7 +11,6 @@ import path from "path"
 import os from "os"
 
 const CONTEXT_LIMIT = 1000
-const USED_CONTEXT = 200
 
 describe("content-size", () => {
 	describe("calculateMaxAllowedSize", () => {
@@ -39,31 +38,28 @@ describe("content-size", () => {
 	describe("estimateContentSize", () => {
 		it("estimates size for string content", () => {
 			const content = "Hello world" // 11 bytes
-			const result = estimateContentSize(content, CONTEXT_LIMIT, USED_CONTEXT)
+			const result = estimateContentSize(content, CONTEXT_LIMIT)
 
 			expect(result.bytes).to.equal(11)
 			expect(result.estimatedTokens).to.equal(3)
-			expect(result.remainingContextSize).to.equal(800)
 			expect(result.wouldExceedLimit).to.equal(false)
 		})
 
 		it("estimates size for buffer content", () => {
 			const content = Buffer.from("Hello world") // 11 bytes
-			const result = estimateContentSize(content, CONTEXT_LIMIT, USED_CONTEXT)
+			const result = estimateContentSize(content, CONTEXT_LIMIT)
 
 			expect(result.bytes).to.equal(11)
 			expect(result.estimatedTokens).to.equal(3)
-			expect(result.remainingContextSize).to.equal(800)
 			expect(result.wouldExceedLimit).to.equal(false)
 		})
 
 		it("detects when content would exceed half of context limit", () => {
 			const halfContextLimit = calculateMaxAllowedSize(CONTEXT_LIMIT) // 500 tokens
 			const largeContent = "x".repeat(halfContextLimit * 4 + 4) // Just over half context limit in tokens
-			const result = estimateContentSize(largeContent, CONTEXT_LIMIT, USED_CONTEXT)
+			const result = estimateContentSize(largeContent, CONTEXT_LIMIT)
 
 			expect(result.wouldExceedLimit).to.equal(true)
-			expect(result.remainingContextSize).to.equal(800) // This is still contextLimit - usedContext
 		})
 	})
 
@@ -80,18 +76,17 @@ describe("content-size", () => {
 		})
 
 		it("estimates size for existing file", async () => {
-			const result = await estimateFileSize(tempFilePath, CONTEXT_LIMIT, USED_CONTEXT)
+			const result = await estimateFileSize(tempFilePath, CONTEXT_LIMIT)
 
 			expect(result.bytes).to.equal(11)
 			expect(result.estimatedTokens).to.equal(3)
-			expect(result.remainingContextSize).to.equal(800)
 			expect(result.wouldExceedLimit).to.equal(false)
 		})
 
 		it("throws error for non-existent file", async () => {
 			const nonExistentPath = path.join(os.tmpdir(), "non-existent.txt")
 			try {
-				await estimateFileSize(nonExistentPath, CONTEXT_LIMIT, USED_CONTEXT)
+				await estimateFileSize(nonExistentPath, CONTEXT_LIMIT)
 				throw new Error("Should have thrown error")
 			} catch (error) {
 				expect(error).to.be.instanceOf(Error)

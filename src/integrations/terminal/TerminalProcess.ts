@@ -26,18 +26,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private hotTimer: NodeJS.Timeout | null = null
 	private totalBytes: number = 0
 	private contextLimit: number = 100000 // Default context window size
-	private usedContext: number = 0
 	private lastCommand: string = ""
 
 	// constructor() {
 	// 	super()
 
-	async run(terminal: vscode.Terminal, command: string, contextLimit?: number, usedContext?: number) {
+	async run(terminal: vscode.Terminal, command: string, contextLimit?: number) {
 		if (contextLimit) {
 			this.contextLimit = contextLimit
-		}
-		if (usedContext) {
-			this.usedContext = usedContext
 		}
 		this.lastCommand = command
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
@@ -56,11 +52,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				// Use wouldExceedSizeLimit to avoid creating unnecessary buffer
 				if (wouldExceedSizeLimit(this.totalBytes, this.contextLimit)) {
 					// Create size estimate only when needed for error details
-					const sizeEstimate = estimateContentSize(
-						Buffer.alloc(0, this.totalBytes),
-						this.contextLimit,
-						this.usedContext,
-					)
+					const sizeEstimate = estimateContentSize(Buffer.alloc(0, this.totalBytes), this.contextLimit)
 					this.emit(
 						"error",
 						new ContentTooLargeError({
@@ -225,7 +217,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		const newBufferSize = this.buffer.length + chunk.length
 		if (wouldExceedSizeLimit(newBufferSize, this.contextLimit)) {
 			// Create size estimate only when needed for error details
-			const sizeEstimate = estimateContentSize(Buffer.alloc(0, newBufferSize), this.contextLimit, this.usedContext)
+			const sizeEstimate = estimateContentSize(Buffer.alloc(0, newBufferSize), this.contextLimit)
 			this.emit(
 				"error",
 				new ContentTooLargeError({

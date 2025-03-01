@@ -7,7 +7,6 @@ export interface SizeEstimate {
 	bytes: number
 	estimatedTokens: number
 	wouldExceedLimit: boolean
-	remainingContextSize: number
 }
 
 /**
@@ -39,35 +38,31 @@ export function wouldExceedSizeLimit(byteCount: number, contextLimit: number): b
 /**
  * Estimates size metrics for a string or buffer without loading entire content
  */
-export function estimateContentSize(content: string | Buffer, contextLimit: number, usedContext: number = 0): SizeEstimate {
+export function estimateContentSize(content: string | Buffer, contextLimit: number): SizeEstimate {
 	const bytes = Buffer.isBuffer(content) ? content.length : Buffer.from(content).length
 	const estimatedTokenCount = estimateTokens(bytes)
-	const remainingContext = contextLimit - usedContext
 	const maxAllowedSize = calculateMaxAllowedSize(contextLimit)
 
 	return {
 		bytes,
 		estimatedTokens: estimatedTokenCount,
 		wouldExceedLimit: estimatedTokenCount >= maxAllowedSize,
-		remainingContextSize: remainingContext,
 	}
 }
 
 /**
  * Gets size metrics for a file without reading its contents
  */
-export async function estimateFileSize(filePath: string, contextLimit: number, usedContext: number = 0): Promise<SizeEstimate> {
+export async function estimateFileSize(filePath: string, contextLimit: number): Promise<SizeEstimate> {
 	const stats = await stat(filePath)
 	const bytes = stats.size
 	const estimatedTokenCount = estimateTokens(bytes)
-	const remainingContext = contextLimit - usedContext
 	const maxAllowedSize = calculateMaxAllowedSize(contextLimit)
 
 	return {
 		bytes,
 		estimatedTokens: estimatedTokenCount,
 		wouldExceedLimit: estimatedTokenCount >= maxAllowedSize,
-		remainingContextSize: remainingContext,
 	}
 }
 

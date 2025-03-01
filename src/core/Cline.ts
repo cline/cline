@@ -1190,7 +1190,7 @@ export class Cline {
 
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = this.terminalManager.runCommand(terminalInfo, command, maxAllowedSize, usedContext)
+		const process = this.terminalManager.runCommand(terminalInfo, command, maxAllowedSize)
 
 		let userFeedback: { text?: string; images?: string[] } | undefined
 		let didContinue = false
@@ -2007,11 +2007,8 @@ export class Cline {
 								const contextWindow = this.api.getModel().info.contextWindow || 128_000
 								const maxAllowedSize = getMaxAllowedSize(contextWindow)
 
-								// Calculate used context from current conversation
-								const usedContext = this.calculateUsedContext()
-
 								// now execute the tool like normal
-								const content = await extractTextFromFile(absolutePath, maxAllowedSize, usedContext)
+								const content = await extractTextFromFile(absolutePath, maxAllowedSize)
 								pushToolResult(content)
 
 								break

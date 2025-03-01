@@ -7,7 +7,7 @@ import { isBinaryFile } from "isbinaryfile"
 import { estimateFileSize, wouldExceedSizeLimit } from "../../utils/content-size"
 import { ContentTooLargeError } from "../../shared/errors"
 
-export async function extractTextFromFile(filePath: string, contextLimit: number, usedContext: number = 0): Promise<string> {
+export async function extractTextFromFile(filePath: string, contextLimit: number): Promise<string> {
 	try {
 		await fs.access(filePath)
 	} catch (error) {
@@ -21,7 +21,7 @@ export async function extractTextFromFile(filePath: string, contextLimit: number
 	// This is more efficient than creating a full SizeEstimate object when we just need a boolean check
 	if (wouldExceedSizeLimit(stats.size, contextLimit)) {
 		// Only create the full size estimate when we need it for the error
-		const sizeEstimate = await estimateFileSize(filePath, contextLimit, usedContext)
+		const sizeEstimate = await estimateFileSize(filePath, contextLimit)
 		throw new ContentTooLargeError({
 			type: "file",
 			path: filePath,

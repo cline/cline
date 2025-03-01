@@ -7,7 +7,6 @@ import { ContentTooLargeError } from "../../shared/errors"
 import { calculateMaxAllowedSize } from "../../utils/content-size"
 
 const CONTEXT_LIMIT = 1000
-const USED_CONTEXT = 200
 
 describe("extract-text", () => {
 	let tempFilePath: string
@@ -23,7 +22,7 @@ describe("extract-text", () => {
 	it("throws error for non-existent file", async () => {
 		const nonExistentPath = path.join(os.tmpdir(), "non-existent.txt")
 		try {
-			await extractTextFromFile(nonExistentPath, CONTEXT_LIMIT, USED_CONTEXT)
+			await extractTextFromFile(nonExistentPath, CONTEXT_LIMIT)
 			throw new Error("Should have thrown error")
 		} catch (error) {
 			expect(error.message).to.include("File not found")
@@ -36,7 +35,7 @@ describe("extract-text", () => {
 		await fs.writeFile(tempFilePath, largeContent)
 
 		try {
-			await extractTextFromFile(tempFilePath, CONTEXT_LIMIT, USED_CONTEXT)
+			await extractTextFromFile(tempFilePath, CONTEXT_LIMIT)
 			throw new Error("Should have thrown error")
 		} catch (error) {
 			expect(error).to.be.instanceOf(ContentTooLargeError)
@@ -50,7 +49,7 @@ describe("extract-text", () => {
 		const content = "Hello world"
 		await fs.writeFile(tempFilePath, content)
 
-		const result = await extractTextFromFile(tempFilePath, CONTEXT_LIMIT, USED_CONTEXT)
+		const result = await extractTextFromFile(tempFilePath, CONTEXT_LIMIT)
 		expect(result).to.equal(content)
 	})
 
@@ -60,7 +59,7 @@ describe("extract-text", () => {
 		await fs.writeFile(tempFilePath, buffer, { encoding: "binary" })
 
 		try {
-			await extractTextFromFile(tempFilePath, CONTEXT_LIMIT, USED_CONTEXT)
+			await extractTextFromFile(tempFilePath, CONTEXT_LIMIT)
 			throw new Error("Should have thrown error")
 		} catch (error) {
 			expect(error.message).to.include("Cannot read text for file type")
