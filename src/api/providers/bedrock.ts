@@ -1,5 +1,6 @@
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
+import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
@@ -13,6 +14,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		this.options = options
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		let budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = budget_tokens !== 0 ? true : false
