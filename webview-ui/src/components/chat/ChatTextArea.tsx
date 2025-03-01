@@ -359,7 +359,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						insertValue = value || ""
 					}
 
-					let { newValue, mentionIndex } = insertMention(textAreaRef.current.value, cursorPosition, insertValue)
+					const { newValue: rawNewValue, mentionIndex } = insertMention(
+						textAreaRef.current.value,
+						cursorPosition,
+						insertValue,
+					)
+					let newValue = rawNewValue
 
 					if (type === ContextMenuOptionType.MemoryBank) {
 						newValue = newValue.replace("@", "")
