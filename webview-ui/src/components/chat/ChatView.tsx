@@ -880,7 +880,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const placeholderText = useMemo(() => {
 		const baseText = task ? "Type a message..." : "Type your task here..."
 		const contextText = "(@ to add context, / to switch modes"
-		const imageText = shouldDisableImages ? "hold shift to drag in files" : ", hold shift to drag in files/images"
+		const imageText = shouldDisableImages ? ", hold shift to drag in files" : ", hold shift to drag in files/images"
 		return baseText + `\n${contextText}${imageText})`
 	}, [task, shouldDisableImages])
 
