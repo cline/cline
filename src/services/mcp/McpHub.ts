@@ -676,8 +676,6 @@ export class McpHub {
 			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 
 			await this.updateServerConnections(config.mcpServers)
-
-			vscode.window.showInformationMessage(`Updated timeout to ${timeout} seconds`)
 		} catch (error) {
 			console.error("Failed to update server timeout:", error)
 			if (error instanceof Error) {
