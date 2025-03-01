@@ -4,9 +4,8 @@ import fs from "fs/promises"
 import path from "path"
 import os from "os"
 import { ContentTooLargeError } from "../../shared/errors"
-import { calculateMaxAllowedSize } from "../../utils/content-size"
 
-const CONTEXT_LIMIT = 1000
+const CONTEXT_LIMIT = 1000 // Context limit of 1000 tokens means max allowed size is 500 tokens
 
 describe("extract-text", () => {
 	let tempFilePath: string
@@ -29,13 +28,13 @@ describe("extract-text", () => {
 		}
 	})
 
-	it("throws ContentTooLargeError when file would exceed half of context limit", async () => {
-		const halfContextLimit = calculateMaxAllowedSize(CONTEXT_LIMIT) // 500 tokens
-		const largeContent = "x".repeat(halfContextLimit * 4 + 4) // Just over half context limit in tokens
+	it("throws ContentTooLargeError when file would exceed max allowed size", async () => {
+		// Create content that would exceed max allowed size for deepseek (64k - 27k tokens)
+		const largeContent = "x".repeat(148000) // 37k tokens > (64k - 27k) tokens
 		await fs.writeFile(tempFilePath, largeContent)
 
 		try {
-			await extractTextFromFile(tempFilePath, CONTEXT_LIMIT)
+			await extractTextFromFile(tempFilePath, 64_000)
 			throw new Error("Should have thrown error")
 		} catch (error) {
 			expect(error).to.be.instanceOf(ContentTooLargeError)

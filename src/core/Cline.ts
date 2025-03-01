@@ -1167,7 +1167,7 @@ export class Cline {
 	// Tools
 
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
-		const contextWindow = this.api.getModel().info.contextWindow || 128_000
+		const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
 		const maxAllowedSize = getMaxAllowedSize(contextWindow)
 
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
@@ -1340,7 +1340,7 @@ export class Cline {
 			if (previousRequest && previousRequest.text) {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				let contextWindow = this.api.getModel().info.contextWindow || 128_000
+				let contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
 				// FIXME: hack to get anyone using openai compatible with deepseek to have the proper context window instead of the default 128k. We need a way for the user to specify the context window for models they input through openai compatible
 				if (this.api instanceof OpenAiHandler && this.api.getModel().id.toLowerCase().includes("deepseek")) {
 					contextWindow = 64_000
@@ -1986,7 +1986,7 @@ export class Cline {
 									}
 								}
 								// Get context window and used context from API model
-								const contextWindow = this.api.getModel().info.contextWindow || 128_000
+								const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
 								const maxAllowedSize = getMaxAllowedSize(contextWindow)
 
 								// now execute the tool like normal
@@ -3357,7 +3357,7 @@ export class Cline {
 						) {
 							return {
 								...block,
-								text: await parseMentions(block.text, cwd, this.urlContentFetcher),
+								text: await parseMentions(block.text, cwd, this.urlContentFetcher, this.api),
 							}
 						}
 					}

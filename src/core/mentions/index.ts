@@ -38,7 +38,12 @@ export function openMention(mention?: string): void {
 	}
 }
 
-export async function parseMentions(text: string, cwd: string, urlContentFetcher: UrlContentFetcher): Promise<string> {
+export async function parseMentions(
+	text: string,
+	cwd: string,
+	urlContentFetcher: UrlContentFetcher,
+	api: { getModel: () => { info: { contextWindow?: number } } },
+): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
 		mentions.add(mention)
@@ -90,7 +95,7 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 		} else if (mention.startsWith("/")) {
 			const mentionPath = mention.slice(1)
 			try {
-				const content = await getFileOrFolderContent(mentionPath, cwd)
+				const content = await getFileOrFolderContent(mentionPath, cwd, api)
 				if (mention.endsWith("/")) {
 					parsedText += `\n\n<folder_content path="${mentionPath}">\n${content}\n</folder_content>`
 				} else {
@@ -145,7 +150,11 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 	return parsedText
 }
 
-async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise<string> {
+async function getFileOrFolderContent(
+	mentionPath: string,
+	cwd: string,
+	api: { getModel: () => { info: { contextWindow?: number } } },
+): Promise<string> {
 	const absPath = path.resolve(cwd, mentionPath)
 
 	try {
@@ -156,7 +165,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 			if (isBinary) {
 				return "(Binary file, unable to display content)"
 			}
-			const contextWindow = this.api.getModel().info.contextWindow || 128_000
+			const contextWindow = api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
 			const content = await extractTextFromFile(absPath, contextWindow)
 			return content
 		} else if (stats.isDirectory()) {
@@ -178,7 +187,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 								if (isBinary) {
 									return undefined
 								}
-								const contextWindow = this.api.getModel().info.contextWindow || 128_000
+								const contextWindow = api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
 								const content = await extractTextFromFile(absoluteFilePath, contextWindow)
 								return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
 							} catch (error) {

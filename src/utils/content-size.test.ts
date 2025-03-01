@@ -1,25 +1,12 @@
 import { expect } from "chai"
-import {
-	estimateContentSize,
-	estimateFileSize,
-	estimateTokens,
-	calculateMaxAllowedSize,
-	wouldExceedSizeLimit,
-} from "./content-size"
+import { estimateContentSize, estimateFileSize, estimateTokens, wouldExceedSizeLimit } from "./content-size"
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
 
-const CONTEXT_LIMIT = 1000
+const CONTEXT_LIMIT = 1000 // Context limit of 1000 tokens means max allowed size is 500 tokens
 
 describe("content-size", () => {
-	describe("calculateMaxAllowedSize", () => {
-		it("calculates half of the context limit", () => {
-			expect(calculateMaxAllowedSize(1000)).to.equal(500)
-			expect(calculateMaxAllowedSize(128000)).to.equal(64000)
-		})
-	})
-
 	describe("estimateTokens", () => {
 		it("estimates tokens based on byte count", () => {
 			expect(estimateTokens(100)).to.equal(25) // 100 bytes / 4 chars per token = 25 tokens
@@ -28,10 +15,10 @@ describe("content-size", () => {
 	})
 
 	describe("wouldExceedSizeLimit", () => {
-		it("checks if byte count would exceed half of context limit", () => {
-			expect(wouldExceedSizeLimit(100, 1000)).to.equal(false) // 25 tokens < 500 tokens
-			expect(wouldExceedSizeLimit(2000, 1000)).to.equal(true) // 500 tokens = 500 tokens (equal is considered exceeding)
-			expect(wouldExceedSizeLimit(2004, 1000)).to.equal(true) // 501 tokens > 500 tokens
+		it("checks if byte count would exceed max allowed size", () => {
+			expect(wouldExceedSizeLimit(100, 64_000)).to.equal(false) // 25 tokens < (64k - 27k) tokens
+			expect(wouldExceedSizeLimit(148000, 64_000)).to.equal(true) // 37k tokens > (64k - 27k) tokens
+			expect(wouldExceedSizeLimit(392000, 128_000)).to.equal(true) // 98k tokens > (128k - 30k) tokens
 		})
 	})
 
@@ -54,10 +41,10 @@ describe("content-size", () => {
 			expect(result.wouldExceedLimit).to.equal(false)
 		})
 
-		it("detects when content would exceed half of context limit", () => {
-			const halfContextLimit = calculateMaxAllowedSize(CONTEXT_LIMIT) // 500 tokens
-			const largeContent = "x".repeat(halfContextLimit * 4 + 4) // Just over half context limit in tokens
-			const result = estimateContentSize(largeContent, CONTEXT_LIMIT)
+		it("detects when content would exceed max allowed size", () => {
+			// Create content that would exceed max allowed size for deepseek (64k - 27k tokens)
+			const largeContent = "x".repeat(148000) // 37k tokens > (64k - 27k) tokens
+			const result = estimateContentSize(largeContent, 64_000)
 
 			expect(result.wouldExceedLimit).to.equal(true)
 		})

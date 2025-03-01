@@ -25,7 +25,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
 	private totalBytes: number = 0
-	private contextLimit: number = 100000 // Default context window size
+	private contextLimit: number = 64_000 // minimum context (Deepseek)
 	private lastCommand: string = ""
 
 	// constructor() {
