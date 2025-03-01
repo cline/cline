@@ -835,7 +835,7 @@ export const askSageModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-  },
+	},
 }
 
 // Requesty
