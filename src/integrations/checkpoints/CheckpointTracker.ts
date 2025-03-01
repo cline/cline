@@ -1,10 +1,11 @@
 import fs from "fs/promises"
 import * as path from "path"
-import simpleGit, { SimpleGit } from "simple-git"
+import simpleGit, { type SimpleGit } from "simple-git"
 import * as vscode from "vscode"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { GitOperations } from "./CheckpointGitOperations"
 import { getShadowGitPath, hashWorkingDir, getWorkingDirectory, detectLegacyCheckpoint } from "./CheckpointUtils"
+import { CheckpointSettingsManager } from "./CheckpointSettings"
 
 /**
  * CheckpointTracker Module
@@ -85,7 +86,7 @@ class CheckpointTracker {
 	 * - Sets up task-specific branch for new checkpoints
 	 *
 	 * Configuration:
-	 * - Respects 'cline.enableCheckpoints' VS Code setting
+	 * - Uses settings from CheckpointSettingsManager
 	 * - Uses branch-per-task architecture for new checkpoints
 	 * - Maintains backwards compatibility with legacy structure
 	 */
@@ -96,9 +97,13 @@ class CheckpointTracker {
 		try {
 			console.info(`Creating new CheckpointTracker for task ${taskId}`)
 
-			// Check if checkpoints are disabled in VS Code settings
-			const enableCheckpoints = vscode.workspace.getConfiguration("cline").get<boolean>("enableCheckpoints") ?? true
-			if (!enableCheckpoints) {
+			// Get settings manager instance and reinitialize
+			const settingsManager = CheckpointSettingsManager.getInstance()
+			await settingsManager.reinitialize()
+
+			// Check if checkpoints are enabled in settings
+			const settings = settingsManager.getSettings()
+			if (!settings.enableCheckpoints) {
 				return undefined // Don't create tracker when disabled
 			}
 
@@ -291,7 +296,6 @@ class CheckpointTracker {
 	 *   - the current working directory (including uncommitted changes).
 	 *
 	 * If `rhsHash` is omitted, compares `lhsHash` to the working directory.
-	 * If you want truly untracked files to appear, `git add` them first.
 	 *
 	 * @param lhsHash - The commit to compare from (older commit)
 	 * @param rhsHash - The commit to compare to (newer commit).
@@ -339,7 +343,7 @@ class CheckpointTracker {
 		const batchSize = 50
 
 		// Get list of files that exist in base commit
-		const existingFiles = await this.getExistingFiles(git, baseHash, files)
+		const existingFiles = await this.getExistingFiles(git, baseHash)
 
 		// Process files in batches
 		for (let i = 0; i < files.length; i += batchSize) {
@@ -373,7 +377,7 @@ class CheckpointTracker {
 			let afterContents: string[] = []
 			if (rhsHash) {
 				// Split after files into existing and new in target commit
-				const afterExistingFiles = await this.getExistingFiles(git, rhsHash, batch)
+				const afterExistingFiles = await this.getExistingFiles(git, rhsHash)
 				const afterExistingBatch = batch.filter((file) => afterExistingFiles.has(file))
 
 				if (afterExistingBatch.length > 0) {
@@ -438,7 +442,7 @@ class CheckpointTracker {
 	/**
 	 * Helper function to get a set of files that exist in a given commit
 	 */
-	private async getExistingFiles(git: SimpleGit, commitHash: string, files: string[]): Promise<Set<string>> {
+	private async getExistingFiles(git: SimpleGit, commitHash: string): Promise<Set<string>> {
 		try {
 			const result = await git.raw(["ls-tree", "-r", "--name-only", commitHash])
 			const existingFiles = new Set<string>(result.split("\n"))

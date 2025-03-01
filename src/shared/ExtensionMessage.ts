@@ -8,6 +8,7 @@ import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
 import { TelemetrySetting } from "./TelemetrySetting"
+import { CheckpointSettings } from "./Checkpoints"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -34,6 +35,7 @@ export interface ExtensionMessage {
 		| "commitSearchResults"
 		| "openGraphData"
 		| "isImageUrlResult"
+		| "setCheckpointSettings"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -58,6 +60,7 @@ export interface ExtensionMessage {
 	mcpMarketplaceCatalog?: McpMarketplaceCatalog
 	error?: string
 	mcpDownloadDetails?: McpDownloadResponse
+	checkpointSettings?: CheckpointSettings
 	commits?: GitCommit[]
 	openGraphData?: {
 		title?: string

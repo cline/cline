@@ -3,6 +3,7 @@ import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { ChatContent } from "./ChatContent"
+import { CheckpointSettings } from "./Checkpoints"
 
 export interface WebviewMessage {
 	type:
@@ -37,6 +38,10 @@ export interface WebviewMessage {
 		| "togglePlanActMode"
 		| "checkpointDiff"
 		| "checkpointRestore"
+		| "getCheckpointSettings"
+		| "updateCheckpointSettings"
+		| "openCheckpointsIgnore"
+		| "confirmDeleteAllCheckpoints"
 		| "taskCompletionViewChanges"
 		| "openExtensionSettings"
 		| "requestVsCodeLmModels"
@@ -67,6 +72,7 @@ export interface WebviewMessage {
 	number?: number
 	autoApprovalSettings?: AutoApprovalSettings
 	browserSettings?: BrowserSettings
+	checkpointSettings?: CheckpointSettings
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
 	mcpId?: string

@@ -9,6 +9,8 @@ import * as path from "path"
 import * as vscode from "vscode"
 import { buildApiHandler } from "../../api"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
+import { CheckpointSettingsManager } from "../../integrations/checkpoints/CheckpointSettings"
+import { deleteAllCheckpoints } from "../../integrations/checkpoints/CheckpointUtils"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
 import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-preview"
@@ -812,6 +814,48 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							// NOTE: cancelTask awaits abortTask, which awaits diffViewProvider.revertChanges, which reverts any edited files, allowing us to reset to a checkpoint rather than running into a state where the revertChanges function is called alongside or after the checkpoint reset
 							await this.cline?.restoreCheckpoint(message.number, message.text! as ClineCheckpointRestore)
 						}
+						break
+					}
+					case "getCheckpointSettings": {
+						const settings = await CheckpointSettingsManager.getInstance().getSettings()
+						await this.postMessageToWebview({
+							type: "setCheckpointSettings",
+							checkpointSettings: settings,
+						})
+						break
+					}
+					case "updateCheckpointSettings": {
+						if (message.checkpointSettings) {
+							await CheckpointSettingsManager.getInstance().saveSettings(message.checkpointSettings)
+							await this.postMessageToWebview({
+								type: "setCheckpointSettings",
+								checkpointSettings: message.checkpointSettings,
+							})
+						}
+						break
+					}
+					case "openCheckpointsIgnore": {
+						await vscode.commands.executeCommand("cline.openCheckpointsIgnore")
+						break
+					}
+					case "confirmDeleteAllCheckpoints": {
+						vscode.window
+							.showWarningMessage(
+								"This action will delete all checkpoints that have been created by Cline! Deleting all checkpoints will remove the ability to use these features for all historical tasks.",
+								"Delete All",
+								"Cancel",
+							)
+							.then(async (selection) => {
+								if (selection === "Delete All") {
+									try {
+										await deleteAllCheckpoints(this.context.globalStoragePath)
+										vscode.window.showInformationMessage("All checkpoints have been deleted")
+									} catch (error) {
+										vscode.window.showErrorMessage("Failed to delete checkpoints")
+										console.error("Failed to delete all checkpoints:", error)
+									}
+								}
+							})
 						break
 					}
 					case "taskCompletionViewChanges": {

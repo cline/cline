@@ -1,6 +1,6 @@
-import { mkdir } from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
+import fs from "fs/promises"
 import os from "os"
 import { fileExistsAtPath } from "../../utils/fs"
 
@@ -26,9 +26,10 @@ export async function getLegacyShadowGitPath(globalStoragePath: string, taskId: 
 		throw new Error("Global storage uri is invalid")
 	}
 	const checkpointsDir = path.join(globalStoragePath, "tasks", taskId, "checkpoints")
-	await mkdir(checkpointsDir, { recursive: true })
+	await fs.mkdir(checkpointsDir, { recursive: true })
+
 	const gitPath = path.join(checkpointsDir, ".git")
-	console.info(`Legacy shadow git path: ${gitPath}`)
+	console.log(`Legacy shadow git path: ${gitPath}`)
 	return gitPath
 }
 
@@ -63,7 +64,8 @@ export async function getShadowGitPath(
 		throw new Error("Global storage uri is invalid")
 	}
 	const checkpointsDir = path.join(globalStoragePath, "checkpoints", cwdHash)
-	await mkdir(checkpointsDir, { recursive: true })
+	await fs.mkdir(checkpointsDir, { recursive: true })
+
 	const gitPath = path.join(checkpointsDir, ".git")
 	return gitPath
 }
@@ -154,6 +156,40 @@ export async function detectLegacyCheckpoint(globalStoragePath: string | undefin
 	}
 	const legacyGitPath = path.join(globalStoragePath, "tasks", taskId, "checkpoints", ".git")
 	const isLegacy = await fileExistsAtPath(legacyGitPath)
+
 	console.info(`Legacy checkpoint detection result: ${isLegacy}`)
 	return isLegacy
+}
+
+/**
+ * Deletes all checkpoint data across all tasks.
+ * This is a destructive operation that removes all checkpoint history.
+ * Handles both legacy checkpoints (under tasks/{taskId}/checkpoints/.git/)
+ * and branch-per-task checkpoints (under checkpoints/{workspaceHash}/.git/).
+ *
+ * @param globalStoragePath - The VS Code global storage path
+ * @throws Error if deletion fails or if global storage path is invalid
+ */
+export async function deleteAllCheckpoints(globalStoragePath: string): Promise<void> {
+	if (!globalStoragePath) {
+		throw new Error("Global storage path is invalid")
+	}
+
+	// Delete legacy checkpoints
+	const tasksDir = path.join(globalStoragePath, "tasks")
+	if (await fileExistsAtPath(tasksDir)) {
+		const taskDirs = await fs.readdir(tasksDir)
+		for (const taskId of taskDirs) {
+			const checkpointsDir = path.join(tasksDir, taskId, "checkpoints")
+			if (await fileExistsAtPath(checkpointsDir)) {
+				await fs.rm(checkpointsDir, { recursive: true, force: true })
+			}
+		}
+	}
+
+	// Delete branch-per-task checkpoints
+	const checkpointsDir = path.join(globalStoragePath, "checkpoints")
+	if (await fileExistsAtPath(checkpointsDir)) {
+		await fs.rm(checkpointsDir, { recursive: true, force: true })
+	}
 }

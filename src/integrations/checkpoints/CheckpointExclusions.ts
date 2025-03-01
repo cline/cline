@@ -2,6 +2,7 @@ import fs from "fs/promises"
 import { join } from "path"
 import { fileExistsAtPath } from "../../utils/fs"
 import { GIT_DISABLED_SUFFIX } from "./CheckpointGitOperations"
+import { CheckpointSettingsManager } from "./CheckpointSettings"
 
 /**
  * CheckpointExclusions Module
@@ -42,13 +43,9 @@ interface ExclusionResult {
 
 /**
  * Returns the default list of file and directory patterns to exclude from checkpoints.
- * Combines built-in patterns with workspace-specific LFS patterns.
- *
- * @param lfsPatterns - Optional array of Git LFS patterns from workspace
- * @returns Array of glob patterns to exclude
- * @todo Make this configurable by the user
+ * These patterns will be written to .checkpointsignore when it's created.
  */
-export const getDefaultExclusions = (lfsPatterns: string[] = []): string[] => [
+export const getDefaultExclusions = (): string[] => [
 	// Build and Development Artifacts
 	".git/",
 	`.git${GIT_DISABLED_SUFFIX}/`,
@@ -74,9 +71,50 @@ export const getDefaultExclusions = (lfsPatterns: string[] = []): string[] => [
 
 	// Log Files
 	...getLogFilePatterns(),
-
-	...lfsPatterns,
 ]
+
+/**
+ * Writes the combined exclusion patterns to Git's exclude file.
+ * Creates the info directory if it doesn't exist.
+ *
+ * @param gitPath - Path to the .git directory
+ * @param lfsPatterns - Optional array of Git LFS patterns to include
+ */
+export const writeExcludesFile = async (gitPath: string, lfsPatterns: string[] = []): Promise<void> => {
+	const excludesPath = join(gitPath, "info", "exclude")
+	await fs.mkdir(join(gitPath, "info"), { recursive: true })
+
+	const settingsManager = CheckpointSettingsManager.getInstance()
+	// Ensure .checkpointsignore exists and load its patterns
+	const ignorePatterns = await settingsManager.getIgnorePatterns()
+
+	// Combine patterns and write to git exclude file
+	const patterns = [...ignorePatterns, ...lfsPatterns]
+	await fs.writeFile(excludesPath, patterns.join("\n"))
+}
+
+/**
+ * Retrieves Git LFS patterns from the workspace's .gitattributes file.
+ * Returns an empty array if no patterns found or file doesn't exist.
+ *
+ * @param workspacePath - Path to the workspace root
+ * @returns Array of Git LFS patterns found in .gitattributes
+ */
+export const getLfsPatterns = async (workspacePath: string): Promise<string[]> => {
+	try {
+		const attributesPath = join(workspacePath, ".gitattributes")
+		if (await fileExistsAtPath(attributesPath)) {
+			const attributesContent = await fs.readFile(attributesPath, "utf8")
+			return attributesContent
+				.split("\n")
+				.filter((line) => line.includes("filter=lfs"))
+				.map((line) => line.split(" ")[0].trim())
+		}
+	} catch (error) {
+		console.warn("Failed to read .gitattributes:", error)
+	}
+	return []
+}
 
 /**
  * Returns patterns for common build and development artifact directories
@@ -294,42 +332,4 @@ function getGeospatialPatterns(): string[] {
  */
 function getLogFilePatterns(): string[] {
 	return ["*.error", "*.log", "*.logs", "*.npm-debug.log*", "*.out", "*.stdout", "yarn-debug.log*", "yarn-error.log*"]
-}
-
-/**
- * Writes the combined exclusion patterns to Git's exclude file.
- * Creates the info directory if it doesn't exist.
- *
- * @param gitPath - Path to the .git directory
- * @param lfsPatterns - Optional array of Git LFS patterns to include
- */
-export const writeExcludesFile = async (gitPath: string, lfsPatterns: string[] = []): Promise<void> => {
-	const excludesPath = join(gitPath, "info", "exclude")
-	await fs.mkdir(join(gitPath, "info"), { recursive: true })
-
-	const patterns = getDefaultExclusions(lfsPatterns)
-	await fs.writeFile(excludesPath, patterns.join("\n"))
-}
-
-/**
- * Retrieves Git LFS patterns from the workspace's .gitattributes file.
- * Returns an empty array if no patterns found or file doesn't exist.
- *
- * @param workspacePath - Path to the workspace root
- * @returns Array of Git LFS patterns found in .gitattributes
- */
-export const getLfsPatterns = async (workspacePath: string): Promise<string[]> => {
-	try {
-		const attributesPath = join(workspacePath, ".gitattributes")
-		if (await fileExistsAtPath(attributesPath)) {
-			const attributesContent = await fs.readFile(attributesPath, "utf8")
-			return attributesContent
-				.split("\n")
-				.filter((line) => line.includes("filter=lfs"))
-				.map((line) => line.split(" ")[0].trim())
-		}
-	} catch (error) {
-		console.warn("Failed to read .gitattributes:", error)
-	}
-	return []
 }

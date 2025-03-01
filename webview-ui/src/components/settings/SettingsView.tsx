@@ -3,13 +3,17 @@ import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
-import SettingsButton from "../common/SettingsButton"
 import ApiOptions from "./ApiOptions"
+import SettingsButton from "../common/SettingsButton"
+import CheckpointsSettingsView from "./CheckpointSettingsView"
+
 const { IS_DEV } = process.env
 
 type SettingsViewProps = {
 	onDone: () => void
 }
+
+type View = "main" | "checkpoints"
 
 const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const {
@@ -24,6 +28,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
+	const [currentView, setCurrentView] = useState<View>("main")
 
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
@@ -65,6 +70,45 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 	const handleResetState = () => {
 		vscode.postMessage({ type: "resetState" })
+	}
+
+	if (currentView === "checkpoints") {
+		return (
+			<div
+				style={{
+					position: "fixed",
+					top: 0,
+					left: 0,
+					right: 0,
+					bottom: 0,
+					padding: "10px 0px 0px 20px",
+					display: "flex",
+					flexDirection: "column",
+					overflow: "hidden",
+				}}>
+				<div
+					style={{
+						display: "flex",
+						justifyContent: "space-between",
+						alignItems: "center",
+						marginBottom: "17px",
+						paddingRight: 17,
+					}}>
+					<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Checkpoint Settings</h3>
+					<VSCodeButton onClick={() => setCurrentView("main")}>Done</VSCodeButton>
+				</div>
+				<div
+					style={{
+						flexGrow: 1,
+						overflowY: "scroll",
+						paddingRight: 8,
+						display: "flex",
+						flexDirection: "column",
+					}}>
+					<CheckpointsSettingsView />
+				</div>
+			</div>
+		)
 	}
 
 	return (
@@ -125,6 +169,14 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						These instructions are added to the end of the system prompt sent with every request.
 					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<div style={{ fontWeight: "500", marginBottom: "8px" }}>Checkpoints</div>
+					<SettingsButton onClick={() => setCurrentView("checkpoints")}>
+						<i className="codicon codicon-bookmark" />
+						Configure Checkpoints
+					</SettingsButton>
 				</div>
 
 				<div style={{ marginBottom: 5 }}>
