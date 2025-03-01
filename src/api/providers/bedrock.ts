@@ -14,6 +14,8 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		let budget_tokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = budget_tokens !== 0 ? true : false
 		// cross region inference requires prefixing the model id with the region
 		let modelId = await this.getModelId()
 
@@ -24,7 +26,8 @@ export class AwsBedrockHandler implements ApiHandler {
 		const stream = await client.messages.create({
 			model: modelId,
 			max_tokens: this.getModel().info.maxTokens || 8192,
-			temperature: 0,
+			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+			temperature: reasoningOn ? undefined : 0,
 			system: systemPrompt,
 			messages,
 			stream: true,

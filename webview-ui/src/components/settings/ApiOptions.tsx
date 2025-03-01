@@ -10,30 +10,30 @@ import {
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { useEvent, useInterval } from "react-use"
+import styled from "styled-components"
+import * as vscodemodels from "vscode"
 import {
-	ApiConfiguration,
-	ApiProvider,
-	ModelInfo,
 	anthropicDefaultModelId,
 	anthropicModels,
+	ApiConfiguration,
+	ApiProvider,
 	azureOpenAiDefaultApiVersion,
 	bedrockDefaultModelId,
 	bedrockModels,
 	deepSeekDefaultModelId,
 	deepSeekModels,
-	qwenDefaultModelId,
-	qwenModels,
 	geminiDefaultModelId,
 	geminiModels,
 	mistralDefaultModelId,
 	mistralModels,
+	ModelInfo,
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
-	requestyDefaultModelId,
-	requestyDefaultModelInfo,
+	qwenDefaultModelId,
+	qwenModels,
 	vertexDefaultModelId,
 	vertexModels,
 	askSageModels,
@@ -45,13 +45,9 @@ import {
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
-import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import OpenRouterModelPicker from "./OpenRouterModelPicker"
-import RequestyModelPicker from "./RequestyModelPicker"
-import ModelDescriptionMarkdown from "./ModelDescriptionMarkdown"
-import styled from "styled-components"
-import * as vscodemodels from "vscode"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
+import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -61,7 +57,7 @@ interface ApiOptionsProps {
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
-const DROPDOWN_Z_INDEX = 1001 // Higher than the Requesty/OpenRouterModelPicker's and ModelSelectorTooltip's z-index
+const DROPDOWN_Z_INDEX = 1001 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
 
 const DropdownContainer = styled.div<{ zIndex?: number }>`
 	position: relative;
@@ -882,7 +878,24 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
-					{!apiConfiguration?.requestyApiKey && <a href="https://app.requesty.ai/manage-api">Get API Key</a>}
+					<VSCodeTextField
+						value={apiConfiguration?.requestyModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("requestyModelId")}
+						placeholder={"Enter Model ID..."}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
+					</p>
 				</div>
 			)}
 
@@ -1198,11 +1211,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{selectedProvider !== "openrouter" &&
-				selectedProvider !== "requesty" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
 				selectedProvider !== "lmstudio" &&
 				selectedProvider !== "vscode-lm" &&
+				selectedProvider !== "litellm" &&
+				selectedProvider !== "requesty" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -1221,7 +1235,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 						</DropdownContainer>
 
-						{selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219" && (
+						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
+							(selectedProvider === "bedrock" && selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
+							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
 							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						)}
 
@@ -1236,7 +1252,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				)}
 
 			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker isPopup={isPopup} />}
-			{selectedProvider === "requesty" && showModelOptions && <RequestyModelPicker isPopup={isPopup} />}
 
 			{modelIdErrorMessage && (
 				<p
@@ -1441,12 +1456,6 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
 				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
-			}
-		case "requesty":
-			return {
-				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.requestyModelId || requestyDefaultModelId,
-				selectedModelInfo: apiConfiguration?.requestyModelInfo || requestyDefaultModelInfo,
 			}
 		case "openai":
 			return {

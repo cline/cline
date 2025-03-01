@@ -24,6 +24,9 @@ export class VertexHandler implements ApiHandler {
 		const model = this.getModel()
 		const modelId = model.id
 
+		let budget_tokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = budget_tokens !== 0 ? true : false
+
 		let stream
 		switch (modelId) {
 			case "claude-3-7-sonnet@20250219":
@@ -44,7 +47,8 @@ export class VertexHandler implements ApiHandler {
 					{
 						model: modelId,
 						max_tokens: model.info.maxTokens || 8192,
-						temperature: 0,
+						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+						temperature: reasoningOn ? undefined : 0,
 						system: [
 							{
 								text: systemPrompt,
