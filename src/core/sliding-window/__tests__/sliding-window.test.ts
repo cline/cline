@@ -3,7 +3,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 
 import { ModelInfo } from "../../../shared/api"
-import { TOKEN_BUFFER, estimateTokenCount, truncateConversation, truncateConversationIfNeeded } from "../index"
+import {
+	TOKEN_BUFFER_PERCENTAGE,
+	estimateTokenCount,
+	truncateConversation,
+	truncateConversationIfNeeded,
+} from "../index"
 
 /**
  * Tests for the truncateConversation function
@@ -121,10 +126,11 @@ describe("getMaxTokens", () => {
 		// Create messages with very small content in the last one to avoid token overflow
 		const messagesWithSmallContent = [...messages.slice(0, -1), { ...messages[messages.length - 1], content: "" }]
 
+		// Account for the dynamic buffer which is 10% of context window (10,000 tokens)
 		// Below max tokens and buffer - no truncation
 		const result1 = truncateConversationIfNeeded({
 			messages: messagesWithSmallContent,
-			totalTokens: 44999, // Well below threshold + buffer
+			totalTokens: 39999, // Well below threshold + dynamic buffer
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 		})
@@ -148,10 +154,11 @@ describe("getMaxTokens", () => {
 		// Create messages with very small content in the last one to avoid token overflow
 		const messagesWithSmallContent = [...messages.slice(0, -1), { ...messages[messages.length - 1], content: "" }]
 
+		// Account for the dynamic buffer which is 10% of context window (10,000 tokens)
 		// Below max tokens and buffer - no truncation
 		const result1 = truncateConversationIfNeeded({
 			messages: messagesWithSmallContent,
-			totalTokens: 74999, // Well below threshold + buffer
+			totalTokens: 69999, // Well below threshold + dynamic buffer
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 		})
@@ -202,10 +209,11 @@ describe("getMaxTokens", () => {
 		// Create messages with very small content in the last one to avoid token overflow
 		const messagesWithSmallContent = [...messages.slice(0, -1), { ...messages[messages.length - 1], content: "" }]
 
+		// Account for the dynamic buffer which is 10% of context window (20,000 tokens for this test)
 		// Below max tokens and buffer - no truncation
 		const result1 = truncateConversationIfNeeded({
 			messages: messagesWithSmallContent,
-			totalTokens: 164999, // Well below threshold + buffer
+			totalTokens: 149999, // Well below threshold + dynamic buffer
 			contextWindow: modelInfo.contextWindow,
 			maxTokens: modelInfo.maxTokens,
 		})
@@ -244,7 +252,8 @@ describe("truncateConversationIfNeeded", () => {
 	it("should not truncate if tokens are below max tokens threshold", () => {
 		const modelInfo = createModelInfo(100000, true, 30000)
 		const maxTokens = 100000 - 30000 // 70000
-		const totalTokens = 64999 // Well below threshold + buffer
+		const dynamicBuffer = modelInfo.contextWindow * TOKEN_BUFFER_PERCENTAGE // 10000
+		const totalTokens = 70000 - dynamicBuffer - 1 // Just below threshold - buffer
 
 		// Create messages with very small content in the last one to avoid token overflow
 		const messagesWithSmallContent = [...messages.slice(0, -1), { ...messages[messages.length - 1], content: "" }]
@@ -338,7 +347,8 @@ describe("truncateConversationIfNeeded", () => {
 		]
 
 		// Set base tokens so total is well below threshold + buffer even with small content added
-		const baseTokensForSmall = availableTokens - smallContentTokens - TOKEN_BUFFER - 10
+		const dynamicBuffer = modelInfo.contextWindow * TOKEN_BUFFER_PERCENTAGE
+		const baseTokensForSmall = availableTokens - smallContentTokens - dynamicBuffer - 10
 		const resultWithSmall = truncateConversationIfNeeded({
 			messages: messagesWithSmallContent,
 			totalTokens: baseTokensForSmall,
@@ -389,10 +399,11 @@ describe("truncateConversationIfNeeded", () => {
 		expect(resultWithVeryLarge).not.toEqual(messagesWithVeryLargeContent) // Should truncate
 	})
 
-	it("should truncate if tokens are within TOKEN_BUFFER of the threshold", () => {
+	it("should truncate if tokens are within TOKEN_BUFFER_PERCENTAGE of the threshold", () => {
 		const modelInfo = createModelInfo(100000, true, 30000)
 		const maxTokens = 100000 - 30000 // 70000
-		const totalTokens = 66000 // Within 5000 of threshold (70000)
+		const dynamicBuffer = modelInfo.contextWindow * TOKEN_BUFFER_PERCENTAGE // 10% of 100000 = 10000
+		const totalTokens = 70000 - dynamicBuffer + 1 // Just within the dynamic buffer of threshold (70000)
 
 		// Create messages with very small content in the last one to avoid token overflow
 		const messagesWithSmallContent = [...messages.slice(0, -1), { ...messages[messages.length - 1], content: "" }]
