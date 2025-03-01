@@ -1166,27 +1166,9 @@ export class Cline {
 
 	// Tools
 
-	private calculateUsedContext(): number {
-		return this.apiConversationHistory.reduce((total, msg) => {
-			if (Array.isArray(msg.content)) {
-				return (
-					total +
-					msg.content.reduce((acc, block) => {
-						if (block.type === "text") {
-							return acc + block.text.length / 4 // Rough estimate of tokens
-						}
-						return acc
-					}, 0)
-				)
-			}
-			return total + (typeof msg.content === "string" ? msg.content.length / 4 : 0)
-		}, 0)
-	}
-
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
 		const contextWindow = this.api.getModel().info.contextWindow || 128_000
 		const maxAllowedSize = getMaxAllowedSize(contextWindow)
-		const usedContext = this.calculateUsedContext()
 
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
