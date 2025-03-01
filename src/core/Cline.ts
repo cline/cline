@@ -47,7 +47,7 @@ import {
 import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
 import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessage"
-import { calculateApiCost } from "../utils/cost"
+import { calculateApiCostAnthropic } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
@@ -59,13 +59,13 @@ import { formatResponse } from "./prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
+import { telemetryService } from "../services/telemetry/TelemetryService"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
-type UserContent = Array<
-	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
->
+type UserContent = Array<Anthropic.ContentBlockParam>
 
 export class Cline {
 	readonly taskId: string
@@ -75,6 +75,7 @@ export class Cline {
 	browserSession: BrowserSession
 	private didEditFile: boolean = false
 	customInstructions?: string
+	preferredLanguage?: LanguageKey
 	autoApprovalSettings: AutoApprovalSettings
 	private browserSettings: BrowserSettings
 	private chatSettings: ChatSettings
@@ -135,6 +136,9 @@ export class Cline {
 		this.browserSession = new BrowserSession(provider.context, browserSettings)
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
+		this.preferredLanguage = getLanguageKey(
+			vscode.workspace.getConfiguration("cline").get<LanguageDisplay>("preferredLanguage"),
+		)
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
@@ -148,6 +152,16 @@ export class Cline {
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
+		// capture start of thread with the state at the beginning
+		telemetryService.capture({
+			event: "cline created",
+			properties: {
+				taskId: this.taskId,
+				isHistory: !!historyItem,
+				chatMode: this.chatSettings.mode,
+				hasImages: !!images,
+			},
+		})
 	}
 
 	updateBrowserSettings(browserSettings: BrowserSettings) {
@@ -285,7 +299,10 @@ export class Cline {
 			case "workspace":
 				if (!this.checkpointTracker) {
 					try {
-						this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref())
+						this.checkpointTracker = await CheckpointTracker.create(
+							this.taskId,
+							this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						)
 						this.checkpointTrackerErrorMessage = undefined
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -398,7 +415,10 @@ export class Cline {
 		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we cant show diff outside of workspace?
 		if (!this.checkpointTracker) {
 			try {
-				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref())
+				this.checkpointTracker = await CheckpointTracker.create(
+					this.taskId,
+					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				)
 				this.checkpointTrackerErrorMessage = undefined
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -502,7 +522,10 @@ export class Cline {
 
 		if (!this.checkpointTracker) {
 			try {
-				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref())
+				this.checkpointTracker = await CheckpointTracker.create(
+					this.taskId,
+					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				)
 				this.checkpointTrackerErrorMessage = undefined
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -1269,6 +1292,10 @@ export class Cline {
 		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, mcpHub, this.browserSettings)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
+		const preferredLanguageInstructions =
+			this.preferredLanguage && this.preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
+				? `# Preferred Language\n\nSpeak in ${this.preferredLanguage}.`
+				: ""
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
 		if (await fileExistsAtPath(clineRulesFilePath)) {
@@ -1288,9 +1315,19 @@ export class Cline {
 			clineIgnoreInstructions = `# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${clineIgnoreContent}\n.clineignore`
 		}
 
-		if (settingsCustomInstructions || clineRulesFileInstructions) {
+		if (
+			settingsCustomInstructions ||
+			clineRulesFileInstructions ||
+			preferredLanguageInstructions ||
+			clineIgnoreInstructions
+		) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addUserInstructions(settingsCustomInstructions, clineRulesFileInstructions, clineIgnoreInstructions)
+			systemPrompt += addUserInstructions(
+				settingsCustomInstructions,
+				clineRulesFileInstructions,
+				clineIgnoreInstructions,
+				preferredLanguageInstructions,
+			)
 		}
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
@@ -2910,7 +2947,7 @@ export class Cline {
 		}
 
 		/*
-		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
+		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present.
 		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
 		*/
 		this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
@@ -3017,7 +3054,10 @@ export class Cline {
 		// isNewTask &&
 		if (!this.checkpointTracker) {
 			try {
-				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref())
+				this.checkpointTracker = await CheckpointTracker.create(
+					this.taskId,
+					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				)
 				this.checkpointTrackerErrorMessage = undefined
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -3073,7 +3113,13 @@ export class Cline {
 					cacheReads: cacheReadTokens,
 					cost:
 						totalCost ??
-						calculateApiCost(this.api.getModel().info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens),
+						calculateApiCostAnthropic(
+							this.api.getModel().info,
+							inputTokens,
+							outputTokens,
+							cacheWriteTokens,
+							cacheReadTokens,
+						),
 					cancelReason,
 					streamingFailedMessage,
 				} satisfies ClineApiReqInfo)
@@ -3264,6 +3310,14 @@ export class Cline {
 					})
 					this.consecutiveMistakeCount++
 				}
+
+				telemetryService.capture({
+					event: "message sent",
+					properties: {
+						taskId: this.taskId,
+						chatMode: this.chatSettings.mode,
+					},
+				})
 
 				const recDidEndLoop = await this.recursivelyMakeClineRequests(this.userMessageContent)
 				didEndLoop = recDidEndLoop

@@ -214,7 +214,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
+		const { filePaths, chatSettings, apiConfiguration, openRouterModels, requestyModels, platform } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 
@@ -635,14 +635,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Separate the API config submission logic
 		const submitApiConfig = useCallback(() => {
 			const apiValidationResult = validateApiConfiguration(apiConfiguration)
-			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels, requestyModels)
 
 			if (!apiValidationResult && !modelIdValidationResult) {
 				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			} else {
 				vscode.postMessage({ type: "getLatestState" })
 			}
-		}, [apiConfiguration, openRouterModels])
+		}, [apiConfiguration, openRouterModels, requestyModels])
 
 		const onModeToggle = useCallback(() => {
 			// if (textAreaDisabled) return
@@ -742,9 +742,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const unknownModel = "unknown"
 			if (!apiConfiguration) return unknownModel
 			switch (selectedProvider) {
-				case "anthropic":
-				case "openrouter":
-					return `${selectedProvider}:${selectedModelId}`
 				case "openai":
 					return `openai-compat:${selectedModelId}`
 				case "vscode-lm":
@@ -758,7 +755,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				case "litellm":
 					return `${selectedProvider}:${apiConfiguration.liteLlmModelId}`
 				case "requesty":
-					return `${selectedProvider}:${apiConfiguration.requestyModelId}`
+				case "anthropic":
+				case "openrouter":
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}

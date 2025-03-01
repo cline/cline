@@ -8,6 +8,7 @@ import {
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
+import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { useEvent, useInterval } from "react-use"
 import {
 	ApiConfiguration,
@@ -31,17 +32,23 @@ import {
 	openAiNativeModels,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
+	requestyDefaultModelId,
+	requestyDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
 	askSageModels,
 	askSageDefaultModelId,
 	askSageDefaultURL,
+	xaiDefaultModelId,
+	xaiModels,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
+import OpenRouterModelPicker from "./OpenRouterModelPicker"
+import RequestyModelPicker from "./RequestyModelPicker"
+import ModelDescriptionMarkdown from "./ModelDescriptionMarkdown"
 import styled from "styled-components"
 import * as vscodemodels from "vscode"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
@@ -54,7 +61,7 @@ interface ApiOptionsProps {
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
-const DROPDOWN_Z_INDEX = 1001 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
+const DROPDOWN_Z_INDEX = 1001 // Higher than the Requesty/OpenRouterModelPicker's and ModelSelectorTooltip's z-index
 
 const DropdownContainer = styled.div<{ zIndex?: number }>`
 	position: relative;
@@ -199,6 +206,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
+					<VSCodeOption value="xai">X AI</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -874,24 +882,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
-					<VSCodeTextField
-						value={apiConfiguration?.requestyModelId || ""}
-						style={{ width: "100%" }}
-						onInput={handleInputChange("requestyModelId")}
-						placeholder={"Enter Model ID..."}>
-						<span style={{ fontWeight: 500 }}>Model ID</span>
-					</VSCodeTextField>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: 3,
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						<span style={{ color: "var(--vscode-errorForeground)" }}>
-							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
-							models. Less capable models may not work as expected.)
-						</span>
-					</p>
+					{!apiConfiguration?.requestyApiKey && <a href="https://app.requesty.ai/manage-api">Get API Key</a>}
 				</div>
 			)}
 
@@ -1155,6 +1146,46 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
+			{selectedProvider === "xai" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.xaiApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("xaiApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>X AI API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.xaiApiKey && (
+							<VSCodeLink href="https://x.ai" style={{ display: "inline", fontSize: "inherit" }}>
+								You can get an X AI API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+					{/* Note: To fully implement this, you would need to add a handler in ClineProvider.ts */}
+					{/* {apiConfiguration?.xaiApiKey && (
+						<button
+							onClick={() => {
+								vscode.postMessage({
+									type: "requestXAIModels",
+									text: apiConfiguration?.xaiApiKey,
+								})
+							}}
+							style={{ margin: "5px 0 0 0" }}
+							className="vscode-button">
+							Fetch Available Models
+						</button>
+					)} */}
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -1167,6 +1198,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{selectedProvider !== "openrouter" &&
+				selectedProvider !== "requesty" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
 				selectedProvider !== "lmstudio" &&
@@ -1186,7 +1218,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "qwen" && createDropdown(qwenModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
+							{selectedProvider === "xai" && createDropdown(xaiModels)}
 						</DropdownContainer>
+
+						{selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219" && (
+							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+						)}
 
 						<ModelInfoView
 							selectedModelId={selectedModelId}
@@ -1199,6 +1236,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				)}
 
 			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker isPopup={isPopup} />}
+			{selectedProvider === "requesty" && showModelOptions && <RequestyModelPicker isPopup={isPopup} />}
 
 			{modelIdErrorMessage && (
 				<p
@@ -1404,6 +1442,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
 				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
 			}
+		case "requesty":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.requestyModelId || requestyDefaultModelId,
+				selectedModelInfo: apiConfiguration?.requestyModelInfo || requestyDefaultModelInfo,
+			}
 		case "openai":
 			return {
 				selectedProvider: provider,
@@ -1439,6 +1483,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedModelId: apiConfiguration?.liteLlmModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
+		case "xai":
+			return getProviderData(xaiModels, xaiDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

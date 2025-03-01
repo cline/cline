@@ -223,8 +223,16 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 							display: "flex",
 							gap: "6px",
 							flexWrap: "nowrap",
-							overflow: "hidden",
+							overflowX: "auto",
+							scrollbarWidth: "none",
 							position: "relative",
+						}}
+						onScroll={(e) => {
+							const target = e.currentTarget
+							const gradient = target.querySelector(".tags-gradient") as HTMLElement
+							if (gradient) {
+								gradient.style.visibility = target.scrollLeft > 0 ? "hidden" : "visible"
+							}
 						}}>
 						<span
 							style={{
@@ -254,6 +262,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 							</span>
 						))}
 						<div
+							className="tags-gradient"
 							style={{
 								position: "absolute",
 								right: 0,

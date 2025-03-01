@@ -18,6 +18,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		customInstructions,
 		setCustomInstructions,
 		openRouterModels,
+		requestyModels,
 		telemetrySetting,
 		setTelemetrySetting,
 	} = useExtensionState()
@@ -26,7 +27,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
-		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels, requestyModels)
 
 		setApiErrorMessage(apiValidationResult)
 		setModelIdErrorMessage(modelIdValidationResult)
