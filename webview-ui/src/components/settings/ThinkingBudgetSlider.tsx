@@ -141,7 +141,7 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 						$max={maxSliderValue}
 					/>
 
-					<Description>Higher values allow Claude to think more deeply before responding.</Description>
+					<Description>Higher budgets may allow you to achieve more comprehensive and nuanced reasoning</Description>
 				</>
 			)}
 		</Container>
