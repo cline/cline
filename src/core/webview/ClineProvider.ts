@@ -91,6 +91,7 @@ type GlobalStateKey =
 	| "userInfo"
 	| "previousModeApiProvider"
 	| "previousModeModelId"
+	| "previousModeThinkingBudgetTokens"
 	| "previousModeModelInfo"
 	| "liteLlmBaseUrl"
 	| "liteLlmModelId"
@@ -99,7 +100,7 @@ type GlobalStateKey =
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
-
+	| "thinkingBudgetTokens"
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	uiMessages: "ui_messages.json",
@@ -258,19 +259,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 				if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
 					// Update state when marketplace tab setting changes
-					await this.postStateToWebview()
-				}
-				if (e && e.affectsConfiguration("cline.modelSettings.anthropic.thinkingBudgetTokens")) {
-					const config = vscode.workspace.getConfiguration("cline.modelSettings.anthropic")
-					const thinkingBudget = config.get<number>("thinkingBudgetTokens", 0)
-
-					const validatedValue = validateThinkingBudget(thinkingBudget)
-
-					// Only update if the value changed
-					if (validatedValue !== thinkingBudget) {
-						await config.update("thinkingBudgetTokens", validatedValue, true)
-					}
-
 					await this.postStateToWebview()
 				}
 			},
@@ -609,6 +597,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								liteLlmApiKey,
 								qwenApiLine,
 								xaiApiKey,
+								thinkingBudgetTokens,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -650,6 +639,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("qwenApiLine", qwenApiLine)
 							await this.updateGlobalState("requestyModelId", requestyModelId)
 							await this.updateGlobalState("togetherModelId", togetherModelId)
+							await this.updateGlobalState("thinkingBudgetTokens", thinkingBudgetTokens)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -953,15 +943,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
-					case "updateThinkingBudgetTokens": {
-						if (message.number !== undefined) {
-							const validatedValue = validateThinkingBudget(message.number)
-
-							const config = vscode.workspace.getConfiguration("cline.modelSettings.anthropic")
-							await config.update("thinkingBudgetTokens", validatedValue, true)
-						}
-						break
-					}
 					case "openExtensionSettings": {
 						const settingsFilter = message.text || ""
 						await vscode.commands.executeCommand(
@@ -1004,10 +985,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeApiProvider: newApiProvider,
 			previousModeModelId: newModelId,
 			previousModeModelInfo: newModelInfo,
+			previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
 		} = await this.getState()
 
 		// Save the last model used in this mode
 		await this.updateGlobalState("previousModeApiProvider", apiConfiguration.apiProvider)
+		await this.updateGlobalState("previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
 		switch (apiConfiguration.apiProvider) {
 			case "anthropic":
 			case "bedrock":
@@ -1043,6 +1026,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// Restore the model used in previous mode
 		if (newApiProvider && newModelId) {
 			await this.updateGlobalState("apiProvider", newApiProvider)
+			await this.updateGlobalState("thinkingBudgetTokens", newThinkingBudgetTokens)
 			switch (newApiProvider) {
 				case "anthropic":
 				case "bedrock":
@@ -1908,10 +1892,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			previousModeThinkingBudgetTokens,
 			qwenApiLine,
 			liteLlmApiKey,
 			telemetrySetting,
 			xaiApiKey,
+			thinkingBudgetTokens,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1961,10 +1947,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("previousModeThinkingBudgetTokens") as Promise<number | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
 			this.getGlobalState("telemetrySetting") as Promise<TelemetrySetting | undefined>,
 			this.getSecret("xaiApiKey") as Promise<string | undefined>,
+			this.getGlobalState("thinkingBudgetTokens") as Promise<number | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -1984,10 +1972,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		const o3MiniReasoningEffort = vscode.workspace
 			.getConfiguration("cline.modelSettings.o3Mini")
 			.get("reasoningEffort", "medium")
-
-		const thinkingBudgetTokens = vscode.workspace
-			.getConfiguration("cline.modelSettings.anthropic")
-			.get("thinkingBudgetTokens", 0)
 
 		const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
 
@@ -2047,6 +2031,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			previousModeThinkingBudgetTokens,
 			mcpMarketplaceEnabled,
 			telemetrySetting: telemetrySetting || "unset",
 		}
