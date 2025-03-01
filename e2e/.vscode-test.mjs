@@ -6,7 +6,7 @@ import { defineConfig } from '@vscode/test-cli';
 
 export default defineConfig({
 	label: 'integrationTest',
-	files: 'out/e2e/src/suite/**/*.test.js',
+	files: 'out/suite/**/*.test.js',
 	workspaceFolder: '.',
 	mocha: {
 		ui: 'tdd',
