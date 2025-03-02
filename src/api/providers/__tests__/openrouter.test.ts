@@ -1,29 +1,30 @@
 // npx jest src/api/providers/__tests__/openrouter.test.ts
 
-import { OpenRouterHandler } from "../openrouter"
-import { ApiHandlerOptions, ModelInfo } from "../../../shared/api"
-import OpenAI from "openai"
 import axios from "axios"
 import { Anthropic } from "@anthropic-ai/sdk"
+import OpenAI from "openai"
+
+import { OpenRouterHandler } from "../openrouter"
+import { ApiHandlerOptions, ModelInfo } from "../../../shared/api"
 
 // Mock dependencies
 jest.mock("openai")
 jest.mock("axios")
 jest.mock("delay", () => jest.fn(() => Promise.resolve()))
 
+const mockOpenRouterModelInfo: ModelInfo = {
+	maxTokens: 1000,
+	contextWindow: 2000,
+	supportsPromptCache: true,
+	inputPrice: 0.01,
+	outputPrice: 0.02,
+}
+
 describe("OpenRouterHandler", () => {
 	const mockOptions: ApiHandlerOptions = {
 		openRouterApiKey: "test-key",
 		openRouterModelId: "test-model",
-		openRouterModelInfo: {
-			name: "Test Model",
-			description: "Test Description",
-			maxTokens: 1000,
-			contextWindow: 2000,
-			supportsPromptCache: true,
-			inputPrice: 0.01,
-			outputPrice: 0.02,
-		} as ModelInfo,
+		openRouterModelInfo: mockOpenRouterModelInfo,
 	}
 
 	beforeEach(() => {
@@ -50,6 +51,10 @@ describe("OpenRouterHandler", () => {
 		expect(result).toEqual({
 			id: mockOptions.openRouterModelId,
 			info: mockOptions.openRouterModelInfo,
+			maxTokens: 1000,
+			temperature: 0,
+			thinking: undefined,
+			topP: undefined,
 		})
 	})
 
@@ -59,6 +64,38 @@ describe("OpenRouterHandler", () => {
 
 		expect(result.id).toBe("anthropic/claude-3.7-sonnet")
 		expect(result.info.supportsPromptCache).toBe(true)
+	})
+
+	test("getModel honors custom maxTokens for thinking models", () => {
+		const handler = new OpenRouterHandler({
+			openRouterApiKey: "test-key",
+			openRouterModelId: "test-model",
+			openRouterModelInfo: {
+				...mockOpenRouterModelInfo,
+				maxTokens: 64_000,
+				thinking: true,
+			},
+			modelMaxTokens: 32_768,
+			modelMaxThinkingTokens: 16_384,
+		})
+
+		const result = handler.getModel()
+		expect(result.maxTokens).toBe(32_768)
+		expect(result.thinking).toEqual({ type: "enabled", budget_tokens: 16_384 })
+		expect(result.temperature).toBe(1.0)
+	})
+
+	test("getModel does not honor custom maxTokens for non-thinking models", () => {
+		const handler = new OpenRouterHandler({
+			...mockOptions,
+			modelMaxTokens: 32_768,
+			modelMaxThinkingTokens: 16_384,
+		})
+
+		const result = handler.getModel()
+		expect(result.maxTokens).toBe(1000)
+		expect(result.thinking).toBeUndefined()
+		expect(result.temperature).toBe(0)
 	})
 
 	test("createMessage generates correct stream chunks", async () => {
@@ -242,15 +279,7 @@ describe("OpenRouterHandler", () => {
 
 	test("completePrompt returns correct response", async () => {
 		const handler = new OpenRouterHandler(mockOptions)
-		const mockResponse = {
-			choices: [
-				{
-					message: {
-						content: "test completion",
-					},
-				},
-			],
-		}
+		const mockResponse = { choices: [{ message: { content: "test completion" } }] }
 
 		const mockCreate = jest.fn().mockResolvedValue(mockResponse)
 		;(OpenAI as jest.MockedClass<typeof OpenAI>).prototype.chat = {
@@ -260,10 +289,13 @@ describe("OpenRouterHandler", () => {
 		const result = await handler.completePrompt("test prompt")
 
 		expect(result).toBe("test completion")
+
 		expect(mockCreate).toHaveBeenCalledWith({
 			model: mockOptions.openRouterModelId,
-			messages: [{ role: "user", content: "test prompt" }],
+			max_tokens: 1000,
+			thinking: undefined,
 			temperature: 0,
+			messages: [{ role: "user", content: "test prompt" }],
 			stream: false,
 		})
 	})
@@ -292,8 +324,6 @@ describe("OpenRouterHandler", () => {
 			completions: { create: mockCreate },
 		} as any
 
-		await expect(handler.completePrompt("test prompt")).rejects.toThrow(
-			"OpenRouter completion error: Unexpected error",
-		)
+		await expect(handler.completePrompt("test prompt")).rejects.toThrow("Unexpected error")
 	})
 })

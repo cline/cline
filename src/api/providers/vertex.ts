@@ -202,6 +202,7 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		}
 
 		const response = await result.response
+
 		yield {
 			type: "usage",
 			inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
@@ -351,43 +352,44 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		thinking?: BetaThinkingConfigParam
 	} {
 		const modelId = this.options.apiModelId
-		let temperature = this.options.modelTemperature ?? 0
-		let thinking: BetaThinkingConfigParam | undefined = undefined
 
-		if (modelId && modelId in vertexModels) {
-			const id = modelId as VertexModelId
-			const info: ModelInfo = vertexModels[id]
+		const {
+			modelMaxTokens: customMaxTokens,
+			modelMaxThinkingTokens: customMaxThinkingTokens,
+			modelTemperature: customTemperature,
+		} = this.options
 
-			// The `:thinking` variant is a virtual identifier for thinking-enabled models
-			// Similar to how it's handled in the Anthropic provider
-			let actualId = id
-			if (id.endsWith(":thinking")) {
-				actualId = id.replace(":thinking", "") as VertexModelId
-			}
+		let id = modelId && modelId in vertexModels ? (modelId as VertexModelId) : vertexDefaultModelId
+		const info: ModelInfo = vertexModels[id]
 
-			const maxTokens = this.options.modelMaxTokens || info.maxTokens || 8192
-
-			if (info.thinking) {
-				temperature = 1.0 // Thinking requires temperature 1.0
-				const maxBudgetTokens = Math.floor(maxTokens * 0.8)
-				const budgetTokens = Math.max(
-					Math.min(this.options.modelMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens),
-					1024,
-				)
-				thinking = { type: "enabled", budget_tokens: budgetTokens }
-			}
-
-			return { id: actualId, info, temperature, maxTokens, thinking }
+		// The `:thinking` variant is a virtual identifier for thinking-enabled
+		// models (similar to how it's handled in the Anthropic provider.)
+		if (id.endsWith(":thinking")) {
+			id = id.replace(":thinking", "") as VertexModelId
 		}
 
-		const id = vertexDefaultModelId
-		const info = vertexModels[id]
-		const maxTokens = this.options.modelMaxTokens || info.maxTokens || 8192
+		let maxTokens = info.maxTokens || 8192
+		let thinking: BetaThinkingConfigParam | undefined = undefined
+		let temperature = customTemperature ?? 0
 
-		return { id, info, temperature, maxTokens, thinking }
+		if (info.thinking) {
+			// Only honor `customMaxTokens` for thinking models.
+			maxTokens = customMaxTokens ?? maxTokens
+
+			// Clamp the thinking budget to be at most 80% of max tokens and at
+			// least 1024 tokens.
+			const maxBudgetTokens = Math.floor(maxTokens * 0.8)
+			const budgetTokens = Math.max(Math.min(customMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens), 1024)
+			thinking = { type: "enabled", budget_tokens: budgetTokens }
+
+			// Anthropic "Thinking" models require a temperature of 1.0.
+			temperature = 1.0
+		}
+
+		return { id, info, maxTokens, thinking, temperature }
 	}
 
-	private async completePromptGemini(prompt: string): Promise<string> {
+	private async completePromptGemini(prompt: string) {
 		try {
 			const model = this.geminiClient.getGenerativeModel({
 				model: this.getModel().id,
@@ -416,7 +418,7 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	private async completePromptClaude(prompt: string): Promise<string> {
+	private async completePromptClaude(prompt: string) {
 		try {
 			let { id, info, temperature, maxTokens, thinking } = this.getModel()
 			const useCache = info.supportsPromptCache
@@ -461,7 +463,7 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string) {
 		switch (this.modelType) {
 			case this.MODEL_CLAUDE: {
 				return this.completePromptClaude(prompt)

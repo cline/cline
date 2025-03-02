@@ -194,5 +194,33 @@ describe("AnthropicHandler", () => {
 			expect(model.info.supportsImages).toBe(true)
 			expect(model.info.supportsPromptCache).toBe(true)
 		})
+
+		it("honors custom maxTokens for thinking models", () => {
+			const handler = new AnthropicHandler({
+				apiKey: "test-api-key",
+				apiModelId: "claude-3-7-sonnet-20250219:thinking",
+				modelMaxTokens: 32_768,
+				modelMaxThinkingTokens: 16_384,
+			})
+
+			const result = handler.getModel()
+			expect(result.maxTokens).toBe(32_768)
+			expect(result.thinking).toEqual({ type: "enabled", budget_tokens: 16_384 })
+			expect(result.temperature).toBe(1.0)
+		})
+
+		it("does not honor custom maxTokens for non-thinking models", () => {
+			const handler = new AnthropicHandler({
+				apiKey: "test-api-key",
+				apiModelId: "claude-3-7-sonnet-20250219",
+				modelMaxTokens: 32_768,
+				modelMaxThinkingTokens: 16_384,
+			})
+
+			const result = handler.getModel()
+			expect(result.maxTokens).toBe(16_384)
+			expect(result.thinking).toBeUndefined()
+			expect(result.temperature).toBe(0)
+		})
 	})
 })

@@ -890,6 +890,34 @@ describe("VertexHandler", () => {
 			expect(modelInfo.info.maxTokens).toBe(8192)
 			expect(modelInfo.info.contextWindow).toBe(1048576)
 		})
+
+		it("honors custom maxTokens for thinking models", () => {
+			const handler = new VertexHandler({
+				apiKey: "test-api-key",
+				apiModelId: "claude-3-7-sonnet@20250219:thinking",
+				modelMaxTokens: 32_768,
+				modelMaxThinkingTokens: 16_384,
+			})
+
+			const result = handler.getModel()
+			expect(result.maxTokens).toBe(32_768)
+			expect(result.thinking).toEqual({ type: "enabled", budget_tokens: 16_384 })
+			expect(result.temperature).toBe(1.0)
+		})
+
+		it("does not honor custom maxTokens for non-thinking models", () => {
+			const handler = new VertexHandler({
+				apiKey: "test-api-key",
+				apiModelId: "claude-3-7-sonnet@20250219",
+				modelMaxTokens: 32_768,
+				modelMaxThinkingTokens: 16_384,
+			})
+
+			const result = handler.getModel()
+			expect(result.maxTokens).toBe(16_384)
+			expect(result.thinking).toBeUndefined()
+			expect(result.temperature).toBe(0)
+		})
 	})
 
 	describe("thinking model configuration", () => {
