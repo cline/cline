@@ -48,13 +48,18 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 	): AsyncGenerator<ApiStreamChunk> {
-		// Convert Anthropic messages to OpenAI format
+		let { id: modelId, maxTokens, thinking, temperature, topP } = this.getModel()
+
+		// Convert Anthropic messages to OpenAI format.
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
 
-		const { id: modelId, info: modelInfo } = this.getModel()
+		// DeepSeek highly recommends using user instead of system role.
+		if (modelId.startsWith("deepseek/deepseek-r1") || modelId === "perplexity/sonar-reasoning") {
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		}
 
 		// prompt caching: https://openrouter.ai/docs/prompt-caching
 		// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
@@ -95,42 +100,12 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 				break
 		}
 
-		let defaultTemperature = OPENROUTER_DEFAULT_TEMPERATURE
-		let topP: number | undefined = undefined
-
-		// Handle models based on deepseek-r1
-		if (modelId.startsWith("deepseek/deepseek-r1") || modelId === "perplexity/sonar-reasoning") {
-			// Recommended temperature for DeepSeek reasoning models
-			defaultTemperature = DEEP_SEEK_DEFAULT_TEMPERATURE
-			// DeepSeek highly recommends using user instead of system role
-			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-			// Some provider support topP and 0.95 is value that Deepseek used in their benchmarks
-			topP = 0.95
-		}
-
-		const maxTokens = this.options.modelMaxTokens || modelInfo.maxTokens
-		let temperature = this.options.modelTemperature ?? defaultTemperature
-		let thinking: BetaThinkingConfigParam | undefined = undefined
-
-		if (modelInfo.thinking) {
-			// Clamp the thinking budget to be at most 80% of max tokens and at
-			// least 1024 tokens.
-			const maxBudgetTokens = Math.floor((maxTokens || 8192) * 0.8)
-			const budgetTokens = Math.max(
-				Math.min(this.options.modelMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens),
-				1024,
-			)
-
-			thinking = { type: "enabled", budget_tokens: budgetTokens }
-			temperature = 1.0
-		}
-
 		// https://openrouter.ai/docs/transforms
 		let fullResponseText = ""
 
 		const completionParams: OpenRouterChatCompletionParams = {
 			model: modelId,
-			max_tokens: modelInfo.maxTokens,
+			max_tokens: maxTokens,
 			temperature,
 			thinking, // OpenRouter is temporarily supporting this.
 			top_p: topP,
@@ -221,34 +196,67 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 	getModel() {
 		const modelId = this.options.openRouterModelId
 		const modelInfo = this.options.openRouterModelInfo
-		return modelId && modelInfo
-			? { id: modelId, info: modelInfo }
-			: { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
+
+		let id = modelId ?? openRouterDefaultModelId
+		const info = modelInfo ?? openRouterDefaultModelInfo
+
+		const {
+			modelMaxTokens: customMaxTokens,
+			modelMaxThinkingTokens: customMaxThinkingTokens,
+			modelTemperature: customTemperature,
+		} = this.options
+
+		let maxTokens = info.maxTokens
+		let thinking: BetaThinkingConfigParam | undefined = undefined
+		let temperature = customTemperature ?? OPENROUTER_DEFAULT_TEMPERATURE
+		let topP: number | undefined = undefined
+
+		// Handle models based on deepseek-r1
+		if (id.startsWith("deepseek/deepseek-r1") || modelId === "perplexity/sonar-reasoning") {
+			// Recommended temperature for DeepSeek reasoning models.
+			temperature = customTemperature ?? DEEP_SEEK_DEFAULT_TEMPERATURE
+			// Some provider support topP and 0.95 is value that Deepseek used in their benchmarks.
+			topP = 0.95
+		}
+
+		if (info.thinking) {
+			// Only honor `customMaxTokens` for thinking models.
+			maxTokens = customMaxTokens ?? maxTokens
+
+			// Clamp the thinking budget to be at most 80% of max tokens and at
+			// least 1024 tokens.
+			const maxBudgetTokens = Math.floor((maxTokens || 8192) * 0.8)
+			const budgetTokens = Math.max(Math.min(customMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens), 1024)
+			thinking = { type: "enabled", budget_tokens: budgetTokens }
+
+			// Anthropic "Thinking" models require a temperature of 1.0.
+			temperature = 1.0
+		}
+
+		return { id, info, maxTokens, thinking, temperature, topP }
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
-		try {
-			const response = await this.client.chat.completions.create({
-				model: this.getModel().id,
-				messages: [{ role: "user", content: prompt }],
-				temperature: this.options.modelTemperature ?? OPENROUTER_DEFAULT_TEMPERATURE,
-				stream: false,
-			})
+	async completePrompt(prompt: string) {
+		let { id: modelId, maxTokens, thinking, temperature } = this.getModel()
 
-			if ("error" in response) {
-				const error = response.error as { message?: string; code?: number }
-				throw new Error(`OpenRouter API Error ${error?.code}: ${error?.message}`)
-			}
-
-			const completion = response as OpenAI.Chat.ChatCompletion
-			return completion.choices[0]?.message?.content || ""
-		} catch (error) {
-			if (error instanceof Error) {
-				throw new Error(`OpenRouter completion error: ${error.message}`)
-			}
-
-			throw error
+		const completionParams: OpenRouterChatCompletionParams = {
+			model: modelId,
+			max_tokens: maxTokens,
+			thinking,
+			temperature,
+			messages: [{ role: "user", content: prompt }],
+			stream: false,
 		}
+
+		const response = await this.client.chat.completions.create(completionParams)
+
+		if ("error" in response) {
+			const error = response.error as { message?: string; code?: number }
+			throw new Error(`OpenRouter API Error ${error?.code}: ${error?.message}`)
+		}
+
+		const completion = response as OpenAI.Chat.ChatCompletion
+		return completion.choices[0]?.message?.content || ""
 	}
 }
 

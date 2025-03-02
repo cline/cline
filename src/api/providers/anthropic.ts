@@ -12,8 +12,6 @@ import {
 import { ApiHandler, SingleCompletionHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 
-const ANTHROPIC_DEFAULT_TEMPERATURE = 0
-
 export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions
 	private client: Anthropic
@@ -30,7 +28,7 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		let stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>
 		const cacheControl: CacheControlEphemeral = { type: "ephemeral" }
-		let { id: modelId, temperature, maxTokens, thinking } = this.getModel()
+		let { id: modelId, maxTokens, thinking, temperature } = this.getModel()
 
 		switch (modelId) {
 			case "claude-3-7-sonnet-20250219":
@@ -182,55 +180,52 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 
 	getModel() {
 		const modelId = this.options.apiModelId
-		let temperature = this.options.modelTemperature ?? ANTHROPIC_DEFAULT_TEMPERATURE
-		let thinking: BetaThinkingConfigParam | undefined = undefined
 
-		if (modelId && modelId in anthropicModels) {
-			let id = modelId as AnthropicModelId
-			const info: ModelInfo = anthropicModels[id]
+		const {
+			modelMaxTokens: customMaxTokens,
+			modelMaxThinkingTokens: customMaxThinkingTokens,
+			modelTemperature: customTemperature,
+		} = this.options
 
-			// The `:thinking` variant is a virtual identifier for the
-			// `claude-3-7-sonnet-20250219` model with a thinking budget.
-			// We can handle this more elegantly in the future.
-			if (id === "claude-3-7-sonnet-20250219:thinking") {
-				id = "claude-3-7-sonnet-20250219"
-			}
+		let id = modelId && modelId in anthropicModels ? (modelId as AnthropicModelId) : anthropicDefaultModelId
+		const info: ModelInfo = anthropicModels[id]
 
-			const maxTokens = this.options.modelMaxTokens || info.maxTokens || 8192
-
-			if (info.thinking) {
-				// Anthropic "Thinking" models require a temperature of 1.0.
-				temperature = 1.0
-
-				// Clamp the thinking budget to be at most 80% of max tokens and at
-				// least 1024 tokens.
-				const maxBudgetTokens = Math.floor(maxTokens * 0.8)
-				const budgetTokens = Math.max(
-					Math.min(this.options.modelMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens),
-					1024,
-				)
-
-				thinking = { type: "enabled", budget_tokens: budgetTokens }
-			}
-
-			return { id, info, temperature, maxTokens, thinking }
+		// The `:thinking` variant is a virtual identifier for the
+		// `claude-3-7-sonnet-20250219` model with a thinking budget.
+		// We can handle this more elegantly in the future.
+		if (id === "claude-3-7-sonnet-20250219:thinking") {
+			id = "claude-3-7-sonnet-20250219"
 		}
 
-		const id = anthropicDefaultModelId
-		const info: ModelInfo = anthropicModels[id]
-		const maxTokens = this.options.modelMaxTokens || info.maxTokens || 8192
+		let maxTokens = info.maxTokens ?? 8192
+		let thinking: BetaThinkingConfigParam | undefined = undefined
+		let temperature = customTemperature ?? 0
 
-		return { id, info, temperature, maxTokens, thinking }
+		if (info.thinking) {
+			// Only honor `customMaxTokens` for thinking models.
+			maxTokens = customMaxTokens ?? maxTokens
+
+			// Clamp the thinking budget to be at most 80% of max tokens and at
+			// least 1024 tokens.
+			const maxBudgetTokens = Math.floor(maxTokens * 0.8)
+			const budgetTokens = Math.max(Math.min(customMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens), 1024)
+			thinking = { type: "enabled", budget_tokens: budgetTokens }
+
+			// Anthropic "Thinking" models require a temperature of 1.0.
+			temperature = 1.0
+		}
+
+		return { id, info, maxTokens, thinking, temperature }
 	}
 
 	async completePrompt(prompt: string) {
-		let { id: modelId, temperature, maxTokens, thinking } = this.getModel()
+		let { id: modelId, maxTokens, thinking, temperature } = this.getModel()
 
 		const message = await this.client.messages.create({
 			model: modelId,
 			max_tokens: maxTokens,
-			temperature,
 			thinking,
+			temperature,
 			messages: [{ role: "user", content: prompt }],
 			stream: false,
 		})
