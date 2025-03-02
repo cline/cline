@@ -33,6 +33,7 @@ export class OpenRouterHandler implements ApiHandler {
 			messages,
 			model,
 			this.options.o3MiniReasoningEffort,
+			this.options.thinkingBudgetTokens,
 		)
 
 		if (genId) {

@@ -19,11 +19,14 @@ export class AnthropicHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		let budget_tokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = budget_tokens !== 0 ? true : false
 		const model = this.getModel()
-		let stream: AnthropicStream<Anthropic.Beta.PromptCaching.Messages.RawPromptCachingBetaMessageStreamEvent>
+		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent>
 		const modelId = model.id
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
+			case "claude-3-7-sonnet-20250219":
 			case "claude-3-5-sonnet-20241022":
 			case "claude-3-5-haiku-20241022":
 			case "claude-3-opus-20240229":
@@ -37,11 +40,14 @@ export class AnthropicHandler implements ApiHandler {
 				)
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-				stream = await this.client.beta.promptCaching.messages.create(
+				stream = await this.client.messages.create(
 					{
 						model: modelId,
+						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 						max_tokens: model.info.maxTokens || 8192,
-						temperature: 0,
+						// "Thinking isn’t compatible with temperature, top_p, or top_k modifications as well as forced tool use."
+						// (https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking)
+						temperature: reasoningOn ? undefined : 0,
 						system: [
 							{
 								text: systemPrompt,
@@ -88,6 +94,7 @@ export class AnthropicHandler implements ApiHandler {
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
 						switch (modelId) {
+							case "claude-3-7-sonnet-20250219":
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":
 							case "claude-3-opus-20240229":
@@ -146,6 +153,20 @@ export class AnthropicHandler implements ApiHandler {
 					break
 				case "content_block_start":
 					switch (chunk.content_block.type) {
+						case "thinking":
+							yield {
+								type: "reasoning",
+								reasoning: chunk.content_block.thinking || "",
+							}
+							break
+						case "redacted_thinking":
+							// Handle redacted thinking blocks - we still mark it as reasoning
+							// but note that the content is encrypted
+							yield {
+								type: "reasoning",
+								reasoning: "[Redacted thinking block]",
+							}
+							break
 						case "text":
 							// we may receive multiple text blocks, in which case just insert a line break between them
 							if (chunk.index > 0) {
@@ -163,11 +184,21 @@ export class AnthropicHandler implements ApiHandler {
 					break
 				case "content_block_delta":
 					switch (chunk.delta.type) {
+						case "thinking_delta":
+							yield {
+								type: "reasoning",
+								reasoning: chunk.delta.thinking,
+							}
+							break
 						case "text_delta":
 							yield {
 								type: "text",
 								text: chunk.delta.text,
 							}
+							break
+						case "signature_delta":
+							// We don't need to do anything with the signature in the client
+							// It's used when sending the thinking block back to the API
 							break
 					}
 					break

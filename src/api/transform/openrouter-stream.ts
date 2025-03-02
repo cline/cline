@@ -11,6 +11,7 @@ export async function* streamOpenRouterFormatRequest(
 	messages: Anthropic.Messages.MessageParam[],
 	model: { id: string; info: ModelInfo },
 	o3MiniReasoningEffort?: string,
+	thinkingBudgetTokens?: number,
 ): AsyncGenerator<ApiStreamChunk, string | undefined, unknown> {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -21,6 +22,11 @@ export async function* streamOpenRouterFormatRequest(
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
 	// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
 	switch (model.id) {
+		case "anthropic/claude-3.7-sonnet":
+		case "anthropic/claude-3.7-sonnet:beta":
+		case "anthropic/claude-3.7-sonnet:thinking":
+		case "anthropic/claude-3-7-sonnet":
+		case "anthropic/claude-3-7-sonnet:beta":
 		case "anthropic/claude-3.5-sonnet":
 		case "anthropic/claude-3.5-sonnet:beta":
 		case "anthropic/claude-3.5-sonnet-20240620":
@@ -72,6 +78,11 @@ export async function* streamOpenRouterFormatRequest(
 	// (models usually default to max tokens allowed)
 	let maxTokens: number | undefined
 	switch (model.id) {
+		case "anthropic/claude-3.7-sonnet":
+		case "anthropic/claude-3.7-sonnet:beta":
+		case "anthropic/claude-3.7-sonnet:thinking":
+		case "anthropic/claude-3-7-sonnet":
+		case "anthropic/claude-3-7-sonnet:beta":
 		case "anthropic/claude-3.5-sonnet":
 		case "anthropic/claude-3.5-sonnet:beta":
 		case "anthropic/claude-3.5-sonnet-20240620":
@@ -84,13 +95,29 @@ export async function* streamOpenRouterFormatRequest(
 			break
 	}
 
-	let temperature = 0
+	let temperature: number | undefined = 0
 	let topP: number | undefined = undefined
 	if (model.id.startsWith("deepseek/deepseek-r1") || model.id === "perplexity/sonar-reasoning") {
 		// Recommended values from DeepSeek
 		temperature = 0.7
 		topP = 0.95
 		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+	}
+
+	let reasoning: { max_tokens: number } | undefined = undefined
+	switch (model.id) {
+		case "anthropic/claude-3.7-sonnet":
+		case "anthropic/claude-3.7-sonnet:beta":
+		case "anthropic/claude-3.7-sonnet:thinking":
+		case "anthropic/claude-3-7-sonnet":
+		case "anthropic/claude-3-7-sonnet:beta":
+			let budget_tokens = thinkingBudgetTokens || 0
+			const reasoningOn = budget_tokens !== 0 ? true : false
+			if (reasoningOn) {
+				temperature = undefined // extended thinking does not support non-1 temperature
+				reasoning = { max_tokens: budget_tokens }
+			}
+			break
 	}
 
 	// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
@@ -111,6 +138,7 @@ export async function* streamOpenRouterFormatRequest(
 		transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		include_reasoning: true,
 		...(model.id === "openai/o3-mini" ? { reasoning_effort: o3MiniReasoningEffort || "medium" } : {}),
+		...(reasoning ? { reasoning } : {}),
 	})
 
 	let genId: string | undefined
@@ -137,41 +165,12 @@ export async function* streamOpenRouterFormatRequest(
 
 		// Reasoning tokens are returned separately from the content
 		if ("reasoning" in delta && delta.reasoning) {
-			// console.log("reasoning", delta.reasoning)
 			yield {
 				type: "reasoning",
 				// @ts-ignore-next-line
 				reasoning: delta.reasoning,
 			}
-
-			// if (didStreamThinkTagInReasoning) {
-			// 	yield {
-			// 		type: "text",
-			// 		// @ts-ignore-next-line
-			// 		text: delta.reasoning,
-			// 	}
-			// } else {
-			// 	yield {
-			// 		type: "reasoning",
-			// 		// @ts-ignore-next-line
-			// 		text: delta.reasoning,
-			// 	}
-
-			// 	// @ts-ignore-next-line
-			// 	reasoningResponse += delta.reasoning
-			// 	if (reasoningResponse.includes("</think>")) {
-			// 		didStreamThinkTagInReasoning = true
-			// 		console.log("did hit think tag", reasoningResponse)
-			// 	}
-			// }
 		}
-		// if (chunk.usage) {
-		// 	yield {
-		// 		type: "usage",
-		// 		inputTokens: chunk.usage.prompt_tokens || 0,
-		// 		outputTokens: chunk.usage.completion_tokens || 0,
-		// 	}
-		// }
 	}
 
 	return genId
