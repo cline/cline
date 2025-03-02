@@ -1,12 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import { ApiHandler, SingleCompletionHandler } from "../"
-import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
+import { VertexAI } from "@google-cloud/vertexai"
+
 import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
-import { VertexAI } from "@google-cloud/vertexai"
 import { convertAnthropicMessageToVertexGemini } from "../transform/vertex-gemini-format"
+import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "./constants"
+import { ApiHandler, getModelParams, SingleCompletionHandler } from "../"
 
 // Types for Vertex SDK
 
@@ -344,21 +345,8 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	getModel(): {
-		id: VertexModelId
-		info: ModelInfo
-		temperature: number
-		maxTokens: number
-		thinking?: BetaThinkingConfigParam
-	} {
+	getModel() {
 		const modelId = this.options.apiModelId
-
-		const {
-			modelMaxTokens: customMaxTokens,
-			modelMaxThinkingTokens: customMaxThinkingTokens,
-			modelTemperature: customTemperature,
-		} = this.options
-
 		let id = modelId && modelId in vertexModels ? (modelId as VertexModelId) : vertexDefaultModelId
 		const info: ModelInfo = vertexModels[id]
 
@@ -368,25 +356,11 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 			id = id.replace(":thinking", "") as VertexModelId
 		}
 
-		let maxTokens = info.maxTokens || 8192
-		let thinking: BetaThinkingConfigParam | undefined = undefined
-		let temperature = customTemperature ?? 0
-
-		if (info.thinking) {
-			// Only honor `customMaxTokens` for thinking models.
-			maxTokens = customMaxTokens ?? maxTokens
-
-			// Clamp the thinking budget to be at most 80% of max tokens and at
-			// least 1024 tokens.
-			const maxBudgetTokens = Math.floor(maxTokens * 0.8)
-			const budgetTokens = Math.max(Math.min(customMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens), 1024)
-			thinking = { type: "enabled", budget_tokens: budgetTokens }
-
-			// Anthropic "Thinking" models require a temperature of 1.0.
-			temperature = 1.0
+		return {
+			id,
+			info,
+			...getModelParams({ options: this.options, model: info, defaultMaxTokens: ANTHROPIC_DEFAULT_MAX_TOKENS }),
 		}
-
-		return { id, info, maxTokens, thinking, temperature }
 	}
 
 	private async completePromptGemini(prompt: string) {
@@ -423,9 +397,9 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 			let { id, info, temperature, maxTokens, thinking } = this.getModel()
 			const useCache = info.supportsPromptCache
 
-			const params = {
+			const params: Anthropic.Messages.MessageCreateParamsNonStreaming = {
 				model: id,
-				max_tokens: maxTokens,
+				max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
 				temperature,
 				thinking,
 				system: "", // No system prompt needed for single completions
@@ -446,19 +420,19 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 				stream: false,
 			}
 
-			const response = (await this.anthropicClient.messages.create(
-				params as Anthropic.Messages.MessageCreateParamsNonStreaming,
-			)) as unknown as VertexMessageResponse
-
+			const response = (await this.anthropicClient.messages.create(params)) as unknown as VertexMessageResponse
 			const content = response.content[0]
+
 			if (content.type === "text") {
 				return content.text
 			}
+
 			return ""
 		} catch (error) {
 			if (error instanceof Error) {
 				throw new Error(`Vertex completion error: ${error.message}`)
 			}
+
 			throw error
 		}
 	}
