@@ -1,8 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { withRetry } from "../retry"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { ApiHandler } from "../index"
+import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
@@ -69,13 +69,19 @@ export class RequestyHandler implements ApiHandler {
 
 			if (chunk.usage) {
 				const usage = chunk.usage as RequestyUsage
+				const inputTokens = usage.prompt_tokens || 0
+				const outputTokens = usage.completion_tokens || 0
+				const cacheWriteTokens = usage.prompt_tokens_details?.caching_tokens || undefined
+				const cacheReadTokens = usage.prompt_tokens_details?.cached_tokens || undefined
+				const totalCost = 0 // TODO: Replace with calculateApiCostOpenAI(model.info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+
 				yield {
 					type: "usage",
-					inputTokens: usage.prompt_tokens || 0,
-					outputTokens: usage.completion_tokens || 0,
-					cacheWriteTokens: usage.prompt_tokens_details?.caching_tokens || undefined,
-					cacheReadTokens: usage.prompt_tokens_details?.cached_tokens || undefined,
-					totalCost: usage.total_cost || undefined,
+					inputTokens: inputTokens,
+					outputTokens: outputTokens,
+					cacheWriteTokens: cacheWriteTokens,
+					cacheReadTokens: cacheReadTokens,
+					totalCost: totalCost,
 				}
 			}
 		}
