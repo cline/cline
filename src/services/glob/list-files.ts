@@ -2,6 +2,26 @@ import { globby, Options } from "globby"
 import os from "os"
 import * as path from "path"
 import { arePathsEqual } from "../../utils/path"
+import vscode from "vscode"
+
+const defaultDirsToIgnore = [
+	"node_modules",
+	"__pycache__",
+	"env",
+	"venv",
+	"target/dependency",
+	"build/dependencies",
+	"dist",
+	"out",
+	"bundle",
+	"vendor",
+	"tmp",
+	"temp",
+	"deps",
+	"pkg",
+	"Pods",
+	".*", // '!**/.*' excludes hidden directories, while '!**/.*/**' excludes only their contents. This way we are at least aware of the existence of hidden directories.
+]
 
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
 	const absolutePath = path.resolve(dirPath)
@@ -17,24 +37,11 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		return [[homeDir], false]
 	}
 
-	const dirsToIgnore = [
-		"node_modules",
-		"__pycache__",
-		"env",
-		"venv",
-		"target/dependency",
-		"build/dependencies",
-		"dist",
-		"out",
-		"bundle",
-		"vendor",
-		"tmp",
-		"temp",
-		"deps",
-		"pkg",
-		"Pods",
-		".*", // '!**/.*' excludes hidden directories, while '!**/.*/**' excludes only their contents. This way we are at least aware of the existence of hidden directories.
-	].map((dir) => `**/${dir}/**`)
+	const dirsToIgnoreConfig = vscode.workspace.getConfiguration("cline").get<string[] | undefined>("dirsToIgnore")
+
+	const dirsToIgnore = dirsToIgnoreConfig && dirsToIgnoreConfig.length > 0 ? dirsToIgnoreConfig : defaultDirsToIgnore
+
+	const ignoreGlobPattern = dirsToIgnore.map((dir) => `**/${dir}/**`)
 
 	const options = {
 		cwd: dirPath,
@@ -42,7 +49,7 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		absolute: true,
 		markDirectories: true, // Append a / on any directories matched (/ is used on windows as well, so dont use path.sep)
 		gitignore: recursive, // globby ignores any files that are gitignored
-		ignore: recursive ? dirsToIgnore : undefined, // just in case there is no gitignore, we ignore sensible defaults
+		ignore: recursive ? ignoreGlobPattern : undefined, // just in case there is no gitignore, we ignore sensible defaults
 		onlyFiles: false, // true by default, false means it will list directories on their own too
 	}
 
