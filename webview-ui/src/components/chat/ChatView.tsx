@@ -28,7 +28,7 @@ import TaskHeader from "./TaskHeader"
 import AutoApproveMenu from "./AutoApproveMenu"
 import { AudioType } from "../../../../src/shared/WebviewMessage"
 import { validateCommand } from "../../utils/command-validation"
-import { modes } from "../../../../src/shared/modes"
+import { getAllModes } from "../../../../src/shared/modes"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -60,6 +60,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setMode,
 		autoApprovalEnabled,
 		alwaysAllowModeSwitch,
+		customModes,
 	} = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
@@ -967,12 +968,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		isWriteToolAction,
 	])
 
-	// Add this new function to handle mode switching
+	// Function to handle mode switching
 	const switchToNextMode = useCallback(() => {
-		const currentModeIndex = modes.findIndex((m) => m.slug === mode)
-		const nextModeIndex = (currentModeIndex + 1) % modes.length
-		setMode(modes[nextModeIndex].slug)
-	}, [mode, setMode])
+		const allModes = getAllModes(customModes)
+		const currentModeIndex = allModes.findIndex((m) => m.slug === mode)
+		const nextModeIndex = (currentModeIndex + 1) % allModes.length
+		setMode(allModes[nextModeIndex].slug)
+	}, [mode, setMode, customModes])
 
 	// Add keyboard event handler
 	const handleKeyDown = useCallback(
