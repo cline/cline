@@ -1,6 +1,6 @@
 import fs from "fs/promises"
 import * as path from "path"
-import simpleGit, { SimpleGit } from "simple-git"
+import simpleGit from "simple-git"
 import * as vscode from "vscode"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { GitOperations } from "./CheckpointGitOperations"
@@ -369,20 +369,6 @@ class CheckpointTracker {
 			throw new Error("Global storage uri is invalid")
 		}
 		await GitOperations.deleteTaskBranchStatic(taskId, historyItem, globalStoragePath)
-	}
-
-	/**
-	 * Helper function to get a set of files that exist in a given commit
-	 */
-	private async getExistingFiles(git: SimpleGit, commitHash: string, files: string[]): Promise<Set<string>> {
-		try {
-			const result = await git.raw(["ls-tree", "-r", "--name-only", commitHash])
-			const existingFiles = new Set<string>(result.split("\n"))
-			return existingFiles
-		} catch (error) {
-			console.error("Error getting existing files:", error)
-			return new Set()
-		}
 	}
 }
 
