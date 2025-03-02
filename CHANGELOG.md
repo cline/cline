@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## 3.7.11
+
+### Patch Changes
+
+- Don't honor custom max tokens for non thinking models
+- Include custom modes in mode switching keyboard shortcut
+- Support read-only modes that can run commands
+
 ## [3.7.10]
 
 - Add Gemini models on Vertex AI (thanks @ashktn!)
