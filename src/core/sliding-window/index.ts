@@ -1,9 +1,10 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler } from "../../api"
-import { TOKEN_BUFFER_PERCENTAGE } from "./constants"
 
-// Re-export constants for external use
-export { TOKEN_BUFFER_PERCENTAGE } from "./constants"
+/**
+ * Default percentage of the context window to use as a buffer when deciding when to truncate
+ */
+export const TOKEN_BUFFER_PERCENTAGE = 0.1
 
 /**
  * Counts tokens for user content using the provider's token counting implementation.
