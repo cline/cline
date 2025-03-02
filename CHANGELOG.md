@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## [3.7.10]
+
+- Add Gemini models on Vertex AI (thanks @ashktn!)
+- Keyboard shortcuts to switch modes (thanks @aheizi!)
+- Add support for Mermaid diagrams (thanks Cline!)
+
 ## [3.7.9]
 
 - Delete task confirmation enhancements
