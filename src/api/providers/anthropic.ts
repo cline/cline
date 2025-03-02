@@ -1,7 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { CacheControlEphemeral } from "@anthropic-ai/sdk/resources"
-import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
 import {
 	anthropicDefaultModelId,
 	AnthropicModelId,
@@ -9,9 +8,10 @@ import {
 	ApiHandlerOptions,
 	ModelInfo,
 } from "../../shared/api"
-import { SingleCompletionHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 import { BaseProvider } from "./base-provider"
+import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "./constants"
+import { SingleCompletionHandler, getModelParams } from "../index"
 
 export class AnthropicHandler extends BaseProvider implements SingleCompletionHandler {
 	private options: ApiHandlerOptions
@@ -52,7 +52,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 				stream = await this.client.messages.create(
 					{
 						model: modelId,
-						max_tokens: maxTokens,
+						max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
 						temperature,
 						thinking,
 						// Setting cache breakpoint for system prompt so new tasks can reuse it.
@@ -100,7 +100,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 			default: {
 				stream = (await this.client.messages.create({
 					model: modelId,
-					max_tokens: maxTokens,
+					max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
 					temperature,
 					system: [{ text: systemPrompt, type: "text" }],
 					messages,
@@ -181,13 +181,6 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 
 	getModel() {
 		const modelId = this.options.apiModelId
-
-		const {
-			modelMaxTokens: customMaxTokens,
-			modelMaxThinkingTokens: customMaxThinkingTokens,
-			modelTemperature: customTemperature,
-		} = this.options
-
 		let id = modelId && modelId in anthropicModels ? (modelId as AnthropicModelId) : anthropicDefaultModelId
 		const info: ModelInfo = anthropicModels[id]
 
@@ -198,25 +191,11 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 			id = "claude-3-7-sonnet-20250219"
 		}
 
-		let maxTokens = info.maxTokens ?? 8192
-		let thinking: BetaThinkingConfigParam | undefined = undefined
-		let temperature = customTemperature ?? 0
-
-		if (info.thinking) {
-			// Only honor `customMaxTokens` for thinking models.
-			maxTokens = customMaxTokens ?? maxTokens
-
-			// Clamp the thinking budget to be at most 80% of max tokens and at
-			// least 1024 tokens.
-			const maxBudgetTokens = Math.floor(maxTokens * 0.8)
-			const budgetTokens = Math.max(Math.min(customMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens), 1024)
-			thinking = { type: "enabled", budget_tokens: budgetTokens }
-
-			// Anthropic "Thinking" models require a temperature of 1.0.
-			temperature = 1.0
+		return {
+			id,
+			info,
+			...getModelParams({ options: this.options, model: info, defaultMaxTokens: ANTHROPIC_DEFAULT_MAX_TOKENS }),
 		}
-
-		return { id, info, maxTokens, thinking, temperature }
 	}
 
 	async completePrompt(prompt: string) {
@@ -224,7 +203,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 
 		const message = await this.client.messages.create({
 			model: modelId,
-			max_tokens: maxTokens,
+			max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
 			thinking,
 			temperature,
 			messages: [{ role: "user", content: prompt }],

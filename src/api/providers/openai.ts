@@ -15,12 +15,10 @@ import { convertToSimpleMessages } from "../transform/simple-format"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { BaseProvider } from "./base-provider"
 
+const DEEP_SEEK_DEFAULT_TEMPERATURE = 0.6
 export interface OpenAiHandlerOptions extends ApiHandlerOptions {
 	defaultHeaders?: Record<string, string>
 }
-
-export const DEEP_SEEK_DEFAULT_TEMPERATURE = 0.6
-const OPENAI_DEFAULT_TEMPERATURE = 0
 
 export class OpenAiHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: OpenAiHandlerOptions
@@ -80,9 +78,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
 				model: modelId,
-				temperature:
-					this.options.modelTemperature ??
-					(deepseekReasoner ? DEEP_SEEK_DEFAULT_TEMPERATURE : OPENAI_DEFAULT_TEMPERATURE),
+				temperature: this.options.modelTemperature ?? (deepseekReasoner ? DEEP_SEEK_DEFAULT_TEMPERATURE : 0),
 				messages: convertedMessages,
 				stream: true as const,
 				stream_options: { include_usage: true },

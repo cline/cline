@@ -9,11 +9,10 @@ import { parseApiPrice } from "../../utils/cost"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
-import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./openai"
-import { SingleCompletionHandler } from ".."
-import { BaseProvider } from "./base-provider"
 
-const OPENROUTER_DEFAULT_TEMPERATURE = 0
+import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./constants"
+import { getModelParams, SingleCompletionHandler } from ".."
+import { BaseProvider } from "./base-provider"
 
 // Add custom interface for OpenRouter params.
 type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
@@ -202,40 +201,16 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		let id = modelId ?? openRouterDefaultModelId
 		const info = modelInfo ?? openRouterDefaultModelInfo
 
-		const {
-			modelMaxTokens: customMaxTokens,
-			modelMaxThinkingTokens: customMaxThinkingTokens,
-			modelTemperature: customTemperature,
-		} = this.options
+		const isDeepSeekR1 = id.startsWith("deepseek/deepseek-r1") || modelId === "perplexity/sonar-reasoning"
+		const defaultTemperature = isDeepSeekR1 ? DEEP_SEEK_DEFAULT_TEMPERATURE : 0
+		const topP = isDeepSeekR1 ? 0.95 : undefined
 
-		let maxTokens = info.maxTokens
-		let thinking: BetaThinkingConfigParam | undefined = undefined
-		let temperature = customTemperature ?? OPENROUTER_DEFAULT_TEMPERATURE
-		let topP: number | undefined = undefined
-
-		// Handle models based on deepseek-r1
-		if (id.startsWith("deepseek/deepseek-r1") || modelId === "perplexity/sonar-reasoning") {
-			// Recommended temperature for DeepSeek reasoning models.
-			temperature = customTemperature ?? DEEP_SEEK_DEFAULT_TEMPERATURE
-			// Some provider support topP and 0.95 is value that Deepseek used in their benchmarks.
-			topP = 0.95
+		return {
+			id,
+			info,
+			...getModelParams({ options: this.options, model: info, defaultTemperature }),
+			topP,
 		}
-
-		if (info.thinking) {
-			// Only honor `customMaxTokens` for thinking models.
-			maxTokens = customMaxTokens ?? maxTokens
-
-			// Clamp the thinking budget to be at most 80% of max tokens and at
-			// least 1024 tokens.
-			const maxBudgetTokens = Math.floor((maxTokens || 8192) * 0.8)
-			const budgetTokens = Math.max(Math.min(customMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens), 1024)
-			thinking = { type: "enabled", budget_tokens: budgetTokens }
-
-			// Anthropic "Thinking" models require a temperature of 1.0.
-			temperature = 1.0
-		}
-
-		return { id, info, maxTokens, thinking, temperature, topP }
 	}
 
 	async completePrompt(prompt: string) {
