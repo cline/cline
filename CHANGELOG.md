@@ -1,14 +1,10 @@
 # Roo Code Changelog
 
-## 3.8.0
+## [3.7.10]
 
-### Minor Changes
-
-- Add Gemini models on Vertex AI
-
-### Patch Changes
-
-- v3.7.10
+- Add Gemini models on Vertex AI (thanks @ashktn!)
+- Keyboard shortcuts to switch modes (thanks @aheizi!)
+- Add support for Mermaid diagrams (thanks Cline!)
 
 ## [3.7.9]
 
