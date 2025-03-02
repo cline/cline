@@ -9,6 +9,7 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 import { OpenRouterErrorResponse } from "./types"
+import { defaultHeaders } from "./openai"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -19,10 +20,7 @@ export class OpenRouterHandler implements ApiHandler {
 		this.client = new OpenAI({
 			baseURL: "https://openrouter.ai/api/v1",
 			apiKey: this.options.openRouterApiKey,
-			defaultHeaders: {
-				"HTTP-Referer": "https://cline.bot", // Optional, for including your app on openrouter.ai rankings.
-				"X-Title": "Cline", // Optional. Shows in rankings on openrouter.ai.
-			},
+			defaultHeaders,
 		})
 	}
 
