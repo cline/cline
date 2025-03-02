@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
+import { merge } from "lodash"
+
 import { ApiConfigMeta, ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
 import { ApiConfiguration } from "../../../src/shared/api"
 import { vscode } from "../utils/vscode"
@@ -123,13 +125,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			switch (message.type) {
 				case "state": {
 					const newState = message.state!
-					setState((prevState) => ({
-						...prevState,
-						...newState,
-					}))
-					const config = newState.apiConfiguration
-					const hasKey = checkExistKey(config)
-					setShowWelcome(!hasKey)
+					setState((prevState) => mergeExtensionState(prevState, newState))
+					setShowWelcome(!checkExistKey(newState.apiConfiguration))
 					setDidHydrateState(true)
 					break
 				}
@@ -256,3 +253,6 @@ export const useExtensionState = () => {
 	}
 	return context
 }
+
+export const mergeExtensionState = (prevState: ExtensionState, newState: ExtensionState): ExtensionState =>
+	merge(prevState, newState)
