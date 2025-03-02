@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Mistral } from "@mistralai/mistralai"
-import { ApiHandler } from "../"
+import { SingleCompletionHandler } from "../"
 import {
 	ApiHandlerOptions,
 	mistralDefaultModelId,
@@ -13,14 +13,16 @@ import {
 } from "../../shared/api"
 import { convertToMistralMessages } from "../transform/mistral-format"
 import { ApiStream } from "../transform/stream"
+import { BaseProvider } from "./base-provider"
 
 const MISTRAL_DEFAULT_TEMPERATURE = 0
 
-export class MistralHandler implements ApiHandler {
-	private options: ApiHandlerOptions
+export class MistralHandler extends BaseProvider implements SingleCompletionHandler {
+	protected options: ApiHandlerOptions
 	private client: Mistral
 
 	constructor(options: ApiHandlerOptions) {
+		super()
 		if (!options.mistralApiKey) {
 			throw new Error("Mistral API key is required")
 		}
@@ -48,7 +50,7 @@ export class MistralHandler implements ApiHandler {
 		return "https://api.mistral.ai"
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const response = await this.client.chat.stream({
 			model: this.options.apiModelId || mistralDefaultModelId,
 			messages: [{ role: "system", content: systemPrompt }, ...convertToMistralMessages(messages)],
@@ -81,7 +83,7 @@ export class MistralHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: MistralModelId; info: ModelInfo } {
+	override getModel(): { id: MistralModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in mistralModels) {
 			const id = modelId as MistralModelId

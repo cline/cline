@@ -10,7 +10,8 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStreamChunk, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./openai"
-import { ApiHandler, SingleCompletionHandler } from ".."
+import { SingleCompletionHandler } from ".."
+import { BaseProvider } from "./base-provider"
 
 const OPENROUTER_DEFAULT_TEMPERATURE = 0
 
@@ -26,11 +27,12 @@ interface OpenRouterApiStreamUsageChunk extends ApiStreamUsageChunk {
 	fullResponseText: string
 }
 
-export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
-	private options: ApiHandlerOptions
+export class OpenRouterHandler extends BaseProvider implements SingleCompletionHandler {
+	protected options: ApiHandlerOptions
 	private client: OpenAI
 
 	constructor(options: ApiHandlerOptions) {
+		super()
 		this.options = options
 
 		const baseURL = this.options.openRouterBaseUrl || "https://openrouter.ai/api/v1"
@@ -44,7 +46,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		this.client = new OpenAI({ baseURL, apiKey, defaultHeaders })
 	}
 
-	async *createMessage(
+	override async *createMessage(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 	): AsyncGenerator<ApiStreamChunk> {
@@ -193,7 +195,7 @@ export class OpenRouterHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	getModel() {
+	override getModel() {
 		const modelId = this.options.openRouterModelId
 		const modelInfo = this.options.openRouterModelInfo
 

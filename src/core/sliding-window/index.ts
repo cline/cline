@@ -1,53 +1,23 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { ApiHandler } from "../../api"
+import { TOKEN_BUFFER_PERCENTAGE } from "./constants"
 
-import { Tiktoken } from "js-tiktoken/lite"
-import o200kBase from "js-tiktoken/ranks/o200k_base"
-
-export const TOKEN_FUDGE_FACTOR = 1.5
-/**
- * Default percentage of the context window to use as a buffer when deciding when to truncate
- */
-export const TOKEN_BUFFER_PERCENTAGE = 0.1
+// Re-export constants for external use
+export { TOKEN_BUFFER_PERCENTAGE } from "./constants"
 
 /**
- * Counts tokens for user content using tiktoken for text
- * and a size-based calculation for images.
+ * Counts tokens for user content using the provider's token counting implementation.
  *
  * @param {Array<Anthropic.Messages.ContentBlockParam>} content - The content to count tokens for
- * @returns {number} The token count
+ * @param {ApiHandler} apiHandler - The API handler to use for token counting
+ * @returns {Promise<number>} A promise resolving to the token count
  */
-export function estimateTokenCount(content: Array<Anthropic.Messages.ContentBlockParam>): number {
+export async function estimateTokenCount(
+	content: Array<Anthropic.Messages.ContentBlockParam>,
+	apiHandler: ApiHandler,
+): Promise<number> {
 	if (!content || content.length === 0) return 0
-
-	let totalTokens = 0
-	let encoder = null
-
-	// Create encoder
-	encoder = new Tiktoken(o200kBase)
-
-	// Process each content block
-	for (const block of content) {
-		if (block.type === "text") {
-			// Use tiktoken for text token counting
-			const text = block.text || ""
-			if (text.length > 0) {
-				const tokens = encoder.encode(text)
-				totalTokens += tokens.length
-			}
-		} else if (block.type === "image") {
-			// For images, calculate based on data size
-			const imageSource = block.source
-			if (imageSource && typeof imageSource === "object" && "data" in imageSource) {
-				const base64Data = imageSource.data as string
-				totalTokens += Math.ceil(Math.sqrt(base64Data.length))
-			} else {
-				totalTokens += 300 // Conservative estimate for unknown images
-			}
-		}
-	}
-
-	// Add a fudge factor to account for the fact that tiktoken is not always accurate
-	return Math.ceil(totalTokens * TOKEN_FUDGE_FACTOR)
+	return apiHandler.countTokens(content)
 }
 
 /**
@@ -81,6 +51,7 @@ export function truncateConversation(
  * @param {number} totalTokens - The total number of tokens in the conversation (excluding the last user message).
  * @param {number} contextWindow - The context window size.
  * @param {number} maxTokens - The maximum number of tokens allowed.
+ * @param {ApiHandler} apiHandler - The API handler to use for token counting.
  * @returns {Anthropic.Messages.MessageParam[]} The original or truncated conversation messages.
  */
 
@@ -89,14 +60,23 @@ type TruncateOptions = {
 	totalTokens: number
 	contextWindow: number
 	maxTokens?: number
+	apiHandler: ApiHandler
 }
 
-export function truncateConversationIfNeeded({
+/**
+ * Conditionally truncates the conversation messages if the total token count
+ * exceeds the model's limit, considering the size of incoming content.
+ *
+ * @param {TruncateOptions} options - The options for truncation
+ * @returns {Promise<Anthropic.Messages.MessageParam[]>} The original or truncated conversation messages.
+ */
+export async function truncateConversationIfNeeded({
 	messages,
 	totalTokens,
 	contextWindow,
 	maxTokens,
-}: TruncateOptions): Anthropic.Messages.MessageParam[] {
+	apiHandler,
+}: TruncateOptions): Promise<Anthropic.Messages.MessageParam[]> {
 	// Calculate the maximum tokens reserved for response
 	const reservedTokens = maxTokens || contextWindow * 0.2
 
@@ -104,8 +84,8 @@ export function truncateConversationIfNeeded({
 	const lastMessage = messages[messages.length - 1]
 	const lastMessageContent = lastMessage.content
 	const lastMessageTokens = Array.isArray(lastMessageContent)
-		? estimateTokenCount(lastMessageContent)
-		: estimateTokenCount([{ type: "text", text: lastMessageContent as string }])
+		? await estimateTokenCount(lastMessageContent, apiHandler)
+		: await estimateTokenCount([{ type: "text", text: lastMessageContent as string }], apiHandler)
 
 	// Calculate total effective tokens (totalTokens never includes the last message)
 	const effectiveTokens = totalTokens + lastMessageTokens

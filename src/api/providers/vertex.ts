@@ -1,12 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import { ApiHandler, SingleCompletionHandler } from "../"
+import { SingleCompletionHandler } from "../"
 import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
 import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { VertexAI } from "@google-cloud/vertexai"
 import { convertAnthropicMessageToVertexGemini } from "../transform/vertex-gemini-format"
+import { BaseProvider } from "./base-provider"
 
 // Types for Vertex SDK
 
@@ -93,17 +94,19 @@ interface VertexMessageStreamEvent {
 				thinking: string
 		  }
 }
+
 // https://docs.anthropic.com/en/api/claude-on-vertex-ai
-export class VertexHandler implements ApiHandler, SingleCompletionHandler {
+export class VertexHandler extends BaseProvider implements SingleCompletionHandler {
 	MODEL_CLAUDE = "claude"
 	MODEL_GEMINI = "gemini"
 
-	private options: ApiHandlerOptions
+	protected options: ApiHandlerOptions
 	private anthropicClient: AnthropicVertex
 	private geminiClient: VertexAI
 	private modelType: string
 
 	constructor(options: ApiHandlerOptions) {
+		super()
 		this.options = options
 
 		if (this.options.apiModelId?.startsWith(this.MODEL_CLAUDE)) {
@@ -328,7 +331,7 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		switch (this.modelType) {
 			case this.MODEL_CLAUDE: {
 				yield* this.createClaudeMessage(systemPrompt, messages)
@@ -344,7 +347,7 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	getModel(): {
+	override getModel(): {
 		id: VertexModelId
 		info: ModelInfo
 		temperature: number
