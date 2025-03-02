@@ -841,7 +841,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										</div>
 									) : (
 										<div style={{ display: "flex", alignItems: "center" }}>
-											<span style={{ fontWeight: "bold", marginRight: "4px" }}>Reasoning:</span>
+											<span style={{ fontWeight: "bold", marginRight: "4px" }}>Thinking:</span>
 											<span
 												style={{
 													whiteSpace: "nowrap",

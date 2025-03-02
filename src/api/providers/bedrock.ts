@@ -1,5 +1,6 @@
 import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
+import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
@@ -13,22 +14,33 @@ export class AwsBedrockHandler implements ApiHandler {
 		this.options = options
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		let budget_tokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = budget_tokens !== 0 ? true : false
 		// cross region inference requires prefixing the model id with the region
 		let modelId = await this.getModelId()
 
-		// create anthropic client, using sessions created or renewed after this handler's
+		// Get model info and message indices for caching
+		const model = this.getModel()
+		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
+		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
+		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
+		// Create anthropic client, using sessions created or renewed after this handler's
 		// initialization, and allowing for session renewal if necessary as well
-		let client = await this.getClient()
+		const client = await this.getClient()
 
 		const stream = await client.messages.create({
 			model: modelId,
 			max_tokens: this.getModel().info.maxTokens || 8192,
-			temperature: 0,
+			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+			temperature: reasoningOn ? undefined : 0,
 			system: systemPrompt,
 			messages,
 			stream: true,
 		})
+
 		for await (const chunk of stream) {
 			switch (chunk.type) {
 				case "message_start":
@@ -37,6 +49,8 @@ export class AwsBedrockHandler implements ApiHandler {
 						type: "usage",
 						inputTokens: usage.input_tokens || 0,
 						outputTokens: usage.output_tokens || 0,
+						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
+						cacheReadTokens: usage.cache_read_input_tokens || undefined,
 					}
 					break
 				case "message_delta":
@@ -46,7 +60,6 @@ export class AwsBedrockHandler implements ApiHandler {
 						outputTokens: chunk.usage.output_tokens || 0,
 					}
 					break
-
 				case "content_block_start":
 					switch (chunk.content_block.type) {
 						case "text":
@@ -118,7 +131,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		})
 	}
 
-	private async getModelId(): Promise<string> {
+	async getModelId(): Promise<string> {
 		if (this.options.awsUseCrossRegionInference) {
 			let regionPrefix = (this.options.awsRegion || "").slice(0, 3)
 			switch (regionPrefix) {
@@ -126,11 +139,11 @@ export class AwsBedrockHandler implements ApiHandler {
 					return `us.${this.getModel().id}`
 				case "eu-":
 					return `eu.${this.getModel().id}`
-					break
+				case "ap-":
+					return `apac.${this.getModel().id}`
 				default:
 					// cross region inference is not supported in this region, falling back to default model
 					return this.getModel().id
-					break
 			}
 		}
 		return this.getModel().id
@@ -147,7 +160,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		}
 	}
 
-	private static async setEnv(key: string, value: string | undefined) {
+	private static setEnv(key: string, value: string | undefined) {
 		if (key !== "" && value !== undefined) {
 			process.env[key] = value
 		}

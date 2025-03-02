@@ -27,7 +27,6 @@ export interface WebviewMessage {
 		| "openMention"
 		| "cancelTask"
 		| "refreshOpenRouterModels"
-		| "refreshRequestyModels"
 		| "refreshOpenAiModels"
 		| "openMcpSettings"
 		| "restartMcpServer"
@@ -57,7 +56,6 @@ export interface WebviewMessage {
 		| "updateMcpTimeout"
 		| "fetchOpenGraphData"
 		| "checkIsImageUrl"
-		| "updateThinkingBudgetTokens"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -71,7 +69,7 @@ export interface WebviewMessage {
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
 	mcpId?: string
-
+	timeout?: number
 	// For toggleToolAutoApprove
 	serverName?: string
 	toolName?: string

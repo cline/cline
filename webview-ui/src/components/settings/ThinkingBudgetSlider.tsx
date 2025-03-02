@@ -1,92 +1,150 @@
-import { memo } from "react"
+import { memo, useState } from "react"
 import { anthropicModels, ApiConfiguration } from "../../../../src/shared/api"
-import { vscode } from "../../utils/vscode"
-import ClineSlider from "../common/cline-ui/ClineSlider"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import styled from "styled-components"
+
+// Constants
+const MIN_VALID_TOKENS = 1024
+const MAX_PERCENTAGE = 0.8
+const THUMB_SIZE = 16
+
+// Styled Components
+const Container = styled.div`
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+`
+
+const LabelContainer = styled.div`
+	display: flex;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 12px;
+`
+
+const Label = styled.label`
+	font-weight: 500;
+	display: block;
+	margin-right: auto;
+`
+const Description = styled.p`
+	font-size: 12px;
+	margin-top: 0px;
+	margin-bottom: 0px;
+	color: var(--vscode-descriptionForeground);
+`
+
+const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
+	width: 100%;
+	height: 8px;
+	appearance: none;
+	border-radius: 4px;
+	outline: none;
+	cursor: pointer;
+	margin: 5px 0 0;
+	padding: 0;
+	background: ${(props) => {
+		const percentage = ((props.$value - props.$min) / (props.$max - props.$min)) * 100
+		return `linear-gradient(to right, 
+			var(--vscode-progressBar-background) 0%,
+			var(--vscode-progressBar-background) ${percentage}%,
+			var(--vscode-scrollbarSlider-background) ${percentage}%,
+			var(--vscode-scrollbarSlider-background) 100%)`
+	}};
+
+	&::-webkit-slider-thumb {
+		appearance: none;
+		width: ${THUMB_SIZE}px;
+		height: ${THUMB_SIZE}px;
+		border-radius: 50%;
+		background: var(--vscode-foreground);
+		cursor: pointer;
+		border: 0px solid var(--vscode-progressBar-background);
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+	}
+
+	&:focus {
+		outline: none;
+	}
+
+	&:focus::-webkit-slider-thumb,
+	&:hover::-webkit-slider-thumb {
+		border-color: var(--vscode-progressBar-background);
+		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+	}
+
+	&:active::-webkit-slider-thumb {
+		outline: none;
+		border-color: var(--vscode-progressBar-background);
+	}
+`
 
 interface ThinkingBudgetSliderProps {
 	apiConfiguration: ApiConfiguration | undefined
 	setApiConfiguration: (apiConfiguration: ApiConfiguration) => void
 }
 
-// Constants
-const MIN_VALID_TOKENS = 1024
-const MAX_PERCENTAGE = 0.8
-
 const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: ThinkingBudgetSliderProps) => {
-	// Calculate max tokens based on model
 	const maxTokens = anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
 	const maxSliderValue = Math.floor(maxTokens * MAX_PERCENTAGE)
-	const currentValue = apiConfiguration?.thinkingBudgetTokens || 0
+	const isEnabled = (apiConfiguration?.thinkingBudgetTokens || 0) > 0
 
-	// Style constants for reasoning level display
-	const labelStyle: React.CSSProperties = { color: "var(--vscode-editor-foreground)" }
-	const valueStyle: React.CSSProperties = {
-		color: "white",
-		backgroundColor: "var(--vscode-button-background)",
-		padding: "2px 6px",
-		borderRadius: "4px",
-		fontWeight: "bold",
+	// Add local state for the slider value
+	const [localValue, setLocalValue] = useState(apiConfiguration?.thinkingBudgetTokens || 0)
+
+	const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+		const value = parseInt(event.target.value, 10)
+		setLocalValue(value)
 	}
 
-	// Handlers
-	const handleChange = (value: number) => {
-		if (!apiConfiguration) return
+	const handleSliderComplete = () => {
 		setApiConfiguration({
 			...apiConfiguration,
-			thinkingBudgetTokens: value,
+			thinkingBudgetTokens: localValue,
 		})
 	}
 
-	const handleChangeEnd = (value: number) => {
-		if (!apiConfiguration) return
-		const validValue = getValidValue(value)
-
+	const handleToggleChange = (event: any) => {
+		const isChecked = (event.target as HTMLInputElement).checked
+		const newValue = isChecked ? MIN_VALID_TOKENS : 0
+		setLocalValue(newValue)
 		setApiConfiguration({
 			...apiConfiguration,
-			thinkingBudgetTokens: validValue,
+			thinkingBudgetTokens: newValue,
 		})
-
-		vscode.postMessage({
-			type: "updateThinkingBudgetTokens",
-			number: validValue,
-		})
-	}
-
-	// Utility functions
-	const getValidValue = (value: number): number => (value === 0 ? 0 : Math.max(MIN_VALID_TOKENS, value))
-
-	const getReasoningLevel = (value: number, min: number, max: number): JSX.Element => {
-		let levelText: string
-
-		if (value === 0) {
-			levelText = "Off"
-		} else {
-			const percentage = (value - min) / (max - min)
-			levelText = percentage <= 1 / 3 ? "Low" : percentage <= 2 / 3 ? "Medium" : "High"
-		}
-
-		return (
-			<span>
-				<span style={labelStyle}>Reasoning:</span> <span style={valueStyle}>{levelText}</span>
-			</span>
-		)
 	}
 
 	return (
-		<ClineSlider
-			id="thinking-budget-slider"
-			label="Thinking tokens"
-			value={currentValue}
-			min={0}
-			max={maxSliderValue}
-			step={100}
-			onChange={handleChange}
-			onChangeEnd={handleChangeEnd}
-			validateValue={getValidValue}
-			dynamicColor={true}
-			getSecondaryLabel={getReasoningLevel}
-			description="Set to 0 to disable extended thinking. Higher values allow Claude to think more deeply before responding."
-		/>
+		<Container>
+			<VSCodeCheckbox checked={isEnabled} onChange={handleToggleChange}>
+				Enable extended thinking
+			</VSCodeCheckbox>
+
+			{isEnabled && (
+				<>
+					<LabelContainer>
+						<Label>
+							<strong>Budget:</strong> {localValue.toLocaleString()} tokens
+						</Label>
+					</LabelContainer>
+					<RangeInput
+						type="range"
+						min={MIN_VALID_TOKENS}
+						max={maxSliderValue}
+						step={100}
+						value={localValue}
+						onChange={handleSliderChange}
+						onMouseUp={handleSliderComplete}
+						onTouchEnd={handleSliderComplete}
+						$value={localValue}
+						$min={MIN_VALID_TOKENS}
+						$max={maxSliderValue}
+					/>
+
+					<Description>Higher budgets may allow you to achieve more comprehensive and nuanced reasoning</Description>
+				</>
+			)}
+		</Container>
 	)
 }
 
