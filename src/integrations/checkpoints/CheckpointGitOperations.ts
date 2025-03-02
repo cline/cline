@@ -409,28 +409,27 @@ export class GitOperations {
 			// Update exclude patterns before each commit
 			await writeExcludesFile(gitPath, await getLfsPatterns(this.cwd))
 			await this.renameNestedGitRepos(true)
-			//console.info("Starting checkpoint add operation...")
+			console.info("Starting checkpoint add operation...")
 
-			// Get list of all files git would track (respects .gitignore)
+			// Configure git for unicode characters. May not be needed anymore since we are no longer passing an array.
 			await git.addConfig("core.quotePath", "false")
 			await git.addConfig("core.precomposeunicode", "true")
-			const gitFiles = (await git.raw(["ls-files", "--others", "--exclude-standard", "--cached"]))
-				.split("\n")
-				.filter(Boolean)
-
-			// Add filtered files
-			if (gitFiles.length === 0) {
-				console.info("No files to add to checkpoint")
-				return { success: true, fileCount: 0 }
-			}
 
 			try {
-				console.info(`Adding ${gitFiles.length} files to checkpoint`)
-				await git.addConfig("core.quotePath", "false")
-				await git.addConfig("core.precomposeunicode", "true")
-				await git.add(gitFiles)
+				await git.add(".")
+
+				// Get count of staged files for reporting
+				const status = await git.status()
+				const fileCount = status.staged.length
+
+				if (fileCount === 0) {
+					console.info("No files to add to checkpoint")
+				} else {
+					console.info(`Added ${fileCount} files to checkpoint`)
+				}
+
 				console.info("Checkpoint add operation completed successfully")
-				return { success: true, fileCount: gitFiles.length }
+				return { success: true, fileCount }
 			} catch (error) {
 				console.error("Checkpoint add operation failed:", error)
 				throw error

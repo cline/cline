@@ -137,7 +137,8 @@ class CheckpointTracker {
 	 * Dependencies:
 	 * - Requires initialized shadow git (getShadowGitPath)
 	 * - For new checkpoints, requires task branch setup
-	 * - Uses addCheckpointFiles to stage changes
+	 * - Uses addCheckpointFiles to stage changes using 'git add .'
+	 * - Relies on git's native exclusion handling via the exclude file
 	 *
 	 * @returns Promise<string | undefined> The created commit hash, or undefined if:
 	 * - Shadow git access fails
