@@ -265,6 +265,7 @@
 		"@anthropic-ai/bedrock-sdk": "^0.12.4",
 		"@anthropic-ai/sdk": "^0.37.0",
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
+		"@google-cloud/vertexai": "^1.9.3",
 		"@google/generative-ai": "^0.18.0",
 		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.0.1",

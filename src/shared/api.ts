@@ -296,6 +296,14 @@ export const vertexModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 0.03,
 	},
+	"gemini-2.0-flash-001": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 export const openAiModelInfoSaneDefaults: ModelInfo = {
