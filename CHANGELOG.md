@@ -1,5 +1,15 @@
 # Roo Code Changelog
 
+## 3.8.0
+
+### Minor Changes
+
+- Add Gemini models on Vertex AI
+
+### Patch Changes
+
+- v3.7.10
+
 ## [3.7.9]
 
 - Delete task confirmation enhancements
