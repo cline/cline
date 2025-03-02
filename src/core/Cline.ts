@@ -3334,7 +3334,7 @@ export class Cline {
 		) {
 			const currentModeName = getModeBySlug(currentMode, customModes)?.name ?? currentMode
 			const defaultModeName = getModeBySlug(defaultModeSlug, customModes)?.name ?? defaultModeSlug
-			details += `\n\nNOTE: You are currently in '${currentModeName}' mode which only allows read-only operations. To write files or execute commands, the user will need to switch to '${defaultModeName}' mode. Note that only the user can switch modes.`
+			details += `\n\nNOTE: You are currently in '${currentModeName}' mode, which does not allow write operations. To write files, the user will need to switch to a mode that supports file writing, such as '${defaultModeName}' mode.`
 		}
 
 		if (includeFileDetails) {
