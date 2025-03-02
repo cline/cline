@@ -7,10 +7,8 @@ import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../..
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
-import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./openai"
+import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./constants"
 import { XmlMatcher } from "../../utils/xml-matcher"
-
-const OLLAMA_DEFAULT_TEMPERATURE = 0
 
 export class OllamaHandler implements ApiHandler, SingleCompletionHandler {
 	private options: ApiHandlerOptions
@@ -35,7 +33,7 @@ export class OllamaHandler implements ApiHandler, SingleCompletionHandler {
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,
 			messages: openAiMessages,
-			temperature: this.options.modelTemperature ?? OLLAMA_DEFAULT_TEMPERATURE,
+			temperature: this.options.modelTemperature ?? 0,
 			stream: true,
 		})
 		const matcher = new XmlMatcher(
@@ -76,9 +74,7 @@ export class OllamaHandler implements ApiHandler, SingleCompletionHandler {
 				messages: useR1Format
 					? convertToR1Format([{ role: "user", content: prompt }])
 					: [{ role: "user", content: prompt }],
-				temperature:
-					this.options.modelTemperature ??
-					(useR1Format ? DEEP_SEEK_DEFAULT_TEMPERATURE : OLLAMA_DEFAULT_TEMPERATURE),
+				temperature: this.options.modelTemperature ?? (useR1Format ? DEEP_SEEK_DEFAULT_TEMPERATURE : 0),
 				stream: false,
 			})
 			return response.choices[0]?.message.content || ""
