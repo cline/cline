@@ -50,7 +50,12 @@ export async function cleanupLegacyCheckpoints(globalStoragePath: string, output
 					const folderCheckpointsDir = path.join(folder.path, "checkpoints")
 					if (await fileExistsAtPath(folderCheckpointsDir)) {
 						outputChannel.appendLine(`Deleting legacy checkpoints in ${folder.folder}`)
-						await fs.rm(folderCheckpointsDir, { recursive: true, force: true })
+						try {
+							await fs.rm(folderCheckpointsDir, { recursive: true, force: true })
+						} catch (error) {
+							// Ignore error if directory removal fails
+							outputChannel.appendLine(`Warning: Failed to delete checkpoints in ${folder.folder}, continuing...`)
+						}
 					}
 				}
 
