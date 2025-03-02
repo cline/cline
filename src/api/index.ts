@@ -27,6 +27,16 @@ export interface SingleCompletionHandler {
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
 	getModel(): { id: string; info: ModelInfo }
+
+	/**
+	 * Counts tokens for content blocks
+	 * All providers extend BaseProvider which provides a default tiktoken implementation,
+	 * but they can override this to use their native token counting endpoints
+	 *
+	 * @param content The content to count tokens for
+	 * @returns A promise resolving to the token count
+	 */
+	countTokens(content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number>
 }
 
 export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {

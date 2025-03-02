@@ -2,19 +2,21 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import axios from "axios"
 
-import { ApiHandler, SingleCompletionHandler } from "../"
+import { SingleCompletionHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./constants"
 import { XmlMatcher } from "../../utils/xml-matcher"
+import { BaseProvider } from "./base-provider"
 
-export class OllamaHandler implements ApiHandler, SingleCompletionHandler {
-	private options: ApiHandlerOptions
+export class OllamaHandler extends BaseProvider implements SingleCompletionHandler {
+	protected options: ApiHandlerOptions
 	private client: OpenAI
 
 	constructor(options: ApiHandlerOptions) {
+		super()
 		this.options = options
 		this.client = new OpenAI({
 			baseURL: (this.options.ollamaBaseUrl || "http://localhost:11434") + "/v1",
@@ -22,7 +24,7 @@ export class OllamaHandler implements ApiHandler, SingleCompletionHandler {
 		})
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelId = this.getModel().id
 		const useR1Format = modelId.toLowerCase().includes("deepseek-r1")
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -58,7 +60,7 @@ export class OllamaHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	getModel(): { id: string; info: ModelInfo } {
+	override getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.ollamaModelId || "",
 			info: openAiModelInfoSaneDefaults,

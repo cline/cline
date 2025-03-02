@@ -9,16 +9,17 @@ import {
 	ModelInfo,
 } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
+import { BaseProvider } from "./base-provider"
 import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "./constants"
-import { ApiHandler, SingleCompletionHandler, getModelParams } from "../index"
+import { SingleCompletionHandler, getModelParams } from "../index"
 
-export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
+export class AnthropicHandler extends BaseProvider implements SingleCompletionHandler {
 	private options: ApiHandlerOptions
 	private client: Anthropic
 
 	constructor(options: ApiHandlerOptions) {
+		super()
 		this.options = options
-
 		this.client = new Anthropic({
 			apiKey: this.options.apiKey,
 			baseURL: this.options.anthropicBaseUrl || undefined,
@@ -211,5 +212,36 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 
 		const content = message.content.find(({ type }) => type === "text")
 		return content?.type === "text" ? content.text : ""
+	}
+
+	/**
+	 * Counts tokens for the given content using Anthropic's API
+	 *
+	 * @param content The content blocks to count tokens for
+	 * @returns A promise resolving to the token count
+	 */
+	override async countTokens(content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number> {
+		try {
+			// Use the current model
+			const actualModelId = this.getModel().id
+
+			const response = await this.client.messages.countTokens({
+				model: actualModelId,
+				messages: [
+					{
+						role: "user",
+						content: content,
+					},
+				],
+			})
+
+			return response.input_tokens
+		} catch (error) {
+			// Log error but fallback to tiktoken estimation
+			console.warn("Anthropic token counting failed, using fallback", error)
+
+			// Use the base provider's implementation as fallback
+			return super.countTokens(content)
+		}
 	}
 }

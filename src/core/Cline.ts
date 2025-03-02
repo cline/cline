@@ -990,12 +990,12 @@ export class Cline {
 				? this.apiConfiguration.modelMaxTokens || modelInfo.maxTokens
 				: modelInfo.maxTokens
 			const contextWindow = modelInfo.contextWindow
-
-			const trimmedMessages = truncateConversationIfNeeded({
+			const trimmedMessages = await truncateConversationIfNeeded({
 				messages: this.apiConversationHistory,
 				totalTokens,
 				maxTokens,
 				contextWindow,
+				apiHandler: this.api,
 			})
 
 			if (trimmedMessages !== this.apiConversationHistory) {
