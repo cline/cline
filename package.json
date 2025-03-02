@@ -247,6 +247,7 @@
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
 		"@types/should": "^11.2.0",
+		"@types/sinon": "^17.0.4",
 		"@types/vscode": "^1.84.0",
 		"@typescript-eslint/eslint-plugin": "^7.14.1",
 		"@typescript-eslint/parser": "^7.11.0",
@@ -259,6 +260,7 @@
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
 		"should": "^13.2.3",
+		"sinon": "^19.0.2",
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {

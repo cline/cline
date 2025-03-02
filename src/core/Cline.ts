@@ -1172,12 +1172,12 @@ export class Cline {
 		}
 
 		let result = ""
-		process.on("line", (line) => {
-			result += line + "\n"
+		process.on("output", (output) => {
+			result += output + "\n"
 			if (!didContinue) {
-				sendCommandOutput(line)
+				sendCommandOutput(output)
 			} else {
-				this.say("command_output", line)
+				this.say("command_output", output)
 			}
 		})
 
