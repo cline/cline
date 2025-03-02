@@ -255,4 +255,4 @@ export const useExtensionState = () => {
 }
 
 export const mergeExtensionState = (prevState: ExtensionState, newState: ExtensionState): ExtensionState =>
-	merge(prevState, newState)
+	merge({}, prevState, newState)
