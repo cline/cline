@@ -298,12 +298,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						}
 
 						if (apiRequestFailedMessage) {
-							// const errorData = parseErrorText(apiRequestFailedMessage)
-							// if (errorData) {
-							// 	if (errorData.code === "insufficient_credits") {
-							// 		return <span style={{ color: errorColor, fontWeight: "bold" }}>Credit Limit Reached</span>
-							// 	}
-							// }
 							return <span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
 						}
 
