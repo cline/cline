@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="test-data">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/node_modules/mammoth/test/test-data/empty.zip!/" />
+      <root url="jar://$PROJECT_DIR$/node_modules/mammoth/test/test-data/hello.zip!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

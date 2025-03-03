@@ -103,6 +103,7 @@ type GlobalStateKey =
 	| "telemetrySetting"
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
+	| "temperature"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -603,6 +604,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								asksageApiUrl,
 								xaiApiKey,
 								thinkingBudgetTokens,
+								temperature,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -648,6 +650,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("asksageApiKey", asksageApiKey)
 							await this.updateGlobalState("asksageApiUrl", asksageApiUrl)
 							await this.updateGlobalState("thinkingBudgetTokens", thinkingBudgetTokens)
+							await this.updateGlobalState("temperature", temperature)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -1917,6 +1920,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			asksageApiUrl,
 			xaiApiKey,
 			thinkingBudgetTokens,
+			temperature,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1975,6 +1979,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("asksageApiUrl") as Promise<string | undefined>,
 			this.getSecret("xaiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("thinkingBudgetTokens") as Promise<number | undefined>,
+			this.getGlobalState("temperature") as Promise<number | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2044,6 +2049,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				asksageApiKey,
 				asksageApiUrl,
 				xaiApiKey,
+				temperature,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

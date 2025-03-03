@@ -751,6 +751,20 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
 						/>
 					)}
+					<VSCodeTextField
+						value={apiConfiguration?.temperature ? apiConfiguration?.temperature?.toString() : ""}
+						onInput={(input: any) => {
+							let temp = input.target.value
+							if(!temp || temp === "") {
+								temp = undefined
+							}
+							setApiConfiguration({
+								...apiConfiguration,
+								temperature: temp,
+							})
+						}}>
+						<span style={{ fontWeight: 500 }}>Temperature</span>
+					</VSCodeTextField>
 					<div
 						style={{
 							color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
