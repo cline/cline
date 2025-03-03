@@ -1,5 +1,16 @@
 # Roo Code Changelog
 
+## 3.7.12
+
+### Patch Changes
+
+- Exclude MCP instructions from the prompt if the mode doesn't support MCP
+- ExtensionStateContext does not correctly merge state
+- Add a checkbox to disable the browser tool
+- Show a warning if checkpoints are taking too long to load
+- Update the warning text for the VS LM API
+- Default middle-out compression to on for OpenRouter
+
 ## [3.7.11]
 
 - Don't honor custom max tokens for non thinking models
