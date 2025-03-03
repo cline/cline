@@ -1245,7 +1245,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-					<span style={{ color: "var(--vscode-errorForeground)" }}>
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
 							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
 							models. Less capable models may not work as expected.)
 						</span>
@@ -1266,7 +1266,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					)} */}
 				</div>
 			)}
-			
+
 			{selectedProvider === "ark" && (
 				<div>
 					<VSCodeTextField
