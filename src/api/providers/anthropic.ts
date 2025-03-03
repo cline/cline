@@ -95,15 +95,21 @@ export class AnthropicHandler implements ApiHandler {
 						// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
+
+						const betas = []
+
 						switch (modelId) {
+							// @ts-ignore
 							case "claude-3-7-sonnet-20250219":
+								betas.push("output-128k-2025-02-19")
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":
 							case "claude-3-opus-20240229":
 							case "claude-3-haiku-20240307":
+								betas.push("prompt-caching-2024-07-31")
 								return {
 									headers: {
-										"anthropic-beta": "prompt-caching-2024-07-31",
+										"anthropic-beta": betas.join(","),
 									},
 								}
 							default:
