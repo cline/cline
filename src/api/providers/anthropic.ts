@@ -29,7 +29,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		let stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>
 		const cacheControl: CacheControlEphemeral = { type: "ephemeral" }
-		let { id: modelId, maxTokens, thinking, temperature } = this.getModel()
+		let { id: modelId, maxTokens, thinking, temperature, virtualId } = this.getModel()
 
 		switch (modelId) {
 			case "claude-3-7-sonnet-20250219":
@@ -82,6 +82,15 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 						// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
+
+						// Check for the thinking-128k variant first
+						if (virtualId === "claude-3-7-sonnet-20250219:thinking-128k") {
+							return {
+								headers: { "anthropic-beta": "output-128k-2025-02-19" },
+							}
+						}
+
+						// Then check for models that support prompt caching
 						switch (modelId) {
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":
@@ -184,31 +193,58 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 		let id = modelId && modelId in anthropicModels ? (modelId as AnthropicModelId) : anthropicDefaultModelId
 		const info: ModelInfo = anthropicModels[id]
 
+		// Track the original model ID for special variant handling
+		const virtualId = id
+
 		// The `:thinking` variant is a virtual identifier for the
 		// `claude-3-7-sonnet-20250219` model with a thinking budget.
 		// We can handle this more elegantly in the future.
-		if (id === "claude-3-7-sonnet-20250219:thinking") {
+		if (id === "claude-3-7-sonnet-20250219:thinking" || id === "claude-3-7-sonnet-20250219:thinking-128k") {
 			id = "claude-3-7-sonnet-20250219"
 		}
 
 		return {
 			id,
 			info,
+			virtualId, // Include the original ID to use for header selection
 			...getModelParams({ options: this.options, model: info, defaultMaxTokens: ANTHROPIC_DEFAULT_MAX_TOKENS }),
 		}
 	}
 
 	async completePrompt(prompt: string) {
-		let { id: modelId, maxTokens, thinking, temperature } = this.getModel()
+		let { id: modelId, maxTokens, thinking, temperature, virtualId } = this.getModel()
 
-		const message = await this.client.messages.create({
-			model: modelId,
-			max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
-			thinking,
-			temperature,
-			messages: [{ role: "user", content: prompt }],
-			stream: false,
-		})
+		const message = await this.client.messages.create(
+			{
+				model: modelId,
+				max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
+				thinking,
+				temperature,
+				messages: [{ role: "user", content: prompt }],
+				stream: false,
+			},
+			(() => {
+				// Check for the thinking-128k variant first
+				if (virtualId === "claude-3-7-sonnet-20250219:thinking-128k") {
+					return {
+						headers: { "anthropic-beta": "output-128k-2025-02-19" },
+					}
+				}
+
+				// Then check for models that support prompt caching
+				switch (modelId) {
+					case "claude-3-5-sonnet-20241022":
+					case "claude-3-5-haiku-20241022":
+					case "claude-3-opus-20240229":
+					case "claude-3-haiku-20240307":
+						return {
+							headers: { "anthropic-beta": "prompt-caching-2024-07-31" },
+						}
+					default:
+						return undefined
+				}
+			})(),
+		)
 
 		const content = message.content.find(({ type }) => type === "text")
 		return content?.type === "text" ? content.text : ""
@@ -223,17 +259,40 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 	override async countTokens(content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number> {
 		try {
 			// Use the current model
-			const actualModelId = this.getModel().id
+			const { id: actualModelId, virtualId } = this.getModel()
 
-			const response = await this.client.messages.countTokens({
-				model: actualModelId,
-				messages: [
-					{
-						role: "user",
-						content: content,
-					},
-				],
-			})
+			const response = await this.client.messages.countTokens(
+				{
+					model: actualModelId,
+					messages: [
+						{
+							role: "user",
+							content: content,
+						},
+					],
+				},
+				(() => {
+					// Check for the thinking-128k variant first
+					if (virtualId === "claude-3-7-sonnet-20250219:thinking-128k") {
+						return {
+							headers: { "anthropic-beta": "output-128k-2025-02-19" },
+						}
+					}
+
+					// Then check for models that support prompt caching
+					switch (actualModelId) {
+						case "claude-3-5-sonnet-20241022":
+						case "claude-3-5-haiku-20241022":
+						case "claude-3-opus-20240229":
+						case "claude-3-haiku-20240307":
+							return {
+								headers: { "anthropic-beta": "prompt-caching-2024-07-31" },
+							}
+						default:
+							return undefined
+					}
+				})(),
+			)
 
 			return response.input_tokens
 		} catch (error) {
