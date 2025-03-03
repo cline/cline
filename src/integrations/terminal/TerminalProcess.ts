@@ -1,6 +1,13 @@
 import { EventEmitter } from "events"
-import stripAnsi from "strip-ansi"
 import * as vscode from "vscode"
+import { stripAnsi } from "./ansiUtils"
+
+// how long to wait after a process outputs anything before we consider it "cool" again
+const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
+const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
+
+// Maximum size of the fullOutput buffer to prevent memory exhaustion
+const MAX_BUFFER_SIZE = 5 * 1024 * 1024 // 5MB in bytes
 
 export interface TerminalProcessEvents {
 	output: [output: string]
@@ -9,13 +16,6 @@ export interface TerminalProcessEvents {
 	error: [error: Error]
 	no_shell_integration: []
 }
-
-// how long to wait after a process outputs anything before we consider it "cool" again
-const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
-const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
-
-// Maximum size of the fullOutput buffer to prevent memory exhaustion
-const MAX_BUFFER_SIZE = 5 * 1024 * 1024 // 5MB in bytes
 
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
@@ -27,6 +27,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private hotTimer: NodeJS.Timeout | null = null
 	private lineBatch: string[] = []
 	private batchTimer: NodeJS.Timeout | null = null
+
+	constructor() {
+		super()
+	}
 
 	async run(terminal: vscode.Terminal, command: string) {
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
@@ -155,16 +159,20 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				this.outputChunks.push(data)
 				const totalLength = this.outputChunks.reduce((sum, chunk) => sum + chunk.length, 0)
 				if (totalLength > MAX_BUFFER_SIZE) {
-					let newChunksLength = 0
+					// Calculate how much we need to remove to get back to half the buffer size
 					const halfBuffer = Math.floor(MAX_BUFFER_SIZE / 2)
-					while (this.outputChunks.length > 0 && newChunksLength < halfBuffer) {
-						newChunksLength += this.outputChunks[0].length
-						if (newChunksLength > halfBuffer) {
-							break
-						}
+					const excessBytes = totalLength - halfBuffer
+					let bytesRemoved = 0
+
+					// Remove chunks from the beginning until we've removed enough
+					while (this.outputChunks.length > 1 && bytesRemoved < excessBytes) {
+						const chunkSize = this.outputChunks[0].length
+						bytesRemoved += chunkSize
 						this.outputChunks.shift()
 					}
-					this.lastRetrievedIndex = Math.max(0, this.lastRetrievedIndex - (totalLength - newChunksLength))
+
+					// Adjust lastRetrievedIndex based on removed content
+					this.lastRetrievedIndex = Math.max(0, this.lastRetrievedIndex - bytesRemoved)
 				}
 				if (this.isListening) {
 					this.buffer += data
