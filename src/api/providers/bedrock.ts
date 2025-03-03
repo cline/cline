@@ -33,11 +33,47 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		const stream = await client.messages.create({
 			model: modelId,
-			max_tokens: this.getModel().info.maxTokens || 8192,
+			max_tokens: model.info.maxTokens || 8192,
 			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 			temperature: reasoningOn ? undefined : 0,
-			system: systemPrompt,
-			messages,
+			system: [
+				{
+					text: systemPrompt,
+					type: "text",
+					...(this.options.awsBedrockUsePromptCache === true && {
+						cache_control: { type: "ephemeral" },
+					}),
+				},
+			],
+			messages: messages.map((message, index) => {
+				if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+					return {
+						...message,
+						content:
+							typeof message.content === "string"
+								? [
+										{
+											type: "text",
+											text: message.content,
+											...(this.options.awsBedrockUsePromptCache === true && {
+												cache_control: { type: "ephemeral" },
+											}),
+										},
+									]
+								: message.content.map((content, contentIndex) =>
+										contentIndex === message.content.length - 1
+											? {
+													...content,
+													...(this.options.awsBedrockUsePromptCache === true && {
+														cache_control: { type: "ephemeral" },
+													}),
+												}
+											: content,
+									),
+					}
+				}
+				return message
+			}),
 			stream: true,
 		})
 
