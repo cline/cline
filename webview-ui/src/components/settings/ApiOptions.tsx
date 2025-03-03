@@ -755,7 +755,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						value={apiConfiguration?.temperature ? apiConfiguration?.temperature?.toString() : ""}
 						onInput={(input: any) => {
 							let temp = input.target.value
-							if(!temp || temp === "") {
+							if (!temp || temp === "") {
 								temp = undefined
 							}
 							setApiConfiguration({
