@@ -477,7 +477,7 @@ export const vertexModels = {
 		outputPrice: 5,
 	},
 	"claude-3-7-sonnet@20250219:thinking": {
-		maxTokens: 128_000,
+		maxTokens: 64_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,
