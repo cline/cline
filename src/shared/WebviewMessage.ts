@@ -94,6 +94,7 @@ export interface WebviewMessage {
 		| "checkpointRestore"
 		| "deleteMcpServer"
 		| "maxOpenTabsContext"
+		| "browserToolEnabled"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
