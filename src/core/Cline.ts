@@ -285,7 +285,10 @@ export class Cline {
 			case "workspace":
 				if (!this.checkpointTracker) {
 					try {
-						this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref())
+						this.checkpointTracker = await CheckpointTracker.create(
+							this.taskId,
+							this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						)
 						this.checkpointTrackerErrorMessage = undefined
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -398,7 +401,10 @@ export class Cline {
 		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we cant show diff outside of workspace?
 		if (!this.checkpointTracker) {
 			try {
-				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref())
+				this.checkpointTracker = await CheckpointTracker.create(
+					this.taskId,
+					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				)
 				this.checkpointTrackerErrorMessage = undefined
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -502,7 +508,10 @@ export class Cline {
 
 		if (!this.checkpointTracker) {
 			try {
-				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref())
+				this.checkpointTracker = await CheckpointTracker.create(
+					this.taskId,
+					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				)
 				this.checkpointTrackerErrorMessage = undefined
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -1077,39 +1086,40 @@ export class Cline {
 	// Checkpoints
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
-		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
-		this.clineMessages.forEach((message) => {
-			if (message.say === "checkpoint_created") {
-				message.isCheckpointCheckedOut = false
-			}
-		})
+        // Set isCheckpointCheckedOut to false for all checkpoint_created messages
+        this.clineMessages.forEach((message) => {
+            if (message.say === "checkpoint_created") {
+                message.isCheckpointCheckedOut = false
+            }
+        })
 
-		if (!isAttemptCompletionMessage) {
-			// For non-attempt completion we just say checkpoints
-			await this.say("checkpoint_created")
-			this.checkpointTracker?.commit().then(async (commitHash) => {
-				const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
-				if (lastCheckpointMessage) {
-					lastCheckpointMessage.lastCheckpointHash = commitHash
-					await this.saveClineMessages()
-				}
-			}) // silently fails for now
+        if (!isAttemptCompletionMessage) {
+            // For non-attempt completion we just say checkpoints
 
-			//
-		} else {
-			// attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
-			const commitHash = await this.checkpointTracker?.commit()
-			// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
-			const lastCompletionResultMessage = findLast(
-				this.clineMessages,
-				(m) => m.say === "completion_result" || m.ask === "completion_result",
-			)
-			if (lastCompletionResultMessage) {
-				lastCompletionResultMessage.lastCheckpointHash = commitHash
-				await this.saveClineMessages()
-			}
-		}
+            const commitHash = await this.checkpointTracker?.commit()
+            await this.say("checkpoint_created", commitHash)
 
+            const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
+            if (lastCheckpointMessage) {
+                lastCheckpointMessage.lastCheckpointHash = commitHash
+                await this.saveClineMessages()
+            }
+
+            //
+        } else {
+            // attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
+            const commitHash = await this.checkpointTracker?.commit()
+            // For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
+            const lastCompletionResultMessage = findLast(
+                this.clineMessages,
+                (m) => m.say === "completion_result" || m.ask === "completion_result",
+            )
+            if (lastCompletionResultMessage) {
+                lastCompletionResultMessage.lastCheckpointHash = commitHash
+                await this.saveClineMessages()
+            }
+        }
+    
 		// if (commitHash) {
 
 		// Previously we checkpointed every message, but this is excessive and unnecessary.
@@ -3041,7 +3051,10 @@ export class Cline {
 		// isNewTask &&
 		if (!this.checkpointTracker) {
 			try {
-				this.checkpointTracker = await CheckpointTracker.create(this.taskId, this.providerRef.deref())
+				this.checkpointTracker = await CheckpointTracker.create(
+					this.taskId,
+					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				)
 				this.checkpointTrackerErrorMessage = undefined
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
