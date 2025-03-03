@@ -827,7 +827,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									{isExpanded ? (
 										<div style={{ marginTop: -3 }}>
 											<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
-												Reasoning
+												Thinking
 												<span
 													className="codicon codicon-chevron-down"
 													style={{
