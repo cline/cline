@@ -83,11 +83,11 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
 
+						const betas = []
+
 						// Check for the thinking-128k variant first
 						if (virtualId === "claude-3-7-sonnet-20250219:thinking-128k") {
-							return {
-								headers: { "anthropic-beta": "output-128k-2025-02-19" },
-							}
+							betas.push("output-128k-2025-02-19")
 						}
 
 						// Then check for models that support prompt caching
@@ -96,8 +96,9 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 							case "claude-3-5-haiku-20241022":
 							case "claude-3-opus-20240229":
 							case "claude-3-haiku-20240307":
+								betas.push("prompt-caching-2024-07-31")
 								return {
-									headers: { "anthropic-beta": "prompt-caching-2024-07-31" },
+									headers: { "anthropic-beta": betas.join(",") },
 								}
 							default:
 								return undefined
@@ -212,39 +213,16 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 	}
 
 	async completePrompt(prompt: string) {
-		let { id: modelId, maxTokens, thinking, temperature, virtualId } = this.getModel()
+		let { id: modelId, maxTokens, thinking, temperature } = this.getModel()
 
-		const message = await this.client.messages.create(
-			{
-				model: modelId,
-				max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
-				thinking,
-				temperature,
-				messages: [{ role: "user", content: prompt }],
-				stream: false,
-			},
-			(() => {
-				// Check for the thinking-128k variant first
-				if (virtualId === "claude-3-7-sonnet-20250219:thinking-128k") {
-					return {
-						headers: { "anthropic-beta": "output-128k-2025-02-19" },
-					}
-				}
-
-				// Then check for models that support prompt caching
-				switch (modelId) {
-					case "claude-3-5-sonnet-20241022":
-					case "claude-3-5-haiku-20241022":
-					case "claude-3-opus-20240229":
-					case "claude-3-haiku-20240307":
-						return {
-							headers: { "anthropic-beta": "prompt-caching-2024-07-31" },
-						}
-					default:
-						return undefined
-				}
-			})(),
-		)
+		const message = await this.client.messages.create({
+			model: modelId,
+			max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
+			thinking,
+			temperature,
+			messages: [{ role: "user", content: prompt }],
+			stream: false,
+		})
 
 		const content = message.content.find(({ type }) => type === "text")
 		return content?.type === "text" ? content.text : ""
@@ -259,40 +237,17 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 	override async countTokens(content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number> {
 		try {
 			// Use the current model
-			const { id: actualModelId, virtualId } = this.getModel()
+			const actualModelId = this.getModel().id
 
-			const response = await this.client.messages.countTokens(
-				{
-					model: actualModelId,
-					messages: [
-						{
-							role: "user",
-							content: content,
-						},
-					],
-				},
-				(() => {
-					// Check for the thinking-128k variant first
-					if (virtualId === "claude-3-7-sonnet-20250219:thinking-128k") {
-						return {
-							headers: { "anthropic-beta": "output-128k-2025-02-19" },
-						}
-					}
-
-					// Then check for models that support prompt caching
-					switch (actualModelId) {
-						case "claude-3-5-sonnet-20241022":
-						case "claude-3-5-haiku-20241022":
-						case "claude-3-opus-20240229":
-						case "claude-3-haiku-20240307":
-							return {
-								headers: { "anthropic-beta": "prompt-caching-2024-07-31" },
-							}
-						default:
-							return undefined
-					}
-				})(),
-			)
+			const response = await this.client.messages.countTokens({
+				model: actualModelId,
+				messages: [
+					{
+						role: "user",
+						content: content,
+					},
+				],
+			})
 
 			return response.input_tokens
 		} catch (error) {
