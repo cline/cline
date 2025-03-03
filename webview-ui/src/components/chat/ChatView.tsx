@@ -1,4 +1,4 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useEvent, useMount } from "react-use"
@@ -88,6 +88,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [isAtBottom, setIsAtBottom] = useState(false)
 
 	const [wasStreaming, setWasStreaming] = useState<boolean>(false)
+	const [showCheckpointWarning, setShowCheckpointWarning] = useState<boolean>(false)
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -882,6 +883,48 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [])
 	useEvent("wheel", handleWheel, window, { passive: true }) // passive improves scrolling performance
 
+	// Effect to handle showing the checkpoint warning after a delay
+	useEffect(() => {
+		// Only show the warning when there's a task but no visible messages yet
+		if (task && modifiedMessages.length === 0 && !isStreaming) {
+			const timer = setTimeout(() => {
+				setShowCheckpointWarning(true)
+			}, 5000) // 5 seconds
+
+			return () => clearTimeout(timer)
+		}
+	}, [task, modifiedMessages.length, isStreaming])
+
+	// Effect to hide the checkpoint warning when messages appear
+	useEffect(() => {
+		if (modifiedMessages.length > 0 || isStreaming) {
+			setShowCheckpointWarning(false)
+		}
+	}, [modifiedMessages.length, isStreaming])
+
+	// Checkpoint warning component
+	const CheckpointWarningMessage = useCallback(
+		() => (
+			<div className="flex items-center p-3 my-3 bg-vscode-inputValidation-warningBackground border border-vscode-inputValidation-warningBorder rounded">
+				<span className="codicon codicon-loading codicon-modifier-spin mr-2" />
+				<span className="text-vscode-foreground">
+					Still initializing checkpoint... If this takes too long, you can{" "}
+					<VSCodeLink
+						href="#"
+						onClick={(e) => {
+							e.preventDefault()
+							window.postMessage({ type: "action", action: "settingsButtonClicked" }, "*")
+						}}
+						className="inline px-0.5">
+						disable checkpoints in settings
+					</VSCodeLink>{" "}
+					and restart your task.
+				</span>
+			</div>
+		),
+		[],
+	)
+
 	const placeholderText = useMemo(() => {
 		const baseText = task ? "Type a message..." : "Type your task here..."
 		const contextText = "(@ to add context, / to switch modes"
@@ -1014,17 +1057,26 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				overflow: "hidden",
 			}}>
 			{task ? (
-				<TaskHeader
-					task={task}
-					tokensIn={apiMetrics.totalTokensIn}
-					tokensOut={apiMetrics.totalTokensOut}
-					doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
-					cacheWrites={apiMetrics.totalCacheWrites}
-					cacheReads={apiMetrics.totalCacheReads}
-					totalCost={apiMetrics.totalCost}
-					contextTokens={apiMetrics.contextTokens}
-					onClose={handleTaskCloseButtonClick}
-				/>
+				<>
+					<TaskHeader
+						task={task}
+						tokensIn={apiMetrics.totalTokensIn}
+						tokensOut={apiMetrics.totalTokensOut}
+						doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
+						cacheWrites={apiMetrics.totalCacheWrites}
+						cacheReads={apiMetrics.totalCacheReads}
+						totalCost={apiMetrics.totalCost}
+						contextTokens={apiMetrics.contextTokens}
+						onClose={handleTaskCloseButtonClick}
+					/>
+
+					{/* Checkpoint warning message */}
+					{showCheckpointWarning && (
+						<div className="px-3">
+							<CheckpointWarningMessage />
+						</div>
+					)}
+				</>
 			) : (
 				<div
 					style={{
