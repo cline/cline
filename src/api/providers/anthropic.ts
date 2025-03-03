@@ -86,7 +86,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 						const betas = []
 
 						// Check for the thinking-128k variant first
-						if (virtualId === "claude-3-7-sonnet-20250219:thinking-128k") {
+						if (virtualId === "claude-3-7-sonnet-20250219:thinking") {
 							betas.push("output-128k-2025-02-19")
 						}
 
@@ -201,7 +201,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 		// The `:thinking` variant is a virtual identifier for the
 		// `claude-3-7-sonnet-20250219` model with a thinking budget.
 		// We can handle this more elegantly in the future.
-		if (id === "claude-3-7-sonnet-20250219:thinking" || id === "claude-3-7-sonnet-20250219:thinking-128k") {
+		if (id === "claude-3-7-sonnet-20250219:thinking") {
 			id = "claude-3-7-sonnet-20250219"
 		}
 

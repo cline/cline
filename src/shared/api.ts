@@ -98,20 +98,8 @@ export interface ModelInfo {
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-3-7-sonnet-20250219"
 export const anthropicModels = {
-	"claude-3-7-sonnet-20250219:thinking-128k": {
-		maxTokens: 128_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsComputerUse: true,
-		supportsPromptCache: true,
-		inputPrice: 3.0, // $3 per million input tokens
-		outputPrice: 15.0, // $15 per million output tokens
-		cacheWritesPrice: 3.75, // $3.75 per million tokens
-		cacheReadsPrice: 0.3, // $0.30 per million tokens
-		thinking: true,
-	},
 	"claude-3-7-sonnet-20250219:thinking": {
-		maxTokens: 64_000,
+		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,
