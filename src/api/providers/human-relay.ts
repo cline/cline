@@ -17,6 +17,9 @@ export class HumanRelayHandler implements ApiHandler, SingleCompletionHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 	}
+	countTokens(content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number> {
+		return Promise.resolve(0)
+	}
 
 	/**
 	 * Create a message processing flow, display a dialog box to request human assistance
