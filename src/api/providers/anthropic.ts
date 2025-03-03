@@ -29,7 +29,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		let stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>
 		const cacheControl: CacheControlEphemeral = { type: "ephemeral" }
-		let { id: modelId, maxTokens, thinking, temperature } = this.getModel()
+		let { id: modelId, maxTokens, thinking, temperature, virtualId } = this.getModel()
 
 		switch (modelId) {
 			case "claude-3-7-sonnet-20250219":
@@ -82,13 +82,24 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 						// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
+
+						const betas = []
+
+						// Check for the thinking-128k variant first
+						if (virtualId === "claude-3-7-sonnet-20250219:thinking") {
+							betas.push("output-128k-2025-02-19")
+						}
+
+						// Then check for models that support prompt caching
 						switch (modelId) {
+							case "claude-3-7-sonnet-20250219":
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":
 							case "claude-3-opus-20240229":
 							case "claude-3-haiku-20240307":
+								betas.push("prompt-caching-2024-07-31")
 								return {
-									headers: { "anthropic-beta": "prompt-caching-2024-07-31" },
+									headers: { "anthropic-beta": betas.join(",") },
 								}
 							default:
 								return undefined
@@ -184,6 +195,9 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 		let id = modelId && modelId in anthropicModels ? (modelId as AnthropicModelId) : anthropicDefaultModelId
 		const info: ModelInfo = anthropicModels[id]
 
+		// Track the original model ID for special variant handling
+		const virtualId = id
+
 		// The `:thinking` variant is a virtual identifier for the
 		// `claude-3-7-sonnet-20250219` model with a thinking budget.
 		// We can handle this more elegantly in the future.
@@ -194,6 +208,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 		return {
 			id,
 			info,
+			virtualId, // Include the original ID to use for header selection
 			...getModelParams({ options: this.options, model: info, defaultMaxTokens: ANTHROPIC_DEFAULT_MAX_TOKENS }),
 		}
 	}
