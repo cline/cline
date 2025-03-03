@@ -16,10 +16,11 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		let budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = budget_tokens !== 0 ? true : false
 		// cross region inference requires prefixing the model id with the region
 		let modelId = await this.getModelId()
+
+		let budget_tokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
 		// Get model info and message indices for caching
 		const model = this.getModel()

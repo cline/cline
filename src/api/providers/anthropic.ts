@@ -19,11 +19,13 @@ export class AnthropicHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		let budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = budget_tokens !== 0 ? true : false
 		const model = this.getModel()
 		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent>
 		const modelId = model.id
+
+		let budget_tokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
+
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
 			case "claude-3-7-sonnet-20250219":
