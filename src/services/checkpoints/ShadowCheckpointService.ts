@@ -5,17 +5,18 @@ import { globby } from "globby"
 import simpleGit, { SimpleGit } from "simple-git"
 
 import { GIT_DISABLED_SUFFIX, GIT_EXCLUDES } from "./constants"
-import { CheckpointStrategy, CheckpointService, CheckpointServiceOptions } from "./types"
+import { CheckpointService, CheckpointServiceOptions, CheckpointEventEmitter } from "./types"
 
 export interface ShadowCheckpointServiceOptions extends CheckpointServiceOptions {
 	shadowDir: string
 }
 
-export class ShadowCheckpointService implements CheckpointService {
-	public readonly strategy: CheckpointStrategy = "shadow"
+export class ShadowCheckpointService extends CheckpointEventEmitter implements CheckpointService {
 	public readonly version = 1
 
+	private _checkpoints: string[] = []
 	private _baseHash?: string
+	private _isInitialized = false
 
 	public get baseHash() {
 		return this._baseHash
@@ -23,6 +24,18 @@ export class ShadowCheckpointService implements CheckpointService {
 
 	private set baseHash(value: string | undefined) {
 		this._baseHash = value
+	}
+
+	public get isInitialized() {
+		return this._isInitialized
+	}
+
+	private set isInitialized(value: boolean) {
+		this._isInitialized = value
+	}
+
+	public get isDirty() {
+		return this._checkpoints.length > 0
 	}
 
 	private readonly shadowGitDir: string
@@ -35,18 +48,26 @@ export class ShadowCheckpointService implements CheckpointService {
 		public readonly workspaceDir: string,
 		private readonly log: (message: string) => void,
 	) {
+		super()
 		this.shadowGitDir = path.join(this.shadowDir, "tasks", this.taskId, "checkpoints", ".git")
 	}
 
-	private async initShadowGit() {
+	public async initShadowGit() {
+		if (this.isInitialized) {
+			return
+		}
+
 		const fileExistsAtPath = (path: string) =>
 			fs
 				.access(path)
 				.then(() => true)
 				.catch(() => false)
 
+		let created = false
+		const startTime = Date.now()
+
 		if (await fileExistsAtPath(this.shadowGitDir)) {
-			this.log(`[initShadowGit] shadow git repo already exists at ${this.shadowGitDir}`)
+			this.log(`[CheckpointService#initShadowGit] shadow git repo already exists at ${this.shadowGitDir}`)
 			const worktree = await this.getShadowGitConfigWorktree()
 
 			if (worktree !== this.workspaceDir) {
@@ -57,7 +78,7 @@ export class ShadowCheckpointService implements CheckpointService {
 
 			this.baseHash = await this.git.revparse(["--abbrev-ref", "HEAD"])
 		} else {
-			this.log(`[initShadowGit] creating shadow git repo at ${this.workspaceDir}`)
+			this.log(`[CheckpointService#initShadowGit] creating shadow git repo at ${this.workspaceDir}`)
 
 			await this.git.init()
 			await this.git.addConfig("core.worktree", this.workspaceDir) // Sets the working tree to the current workspace.
@@ -78,7 +99,7 @@ export class ShadowCheckpointService implements CheckpointService {
 				}
 			} catch (error) {
 				this.log(
-					`[initShadowGit] failed to read .gitattributes: ${error instanceof Error ? error.message : String(error)}`,
+					`[CheckpointService#initShadowGit] failed to read .gitattributes: ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
 
@@ -93,8 +114,23 @@ export class ShadowCheckpointService implements CheckpointService {
 			await this.stageAll()
 			const { commit } = await this.git.commit("initial commit", { "--allow-empty": null })
 			this.baseHash = commit
-			this.log(`[initShadowGit] base commit is ${commit}`)
+			this.log(`[CheckpointService#initShadowGit] base commit is ${commit}`)
+
+			created = true
 		}
+
+		const duration = Date.now() - startTime
+		this.log(`[CheckpointService#initShadowGit] initialized shadow git in ${duration}ms`)
+
+		this.isInitialized = true
+
+		this.emit("initialize", {
+			type: "initialize",
+			workspaceDir: this.workspaceDir,
+			baseHash: this.baseHash,
+			created,
+			duration,
+		})
 	}
 
 	private async stageAll() {
@@ -103,7 +139,9 @@ export class ShadowCheckpointService implements CheckpointService {
 		try {
 			await this.git.add(".")
 		} catch (error) {
-			this.log(`[stageAll] failed to add files to git: ${error instanceof Error ? error.message : String(error)}`)
+			this.log(
+				`[CheckpointService#stageAll] failed to add files to git: ${error instanceof Error ? error.message : String(error)}`,
+			)
 		} finally {
 			await this.renameNestedGitRepos(false)
 		}
@@ -137,10 +175,12 @@ export class ShadowCheckpointService implements CheckpointService {
 
 			try {
 				await fs.rename(fullPath, newPath)
-				this.log(`${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`)
+				this.log(
+					`[CheckpointService#renameNestedGitRepos] ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`,
+				)
 			} catch (error) {
 				this.log(
-					`failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}: ${error instanceof Error ? error.message : String(error)}`,
+					`[CheckpointService#renameNestedGitRepos] failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}: ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
 		}
@@ -152,7 +192,7 @@ export class ShadowCheckpointService implements CheckpointService {
 				this.shadowGitConfigWorktree = (await this.git.getConfig("core.worktree")).value || undefined
 			} catch (error) {
 				this.log(
-					`[getShadowGitConfigWorktree] failed to get core.worktree: ${error instanceof Error ? error.message : String(error)}`,
+					`[CheckpointService#getShadowGitConfigWorktree] failed to get core.worktree: ${error instanceof Error ? error.message : String(error)}`,
 				)
 			}
 		}
@@ -162,35 +202,63 @@ export class ShadowCheckpointService implements CheckpointService {
 
 	public async saveCheckpoint(message: string) {
 		try {
+			this.log("[CheckpointService#saveCheckpoint] starting checkpoint save")
+
+			if (!this.isInitialized) {
+				throw new Error("Shadow git repo not initialized")
+			}
+
 			const startTime = Date.now()
 			await this.stageAll()
 			const result = await this.git.commit(message)
-
-			if (result.commit) {
-				const duration = Date.now() - startTime
-				this.log(`[saveCheckpoint] saved checkpoint ${result.commit} in ${duration}ms`)
-				return result
-			} else {
-				return undefined
-			}
-		} catch (error) {
-			this.log(
-				`[saveCheckpoint] failed to create checkpoint: ${error instanceof Error ? error.message : String(error)}`,
-			)
-
+			const isFirst = this._checkpoints.length === 0
+			const fromHash = this._checkpoints[this._checkpoints.length - 1] ?? this.baseHash!
+			const toHash = result.commit ?? fromHash
+			this._checkpoints.push(toHash)
+			const duration = Date.now() - startTime
+			this.emit("checkpoint", { type: "checkpoint", isFirst, fromHash, toHash, duration })
+			return result.commit ? result : undefined
+		} catch (e) {
+			const error = e instanceof Error ? e : new Error(String(e))
+			this.log(`[CheckpointService#saveCheckpoint] failed to create checkpoint: ${error.message}`)
+			this.emit("error", { type: "error", error })
 			throw error
 		}
 	}
 
 	public async restoreCheckpoint(commitHash: string) {
-		const start = Date.now()
-		await this.git.clean("f", ["-d", "-f"])
-		await this.git.reset(["--hard", commitHash])
-		const duration = Date.now() - start
-		this.log(`[restoreCheckpoint] restored checkpoint ${commitHash} in ${duration}ms`)
+		try {
+			if (!this.isInitialized) {
+				throw new Error("Shadow git repo not initialized")
+			}
+
+			const start = Date.now()
+			await this.git.clean("f", ["-d", "-f"])
+			await this.git.reset(["--hard", commitHash])
+
+			// Remove all checkpoints after the specified commitHash.
+			const checkpointIndex = this._checkpoints.indexOf(commitHash)
+
+			if (checkpointIndex !== -1) {
+				this._checkpoints = this._checkpoints.slice(0, checkpointIndex + 1)
+			}
+
+			const duration = Date.now() - start
+			this.emit("restore", { type: "restore", commitHash, duration })
+			this.log(`[CheckpointService#restoreCheckpoint] restored checkpoint ${commitHash} in ${duration}ms`)
+		} catch (e) {
+			const error = e instanceof Error ? e : new Error(String(e))
+			this.log(`[CheckpointService#restoreCheckpoint] failed to restore checkpoint: ${error.message}`)
+			this.emit("error", { type: "error", error })
+			throw error
+		}
 	}
 
 	public async getDiff({ from, to }: { from?: string; to?: string }) {
+		if (!this.isInitialized) {
+			throw new Error("Shadow git repo not initialized")
+		}
+
 		const result = []
 
 		if (!from) {
@@ -223,6 +291,7 @@ export class ShadowCheckpointService implements CheckpointService {
 		try {
 			await simpleGit().version()
 		} catch (error) {
+			log("[CheckpointService#create] git is not installed")
 			throw new Error("Git must be installed to use checkpoints.")
 		}
 
@@ -241,9 +310,7 @@ export class ShadowCheckpointService implements CheckpointService {
 		const gitDir = path.join(checkpointsDir, ".git")
 		const git = simpleGit(path.dirname(gitDir))
 
-		log(`[create] taskId = ${taskId}, workspaceDir = ${workspaceDir}, shadowDir = ${shadowDir}`)
-		const service = new ShadowCheckpointService(taskId, git, shadowDir, workspaceDir, log)
-		await service.initShadowGit()
-		return service
+		log(`[CheckpointService#create] taskId = ${taskId}, workspaceDir = ${workspaceDir}, shadowDir = ${shadowDir}`)
+		return new ShadowCheckpointService(taskId, git, shadowDir, workspaceDir, log)
 	}
 }

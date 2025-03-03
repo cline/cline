@@ -3,8 +3,6 @@ import { useMemo } from "react"
 import { CheckpointMenu } from "./CheckpointMenu"
 import { checkpointSchema } from "./schema"
 
-const REQUIRED_VERSION = 1
-
 type CheckpointSavedProps = {
 	ts: number
 	commitHash: string
@@ -22,7 +20,7 @@ export const CheckpointSaved = ({ checkpoint, ...props }: CheckpointSavedProps) 
 
 		const result = checkpointSchema.safeParse(checkpoint)
 
-		if (!result.success || result.data.version < REQUIRED_VERSION) {
+		if (!result.success) {
 			return undefined
 		}
 

@@ -10,10 +10,10 @@ import getFolderSize from "get-folder-size"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { ApiHandler, SingleCompletionHandler, buildApiHandler } from "../api"
+import { ApiHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../integrations/editor/DiffViewProvider"
-import { CheckpointService, CheckpointServiceFactory } from "../services/checkpoints"
+import { ShadowCheckpointService } from "../services/checkpoints/ShadowCheckpointService"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
 import {
 	extractTextFromFile,
@@ -116,7 +116,7 @@ export class Cline {
 
 	// checkpoints
 	enableCheckpoints: boolean = false
-	private checkpointService?: CheckpointService
+	private checkpointService?: ShadowCheckpointService
 
 	// streaming
 	isWaitingForFirstChunk = false
@@ -747,8 +747,11 @@ export class Cline {
 	}
 
 	private async initiateTaskLoop(userContent: UserContent): Promise<void> {
+		this.initializeCheckpoints()
+
 		let nextUserContent = userContent
 		let includeFileDetails = true
+
 		while (!this.abort) {
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
@@ -2773,7 +2776,7 @@ export class Cline {
 		}
 
 		if (isCheckpointPossible) {
-			await this.checkpointSave({ isFirst: false })
+			this.checkpointSave()
 		}
 
 		/*
@@ -2838,13 +2841,6 @@ export class Cline {
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
 		const previousApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
-
-		// Save checkpoint if this is the first API request.
-		const isFirstRequest = this.clineMessages.filter((m) => m.say === "api_req_started").length === 0
-
-		if (isFirstRequest) {
-			await this.checkpointSave({ isFirst: true })
-		}
 
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
@@ -3356,37 +3352,88 @@ export class Cline {
 
 	// Checkpoints
 
-	private async getCheckpointService() {
+	private async initializeCheckpoints() {
 		if (!this.enableCheckpoints) {
-			throw new Error("Checkpoints are disabled")
+			return
 		}
 
-		if (!this.checkpointService) {
+		const log = (message: string) => {
+			console.log(message)
+
+			try {
+				this.providerRef.deref()?.log(message)
+			} catch (err) {
+				// NO-OP
+			}
+		}
+
+		try {
+			if (this.checkpointService) {
+				log("[Cline#initializeCheckpoints] checkpointService already initialized")
+				return
+			}
+
 			const workspaceDir = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-			const shadowDir = this.providerRef.deref()?.context.globalStorageUri.fsPath
 
 			if (!workspaceDir) {
-				this.providerRef.deref()?.log("[getCheckpointService] workspace folder not found")
-				throw new Error("Workspace directory not found")
+				log("[Cline#initializeCheckpoints] workspace folder not found, disabling checkpoints")
+				this.enableCheckpoints = false
+				return
 			}
+
+			const shadowDir = this.providerRef.deref()?.context.globalStorageUri.fsPath
 
 			if (!shadowDir) {
-				this.providerRef.deref()?.log("[getCheckpointService] shadowDir not found")
-				throw new Error("Global storage directory not found")
+				log("[Cline#initializeCheckpoints] shadowDir not found, disabling checkpoints")
+				this.enableCheckpoints = false
+				return
 			}
 
-			this.checkpointService = await CheckpointServiceFactory.create({
-				strategy: "shadow",
-				options: {
-					taskId: this.taskId,
-					workspaceDir,
-					shadowDir,
-					log: (message) => this.providerRef.deref()?.log(message),
-				},
-			})
-		}
+			const service = await ShadowCheckpointService.create({ taskId: this.taskId, workspaceDir, shadowDir, log })
 
-		return this.checkpointService
+			if (!service) {
+				log("[Cline#initializeCheckpoints] failed to create checkpoint service, disabling checkpoints")
+				this.enableCheckpoints = false
+				return
+			}
+
+			service.on("initialize", ({ workspaceDir, created, duration }) => {
+				try {
+					if (created) {
+						log(`[Cline#initializeCheckpoints] created new shadow repo (${workspaceDir}) in ${duration}ms`)
+					} else {
+						log(
+							`[Cline#initializeCheckpoints] found existing shadow repo (${workspaceDir}) in ${duration}ms`,
+						)
+					}
+
+					this.checkpointService = service
+					this.checkpointSave()
+				} catch (err) {
+					log("[Cline#initializeCheckpoints] caught error in on('initialize'), disabling checkpoints")
+					this.enableCheckpoints = false
+				}
+			})
+
+			service.on("checkpoint", ({ isFirst, fromHash: from, toHash: to }) => {
+				try {
+					log(`[Cline#initializeCheckpoints] ${isFirst ? "initial" : "incremental"} checkpoint saved: ${to}`)
+					this.providerRef.deref()?.postMessageToWebview({ type: "currentCheckpointUpdated", text: to })
+
+					this.say("checkpoint_saved", to, undefined, undefined, { isFirst, from, to }).catch((e) =>
+						console.error("Error saving checkpoint message:", e),
+					)
+				} catch (err) {
+					log("[Cline#initializeCheckpoints] caught error in on('checkpoint'), disabling checkpoints")
+					this.enableCheckpoints = false
+				}
+			})
+
+			service.initShadowGit()
+		} catch (err) {
+			log("[Cline#initializeCheckpoints] caught error in initializeCheckpoints(), disabling checkpoints")
+			this.enableCheckpoints = false
+		}
 	}
 
 	public async checkpointDiff({
@@ -3398,7 +3445,7 @@ export class Cline {
 		commitHash: string
 		mode: "full" | "checkpoint"
 	}) {
-		if (!this.enableCheckpoints) {
+		if (!this.checkpointService || !this.enableCheckpoints) {
 			return
 		}
 
@@ -3414,8 +3461,7 @@ export class Cline {
 		}
 
 		try {
-			const service = await this.getCheckpointService()
-			const changes = await service.getDiff({ from: previousCommitHash, to: commitHash })
+			const changes = await this.checkpointService.getDiff({ from: previousCommitHash, to: commitHash })
 
 			if (!changes?.length) {
 				vscode.window.showInformationMessage("No changes found.")
@@ -3441,30 +3487,13 @@ export class Cline {
 		}
 	}
 
-	public async checkpointSave({ isFirst }: { isFirst: boolean }) {
-		if (!this.enableCheckpoints) {
+	public checkpointSave() {
+		if (!this.checkpointService || !this.enableCheckpoints) {
 			return
 		}
 
-		try {
-			const service = await this.getCheckpointService()
-			const strategy = service.strategy
-			const version = service.version
-
-			const commit = await service.saveCheckpoint(`Task: ${this.taskId}, Time: ${Date.now()}`)
-			const fromHash = service.baseHash
-			const toHash = isFirst ? commit?.commit || fromHash : commit?.commit
-
-			if (toHash) {
-				await this.providerRef.deref()?.postMessageToWebview({ type: "currentCheckpointUpdated", text: toHash })
-
-				const checkpoint = { isFirst, from: fromHash, to: toHash, strategy, version }
-				await this.say("checkpoint_saved", toHash, undefined, undefined, checkpoint)
-			}
-		} catch (err) {
-			this.providerRef.deref()?.log("[checkpointSave] disabling checkpoints for this task")
-			this.enableCheckpoints = false
-		}
+		// Start the checkpoint process in the background.
+		this.checkpointService.saveCheckpoint(`Task: ${this.taskId}, Time: ${Date.now()}`)
 	}
 
 	public async checkpointRestore({
@@ -3476,7 +3505,7 @@ export class Cline {
 		commitHash: string
 		mode: "preview" | "restore"
 	}) {
-		if (!this.enableCheckpoints) {
+		if (!this.checkpointService || !this.enableCheckpoints) {
 			return
 		}
 
@@ -3487,8 +3516,7 @@ export class Cline {
 		}
 
 		try {
-			const service = await this.getCheckpointService()
-			await service.restoreCheckpoint(commitHash)
+			await this.checkpointService.restoreCheckpoint(commitHash)
 
 			await this.providerRef.deref()?.postMessageToWebview({ type: "currentCheckpointUpdated", text: commitHash })
 
