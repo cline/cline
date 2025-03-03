@@ -1086,40 +1086,40 @@ export class Cline {
 	// Checkpoints
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
-        // Set isCheckpointCheckedOut to false for all checkpoint_created messages
-        this.clineMessages.forEach((message) => {
-            if (message.say === "checkpoint_created") {
-                message.isCheckpointCheckedOut = false
-            }
-        })
+		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
+		this.clineMessages.forEach((message) => {
+			if (message.say === "checkpoint_created") {
+				message.isCheckpointCheckedOut = false
+			}
+		})
 
-        if (!isAttemptCompletionMessage) {
-            // For non-attempt completion we just say checkpoints
+		if (!isAttemptCompletionMessage) {
+			// For non-attempt completion we just say checkpoints
 
-            const commitHash = await this.checkpointTracker?.commit()
-            await this.say("checkpoint_created", commitHash)
+			const commitHash = await this.checkpointTracker?.commit()
+			await this.say("checkpoint_created", commitHash)
 
-            const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
-            if (lastCheckpointMessage) {
-                lastCheckpointMessage.lastCheckpointHash = commitHash
-                await this.saveClineMessages()
-            }
+			const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
+			if (lastCheckpointMessage) {
+				lastCheckpointMessage.lastCheckpointHash = commitHash
+				await this.saveClineMessages()
+			}
 
-            //
-        } else {
-            // attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
-            const commitHash = await this.checkpointTracker?.commit()
-            // For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
-            const lastCompletionResultMessage = findLast(
-                this.clineMessages,
-                (m) => m.say === "completion_result" || m.ask === "completion_result",
-            )
-            if (lastCompletionResultMessage) {
-                lastCompletionResultMessage.lastCheckpointHash = commitHash
-                await this.saveClineMessages()
-            }
-        }
-    
+			//
+		} else {
+			// attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
+			const commitHash = await this.checkpointTracker?.commit()
+			// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
+			const lastCompletionResultMessage = findLast(
+				this.clineMessages,
+				(m) => m.say === "completion_result" || m.ask === "completion_result",
+			)
+			if (lastCompletionResultMessage) {
+				lastCompletionResultMessage.lastCheckpointHash = commitHash
+				await this.saveClineMessages()
+			}
+		}
+
 		// if (commitHash) {
 
 		// Previously we checkpointed every message, but this is excessive and unnecessary.
