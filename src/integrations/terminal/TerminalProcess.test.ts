@@ -49,19 +49,16 @@ class MockTerminal {
 
 describe("TerminalProcess (Mock-based Tests)", () => {
 	let process: TerminalProcess
-	let clock: sinon.SinonFakeTimers
+	let sandbox: sinon.SinonSandbox
 
 	beforeEach(() => {
-		clock = sinon.useFakeTimers()
+		sandbox = sinon.createSandbox({ useFakeTimers: true })
 		process = new TerminalProcess()
 	})
 
 	afterEach(() => {
-		// Flush all timers, restore normal timing
-		clock.runAll()
-		clock.restore()
-		// Restore Sinon stubs/spies
-		sinon.restore()
+		// Restore sandbox, which restores timers and all Sinon fakes
+		sandbox.restore()
 		// Remove any event listeners left on the TerminalProcess
 		process.removeAllListeners()
 	})
@@ -75,7 +72,7 @@ describe("TerminalProcess (Mock-based Tests)", () => {
 	it("should emit line events for each line of output", async () => {
 		// Arrange
 		const mockTerminal = new MockTerminal() as any
-		const emitSpy = sinon.spy(process, "emit")
+		const emitSpy = sandbox.spy(process, "emit")
 
 		// Act
 		await process.run(mockTerminal, "test-command")
@@ -88,7 +85,7 @@ describe("TerminalProcess (Mock-based Tests)", () => {
 
 	it("should emit completed and continue events when command finishes", async () => {
 		const mockTerminal = new MockTerminal() as any
-		const emitSpy = sinon.spy(process, "emit")
+		const emitSpy = sandbox.spy(process, "emit")
 
 		await process.run(mockTerminal, "test-command")
 		;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
@@ -97,7 +94,7 @@ describe("TerminalProcess (Mock-based Tests)", () => {
 
 	it("should handle terminals without shell integration", async () => {
 		const mockTerminal = new MockTerminal(false) as any // No shellIntegration
-		const emitSpy = sinon.spy(process, "emit")
+		const emitSpy = sandbox.spy(process, "emit")
 
 		await process.run(mockTerminal, "test-command")
 
@@ -116,16 +113,16 @@ describe("TerminalProcess (Mock-based Tests)", () => {
 		}
 		const mockTerminal = new MockTerminal() as any
 		// Stub the executeCommand to return the "compiling" output
-		mockTerminal.shellIntegration.executeCommand.returns({
+		mockTerminal.shellIntegration.executeCommand = sandbox.stub().returns({
 			read: () => compilingMockStream,
 		})
 		// Spy on global setTimeout
-		const setTimeoutSpy = sinon.spy(global, "setTimeout")
+		const setTimeoutSpy = sandbox.spy(global, "setTimeout")
 
 		await process.run(mockTerminal, "build command")
 
 		// Move time forward enough to schedule
-		clock.tick(100)
+		sandbox.clock.tick(100)
 
 		// Expect a 15-second (>= 10000ms) hot timeout, since it saw "compiling"
 		const foundCompilingTimeout = setTimeoutSpy.args.filter((args) => args[1] && args[1] >= 10000)
@@ -140,20 +137,20 @@ describe("TerminalProcess (Mock-based Tests)", () => {
 			},
 		}
 		const mockTerminal = new MockTerminal() as any
-		mockTerminal.shellIntegration.executeCommand.returns({
+		mockTerminal.shellIntegration.executeCommand = sandbox.stub().returns({
 			read: () => standardMockStream,
 		})
-		const setTimeoutSpy = sinon.spy(global, "setTimeout")
+		const setTimeoutSpy = sandbox.spy(global, "setTimeout")
 
 		await process.run(mockTerminal, "standard command")
-		clock.tick(100)
+		sandbox.clock.tick(100)
 
 		// Expect a short hot timeout (<= 5000)
 		const foundNormalTimeout = setTimeoutSpy.args.filter((args) => args[1] && args[1] <= 5000)
 		foundNormalTimeout.length.should.be.greaterThan(0)
 
 		// Also check that "completed" eventually emits
-		const emitSpy = sinon.spy(process, "emit")
+		const emitSpy = sandbox.spy(process, "emit")
 		await process.run(mockTerminal, "another command")
 		;(emitSpy as sinon.SinonSpy).calledWith("completed").should.be.true()
 	})
@@ -164,7 +161,7 @@ describe("TerminalProcess (Mock-based Tests)", () => {
 		processAny.buffer = "test buffer content"
 		processAny.isListening = true
 
-		const emitSpy = sinon.spy(process, "emit")
+		const emitSpy = sandbox.spy(process, "emit")
 		processAny.emitRemainingBufferIfListening()
 		;(emitSpy as sinon.SinonSpy).calledWith("line", "test buffer content").should.be.true()
 		processAny.buffer.should.equal("")
@@ -181,7 +178,7 @@ describe("TerminalProcess (Mock-based Tests)", () => {
 
 	it("should process buffer and emit lines when newline characters are found", () => {
 		const processAny = process as any
-		const emitSpy = sinon.spy(process, "emit")
+		const emitSpy = sandbox.spy(process, "emit")
 
 		processAny.emitIfEol("line 1\nline 2\nline 3")
 		;(emitSpy as sinon.SinonSpy).calledWith("line", "line 1").should.be.true()
@@ -199,56 +196,49 @@ describe("TerminalProcess (Mock-based Tests)", () => {
 		const commandEchoStream = {
 			async *[Symbol.asyncIterator]() {
 				yield "test-command\n" // This should be filtered (command contains this exactly)
-				yield "test\n" // This should be filtered (command contains this substring)
-				yield "command\n" // This should be filtered (command contains this substring)
-				yield "test-command args\n" // This should NOT be filtered (command doesn't contain this)
-				yield "other output\n" // This should NOT be filtered
+				yield "test command\n" // This should NOT be filtered (doesn't match exactly)
+				yield "other output\n"
 			},
 		}
-
 		const mockTerminal = new MockTerminal() as any
-		mockTerminal.shellIntegration.executeCommand.returns({
+		mockTerminal.shellIntegration.executeCommand = sandbox.stub().returns({
 			read: () => commandEchoStream,
 		})
-		const emitSpy = sinon.spy(process, "emit")
+		const emitSpy = sandbox.spy(process, "emit")
 
 		await process.run(mockTerminal, "test-command")
 
-		// Lines that are contained within the command should be filtered
+		// Should not emit the first line (it's the command echo)
 		;(emitSpy as sinon.SinonSpy).calledWith("line", "test-command").should.be.false()
-		;(emitSpy as sinon.SinonSpy).calledWith("line", "test").should.be.false()
-		;(emitSpy as sinon.SinonSpy).calledWith("line", "command").should.be.false()
-
-		// Lines that the command doesn't fully contain should NOT be filtered
-		;(emitSpy as sinon.SinonSpy).calledWith("line", "test-command args").should.be.true()
+		// Should emit the other lines
+		;(emitSpy as sinon.SinonSpy).calledWith("line", "test command").should.be.true()
 		;(emitSpy as sinon.SinonSpy).calledWith("line", "other output").should.be.true()
 	})
 
-	it("should not remove partial matching lines that contain the command substring", async () => {
-		// For example, if the command is "npm run build",
-		// but the line is "Ok, let's do npm run build now",
-		// we do NOT want to skip that line as if it were the echoed command.
-		const partialMatchStream = {
+	it("should correctly handle 'npm run' commands", async () => {
+		// When running 'npm run build', the initial output might contain "npm run build"
+		// which would be filtered, but we need other related output
+		const npmRunStream = {
 			async *[Symbol.asyncIterator]() {
-				// First chunk might be an echo that matches the command
-				yield "npm run build\n"
-				// Then a partial line that merely contains the string
-				yield "Ok, let's do npm run build now...\n"
-				yield "All done!\n"
+				yield "npm run build\n" // This should be filtered
+				yield "> project@1.0.0 build\n" // Should be kept
+				yield "> webpack --mode production\n" // Should be kept
+				yield "Hash: 1a2b3c4d5e\n" // Should be kept
 			},
 		}
-
 		const mockTerminal = new MockTerminal() as any
-		mockTerminal.shellIntegration.executeCommand.returns({
-			read: () => partialMatchStream,
+		mockTerminal.shellIntegration.executeCommand = sandbox.stub().returns({
+			read: () => npmRunStream,
 		})
-		const emitSpy = sinon.spy(process, "emit")
+		const emitSpy = sandbox.spy(process, "emit")
 
 		await process.run(mockTerminal, "npm run build")
 
-		// Check if the line is NOT emitted since the current implementation filters it out
-		// This test now aligns with the actual implementation behavior
-		;(emitSpy as sinon.SinonSpy).calledWith("line", sinon.match(/Ok, let's do npm run build now/)).should.be.false()
-		;(emitSpy as sinon.SinonSpy).calledWith("line", "All done!").should.be.true()
+		// Should not emit the npm run build line (it's the command echo)
+		;(emitSpy as sinon.SinonSpy).calledWith("line", "npm run build").should.be.false()
+		// Should emit the other lines
+		;(emitSpy as sinon.SinonSpy).calledWith("line", "> project@1.0.0 build").should.be.true()
+		;(emitSpy as sinon.SinonSpy).calledWith("line", "> webpack --mode production").should.be.true()
+		;(emitSpy as sinon.SinonSpy).calledWith("line", "Hash: 1a2b3c4d5e").should.be.true()
 	})
 })
