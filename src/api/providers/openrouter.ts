@@ -114,7 +114,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			stream: true,
 			include_reasoning: true,
 			// This way, the transforms field will only be included in the parameters when openRouterUseMiddleOutTransform is true.
-			...(this.options.openRouterUseMiddleOutTransform && { transforms: ["middle-out"] }),
+			...((this.options.openRouterUseMiddleOutTransform ?? true) && { transforms: ["middle-out"] }),
 		}
 
 		const stream = await this.client.chat.completions.create(completionParams)

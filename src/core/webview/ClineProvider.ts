@@ -2430,6 +2430,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
 			customModes,
 			maxOpenTabsContext: maxOpenTabsContext ?? 20,
+			openRouterUseMiddleOutTransform: openRouterUseMiddleOutTransform ?? true,
 		}
 	}
 
