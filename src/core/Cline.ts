@@ -946,6 +946,7 @@ export class Cline {
 			preferredLanguage,
 			experiments,
 			enableMcpServerCreation,
+			browserToolEnabled,
 		} = (await this.providerRef.deref()?.getState()) ?? {}
 		const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
 		const systemPrompt = await (async () => {
@@ -956,7 +957,7 @@ export class Cline {
 			return SYSTEM_PROMPT(
 				provider.context,
 				cwd,
-				this.api.getModel().info.supportsComputerUse ?? false,
+				(this.api.getModel().info.supportsComputerUse ?? false) && (browserToolEnabled ?? true),
 				mcpHub,
 				this.diffStrategy,
 				browserViewportSize,

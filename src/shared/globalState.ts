@@ -84,3 +84,4 @@ export type GlobalStateKey =
 	| "anthropicThinking" // TODO: Rename to `modelMaxThinkingTokens`.
 	| "mistralCodestralUrl"
 	| "maxOpenTabsContext"
+	| "browserToolEnabled" // Setting to enable/disable the browser tool
