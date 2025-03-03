@@ -973,7 +973,12 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const allModes = getAllModes(customModes)
 		const currentModeIndex = allModes.findIndex((m) => m.slug === mode)
 		const nextModeIndex = (currentModeIndex + 1) % allModes.length
+		// Update local state and notify extension to sync mode change
 		setMode(allModes[nextModeIndex].slug)
+		vscode.postMessage({
+			type: "mode",
+			text: allModes[nextModeIndex].slug,
+		})
 	}, [mode, setMode, customModes])
 
 	// Add keyboard event handler
