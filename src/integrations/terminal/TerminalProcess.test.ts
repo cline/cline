@@ -1,15 +1,11 @@
 import { describe, it, beforeEach, afterEach } from "mocha"
 import "should"
 import * as sinon from "sinon"
-import * as vscode from "vscode"
 import { TerminalProcess } from "./TerminalProcess"
+import * as vscode from "vscode"
 
-// ----------------------------------------------------
-// 1) Mocking VS Code's Terminal (no real extension env)
-// ----------------------------------------------------
-
-// Extend Terminal interface in a purely declarative way.
 declare module "vscode" {
+	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
 	interface Terminal {
 		shellIntegration?: {
 			cwd?: vscode.Uri
@@ -20,10 +16,9 @@ declare module "vscode" {
 	}
 }
 
-// A lightweight mock for "vscode.Terminal"
 class MockTerminal {
 	public shellIntegration?: {
-		cwd?: vscode.Uri
+		cwd?: { fsPath: string }
 		executeCommand?: sinon.SinonStub
 	}
 	public sendText: sinon.SinonStub
@@ -32,7 +27,7 @@ class MockTerminal {
 		this.sendText = sinon.stub()
 		if (withShellIntegration) {
 			this.shellIntegration = {
-				cwd: vscode.Uri.file("/test/directory"),
+				cwd: { fsPath: "/test/directory" }, // Plain object instead of vscode.Uri.file
 				executeCommand: sinon.stub().returns({
 					read: () => this.createMockStream(),
 				}),
@@ -43,9 +38,7 @@ class MockTerminal {
 	private createMockStream() {
 		return {
 			async *[Symbol.asyncIterator]() {
-				// First chunk includes the echoed command line
 				yield "test-command\n"
-				// Then some normal output lines
 				yield "line1\n"
 				yield "line2\n"
 				yield "line3\n"
@@ -65,11 +58,18 @@ describe("TerminalProcess (Mock-based Tests)", () => {
 
 	afterEach(() => {
 		// Flush all timers, restore normal timing
+		clock.runAll()
 		clock.restore()
 		// Restore Sinon stubs/spies
 		sinon.restore()
 		// Remove any event listeners left on the TerminalProcess
 		process.removeAllListeners()
+	})
+
+	it("should use mock terminal", async () => {
+		const mockTerminal = new MockTerminal() as any
+		await process.run(mockTerminal, "test-command")
+		mockTerminal.shellIntegration.executeCommand.calledOnce.should.be.true()
 	})
 
 	it("should emit line events for each line of output", async () => {
