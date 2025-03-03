@@ -75,8 +75,10 @@ describe("Checkpoint Commit Operations", () => {
         expect(sortedDiffs[1].relativePath).to.equal("src/test2.txt")
 
         // Verify file contents
-        expect(sortedDiffs[0].before).to.equal("file1 initial\nfile2 initial\n")
-        expect(sortedDiffs[0].after).to.equal("file1 modified\nfile2 modified\n")
+        expect(sortedDiffs[0].before).to.equal("file1 initial\n")
+        expect(sortedDiffs[0].after).to.equal("file1 modified\n")
+        expect(sortedDiffs[1].before).to.equal("file2 initial\n")
+        expect(sortedDiffs[1].after).to.equal("file2 modified\n")
     })
 
     it("should create commit when files are deleted", async () => {
