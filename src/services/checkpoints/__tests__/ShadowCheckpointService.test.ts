@@ -3,11 +3,11 @@
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
+import { EventEmitter } from "events"
 
 import { simpleGit, SimpleGit } from "simple-git"
 
 import { ShadowCheckpointService } from "../ShadowCheckpointService"
-import { CheckpointServiceFactory } from "../CheckpointServiceFactory"
 
 jest.mock("globby", () => ({
 	globby: jest.fn().mockResolvedValue([]),
@@ -63,13 +63,10 @@ describe("ShadowCheckpointService", () => {
 		const repo = await initRepo({ workspaceDir })
 
 		testFile = repo.testFile
-
-		service = await CheckpointServiceFactory.create({
-			strategy: "shadow",
-			options: { taskId, shadowDir, workspaceDir, log: () => {} },
-		})
-
 		workspaceGit = repo.git
+
+		service = await ShadowCheckpointService.create({ taskId, shadowDir, workspaceDir, log: () => {} })
+		await service.initShadowGit()
 	})
 
 	afterEach(async () => {
@@ -313,6 +310,7 @@ describe("ShadowCheckpointService", () => {
 			const gitDir = path.join(shadowDir, "tasks", taskId, "checkpoints", ".git")
 			await expect(fs.stat(gitDir)).rejects.toThrow()
 			const newService = await ShadowCheckpointService.create({ taskId, shadowDir, workspaceDir, log: () => {} })
+			await newService.initShadowGit()
 			expect(await fs.stat(gitDir)).toBeTruthy()
 
 			// Save a new checkpoint: Ahoy, world!
@@ -331,6 +329,170 @@ describe("ShadowCheckpointService", () => {
 
 			await fs.rm(newService.shadowDir, { recursive: true, force: true })
 			await fs.rm(newService.workspaceDir, { recursive: true, force: true })
+		})
+	})
+
+	describe("events", () => {
+		it("emits initialize event when service is created", async () => {
+			const shadowDir = path.join(tmpDir, `shadow-event-test-${Date.now()}`)
+			const workspaceDir = path.join(tmpDir, `workspace-event-test-${Date.now()}`)
+			await fs.mkdir(workspaceDir, { recursive: true })
+
+			const newTestFile = path.join(workspaceDir, "test.txt")
+			await fs.writeFile(newTestFile, "Testing events!")
+
+			// Create a mock implementation of emit to track events.
+			const emitSpy = jest.spyOn(EventEmitter.prototype, "emit")
+
+			// Create the service - this will trigger the initialize event.
+			const newService = await ShadowCheckpointService.create({ taskId, shadowDir, workspaceDir, log: () => {} })
+			await newService.initShadowGit()
+
+			// Find the initialize event in the emit calls.
+			let initializeEvent = null
+
+			for (let i = 0; i < emitSpy.mock.calls.length; i++) {
+				const call = emitSpy.mock.calls[i]
+
+				if (call[0] === "initialize") {
+					initializeEvent = call[1]
+					break
+				}
+			}
+
+			// Restore the spy.
+			emitSpy.mockRestore()
+
+			// Verify the event was emitted with the correct data.
+			expect(initializeEvent).not.toBeNull()
+			expect(initializeEvent.type).toBe("initialize")
+			expect(initializeEvent.workspaceDir).toBe(workspaceDir)
+			expect(initializeEvent.baseHash).toBeTruthy()
+			expect(typeof initializeEvent.created).toBe("boolean")
+			expect(typeof initializeEvent.duration).toBe("number")
+
+			// Verify the event was emitted with the correct data.
+			expect(initializeEvent).not.toBeNull()
+			expect(initializeEvent.type).toBe("initialize")
+			expect(initializeEvent.workspaceDir).toBe(workspaceDir)
+			expect(initializeEvent.baseHash).toBeTruthy()
+			expect(typeof initializeEvent.created).toBe("boolean")
+			expect(typeof initializeEvent.duration).toBe("number")
+
+			// Clean up.
+			await fs.rm(shadowDir, { recursive: true, force: true })
+			await fs.rm(workspaceDir, { recursive: true, force: true })
+		})
+
+		it("emits checkpoint event when saving checkpoint", async () => {
+			const checkpointHandler = jest.fn()
+			service.on("checkpoint", checkpointHandler)
+
+			await fs.writeFile(testFile, "Changed content for checkpoint event test")
+			const result = await service.saveCheckpoint("Test checkpoint event")
+			expect(result?.commit).toBeDefined()
+
+			expect(checkpointHandler).toHaveBeenCalledTimes(1)
+			const eventData = checkpointHandler.mock.calls[0][0]
+			expect(eventData.type).toBe("checkpoint")
+			expect(eventData.toHash).toBeDefined()
+			expect(eventData.toHash).toBe(result!.commit)
+			expect(typeof eventData.duration).toBe("number")
+		})
+
+		it("emits restore event when restoring checkpoint", async () => {
+			// First create a checkpoint to restore.
+			await fs.writeFile(testFile, "Content for restore test")
+			const commit = await service.saveCheckpoint("Checkpoint for restore test")
+			expect(commit?.commit).toBeTruthy()
+
+			// Change the file again.
+			await fs.writeFile(testFile, "Changed after checkpoint")
+
+			// Setup restore event listener.
+			const restoreHandler = jest.fn()
+			service.on("restore", restoreHandler)
+
+			// Restore the checkpoint.
+			await service.restoreCheckpoint(commit!.commit)
+
+			// Verify the event was emitted.
+			expect(restoreHandler).toHaveBeenCalledTimes(1)
+			const eventData = restoreHandler.mock.calls[0][0]
+			expect(eventData.type).toBe("restore")
+			expect(eventData.commitHash).toBe(commit!.commit)
+			expect(typeof eventData.duration).toBe("number")
+
+			// Verify the file was actually restored.
+			expect(await fs.readFile(testFile, "utf-8")).toBe("Content for restore test")
+		})
+
+		it("emits error event when an error occurs", async () => {
+			const errorHandler = jest.fn()
+			service.on("error", errorHandler)
+
+			// Force an error by providing an invalid commit hash.
+			const invalidCommitHash = "invalid-commit-hash"
+
+			// Try to restore an invalid checkpoint.
+			try {
+				await service.restoreCheckpoint(invalidCommitHash)
+			} catch (error) {
+				// Expected to throw, we're testing the event emission.
+			}
+
+			// Verify the error event was emitted.
+			expect(errorHandler).toHaveBeenCalledTimes(1)
+			const eventData = errorHandler.mock.calls[0][0]
+			expect(eventData.type).toBe("error")
+			expect(eventData.error).toBeInstanceOf(Error)
+		})
+
+		it("supports multiple event listeners for the same event", async () => {
+			const checkpointHandler1 = jest.fn()
+			const checkpointHandler2 = jest.fn()
+
+			service.on("checkpoint", checkpointHandler1)
+			service.on("checkpoint", checkpointHandler2)
+
+			await fs.writeFile(testFile, "Content for multiple listeners test")
+			const result = await service.saveCheckpoint("Testing multiple listeners")
+
+			// Verify both handlers were called with the same event data.
+			expect(checkpointHandler1).toHaveBeenCalledTimes(1)
+			expect(checkpointHandler2).toHaveBeenCalledTimes(1)
+
+			const eventData1 = checkpointHandler1.mock.calls[0][0]
+			const eventData2 = checkpointHandler2.mock.calls[0][0]
+
+			expect(eventData1).toEqual(eventData2)
+			expect(eventData1.type).toBe("checkpoint")
+			expect(eventData1.toHash).toBe(result?.commit)
+		})
+
+		it("allows removing event listeners", async () => {
+			const checkpointHandler = jest.fn()
+
+			// Add the listener.
+			service.on("checkpoint", checkpointHandler)
+
+			// Make a change and save a checkpoint.
+			await fs.writeFile(testFile, "Content for remove listener test - part 1")
+			await service.saveCheckpoint("Testing listener - part 1")
+
+			// Verify handler was called.
+			expect(checkpointHandler).toHaveBeenCalledTimes(1)
+			checkpointHandler.mockClear()
+
+			// Remove the listener.
+			service.off("checkpoint", checkpointHandler)
+
+			// Make another change and save a checkpoint.
+			await fs.writeFile(testFile, "Content for remove listener test - part 2")
+			await service.saveCheckpoint("Testing listener - part 2")
+
+			// Verify handler was not called after being removed.
+			expect(checkpointHandler).not.toHaveBeenCalled()
 		})
 	})
 })
