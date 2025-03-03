@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandler, SingleCompletionHandler } from "../"
+import { SingleCompletionHandler } from "../"
 import {
 	ApiHandlerOptions,
 	ModelInfo,
@@ -10,20 +10,22 @@ import {
 } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { BaseProvider } from "./base-provider"
 
 const OPENAI_NATIVE_DEFAULT_TEMPERATURE = 0
 
-export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler {
-	private options: ApiHandlerOptions
+export class OpenAiNativeHandler extends BaseProvider implements SingleCompletionHandler {
+	protected options: ApiHandlerOptions
 	private client: OpenAI
 
 	constructor(options: ApiHandlerOptions) {
+		super()
 		this.options = options
 		const apiKey = this.options.openAiNativeApiKey ?? "not-provided"
 		this.client = new OpenAI({ apiKey })
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelId = this.getModel().id
 
 		if (modelId.startsWith("o1")) {
@@ -133,7 +135,7 @@ export class OpenAiNativeHandler implements ApiHandler, SingleCompletionHandler 
 		}
 	}
 
-	getModel(): { id: OpenAiNativeModelId; info: ModelInfo } {
+	override getModel(): { id: OpenAiNativeModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in openAiNativeModels) {
 			const id = modelId as OpenAiNativeModelId

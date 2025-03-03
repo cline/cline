@@ -2,18 +2,20 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import axios from "axios"
 
-import { ApiHandler, SingleCompletionHandler } from "../"
+import { SingleCompletionHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { BaseProvider } from "./base-provider"
 
 const LMSTUDIO_DEFAULT_TEMPERATURE = 0
 
-export class LmStudioHandler implements ApiHandler, SingleCompletionHandler {
-	private options: ApiHandlerOptions
+export class LmStudioHandler extends BaseProvider implements SingleCompletionHandler {
+	protected options: ApiHandlerOptions
 	private client: OpenAI
 
 	constructor(options: ApiHandlerOptions) {
+		super()
 		this.options = options
 		this.client = new OpenAI({
 			baseURL: (this.options.lmStudioBaseUrl || "http://localhost:1234") + "/v1",
@@ -21,7 +23,7 @@ export class LmStudioHandler implements ApiHandler, SingleCompletionHandler {
 		})
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
@@ -51,7 +53,7 @@ export class LmStudioHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	getModel(): { id: string; info: ModelInfo } {
+	override getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.lmStudioModelId || "",
 			info: openAiModelInfoSaneDefaults,

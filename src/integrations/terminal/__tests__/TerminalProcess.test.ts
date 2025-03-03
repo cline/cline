@@ -1,9 +1,24 @@
-import { TerminalProcess, mergePromise } from "../TerminalProcess"
-import * as vscode from "vscode"
-import { EventEmitter } from "events"
+// npx jest src/integrations/terminal/__tests__/TerminalProcess.test.ts
 
-// Mock vscode
-jest.mock("vscode")
+import * as vscode from "vscode"
+
+import { TerminalProcess, mergePromise } from "../TerminalProcess"
+import { TerminalInfo, TerminalRegistry } from "../TerminalRegistry"
+
+// Mock vscode.window.createTerminal
+const mockCreateTerminal = jest.fn()
+
+jest.mock("vscode", () => ({
+	window: {
+		createTerminal: (...args: any[]) => {
+			mockCreateTerminal(...args)
+			return {
+				exitStatus: undefined,
+			}
+		},
+	},
+	ThemeIcon: jest.fn(),
+}))
 
 describe("TerminalProcess", () => {
 	let terminalProcess: TerminalProcess
@@ -14,6 +29,7 @@ describe("TerminalProcess", () => {
 			}
 		}
 	>
+	let mockTerminalInfo: TerminalInfo
 	let mockExecution: any
 	let mockStream: AsyncIterableIterator<string>
 
@@ -25,7 +41,7 @@ describe("TerminalProcess", () => {
 			shellIntegration: {
 				executeCommand: jest.fn(),
 			},
-			name: "Mock Terminal",
+			name: "Roo Code",
 			processId: Promise.resolve(123),
 			creationOptions: {},
 			exitStatus: undefined,
@@ -42,27 +58,39 @@ describe("TerminalProcess", () => {
 			}
 		>
 
+		mockTerminalInfo = {
+			terminal: mockTerminal,
+			busy: false,
+			lastCommand: "",
+			id: 1,
+			running: false,
+			streamClosed: false,
+		}
+
+		TerminalRegistry["terminals"].push(mockTerminalInfo)
+
 		// Reset event listeners
 		terminalProcess.removeAllListeners()
 	})
 
 	describe("run", () => {
 		it("handles shell integration commands correctly", async () => {
-			const lines: string[] = []
-			terminalProcess.on("line", (line) => {
-				// Skip empty lines used for loading spinner
-				if (line !== "") {
-					lines.push(line)
+			let lines: string[] = []
+
+			terminalProcess.on("completed", (output) => {
+				if (output) {
+					lines = output.split("\n")
 				}
 			})
 
-			// Mock stream data with shell integration sequences
+			// Mock stream data with shell integration sequences.
 			mockStream = (async function* () {
-				// The first chunk contains the command start sequence
+				yield "\x1b]633;C\x07" // The first chunk contains the command start sequence with bell character.
 				yield "Initial output\n"
 				yield "More output\n"
-				// The last chunk contains the command end sequence
 				yield "Final output"
+				yield "\x1b]633;D\x07" // The last chunk contains the command end sequence with bell character.
+				terminalProcess.emit("shell_execution_complete", mockTerminalInfo.id, { exitCode: 0 })
 			})()
 
 			mockExecution = {
@@ -71,12 +99,9 @@ describe("TerminalProcess", () => {
 
 			mockTerminal.shellIntegration.executeCommand.mockReturnValue(mockExecution)
 
-			const completedPromise = new Promise<void>((resolve) => {
-				terminalProcess.once("completed", resolve)
-			})
-
-			await terminalProcess.run(mockTerminal, "test command")
-			await completedPromise
+			const runPromise = terminalProcess.run(mockTerminal, "test command")
+			terminalProcess.emit("stream_available", mockTerminalInfo.id, mockStream)
+			await runPromise
 
 			expect(lines).toEqual(["Initial output", "More output", "Final output"])
 			expect(terminalProcess.isHot).toBe(false)
@@ -99,95 +124,41 @@ describe("TerminalProcess", () => {
 		})
 
 		it("sets hot state for compiling commands", async () => {
-			const lines: string[] = []
-			terminalProcess.on("line", (line) => {
-				if (line !== "") {
-					lines.push(line)
+			let lines: string[] = []
+
+			terminalProcess.on("completed", (output) => {
+				if (output) {
+					lines = output.split("\n")
 				}
 			})
 
-			// Create a promise that resolves when the first chunk is processed
-			const firstChunkProcessed = new Promise<void>((resolve) => {
-				terminalProcess.on("line", () => resolve())
+			const completePromise = new Promise<void>((resolve) => {
+				terminalProcess.on("shell_execution_complete", () => resolve())
 			})
 
 			mockStream = (async function* () {
+				yield "\x1b]633;C\x07" // The first chunk contains the command start sequence with bell character.
 				yield "compiling...\n"
-				// Wait to ensure hot state check happens after first chunk
-				await new Promise((resolve) => setTimeout(resolve, 10))
 				yield "still compiling...\n"
 				yield "done"
+				yield "\x1b]633;D\x07" // The last chunk contains the command end sequence with bell character.
+				terminalProcess.emit("shell_execution_complete", mockTerminalInfo.id, { exitCode: 0 })
 			})()
 
-			mockExecution = {
+			mockTerminal.shellIntegration.executeCommand.mockReturnValue({
 				read: jest.fn().mockReturnValue(mockStream),
-			}
-
-			mockTerminal.shellIntegration.executeCommand.mockReturnValue(mockExecution)
-
-			// Start the command execution
-			const runPromise = terminalProcess.run(mockTerminal, "npm run build")
-
-			// Wait for the first chunk to be processed
-			await firstChunkProcessed
-
-			// Hot state should be true while compiling
-			expect(terminalProcess.isHot).toBe(true)
-
-			// Complete the execution
-			const completedPromise = new Promise<void>((resolve) => {
-				terminalProcess.once("completed", resolve)
 			})
 
+			const runPromise = terminalProcess.run(mockTerminal, "npm run build")
+			terminalProcess.emit("stream_available", mockTerminalInfo.id, mockStream)
+
+			expect(terminalProcess.isHot).toBe(true)
 			await runPromise
-			await completedPromise
 
 			expect(lines).toEqual(["compiling...", "still compiling...", "done"])
-		})
-	})
 
-	describe("buffer processing", () => {
-		it("correctly processes and emits lines", () => {
-			const lines: string[] = []
-			terminalProcess.on("line", (line) => lines.push(line))
-
-			// Simulate incoming chunks
-			terminalProcess["emitIfEol"]("first line\n")
-			terminalProcess["emitIfEol"]("second")
-			terminalProcess["emitIfEol"](" line\n")
-			terminalProcess["emitIfEol"]("third line")
-
-			expect(lines).toEqual(["first line", "second line"])
-
-			// Process remaining buffer
-			terminalProcess["emitRemainingBufferIfListening"]()
-			expect(lines).toEqual(["first line", "second line", "third line"])
-		})
-
-		it("handles Windows-style line endings", () => {
-			const lines: string[] = []
-			terminalProcess.on("line", (line) => lines.push(line))
-
-			terminalProcess["emitIfEol"]("line1\r\nline2\r\n")
-
-			expect(lines).toEqual(["line1", "line2"])
-		})
-	})
-
-	describe("removeLastLineArtifacts", () => {
-		it("removes terminal artifacts from output", () => {
-			const cases = [
-				["output%", "output"],
-				["output$ ", "output"],
-				["output#", "output"],
-				["output> ", "output"],
-				["multi\nline%", "multi\nline"],
-				["no artifacts", "no artifacts"],
-			]
-
-			for (const [input, expected] of cases) {
-				expect(terminalProcess["removeLastLineArtifacts"](input)).toBe(expected)
-			}
+			await completePromise
+			expect(terminalProcess.isHot).toBe(false)
 		})
 	})
 
@@ -205,13 +176,13 @@ describe("TerminalProcess", () => {
 
 	describe("getUnretrievedOutput", () => {
 		it("returns and clears unretrieved output", () => {
-			terminalProcess["fullOutput"] = "previous\nnew output"
-			terminalProcess["lastRetrievedIndex"] = 9 // After "previous\n"
+			terminalProcess["fullOutput"] = `\x1b]633;C\x07previous\nnew output\x1b]633;D\x07`
+			terminalProcess["lastRetrievedIndex"] = 17 // After "previous\n"
 
 			const unretrieved = terminalProcess.getUnretrievedOutput()
-
 			expect(unretrieved).toBe("new output")
-			expect(terminalProcess["lastRetrievedIndex"]).toBe(terminalProcess["fullOutput"].length)
+
+			expect(terminalProcess["lastRetrievedIndex"]).toBe(terminalProcess["fullOutput"].length - "previous".length)
 		})
 	})
 

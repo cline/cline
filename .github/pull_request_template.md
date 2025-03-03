@@ -1,37 +1,35 @@
-<!-- **Note:** Consider creating PRs as a DRAFT. For early feedback and self-review. -->
+## Context
 
-## Description
+<!-- Brief description of WHAT you’re doing and WHY. -->
 
-## Type of change
+## Implementation
 
-<!-- Please ignore options that are not relevant -->
+<!--
 
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] This change requires a documentation update
+Some description of HOW you achieved it. Perhaps give a high level description of the program flow. Did you need to refactor something? What tradeoffs did you take? Are there things in here which you’d particularly like people to pay close attention to?
 
-## How Has This Been Tested?
+-->
 
-<!-- Please describe the tests that you ran to verify your changes -->
+## Screenshots
 
-## Checklist:
+| before | after |
+| ------ | ----- |
+|        |       |
 
-<!-- Go over all the following points, and put an `x` in all the boxes that apply -->
+## How to Test
 
-- [ ] My code follows the patterns of this project
-- [ ] I have performed a self-review of my own code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
+<!--
 
-## Additional context
+A straightforward scenario of how to test your changes will help reviewers that are not familiar with the part of the code that you are changing but want to see it in action. This section can include a description or step-by-step instructions of how to get to the state of v2 that your change affects.
 
-<!-- Add any other context or screenshots about the pull request here -->
+A "How To Test" section can look something like this:
 
-## Related Issues
+- Sign in with a user with tracks
+- Activate `show_awesome_cat_gifs` feature (add `?feature.show_awesome_cat_gifs=1` to your URL)
+- You should see a GIF with cats dancing
 
-<!-- List any related issues here. Use the GitHub issue linking syntax: #issue-number -->
+-->
 
-## Reviewers
+## Get in Touch
 
-<!-- @mention specific team members or individuals who should review this PR -->
+<!-- We'd love to have a way to chat with you about your changes if necessary. If you're in the [Roo Code Discord](https://discord.gg/roocode), please share your handle here. -->

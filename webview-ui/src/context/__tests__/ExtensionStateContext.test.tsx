@@ -1,6 +1,11 @@
-import React from "react"
+// npx jest webview-ui/src/context/__tests__/ExtensionStateContext.test.tsx
+
 import { render, screen, act } from "@testing-library/react"
-import { ExtensionStateContextProvider, useExtensionState } from "../ExtensionStateContext"
+
+import { ExtensionState } from "../../../../src/shared/ExtensionMessage"
+import { ExtensionStateContextProvider, useExtensionState, mergeExtensionState } from "../ExtensionStateContext"
+import { ExperimentId } from "../../../../src/shared/experiments"
+import { ApiConfiguration } from "../../../../src/shared/api"
 
 // Test component that consumes the context
 const TestComponent = () => {
@@ -61,5 +66,45 @@ describe("ExtensionStateContext", () => {
 		}).toThrow("useExtensionState must be used within an ExtensionStateContextProvider")
 
 		consoleSpy.mockRestore()
+	})
+})
+
+describe("mergeExtensionState", () => {
+	it("should correctly merge extension states", () => {
+		const baseState: ExtensionState = {
+			version: "",
+			mcpEnabled: false,
+			enableMcpServerCreation: false,
+			clineMessages: [],
+			taskHistory: [],
+			shouldShowAnnouncement: false,
+			enableCheckpoints: true,
+			preferredLanguage: "English",
+			writeDelayMs: 1000,
+			requestDelaySeconds: 5,
+			rateLimitSeconds: 0,
+			mode: "default",
+			experiments: {} as Record<ExperimentId, boolean>,
+			customModes: [],
+			maxOpenTabsContext: 20,
+			apiConfiguration: { providerId: "openrouter" } as ApiConfiguration,
+		}
+
+		const prevState: ExtensionState = {
+			...baseState,
+			apiConfiguration: { modelMaxTokens: 1234, modelMaxThinkingTokens: 123 },
+		}
+		const newState: ExtensionState = {
+			...baseState,
+			apiConfiguration: { modelMaxThinkingTokens: 456, modelTemperature: 0.3 },
+		}
+
+		const result = mergeExtensionState(prevState, newState)
+
+		expect(result.apiConfiguration).toEqual({
+			modelMaxTokens: 1234,
+			modelMaxThinkingTokens: 456,
+			modelTemperature: 0.3,
+		})
 	})
 })

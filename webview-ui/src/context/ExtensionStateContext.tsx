@@ -69,6 +69,32 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
 
+export const mergeExtensionState = (prevState: ExtensionState, newState: ExtensionState) => {
+	const {
+		apiConfiguration: prevApiConfiguration,
+		customModePrompts: prevCustomModePrompts,
+		customSupportPrompts: prevCustomSupportPrompts,
+		experiments: prevExperiments,
+		...prevRest
+	} = prevState
+
+	const {
+		apiConfiguration: newApiConfiguration,
+		customModePrompts: newCustomModePrompts,
+		customSupportPrompts: newCustomSupportPrompts,
+		experiments: newExperiments,
+		...newRest
+	} = newState
+
+	const apiConfiguration = { ...prevApiConfiguration, ...newApiConfiguration }
+	const customModePrompts = { ...prevCustomModePrompts, ...newCustomModePrompts }
+	const customSupportPrompts = { ...prevCustomSupportPrompts, ...newCustomSupportPrompts }
+	const experiments = { ...prevExperiments, ...newExperiments }
+	const rest = { ...prevRest, ...newRest }
+
+	return { ...rest, apiConfiguration, customModePrompts, customSupportPrompts, experiments }
+}
+
 export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
@@ -123,13 +149,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			switch (message.type) {
 				case "state": {
 					const newState = message.state!
-					setState((prevState) => ({
-						...prevState,
-						...newState,
-					}))
-					const config = newState.apiConfiguration
-					const hasKey = checkExistKey(config)
-					setShowWelcome(!hasKey)
+					setState((prevState) => mergeExtensionState(prevState, newState))
+					setShowWelcome(!checkExistKey(newState.apiConfiguration))
 					setDidHydrateState(true)
 					break
 				}

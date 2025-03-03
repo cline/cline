@@ -7,7 +7,6 @@ import * as vscodemodels from "vscode"
 import {
 	ApiConfiguration,
 	ModelInfo,
-	ApiProvider,
 	anthropicDefaultModelId,
 	anthropicModels,
 	azureOpenAiDefaultApiVersion,
@@ -500,7 +499,7 @@ const ApiOptions = ({
 								/>
 							)}
 							<Checkbox
-								checked={apiConfiguration?.openRouterUseMiddleOutTransform || false}
+								checked={apiConfiguration?.openRouterUseMiddleOutTransform ?? true}
 								onChange={handleInputChange("openRouterUseMiddleOutTransform", noTransform)}>
 								Compress prompts and message chains to the context size (
 								<a href="https://openrouter.ai/docs/transforms">OpenRouter Transforms</a>)
@@ -1412,7 +1411,6 @@ const ApiOptions = ({
 						apiConfiguration={apiConfiguration}
 						setApiConfigurationField={setApiConfigurationField}
 						modelInfo={selectedModelInfo}
-						provider={selectedProvider as ApiProvider}
 					/>
 					<ModelInfoView
 						selectedModelId={selectedModelId}

@@ -119,6 +119,12 @@ Make Roo Code work your way with:
     ```bash
     npm run install:all
     ```
+
+if that fails, try:
+    ```bash
+    npm run install:ci
+    ```
+
 3. **Build** the extension:
     ```bash
     npm run build
