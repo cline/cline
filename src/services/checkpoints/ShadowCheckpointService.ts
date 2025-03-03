@@ -34,10 +34,6 @@ export class ShadowCheckpointService extends CheckpointEventEmitter implements C
 		this._isInitialized = value
 	}
 
-	public get isDirty() {
-		return this._checkpoints.length > 0
-	}
-
 	private readonly shadowGitDir: string
 	private shadowGitConfigWorktree?: string
 
