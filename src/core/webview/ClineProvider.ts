@@ -8,7 +8,7 @@ import * as path from "path"
 import * as vscode from "vscode"
 import simpleGit from "simple-git"
 
-import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
+import { ApiConfiguration, ApiProvider, ModelInfo, API_CONFIG_KEYS } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { CustomSupportPrompts, supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
@@ -2114,45 +2114,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 
 		// Build the apiConfiguration object combining state values and secrets
+		// Using the dynamic approach with API_CONFIG_KEYS
 		const apiConfiguration: ApiConfiguration = {
-			apiProvider,
-			apiModelId: stateValues.apiModelId,
-			glamaModelId: stateValues.glamaModelId,
-			glamaModelInfo: stateValues.glamaModelInfo,
-			awsRegion: stateValues.awsRegion,
-			awsUseCrossRegionInference: stateValues.awsUseCrossRegionInference,
-			awsProfile: stateValues.awsProfile,
-			awsUseProfile: stateValues.awsUseProfile,
-			vertexProjectId: stateValues.vertexProjectId,
-			vertexRegion: stateValues.vertexRegion,
-			openAiBaseUrl: stateValues.openAiBaseUrl,
-			openAiModelId: stateValues.openAiModelId,
-			openAiCustomModelInfo: stateValues.openAiCustomModelInfo,
-			openAiUseAzure: stateValues.openAiUseAzure,
-			ollamaModelId: stateValues.ollamaModelId,
-			ollamaBaseUrl: stateValues.ollamaBaseUrl,
-			lmStudioModelId: stateValues.lmStudioModelId,
-			lmStudioBaseUrl: stateValues.lmStudioBaseUrl,
-			anthropicBaseUrl: stateValues.anthropicBaseUrl,
-			modelMaxThinkingTokens: stateValues.modelMaxThinkingTokens,
-			mistralCodestralUrl: stateValues.mistralCodestralUrl,
-			azureApiVersion: stateValues.azureApiVersion,
-			openAiStreamingEnabled: stateValues.openAiStreamingEnabled,
-			openRouterModelId: stateValues.openRouterModelId,
-			openRouterModelInfo: stateValues.openRouterModelInfo,
-			openRouterBaseUrl: stateValues.openRouterBaseUrl,
-			openRouterUseMiddleOutTransform: stateValues.openRouterUseMiddleOutTransform,
-			vsCodeLmModelSelector: stateValues.vsCodeLmModelSelector,
-			unboundModelId: stateValues.unboundModelId,
-			unboundModelInfo: stateValues.unboundModelInfo,
-			requestyModelId: stateValues.requestyModelId,
-			requestyModelInfo: stateValues.requestyModelInfo,
-			modelTemperature: stateValues.modelTemperature,
-			modelMaxTokens: stateValues.modelMaxTokens,
-			lmStudioSpeculativeDecodingEnabled: stateValues.lmStudioSpeculativeDecodingEnabled,
-			lmStudioDraftModelId: stateValues.lmStudioDraftModelId,
+			// Dynamically add all API-related keys from stateValues
+			...Object.fromEntries(API_CONFIG_KEYS.map((key) => [key, stateValues[key]])),
 			// Add all secrets
 			...secretValues,
+		}
+
+		// Ensure apiProvider is set properly if not already in state
+		if (!apiConfiguration.apiProvider) {
+			apiConfiguration.apiProvider = apiProvider
 		}
 
 		// Return the same structure as before

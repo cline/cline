@@ -78,6 +78,49 @@ export type ApiConfiguration = ApiHandlerOptions & {
 	id?: string // stable unique identifier
 }
 
+// Import GlobalStateKey type from globalState.ts
+import { GlobalStateKey } from "./globalState"
+
+// Define API configuration keys for dynamic object building
+export const API_CONFIG_KEYS: GlobalStateKey[] = [
+	"apiProvider",
+	"apiModelId",
+	"glamaModelId",
+	"glamaModelInfo",
+	"awsRegion",
+	"awsUseCrossRegionInference",
+	"awsProfile",
+	"awsUseProfile",
+	"vertexProjectId",
+	"vertexRegion",
+	"openAiBaseUrl",
+	"openAiModelId",
+	"openAiCustomModelInfo",
+	"openAiUseAzure",
+	"ollamaModelId",
+	"ollamaBaseUrl",
+	"lmStudioModelId",
+	"lmStudioBaseUrl",
+	"anthropicBaseUrl",
+	"modelMaxThinkingTokens",
+	"mistralCodestralUrl",
+	"azureApiVersion",
+	"openAiStreamingEnabled",
+	"openRouterModelId",
+	"openRouterModelInfo",
+	"openRouterBaseUrl",
+	"openRouterUseMiddleOutTransform",
+	"vsCodeLmModelSelector",
+	"unboundModelId",
+	"unboundModelInfo",
+	"requestyModelId",
+	"requestyModelInfo",
+	"modelTemperature",
+	"modelMaxTokens",
+	"lmStudioSpeculativeDecodingEnabled",
+	"lmStudioDraftModelId"
+]
+
 // Models
 
 export interface ModelInfo {
