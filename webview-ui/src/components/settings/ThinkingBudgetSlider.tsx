@@ -59,7 +59,7 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 		border-radius: 50%;
 		background: var(--vscode-foreground);
 		cursor: pointer;
-		border: 2px solid var(--vscode-progressBar-background);
+		border: 0px solid var(--vscode-progressBar-background);
 		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 	}
 

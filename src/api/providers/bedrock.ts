@@ -16,10 +16,11 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		let budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = budget_tokens !== 0 ? true : false
 		// cross region inference requires prefixing the model id with the region
 		let modelId = await this.getModelId()
+
+		let budget_tokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
 		// Get model info and message indices for caching
 		const model = this.getModel()
@@ -33,11 +34,47 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		const stream = await client.messages.create({
 			model: modelId,
-			max_tokens: this.getModel().info.maxTokens || 8192,
+			max_tokens: model.info.maxTokens || 8192,
 			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 			temperature: reasoningOn ? undefined : 0,
-			system: systemPrompt,
-			messages,
+			system: [
+				{
+					text: systemPrompt,
+					type: "text",
+					...(this.options.awsBedrockUsePromptCache === true && {
+						cache_control: { type: "ephemeral" },
+					}),
+				},
+			],
+			messages: messages.map((message, index) => {
+				if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+					return {
+						...message,
+						content:
+							typeof message.content === "string"
+								? [
+										{
+											type: "text",
+											text: message.content,
+											...(this.options.awsBedrockUsePromptCache === true && {
+												cache_control: { type: "ephemeral" },
+											}),
+										},
+									]
+								: message.content.map((content, contentIndex) =>
+										contentIndex === message.content.length - 1
+											? {
+													...content,
+													...(this.options.awsBedrockUsePromptCache === true && {
+														cache_control: { type: "ephemeral" },
+													}),
+												}
+											: content,
+									),
+					}
+				}
+				return message
+			}),
 			stream: true,
 		})
 

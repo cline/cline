@@ -7,6 +7,8 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
 import { streamOpenRouterFormatRequest } from "../transform/openrouter-stream"
 import { ApiStream } from "../transform/stream"
+import { convertToR1Format } from "../transform/r1-format"
+import { OpenRouterErrorResponse } from "./types"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions

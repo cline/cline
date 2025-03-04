@@ -4,6 +4,7 @@ import { convertToR1Format } from "./r1-format"
 import { ApiStream, ApiStreamChunk } from "./stream"
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import { OpenRouterErrorResponse } from "../providers/types"
 
 export async function* streamOpenRouterFormatRequest(
 	client: OpenAI,
@@ -146,9 +147,11 @@ export async function* streamOpenRouterFormatRequest(
 	for await (const chunk of stream) {
 		// openrouter returns an error object instead of the openai sdk throwing an error
 		if ("error" in chunk) {
-			const error = chunk.error as { message?: string; code?: number }
+			const error = chunk.error as OpenRouterErrorResponse["error"]
 			console.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
-			throw new Error(`OpenRouter API Error ${error?.code}: ${error?.message}`)
+			// Include metadata in the error message if available
+			const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
+			throw new Error(`OpenRouter API Error ${error.code}: ${error.message}${metadataStr}`)
 		}
 
 		if (!genId && chunk.id) {
