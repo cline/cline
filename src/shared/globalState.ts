@@ -41,6 +41,8 @@ export type GlobalStateKey =
 	| "ollamaBaseUrl"
 	| "lmStudioModelId"
 	| "lmStudioBaseUrl"
+	| "lmStudioDraftModelId"
+	| "lmStudioSpeculativeDecodingEnabled"
 	| "anthropicBaseUrl"
 	| "azureApiVersion"
 	| "openAiStreamingEnabled"
