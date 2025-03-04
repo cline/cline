@@ -2,7 +2,8 @@ import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import { arePathsEqual } from "../../utils/path"
 import { mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
-import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
+import { Terminal } from "./Terminal"
+import { TerminalRegistry } from "./TerminalRegistry"
 
 /*
 TerminalManager:
@@ -259,7 +260,7 @@ export class TerminalManager {
 		}
 	}
 
-	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
+	runCommand(terminalInfo: Terminal, command: string): TerminalProcessResultPromise {
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 		const process = new TerminalProcess()
@@ -306,7 +307,7 @@ export class TerminalManager {
 		return mergePromise(process, promise)
 	}
 
-	async getOrCreateTerminal(cwd: string): Promise<TerminalInfo> {
+	async getOrCreateTerminal(cwd: string): Promise<Terminal> {
 		const terminals = TerminalRegistry.getAllTerminals()
 
 		// Find available terminal from our pool first (created for this task)
@@ -343,7 +344,7 @@ export class TerminalManager {
 	getTerminals(busy: boolean): { id: number; lastCommand: string }[] {
 		return Array.from(this.terminalIds)
 			.map((id) => TerminalRegistry.getTerminal(id))
-			.filter((t): t is TerminalInfo => t !== undefined && t.busy === busy)
+			.filter((t): t is Terminal => t !== undefined && t.busy === busy)
 			.map((t) => ({ id: t.id, lastCommand: t.lastCommand }))
 	}
 

@@ -1,22 +1,13 @@
 import * as vscode from "vscode"
-
-export interface TerminalInfo {
-	terminal: vscode.Terminal
-	busy: boolean
-	lastCommand: string
-	id: number
-	stream?: AsyncIterable<string>
-	running: boolean
-	streamClosed: boolean
-}
+import { Terminal } from "./Terminal"
 
 // Although vscode.window.terminals provides a list of all open terminals, there's no way to know whether they're busy or not (exitStatus does not provide useful information for most commands). In order to prevent creating too many terminals, we need to keep track of terminals through the life of the extension, as well as session specific terminals for the life of a task (to get latest unretrieved output).
 // Since we have promises keeping track of terminal processes, we get the added benefit of keep track of busy terminals even after a task is closed.
 export class TerminalRegistry {
-	private static terminals: TerminalInfo[] = []
+	private static terminals: Terminal[] = []
 	private static nextTerminalId = 1
 
-	static createTerminal(cwd?: string | vscode.Uri | undefined): TerminalInfo {
+	static createTerminal(cwd?: string | vscode.Uri | undefined): Terminal {
 		const terminal = vscode.window.createTerminal({
 			cwd,
 			name: "Roo Code",
@@ -35,20 +26,13 @@ export class TerminalRegistry {
 			},
 		})
 
-		const newInfo: TerminalInfo = {
-			terminal,
-			busy: false,
-			lastCommand: "",
-			id: this.nextTerminalId++,
-			running: false,
-			streamClosed: false,
-		}
+		const newTerminal = new Terminal(this.nextTerminalId++, terminal)
 
-		this.terminals.push(newInfo)
-		return newInfo
+		this.terminals.push(newTerminal)
+		return newTerminal
 	}
 
-	static getTerminal(id: number): TerminalInfo | undefined {
+	static getTerminal(id: number): Terminal | undefined {
 		const terminalInfo = this.terminals.find((t) => t.id === id)
 
 		if (terminalInfo && this.isTerminalClosed(terminalInfo.terminal)) {
@@ -59,7 +43,7 @@ export class TerminalRegistry {
 		return terminalInfo
 	}
 
-	static updateTerminal(id: number, updates: Partial<TerminalInfo>) {
+	static updateTerminal(id: number, updates: Partial<Terminal>) {
 		const terminal = this.getTerminal(id)
 
 		if (terminal) {
@@ -67,7 +51,7 @@ export class TerminalRegistry {
 		}
 	}
 
-	static getTerminalInfoByTerminal(terminal: vscode.Terminal): TerminalInfo | undefined {
+	static getTerminalInfoByTerminal(terminal: vscode.Terminal): Terminal | undefined {
 		const terminalInfo = this.terminals.find((t) => t.terminal === terminal)
 
 		if (terminalInfo && this.isTerminalClosed(terminalInfo.terminal)) {
@@ -82,7 +66,7 @@ export class TerminalRegistry {
 		this.terminals = this.terminals.filter((t) => t.id !== id)
 	}
 
-	static getAllTerminals(): TerminalInfo[] {
+	static getAllTerminals(): Terminal[] {
 		this.terminals = this.terminals.filter((t) => !this.isTerminalClosed(t.terminal))
 		return this.terminals
 	}

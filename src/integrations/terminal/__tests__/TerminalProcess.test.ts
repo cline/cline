@@ -3,7 +3,8 @@
 import * as vscode from "vscode"
 
 import { TerminalProcess, mergePromise } from "../TerminalProcess"
-import { TerminalInfo, TerminalRegistry } from "../TerminalRegistry"
+import { Terminal } from "../Terminal"
+import { TerminalRegistry } from "../TerminalRegistry"
 
 // Mock vscode.window.createTerminal
 const mockCreateTerminal = jest.fn()
@@ -29,7 +30,7 @@ describe("TerminalProcess", () => {
 			}
 		}
 	>
-	let mockTerminalInfo: TerminalInfo
+	let mockTerminalInfo: Terminal
 	let mockExecution: any
 	let mockStream: AsyncIterableIterator<string>
 
@@ -58,14 +59,7 @@ describe("TerminalProcess", () => {
 			}
 		>
 
-		mockTerminalInfo = {
-			terminal: mockTerminal,
-			busy: false,
-			lastCommand: "",
-			id: 1,
-			running: false,
-			streamClosed: false,
-		}
+		mockTerminalInfo = new Terminal(1, mockTerminal)
 
 		TerminalRegistry["terminals"].push(mockTerminalInfo)
 

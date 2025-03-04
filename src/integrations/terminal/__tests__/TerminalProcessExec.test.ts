@@ -3,7 +3,8 @@
 import * as vscode from "vscode"
 import { execSync } from "child_process"
 import { TerminalProcess } from "../TerminalProcess"
-import { TerminalInfo, TerminalRegistry } from "../TerminalRegistry"
+import { Terminal } from "../Terminal"
+import { TerminalRegistry } from "../TerminalRegistry"
 import { TerminalManager } from "../TerminalManager"
 
 // Mock the vscode module
@@ -100,14 +101,7 @@ async function testTerminalCommand(
 	}
 
 	// Create terminal info
-	const mockTerminalInfo: TerminalInfo = {
-		terminal: mockTerminal,
-		busy: false,
-		lastCommand: "",
-		id: 1,
-		running: false,
-		streamClosed: false,
-	}
+	const mockTerminalInfo = new Terminal(1, mockTerminal)
 
 	// Add the terminal to the registry
 	TerminalRegistry["terminals"] = [mockTerminalInfo]

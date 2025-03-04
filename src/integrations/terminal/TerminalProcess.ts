@@ -4,7 +4,8 @@ import * as vscode from "vscode"
 import { inspect } from "util"
 
 import { ExitCodeDetails } from "./TerminalManager"
-import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
+import { Terminal } from "./Terminal"
+import { TerminalRegistry } from "./TerminalRegistry"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -28,7 +29,7 @@ const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
 	private isListening: boolean = true
-	private terminalInfo: TerminalInfo | undefined
+	private terminalInfo: Terminal | undefined
 	private lastEmitTime_ms: number = 0
 	private fullOutput: string = ""
 	private lastRetrievedIndex: number = 0
