@@ -5,6 +5,7 @@ import prettyBytes from "pretty-bytes"
 
 import { vscode } from "@/utils/vscode"
 import { formatLargeNumber } from "@/utils/format"
+import { calculateTokenDistribution, getMaxTokensForModel } from "@/utils/model-utils"
 import { Button } from "@/components/ui"
 
 import { ClineMessage } from "../../../../src/shared/ExtensionMessage"
@@ -300,11 +301,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								{!isCostAvailable && <TaskActions item={currentTaskItem} />}
 							</div>
 
-							{isTaskExpanded && contextWindow && (
-								<div className={`flex ${windowWidth < 270 ? "flex-col" : "flex-row"} gap-1 h-[20px]`}>
+							{isTaskExpanded && contextWindow > 0 && (
+								<div
+									className={`w-full flex ${windowWidth < 400 ? "flex-col" : "flex-row"} gap-1 h-auto`}>
 									<ContextWindowProgress
 										contextWindow={contextWindow}
 										contextTokens={contextTokens || 0}
+										maxTokens={getMaxTokensForModel(selectedModelInfo, apiConfiguration)}
 									/>
 								</div>
 							)}
@@ -411,27 +414,113 @@ const TaskActions = ({ item }: { item: HistoryItem | undefined }) => {
 	)
 }
 
-const ContextWindowProgress = ({ contextWindow, contextTokens }: { contextWindow: number; contextTokens: number }) => (
-	<>
-		<div className="flex items-center gap-1 flex-shrink-0">
-			<span className="font-bold">Context Window:</span>
-		</div>
-		<div className="flex items-center gap-2 flex-1 whitespace-nowrap px-2">
-			<div>{formatLargeNumber(contextTokens)}</div>
-			<div className="flex items-center gap-[3px] flex-1">
-				<div className="flex-1 h-1 rounded-[2px] overflow-hidden bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_20%,transparent)]">
-					<div
-						className="h-full rounded-[2px] bg-[var(--vscode-badge-foreground)]"
-						style={{
-							width: `${(contextTokens / contextWindow) * 100}%`,
-							transition: "width 0.3s ease-out",
-						}}
-					/>
-				</div>
+interface ContextWindowProgressProps {
+	contextWindow: number
+	contextTokens: number
+	maxTokens?: number
+}
+
+const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: ContextWindowProgressProps) => {
+	// Use the shared utility function to calculate all token distribution values
+	const tokenDistribution = useMemo(
+		() => calculateTokenDistribution(contextWindow, contextTokens, maxTokens),
+		[contextWindow, contextTokens, maxTokens],
+	)
+
+	// Destructure the values we need
+	const { currentPercent, reservedPercent, availableSize, reservedForOutput, availablePercent } = tokenDistribution
+
+	// For display purposes
+	const safeContextWindow = Math.max(0, contextWindow)
+	const safeContextTokens = Math.max(0, contextTokens)
+
+	return (
+		<>
+			<div className="flex items-center gap-1 flex-shrink-0">
+				<span className="font-bold">Context Window:</span>
 			</div>
-			<div>{formatLargeNumber(contextWindow)}</div>
-		</div>
-	</>
-)
+			<div className="flex items-center gap-2 flex-1 whitespace-nowrap px-2">
+				<div>{formatLargeNumber(safeContextTokens)}</div>
+				<div className="flex-1 relative">
+					{/* Invisible overlay for hover area */}
+					<div
+						className="absolute w-full cursor-pointer"
+						style={{
+							height: "16px",
+							top: "-7px",
+							zIndex: 5,
+						}}
+						title={`Available space: ${formatLargeNumber(availableSize)} tokens`}
+					/>
+
+					{/* Main progress bar container */}
+					<div className="flex items-center h-1 rounded-[2px] overflow-hidden w-full bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_20%,transparent)]">
+						{/* Current tokens container */}
+						<div className="relative h-full" style={{ width: `${currentPercent}%` }}>
+							{/* Invisible overlay for current tokens section */}
+							<div
+								className="absolute cursor-pointer"
+								style={{
+									height: "16px",
+									top: "-7px",
+									width: "100%",
+									zIndex: 6,
+								}}
+								title={`Tokens used: ${formatLargeNumber(safeContextTokens)} of ${formatLargeNumber(safeContextWindow)}`}
+							/>
+							{/* Current tokens used - darkest */}
+							<div
+								className="h-full w-full bg-[var(--vscode-badge-foreground)]"
+								style={{
+									transition: "width 0.3s ease-out",
+								}}
+							/>
+						</div>
+
+						{/* Container for reserved tokens */}
+						<div className="relative h-full" style={{ width: `${reservedPercent}%` }}>
+							{/* Invisible overlay for reserved section */}
+							<div
+								className="absolute cursor-pointer"
+								style={{
+									height: "16px",
+									top: "-7px",
+									width: "100%",
+									zIndex: 6,
+								}}
+								title={`Reserved for model response: ${formatLargeNumber(reservedForOutput)} tokens`}
+							/>
+							{/* Reserved for output section - medium gray */}
+							<div
+								className="h-full w-full bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_30%,transparent)]"
+								style={{
+									transition: "width 0.3s ease-out",
+								}}
+							/>
+						</div>
+
+						{/* Empty section (if any) */}
+						{availablePercent > 0 && (
+							<div className="relative h-full" style={{ width: `${availablePercent}%` }}>
+								{/* Invisible overlay for available space */}
+								<div
+									className="absolute cursor-pointer"
+									style={{
+										height: "16px",
+										top: "-7px",
+										width: "100%",
+										zIndex: 6,
+									}}
+									title={`Available space: ${formatLargeNumber(availableSize)} tokens`}
+								/>
+							</div>
+						)}
+					</div>
+				</div>
+				<div>{formatLargeNumber(safeContextWindow)}</div>
+			</div>
+		</>
+	)
+}
 
 export default memo(TaskHeader)
