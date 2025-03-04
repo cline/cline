@@ -36,7 +36,5 @@ export function useDebounceEffect(effect: VoidFn, delay: number, deps: any[]) {
 
 		// We want to re‐schedule if any item in `deps` changed,
 		// or if `delay` changed.
-
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [delay, ...deps])
 }
