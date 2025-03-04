@@ -12,6 +12,8 @@ import { fileExistsAtPath } from "../../utils/fs"
  */
 export async function cleanupLegacyCheckpoints(globalStoragePath: string, outputChannel: vscode.OutputChannel): Promise<void> {
 	try {
+		outputChannel.appendLine("Checking for legacy checkpoints...")
+
 		const tasksDir = path.join(globalStoragePath, "tasks")
 
 		// Check if tasks directory exists

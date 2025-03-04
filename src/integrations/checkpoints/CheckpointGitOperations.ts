@@ -15,7 +15,7 @@ interface StorageProvider {
 
 interface CheckpointAddResult {
 	success: boolean
-	fileCount: number
+	// fileCount: number
 }
 
 /**
@@ -369,6 +369,9 @@ export class GitOperations {
 		const git = simpleGit(path.dirname(gitPath))
 		const branchName = `task-${taskId}`
 
+		// Update excludes when creating a new branch for a new task
+		await writeExcludesFile(gitPath, await getLfsPatterns(this.cwd))
+
 		// Create new task-specific branch, or switch to one if it already exists.
 		const branches = await git.branchLocal()
 		if (!branches.all.includes(branchName)) {
@@ -407,29 +410,28 @@ export class GitOperations {
 	public async addCheckpointFiles(git: SimpleGit, gitPath: string): Promise<CheckpointAddResult> {
 		try {
 			// Update exclude patterns before each commit
-			await writeExcludesFile(gitPath, await getLfsPatterns(this.cwd))
 			await this.renameNestedGitRepos(true)
 			console.info("Starting checkpoint add operation...")
 
 			// Configure git for unicode characters. May not be needed anymore since we are no longer passing an array.
-			await git.addConfig("core.quotePath", "false")
-			await git.addConfig("core.precomposeunicode", "true")
+			// await git.addConfig("core.quotePath", "false")
+			// await git.addConfig("core.precomposeunicode", "true")
 
 			try {
 				await git.add(".")
 
-				// Get count of staged files for reporting
-				const status = await git.status()
-				const fileCount = status.staged.length
+				// // Get count of staged files for reporting
+				// const status = await git.status()
+				// const fileCount = status.staged.length
 
-				if (fileCount === 0) {
-					console.info("No files to add to checkpoint")
-				} else {
-					console.info(`Added ${fileCount} files to checkpoint`)
-				}
+				// if (fileCount === 0) {
+				// 	console.info("No files to add to checkpoint")
+				// } else {
+				// 	console.info(`Added ${fileCount} files to checkpoint`)
+				// }
 
-				console.info("Checkpoint add operation completed successfully")
-				return { success: true, fileCount }
+				// console.info("Checkpoint add operation completed successfully")
+				return { success: true }
 			} catch (error) {
 				console.error("Checkpoint add operation failed:", error)
 				throw error

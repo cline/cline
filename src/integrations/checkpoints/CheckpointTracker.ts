@@ -159,26 +159,18 @@ class CheckpointTracker {
 
 			console.info(`Using shadow git at: ${gitPath}`)
 
-			// Disable nested git repos before any operations
-			await this.gitOperations.renameNestedGitRepos(true)
+			await this.gitOperations.addCheckpointFiles(git, gitPath)
 
-			try {
-				await this.gitOperations.addCheckpointFiles(git, gitPath)
+			const commitMessage = "checkpoint-" + this.cwdHash + "-" + this.taskId
 
-				const commitMessage = "checkpoint-" + this.cwdHash + "-" + this.taskId
-
-				console.info(`Creating checkpoint commit with message: ${commitMessage}`)
-				const result = await git.commit(commitMessage, {
-					"--allow-empty": null,
-				})
-				const commitHash = result.commit || ""
-				this.lastCheckpointHash = commitHash
-				console.warn(`Checkpoint commit created.`)
-				return commitHash
-			} finally {
-				// Always re-enable nested git repos
-				await this.gitOperations.renameNestedGitRepos(false)
-			}
+			console.info(`Creating checkpoint commit with message: ${commitMessage}`)
+			const result = await git.commit(commitMessage, {
+				"--allow-empty": null,
+			})
+			const commitHash = result.commit || ""
+			this.lastCheckpointHash = commitHash
+			console.warn(`Checkpoint commit created.`)
+			return commitHash
 		} catch (error) {
 			console.error("Failed to create checkpoint:", {
 				taskId: this.taskId,
