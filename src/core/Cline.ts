@@ -10,6 +10,7 @@ import getFolderSize from "get-folder-size"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
+
 import { ApiHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../integrations/editor/DiffViewProvider"
@@ -31,6 +32,7 @@ import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
+import { CheckpointStorage } from "../shared/checkpoints"
 import { ApiConfiguration } from "../shared/api"
 import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
@@ -81,7 +83,7 @@ export type ClineOptions = {
 	customInstructions?: string
 	enableDiff?: boolean
 	enableCheckpoints?: boolean
-	checkpointStorage?: "task" | "workspace"
+	checkpointStorage?: CheckpointStorage
 	fuzzyMatchThreshold?: number
 	task?: string
 	images?: string[]
@@ -121,7 +123,7 @@ export class Cline {
 
 	// checkpoints
 	private enableCheckpoints: boolean
-	private checkpointStorage: "task" | "workspace"
+	private checkpointStorage: CheckpointStorage
 	private checkpointService?: RepoPerTaskCheckpointService | RepoPerWorkspaceCheckpointService
 
 	// streaming

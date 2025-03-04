@@ -79,6 +79,7 @@ describe("mergeExtensionState", () => {
 			taskHistory: [],
 			shouldShowAnnouncement: false,
 			enableCheckpoints: true,
+			checkpointStorage: "task",
 			preferredLanguage: "English",
 			writeDelayMs: 1000,
 			requestDelaySeconds: 5,

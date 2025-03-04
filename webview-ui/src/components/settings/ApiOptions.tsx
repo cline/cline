@@ -37,7 +37,6 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import { ModelInfoView } from "./ModelInfoView"
-import { DROPDOWN_Z_INDEX } from "./styles"
 import { ModelPicker } from "./ModelPicker"
 import { TemperatureControl } from "./TemperatureControl"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
@@ -242,7 +241,6 @@ const ApiOptions = ({
 					id="api-provider"
 					value={selectedProvider}
 					onChange={handleInputChange("apiProvider", dropdownEventTransform)}
-					style={{ minWidth: 130, position: "relative", zIndex: DROPDOWN_Z_INDEX + 1 }}
 					options={[
 						{ value: "openrouter", label: "OpenRouter" },
 						{ value: "anthropic", label: "Anthropic" },
