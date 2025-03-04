@@ -7,6 +7,7 @@ import {
 	defaultModeSlug,
 	ModeConfig,
 	getModeBySlug,
+	getGroupName,
 } from "../../shared/modes"
 import { DiffStrategy } from "../diff/DiffStrategy"
 import { McpHub } from "../../services/mcp/McpHub"
@@ -50,14 +51,16 @@ async function generatePrompt(
 	// If diff is disabled, don't pass the diffStrategy
 	const effectiveDiffStrategy = diffEnabled ? diffStrategy : undefined
 
-	const [mcpServersSection, modesSection] = await Promise.all([
-		getMcpServersSection(mcpHub, effectiveDiffStrategy, enableMcpServerCreation),
-		getModesSection(context),
-	])
-
 	// Get the full mode config to ensure we have the role definition
 	const modeConfig = getModeBySlug(mode, customModeConfigs) || modes.find((m) => m.slug === mode) || modes[0]
 	const roleDefinition = promptComponent?.roleDefinition || modeConfig.roleDefinition
+
+	const [modesSection, mcpServersSection] = await Promise.all([
+		getModesSection(context),
+		modeConfig.groups.some((groupEntry) => getGroupName(groupEntry) === "mcp")
+			? getMcpServersSection(mcpHub, effectiveDiffStrategy, enableMcpServerCreation)
+			: Promise.resolve(""),
+	])
 
 	const basePrompt = `${roleDefinition}
 

@@ -96,6 +96,7 @@ export interface WebviewMessage {
 		| "maxOpenTabsContext"
 		| "humanRelayResponse"
 		| "humanRelayCancel"
+		| "browserToolEnabled"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

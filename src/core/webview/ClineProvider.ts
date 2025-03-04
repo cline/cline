@@ -1234,6 +1234,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("maxOpenTabsContext", tabCount)
 						await this.postStateToWebview()
 						break
+					case "browserToolEnabled":
+						await this.updateGlobalState("browserToolEnabled", message.bool ?? true)
+						await this.postStateToWebview()
+						break
 					case "enhancementApiConfigId":
 						await this.updateGlobalState("enhancementApiConfigId", message.text)
 						await this.postStateToWebview()
@@ -2051,6 +2055,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalEnabled,
 			experiments,
 			maxOpenTabsContext,
+			browserToolEnabled,
 		} = await this.getState()
 
 		const allowedCommands = vscode.workspace.getConfiguration("roo-cline").get<string[]>("allowedCommands") || []
@@ -2104,6 +2109,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mcpServers: this.mcpHub?.getAllServers() ?? [],
 			maxOpenTabsContext: maxOpenTabsContext ?? 20,
 			cwd: cwd,
+			browserToolEnabled: browserToolEnabled ?? true,
 		}
 	}
 
@@ -2243,6 +2249,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			modelMaxTokens,
 			modelMaxThinkingTokens,
 			maxOpenTabsContext,
+			browserToolEnabled,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -2327,6 +2334,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("modelMaxTokens") as Promise<number | undefined>,
 			this.getGlobalState("anthropicThinking") as Promise<number | undefined>,
 			this.getGlobalState("maxOpenTabsContext") as Promise<number | undefined>,
+			this.getGlobalState("browserToolEnabled") as Promise<boolean | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2460,6 +2468,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			customModes,
 			maxOpenTabsContext: maxOpenTabsContext ?? 20,
 			openRouterUseMiddleOutTransform: openRouterUseMiddleOutTransform ?? true,
+			browserToolEnabled: browserToolEnabled ?? true,
 		}
 	}
 

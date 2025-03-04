@@ -1210,8 +1210,8 @@ const ApiOptions = ({
 								color: "var(--vscode-errorForeground)",
 								fontWeight: 500,
 							}}>
-							Note: This is a very experimental integration and may not work as expected. Please report
-							any issues to the Roo-Code GitHub repository.
+							Note: This is a very experimental integration and provider support will vary. If you get an
+							error about a model not being supported, that's an issue on the provider's end.
 						</p>
 					</div>
 				</div>

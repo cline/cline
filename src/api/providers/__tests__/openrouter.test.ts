@@ -72,7 +72,7 @@ describe("OpenRouterHandler", () => {
 			openRouterModelId: "test-model",
 			openRouterModelInfo: {
 				...mockOpenRouterModelInfo,
-				maxTokens: 64_000,
+				maxTokens: 128_000,
 				thinking: true,
 			},
 			modelMaxTokens: 32_768,

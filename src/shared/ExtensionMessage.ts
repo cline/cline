@@ -48,6 +48,7 @@ export interface ExtensionMessage {
 		| "showHumanRelayDialog"
 		| "humanRelayResponse"
 		| "humanRelayCancel"
+		| "browserToolEnabled"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -106,6 +107,7 @@ export interface ExtensionState {
 	alwaysAllowMcp?: boolean
 	alwaysApproveResubmit?: boolean
 	alwaysAllowModeSwitch?: boolean
+	browserToolEnabled?: boolean
 	requestDelaySeconds: number
 	rateLimitSeconds: number // Minimum time between successive requests (0 = disabled)
 	uriScheme?: string
