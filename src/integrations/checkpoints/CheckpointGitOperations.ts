@@ -89,8 +89,6 @@ export class GitOperations {
 		await git.addConfig("commit.gpgSign", "false")
 		await git.addConfig("user.name", "Cline Checkpoint")
 		await git.addConfig("user.email", "checkpoint@cline.bot")
-		await git.addConfig("core.quotePath", "false")
-		await git.addConfig("core.precomposeunicode", "true")
 
 		// Set up LFS patterns
 		const lfsPatterns = await getLfsPatterns(cwd)
@@ -253,18 +251,15 @@ export class GitOperations {
 				throw new Error("Global storage uri is invalid")
 			}
 
-			// First try to handle branch-per-task checkpoint
+			// Handle both active and inactive tasks
 			let workingDir: string
 			if (historyItem.shadowGitConfigWorkTree) {
 				workingDir = historyItem.shadowGitConfigWorkTree
 			} else {
-				// Try to determine working directory from current state
 				workingDir = await getWorkingDirectory()
 			}
 
-			const cwdHash = hashWorkingDir(workingDir)
-			const checkpointsDir = path.join(globalStoragePath, "checkpoints", cwdHash)
-			const gitPath = path.join(checkpointsDir, ".git")
+			const gitPath = path.join(globalStoragePath, "checkpoints", hashWorkingDir(workingDir), ".git")
 
 			if (await fileExistsAtPath(gitPath)) {
 				console.debug(`Found branch-per-task git repository at ${gitPath}`)
@@ -408,24 +403,8 @@ export class GitOperations {
 			await this.renameNestedGitRepos(true)
 			console.info("Starting checkpoint add operation...")
 
-			// Configure git for unicode characters. May not be needed anymore since we are no longer passing an array.
-			// await git.addConfig("core.quotePath", "false")
-			// await git.addConfig("core.precomposeunicode", "true")
-
 			try {
 				await git.add(".")
-
-				// // Get count of staged files for reporting
-				// const status = await git.status()
-				// const fileCount = status.staged.length
-
-				// if (fileCount === 0) {
-				// 	console.info("No files to add to checkpoint")
-				// } else {
-				// 	console.info(`Added ${fileCount} files to checkpoint`)
-				// }
-
-				// console.info("Checkpoint add operation completed successfully")
 				return { success: true }
 			} catch (error) {
 				console.error("Checkpoint add operation failed:", error)
