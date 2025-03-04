@@ -8,6 +8,7 @@ import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefau
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
+import { OpenRouterErrorResponse } from "./types"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -162,9 +163,11 @@ export class OpenRouterHandler implements ApiHandler {
 		for await (const chunk of stream) {
 			// openrouter returns an error object instead of the openai sdk throwing an error
 			if ("error" in chunk) {
-				const error = chunk.error as { message?: string; code?: number }
+				const error = chunk.error as OpenRouterErrorResponse["error"]
 				console.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
-				throw new Error(`OpenRouter API Error ${error?.code}: ${error?.message}`)
+				// Include metadata in the error message if available
+				const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
+				throw new Error(`OpenRouter API Error ${error.code}: ${error.message}${metadataStr}`)
 			}
 
 			if (!genId && chunk.id) {
