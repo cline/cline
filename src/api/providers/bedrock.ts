@@ -34,7 +34,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		const stream = await client.messages.create({
 			model: modelId,
-			max_tokens: model.info.maxTokens || 8192,
+			max_tokens: reasoningOn ? 128_000 : model.info.maxTokens || 8192,
 			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 			temperature: reasoningOn ? undefined : 0,
 			system: [

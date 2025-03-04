@@ -132,6 +132,7 @@ export class OpenRouterHandler implements ApiHandler {
 				if (reasoningOn) {
 					temperature = undefined // extended thinking does not support non-1 temperature
 					reasoning = { max_tokens: budget_tokens }
+					maxTokens = 128_000 // Set max tokens to 128k when reasoning is enabled
 				}
 				break
 		}
