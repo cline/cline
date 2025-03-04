@@ -15,7 +15,6 @@ interface StorageProvider {
 
 interface CheckpointAddResult {
 	success: boolean
-	// fileCount: number
 }
 
 /**
