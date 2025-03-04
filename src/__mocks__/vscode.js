@@ -84,6 +84,12 @@ const vscode = {
 			this.uri = uri
 		}
 	},
+	RelativePattern: class {
+		constructor(base, pattern) {
+			this.base = base
+			this.pattern = pattern
+		}
+	},
 }
 
 module.exports = vscode

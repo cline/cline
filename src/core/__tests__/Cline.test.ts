@@ -9,6 +9,9 @@ import * as vscode from "vscode"
 import * as os from "os"
 import * as path from "path"
 
+// Mock RooIgnoreController
+jest.mock("../ignore/RooIgnoreController")
+
 // Mock all MCP-related modules
 jest.mock(
 	"@modelcontextprotocol/sdk/types.js",

@@ -185,6 +185,7 @@ export type ClineSay =
 	| "new_task_started"
 	| "new_task"
 	| "checkpoint_saved"
+	| "rooignore_error"
 
 export interface ClineSayTool {
 	tool:

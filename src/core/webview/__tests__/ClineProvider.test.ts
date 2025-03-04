@@ -1157,6 +1157,7 @@ describe("ClineProvider", () => {
 				true, // diffEnabled
 				experimentDefault,
 				true,
+				undefined, // rooIgnoreInstructions
 			)
 
 			// Run the test again to verify it's consistent
@@ -1210,6 +1211,7 @@ describe("ClineProvider", () => {
 				false, // diffEnabled
 				experimentDefault,
 				true,
+				undefined, // rooIgnoreInstructions
 			)
 		})
 
