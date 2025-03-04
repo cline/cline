@@ -8,10 +8,18 @@ import {
 } from "./dropdown-menu"
 import { cn } from "@/lib/utils"
 
+// Constants for option types
+export enum DropdownOptionType {
+	ITEM = "item",
+	SEPARATOR = "separator",
+	SHORTCUT = "shortcut",
+	ACTION = "action",
+}
 export interface DropdownOption {
 	value: string
 	label: string
 	disabled?: boolean
+	type?: DropdownOptionType // Optional type to specify special behaviors
 }
 
 export interface SelectDropdownProps {
@@ -54,13 +62,16 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 		const displayText = selectedOption?.label || placeholder || ""
 
 		// Handle menu item click
-		const handleSelect = (optionValue: string) => {
-			if (optionValue.endsWith("-action")) {
-				// Handle special actions like "settings-action" or "prompts-action"
-				window.postMessage({ type: "action", action: optionValue.replace("-action", "ButtonClicked") })
+		const handleSelect = (option: DropdownOption) => {
+			// Check if this is an action option by its explicit type
+			if (option.type === DropdownOptionType.ACTION) {
+				window.postMessage({
+					type: "action",
+					action: option.value,
+				})
 				return
 			}
-			onChange(optionValue)
+			onChange(option.value)
 		}
 
 		return (
@@ -76,7 +87,7 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 						triggerClassName,
 					)}
 					style={{
-						width: "100%", // Changed to take full width of parent
+						width: "100%", // Take full width of parent
 						minWidth: "0",
 						maxWidth: "100%",
 					}}>
@@ -106,22 +117,24 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 						contentClassName,
 					)}>
 					{options.map((option, index) => {
-						// Check if this is a separator (typically used for the "────" option)
-						if (option.label.includes("────")) {
+						// Handle separator type
+						if (option.type === DropdownOptionType.SEPARATOR || option.label.includes("────")) {
 							return <DropdownMenuSeparator key={`sep-${index}`} />
 						}
 
-						// Check if this is a disabled label (like the shortcut text)
-						if (option.disabled && shortcutText && option.label.includes(shortcutText)) {
+						// Handle shortcut text type (disabled label for keyboard shortcuts)
+						if (
+							option.type === DropdownOptionType.SHORTCUT ||
+							(option.disabled && shortcutText && option.label.includes(shortcutText))
+						) {
 							return (
-								<div
-									key={`label-${index}`}
-									className="px-2 py-1.5 text-xs font-semibold opacity-60 italic">
+								<div key={`label-${index}`} className="px-2 py-1.5 text-xs opacity-50">
 									{option.label}
 								</div>
 							)
 						}
 
+						// Regular menu items
 						return (
 							<DropdownMenuItem
 								key={`item-${option.value}`}
@@ -130,7 +143,7 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 									"cursor-pointer text-xs focus:bg-vscode-list-hoverBackground focus:text-vscode-list-hoverForeground",
 									option.value === value && "bg-vscode-list-focusBackground",
 								)}
-								onClick={() => handleSelect(option.value)}>
+								onClick={() => handleSelect(option)}>
 								{option.label}
 							</DropdownMenuItem>
 						)

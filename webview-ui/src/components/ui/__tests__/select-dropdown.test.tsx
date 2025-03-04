@@ -1,6 +1,13 @@
 import React, { ReactNode } from "react"
-import { render, screen } from "@testing-library/react"
-import { SelectDropdown } from "../select-dropdown"
+import { render, screen, fireEvent } from "@testing-library/react"
+import { SelectDropdown, DropdownOptionType } from "../select-dropdown"
+
+// Mock window.postMessage
+const postMessageMock = jest.fn()
+Object.defineProperty(window, "postMessage", {
+	writable: true,
+	value: postMessageMock,
+})
 
 // Mock the Radix UI DropdownMenu component and its children
 jest.mock("../dropdown-menu", () => {
@@ -106,5 +113,134 @@ describe("SelectDropdown", () => {
 
 		const trigger = screen.getByTestId("dropdown-trigger")
 		expect(trigger.classList.toString()).toContain("custom-trigger-class")
+	})
+
+	// Tests for the new functionality
+	describe("Option types", () => {
+		it("renders separator options correctly", () => {
+			const optionsWithTypedSeparator = [
+				{ value: "option1", label: "Option 1" },
+				{ value: "sep-1", label: "Separator", type: DropdownOptionType.SEPARATOR },
+				{ value: "option2", label: "Option 2" },
+			]
+
+			render(<SelectDropdown value="option1" options={optionsWithTypedSeparator} onChange={onChangeMock} />)
+
+			// Check for separator
+			const separators = screen.getAllByTestId("dropdown-separator")
+			expect(separators.length).toBe(1)
+		})
+
+		it("renders string separator (backward compatibility) correctly", () => {
+			const optionsWithStringSeparator = [
+				{ value: "option1", label: "Option 1" },
+				{ value: "sep-1", label: "────", disabled: true },
+				{ value: "option2", label: "Option 2" },
+			]
+
+			render(<SelectDropdown value="option1" options={optionsWithStringSeparator} onChange={onChangeMock} />)
+
+			// Check for separator
+			const separators = screen.getAllByTestId("dropdown-separator")
+			expect(separators.length).toBe(1)
+		})
+
+		it("renders shortcut options correctly", () => {
+			const shortcutText = "Ctrl+K"
+			const optionsWithShortcut = [
+				{ value: "shortcut", label: shortcutText, type: DropdownOptionType.SHORTCUT },
+				{ value: "option1", label: "Option 1" },
+			]
+
+			render(
+				<SelectDropdown
+					value="option1"
+					options={optionsWithShortcut}
+					onChange={onChangeMock}
+					shortcutText={shortcutText}
+				/>,
+			)
+
+			// The shortcut text should be rendered as a div, not a dropdown item
+			expect(screen.queryByText(shortcutText)).toBeInTheDocument()
+			const dropdownItems = screen.getAllByTestId("dropdown-item")
+			expect(dropdownItems.length).toBe(1) // Only one regular option
+		})
+
+		it("handles action options correctly", () => {
+			const optionsWithAction = [
+				{ value: "option1", label: "Option 1" },
+				{ value: "settingsButtonClicked", label: "Settings", type: DropdownOptionType.ACTION },
+			]
+
+			render(<SelectDropdown value="option1" options={optionsWithAction} onChange={onChangeMock} />)
+
+			// Get all dropdown items
+			const dropdownItems = screen.getAllByTestId("dropdown-item")
+
+			// Click the action item
+			fireEvent.click(dropdownItems[1])
+
+			// Check that postMessage was called with the correct action
+			expect(postMessageMock).toHaveBeenCalledWith({
+				type: "action",
+				action: "settingsButtonClicked",
+			})
+
+			// The onChange callback should not be called for action items
+			expect(onChangeMock).not.toHaveBeenCalled()
+		})
+
+		it("only treats options with explicit ACTION type as actions", () => {
+			const optionsForTest = [
+				{ value: "option1", label: "Option 1" },
+				// This should be treated as a regular option despite the -action suffix
+				{ value: "settings-action", label: "Regular option with action suffix" },
+				// This should be treated as an action
+				{ value: "settingsButtonClicked", label: "Settings", type: DropdownOptionType.ACTION },
+			]
+
+			render(<SelectDropdown value="option1" options={optionsForTest} onChange={onChangeMock} />)
+
+			// Get all dropdown items
+			const dropdownItems = screen.getAllByTestId("dropdown-item")
+
+			// Click the second option (with action suffix but no ACTION type)
+			fireEvent.click(dropdownItems[1])
+
+			// Should trigger onChange, not postMessage
+			expect(onChangeMock).toHaveBeenCalledWith("settings-action")
+			expect(postMessageMock).not.toHaveBeenCalled()
+
+			// Reset mocks
+			onChangeMock.mockReset()
+			postMessageMock.mockReset()
+
+			// Click the third option (ACTION type)
+			fireEvent.click(dropdownItems[2])
+
+			// Should trigger postMessage with "settingsButtonClicked", not onChange
+			expect(postMessageMock).toHaveBeenCalledWith({
+				type: "action",
+				action: "settingsButtonClicked",
+			})
+			expect(onChangeMock).not.toHaveBeenCalled()
+		})
+
+		it("calls onChange for regular menu items", () => {
+			render(<SelectDropdown value="option1" options={options} onChange={onChangeMock} />)
+
+			// Get all dropdown items
+			const dropdownItems = screen.getAllByTestId("dropdown-item")
+
+			// Click the second option (index 1)
+			fireEvent.click(dropdownItems[1])
+
+			// Check that onChange was called with the correct value
+			expect(onChangeMock).toHaveBeenCalledWith("option2")
+
+			// postMessage should not be called for regular items
+			expect(postMessageMock).not.toHaveBeenCalled()
+		})
 	})
 })

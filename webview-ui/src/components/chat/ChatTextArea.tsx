@@ -16,7 +16,7 @@ import { vscode } from "../../utils/vscode"
 import { WebviewMessage } from "../../../../src/shared/WebviewMessage"
 import { Mode, getAllModes } from "../../../../src/shared/modes"
 import { convertToMentionPath } from "../../utils/path-mentions"
-import { SelectDropdown } from "../ui"
+import { SelectDropdown, DropdownOptionType } from "../ui"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -779,22 +779,32 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								title="Select mode for interaction"
 								options={[
 									// Add the shortcut text as a disabled option at the top
-									{ value: "shortcut", label: modeShortcutText, disabled: true },
+									{
+										value: "shortcut",
+										label: modeShortcutText,
+										disabled: true,
+										type: DropdownOptionType.SHORTCUT,
+									},
 									// Add all modes
 									...getAllModes(customModes).map((mode) => ({
 										value: mode.slug,
 										label: mode.name,
+										type: DropdownOptionType.ITEM,
 									})),
 									// Add separator
-									{ value: "sep-1", label: "────", disabled: true },
+									{
+										value: "sep-1",
+										label: "Separator",
+										type: DropdownOptionType.SEPARATOR,
+									},
 									// Add Edit option
-									{ value: "prompts-action", label: "Edit..." },
+									{
+										value: "promptsButtonClicked",
+										label: "Edit...",
+										type: DropdownOptionType.ACTION,
+									},
 								]}
 								onChange={(value) => {
-									if (value === "prompts-action") {
-										window.postMessage({ type: "action", action: "promptsButtonClicked" })
-										return
-									}
 									setMode(value as Mode)
 									vscode.postMessage({
 										type: "mode",
@@ -822,17 +832,22 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									...(listApiConfigMeta || []).map((config) => ({
 										value: config.name,
 										label: config.name,
+										type: DropdownOptionType.ITEM,
 									})),
 									// Add separator
-									{ value: "sep-1", label: "────", disabled: true },
+									{
+										value: "sep-2",
+										label: "Separator",
+										type: DropdownOptionType.SEPARATOR,
+									},
 									// Add Edit option
-									{ value: "settings-action", label: "Edit..." },
+									{
+										value: "settingsButtonClicked",
+										label: "Edit...",
+										type: DropdownOptionType.ACTION,
+									},
 								]}
 								onChange={(value) => {
-									if (value === "settings-action") {
-										window.postMessage({ type: "action", action: "settingsButtonClicked" })
-										return
-									}
 									vscode.postMessage({
 										type: "loadApiConfiguration",
 										text: value,
@@ -849,7 +864,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						style={{
 							display: "flex",
 							alignItems: "center",
-							gap: "8px", // Reduced from 12px
+							gap: "8px",
 							flexShrink: 0,
 						}}>
 						<div style={{ display: "flex", alignItems: "center" }}>
@@ -860,7 +875,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										color: "var(--vscode-input-foreground)",
 										opacity: 0.5,
 										fontSize: 16.5,
-										marginRight: 6, // Reduced from 10
+										marginRight: 6,
 									}}
 								/>
 							) : (
