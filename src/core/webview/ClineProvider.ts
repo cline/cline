@@ -887,8 +887,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 						if (result.success) {
 							await this.cline?.checkpointDiff(result.data)
-						} else {
-							vscode.window.showErrorMessage("Invalid checkpoint diff payload.")
 						}
 
 						break
@@ -909,8 +907,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							} catch (error) {
 								vscode.window.showErrorMessage("Failed to restore checkpoint.")
 							}
-						} else {
-							vscode.window.showErrorMessage("Invalid checkpoint restore payload.")
 						}
 
 						break
