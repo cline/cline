@@ -58,7 +58,6 @@ export interface ApiHandlerOptions {
 	azureApiVersion?: string
 	openRouterUseMiddleOutTransform?: boolean
 	openAiStreamingEnabled?: boolean
-	setAzureApiVersion?: boolean
 	deepSeekBaseUrl?: string
 	deepSeekApiKey?: string
 	includeMaxTokens?: boolean
@@ -83,12 +82,18 @@ import { GlobalStateKey } from "./globalState"
 
 // Define API configuration keys for dynamic object building
 export const API_CONFIG_KEYS: GlobalStateKey[] = [
-	"apiProvider",
 	"apiModelId",
+	"anthropicBaseUrl",
+	"vsCodeLmModelSelector",
 	"glamaModelId",
 	"glamaModelInfo",
+	"openRouterModelId",
+	"openRouterModelInfo",
+	"openRouterBaseUrl",
 	"awsRegion",
 	"awsUseCrossRegionInference",
+	// "awsUsePromptCache", // NOT exist on GlobalStateKey
+	// "awspromptCacheId", // NOT exist on GlobalStateKey
 	"awsProfile",
 	"awsUseProfile",
 	"vertexProjectId",
@@ -101,24 +106,21 @@ export const API_CONFIG_KEYS: GlobalStateKey[] = [
 	"ollamaBaseUrl",
 	"lmStudioModelId",
 	"lmStudioBaseUrl",
-	"anthropicBaseUrl",
-	"modelMaxThinkingTokens",
-	"mistralCodestralUrl",
+	"lmStudioDraftModelId",
+	"lmStudioSpeculativeDecodingEnabled",
+	"mistralCodestralUrl", // New option for Codestral URL
 	"azureApiVersion",
-	"openAiStreamingEnabled",
-	"openRouterModelId",
-	"openRouterModelInfo",
-	"openRouterBaseUrl",
 	"openRouterUseMiddleOutTransform",
-	"vsCodeLmModelSelector",
+	"openAiStreamingEnabled",
+	// "deepSeekBaseUrl", //  not exist on GlobalStateKey
+	// "includeMaxTokens", // not exist on GlobalStateKey
 	"unboundModelId",
 	"unboundModelInfo",
 	"requestyModelId",
 	"requestyModelInfo",
 	"modelTemperature",
 	"modelMaxTokens",
-	"lmStudioSpeculativeDecodingEnabled",
-	"lmStudioDraftModelId"
+	"modelMaxThinkingTokens",
 ]
 
 // Models
