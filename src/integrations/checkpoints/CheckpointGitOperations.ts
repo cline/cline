@@ -185,12 +185,9 @@ export class GitOperations {
 			console.debug(`Saved current worktree config: ${worktree.value}`)
 
 			try {
-				// Temporarily unset worktree to prevent workspace modifications
-				console.debug("Temporarily unsetting worktree config")
 				await git.raw(["config", "--unset", "core.worktree"])
 
-				// Force discard all changes
-				console.debug("Discarding all changes")
+				// Force discard all changes before we delete the branch
 				await git.reset(["--hard"])
 				await git.clean("f", ["-d"]) // Clean mode 'f' for force, -d for directories
 
@@ -198,15 +195,14 @@ export class GitOperations {
 				const defaultBranch = branches.all.includes("main") ? "main" : "master"
 				console.debug(`Using ${defaultBranch} as default branch`)
 
-				// Switch to default branch and delete branch
+				// Switch to default branch and delete target branch
 				console.debug(`Attempting to force switch to ${defaultBranch} branch`)
 				await git.checkout([defaultBranch, "--force"])
 
-				// Verify the switch completed
+				// Verify the switch completed, sometimes this takes a second
 				let retries = 3
 				while (retries > 0) {
 					const newBranch = await git.revparse(["--abbrev-ref", "HEAD"])
-					console.debug(`Verifying branch switch - current branch: ${newBranch}, attempts left: ${retries}`)
 					if (newBranch === defaultBranch) {
 						console.debug(`Successfully switched to ${defaultBranch} branch`)
 						break
@@ -223,13 +219,12 @@ export class GitOperations {
 			} finally {
 				// Restore the worktree config
 				if (worktree.value) {
-					console.debug(`Restoring worktree config to: ${worktree.value}`)
 					await git.addConfig("core.worktree", worktree.value)
 				}
 			}
 		} else {
 			// If we're not on the branch, we can safely delete it
-			console.info(`Directly deleting branch ${branchName} since we're not on it`)
+			console.info(`Directly deleting branch ${branchName}`)
 			await git.raw(["branch", "-D", branchName])
 			console.debug(`Successfully deleted branch: ${branchName}`)
 		}
