@@ -1133,6 +1133,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={"e.g. llama3.1"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.ollamaApiOptionsCtxNum || "32768"}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("ollamaApiOptionsCtxNum")}
+						placeholder={"e.g. 32768"}>
+						<span style={{ fontWeight: 500 }}>Model Context Window</span>
+					</VSCodeTextField>
 					{ollamaModels.length > 0 && (
 						<VSCodeRadioGroup
 							value={
