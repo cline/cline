@@ -30,13 +30,24 @@ export class LmStudioHandler extends BaseProvider implements SingleCompletionHan
 		]
 
 		try {
-			const stream = await this.client.chat.completions.create({
+			// Create params object with optional draft model
+			const params: any = {
 				model: this.getModel().id,
 				messages: openAiMessages,
 				temperature: this.options.modelTemperature ?? LMSTUDIO_DEFAULT_TEMPERATURE,
 				stream: true,
-			})
-			for await (const chunk of stream) {
+			}
+
+			// Add draft model if speculative decoding is enabled and a draft model is specified
+			if (this.options.lmStudioSpeculativeDecodingEnabled && this.options.lmStudioDraftModelId) {
+				params.draft_model = this.options.lmStudioDraftModelId
+			}
+
+			const results = await this.client.chat.completions.create(params)
+
+			// Stream handling
+			// @ts-ignore
+			for await (const chunk of results) {
 				const delta = chunk.choices[0]?.delta
 				if (delta?.content) {
 					yield {
@@ -62,12 +73,20 @@ export class LmStudioHandler extends BaseProvider implements SingleCompletionHan
 
 	async completePrompt(prompt: string): Promise<string> {
 		try {
-			const response = await this.client.chat.completions.create({
+			// Create params object with optional draft model
+			const params: any = {
 				model: this.getModel().id,
 				messages: [{ role: "user", content: prompt }],
 				temperature: this.options.modelTemperature ?? LMSTUDIO_DEFAULT_TEMPERATURE,
 				stream: false,
-			})
+			}
+
+			// Add draft model if speculative decoding is enabled and a draft model is specified
+			if (this.options.lmStudioSpeculativeDecodingEnabled && this.options.lmStudioDraftModelId) {
+				params.draft_model = this.options.lmStudioDraftModelId
+			}
+
+			const response = await this.client.chat.completions.create(params)
 			return response.choices[0]?.message.content || ""
 		} catch (error) {
 			throw new Error(

@@ -1676,6 +1676,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			modelTemperature,
 			modelMaxTokens,
 			modelMaxThinkingTokens,
+			lmStudioDraftModelId,
+			lmStudioSpeculativeDecodingEnabled,
 		} = apiConfiguration
 		await Promise.all([
 			this.updateGlobalState("apiProvider", apiProvider),
@@ -1725,6 +1727,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.updateGlobalState("modelTemperature", modelTemperature),
 			this.updateGlobalState("modelMaxTokens", modelMaxTokens),
 			this.updateGlobalState("anthropicThinking", modelMaxThinkingTokens),
+			this.updateGlobalState("lmStudioDraftModelId", lmStudioDraftModelId),
+			this.updateGlobalState("lmStudioSpeculativeDecodingEnabled", lmStudioSpeculativeDecodingEnabled),
 		])
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
@@ -2221,6 +2225,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			modelMaxThinkingTokens,
 			maxOpenTabsContext,
 			browserToolEnabled,
+			lmStudioSpeculativeDecodingEnabled,
+			lmStudioDraftModelId,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -2306,6 +2312,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("anthropicThinking") as Promise<number | undefined>,
 			this.getGlobalState("maxOpenTabsContext") as Promise<number | undefined>,
 			this.getGlobalState("browserToolEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("lmStudioSpeculativeDecodingEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("lmStudioDraftModelId") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2371,6 +2379,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				modelTemperature,
 				modelMaxTokens,
 				modelMaxThinkingTokens,
+				lmStudioSpeculativeDecodingEnabled,
+				lmStudioDraftModelId,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

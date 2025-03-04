@@ -49,6 +49,8 @@ export interface ApiHandlerOptions {
 	ollamaBaseUrl?: string
 	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
+	lmStudioDraftModelId?: string
+	lmStudioSpeculativeDecodingEnabled?: boolean
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	mistralApiKey?: string
