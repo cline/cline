@@ -47,7 +47,7 @@ import {
 import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
 import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessage"
-import { calculateApiCost } from "../utils/cost"
+import { calculateApiCostAnthropic } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
@@ -59,13 +59,13 @@ import { formatResponse } from "./prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { getNextTruncationRange, getTruncatedMessages } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
+import { telemetryService } from "../services/telemetry/TelemetryService"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
-type UserContent = Array<
-	Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolUseBlockParam | Anthropic.ToolResultBlockParam
->
+type UserContent = Array<Anthropic.ContentBlockParam>
 
 export class Cline {
 	readonly taskId: string
@@ -353,15 +353,17 @@ export class Cline {
 					break
 			}
 
-			// Set isCheckpointCheckedOut flag on the message
-			// Find all checkpoint messages before this one
-			const checkpointMessages = this.clineMessages.filter((m) => m.say === "checkpoint_created")
-			const currentMessageIndex = checkpointMessages.findIndex((m) => m.ts === messageTs)
+			if (restoreType !== "task") {
+				// Set isCheckpointCheckedOut flag on the message
+				// Find all checkpoint messages before this one
+				const checkpointMessages = this.clineMessages.filter((m) => m.say === "checkpoint_created")
+				const currentMessageIndex = checkpointMessages.findIndex((m) => m.ts === messageTs)
 
-			// Set isCheckpointCheckedOut to false for all checkpoint messages
-			checkpointMessages.forEach((m, i) => {
-				m.isCheckpointCheckedOut = i === currentMessageIndex
-			})
+				// Set isCheckpointCheckedOut to false for all checkpoint messages
+				checkpointMessages.forEach((m, i) => {
+					m.isCheckpointCheckedOut = i === currentMessageIndex
+				})
+			}
 
 			await this.saveClineMessages()
 
@@ -1075,67 +1077,74 @@ export class Cline {
 	// Checkpoints
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
-		const commitHash = await this.checkpointTracker?.commit() // silently fails for now
 		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
 		this.clineMessages.forEach((message) => {
 			if (message.say === "checkpoint_created") {
 				message.isCheckpointCheckedOut = false
 			}
 		})
-		if (commitHash) {
-			if (!isAttemptCompletionMessage) {
-				// For non-attempt completion we just say checkpoints
-				await this.say("checkpoint_created", commitHash)
+
+		if (!isAttemptCompletionMessage) {
+			// For non-attempt completion we just say checkpoints
+			await this.say("checkpoint_created")
+			this.checkpointTracker?.commit().then(async (commitHash) => {
 				const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
 				if (lastCheckpointMessage) {
 					lastCheckpointMessage.lastCheckpointHash = commitHash
 					await this.saveClineMessages()
 				}
-			} else {
-				// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
-				const lastCompletionResultMessage = findLast(
-					this.clineMessages,
-					(m) => m.say === "completion_result" || m.ask === "completion_result",
-				)
-				if (lastCompletionResultMessage) {
-					lastCompletionResultMessage.lastCheckpointHash = commitHash
-					await this.saveClineMessages()
-				}
+			}) // silently fails for now
+
+			//
+		} else {
+			// attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
+			const commitHash = await this.checkpointTracker?.commit()
+			// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
+			const lastCompletionResultMessage = findLast(
+				this.clineMessages,
+				(m) => m.say === "completion_result" || m.ask === "completion_result",
+			)
+			if (lastCompletionResultMessage) {
+				lastCompletionResultMessage.lastCheckpointHash = commitHash
+				await this.saveClineMessages()
 			}
-
-			// Previously we checkpointed every message, but this is excessive and unnecessary.
-			// // Start from the end and work backwards until we find a tool use or another message with a hash
-			// for (let i = this.clineMessages.length - 1; i >= 0; i--) {
-			// 	const message = this.clineMessages[i]
-			// 	if (message.lastCheckpointHash) {
-			// 		// Found a message with a hash, so we can stop
-			// 		break
-			// 	}
-			// 	// Update this message with a hash
-			// 	message.lastCheckpointHash = commitHash
-
-			// 	// We only care about adding the hash to the last tool use (we don't want to add this hash to every prior message ie for tasks pre-checkpoint)
-			// 	const isToolUse =
-			// 		message.say === "tool" ||
-			// 		message.ask === "tool" ||
-			// 		message.say === "command" ||
-			// 		message.ask === "command" ||
-			// 		message.say === "completion_result" ||
-			// 		message.ask === "completion_result" ||
-			// 		message.ask === "followup" ||
-			// 		message.say === "use_mcp_server" ||
-			// 		message.ask === "use_mcp_server" ||
-			// 		message.say === "browser_action" ||
-			// 		message.say === "browser_action_launch" ||
-			// 		message.ask === "browser_action_launch"
-
-			// 	if (isToolUse) {
-			// 		break
-			// 	}
-			// }
-			// // Save the updated messages
-			// await this.saveClineMessages()
 		}
+
+		// if (commitHash) {
+
+		// Previously we checkpointed every message, but this is excessive and unnecessary.
+		// // Start from the end and work backwards until we find a tool use or another message with a hash
+		// for (let i = this.clineMessages.length - 1; i >= 0; i--) {
+		// 	const message = this.clineMessages[i]
+		// 	if (message.lastCheckpointHash) {
+		// 		// Found a message with a hash, so we can stop
+		// 		break
+		// 	}
+		// 	// Update this message with a hash
+		// 	message.lastCheckpointHash = commitHash
+
+		// 	// We only care about adding the hash to the last tool use (we don't want to add this hash to every prior message ie for tasks pre-checkpoint)
+		// 	const isToolUse =
+		// 		message.say === "tool" ||
+		// 		message.ask === "tool" ||
+		// 		message.say === "command" ||
+		// 		message.ask === "command" ||
+		// 		message.say === "completion_result" ||
+		// 		message.ask === "completion_result" ||
+		// 		message.ask === "followup" ||
+		// 		message.say === "use_mcp_server" ||
+		// 		message.ask === "use_mcp_server" ||
+		// 		message.say === "browser_action" ||
+		// 		message.say === "browser_action_launch" ||
+		// 		message.ask === "browser_action_launch"
+
+		// 	if (isToolUse) {
+		// 		break
+		// 	}
+		// }
+		// // Save the updated messages
+		// await this.saveClineMessages()
+		// }
 	}
 
 	// Tools
@@ -1267,6 +1276,13 @@ export class Cline {
 		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, mcpHub, this.browserSettings)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
+		const preferredLanguage = getLanguageKey(
+			vscode.workspace.getConfiguration("cline").get<LanguageDisplay>("preferredLanguage"),
+		)
+		const preferredLanguageInstructions =
+			preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS
+				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
+				: ""
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
 		if (await fileExistsAtPath(clineRulesFilePath)) {
@@ -1286,9 +1302,19 @@ export class Cline {
 			clineIgnoreInstructions = `# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${clineIgnoreContent}\n.clineignore`
 		}
 
-		if (settingsCustomInstructions || clineRulesFileInstructions) {
+		if (
+			settingsCustomInstructions ||
+			clineRulesFileInstructions ||
+			clineIgnoreInstructions ||
+			preferredLanguageInstructions
+		) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addUserInstructions(settingsCustomInstructions, clineRulesFileInstructions, clineIgnoreInstructions)
+			systemPrompt += addUserInstructions(
+				settingsCustomInstructions,
+				clineRulesFileInstructions,
+				clineIgnoreInstructions,
+				preferredLanguageInstructions,
+			)
 		}
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
@@ -1539,33 +1565,44 @@ export class Cline {
 					this.didAlreadyUseTool = true
 				}
 
+				// The user can approve, reject, or provide feedback (rejection). However the user may also send a message along with an approval, in which case we add a separate user message with this feedback.
+				const pushAdditionalToolFeedback = (feedback?: string, images?: string[]) => {
+					if (!feedback && !images) {
+						return
+					}
+					const content = formatResponse.toolResult(
+						`The user provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`,
+						images,
+					)
+					if (typeof content === "string") {
+						this.userMessageContent.push({
+							type: "text",
+							text: content,
+						})
+					} else {
+						this.userMessageContent.push(...content)
+					}
+				}
+
 				const askApproval = async (type: ClineAsk, partialMessage?: string) => {
 					const { response, text, images } = await this.ask(type, partialMessage, false)
 					if (response !== "yesButtonClicked") {
-						// User did NOT approve (rejected)
-						if (response === "messageResponse") {
-							// Rejection WITH feedback
-							await this.say("user_feedback", text, images)
-							pushToolResult(formatResponse.toolResult(formatResponse.toolDeniedWithFeedback(text), images))
-
-							this.didRejectTool = true
-							return false
-						}
-						// Rejection WITHOUT explicit feedback
+						// User pressed reject button or responded with a message, which we treat as a rejection
 						pushToolResult(formatResponse.toolDenied())
-
+						if (text || images?.length) {
+							pushAdditionalToolFeedback(text, images)
+							await this.say("user_feedback", text, images)
+						}
 						this.didRejectTool = true // Prevent further tool uses in this message
 						return false
+					} else {
+						// User hit the approve button, and may have provided feedback
+						if (text || images?.length) {
+							pushAdditionalToolFeedback(text, images)
+							await this.say("user_feedback", text, images)
+						}
+						return true
 					}
-
-					// Handle yesButtonClicked with text (Acceptance WITH feedback)
-					if (text) {
-						await this.say("user_feedback", text, images)
-						pushToolResult(formatResponse.toolResult(formatResponse.toolApprovedWithFeedback(text), images)) // Structured feedback to model on approval
-					}
-
-					// User approved without feedback
-					return true
 				}
 
 				const showNotificationForApprovalIfAutoApprovalEnabled = (message: string) => {
@@ -1804,37 +1841,23 @@ export class Cline {
 									let didApprove = true
 									const { response, text, images } = await this.ask("tool", completeMessage, false)
 									if (response !== "yesButtonClicked") {
-										// User did NOT approve (rejected)
-
+										// User either sent a message or pressed reject button
 										// TODO: add similar context for other tool denial responses, to emphasize ie that a command was not run
 										const fileDeniedNote = fileExists
 											? "The file was not updated, and maintains its original contents."
 											: "The file was not created."
-										if (response === "messageResponse") {
-											// Rejection WITH feedback
+										pushToolResult(`The user denied this operation. ${fileDeniedNote}`)
+										if (text || images?.length) {
+											pushAdditionalToolFeedback(text, images)
 											await this.say("user_feedback", text, images)
-											pushToolResult(
-												formatResponse.toolResult(
-													`The user denied this operation. ${fileDeniedNote}\nThe user provided the following feedback:\n<feedback>\n${text}\n</feedback>`,
-													images,
-												),
-											)
-											this.didRejectTool = true
-											didApprove = false
-										} else {
-											pushToolResult(`The user denied this operation. ${fileDeniedNote}`)
-											this.didRejectTool = true
-											didApprove = false
 										}
+										this.didRejectTool = true
+										didApprove = false
 									} else {
-										// User approved
-
-										// Handle yesButtonClicked with text (Acceptance WITH feedback)
-										if (text) {
+										// User hit the approve button, and may have provided feedback
+										if (text || images?.length) {
+											pushAdditionalToolFeedback(text, images)
 											await this.say("user_feedback", text, images)
-											pushToolResult(
-												formatResponse.toolResult(formatResponse.toolApprovedWithFeedback(text), images),
-											)
 										}
 									}
 
@@ -2712,13 +2735,15 @@ export class Cline {
 								// }
 
 								this.isAwaitingPlanResponse = true
-								const { text, images } = await this.ask("plan_mode_response", response, false)
+								let { text, images } = await this.ask("plan_mode_response", response, false)
 								this.isAwaitingPlanResponse = false
 
+								// webview invoke sendMessage will send this marker in order to put webview into the proper state (responding to an ask) and as a flag to extension that the user switched to ACT mode.
+								if (text === "PLAN_MODE_TOGGLE_RESPONSE") {
+									text = ""
+								}
+
 								if (this.didRespondToPlanAskBySwitchingMode) {
-									if (text) {
-										await this.say("user_feedback", text ?? "", images)
-									}
 									pushToolResult(
 										formatResponse.toolResult(
 											`[The user has switched to ACT MODE, so you may now proceed with the task.]` +
@@ -2728,6 +2753,13 @@ export class Cline {
 											images,
 										),
 									)
+								} else {
+									// if we didn't switch to ACT MODE, then we can just send the user_feedback message
+									pushToolResult(formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images))
+								}
+
+								if (text || images?.length) {
+									await this.say("user_feedback", text ?? "", images)
 								}
 
 								//
@@ -2952,7 +2984,7 @@ export class Cline {
 				"mistake_limit_reached",
 				this.api.getModel().id.includes("claude")
 					? `This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
-					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 3.5 Sonnet for its advanced agentic coding capabilities.",
+					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 3.7 Sonnet for its advanced agentic coding capabilities.",
 			)
 			if (response === "messageResponse") {
 				userContent.push(
@@ -3065,7 +3097,13 @@ export class Cline {
 					cacheReads: cacheReadTokens,
 					cost:
 						totalCost ??
-						calculateApiCost(this.api.getModel().info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens),
+						calculateApiCostAnthropic(
+							this.api.getModel().info,
+							inputTokens,
+							outputTokens,
+							cacheWriteTokens,
+							cacheReadTokens,
+						),
 					cancelReason,
 					streamingFailedMessage,
 				} satisfies ClineApiReqInfo)
@@ -3131,7 +3169,6 @@ export class Cline {
 			try {
 				for await (const chunk of stream) {
 					if (!chunk) {
-						// Sometimes chunk is undefined, no idea that can cause it, but this workaround seems to fix it
 						continue
 					}
 					switch (chunk.type) {

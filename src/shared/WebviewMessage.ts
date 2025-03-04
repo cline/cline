@@ -22,6 +22,7 @@ export interface WebviewMessage {
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
 		| "openImage"
+		| "openInBrowser"
 		| "openFile"
 		| "openMention"
 		| "cancelTask"
@@ -29,9 +30,10 @@ export interface WebviewMessage {
 		| "refreshOpenAiModels"
 		| "openMcpSettings"
 		| "restartMcpServer"
+		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
-		| "chatSettings"
+		| "togglePlanActMode"
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
@@ -43,6 +45,17 @@ export interface WebviewMessage {
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "subscribeEmail"
+		| "fetchMcpMarketplace"
+		| "downloadMcp"
+		| "silentlyRefreshMcpMarketplace"
+		| "searchCommits"
+		| "showMcpView"
+		| "fetchLatestMcpServersFromHub"
+		| "telemetrySetting"
+		| "openSettings"
+		| "updateMcpTimeout"
+		| "fetchOpenGraphData"
+		| "checkIsImageUrl"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -55,11 +68,15 @@ export interface WebviewMessage {
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
-
+	mcpId?: string
+	timeout?: number
 	// For toggleToolAutoApprove
 	serverName?: string
 	toolName?: string
 	autoApprove?: boolean
+
+	// For openInBrowser
+	url?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

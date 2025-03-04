@@ -8,6 +8,7 @@ import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefau
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
+import { OpenRouterErrorResponse } from "./types"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -38,6 +39,11 @@ export class OpenRouterHandler implements ApiHandler {
 		// prompt caching: https://openrouter.ai/docs/prompt-caching
 		// this is specifically for claude models (some models may 'support prompt caching' automatically without this)
 		switch (model.id) {
+			case "anthropic/claude-3.7-sonnet":
+			case "anthropic/claude-3.7-sonnet:beta":
+			case "anthropic/claude-3.7-sonnet:thinking":
+			case "anthropic/claude-3-7-sonnet":
+			case "anthropic/claude-3-7-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet-20240620":
@@ -89,6 +95,11 @@ export class OpenRouterHandler implements ApiHandler {
 		// (models usually default to max tokens allowed)
 		let maxTokens: number | undefined
 		switch (model.id) {
+			case "anthropic/claude-3.7-sonnet":
+			case "anthropic/claude-3.7-sonnet:beta":
+			case "anthropic/claude-3.7-sonnet:thinking":
+			case "anthropic/claude-3-7-sonnet":
+			case "anthropic/claude-3-7-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet":
 			case "anthropic/claude-3.5-sonnet:beta":
 			case "anthropic/claude-3.5-sonnet-20240620":
@@ -101,16 +112,29 @@ export class OpenRouterHandler implements ApiHandler {
 				break
 		}
 
-		let temperature = 0
+		let temperature: number | undefined = 0
 		let topP: number | undefined = undefined
-		// Handle models based on deepseek-r1
 		if (this.getModel().id.startsWith("deepseek/deepseek-r1") || this.getModel().id === "perplexity/sonar-reasoning") {
-			// Recommended temperature for DeepSeek reasoning models
-			temperature = 0.6
-			// DeepSeek highly recommends using user instead of system role
-			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
-			// Some provider support topP and 0.95 is value that Deepseek used in their benchmarks
+			// Recommended values from DeepSeek
+			temperature = 0.7
 			topP = 0.95
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		}
+
+		let reasoning: { max_tokens: number } | undefined = undefined
+		switch (model.id) {
+			case "anthropic/claude-3.7-sonnet":
+			case "anthropic/claude-3.7-sonnet:beta":
+			case "anthropic/claude-3.7-sonnet:thinking":
+			case "anthropic/claude-3-7-sonnet":
+			case "anthropic/claude-3-7-sonnet:beta":
+				let budget_tokens = this.options.thinkingBudgetTokens || 0
+				const reasoningOn = budget_tokens !== 0 ? true : false
+				if (reasoningOn) {
+					temperature = undefined // extended thinking does not support non-1 temperature
+					reasoning = { max_tokens: budget_tokens }
+				}
+				break
 		}
 
 		// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
@@ -131,6 +155,7 @@ export class OpenRouterHandler implements ApiHandler {
 			transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 			include_reasoning: true,
 			...(model.id === "openai/o3-mini" ? { reasoning_effort: this.options.o3MiniReasoningEffort || "medium" } : {}),
+			...(reasoning ? { reasoning } : {}),
 		})
 
 		let genId: string | undefined
@@ -138,9 +163,11 @@ export class OpenRouterHandler implements ApiHandler {
 		for await (const chunk of stream) {
 			// openrouter returns an error object instead of the openai sdk throwing an error
 			if ("error" in chunk) {
-				const error = chunk.error as { message?: string; code?: number }
+				const error = chunk.error as OpenRouterErrorResponse["error"]
 				console.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
-				throw new Error(`OpenRouter API Error ${error?.code}: ${error?.message}`)
+				// Include metadata in the error message if available
+				const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
+				throw new Error(`OpenRouter API Error ${error.code}: ${error.message}${metadataStr}`)
 			}
 
 			if (!genId && chunk.id) {

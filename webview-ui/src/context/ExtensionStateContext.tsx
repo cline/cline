@@ -4,11 +4,12 @@ import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../src/shared/AutoApproval
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "../../../src/shared/ExtensionMessage"
 import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
-import { McpServer } from "../../../src/shared/mcp"
+import { McpMarketplaceCatalog, McpServer } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
+import { TelemetrySetting } from "../../../src/shared/TelemetrySetting"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -17,9 +18,11 @@ interface ExtensionStateContextType extends ExtensionState {
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	mcpServers: McpServer[]
+	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
+	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 }
 
@@ -38,6 +41,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		chatSettings: DEFAULT_CHAT_SETTINGS,
 		isLoggedIn: false,
 		platform: DEFAULT_PLATFORM,
+		telemetrySetting: "unset",
+		vscMachineId: "",
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -49,7 +54,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
-
+	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
@@ -74,6 +79,8 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.qwenApiKey,
 							config.mistralApiKey,
 							config.vsCodeLmModelSelector,
+							config.asksageApiKey,
+							config.xaiApiKey,
 						].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)
@@ -121,6 +128,12 @@ export const ExtensionStateContextProvider: React.FC<{
 				setMcpServers(message.mcpServers ?? [])
 				break
 			}
+			case "mcpMarketplaceCatalog": {
+				if (message.mcpMarketplaceCatalog) {
+					setMcpMarketplaceCatalog(message.mcpMarketplaceCatalog)
+				}
+				break
+			}
 		}
 	}, [])
 
@@ -138,6 +151,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		openRouterModels,
 		openAiModels,
 		mcpServers,
+		mcpMarketplaceCatalog,
 		filePaths,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
@@ -148,6 +162,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				customInstructions: value,
+			})),
+		setTelemetrySetting: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				telemetrySetting: value,
 			})),
 		setShowAnnouncement: (value) =>
 			setState((prevState) => ({

@@ -1,11 +1,13 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
+import { GitCommit } from "../utils/git"
 import { ApiConfiguration, ModelInfo } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
-import { McpServer } from "./mcp"
+import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
+import { TelemetrySetting } from "./TelemetrySetting"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -26,6 +28,11 @@ export interface ExtensionMessage {
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
 		| "emailSubscribed"
+		| "mcpMarketplaceCatalog"
+		| "mcpDownloadDetails"
+		| "commitSearchResults"
+		| "openGraphData"
+		| "isImageUrlResult"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -46,6 +53,20 @@ export interface ExtensionMessage {
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
+	mcpMarketplaceCatalog?: McpMarketplaceCatalog
+	error?: string
+	mcpDownloadDetails?: McpDownloadResponse
+	commits?: GitCommit[]
+	openGraphData?: {
+		title?: string
+		description?: string
+		image?: string
+		url?: string
+		siteName?: string
+		type?: string
+	}
+	url?: string
+	isImage?: boolean
 }
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
@@ -72,6 +93,9 @@ export interface ExtensionState {
 		email: string | null
 		photoURL: string | null
 	}
+	mcpMarketplaceEnabled?: boolean
+	telemetrySetting: TelemetrySetting
+	vscMachineId: string
 }
 
 export interface ClineMessage {
