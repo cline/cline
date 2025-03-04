@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 import { ClineProvider } from "../core/webview/ClineProvider"
-import { TerminalManager } from "../integrations/terminal/TerminalManager"
+import { Terminal } from "../integrations/terminal/Terminal"
 
 const TERMINAL_COMMAND_IDS = {
 	ADD_TO_CONTEXT: "roo-cline.terminalAddToContext",
@@ -11,21 +11,12 @@ const TERMINAL_COMMAND_IDS = {
 } as const
 
 export const registerTerminalActions = (context: vscode.ExtensionContext) => {
-	const terminalManager = new TerminalManager()
+	registerTerminalAction(context, TERMINAL_COMMAND_IDS.ADD_TO_CONTEXT, "TERMINAL_ADD_TO_CONTEXT")
 
-	registerTerminalAction(context, terminalManager, TERMINAL_COMMAND_IDS.ADD_TO_CONTEXT, "TERMINAL_ADD_TO_CONTEXT")
-
-	registerTerminalActionPair(
-		context,
-		terminalManager,
-		TERMINAL_COMMAND_IDS.FIX,
-		"TERMINAL_FIX",
-		"What would you like Roo to fix?",
-	)
+	registerTerminalActionPair(context, TERMINAL_COMMAND_IDS.FIX, "TERMINAL_FIX", "What would you like Roo to fix?")
 
 	registerTerminalActionPair(
 		context,
-		terminalManager,
 		TERMINAL_COMMAND_IDS.EXPLAIN,
 		"TERMINAL_EXPLAIN",
 		"What would you like Roo to explain?",
@@ -34,7 +25,6 @@ export const registerTerminalActions = (context: vscode.ExtensionContext) => {
 
 const registerTerminalAction = (
 	context: vscode.ExtensionContext,
-	terminalManager: TerminalManager,
 	command: string,
 	promptType: "TERMINAL_ADD_TO_CONTEXT" | "TERMINAL_FIX" | "TERMINAL_EXPLAIN",
 	inputPrompt?: string,
@@ -43,7 +33,7 @@ const registerTerminalAction = (
 		vscode.commands.registerCommand(command, async (args: any) => {
 			let content = args.selection
 			if (!content || content === "") {
-				content = await terminalManager.getTerminalContents(promptType === "TERMINAL_ADD_TO_CONTEXT" ? -1 : 1)
+				content = await Terminal.getTerminalContents(promptType === "TERMINAL_ADD_TO_CONTEXT" ? -1 : 1)
 			}
 
 			if (!content) {
@@ -69,13 +59,12 @@ const registerTerminalAction = (
 
 const registerTerminalActionPair = (
 	context: vscode.ExtensionContext,
-	terminalManager: TerminalManager,
 	baseCommand: string,
 	promptType: "TERMINAL_ADD_TO_CONTEXT" | "TERMINAL_FIX" | "TERMINAL_EXPLAIN",
 	inputPrompt?: string,
 ) => {
 	// Register new task version
-	registerTerminalAction(context, terminalManager, baseCommand, promptType, inputPrompt)
+	registerTerminalAction(context, baseCommand, promptType, inputPrompt)
 	// Register current task version
-	registerTerminalAction(context, terminalManager, `${baseCommand}InCurrentTask`, promptType, inputPrompt)
+	registerTerminalAction(context, `${baseCommand}InCurrentTask`, promptType, inputPrompt)
 }
