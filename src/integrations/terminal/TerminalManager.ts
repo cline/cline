@@ -1,7 +1,7 @@
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import { arePathsEqual } from "../../utils/path"
-import { mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
+import { ExitCodeDetails, mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
 import { Terminal } from "./Terminal"
 import { TerminalRegistry } from "./TerminalRegistry"
 
@@ -95,111 +95,10 @@ declare module "vscode" {
 	}
 }
 
-export interface ExitCodeDetails {
-	exitCode: number | undefined
-	signal?: number | undefined
-	signalName?: string
-	coreDumpPossible?: boolean
-}
-
 export class TerminalManager {
 	private terminalIds: Set<number> = new Set()
 	private processes: Map<number, TerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
-
-	private interpretExitCode(exitCode: number | undefined): ExitCodeDetails {
-		if (exitCode === undefined) {
-			return { exitCode }
-		}
-
-		if (exitCode <= 128) {
-			return { exitCode }
-		}
-
-		const signal = exitCode - 128
-		const signals: Record<number, string> = {
-			// Standard signals
-			1: "SIGHUP",
-			2: "SIGINT",
-			3: "SIGQUIT",
-			4: "SIGILL",
-			5: "SIGTRAP",
-			6: "SIGABRT",
-			7: "SIGBUS",
-			8: "SIGFPE",
-			9: "SIGKILL",
-			10: "SIGUSR1",
-			11: "SIGSEGV",
-			12: "SIGUSR2",
-			13: "SIGPIPE",
-			14: "SIGALRM",
-			15: "SIGTERM",
-			16: "SIGSTKFLT",
-			17: "SIGCHLD",
-			18: "SIGCONT",
-			19: "SIGSTOP",
-			20: "SIGTSTP",
-			21: "SIGTTIN",
-			22: "SIGTTOU",
-			23: "SIGURG",
-			24: "SIGXCPU",
-			25: "SIGXFSZ",
-			26: "SIGVTALRM",
-			27: "SIGPROF",
-			28: "SIGWINCH",
-			29: "SIGIO",
-			30: "SIGPWR",
-			31: "SIGSYS",
-
-			// Real-time signals base
-			34: "SIGRTMIN",
-
-			// SIGRTMIN+n signals
-			35: "SIGRTMIN+1",
-			36: "SIGRTMIN+2",
-			37: "SIGRTMIN+3",
-			38: "SIGRTMIN+4",
-			39: "SIGRTMIN+5",
-			40: "SIGRTMIN+6",
-			41: "SIGRTMIN+7",
-			42: "SIGRTMIN+8",
-			43: "SIGRTMIN+9",
-			44: "SIGRTMIN+10",
-			45: "SIGRTMIN+11",
-			46: "SIGRTMIN+12",
-			47: "SIGRTMIN+13",
-			48: "SIGRTMIN+14",
-			49: "SIGRTMIN+15",
-
-			// SIGRTMAX-n signals
-			50: "SIGRTMAX-14",
-			51: "SIGRTMAX-13",
-			52: "SIGRTMAX-12",
-			53: "SIGRTMAX-11",
-			54: "SIGRTMAX-10",
-			55: "SIGRTMAX-9",
-			56: "SIGRTMAX-8",
-			57: "SIGRTMAX-7",
-			58: "SIGRTMAX-6",
-			59: "SIGRTMAX-5",
-			60: "SIGRTMAX-4",
-			61: "SIGRTMAX-3",
-			62: "SIGRTMAX-2",
-			63: "SIGRTMAX-1",
-			64: "SIGRTMAX",
-		}
-
-		// These signals may produce core dumps:
-		//   SIGQUIT, SIGILL, SIGABRT, SIGBUS, SIGFPE, SIGSEGV
-		const coreDumpPossible = new Set([3, 4, 6, 7, 8, 11])
-
-		return {
-			exitCode,
-			signal,
-			signalName: signals[signal] || `Unknown Signal (${signal})`,
-			coreDumpPossible: coreDumpPossible.has(signal),
-		}
-	}
 
 	constructor() {
 		let startDisposable: vscode.Disposable | undefined
@@ -231,7 +130,10 @@ export class TerminalManager {
 
 			// onDidEndTerminalShellExecution
 			endDisposable = (vscode.window as vscode.Window).onDidEndTerminalShellExecution?.(async (e) => {
-				const exitDetails = this.interpretExitCode(e?.exitCode)
+				// Find the terminal ID by the VSCode terminal instance
+				const terminalId = this.findTerminalIdByVscodeTerminal(e.terminal)
+				const process = terminalId !== undefined ? this.processes.get(terminalId) : undefined
+				const exitDetails = process ? process.interpretExitCode(e?.exitCode) : { exitCode: e?.exitCode }
 				console.info("[TerminalManager] Shell execution ended:", {
 					...exitDetails,
 				})
@@ -354,6 +256,21 @@ export class TerminalManager {
 		}
 		const process = this.processes.get(terminalId)
 		return process ? process.getUnretrievedOutput() : ""
+	}
+
+	/**
+	 * Finds the terminal ID by the VSCode terminal instance
+	 * @param terminal The VSCode terminal instance
+	 * @returns The terminal ID or undefined if not found
+	 */
+	private findTerminalIdByVscodeTerminal(terminal: vscode.Terminal): number | undefined {
+		for (const id of this.terminalIds) {
+			const info = TerminalRegistry.getTerminal(id)
+			if (info && info.terminal === terminal) {
+				return id
+			}
+		}
+		return undefined
 	}
 
 	isProcessHot(terminalId: number): boolean {

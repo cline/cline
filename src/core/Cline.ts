@@ -27,7 +27,8 @@ import {
 	everyLineHasLineNumbers,
 	truncateOutput,
 } from "../integrations/misc/extract-text"
-import { TerminalManager, ExitCodeDetails } from "../integrations/terminal/TerminalManager"
+import { TerminalManager } from "../integrations/terminal/TerminalManager"
+import { ExitCodeDetails } from "../integrations/terminal/TerminalProcess"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
