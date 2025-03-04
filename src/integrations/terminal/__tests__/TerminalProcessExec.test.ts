@@ -225,10 +225,10 @@ describe("TerminalProcess with Real Command Output", () => {
 		)
 	})
 
-	it("should execute 'echo -e \"a\\nb\"' and return 'a\\nb\\n'", async () => {
-		const { executionTimeUs } = await testTerminalCommand('echo -e "a\\nb"', "a\nb\n")
+	it("should execute 'printf \"a\\nb\\n\"' and return 'a\\nb\\n'", async () => {
+		const { executionTimeUs } = await testTerminalCommand('printf "a\\nb\\n"', "a\nb\n")
 		console.log(
-			`'echo -e "a\\nb"' execution time: ${executionTimeUs} microseconds (${executionTimeUs / 1000} milliseconds)`,
+			`'printf "a\\nb\\n"' execution time: ${executionTimeUs} microseconds (${executionTimeUs / 1000} milliseconds)`,
 		)
 	})
 
