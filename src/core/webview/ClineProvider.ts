@@ -16,7 +16,7 @@ import { SecretKey, GlobalStateKey, SECRET_KEYS, GLOBAL_STATE_KEYS } from "../..
 import { HistoryItem } from "../../shared/HistoryItem"
 import { ApiConfigMeta, ExtensionMessage } from "../../shared/ExtensionMessage"
 import { checkoutDiffPayloadSchema, checkoutRestorePayloadSchema, WebviewMessage } from "../../shared/WebviewMessage"
-import { Mode, CustomModePrompts, PromptComponent, defaultModeSlug } from "../../shared/modes"
+import { Mode, CustomModePrompts, PromptComponent, defaultModeSlug, ModeConfig } from "../../shared/modes"
 import { checkExistKey } from "../../shared/checkExistApiConfig"
 import { EXPERIMENT_IDS, experiments as Experiments, experimentDefault, ExperimentId } from "../../shared/experiments"
 import { downloadTask } from "../../integrations/misc/export-markdown"
@@ -119,8 +119,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.customModesManager?.dispose()
 		this.outputChannel.appendLine("Disposed all disposables")
 		// Dispose the context proxy to commit any pending changes
-		await this.contextProxy.dispose()
-		this.outputChannel.appendLine("Disposed context proxy")
 		ClineProvider.activeInstances.delete(this)
 
 		// Unregister from McpServerManager
@@ -2082,21 +2080,25 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// Add promise for custom modes which is handled separately
 		const customModesPromise = this.customModesManager.getCustomModes()
 
-		// Wait for all promises to resolve
-		const [stateResults, secretResults, customModes] = await Promise.all([
-			Promise.all(statePromises),
-			Promise.all(secretPromises),
+		let idx = 0
+		const secretValuesArray = await Promise.all([
+			...statePromises,
+			...secretPromises,
 			customModesPromise,
 		])
 
 		// Populate stateValues and secretValues
-		GLOBAL_STATE_KEYS.forEach((key, index) => {
-			stateValues[key] = stateResults[index]
+		GLOBAL_STATE_KEYS.forEach((key, _) => {
+			stateValues[key] = secretValuesArray[idx]
+			idx = idx + 1
 		})
 
 		SECRET_KEYS.forEach((key, index) => {
-			secretValues[key] = secretResults[index]
+			secretValues[key] = secretValuesArray[idx]
+			idx = idx + 1
 		})
+
+		let customModes = secretValuesArray[idx] as ModeConfig[] | undefined
 
 		// Determine apiProvider with the same logic as before
 		let apiProvider: ApiProvider
@@ -2219,12 +2221,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async updateGlobalState(key: GlobalStateKey, value: any) {
 		this.outputChannel.appendLine(`Updating global state: ${key}`)
 		await this.contextProxy.updateGlobalState(key, value)
-
-		// // If we have a lot of pending changes, consider saving them periodically
-		// if (this.contextProxy.hasPendingChanges() && Math.random() < 0.1) { // 10% chance to save changes
-		// 	this.outputChannel.appendLine("Periodically flushing context state changes")
-		// 	await this.contextProxy.saveChanges()
-		// }
 	}
 
 	async getGlobalState(key: GlobalStateKey) {
@@ -2256,13 +2252,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 
 		for (const key of this.context.globalState.keys()) {
-			// Still using original context for listing keys
 			await this.contextProxy.updateGlobalState(key, undefined)
 		}
 
 		for (const key of SECRET_KEYS) {
 			await this.storeSecret(key, undefined)
 		}
+
 		await this.configManager.resetAllConfigs()
 		await this.customModesManager.resetCustomModes()
 		if (this.cline) {

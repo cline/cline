@@ -1303,17 +1303,6 @@ describe("ClineProvider", () => {
 			// Verify state was posted to webview
 			expect(mockPostMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "state" }))
 		})
-
-		test("disposes the contextProxy when provider is disposed", async () => {
-			// Setup mock Cline instance
-			const mockCline = {
-				abortTask: jest.fn(),
-			}
-			// @ts-ignore - accessing private property for testing
-			provider.cline = mockCline
-			await provider.dispose()
-			expect(mockContextProxy.dispose).toHaveBeenCalled()
-		})
 	})
 
 	describe("updateCustomMode", () => {
@@ -1601,16 +1590,5 @@ describe("ContextProxy integration", () => {
 		expect(mockContextProxy.getGlobalState).toBeDefined()
 		expect(mockContextProxy.updateGlobalState).toBeDefined()
 		expect(mockContextProxy.storeSecret).toBeDefined()
-	})
-
-	test("contextProxy is properly disposed", async () => {
-		// Setup mock Cline instance
-		const mockCline = {
-			abortTask: jest.fn(),
-		}
-		// @ts-ignore - accessing private property for testing
-		provider.cline = mockCline
-		await provider.dispose()
-		expect(mockContextProxy.dispose).toHaveBeenCalled()
 	})
 })

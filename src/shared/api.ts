@@ -108,7 +108,7 @@ export const API_CONFIG_KEYS: GlobalStateKey[] = [
 	"lmStudioBaseUrl",
 	"lmStudioDraftModelId",
 	"lmStudioSpeculativeDecodingEnabled",
-	"mistralCodestralUrl", // New option for Codestral URL
+	"mistralCodestralUrl",
 	"azureApiVersion",
 	"openRouterUseMiddleOutTransform",
 	"openAiStreamingEnabled",

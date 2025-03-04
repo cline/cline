@@ -1,25 +1,53 @@
 import * as vscode from "vscode"
 import { logger } from "../utils/logging"
+import { GLOBAL_STATE_KEYS, SECRET_KEYS } from "../shared/globalState"
 
-/**
- * A proxy class for vscode.ExtensionContext that buffers state changes
- * and only commits them when explicitly requested or during disposal.
- */
 export class ContextProxy {
 	private readonly originalContext: vscode.ExtensionContext
-	private pendingStateChanges: Map<string, any>
-	private pendingSecretChanges: Map<string, string | undefined>
-	private disposed: boolean
+	private stateCache: Map<string, any>
+	private secretCache: Map<string, string | undefined>
 
 	constructor(context: vscode.ExtensionContext) {
+		// Initialize properties first
 		this.originalContext = context
-		this.pendingStateChanges = new Map()
-		this.pendingSecretChanges = new Map()
-		this.disposed = false
+		this.stateCache = new Map()
+		this.secretCache = new Map()
+
+		// Initialize state cache with all defined global state keys
+		this.initializeStateCache()
+
+		// Initialize secret cache with all defined secret keys
+		this.initializeSecretCache()
+
 		logger.debug("ContextProxy created")
 	}
 
-	// Read-only pass-through properties
+	// Helper method to initialize state cache
+	private initializeStateCache(): void {
+		for (const key of GLOBAL_STATE_KEYS) {
+			try {
+				const value = this.originalContext.globalState.get(key)
+				this.stateCache.set(key, value)
+			} catch (error) {
+				logger.error(`Error loading global ${key}: ${error instanceof Error ? error.message : String(error)}`)
+			}
+		}
+	}
+
+	// Helper method to initialize secret cache
+	private initializeSecretCache(): void {
+		for (const key of SECRET_KEYS) {
+			// Get actual value and update cache when promise resolves
+			;(this.originalContext.secrets.get(key) as Promise<string | undefined>)
+				.then((value) => {
+					this.secretCache.set(key, value)
+				})
+				.catch((error: Error) => {
+					logger.error(`Error loading secret ${key}: ${error.message}`)
+				})
+		}
+	}
+
 	get extensionUri(): vscode.Uri {
 		return this.originalContext.extensionUri
 	}
@@ -39,85 +67,30 @@ export class ContextProxy {
 		return this.originalContext.extensionMode
 	}
 
-	// State management methods
-	async getGlobalState<T>(key: string): Promise<T | undefined>
-	async getGlobalState<T>(key: string, defaultValue: T): Promise<T>
-	async getGlobalState<T>(key: string, defaultValue?: T): Promise<T | undefined> {
-		// Check pending changes first
-		if (this.pendingStateChanges.has(key)) {
-			const value = this.pendingStateChanges.get(key) as T | undefined
-			return value !== undefined ? value : (defaultValue as T | undefined)
-		}
-		// Fall back to original context
-		return this.originalContext.globalState.get<T>(key, defaultValue as T)
+	getGlobalState<T>(key: string): T | undefined
+	getGlobalState<T>(key: string, defaultValue: T): T
+	getGlobalState<T>(key: string, defaultValue?: T): T | undefined {
+		const value = this.stateCache.get(key) as T | undefined
+		return value !== undefined ? value : (defaultValue as T | undefined)
 	}
 
-	async updateGlobalState<T>(key: string, value: T): Promise<void> {
-		if (this.disposed) {
-			throw new Error("Cannot update state on disposed context")
-		}
-		logger.debug(`ContextProxy: buffering state update for key "${key}"`)
-		this.pendingStateChanges.set(key, value)
+	updateGlobalState<T>(key: string, value: T): Thenable<void> {
+		this.stateCache.set(key, value)
+		return this.originalContext.globalState.update(key, value)
 	}
 
-	// Secret storage methods
-	async getSecret(key: string): Promise<string | undefined> {
-		// Check pending changes first
-		if (this.pendingSecretChanges.has(key)) {
-			return this.pendingSecretChanges.get(key)
-		}
-		// Fall back to original context
-		return this.originalContext.secrets.get(key)
+	getSecret(key: string): string | undefined {
+		return this.secretCache.get(key)
 	}
 
-	async storeSecret(key: string, value?: string): Promise<void> {
-		if (this.disposed) {
-			throw new Error("Cannot store secret on disposed context")
+	storeSecret(key: string, value?: string): Thenable<void> {
+		// Update cache
+		this.secretCache.set(key, value)
+		// Write directly to context
+		if (value === undefined) {
+			return this.originalContext.secrets.delete(key)
+		} else {
+			return this.originalContext.secrets.store(key, value)
 		}
-		logger.debug(`ContextProxy: buffering secret update for key "${key}"`)
-		this.pendingSecretChanges.set(key, value)
-	}
-
-	// Save pending changes to actual context
-	async saveChanges(): Promise<void> {
-		if (this.disposed) {
-			throw new Error("Cannot save changes on disposed context")
-		}
-
-		// Apply state changes
-		if (this.pendingStateChanges.size > 0) {
-			logger.debug(`ContextProxy: applying ${this.pendingStateChanges.size} buffered state changes`)
-			for (const [key, value] of this.pendingStateChanges.entries()) {
-				await this.originalContext.globalState.update(key, value)
-			}
-			this.pendingStateChanges.clear()
-		}
-
-		// Apply secret changes
-		if (this.pendingSecretChanges.size > 0) {
-			logger.debug(`ContextProxy: applying ${this.pendingSecretChanges.size} buffered secret changes`)
-			for (const [key, value] of this.pendingSecretChanges.entries()) {
-				if (value === undefined) {
-					await this.originalContext.secrets.delete(key)
-				} else {
-					await this.originalContext.secrets.store(key, value)
-				}
-			}
-			this.pendingSecretChanges.clear()
-		}
-	}
-
-	// Called when the provider is disposing
-	async dispose(): Promise<void> {
-		if (!this.disposed) {
-			logger.debug("ContextProxy: disposing and saving pending changes")
-			await this.saveChanges()
-			this.disposed = true
-		}
-	}
-
-	// Method to check if there are pending changes
-	hasPendingChanges(): boolean {
-		return this.pendingStateChanges.size > 0 || this.pendingSecretChanges.size > 0
 	}
 }
