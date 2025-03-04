@@ -658,6 +658,101 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							</>
 						)}
 					</p>
+					<label htmlFor="bedrock-model-dropdown">
+						<span style={{ fontWeight: 500 }}>Model</span>
+					</label>
+					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
+						<VSCodeDropdown
+							id="bedrock-model-dropdown"
+							value={apiConfiguration?.awsBedrockCustomSelected ? "custom" : selectedModelId}
+							onChange={(e: any) => {
+								const isCustom = e.target.value === "custom"
+								setApiConfiguration({
+									...apiConfiguration,
+									apiModelId: isCustom ? "" : e.target.value,
+									awsBedrockCustomSelected: isCustom,
+									awsBedrockCustomModelBaseId: bedrockDefaultModelId,
+								})
+							}}
+							style={{ width: "100%" }}>
+							<VSCodeOption value="">Select a model...</VSCodeOption>
+							{Object.keys(bedrockModels).map((modelId) => (
+								<VSCodeOption
+									key={modelId}
+									value={modelId}
+									style={{
+										whiteSpace: "normal",
+										wordWrap: "break-word",
+										maxWidth: "100%",
+									}}>
+									{modelId}
+								</VSCodeOption>
+							))}
+							<VSCodeOption value="custom">Custom</VSCodeOption>
+						</VSCodeDropdown>
+					</DropdownContainer>
+					{apiConfiguration?.awsBedrockCustomSelected && (
+						<div>
+							<p
+								style={{
+									fontSize: "12px",
+									marginTop: "5px",
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								Select "Custom" when using the Application Inference Profile in Bedrock. Enter the Application
+								Inference Profile ID in the Model ID field. However, be sure to encode the / in the ARN as %2F.
+								<br />
+								Example: arn:aws:bedrock:us-west-2:&lt;AWS Account
+								ID&gt;:application-inference-profile%2Fxxxxxxxxxxxx
+							</p>
+							<label htmlFor="bedrock-model-input">
+								<span style={{ fontWeight: 500 }}>Model ID</span>
+							</label>
+							<VSCodeTextField
+								id="bedrock-model-input"
+								value={apiConfiguration?.apiModelId || ""}
+								style={{ width: "100%", marginTop: 3 }}
+								onInput={handleInputChange("apiModelId")}
+								placeholder="Enter custom model ID..."
+							/>
+							<label htmlFor="bedrock-base-model-dropdown">
+								<span style={{ fontWeight: 500 }}>Base Inference Model</span>
+							</label>
+							<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 3} className="dropdown-container">
+								<VSCodeDropdown
+									id="bedrock-base-model-dropdown"
+									value={apiConfiguration?.awsBedrockCustomModelBaseId || bedrockDefaultModelId}
+									onChange={handleInputChange("awsBedrockCustomModelBaseId")}
+									style={{ width: "100%" }}>
+									<VSCodeOption value="">Select a model...</VSCodeOption>
+									{Object.keys(bedrockModels).map((modelId) => (
+										<VSCodeOption
+											key={modelId}
+											value={modelId}
+											style={{
+												whiteSpace: "normal",
+												wordWrap: "break-word",
+												maxWidth: "100%",
+											}}>
+											{modelId}
+										</VSCodeOption>
+									))}
+								</VSCodeDropdown>
+							</DropdownContainer>
+						</div>
+					)}
+					{(selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0" ||
+						(apiConfiguration?.awsBedrockCustomSelected &&
+							apiConfiguration?.awsBedrockCustomModelBaseId === "anthropic.claude-3-7-sonnet-20250219-v1:0")) && (
+						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+					)}
+					<ModelInfoView
+						selectedModelId={selectedModelId}
+						modelInfo={selectedModelInfo}
+						isDescriptionExpanded={isDescriptionExpanded}
+						setIsDescriptionExpanded={setIsDescriptionExpanded}
+						isPopup={isPopup}
+					/>
 				</div>
 			)}
 
@@ -1361,6 +1456,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				selectedProvider !== "vscode-lm" &&
 				selectedProvider !== "litellm" &&
 				selectedProvider !== "requesty" &&
+				selectedProvider !== "bedrock" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -1368,7 +1464,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
 							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
-							{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
 							{selectedProvider === "vertex" && createDropdown(vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
@@ -1384,7 +1479,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						</DropdownContainer>
 
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
-							(selectedProvider === "bedrock" && selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
 							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
 							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						)}
@@ -1586,6 +1680,14 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 		case "anthropic":
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 		case "bedrock":
+			if (apiConfiguration?.awsBedrockCustomSelected) {
+				const baseModelId = apiConfiguration.awsBedrockCustomModelBaseId
+				return {
+					selectedProvider: provider,
+					selectedModelId: modelId || bedrockDefaultModelId,
+					selectedModelInfo: (baseModelId && bedrockModels[baseModelId]) || bedrockModels[bedrockDefaultModelId],
+				}
+			}
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
 		case "vertex":
 			return getProviderData(vertexModels, vertexDefaultModelId)

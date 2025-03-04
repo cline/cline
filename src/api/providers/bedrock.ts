@@ -156,12 +156,23 @@ export class AwsBedrockHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: BedrockModelId; info: ModelInfo } {
+	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in bedrockModels) {
 			const id = modelId as BedrockModelId
 			return { id, info: bedrockModels[id] }
 		}
+
+		const customSelected = this.options.awsBedrockCustomSelected
+		const baseModel = this.options.awsBedrockCustomModelBaseId
+		if (customSelected && modelId && baseModel && baseModel in bedrockModels) {
+			// Use the user-input model ID but inherit capabilities from the base model
+			return {
+				id: modelId,
+				info: bedrockModels[baseModel],
+			}
+		}
+
 		return {
 			id: bedrockDefaultModelId,
 			info: bedrockModels[bedrockDefaultModelId],
