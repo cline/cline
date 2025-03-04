@@ -20,13 +20,17 @@ export const CheckpointMenu = ({ ts, commitHash, currentHash, checkpoint }: Chec
 
 	const isCurrent = currentHash === commitHash
 	const isFirst = checkpoint.isFirst
-
 	const isDiffAvailable = !isFirst
 	const isRestoreAvailable = !isFirst || !isCurrent
 
+	const previousCommitHash = checkpoint?.from
+
 	const onCheckpointDiff = useCallback(() => {
-		vscode.postMessage({ type: "checkpointDiff", payload: { ts, commitHash, mode: "checkpoint" } })
-	}, [ts, commitHash])
+		vscode.postMessage({
+			type: "checkpointDiff",
+			payload: { ts, previousCommitHash, commitHash, mode: "checkpoint" },
+		})
+	}, [ts, previousCommitHash, commitHash])
 
 	const onPreview = useCallback(() => {
 		vscode.postMessage({ type: "checkpointRestore", payload: { ts, commitHash, mode: "preview" } })

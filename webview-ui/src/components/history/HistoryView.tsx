@@ -299,7 +299,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 												{formatLargeNumber(item.tokensOut || 0)}
 											</span>
 										</div>
-										{!item.totalCost && <ExportButton itemId={item.id} />}
+										{!item.totalCost && (
+											<div className="flex flex-row gap-1">
+												<CopyButton itemTask={item.task} />
+												<ExportButton itemId={item.id} />
+											</div>
+										)}
 									</div>
 
 									{!!item.cacheWrites && (
