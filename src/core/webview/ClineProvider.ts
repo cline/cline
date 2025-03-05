@@ -1940,6 +1940,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("openAiTemperature") as Promise<number | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,

@@ -836,7 +836,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									onInput={(input: any) => {
 										setApiConfiguration({
 											...apiConfiguration,
-											openAiTemperature: input.target.value,
+											openAiTemperature: parseFloat(input.target.value) || 0,
 										})
 									}}>
 									<span style={{ fontWeight: 500 }}>Temperature</span>
