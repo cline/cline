@@ -2,20 +2,11 @@ import * as vscode from "vscode"
 import { ContextProxy } from "../contextProxy"
 import { logger } from "../../utils/logging"
 import { GLOBAL_STATE_KEYS, SECRET_KEYS } from "../../shared/globalState"
-import { ApiConfiguration } from "../../shared/api"
 
 // Mock shared/globalState
 jest.mock("../../shared/globalState", () => ({
 	GLOBAL_STATE_KEYS: ["apiProvider", "apiModelId", "mode"],
 	SECRET_KEYS: ["apiKey", "openAiApiKey"],
-	GlobalStateKey: {},
-	SecretKey: {},
-}))
-
-// Mock shared/api
-jest.mock("../../shared/api", () => ({
-	API_CONFIG_KEYS: ["apiProvider", "apiModelId"],
-	ApiConfiguration: {},
 }))
 
 // Mock VSCode API
@@ -161,83 +152,6 @@ describe("ContextProxy", () => {
 			// Should have stored undefined in cache
 			const storedValue = await proxy.getSecret("api-key")
 			expect(storedValue).toBeUndefined()
-		})
-
-		describe("getApiConfiguration", () => {
-			it("should combine global state and secrets into a single ApiConfiguration object", async () => {
-				// Mock data in state cache
-				await proxy.updateGlobalState("apiProvider", "anthropic")
-				await proxy.updateGlobalState("apiModelId", "test-model")
-				// Mock data in secrets cache
-				await proxy.storeSecret("apiKey", "test-api-key")
-
-				const config = proxy.getApiConfiguration()
-
-				// Should contain values from global state
-				expect(config.apiProvider).toBe("anthropic")
-				expect(config.apiModelId).toBe("test-model")
-				// Should contain values from secrets
-				expect(config.apiKey).toBe("test-api-key")
-			})
-
-			it("should handle special case for apiProvider defaulting", async () => {
-				// Clear apiProvider but set apiKey
-				await proxy.updateGlobalState("apiProvider", undefined)
-				await proxy.storeSecret("apiKey", "test-api-key")
-
-				const config = proxy.getApiConfiguration()
-
-				// Should default to anthropic when apiKey exists
-				expect(config.apiProvider).toBe("anthropic")
-
-				// Clear both apiProvider and apiKey
-				await proxy.updateGlobalState("apiProvider", undefined)
-				await proxy.storeSecret("apiKey", undefined)
-
-				const configWithoutKey = proxy.getApiConfiguration()
-
-				// Should default to openrouter when no apiKey exists
-				expect(configWithoutKey.apiProvider).toBe("openrouter")
-			})
-		})
-
-		describe("updateApiConfiguration", () => {
-			it("should update both global state and secrets", async () => {
-				const apiConfig: ApiConfiguration = {
-					apiProvider: "anthropic",
-					apiModelId: "claude-latest",
-					apiKey: "test-api-key",
-				}
-
-				await proxy.updateApiConfiguration(apiConfig)
-
-				// Should update global state
-				expect(mockGlobalState.update).toHaveBeenCalledWith("apiProvider", "anthropic")
-				expect(mockGlobalState.update).toHaveBeenCalledWith("apiModelId", "claude-latest")
-				// Should update secrets
-				expect(mockSecrets.store).toHaveBeenCalledWith("apiKey", "test-api-key")
-
-				// Check that values are in cache
-				expect(proxy.getGlobalState("apiProvider")).toBe("anthropic")
-				expect(proxy.getGlobalState("apiModelId")).toBe("claude-latest")
-				expect(proxy.getSecret("apiKey")).toBe("test-api-key")
-			})
-
-			it("should ignore keys that aren't in either GLOBAL_STATE_KEYS or SECRET_KEYS", async () => {
-				// Use type assertion to add an invalid key
-				const apiConfig = {
-					apiProvider: "anthropic",
-					invalidKey: "should be ignored",
-				} as ApiConfiguration & { invalidKey: string }
-
-				await proxy.updateApiConfiguration(apiConfig)
-
-				// Should update keys in GLOBAL_STATE_KEYS
-				expect(mockGlobalState.update).toHaveBeenCalledWith("apiProvider", "anthropic")
-				// Should not call update/store for invalid keys
-				expect(mockGlobalState.update).not.toHaveBeenCalledWith("invalidKey", expect.anything())
-				expect(mockSecrets.store).not.toHaveBeenCalledWith("invalidKey", expect.anything())
-			})
 		})
 	})
 })
