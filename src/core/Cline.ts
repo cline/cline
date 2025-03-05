@@ -1096,15 +1096,14 @@ export class Cline {
 
 		if (!isAttemptCompletionMessage) {
 			// For non-attempt completion we just say checkpoints
-
-			const commitHash = await this.checkpointTracker?.commit()
-			await this.say("checkpoint_created", commitHash)
-
-			const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
-			if (lastCheckpointMessage) {
-				lastCheckpointMessage.lastCheckpointHash = commitHash
-				await this.saveClineMessages()
-			}
+			await this.say("checkpoint_created")
+			this.checkpointTracker?.commit().then(async (commitHash) => {
+				const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
+				if (lastCheckpointMessage) {
+					lastCheckpointMessage.lastCheckpointHash = commitHash
+					await this.saveClineMessages()
+				}
+			}) // silently fails for now
 
 			//
 		} else {
