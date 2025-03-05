@@ -892,7 +892,7 @@ export const askSageDefaultURL: string = "https://api.asksage.ai/server"
 export const askSageModels = {
 	"gpt-4o": {
 		maxTokens: 4096,
-		contextWindow: 128000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -900,7 +900,7 @@ export const askSageModels = {
 	},
 	"gpt-4o-gov": {
 		maxTokens: 4096,
-		contextWindow: 128000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -908,7 +908,7 @@ export const askSageModels = {
 	},
 	"claude-35-sonnet": {
 		maxTokens: 8192,
-		contextWindow: 200000,
+		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -916,7 +916,7 @@ export const askSageModels = {
 	},
 	"aws-bedrock-claude-35-sonnet-gov": {
 		maxTokens: 8192,
-		contextWindow: 200000,
+		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -924,7 +924,7 @@ export const askSageModels = {
 	},
 	"claude-37-sonnet": {
 		maxTokens: 8192,
-		contextWindow: 200000,
+		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
