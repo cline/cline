@@ -36,7 +36,7 @@ export const ExperimentalSettings = ({
 
 			<Section>
 				{Object.entries(experimentConfigsMap)
-					.filter((config) => config[0] !== "DIFF_STRATEGY")
+					.filter((config) => config[0] !== "DIFF_STRATEGY" && config[0] !== "MULTI_SEARCH_AND_REPLACE")
 					.map((config) => (
 						<ExperimentalFeature
 							key={config[0]}
