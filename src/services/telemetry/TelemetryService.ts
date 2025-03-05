@@ -17,8 +17,8 @@ class PostHogClient {
 			RESTARTED: "task.restarted",
 			// Tracks when a task is finished, with acceptance or rejection status
 			COMPLETED: "task.completed",
-			// Tracks individual message exchanges in a conversation from either user or model sources
-			MESSAGE: "task.message",
+			// Tracks when a message is sent in a conversation
+			CONVERSATION_TURN: "task.conversation_turn",
 			// Tracks token consumption for cost and usage analysis
 			TOKEN_USAGE: "task.tokens",
 			// Tracks switches between plan and act modes
@@ -94,10 +94,9 @@ class PostHogClient {
 			this.telemetryEnabled = didUserOptIn
 		}
 
-		// Update PostHog client state based on telemetry preference and use machineId to tie it to the webview
+		// Update PostHog client state based on telemetry preference
 		if (this.telemetryEnabled) {
 			this.client.optIn()
-			this.client.identify({ distinctId: this.distinctId })
 		} else {
 			this.client.optOut()
 		}
@@ -166,7 +165,7 @@ class PostHogClient {
 	 * @param model The specific model used (e.g., GPT-4, Claude)
 	 * @param source The source of the message ("user" | "model"). Used to track message patterns and identify when users need to correct the model's responses.
 	 */
-	public captureConversationEvent(
+	public captureConversationTurnEvent(
 		taskId: string,
 		provider: string = "unknown",
 		model: string = "unknown",
@@ -187,7 +186,7 @@ class PostHogClient {
 		}
 
 		this.capture({
-			event: PostHogClient.EVENTS.TASK.MESSAGE,
+			event: PostHogClient.EVENTS.TASK.CONVERSATION_TURN,
 			properties,
 		})
 	}
