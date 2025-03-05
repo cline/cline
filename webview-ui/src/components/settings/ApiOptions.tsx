@@ -49,6 +49,7 @@ import { vscode } from "../../utils/vscode"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
+import AccountView, { ClineAccountView } from "../account/AccountView"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -90,10 +91,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
-
-	const handleClineLogin = () => {
-		vscode.postMessage({ type: "accountLoginClicked" })
-	}
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({
@@ -213,36 +210,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			</DropdownContainer>
 
 			{selectedProvider === "cline" && (
-				<div>
-					{apiConfiguration?.clineApiKey && (
-						<VSCodeTextField
-							value={apiConfiguration.clineApiKey}
-							style={{ width: "100%" }}
-							type="password"
-							onInput={handleInputChange("clineApiKey")}
-							placeholder={"enterApiKey"}>
-							<span style={{ fontWeight: 500 }}>Cline API Key</span>
-						</VSCodeTextField>
-					)}
-
-					{apiConfiguration?.clineApiKey && (
-						<p
-							style={{
-								fontSize: "12px",
-								marginTop: 3,
-								color: "var(--vscode-descriptionForeground)",
-							}}>
-							{"apiKeyInfo"}
-						</p>
-					)}
-
-					{!apiConfiguration?.clineApiKey && (
-						<div style={{ marginTop: 2 }}>
-							<VSCodeButton appearance="primary" onClick={handleClineLogin}>
-								Get Cline API Key
-							</VSCodeButton>
-						</div>
-					)}
+				<div style={{ marginBottom: 8, marginTop: 4 }}>
+					<ClineAccountView />
 				</div>
 			)}
 

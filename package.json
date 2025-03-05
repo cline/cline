@@ -91,11 +91,6 @@
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "cline.accountLoginClicked",
-				"title": "Account",
-				"icon": "$(account)"
-			},
-			{
 				"command": "cline.openInNewTab",
 				"title": "Open In New Tab",
 				"category": "Cline"
@@ -124,13 +119,8 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.accountLoginClicked",
-					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
 					"command": "cline.settingsButtonClicked",
-					"group": "navigation@6",
+					"group": "navigation@5",
 					"when": "view == claude-dev.SidebarProvider"
 				}
 			]
