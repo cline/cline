@@ -35,6 +35,12 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 							<span className="text-xs font-medium text-vscode-descriptionForeground uppercase">
 								{formatDate(item.ts)}
 							</span>
+							<span
+								style={{
+									marginLeft: "auto",
+								}}>
+								({item.number === 0 ? "Main" : item.number})
+							</span>
 							<CopyButton itemTask={item.task} />
 						</div>
 						<div
