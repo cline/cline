@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Removed legacy support from checkpoints, optiized checkpoint operations
+Removed legacy support from checkpoints, optimized checkpoint operations
