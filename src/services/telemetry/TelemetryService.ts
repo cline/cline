@@ -66,8 +66,6 @@ class PostHogClient {
 	/** Whether telemetry is currently enabled based on user and VSCode settings */
 	private telemetryEnabled: boolean = false
 
-	/**  */
-	private identity: boolean = false
 	/**
 	 * Private constructor to enforce singleton pattern
 	 * Initializes PostHog client with configuration
@@ -99,10 +97,7 @@ class PostHogClient {
 		// Update PostHog client state based on telemetry preference and use machineId to tie it to the webview
 		if (this.telemetryEnabled) {
 			this.client.optIn()
-			if (this.identity) {
-				this.client.identify({ distinctId: this.distinctId })
-				this.identity = true
-			}
+			this.client.identify({ distinctId: this.distinctId })
 		} else {
 			this.client.optOut()
 		}
@@ -135,10 +130,10 @@ class PostHogClient {
 	 * Records when a new task/conversation is started
 	 * @param taskId Unique identifier for the new task
 	 */
-	public captureTaskCreated(taskId: string) {
+	public captureTaskCreated(taskId: string, apiProvider?: string) {
 		this.capture({
 			event: PostHogClient.EVENTS.TASK.CREATED,
-			properties: { taskId },
+			properties: { taskId, apiProvider },
 		})
 	}
 
@@ -146,10 +141,10 @@ class PostHogClient {
 	 * Records when a new task/conversation is started
 	 * @param taskId Unique identifier for the new task
 	 */
-	public captureTaskRestarted(taskId: string) {
+	public captureTaskRestarted(taskId: string, apiProvider?: string) {
 		this.capture({
 			event: PostHogClient.EVENTS.TASK.RESTARTED,
-			properties: { taskId },
+			properties: { taskId, apiProvider },
 		})
 	}
 
@@ -165,13 +160,18 @@ class PostHogClient {
 	}
 
 	/**
-	 * Records each message exchange in a conversation, including the API provider and model used
+	 * Captures that a message was sent, and includes the API provider and model used
 	 * @param taskId Unique identifier for the task
 	 * @param provider The API provider (e.g., OpenAI, Anthropic)
 	 * @param model The specific model used (e.g., GPT-4, Claude)
 	 * @param source The source of the message ("user" | "model"). Used to track message patterns and identify when users need to correct the model's responses.
 	 */
-	public captureMessage(taskId: string, provider: string, model: string, source: "user" | "assistant") {
+	public captureConversationEvent(
+		taskId: string,
+		provider: string = "unknown",
+		model: string = "unknown",
+		source: "user" | "assistant",
+	) {
 		// Ensure required parameters are provided
 		if (!taskId || !provider || !model || !source) {
 			console.warn("TelemetryService: Missing required parameters for message capture")

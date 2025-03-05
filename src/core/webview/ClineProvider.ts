@@ -290,9 +290,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			task,
 			images,
 		)
-
-		// New task started
-		telemetryService.captureTaskCreated(this.cline.taskId)
 	}
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
@@ -310,9 +307,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			undefined,
 			historyItem,
 		)
-
-		// Open task from history
-		telemetryService.captureTaskRestarted(this.cline.taskId)
 	}
 
 	// Send any JSON serializable data to the react app
