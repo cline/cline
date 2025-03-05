@@ -2847,7 +2847,7 @@ export class Cline {
 										// tell the provider to remove the current subtask and resume the previous task in the stack
 										await this.providerRef
 											.deref()
-											?.finishSubTask(`new_task finished successfully! ${lastMessage?.text}`)
+											?.finishSubTask(`Task complete: ${lastMessage?.text}`)
 										break
 									}
 								}
