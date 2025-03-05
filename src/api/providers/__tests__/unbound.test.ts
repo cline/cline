@@ -192,6 +192,11 @@ describe("UnboundHandler", () => {
 					temperature: 0,
 					max_tokens: 8192,
 				}),
+				expect.objectContaining({
+					headers: expect.objectContaining({
+						"X-Unbound-Metadata": expect.stringContaining("roo-code"),
+					}),
+				}),
 			)
 		})
 
@@ -232,6 +237,11 @@ describe("UnboundHandler", () => {
 					model: "gpt-4o",
 					messages: [{ role: "user", content: "Test prompt" }],
 					temperature: 0,
+				}),
+				expect.objectContaining({
+					headers: expect.objectContaining({
+						"X-Unbound-Metadata": expect.stringContaining("roo-code"),
+					}),
 				}),
 			)
 			expect(mockCreate.mock.calls[0][0]).not.toHaveProperty("max_tokens")
