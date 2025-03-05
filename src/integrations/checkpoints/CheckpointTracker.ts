@@ -283,7 +283,7 @@ class CheckpointTracker {
 			console.info(`Getting commits from branch: ${currentBranch}`)
 
 			// Get the first commit in the branch
-			const firstCommit = (await git.raw(["rev-list", "--max-parents=0", currentBranch])).trim()
+			const firstCommit = (await git.raw(["rev-list", "--reverse", currentBranch, "--max-count=1"])).trim()
 			if (!firstCommit) {
 				throw new Error("No commits found in the branch.")
 			}
