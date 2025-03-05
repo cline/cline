@@ -37,7 +37,6 @@ import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import { ModelInfoView } from "./ModelInfoView"
-import { DROPDOWN_Z_INDEX } from "./styles"
 import { ModelPicker } from "./ModelPicker"
 import { TemperatureControl } from "./TemperatureControl"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
@@ -242,7 +241,6 @@ const ApiOptions = ({
 					id="api-provider"
 					value={selectedProvider}
 					onChange={handleInputChange("apiProvider", dropdownEventTransform)}
-					style={{ minWidth: 130, position: "relative", zIndex: DROPDOWN_Z_INDEX + 1 }}
 					options={[
 						{ value: "openrouter", label: "OpenRouter" },
 						{ value: "anthropic", label: "Anthropic" },
@@ -1108,6 +1106,79 @@ const ApiOptions = ({
 							))}
 						</VSCodeRadioGroup>
 					)}
+					<div style={{ display: "flex", alignItems: "center", marginTop: "16px", marginBottom: "8px" }}>
+						<Checkbox
+							checked={apiConfiguration?.lmStudioSpeculativeDecodingEnabled === true}
+							onChange={(checked) => {
+								// Explicitly set the boolean value using direct method
+								setApiConfigurationField("lmStudioSpeculativeDecodingEnabled", checked)
+							}}>
+							Enable Speculative Decoding
+						</Checkbox>
+					</div>
+					{apiConfiguration?.lmStudioSpeculativeDecodingEnabled && (
+						<>
+							<VSCodeTextField
+								value={apiConfiguration?.lmStudioDraftModelId || ""}
+								style={{ width: "100%" }}
+								onInput={handleInputChange("lmStudioDraftModelId")}
+								placeholder={"e.g. lmstudio-community/llama-3.2-1b-instruct"}>
+								<span className="font-medium">Draft Model ID</span>
+							</VSCodeTextField>
+							<div
+								style={{
+									fontSize: "11px",
+									color: "var(--vscode-descriptionForeground)",
+									marginTop: 4,
+									display: "flex",
+									alignItems: "center",
+									gap: 4,
+								}}>
+								<i className="codicon codicon-info" style={{ fontSize: "12px" }}></i>
+								<span>
+									Draft model must be from the same model family for speculative decoding to work
+									correctly.
+								</span>
+							</div>
+							{lmStudioModels.length > 0 && (
+								<>
+									<div style={{ marginTop: "8px" }}>
+										<span className="font-medium">Select Draft Model</span>
+									</div>
+									<VSCodeRadioGroup
+										value={
+											lmStudioModels.includes(apiConfiguration?.lmStudioDraftModelId || "")
+												? apiConfiguration?.lmStudioDraftModelId
+												: ""
+										}
+										onChange={handleInputChange("lmStudioDraftModelId")}>
+										{lmStudioModels.map((model) => (
+											<VSCodeRadio key={`draft-${model}`} value={model}>
+												{model}
+											</VSCodeRadio>
+										))}
+									</VSCodeRadioGroup>
+									{lmStudioModels.length === 0 && (
+										<div
+											style={{
+												fontSize: "12px",
+												marginTop: "8px",
+												padding: "6px",
+												backgroundColor: "var(--vscode-inputValidation-infoBackground)",
+												border: "1px solid var(--vscode-inputValidation-infoBorder)",
+												borderRadius: "3px",
+												color: "var(--vscode-inputValidation-infoForeground)",
+											}}>
+											<i className="codicon codicon-info" style={{ marginRight: "5px" }}></i>
+											No draft models found. Please ensure LM Studio is running with Server Mode
+											enabled.
+										</div>
+									)}
+								</>
+							)}
+						</>
+					)}
+
 					<p
 						style={{
 							fontSize: "12px",

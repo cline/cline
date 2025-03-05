@@ -50,6 +50,8 @@ export interface ApiHandlerOptions {
 	ollamaBaseUrl?: string
 	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
+	lmStudioDraftModelId?: string
+	lmStudioSpeculativeDecodingEnabled?: boolean
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	mistralApiKey?: string
@@ -57,7 +59,6 @@ export interface ApiHandlerOptions {
 	azureApiVersion?: string
 	openRouterUseMiddleOutTransform?: boolean
 	openAiStreamingEnabled?: boolean
-	setAzureApiVersion?: boolean
 	deepSeekBaseUrl?: string
 	deepSeekApiKey?: string
 	includeMaxTokens?: boolean
@@ -76,6 +77,52 @@ export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
 	id?: string // stable unique identifier
 }
+
+// Import GlobalStateKey type from globalState.ts
+import { GlobalStateKey } from "./globalState"
+
+// Define API configuration keys for dynamic object building
+export const API_CONFIG_KEYS: GlobalStateKey[] = [
+	"apiModelId",
+	"anthropicBaseUrl",
+	"vsCodeLmModelSelector",
+	"glamaModelId",
+	"glamaModelInfo",
+	"openRouterModelId",
+	"openRouterModelInfo",
+	"openRouterBaseUrl",
+	"awsRegion",
+	"awsUseCrossRegionInference",
+	// "awsUsePromptCache", // NOT exist on GlobalStateKey
+	// "awspromptCacheId", // NOT exist on GlobalStateKey
+	"awsProfile",
+	"awsUseProfile",
+	"vertexProjectId",
+	"vertexRegion",
+	"openAiBaseUrl",
+	"openAiModelId",
+	"openAiCustomModelInfo",
+	"openAiUseAzure",
+	"ollamaModelId",
+	"ollamaBaseUrl",
+	"lmStudioModelId",
+	"lmStudioBaseUrl",
+	"lmStudioDraftModelId",
+	"lmStudioSpeculativeDecodingEnabled",
+	"mistralCodestralUrl",
+	"azureApiVersion",
+	"openRouterUseMiddleOutTransform",
+	"openAiStreamingEnabled",
+	// "deepSeekBaseUrl", //  not exist on GlobalStateKey
+	// "includeMaxTokens", // not exist on GlobalStateKey
+	"unboundModelId",
+	"unboundModelInfo",
+	"requestyModelId",
+	"requestyModelInfo",
+	"modelTemperature",
+	"modelMaxTokens",
+	"modelMaxThinkingTokens",
+]
 
 // Models
 

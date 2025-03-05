@@ -107,6 +107,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		soundVolume: 0.5,
 		diffEnabled: false,
 		enableCheckpoints: true,
+		checkpointStorage: "task",
 		fuzzyMatchThreshold: 1.0,
 		preferredLanguage: "English",
 		writeDelayMs: 1000,

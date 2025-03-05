@@ -32,10 +32,10 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 						setInputValue(value ?? 0) // Use the value from apiConfiguration, if set
 					}
 				}}>
-				<span style={{ fontWeight: "500" }}>Use custom temperature</span>
+				<span className="font-medium">Use custom temperature</span>
 			</VSCodeCheckbox>
 
-			<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
+			<p className="text-vscode-descriptionForeground text-sm mt-0">
 				Controls randomness in the model's responses.
 			</p>
 
@@ -59,7 +59,7 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 						/>
 						<span>{inputValue}</span>
 					</div>
-					<p style={{ fontSize: "12px", marginTop: "8px", color: "var(--vscode-descriptionForeground)" }}>
+					<p className="text-vscode-descriptionForeground text-sm mt-1">
 						Higher values make output more random, lower values make it more deterministic.
 					</p>
 				</div>

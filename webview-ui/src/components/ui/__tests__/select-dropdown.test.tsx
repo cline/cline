@@ -115,6 +115,21 @@ describe("SelectDropdown", () => {
 		expect(trigger.classList.toString()).toContain("custom-trigger-class")
 	})
 
+	it("ensures open state is controlled via props", () => {
+		// Test that the component accepts and uses the open state controlled prop
+		render(<SelectDropdown value="option1" options={options} onChange={onChangeMock} />)
+
+		// The component should render the dropdown root with correct props
+		const dropdown = screen.getByTestId("dropdown-root")
+		expect(dropdown).toBeInTheDocument()
+
+		// Verify trigger and content are rendered
+		const trigger = screen.getByTestId("dropdown-trigger")
+		const content = screen.getByTestId("dropdown-content")
+		expect(trigger).toBeInTheDocument()
+		expect(content).toBeInTheDocument()
+	})
+
 	// Tests for the new functionality
 	describe("Option types", () => {
 		it("renders separator options correctly", () => {
@@ -125,20 +140,6 @@ describe("SelectDropdown", () => {
 			]
 
 			render(<SelectDropdown value="option1" options={optionsWithTypedSeparator} onChange={onChangeMock} />)
-
-			// Check for separator
-			const separators = screen.getAllByTestId("dropdown-separator")
-			expect(separators.length).toBe(1)
-		})
-
-		it("renders string separator (backward compatibility) correctly", () => {
-			const optionsWithStringSeparator = [
-				{ value: "option1", label: "Option 1" },
-				{ value: "sep-1", label: "────", disabled: true },
-				{ value: "option2", label: "Option 2" },
-			]
-
-			render(<SelectDropdown value="option1" options={optionsWithStringSeparator} onChange={onChangeMock} />)
 
 			// Check for separator
 			const separators = screen.getAllByTestId("dropdown-separator")

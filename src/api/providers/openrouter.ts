@@ -13,6 +13,7 @@ import { convertToR1Format } from "../transform/r1-format"
 import { DEEP_SEEK_DEFAULT_TEMPERATURE } from "./constants"
 import { getModelParams, SingleCompletionHandler } from ".."
 import { BaseProvider } from "./base-provider"
+import { defaultHeaders } from "./openai"
 
 // Add custom interface for OpenRouter params.
 type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
@@ -36,11 +37,6 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 
 		const baseURL = this.options.openRouterBaseUrl || "https://openrouter.ai/api/v1"
 		const apiKey = this.options.openRouterApiKey ?? "not-provided"
-
-		const defaultHeaders = {
-			"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
-			"X-Title": "Roo Code",
-		}
 
 		this.client = new OpenAI({ baseURL, apiKey, defaultHeaders })
 	}
