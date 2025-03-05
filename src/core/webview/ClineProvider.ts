@@ -290,16 +290,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			task,
 			images,
 		)
-
-		// New task started
-		if (telemetryService.isTelemetryEnabled()) {
-			telemetryService.capture({
-				event: "New task started",
-				properties: {
-					apiProvider: apiConfiguration.apiProvider,
-				},
-			})
-		}
 	}
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
@@ -317,16 +307,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			undefined,
 			historyItem,
 		)
-
-		// Open task from history
-		if (telemetryService.isTelemetryEnabled()) {
-			telemetryService.capture({
-				event: "Open task from history",
-				properties: {
-					apiProvider: apiConfiguration.apiProvider,
-				},
-			})
-		}
 	}
 
 	// Send any JSON serializable data to the react app
@@ -999,6 +979,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent) {
 		const didSwitchToActMode = chatSettings.mode === "act"
+
+		// Capture mode switch telemetry | Capture regardless of if we know the taskId
+		telemetryService.captureModeSwitch(this.cline?.taskId ?? "0", chatSettings.mode)
 
 		// Get previous model info that we will revert to after saving current mode api info
 		const {
