@@ -2,6 +2,27 @@ import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
 
 class PostHogClient {
+	// Event constants
+	private static readonly EVENTS = {
+		TASK: {
+			CREATED: "task.created",
+			COMPLETED: "task.completed",
+			MESSAGE: "task.message",
+			TOKEN_USAGE: "task.tokens",
+			MODE_SWITCH: "task.mode",
+		},
+		TOOL: {
+			USED: "tool.used",
+			AUTO_APPROVED: "tool.auto_approved",
+			CHECKPOINT: "tool.checkpoint",
+		},
+		UI: {
+			PROVIDER_SWITCH: "ui.provider",
+			IMAGE_ATTACH: "ui.image",
+			BUTTON_CLICK: "ui.button",
+		},
+	}
+
 	private static instance: PostHogClient
 	private client: PostHog
 	private distinctId: string = vscode.env.machineId
@@ -50,6 +71,86 @@ class PostHogClient {
 			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: event.properties })
 			// console.log("Captured event", { distinctId: this.distinctId, event: event.event, properties: event.properties })
 		}
+	}
+
+	// Task events
+	public captureTaskCreated(taskId: string) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.CREATED,
+			properties: { taskId },
+		})
+	}
+
+	public captureTaskCompleted(taskId: string, action: "accept" | "reject") {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.COMPLETED,
+			properties: { taskId, action },
+		})
+	}
+
+	public captureMessage(taskId: string, provider: string, model: string) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.MESSAGE,
+			properties: { taskId, provider, model },
+		})
+	}
+
+	public captureTokenUsage(taskId: string, tokensIn: number, tokensOut: number) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.TOKEN_USAGE,
+			properties: { taskId, tokensIn, tokensOut },
+		})
+	}
+
+	public captureModeSwitch(taskId: string, mode: "plan" | "act") {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.MODE_SWITCH,
+			properties: { taskId, mode },
+		})
+	}
+
+	// Tool events
+	public captureToolUsage(taskId: string, tool: string) {
+		this.capture({
+			event: PostHogClient.EVENTS.TOOL.USED,
+			properties: { taskId, tool },
+		})
+	}
+
+	public captureToolAutoApproval(taskId: string, tool: string) {
+		this.capture({
+			event: PostHogClient.EVENTS.TOOL.AUTO_APPROVED,
+			properties: { taskId, tool },
+		})
+	}
+
+	public captureCheckpointUsage(taskId: string) {
+		this.capture({
+			event: PostHogClient.EVENTS.TOOL.CHECKPOINT,
+			properties: { taskId },
+		})
+	}
+
+	// UI events
+	public captureProviderSwitch(from: string, to: string, location: "settings" | "bottom") {
+		this.capture({
+			event: PostHogClient.EVENTS.UI.PROVIDER_SWITCH,
+			properties: { from, to, location },
+		})
+	}
+
+	public captureImageAttached(taskId: string) {
+		this.capture({
+			event: PostHogClient.EVENTS.UI.IMAGE_ATTACH,
+			properties: { taskId },
+		})
+	}
+
+	public captureButtonClick(button: string) {
+		this.capture({
+			event: PostHogClient.EVENTS.UI.BUTTON_CLICK,
+			properties: { button },
+		})
 	}
 
 	public isTelemetryEnabled(): boolean {
