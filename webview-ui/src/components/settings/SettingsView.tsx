@@ -7,6 +7,7 @@ import { ApiConfiguration } from "../../../../src/shared/api"
 
 import { vscode } from "@/utils/vscode"
 import { ExtensionStateContextType, useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
 import {
 	AlertDialog,
 	AlertDialogContent,
@@ -247,14 +248,13 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 					<div className="flex justify-between items-center">
 						<div className="flex items-center gap-2">
 							<h3 className="text-vscode-foreground m-0">Settings</h3>
-							<div className="hidden [@media(min-width:430px)]:flex items-center">
+							<div className="hidden [@media(min-width:400px)]:flex items-center">
 								{sections.map(({ id, icon: Icon, ref }) => (
 									<Button
 										key={id}
 										variant="ghost"
-										size="icon"
-										className={activeSection === id ? "opacity-100" : "opacity-40"}
-										onClick={() => scrollToSection(ref)}>
+										onClick={() => scrollToSection(ref)}
+										className={cn("w-6 h-6", activeSection === id ? "opacity-100" : "opacity-40")}>
 										<Icon />
 									</Button>
 								))}
@@ -287,7 +287,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			</div>
 
 			<div
-				className="flex flex-col flex-1 overflow-auto divide-y divide-vscode-panel-border"
+				className="flex flex-col flex-1 overflow-auto divide-y divide-vscode-sideBar-background"
 				onScroll={handleScroll}>
 				<div ref={providersRef}>
 					<SectionHeader>

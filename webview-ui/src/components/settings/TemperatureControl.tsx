@@ -20,30 +20,30 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 	}, [value])
 
 	return (
-		<div>
-			<VSCodeCheckbox
-				checked={isCustomTemperature}
-				onChange={(e: any) => {
-					const isChecked = e.target.checked
-					setIsCustomTemperature(isChecked)
-					if (!isChecked) {
-						setInputValue(undefined) // Unset the temperature
-					} else {
-						setInputValue(value ?? 0) // Use the value from apiConfiguration, if set
-					}
-				}}>
-				<span className="font-medium">Use custom temperature</span>
-			</VSCodeCheckbox>
-
-			<p className="text-vscode-descriptionForeground text-sm mt-0">
-				Controls randomness in the model's responses.
-			</p>
+		<>
+			<div>
+				<VSCodeCheckbox
+					checked={isCustomTemperature}
+					onChange={(e: any) => {
+						const isChecked = e.target.checked
+						setIsCustomTemperature(isChecked)
+						if (!isChecked) {
+							setInputValue(undefined) // Unset the temperature
+						} else {
+							setInputValue(value ?? 0) // Use the value from apiConfiguration, if set
+						}
+					}}>
+					<span className="font-medium">Use custom temperature</span>
+				</VSCodeCheckbox>
+				<div className="text-sm text-vscode-descriptionForeground">
+					Controls randomness in the model's responses.
+				</div>
+			</div>
 
 			{isCustomTemperature && (
 				<div
 					style={{
-						marginTop: 5,
-						marginBottom: 10,
+						marginLeft: 0,
 						paddingLeft: 10,
 						borderLeft: "2px solid var(--vscode-button-background)",
 					}}>
@@ -64,6 +64,6 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 					</p>
 				</div>
 			)}
-		</div>
+		</>
 	)
 }
