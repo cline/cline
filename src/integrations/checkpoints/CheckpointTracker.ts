@@ -44,7 +44,6 @@ class CheckpointTracker {
 	private cwd: string
 	private cwdHash: string
 	private lastRetrievedShadowGitConfigWorkTree?: string
-	private lastCheckpointHash?: string
 	private gitOperations: GitOperations
 
 	/**
@@ -113,7 +112,7 @@ class CheckpointTracker {
 
 			// Branch-per-task structure
 			const gitPath = await getShadowGitPath(newTracker.globalStoragePath, newTracker.taskId, newTracker.cwdHash)
-			await GitOperations.initShadowGit(gitPath, workingDir)
+			await newTracker.gitOperations.initShadowGit(gitPath, workingDir)
 			await newTracker.gitOperations.switchToTaskBranch(newTracker.taskId, gitPath)
 			return newTracker
 		} catch (error) {
@@ -159,7 +158,7 @@ class CheckpointTracker {
 
 			console.info(`Using shadow git at: ${gitPath}`)
 
-			await this.gitOperations.addCheckpointFiles(git, gitPath)
+			await this.gitOperations.addCheckpointFiles(git)
 
 			const commitMessage = "checkpoint-" + this.cwdHash + "-" + this.taskId
 
@@ -168,7 +167,6 @@ class CheckpointTracker {
 				"--allow-empty": null,
 			})
 			const commitHash = result.commit || ""
-			this.lastCheckpointHash = commitHash
 			console.warn(`Checkpoint commit created.`)
 			return commitHash
 		} catch (error) {
@@ -284,30 +282,19 @@ class CheckpointTracker {
 			const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
 			console.info(`Getting commits from branch: ${currentBranch}`)
 
-			const commits = (await git.raw(["rev-list", currentBranch])).trim().split("\n")
-			let found = false
-
-			for (let i = 0; i < Math.min(commits.length, 5); i++) {
-				const commitHash = commits[i].trim()
-				//console.info(commitHash)
-				const trackedFiles = (await git.raw(["ls-tree", "-r", "--name-only", commitHash])).trim()
-				if (trackedFiles) {
-					baseHash = commitHash
-					console.debug(`Using commit ${i + 1} as base: ${baseHash} on branch ${currentBranch}`)
-					found = true
-					break
-				}
+			// Get the first commit in the branch
+			const firstCommit = (await git.raw(["rev-list", "--max-parents=0", currentBranch])).trim()
+			if (!firstCommit) {
+				throw new Error("No commits found in the branch.")
 			}
-
-			if (!found) {
-				throw new Error("No original files found in the first 5 commits to use as base.")
-			}
+			baseHash = firstCommit
 		}
 
-		if (!baseHash) {
-			throw new Error("Base hash is undefined, cannot perform diff operation.")
-		}
+		// Stage all changes so that untracked files appear in diff summary
+		await this.gitOperations.addCheckpointFiles(git)
+
 		const diffRange = rhsHash ? `${baseHash}..${rhsHash}` : baseHash
+		console.info(`Diff range: ${diffRange}`)
 		const diffSummary = await git.diffSummary([diffRange])
 
 		const result = []

@@ -1,11 +1,11 @@
-import simpleGit, { SimpleGit } from "simple-git"
-import { getLfsPatterns, writeExcludesFile } from "./CheckpointExclusions"
 import fs from "fs/promises"
+import { globby } from "globby"
 import * as path from "path"
-import { fileExistsAtPath } from "../../utils/fs"
-import * as vscode from "vscode"
-import { getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
+import simpleGit, { SimpleGit } from "simple-git"
 import { HistoryItem } from "../../shared/HistoryItem"
+import { fileExistsAtPath } from "../../utils/fs"
+import { getLfsPatterns, writeExcludesFile } from "./CheckpointExclusions"
+import { getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
 
 interface StorageProvider {
 	context: {
@@ -62,7 +62,7 @@ export class GitOperations {
 	 * - Unable to create initial commit
 	 * - LFS pattern setup fails
 	 */
-	public static async initShadowGit(gitPath: string, cwd: string): Promise<string> {
+	public async initShadowGit(gitPath: string, cwd: string): Promise<string> {
 		console.info(`Initializing shadow git`)
 
 		// If repo exists, just verify worktree
@@ -93,6 +93,9 @@ export class GitOperations {
 		const lfsPatterns = await getLfsPatterns(cwd)
 		await writeExcludesFile(gitPath, lfsPatterns)
 
+		// Stage all files for initial commit (important so main branch is created with all files in initial commit, and branches created from it will take up less space)
+		await this.addCheckpointFiles(git)
+
 		// Initial commit only on first repo creation
 		await git.commit("initial commit", { "--allow-empty": null })
 
@@ -122,29 +125,28 @@ export class GitOperations {
 	}
 
 	/**
-	 * Checks if a shadow Git repository exists for the given task and workspace.
+	 * Checks if a shadow Git repository exists for the current workspace.
 	 * (checkpoints/{workspaceHash}/.git).
 	 *
-	 * @param taskId - The ID of the task whose shadow git to check
 	 * @param provider - The ClineProvider instance for accessing VS Code functionality
 	 * @returns Promise<boolean> True if a branch-per-task shadow git exists, false otherwise
 	 */
-	public static async doesShadowGitExist(taskId: string, provider?: StorageProvider): Promise<boolean> {
-		const globalStoragePath = provider?.context.globalStorageUri.fsPath
-		if (!globalStoragePath) {
-			return false
-		}
+	// public static async doesShadowGitExist(provider?: StorageProvider): Promise<boolean> {
+	// 	const globalStoragePath = provider?.context.globalStorageUri.fsPath
+	// 	if (!globalStoragePath) {
+	// 		return false
+	// 	}
 
-		// Check branch-per-task path for newer tasks
-		const workingDir = await getWorkingDirectory()
-		const cwdHash = hashWorkingDir(workingDir)
-		const gitPath = path.join(globalStoragePath, "checkpoints", cwdHash, ".git")
-		const exists = await fileExistsAtPath(gitPath)
-		if (exists) {
-			console.info("Found existing shadow git")
-		}
-		return exists
-	}
+	// 	// Check branch-per-task path for newer tasks
+	// 	const workingDir = await getWorkingDirectory()
+	// 	const cwdHash = hashWorkingDir(workingDir)
+	// 	const gitPath = path.join(globalStoragePath, "checkpoints", cwdHash, ".git")
+	// 	const exists = await fileExistsAtPath(gitPath)
+	// 	if (exists) {
+	// 		console.info("Found existing shadow git")
+	// 	}
+	// 	return exists
+	// }
 
 	/**
 	 * Deletes a branch in the git repository, handling cases where the branch is currently checked out.
@@ -293,29 +295,17 @@ export class GitOperations {
 	 * @param disable - If true, adds suffix to disable nested git repos. If false, removes suffix to re-enable them.
 	 * @throws Error if renaming any .git directory fails
 	 */
-	public async renameNestedGitRepos(disable: boolean): Promise<void> {
-		// Find all .git directories that are not at the root level using VS Code API
-		const gitFiles = await vscode.workspace.findFiles(
-			new vscode.RelativePattern(this.cwd, "**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX)),
-			new vscode.RelativePattern(this.cwd, ".git/**"), // Exclude root .git
-		)
+	public async renameNestedGitRepos(disable: boolean) {
+		// Find all .git directories that are not at the root level
+		const gitPaths = await globby("**/.git" + (disable ? "" : GIT_DISABLED_SUFFIX), {
+			cwd: this.cwd,
+			onlyDirectories: true,
+			ignore: [".git"], // Ignore root level .git
+			dot: true,
+			markDirectories: false,
+		})
 
-		// Filter to only include directories
-		const gitPaths: string[] = []
-		for (const file of gitFiles) {
-			const relativePath = path.relative(this.cwd, file.fsPath)
-			try {
-				const stats = await fs.stat(path.join(this.cwd, relativePath))
-				if (stats.isDirectory()) {
-					gitPaths.push(relativePath)
-				}
-			} catch {
-				// Skip if stat fails
-				continue
-			}
-		}
-
-		// For each nested .git directory, rename it based on the disable flag
+		// For each nested .git directory, rename it based on operation
 		for (const gitPath of gitPaths) {
 			const fullPath = path.join(this.cwd, gitPath)
 			let newPath: string
@@ -327,9 +317,9 @@ export class GitOperations {
 
 			try {
 				await fs.rename(fullPath, newPath)
-				console.info(`${disable ? "Disabled" : "Enabled"} nested git repo ${gitPath}`)
+				console.log(`CheckpointTracker ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`)
 			} catch (error) {
-				console.error(`Failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
+				console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
 			}
 		}
 	}
@@ -371,8 +361,8 @@ export class GitOperations {
 			await git.checkout(branchName)
 		}
 
-		const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
-		console.info(`Current Checkpoint branch after switch: ${currentBranch}`)
+		// const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
+		console.info(`Current Checkpoint branch after switch: ${branchName}`)
 	}
 
 	/**
@@ -388,7 +378,6 @@ export class GitOperations {
 	 * 5. Re-enables nested git repos
 	 *
 	 * @param git - SimpleGit instance configured for the shadow git repo
-	 * @param gitPath - Path to the .git directory
 	 * @returns Promise<CheckpointAddResult> Object containing success status, message, and file count
 	 * @throws Error if:
 	 *  - File operations fail
@@ -396,7 +385,7 @@ export class GitOperations {
 	 *  - LFS pattern updates fail
 	 *  - Nested git repo handling fails
 	 */
-	public async addCheckpointFiles(git: SimpleGit, gitPath: string): Promise<CheckpointAddResult> {
+	public async addCheckpointFiles(git: SimpleGit): Promise<CheckpointAddResult> {
 		try {
 			// Update exclude patterns before each commit
 			await this.renameNestedGitRepos(true)
