@@ -100,6 +100,8 @@ type GlobalStateKey =
 	| "previousModeModelId"
 	| "previousModeThinkingBudgetTokens"
 	| "previousModeModelInfo"
+	| "previousModeAwsBedrockCustomSelected"
+	| "previousModeAwsBedrockCustomModelBaseId"
 	| "liteLlmBaseUrl"
 	| "liteLlmModelId"
 	| "qwenApiLine"
@@ -943,6 +945,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeModelId: newModelId,
 			previousModeModelInfo: newModelInfo,
 			previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
+			previousModeAwsBedrockCustomSelected: newAwsBedrockCustomSelected,
+			previousModeAwsBedrockCustomModelBaseId: newAwsBedrockCustomModelBaseId,
 			planActSeparateModelsSetting,
 		} = await this.getState()
 
@@ -954,7 +958,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await this.updateGlobalState("previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
 			switch (apiConfiguration.apiProvider) {
 				case "anthropic":
-				case "bedrock":
 				case "vertex":
 				case "gemini":
 				case "asksage":
@@ -962,6 +965,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				case "qwen":
 				case "deepseek":
 					await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
+					break
+				case "bedrock":
+					await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
+					await this.updateGlobalState(
+						"previousModeAwsBedrockCustomSelected",
+						apiConfiguration.awsBedrockCustomSelected,
+					)
+					await this.updateGlobalState(
+						"previousModeAwsBedrockCustomModelBaseId",
+						apiConfiguration.awsBedrockCustomModelBaseId,
+					)
 					break
 				case "openrouter":
 				case "cline":
@@ -995,7 +1009,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				await this.updateGlobalState("thinkingBudgetTokens", newThinkingBudgetTokens)
 				switch (newApiProvider) {
 					case "anthropic":
-					case "bedrock":
 					case "vertex":
 					case "gemini":
 					case "asksage":
@@ -1003,6 +1016,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "qwen":
 					case "deepseek":
 						await this.updateGlobalState("apiModelId", newModelId)
+						break
+					case "bedrock":
+						await this.updateGlobalState("apiModelId", newModelId)
+						await this.updateGlobalState("awsBedrockCustomSelected", newAwsBedrockCustomSelected)
+						await this.updateGlobalState("awsBedrockCustomModelBaseId", newAwsBedrockCustomModelBaseId)
 						break
 					case "openrouter":
 					case "cline":
@@ -1991,6 +2009,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelId,
 			previousModeModelInfo,
 			previousModeThinkingBudgetTokens,
+			previousModeAwsBedrockCustomSelected,
+			previousModeAwsBedrockCustomModelBaseId,
 			qwenApiLine,
 			liteLlmApiKey,
 			telemetrySetting,
@@ -2055,6 +2075,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("previousModeThinkingBudgetTokens") as Promise<number | undefined>,
+			this.getGlobalState("previousModeAwsBedrockCustomSelected") as Promise<boolean | undefined>,
+			this.getGlobalState("previousModeAwsBedrockCustomModelBaseId") as Promise<BedrockModelId | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
 			this.getGlobalState("telemetrySetting") as Promise<TelemetrySetting | undefined>,
@@ -2169,6 +2191,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeModelId,
 			previousModeModelInfo,
 			previousModeThinkingBudgetTokens,
+			previousModeAwsBedrockCustomSelected,
+			previousModeAwsBedrockCustomModelBaseId,
 			mcpMarketplaceEnabled,
 			telemetrySetting: telemetrySetting || "unset",
 			planActSeparateModelsSetting,
