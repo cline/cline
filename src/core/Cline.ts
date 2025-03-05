@@ -142,7 +142,7 @@ export class Cline {
 			this.taskId = historyItem.id
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
 			// Capture telemetry for resumed task
-			telemetryService.captureTaskCreated(this.taskId)
+			telemetryService.captureTaskRestarted(this.taskId)
 			this.resumeTaskFromHistory()
 		} else if (task || images) {
 			this.taskId = Date.now().toString()
