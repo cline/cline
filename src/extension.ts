@@ -60,7 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
 	// Register human relay callback registration command
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
-			"roo-code.registerHumanRelayCallback",
+			"roo-cline.registerHumanRelayCallback",
 			(requestId: string, callback: (response: string | undefined) => void) => {
 				registerHumanRelayCallback(requestId, callback)
 			},
@@ -70,7 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
 	// Register human relay response processing command
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
-			"roo-code.handleHumanRelayResponse",
+			"roo-cline.handleHumanRelayResponse",
 			(response: { requestId: string; text?: string; cancelled?: boolean }) => {
 				const callback = humanRelayCallbacks.get(response.requestId)
 				if (callback) {
@@ -86,7 +86,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("roo-code.unregisterHumanRelayCallback", (requestId: string) => {
+		vscode.commands.registerCommand("roo-cline.unregisterHumanRelayCallback", (requestId: string) => {
 			humanRelayCallbacks.delete(requestId)
 		}),
 	)

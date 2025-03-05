@@ -1571,7 +1571,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "humanRelayResponse":
 						if (message.requestId && message.text) {
-							vscode.commands.executeCommand("roo-code.handleHumanRelayResponse", {
+							vscode.commands.executeCommand("roo-cline.handleHumanRelayResponse", {
 								requestId: message.requestId,
 								text: message.text,
 								cancelled: false,
@@ -1581,7 +1581,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 					case "humanRelayCancel":
 						if (message.requestId) {
-							vscode.commands.executeCommand("roo-code.handleHumanRelayResponse", {
+							vscode.commands.executeCommand("roo-cline.handleHumanRelayResponse", {
 								requestId: message.requestId,
 								cancelled: true,
 							})

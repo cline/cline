@@ -47,7 +47,7 @@ export const registerCommands = (options: RegisterCommandOptions) => {
 	// Human Relay Dialog Command
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
-			"roo-code.showHumanRelayDialog",
+			"roo-cline.showHumanRelayDialog",
 			(params: { requestId: string; promptText: string }) => {
 				if (getPanel()) {
 					getPanel()?.webview.postMessage({
