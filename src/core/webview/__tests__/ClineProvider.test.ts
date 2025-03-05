@@ -37,6 +37,16 @@ jest.mock("../../contextProxy", () => {
 			saveChanges: jest.fn().mockResolvedValue(undefined),
 			dispose: jest.fn().mockResolvedValue(undefined),
 			hasPendingChanges: jest.fn().mockReturnValue(false),
+			setValue: jest.fn().mockImplementation((key, value) => {
+				if (key.startsWith("apiKey") || key.startsWith("openAiApiKey")) {
+					return context.secrets.store(key, value)
+				}
+				return context.globalState.update(key, value)
+			}),
+			setValues: jest.fn().mockImplementation((values) => {
+				const promises = Object.entries(values).map(([key, value]) => context.globalState.update(key, value))
+				return Promise.all(promises)
+			}),
 		})),
 	}
 })
@@ -267,6 +277,8 @@ describe("ClineProvider", () => {
 	let mockContextProxy: {
 		updateGlobalState: jest.Mock
 		getGlobalState: jest.Mock
+		setValue: jest.Mock
+		setValues: jest.Mock
 		storeSecret: jest.Mock
 		dispose: jest.Mock
 	}
@@ -1536,6 +1548,7 @@ describe("ContextProxy integration", () => {
 	let mockContext: vscode.ExtensionContext
 	let mockOutputChannel: vscode.OutputChannel
 	let mockContextProxy: any
+	let mockGlobalStateUpdate: jest.Mock
 
 	beforeEach(() => {
 		// Reset mocks
@@ -1543,7 +1556,11 @@ describe("ContextProxy integration", () => {
 
 		// Setup basic mocks
 		mockContext = {
-			globalState: { get: jest.fn(), update: jest.fn(), keys: jest.fn().mockReturnValue([]) },
+			globalState: {
+				get: jest.fn(),
+				update: jest.fn(),
+				keys: jest.fn().mockReturnValue([]),
+			},
 			secrets: { get: jest.fn(), store: jest.fn(), delete: jest.fn() },
 			extensionUri: {} as vscode.Uri,
 			globalStorageUri: { fsPath: "/test/path" },
@@ -1555,6 +1572,8 @@ describe("ContextProxy integration", () => {
 
 		// @ts-ignore - accessing private property for testing
 		mockContextProxy = provider.contextProxy
+
+		mockGlobalStateUpdate = mockContext.globalState.update as jest.Mock
 	})
 
 	test("updateGlobalState uses contextProxy", async () => {
@@ -1579,5 +1598,7 @@ describe("ContextProxy integration", () => {
 		expect(mockContextProxy.getGlobalState).toBeDefined()
 		expect(mockContextProxy.updateGlobalState).toBeDefined()
 		expect(mockContextProxy.storeSecret).toBeDefined()
+		expect(mockContextProxy.setValue).toBeDefined()
+		expect(mockContextProxy.setValues).toBeDefined()
 	})
 })
