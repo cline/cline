@@ -2889,7 +2889,7 @@ export class Cline {
 										await this.say("completion_result", result, undefined, false)
 										await this.saveCheckpoint(true)
 										await addNewChangesFlagToLastCompletionResultMessage()
-										telemetryService.captureTaskCompleted(this.taskId)
+										telemetryService.captureTaskCompleted(this.taskId) // Capture telemetry when attempt_completion is used
 									} else {
 										// we already sent a command message, meaning the complete completion message has also been sent
 										await this.saveCheckpoint(true)
@@ -2912,6 +2912,7 @@ export class Cline {
 									await this.say("completion_result", result, undefined, false)
 									await this.saveCheckpoint(true)
 									await addNewChangesFlagToLastCompletionResultMessage()
+									telemetryService.captureTaskCompleted(this.taskId) // Capture telemetry when attempt_completion is used
 								}
 
 								// we already sent completion_result says, an empty string asks relinquishes control over button and field
@@ -3185,7 +3186,7 @@ export class Cline {
 					const model = this.api.getModel()
 					const provider = "unknown" // TODO update this to have the correct provider set
 					const modelId = model.id
-					telemetryService.captureMessage(this.taskId, provider, modelId, "model")
+					telemetryService.captureMessage(this.taskId, provider, modelId, "assistant")
 				} catch (error) {
 					console.error("Failed to capture message telemetry:", error)
 					// Don't throw - telemetry errors shouldn't affect the main flow
@@ -3319,7 +3320,7 @@ export class Cline {
 					const model = this.api.getModel()
 					const provider = "unknown" // TODO update this to have the correct provider set
 					const modelId = model.id
-					telemetryService.captureMessage(this.taskId, provider, modelId, "model")
+					telemetryService.captureMessage(this.taskId, provider, modelId, "assistant")
 				} catch (error) {
 					console.error("Failed to capture message telemetry:", error)
 					// Don't throw - telemetry errors shouldn't affect the main flow

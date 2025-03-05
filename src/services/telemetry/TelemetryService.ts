@@ -172,7 +172,7 @@ class PostHogClient {
 	 * @param model The specific model used (e.g., GPT-4, Claude)
 	 * @param source The source of the message ("user" | "model"). Used to track message patterns and identify when users need to correct the model's responses.
 	 */
-	public captureMessage(taskId: string, provider: string, model: string, source: "user" | "model") {
+	public captureMessage(taskId: string, provider: string, model: string, source: "user" | "assistant") {
 		// Ensure required parameters are provided
 		if (!taskId || !provider || !model || !source) {
 			console.warn("TelemetryService: Missing required parameters for message capture")
