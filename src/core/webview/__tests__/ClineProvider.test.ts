@@ -34,6 +34,21 @@ jest.mock("../../contextProxy", () => {
 				.mockImplementation((key, value) =>
 					value ? context.secrets.store(key, value) : context.secrets.delete(key),
 				),
+			getApiConfiguration: jest.fn().mockImplementation(() => ({
+				apiProvider: "openrouter",
+				// Add other common properties
+			})),
+			updateApiConfiguration: jest.fn().mockImplementation(async (apiConfiguration) => {
+				// Mock implementation that simulates updating state and secrets
+				for (const [key, value] of Object.entries(apiConfiguration)) {
+					if (key === "apiKey" || key === "openAiApiKey") {
+						context.secrets.store(key, value)
+					} else {
+						context.globalState.update(key, value)
+					}
+				}
+				return Promise.resolve()
+			}),
 			saveChanges: jest.fn().mockResolvedValue(undefined),
 			dispose: jest.fn().mockResolvedValue(undefined),
 			hasPendingChanges: jest.fn().mockReturnValue(false),
@@ -1579,5 +1594,51 @@ describe("ContextProxy integration", () => {
 		expect(mockContextProxy.getGlobalState).toBeDefined()
 		expect(mockContextProxy.updateGlobalState).toBeDefined()
 		expect(mockContextProxy.storeSecret).toBeDefined()
+		expect(mockContextProxy.getApiConfiguration).toBeDefined()
+		expect(mockContextProxy.updateApiConfiguration).toBeDefined()
+	})
+
+	test("getState uses contextProxy.getApiConfiguration", async () => {
+		// Setup mock API configuration
+		const mockApiConfig = {
+			apiProvider: "anthropic",
+			apiModelId: "claude-latest",
+			apiKey: "test-api-key",
+		}
+		mockContextProxy.getApiConfiguration.mockReturnValue(mockApiConfig)
+
+		// Get state
+		const state = await provider.getState()
+
+		// Verify getApiConfiguration was called
+		expect(mockContextProxy.getApiConfiguration).toHaveBeenCalled()
+		// Verify state has the API configuration from contextProxy
+		expect(state.apiConfiguration).toBe(mockApiConfig)
+	})
+
+	test("updateApiConfiguration uses contextProxy.updateApiConfiguration", async () => {
+		// Setup test config
+		const testApiConfig = {
+			apiProvider: "anthropic",
+			apiModelId: "claude-latest",
+			apiKey: "test-api-key",
+		}
+
+		// Mock methods needed for the test
+		provider.configManager = {
+			listConfig: jest.fn().mockResolvedValue([]),
+			setModeConfig: jest.fn(),
+		} as any
+
+		// Mock getState for mode
+		jest.spyOn(provider, "getState").mockResolvedValue({
+			mode: "code",
+		} as any)
+
+		// Call the private method - need to use any to access it
+		await (provider as any).updateApiConfiguration(testApiConfig)
+
+		// Verify contextProxy.updateApiConfiguration was called with the right config
+		expect(mockContextProxy.updateApiConfiguration).toHaveBeenCalledWith(testApiConfig)
 	})
 })

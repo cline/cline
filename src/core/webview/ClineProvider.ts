@@ -1659,20 +1659,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
-		// Create an array of promises to update state
-		const promises: Promise<any>[] = []
-
-		// For each property in apiConfiguration, update the appropriate state
-		Object.entries(apiConfiguration).forEach(([key, value]) => {
-			// Check if this key is a secret
-			if (SECRET_KEYS.includes(key as SecretKey)) {
-				promises.push(this.storeSecret(key as SecretKey, value))
-			} else {
-				promises.push(this.updateGlobalState(key as GlobalStateKey, value))
-			}
-		})
-
-		await Promise.all(promises)
+		// Update all configuration values through the contextProxy
+		await this.contextProxy.updateApiConfiguration(apiConfiguration)
 
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
@@ -2073,61 +2061,31 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	*/
 
 	async getState() {
-		// Create an object to store all fetched values
-		const stateValues: Record<GlobalStateKey | SecretKey, any> = {} as Record<GlobalStateKey | SecretKey, any>
-		const secretValues: Record<SecretKey, any> = {} as Record<SecretKey, any>
+		// Get ApiConfiguration directly from contextProxy
+		const apiConfiguration = this.contextProxy.getApiConfiguration()
 
-		// Create promise arrays for global state and secrets
-		const statePromises = GLOBAL_STATE_KEYS.map((key) => this.getGlobalState(key))
-		const secretPromises = SECRET_KEYS.map((key) => this.getSecret(key))
+		// Create an object to store all fetched values (excluding API config which we already have)
+		const stateValues: Record<GlobalStateKey, any> = {} as Record<GlobalStateKey, any>
+
+		// Create promise arrays for global state
+		const statePromises = GLOBAL_STATE_KEYS
+			// Filter out API config keys since we already have them
+			.filter((key) => !API_CONFIG_KEYS.includes(key))
+			.map((key) => this.getGlobalState(key))
 
 		// Add promise for custom modes which is handled separately
 		const customModesPromise = this.customModesManager.getCustomModes()
 
 		let idx = 0
-		const valuePromises = await Promise.all([...statePromises, ...secretPromises, customModesPromise])
+		const valuePromises = await Promise.all([...statePromises, customModesPromise])
 
-		// Populate stateValues and secretValues
-		GLOBAL_STATE_KEYS.forEach((key, _) => {
+		// Populate stateValues
+		GLOBAL_STATE_KEYS.filter((key) => !API_CONFIG_KEYS.includes(key)).forEach((key) => {
 			stateValues[key] = valuePromises[idx]
 			idx = idx + 1
 		})
 
-		SECRET_KEYS.forEach((key, index) => {
-			secretValues[key] = valuePromises[idx]
-			idx = idx + 1
-		})
-
 		let customModes = valuePromises[idx] as ModeConfig[] | undefined
-
-		// Determine apiProvider with the same logic as before
-		let apiProvider: ApiProvider
-		if (stateValues.apiProvider) {
-			apiProvider = stateValues.apiProvider
-		} else {
-			// Either new user or legacy user that doesn't have the apiProvider stored in state
-			// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
-			if (secretValues.apiKey) {
-				apiProvider = "anthropic"
-			} else {
-				// New users should default to openrouter
-				apiProvider = "openrouter"
-			}
-		}
-
-		// Build the apiConfiguration object combining state values and secrets
-		// Using the dynamic approach with API_CONFIG_KEYS
-		const apiConfiguration: ApiConfiguration = {
-			// Dynamically add all API-related keys from stateValues
-			...Object.fromEntries(API_CONFIG_KEYS.map((key) => [key, stateValues[key]])),
-			// Add all secrets
-			...secretValues,
-		}
-
-		// Ensure apiProvider is set properly if not already in state
-		if (!apiConfiguration.apiProvider) {
-			apiConfiguration.apiProvider = apiProvider
-		}
 
 		// Return the same structure as before
 		return {
