@@ -17,7 +17,7 @@ class PostHogClient {
 			RESTARTED: "task.restarted",
 			// Tracks when a task is finished, with acceptance or rejection status
 			COMPLETED: "task.completed",
-			// Tracks individual message exchanges in a conversation
+			// Tracks individual message exchanges in a conversation either user or assistant messages
 			MESSAGE: "task.message",
 			// Tracks token consumption for cost and usage analysis
 			TOKEN_USAGE: "task.tokens",
@@ -27,8 +27,6 @@ class PostHogClient {
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
 			TOOL_USED: "task.tool_used",
-			// Tracks when tools are automatically approved based on settings
-			TOOL_AUTO_APPROVED: "task.tool_auto_approved",
 			// Tracks when a historical task is loaded from storage
 			HISTORICAL_LOADED: "task.historical_loaded",
 			// Tracks when the retry button is clicked for failed operations
@@ -75,7 +73,8 @@ class PostHogClient {
 	 * Initializes PostHog client with configuration
 	 */
 	private constructor() {
-		this.client = new PostHog("phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K", {
+		// production key phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K remove before release
+		this.client = new PostHog("phc_uY24EJXNBcc9kwO1K8TJUl5hPQntGM6LL1Mtrz0CBD4", {
 			host: "https://us.i.posthog.com",
 			enableExceptionAutocapture: false,
 		})
@@ -171,10 +170,11 @@ class PostHogClient {
 	 * @param taskId Unique identifier for the task
 	 * @param provider The API provider (e.g., OpenAI, Anthropic)
 	 * @param model The specific model used (e.g., GPT-4, Claude)
+	 * @param type either assistant or user message so we can identify user messages
 	 */
-	public captureMessage(taskId: string, provider: string, model: string) {
+	public captureMessage(taskId: string, provider: string, model: string, type: string) {
 		// Ensure required parameters are provided
-		if (!taskId || !provider || !model) {
+		if (!taskId || !provider || !model || !type) {
 			console.warn("TelemetryService: Missing required parameters for message capture")
 			return
 		}
@@ -183,6 +183,7 @@ class PostHogClient {
 			taskId,
 			provider,
 			model,
+			type,
 			timestamp: new Date().toISOString(), // Add timestamp for message sequencing
 		}
 
@@ -242,23 +243,6 @@ class PostHogClient {
 				taskId,
 				tool,
 				autoApproved,
-				success,
-			},
-		})
-	}
-
-	/**
-	 * Records when a tool is automatically approved based on user settings
-	 * @param taskId Unique identifier for the task
-	 * @param tool Name of the tool that was auto-approved
-	 * @param success Whether the auto-approval was successful
-	 */
-	public captureToolAutoApproval(taskId: string, tool: string, success: boolean) {
-		this.capture({
-			event: PostHogClient.EVENTS.TASK.TOOL_AUTO_APPROVED,
-			properties: {
-				taskId,
-				tool,
 				success,
 			},
 		})

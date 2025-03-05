@@ -986,10 +986,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent) {
 		const didSwitchToActMode = chatSettings.mode === "act"
 
-		// Capture mode switch telemetry
-		if (this.cline) {
-			telemetryService.captureModeSwitch(this.cline.taskId, chatSettings.mode)
-		}
+		// Capture mode switch telemetry | Capture regardless of if we know the taskId
+		telemetryService.captureModeSwitch(this.cline?.taskId ?? "0", chatSettings.mode)
 
 		// Get previous model info that we will revert to after saving current mode api info
 		const {
