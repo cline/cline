@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
-import { DiffStrategy, getDiffStrategy, UnifiedDiffStrategy } from "./diff/DiffStrategy"
+import { DiffStrategy, getDiffStrategy } from "./diff/DiffStrategy"
 import { validateToolUse, isToolAllowedForMode, ToolName } from "./mode-validator"
 import delay from "delay"
 import fs from "fs/promises"
@@ -10,10 +10,15 @@ import getFolderSize from "get-folder-size"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { ApiHandler, SingleCompletionHandler, buildApiHandler } from "../api"
+
+import { ApiHandler, buildApiHandler } from "../api"
 import { ApiStream } from "../api/transform/stream"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../integrations/editor/DiffViewProvider"
-import { CheckpointService, CheckpointServiceFactory } from "../services/checkpoints"
+import {
+	CheckpointServiceOptions,
+	RepoPerTaskCheckpointService,
+	RepoPerWorkspaceCheckpointService,
+} from "../services/checkpoints"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
 import {
 	extractTextFromFile,
@@ -27,6 +32,7 @@ import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
+import { CheckpointStorage } from "../shared/checkpoints"
 import { ApiConfiguration } from "../shared/api"
 import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
@@ -77,6 +83,7 @@ export type ClineOptions = {
 	customInstructions?: string
 	enableDiff?: boolean
 	enableCheckpoints?: boolean
+	checkpointStorage?: CheckpointStorage
 	fuzzyMatchThreshold?: number
 	task?: string
 	images?: string[]
@@ -126,8 +133,9 @@ export class Cline {
 	isInitialized = false
 
 	// checkpoints
-	enableCheckpoints: boolean = false
-	private checkpointService?: CheckpointService
+	private enableCheckpoints: boolean
+	private checkpointStorage: CheckpointStorage
+	private checkpointService?: RepoPerTaskCheckpointService | RepoPerWorkspaceCheckpointService
 
 	// streaming
 	isWaitingForFirstChunk = false
@@ -147,7 +155,8 @@ export class Cline {
 		apiConfiguration,
 		customInstructions,
 		enableDiff,
-		enableCheckpoints,
+		enableCheckpoints = false,
+		checkpointStorage = "task",
 		fuzzyMatchThreshold,
 		task,
 		images,
@@ -171,7 +180,8 @@ export class Cline {
 		this.fuzzyMatchThreshold = fuzzyMatchThreshold ?? 1.0
 		this.providerRef = new WeakRef(provider)
 		this.diffViewProvider = new DiffViewProvider(cwd)
-		this.enableCheckpoints = enableCheckpoints ?? false
+		this.enableCheckpoints = enableCheckpoints
+		this.checkpointStorage = checkpointStorage
 
 		// Initialize diffStrategy based on current state
 		this.updateDiffStrategy(Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.DIFF_STRATEGY))
@@ -825,8 +835,12 @@ export class Cline {
 	}
 
 	private async initiateTaskLoop(userContent: UserContent): Promise<void> {
+		// Kicks off the checkpoints initialization process in the background.
+		this.getCheckpointService()
+
 		let nextUserContent = userContent
 		let includeFileDetails = true
+
 		while (!this.abort) {
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
@@ -1024,6 +1038,7 @@ export class Cline {
 			preferredLanguage,
 			experiments,
 			enableMcpServerCreation,
+			browserToolEnabled,
 		} = (await this.providerRef.deref()?.getState()) ?? {}
 		const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
 		const systemPrompt = await (async () => {
@@ -1034,7 +1049,7 @@ export class Cline {
 			return SYSTEM_PROMPT(
 				provider.context,
 				cwd,
-				this.api.getModel().info.supportsComputerUse ?? false,
+				(this.api.getModel().info.supportsComputerUse ?? false) && (browserToolEnabled ?? true),
 				mcpHub,
 				this.diffStrategy,
 				browserViewportSize,
@@ -1068,12 +1083,12 @@ export class Cline {
 				? this.apiConfiguration.modelMaxTokens || modelInfo.maxTokens
 				: modelInfo.maxTokens
 			const contextWindow = modelInfo.contextWindow
-
-			const trimmedMessages = truncateConversationIfNeeded({
+			const trimmedMessages = await truncateConversationIfNeeded({
 				messages: this.apiConversationHistory,
 				totalTokens,
 				maxTokens,
 				contextWindow,
+				apiHandler: this.api,
 			})
 
 			if (trimmedMessages !== this.apiConversationHistory) {
@@ -2876,7 +2891,7 @@ export class Cline {
 		}
 
 		if (isCheckpointPossible) {
-			await this.checkpointSave({ isFirst: false })
+			this.checkpointSave()
 		}
 
 		/*
@@ -2955,13 +2970,6 @@ export class Cline {
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
 		const previousApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
-
-		// Save checkpoint if this is the first API request.
-		const isFirstRequest = this.clineMessages.filter((m) => m.say === "api_req_started").length === 0
-
-		if (isFirstRequest) {
-			await this.checkpointSave({ isFirst: true })
-		}
 
 		// in this Cline request loop, we need to check if this cline (Task) instance has been asked to wait
 		// for a sub-task (it has launched) to finish before continuing
@@ -3473,7 +3481,7 @@ export class Cline {
 		) {
 			const currentModeName = getModeBySlug(currentMode, customModes)?.name ?? currentMode
 			const defaultModeName = getModeBySlug(defaultModeSlug, customModes)?.name ?? defaultModeSlug
-			details += `\n\nNOTE: You are currently in '${currentModeName}' mode which only allows read-only operations. To write files or execute commands, the user will need to switch to '${defaultModeName}' mode. Note that only the user can switch modes.`
+			details += `\n\nNOTE: You are currently in '${currentModeName}' mode, which does not allow write operations. To write files, the user will need to switch to a mode that supports file writing, such as '${defaultModeName}' mode.`
 		}
 
 		if (includeFileDetails) {
@@ -3494,55 +3502,144 @@ export class Cline {
 
 	// Checkpoints
 
-	private async getCheckpointService() {
+	private getCheckpointService() {
 		if (!this.enableCheckpoints) {
-			throw new Error("Checkpoints are disabled")
+			return undefined
 		}
 
-		if (!this.checkpointService) {
+		if (this.checkpointService) {
+			return this.checkpointService
+		}
+
+		const log = (message: string) => {
+			console.log(message)
+
+			try {
+				this.providerRef.deref()?.log(message)
+			} catch (err) {
+				// NO-OP
+			}
+		}
+
+		try {
 			const workspaceDir = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-			const shadowDir = this.providerRef.deref()?.context.globalStorageUri.fsPath
 
 			if (!workspaceDir) {
-				this.providerRef.deref()?.log("[getCheckpointService] workspace folder not found")
-				throw new Error("Workspace directory not found")
+				log("[Cline#initializeCheckpoints] workspace folder not found, disabling checkpoints")
+				this.enableCheckpoints = false
+				return undefined
 			}
 
-			if (!shadowDir) {
-				this.providerRef.deref()?.log("[getCheckpointService] shadowDir not found")
-				throw new Error("Global storage directory not found")
+			const globalStorageDir = this.providerRef.deref()?.context.globalStorageUri.fsPath
+
+			if (!globalStorageDir) {
+				log("[Cline#initializeCheckpoints] globalStorageDir not found, disabling checkpoints")
+				this.enableCheckpoints = false
+				return undefined
 			}
 
-			this.checkpointService = await CheckpointServiceFactory.create({
-				strategy: "shadow",
-				options: {
-					taskId: this.taskId,
-					workspaceDir,
-					shadowDir,
-					log: (message) => this.providerRef.deref()?.log(message),
-				},
+			const options: CheckpointServiceOptions = {
+				taskId: this.taskId,
+				workspaceDir,
+				shadowDir: globalStorageDir,
+				log,
+			}
+
+			const service =
+				this.checkpointStorage === "task"
+					? RepoPerTaskCheckpointService.create(options)
+					: RepoPerWorkspaceCheckpointService.create(options)
+
+			service.on("initialize", () => {
+				try {
+					const isCheckpointNeeded =
+						typeof this.clineMessages.find(({ say }) => say === "checkpoint_saved") === "undefined"
+
+					this.checkpointService = service
+
+					if (isCheckpointNeeded) {
+						log("[Cline#initializeCheckpoints] no checkpoints found, saving initial checkpoint")
+						this.checkpointSave()
+					}
+				} catch (err) {
+					log("[Cline#initializeCheckpoints] caught error in on('initialize'), disabling checkpoints")
+					this.enableCheckpoints = false
+				}
 			})
+
+			service.on("checkpoint", ({ isFirst, fromHash: from, toHash: to }) => {
+				try {
+					this.providerRef.deref()?.postMessageToWebview({ type: "currentCheckpointUpdated", text: to })
+
+					this.say("checkpoint_saved", to, undefined, undefined, { isFirst, from, to }).catch((err) => {
+						log("[Cline#initializeCheckpoints] caught unexpected error in say('checkpoint_saved')")
+						console.error(err)
+					})
+				} catch (err) {
+					log(
+						"[Cline#initializeCheckpoints] caught unexpected error in on('checkpoint'), disabling checkpoints",
+					)
+					console.error(err)
+					this.enableCheckpoints = false
+				}
+			})
+
+			service.initShadowGit().catch((err) => {
+				log("[Cline#initializeCheckpoints] caught unexpected error in initShadowGit, disabling checkpoints")
+				console.error(err)
+				this.enableCheckpoints = false
+			})
+
+			return service
+		} catch (err) {
+			log("[Cline#initializeCheckpoints] caught unexpected error, disabling checkpoints")
+			this.enableCheckpoints = false
+			return undefined
+		}
+	}
+
+	private async getInitializedCheckpointService({
+		interval = 250,
+		timeout = 15_000,
+	}: { interval?: number; timeout?: number } = {}) {
+		const service = this.getCheckpointService()
+
+		if (!service || service.isInitialized) {
+			return service
 		}
 
-		return this.checkpointService
+		try {
+			await pWaitFor(
+				() => {
+					console.log("[Cline#getCheckpointService] waiting for service to initialize")
+					return service.isInitialized
+				},
+				{ interval, timeout },
+			)
+			return service
+		} catch (err) {
+			return undefined
+		}
 	}
 
 	public async checkpointDiff({
 		ts,
+		previousCommitHash,
 		commitHash,
 		mode,
 	}: {
 		ts: number
+		previousCommitHash?: string
 		commitHash: string
 		mode: "full" | "checkpoint"
 	}) {
-		if (!this.enableCheckpoints) {
+		const service = await this.getInitializedCheckpointService()
+
+		if (!service) {
 			return
 		}
 
-		let previousCommitHash = undefined
-
-		if (mode === "checkpoint") {
+		if (!previousCommitHash && mode === "checkpoint") {
 			const previousCheckpoint = this.clineMessages
 				.filter(({ say }) => say === "checkpoint_saved")
 				.sort((a, b) => b.ts - a.ts)
@@ -3552,7 +3649,6 @@ export class Cline {
 		}
 
 		try {
-			const service = await this.getCheckpointService()
 			const changes = await service.getDiff({ from: previousCommitHash, to: commitHash })
 
 			if (!changes?.length) {
@@ -3579,30 +3675,26 @@ export class Cline {
 		}
 	}
 
-	public async checkpointSave({ isFirst }: { isFirst: boolean }) {
-		if (!this.enableCheckpoints) {
+	public checkpointSave() {
+		const service = this.getCheckpointService()
+
+		if (!service) {
 			return
 		}
 
-		try {
-			const service = await this.getCheckpointService()
-			const strategy = service.strategy
-			const version = service.version
-
-			const commit = await service.saveCheckpoint(`Task: ${this.taskId}, Time: ${Date.now()}`)
-			const fromHash = service.baseHash
-			const toHash = isFirst ? commit?.commit || fromHash : commit?.commit
-
-			if (toHash) {
-				await this.providerRef.deref()?.postMessageToWebview({ type: "currentCheckpointUpdated", text: toHash })
-
-				const checkpoint = { isFirst, from: fromHash, to: toHash, strategy, version }
-				await this.say("checkpoint_saved", toHash, undefined, undefined, checkpoint)
-			}
-		} catch (err) {
-			this.providerRef.deref()?.log("[checkpointSave] disabling checkpoints for this task")
+		if (!service.isInitialized) {
+			this.providerRef
+				.deref()
+				?.log("[checkpointSave] checkpoints didn't initialize in time, disabling checkpoints for this task")
 			this.enableCheckpoints = false
+			return
 		}
+
+		// Start the checkpoint process in the background.
+		service.saveCheckpoint(`Task: ${this.taskId}, Time: ${Date.now()}`).catch((err) => {
+			console.error("[Cline#checkpointSave] caught unexpected error, disabling checkpoints", err)
+			this.enableCheckpoints = false
+		})
 	}
 
 	public async checkpointRestore({
@@ -3614,7 +3706,9 @@ export class Cline {
 		commitHash: string
 		mode: "preview" | "restore"
 	}) {
-		if (!this.enableCheckpoints) {
+		const service = await this.getInitializedCheckpointService()
+
+		if (!service) {
 			return
 		}
 
@@ -3625,7 +3719,6 @@ export class Cline {
 		}
 
 		try {
-			const service = await this.getCheckpointService()
 			await service.restoreCheckpoint(commitHash)
 
 			await this.providerRef.deref()?.postMessageToWebview({ type: "currentCheckpointUpdated", text: commitHash })

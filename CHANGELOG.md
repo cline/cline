@@ -1,5 +1,29 @@
 # Roo Code Changelog
 
+## [3.7.12]
+
+- Expand max tokens of thinking models to 128k, and max thinking budget to over 100k (thanks @monotykamary!)
+- Fix issue where keyboard mode switcher wasn't updating API profile (thanks @aheizi!)
+- Use the count_tokens API in the Anthropic provider for more accurate context window management
+- Default middle-out compression to on for OpenRouter
+- Exclude MCP instructions from the prompt if the mode doesn't support MCP
+- Add a checkbox to disable the browser tool
+- Show a warning if checkpoints are taking too long to load
+- Update the warning text for the VS LM API
+- Correctly populate the default OpenRouter model on the welcome screen
+
+## [3.7.11]
+
+- Don't honor custom max tokens for non thinking models
+- Include custom modes in mode switching keyboard shortcut
+- Support read-only modes that can run commands
+
+## [3.7.10]
+
+- Add Gemini models on Vertex AI (thanks @ashktn!)
+- Keyboard shortcuts to switch modes (thanks @aheizi!)
+- Add support for Mermaid diagrams (thanks Cline!)
+
 ## [3.7.9]
 
 - Delete task confirmation enhancements

@@ -9,6 +9,7 @@ import * as vscode from "vscode"
 import simpleGit from "simple-git"
 
 import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
+import { CheckpointStorage } from "../../shared/checkpoints"
 import { findLast } from "../../shared/array"
 import { CustomSupportPrompts, supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
@@ -466,8 +467,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const {
 			apiConfiguration,
 			customModePrompts,
-			diffEnabled,
+			diffEnabled: enableDiff,
 			enableCheckpoints,
+			checkpointStorage,
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
@@ -481,8 +483,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			provider: this,
 			apiConfiguration,
 			customInstructions: effectiveInstructions,
-			enableDiff: diffEnabled,
+			enableDiff,
 			enableCheckpoints,
+			checkpointStorage,
 			fuzzyMatchThreshold,
 			task,
 			images,
@@ -497,8 +500,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const {
 			apiConfiguration,
 			customModePrompts,
-			diffEnabled,
+			diffEnabled: enableDiff,
 			enableCheckpoints,
+			checkpointStorage,
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
@@ -508,12 +512,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const modePrompt = customModePrompts?.[mode] as PromptComponent
 		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
+		// TODO: The `checkpointStorage` value should be derived from the
+		// task data on disk; the current setting could be different than
+		// the setting at the time the task was created.
+
 		const newCline = new Cline({
 			provider: this,
 			apiConfiguration,
 			customInstructions: effectiveInstructions,
-			enableDiff: diffEnabled,
+			enableDiff,
 			enableCheckpoints,
+			checkpointStorage,
 			fuzzyMatchThreshold,
 			historyItem,
 			experiments,
@@ -663,7 +672,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
           <body>
             <noscript>You need to enable JavaScript to run this app.</noscript>
             <div id="root"></div>
-            <script nonce="${nonce}" src="${scriptUri}"></script>
+            <script nonce="${nonce}" type="module" src="${scriptUri}"></script>
           </body>
         </html>
       `
@@ -1182,6 +1191,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("enableCheckpoints", enableCheckpoints)
 						await this.postStateToWebview()
 						break
+					case "checkpointStorage":
+						console.log(`[ClineProvider] checkpointStorage: ${message.text}`)
+						const checkpointStorage = message.text ?? "task"
+						await this.updateGlobalState("checkpointStorage", checkpointStorage)
+						await this.postStateToWebview()
+						break
 					case "browserViewportSize":
 						const browserViewportSize = message.text ?? "900x600"
 						await this.updateGlobalState("browserViewportSize", browserViewportSize)
@@ -1389,6 +1404,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "maxOpenTabsContext":
 						const tabCount = Math.min(Math.max(0, message.value ?? 20), 500)
 						await this.updateGlobalState("maxOpenTabsContext", tabCount)
+						await this.postStateToWebview()
+						break
+					case "browserToolEnabled":
+						await this.updateGlobalState("browserToolEnabled", message.bool ?? true)
 						await this.postStateToWebview()
 						break
 					case "enhancementApiConfigId":
@@ -1839,6 +1858,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			modelTemperature,
 			modelMaxTokens,
 			modelMaxThinkingTokens,
+			lmStudioDraftModelId,
+			lmStudioSpeculativeDecodingEnabled,
 		} = apiConfiguration
 		await Promise.all([
 			this.updateGlobalState("apiProvider", apiProvider),
@@ -1888,6 +1909,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.updateGlobalState("modelTemperature", modelTemperature),
 			this.updateGlobalState("modelMaxTokens", modelMaxTokens),
 			this.updateGlobalState("anthropicThinking", modelMaxThinkingTokens),
+			this.updateGlobalState("lmStudioDraftModelId", lmStudioDraftModelId),
+			this.updateGlobalState("lmStudioSpeculativeDecodingEnabled", lmStudioSpeculativeDecodingEnabled),
 		])
 		if (this.getCurrentCline()) {
 			this.getCurrentCline()!.api = buildApiHandler(apiConfiguration)
@@ -2093,12 +2116,30 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// delete task from the task history state
 		await this.deleteTaskFromState(id)
 
-		// check if checkpoints are enabled
+		// Delete the task files.
+		const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
+
+		if (apiConversationHistoryFileExists) {
+			await fs.unlink(apiConversationHistoryFilePath)
+		}
+
+		const uiMessagesFileExists = await fileExistsAtPath(uiMessagesFilePath)
+
+		if (uiMessagesFileExists) {
+			await fs.unlink(uiMessagesFilePath)
+		}
+
+		const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
+
+		if (await fileExistsAtPath(legacyMessagesFilePath)) {
+			await fs.unlink(legacyMessagesFilePath)
+		}
+
 		const { enableCheckpoints } = await this.getState()
-		// get the base directory of the project
 		const baseDir = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 
-		// delete checkpoints branch from project git repo
+		// Delete checkpoints branch.
+		// TODO: Also delete the workspace branch if it exists.
 		if (enableCheckpoints && baseDir) {
 			const branchSummary = await simpleGit(baseDir)
 				.branch(["-D", `roo-code-checkpoints-${id}`])
@@ -2109,15 +2150,22 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
-		// delete the entire task directory including checkpoints and all content
-		try {
-			await fs.rm(taskDirPath, { recursive: true, force: true })
-			console.log(`[deleteTaskWithId${id}] removed task directory`)
-		} catch (error) {
-			console.error(
-				`[deleteTaskWithId${id}] failed to remove task directory: ${error instanceof Error ? error.message : String(error)}`,
-			)
+		// Delete checkpoints directory
+		const checkpointsDir = path.join(taskDirPath, "checkpoints")
+
+		if (await fileExistsAtPath(checkpointsDir)) {
+			try {
+				await fs.rm(checkpointsDir, { recursive: true, force: true })
+				console.log(`[deleteTaskWithId${id}] removed checkpoints repo`)
+			} catch (error) {
+				console.error(
+					`[deleteTaskWithId${id}] failed to remove checkpoints repo: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
 		}
+
+		// Succeeds if the dir is empty.
+		await fs.rmdir(taskDirPath)
 	}
 
 	async deleteTaskFromState(id: string) {
@@ -2149,6 +2197,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled,
 			diffEnabled,
 			enableCheckpoints,
+			checkpointStorage,
 			taskHistory,
 			soundVolume,
 			browserViewportSize,
@@ -2171,6 +2220,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalEnabled,
 			experiments,
 			maxOpenTabsContext,
+			browserToolEnabled,
 		} = await this.getState()
 
 		const allowedCommands = vscode.workspace.getConfiguration("roo-cline").get<string[]>("allowedCommands") || []
@@ -2198,6 +2248,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled: soundEnabled ?? false,
 			diffEnabled: diffEnabled ?? true,
 			enableCheckpoints: enableCheckpoints ?? true,
+			checkpointStorage: checkpointStorage ?? "task",
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			allowedCommands,
 			soundVolume: soundVolume ?? 0.5,
@@ -2224,6 +2275,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			mcpServers: this.mcpHub?.getAllServers() ?? [],
 			maxOpenTabsContext: maxOpenTabsContext ?? 20,
 			cwd: cwd,
+			browserToolEnabled: browserToolEnabled ?? true,
 		}
 	}
 
@@ -2325,6 +2377,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled,
 			diffEnabled,
 			enableCheckpoints,
+			checkpointStorage,
 			soundVolume,
 			browserViewportSize,
 			fuzzyMatchThreshold,
@@ -2358,6 +2411,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			modelMaxTokens,
 			modelMaxThinkingTokens,
 			maxOpenTabsContext,
+			browserToolEnabled,
+			lmStudioSpeculativeDecodingEnabled,
+			lmStudioDraftModelId,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -2409,6 +2465,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("diffEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("enableCheckpoints") as Promise<boolean | undefined>,
+			this.getGlobalState("checkpointStorage") as Promise<CheckpointStorage | undefined>,
 			this.getGlobalState("soundVolume") as Promise<number | undefined>,
 			this.getGlobalState("browserViewportSize") as Promise<string | undefined>,
 			this.getGlobalState("fuzzyMatchThreshold") as Promise<number | undefined>,
@@ -2442,6 +2499,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("modelMaxTokens") as Promise<number | undefined>,
 			this.getGlobalState("anthropicThinking") as Promise<number | undefined>,
 			this.getGlobalState("maxOpenTabsContext") as Promise<number | undefined>,
+			this.getGlobalState("browserToolEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("lmStudioSpeculativeDecodingEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("lmStudioDraftModelId") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2507,6 +2567,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				modelTemperature,
 				modelMaxTokens,
 				modelMaxThinkingTokens,
+				lmStudioSpeculativeDecodingEnabled,
+				lmStudioDraftModelId,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -2521,6 +2583,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled: soundEnabled ?? false,
 			diffEnabled: diffEnabled ?? true,
 			enableCheckpoints: enableCheckpoints ?? true,
+			checkpointStorage: checkpointStorage ?? "task",
 			soundVolume,
 			browserViewportSize: browserViewportSize ?? "900x600",
 			screenshotQuality: screenshotQuality ?? 75,
@@ -2574,6 +2637,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
 			customModes,
 			maxOpenTabsContext: maxOpenTabsContext ?? 20,
+			openRouterUseMiddleOutTransform: openRouterUseMiddleOutTransform ?? true,
+			browserToolEnabled: browserToolEnabled ?? true,
 		}
 	}
 

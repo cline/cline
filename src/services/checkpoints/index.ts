@@ -1,2 +1,4 @@
-export * from "./types"
-export * from "./CheckpointServiceFactory"
+export type { CheckpointServiceOptions } from "./types"
+
+export { RepoPerTaskCheckpointService } from "./RepoPerTaskCheckpointService"
+export { RepoPerWorkspaceCheckpointService } from "./RepoPerWorkspaceCheckpointService"

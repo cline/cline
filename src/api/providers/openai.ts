@@ -8,24 +8,24 @@ import {
 	ModelInfo,
 	openAiModelInfoSaneDefaults,
 } from "../../shared/api"
-import { ApiHandler, SingleCompletionHandler } from "../index"
+import { SingleCompletionHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { convertToSimpleMessages } from "../transform/simple-format"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import { BaseProvider } from "./base-provider"
 
+const DEEP_SEEK_DEFAULT_TEMPERATURE = 0.6
 export interface OpenAiHandlerOptions extends ApiHandlerOptions {
 	defaultHeaders?: Record<string, string>
 }
 
-export const DEEP_SEEK_DEFAULT_TEMPERATURE = 0.6
-const OPENAI_DEFAULT_TEMPERATURE = 0
-
-export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
+export class OpenAiHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: OpenAiHandlerOptions
 	private client: OpenAI
 
 	constructor(options: OpenAiHandlerOptions) {
+		super()
 		this.options = options
 
 		const baseURL = this.options.openAiBaseUrl ?? "https://api.openai.com/v1"
@@ -53,7 +53,7 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelInfo = this.getModel().info
 		const modelUrl = this.options.openAiBaseUrl ?? ""
 		const modelId = this.options.openAiModelId ?? ""
@@ -78,9 +78,7 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
 				model: modelId,
-				temperature:
-					this.options.modelTemperature ??
-					(deepseekReasoner ? DEEP_SEEK_DEFAULT_TEMPERATURE : OPENAI_DEFAULT_TEMPERATURE),
+				temperature: this.options.modelTemperature ?? (deepseekReasoner ? DEEP_SEEK_DEFAULT_TEMPERATURE : 0),
 				messages: convertedMessages,
 				stream: true as const,
 				stream_options: { include_usage: true },
@@ -143,7 +141,7 @@ export class OpenAiHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	getModel(): { id: string; info: ModelInfo } {
+	override getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.openAiModelId ?? "",
 			info: this.options.openAiCustomModelInfo ?? openAiModelInfoSaneDefaults,

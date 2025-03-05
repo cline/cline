@@ -41,6 +41,8 @@ export type GlobalStateKey =
 	| "ollamaBaseUrl"
 	| "lmStudioModelId"
 	| "lmStudioBaseUrl"
+	| "lmStudioDraftModelId"
+	| "lmStudioSpeculativeDecodingEnabled"
 	| "anthropicBaseUrl"
 	| "azureApiVersion"
 	| "openAiStreamingEnabled"
@@ -53,6 +55,7 @@ export type GlobalStateKey =
 	| "soundVolume"
 	| "diffEnabled"
 	| "enableCheckpoints"
+	| "checkpointStorage"
 	| "browserViewportSize"
 	| "screenshotQuality"
 	| "fuzzyMatchThreshold"
@@ -84,3 +87,4 @@ export type GlobalStateKey =
 	| "anthropicThinking" // TODO: Rename to `modelMaxThinkingTokens`.
 	| "mistralCodestralUrl"
 	| "maxOpenTabsContext"
+	| "browserToolEnabled" // Setting to enable/disable the browser tool

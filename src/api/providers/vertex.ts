@@ -1,10 +1,16 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import { ApiHandler, SingleCompletionHandler } from "../"
-import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
+
+import { VertexAI } from "@google-cloud/vertexai"
+
 import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vertexModels } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
+import { convertAnthropicMessageToVertexGemini } from "../transform/vertex-gemini-format"
+import { BaseProvider } from "./base-provider"
+
+import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "./constants"
+import { getModelParams, SingleCompletionHandler } from "../"
 
 // Types for Vertex SDK
 
@@ -93,16 +99,36 @@ interface VertexMessageStreamEvent {
 }
 
 // https://docs.anthropic.com/en/api/claude-on-vertex-ai
-export class VertexHandler implements ApiHandler, SingleCompletionHandler {
-	private options: ApiHandlerOptions
-	private client: AnthropicVertex
+export class VertexHandler extends BaseProvider implements SingleCompletionHandler {
+	MODEL_CLAUDE = "claude"
+	MODEL_GEMINI = "gemini"
+
+	protected options: ApiHandlerOptions
+	private anthropicClient: AnthropicVertex
+	private geminiClient: VertexAI
+	private modelType: string
 
 	constructor(options: ApiHandlerOptions) {
+		super()
 		this.options = options
-		this.client = new AnthropicVertex({
+
+		if (this.options.apiModelId?.startsWith(this.MODEL_CLAUDE)) {
+			this.modelType = this.MODEL_CLAUDE
+		} else if (this.options.apiModelId?.startsWith(this.MODEL_GEMINI)) {
+			this.modelType = this.MODEL_GEMINI
+		} else {
+			throw new Error(`Unknown model ID: ${this.options.apiModelId}`)
+		}
+
+		this.anthropicClient = new AnthropicVertex({
 			projectId: this.options.vertexProjectId ?? "not-provided",
 			// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
 			region: this.options.vertexRegion ?? "us-east5",
+		})
+
+		this.geminiClient = new VertexAI({
+			project: this.options.vertexProjectId ?? "not-provided",
+			location: this.options.vertexRegion ?? "us-east5",
 		})
 	}
 
@@ -154,7 +180,43 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	private async *createGeminiMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.geminiClient.getGenerativeModel({
+			model: this.getModel().id,
+			systemInstruction: systemPrompt,
+		})
+
+		const result = await model.generateContentStream({
+			contents: messages.map(convertAnthropicMessageToVertexGemini),
+			generationConfig: {
+				maxOutputTokens: this.getModel().info.maxTokens,
+				temperature: this.options.modelTemperature ?? 0,
+			},
+		})
+
+		for await (const chunk of result.stream) {
+			if (chunk.candidates?.[0]?.content?.parts) {
+				for (const part of chunk.candidates[0].content.parts) {
+					if (part.text) {
+						yield {
+							type: "text",
+							text: part.text,
+						}
+					}
+				}
+			}
+		}
+
+		const response = await result.response
+
+		yield {
+			type: "usage",
+			inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
+			outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+		}
+	}
+
+	private async *createClaudeMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
 		let { id, info, temperature, maxTokens, thinking } = model
 		const useCache = model.info.supportsPromptCache
@@ -192,7 +254,7 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 			stream: true,
 		}
 
-		const stream = (await this.client.messages.create(
+		const stream = (await this.anthropicClient.messages.create(
 			params as Anthropic.Messages.MessageCreateParamsStreaming,
 		)) as unknown as AnthropicStream<VertexMessageStreamEvent>
 
@@ -272,58 +334,77 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	getModel(): {
-		id: VertexModelId
-		info: ModelInfo
-		temperature: number
-		maxTokens: number
-		thinking?: BetaThinkingConfigParam
-	} {
-		const modelId = this.options.apiModelId
-		let temperature = this.options.modelTemperature ?? 0
-		let thinking: BetaThinkingConfigParam | undefined = undefined
-
-		if (modelId && modelId in vertexModels) {
-			const id = modelId as VertexModelId
-			const info: ModelInfo = vertexModels[id]
-
-			// The `:thinking` variant is a virtual identifier for thinking-enabled models
-			// Similar to how it's handled in the Anthropic provider
-			let actualId = id
-			if (id.endsWith(":thinking")) {
-				actualId = id.replace(":thinking", "") as VertexModelId
+	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		switch (this.modelType) {
+			case this.MODEL_CLAUDE: {
+				yield* this.createClaudeMessage(systemPrompt, messages)
+				break
 			}
-
-			const maxTokens = this.options.modelMaxTokens || info.maxTokens || 8192
-
-			if (info.thinking) {
-				temperature = 1.0 // Thinking requires temperature 1.0
-				const maxBudgetTokens = Math.floor(maxTokens * 0.8)
-				const budgetTokens = Math.max(
-					Math.min(this.options.modelMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens),
-					1024,
-				)
-				thinking = { type: "enabled", budget_tokens: budgetTokens }
+			case this.MODEL_GEMINI: {
+				yield* this.createGeminiMessage(systemPrompt, messages)
+				break
 			}
-
-			return { id: actualId, info, temperature, maxTokens, thinking }
+			default: {
+				throw new Error(`Invalid model type: ${this.modelType}`)
+			}
 		}
-
-		const id = vertexDefaultModelId
-		const info = vertexModels[id]
-		const maxTokens = this.options.modelMaxTokens || info.maxTokens || 8192
-
-		return { id, info, temperature, maxTokens, thinking }
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	getModel() {
+		const modelId = this.options.apiModelId
+		let id = modelId && modelId in vertexModels ? (modelId as VertexModelId) : vertexDefaultModelId
+		const info: ModelInfo = vertexModels[id]
+
+		// The `:thinking` variant is a virtual identifier for thinking-enabled
+		// models (similar to how it's handled in the Anthropic provider.)
+		if (id.endsWith(":thinking")) {
+			id = id.replace(":thinking", "") as VertexModelId
+		}
+
+		return {
+			id,
+			info,
+			...getModelParams({ options: this.options, model: info, defaultMaxTokens: ANTHROPIC_DEFAULT_MAX_TOKENS }),
+		}
+	}
+
+	private async completePromptGemini(prompt: string) {
+		try {
+			const model = this.geminiClient.getGenerativeModel({
+				model: this.getModel().id,
+			})
+
+			const result = await model.generateContent({
+				contents: [{ role: "user", parts: [{ text: prompt }] }],
+				generationConfig: {
+					temperature: this.options.modelTemperature ?? 0,
+				},
+			})
+
+			let text = ""
+			result.response.candidates?.forEach((candidate) => {
+				candidate.content.parts.forEach((part) => {
+					text += part.text
+				})
+			})
+
+			return text
+		} catch (error) {
+			if (error instanceof Error) {
+				throw new Error(`Vertex completion error: ${error.message}`)
+			}
+			throw error
+		}
+	}
+
+	private async completePromptClaude(prompt: string) {
 		try {
 			let { id, info, temperature, maxTokens, thinking } = this.getModel()
 			const useCache = info.supportsPromptCache
 
-			const params = {
+			const params: Anthropic.Messages.MessageCreateParamsNonStreaming = {
 				model: id,
-				max_tokens: maxTokens,
+				max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
 				temperature,
 				thinking,
 				system: "", // No system prompt needed for single completions
@@ -344,20 +425,34 @@ export class VertexHandler implements ApiHandler, SingleCompletionHandler {
 				stream: false,
 			}
 
-			const response = (await this.client.messages.create(
-				params as Anthropic.Messages.MessageCreateParamsNonStreaming,
-			)) as unknown as VertexMessageResponse
-
+			const response = (await this.anthropicClient.messages.create(params)) as unknown as VertexMessageResponse
 			const content = response.content[0]
+
 			if (content.type === "text") {
 				return content.text
 			}
+
 			return ""
 		} catch (error) {
 			if (error instanceof Error) {
 				throw new Error(`Vertex completion error: ${error.message}`)
 			}
+
 			throw error
+		}
+	}
+
+	async completePrompt(prompt: string) {
+		switch (this.modelType) {
+			case this.MODEL_CLAUDE: {
+				return this.completePromptClaude(prompt)
+			}
+			case this.MODEL_GEMINI: {
+				return this.completePromptGemini(prompt)
+			}
+			default: {
+				throw new Error(`Invalid model type: ${this.modelType}`)
+			}
 		}
 	}
 }

@@ -5,25 +5,27 @@ import OpenAI from "openai"
 import { ApiHandlerOptions, ModelInfo, unboundDefaultModelId, unboundDefaultModelInfo } from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
-import { ApiHandler, SingleCompletionHandler } from "../"
+import { SingleCompletionHandler } from "../"
+import { BaseProvider } from "./base-provider"
 
 interface UnboundUsage extends OpenAI.CompletionUsage {
 	cache_creation_input_tokens?: number
 	cache_read_input_tokens?: number
 }
 
-export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
-	private options: ApiHandlerOptions
+export class UnboundHandler extends BaseProvider implements SingleCompletionHandler {
+	protected options: ApiHandlerOptions
 	private client: OpenAI
 
 	constructor(options: ApiHandlerOptions) {
+		super()
 		this.options = options
 		const baseURL = "https://api.getunbound.ai/v1"
 		const apiKey = this.options.unboundApiKey ?? "not-provided"
 		this.client = new OpenAI({ baseURL, apiKey })
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// Convert Anthropic messages to OpenAI format
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -131,7 +133,7 @@ export class UnboundHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	getModel(): { id: string; info: ModelInfo } {
+	override getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.unboundModelId
 		const modelInfo = this.options.unboundModelInfo
 		if (modelId && modelInfo) {

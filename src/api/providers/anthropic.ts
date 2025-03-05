@@ -1,7 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { CacheControlEphemeral } from "@anthropic-ai/sdk/resources"
-import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
 import {
 	anthropicDefaultModelId,
 	AnthropicModelId,
@@ -9,18 +8,18 @@ import {
 	ApiHandlerOptions,
 	ModelInfo,
 } from "../../shared/api"
-import { ApiHandler, SingleCompletionHandler } from "../index"
 import { ApiStream } from "../transform/stream"
+import { BaseProvider } from "./base-provider"
+import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "./constants"
+import { SingleCompletionHandler, getModelParams } from "../index"
 
-const ANTHROPIC_DEFAULT_TEMPERATURE = 0
-
-export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
+export class AnthropicHandler extends BaseProvider implements SingleCompletionHandler {
 	private options: ApiHandlerOptions
 	private client: Anthropic
 
 	constructor(options: ApiHandlerOptions) {
+		super()
 		this.options = options
-
 		this.client = new Anthropic({
 			apiKey: this.options.apiKey,
 			baseURL: this.options.anthropicBaseUrl || undefined,
@@ -30,7 +29,7 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		let stream: AnthropicStream<Anthropic.Messages.RawMessageStreamEvent>
 		const cacheControl: CacheControlEphemeral = { type: "ephemeral" }
-		let { id: modelId, temperature, maxTokens, thinking } = this.getModel()
+		let { id: modelId, maxTokens, thinking, temperature, virtualId } = this.getModel()
 
 		switch (modelId) {
 			case "claude-3-7-sonnet-20250219":
@@ -53,7 +52,7 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 				stream = await this.client.messages.create(
 					{
 						model: modelId,
-						max_tokens: maxTokens,
+						max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
 						temperature,
 						thinking,
 						// Setting cache breakpoint for system prompt so new tasks can reuse it.
@@ -83,13 +82,24 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 						// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
 						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
 						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
+
+						const betas = []
+
+						// Check for the thinking-128k variant first
+						if (virtualId === "claude-3-7-sonnet-20250219:thinking") {
+							betas.push("output-128k-2025-02-19")
+						}
+
+						// Then check for models that support prompt caching
 						switch (modelId) {
+							case "claude-3-7-sonnet-20250219":
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":
 							case "claude-3-opus-20240229":
 							case "claude-3-haiku-20240307":
+								betas.push("prompt-caching-2024-07-31")
 								return {
-									headers: { "anthropic-beta": "prompt-caching-2024-07-31" },
+									headers: { "anthropic-beta": betas.join(",") },
 								}
 							default:
 								return undefined
@@ -101,7 +111,7 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 			default: {
 				stream = (await this.client.messages.create({
 					model: modelId,
-					max_tokens: maxTokens,
+					max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
 					temperature,
 					system: [{ text: systemPrompt, type: "text" }],
 					messages,
@@ -182,60 +192,71 @@ export class AnthropicHandler implements ApiHandler, SingleCompletionHandler {
 
 	getModel() {
 		const modelId = this.options.apiModelId
-		let temperature = this.options.modelTemperature ?? ANTHROPIC_DEFAULT_TEMPERATURE
-		let thinking: BetaThinkingConfigParam | undefined = undefined
+		let id = modelId && modelId in anthropicModels ? (modelId as AnthropicModelId) : anthropicDefaultModelId
+		const info: ModelInfo = anthropicModels[id]
 
-		if (modelId && modelId in anthropicModels) {
-			let id = modelId as AnthropicModelId
-			const info: ModelInfo = anthropicModels[id]
+		// Track the original model ID for special variant handling
+		const virtualId = id
 
-			// The `:thinking` variant is a virtual identifier for the
-			// `claude-3-7-sonnet-20250219` model with a thinking budget.
-			// We can handle this more elegantly in the future.
-			if (id === "claude-3-7-sonnet-20250219:thinking") {
-				id = "claude-3-7-sonnet-20250219"
-			}
-
-			const maxTokens = this.options.modelMaxTokens || info.maxTokens || 8192
-
-			if (info.thinking) {
-				// Anthropic "Thinking" models require a temperature of 1.0.
-				temperature = 1.0
-
-				// Clamp the thinking budget to be at most 80% of max tokens and at
-				// least 1024 tokens.
-				const maxBudgetTokens = Math.floor(maxTokens * 0.8)
-				const budgetTokens = Math.max(
-					Math.min(this.options.modelMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens),
-					1024,
-				)
-
-				thinking = { type: "enabled", budget_tokens: budgetTokens }
-			}
-
-			return { id, info, temperature, maxTokens, thinking }
+		// The `:thinking` variant is a virtual identifier for the
+		// `claude-3-7-sonnet-20250219` model with a thinking budget.
+		// We can handle this more elegantly in the future.
+		if (id === "claude-3-7-sonnet-20250219:thinking") {
+			id = "claude-3-7-sonnet-20250219"
 		}
 
-		const id = anthropicDefaultModelId
-		const info: ModelInfo = anthropicModels[id]
-		const maxTokens = this.options.modelMaxTokens || info.maxTokens || 8192
-
-		return { id, info, temperature, maxTokens, thinking }
+		return {
+			id,
+			info,
+			virtualId, // Include the original ID to use for header selection
+			...getModelParams({ options: this.options, model: info, defaultMaxTokens: ANTHROPIC_DEFAULT_MAX_TOKENS }),
+		}
 	}
 
 	async completePrompt(prompt: string) {
-		let { id: modelId, temperature, maxTokens, thinking } = this.getModel()
+		let { id: modelId, maxTokens, thinking, temperature } = this.getModel()
 
 		const message = await this.client.messages.create({
 			model: modelId,
-			max_tokens: maxTokens,
-			temperature,
+			max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
 			thinking,
+			temperature,
 			messages: [{ role: "user", content: prompt }],
 			stream: false,
 		})
 
 		const content = message.content.find(({ type }) => type === "text")
 		return content?.type === "text" ? content.text : ""
+	}
+
+	/**
+	 * Counts tokens for the given content using Anthropic's API
+	 *
+	 * @param content The content blocks to count tokens for
+	 * @returns A promise resolving to the token count
+	 */
+	override async countTokens(content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number> {
+		try {
+			// Use the current model
+			const actualModelId = this.getModel().id
+
+			const response = await this.client.messages.countTokens({
+				model: actualModelId,
+				messages: [
+					{
+						role: "user",
+						content: content,
+					},
+				],
+			})
+
+			return response.input_tokens
+		} catch (error) {
+			// Log error but fallback to tiktoken estimation
+			console.warn("Anthropic token counting failed, using fallback", error)
+
+			// Use the base provider's implementation as fallback
+			return super.countTokens(content)
+		}
 	}
 }
