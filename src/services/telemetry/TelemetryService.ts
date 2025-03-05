@@ -137,7 +137,7 @@ class PostHogClient {
 	}
 
 	/**
-	 * Records when a new task/conversation is started
+	 * Records when a task/conversation is restarted
 	 * @param taskId Unique identifier for the new task
 	 */
 	public captureTaskRestarted(taskId: string, apiProvider?: string) {
