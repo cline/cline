@@ -2116,26 +2116,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// delete task from the task history state
 		await this.deleteTaskFromState(id)
 
-		// Delete the task files.
-		const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
-
-		if (apiConversationHistoryFileExists) {
-			await fs.unlink(apiConversationHistoryFilePath)
-		}
-
-		const uiMessagesFileExists = await fileExistsAtPath(uiMessagesFilePath)
-
-		if (uiMessagesFileExists) {
-			await fs.unlink(uiMessagesFilePath)
-		}
-
-		const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
-
-		if (await fileExistsAtPath(legacyMessagesFilePath)) {
-			await fs.unlink(legacyMessagesFilePath)
-		}
-
+		// check if checkpoints are enabled
 		const { enableCheckpoints } = await this.getState()
+		// get the base directory of the project
 		const baseDir = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 
 		// Delete checkpoints branch.
@@ -2150,22 +2133,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
-		// Delete checkpoints directory
-		const checkpointsDir = path.join(taskDirPath, "checkpoints")
-
-		if (await fileExistsAtPath(checkpointsDir)) {
-			try {
-				await fs.rm(checkpointsDir, { recursive: true, force: true })
-				console.log(`[deleteTaskWithId${id}] removed checkpoints repo`)
-			} catch (error) {
-				console.error(
-					`[deleteTaskWithId${id}] failed to remove checkpoints repo: ${error instanceof Error ? error.message : String(error)}`,
-				)
-			}
+		// delete the entire task directory including checkpoints and all content
+		try {
+			await fs.rm(taskDirPath, { recursive: true, force: true })
+			console.log(`[deleteTaskWithId${id}] removed task directory`)
+		} catch (error) {
+			console.error(
+				`[deleteTaskWithId${id}] failed to remove task directory: ${error instanceof Error ? error.message : String(error)}`,
+			)
 		}
-
-		// Succeeds if the dir is empty.
-		await fs.rmdir(taskDirPath)
 	}
 
 	async deleteTaskFromState(id: string) {
