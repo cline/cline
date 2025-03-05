@@ -773,9 +773,6 @@ export class Cline {
 	// Task lifecycle
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
-		// Capture telemetry for new task creation
-		telemetryService.captureTaskCreated(this.taskId)
-
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
 		this.clineMessages = []
