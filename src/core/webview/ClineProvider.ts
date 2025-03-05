@@ -9,6 +9,7 @@ import * as vscode from "vscode"
 import simpleGit from "simple-git"
 
 import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
+import { CheckpointStorage } from "../../shared/checkpoints"
 import { findLast } from "../../shared/array"
 import { CustomSupportPrompts, supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
@@ -313,11 +314,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	public async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask()
+
 		const {
 			apiConfiguration,
 			customModePrompts,
-			diffEnabled,
+			diffEnabled: enableDiff,
 			enableCheckpoints,
+			checkpointStorage,
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
@@ -331,8 +334,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			provider: this,
 			apiConfiguration,
 			customInstructions: effectiveInstructions,
-			enableDiff: diffEnabled,
+			enableDiff,
 			enableCheckpoints,
+			checkpointStorage,
 			fuzzyMatchThreshold,
 			task,
 			images,
@@ -346,8 +350,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const {
 			apiConfiguration,
 			customModePrompts,
-			diffEnabled,
+			diffEnabled: enableDiff,
 			enableCheckpoints,
+			checkpointStorage,
 			fuzzyMatchThreshold,
 			mode,
 			customInstructions: globalInstructions,
@@ -357,12 +362,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const modePrompt = customModePrompts?.[mode] as PromptComponent
 		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
+		// TODO: The `checkpointStorage` value should be derived from the
+		// task data on disk; the current setting could be different than
+		// the setting at the time the task was created.
+
 		this.cline = new Cline({
 			provider: this,
 			apiConfiguration,
 			customInstructions: effectiveInstructions,
-			enableDiff: diffEnabled,
+			enableDiff,
 			enableCheckpoints,
+			checkpointStorage,
 			fuzzyMatchThreshold,
 			historyItem,
 			experiments,
@@ -1020,6 +1030,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "enableCheckpoints":
 						const enableCheckpoints = message.bool ?? true
 						await this.updateGlobalState("enableCheckpoints", enableCheckpoints)
+						await this.postStateToWebview()
+						break
+					case "checkpointStorage":
+						console.log(`[ClineProvider] checkpointStorage: ${message.text}`)
+						const checkpointStorage = message.text ?? "task"
+						await this.updateGlobalState("checkpointStorage", checkpointStorage)
 						await this.postStateToWebview()
 						break
 					case "browserViewportSize":
@@ -1947,21 +1963,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await fs.unlink(legacyMessagesFilePath)
 		}
 
-		const { enableCheckpoints } = await this.getState()
-		const baseDir = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-
-		// Delete checkpoints branch.
-		if (enableCheckpoints && baseDir) {
-			const branchSummary = await simpleGit(baseDir)
-				.branch(["-D", `roo-code-checkpoints-${id}`])
-				.catch(() => undefined)
-
-			if (branchSummary) {
-				console.log(`[deleteTaskWithId${id}] deleted checkpoints branch`)
-			}
-		}
-
-		// Delete checkpoints directory
+		// Delete checkpoints directory.
+		// TODO: Also delete the workspace branch if it exists.
 		const checkpointsDir = path.join(taskDirPath, "checkpoints")
 
 		if (await fileExistsAtPath(checkpointsDir)) {
@@ -2008,6 +2011,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled,
 			diffEnabled,
 			enableCheckpoints,
+			checkpointStorage,
 			taskHistory,
 			soundVolume,
 			browserViewportSize,
@@ -2058,6 +2062,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled: soundEnabled ?? false,
 			diffEnabled: diffEnabled ?? true,
 			enableCheckpoints: enableCheckpoints ?? true,
+			checkpointStorage: checkpointStorage ?? "task",
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			allowedCommands,
 			soundVolume: soundVolume ?? 0.5,
@@ -2191,6 +2196,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled,
 			diffEnabled,
 			enableCheckpoints,
+			checkpointStorage,
 			soundVolume,
 			browserViewportSize,
 			fuzzyMatchThreshold,
@@ -2278,6 +2284,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("soundEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("diffEnabled") as Promise<boolean | undefined>,
 			this.getGlobalState("enableCheckpoints") as Promise<boolean | undefined>,
+			this.getGlobalState("checkpointStorage") as Promise<CheckpointStorage | undefined>,
 			this.getGlobalState("soundVolume") as Promise<number | undefined>,
 			this.getGlobalState("browserViewportSize") as Promise<string | undefined>,
 			this.getGlobalState("fuzzyMatchThreshold") as Promise<number | undefined>,
@@ -2395,6 +2402,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundEnabled: soundEnabled ?? false,
 			diffEnabled: diffEnabled ?? true,
 			enableCheckpoints: enableCheckpoints ?? true,
+			checkpointStorage: checkpointStorage ?? "task",
 			soundVolume,
 			browserViewportSize: browserViewportSize ?? "900x600",
 			screenshotQuality: screenshotQuality ?? 75,

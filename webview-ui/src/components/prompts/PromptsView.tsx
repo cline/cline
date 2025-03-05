@@ -407,12 +407,11 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 
 	return (
 		<div className="fixed inset-0 flex flex-col">
-			<div className="flex justify-between items-center px-5 py-2.5">
+			<div className="flex justify-between items-center px-5 py-2.5 border-b border-vscode-panel-border">
 				<h3 className="text-vscode-foreground m-0">Prompts</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
-
-			<div className="flex-1 overflow-auto px-5">
+			<div className="flex-1 overflow-auto p-5">
 				<div className="pb-5 border-b border-vscode-input-border">
 					<div className="mb-5">
 						<div className="font-bold mb-1">Preferred Language</div>
@@ -1174,7 +1173,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 				</div>
 			</div>
-
 			{isCreateModeDialogOpen && (
 				<div
 					style={{

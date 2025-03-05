@@ -55,6 +55,7 @@ export type GlobalStateKey =
 	| "soundVolume"
 	| "diffEnabled"
 	| "enableCheckpoints"
+	| "checkpointStorage"
 	| "browserViewportSize"
 	| "screenshotQuality"
 	| "fuzzyMatchThreshold"
