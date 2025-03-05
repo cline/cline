@@ -16,6 +16,7 @@ export type ApiProvider =
 	| "mistral"
 	| "unbound"
 	| "requesty"
+	| "human-relay"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
