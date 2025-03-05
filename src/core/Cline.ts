@@ -94,6 +94,17 @@ export type ClineOptions = {
 
 export class Cline {
 	readonly taskId: string
+	private taskNumber: number
+	// a flag that indicated if this Cline instance is a subtask (on finish return control to parent task)
+	private isSubTask: boolean = false
+	// a flag that indicated if this Cline instance is paused (waiting for provider to resume it after subtask completion)
+	private isPaused: boolean = false
+	// this is the parent task work mode when it launched the subtask to be used when it is restored (so the last used mode by parent task will also be restored)
+	private pausedModeSlug: string = defaultModeSlug
+	// if this is a subtask then this member holds a pointer to the parent task that launched it
+	private parentTask: Cline | undefined = undefined
+	// if this is a subtask then this member holds a pointer to the top parent task that launched it
+	private rootTask: Cline | undefined = undefined
 	readonly apiConfiguration: ApiConfiguration
 	api: ApiHandler
 	private terminalManager: TerminalManager
@@ -158,7 +169,7 @@ export class Cline {
 		}
 
 		this.taskId = historyItem ? historyItem.id : crypto.randomUUID()
-
+		this.taskNumber = -1
 		this.apiConfiguration = apiConfiguration
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
@@ -200,6 +211,46 @@ export class Cline {
 		}
 
 		return [instance, promise]
+	}
+
+	// a helper function to set the private member isSubTask to true
+	// and by that set this Cline instance to be a subtask (on finish return control to parent task)
+	setSubTask() {
+		this.isSubTask = true
+	}
+
+	// sets the task number (sequencial number of this task from all the subtask ran from this main task stack)
+	setTaskNumber(taskNumber: number) {
+		this.taskNumber = taskNumber
+	}
+
+	// gets the task number, the sequencial number of this task from all the subtask ran from this main task stack
+	getTaskNumber() {
+		return this.taskNumber
+	}
+
+	// this method returns the cline instance that is the parent task that launched this subtask (assuming this cline is a subtask)
+	// if undefined is returned, then there is no parent task and this is not a subtask or connection has been severed
+	getParentTask(): Cline | undefined {
+		return this.parentTask
+	}
+
+	// this method sets a cline instance that is the parent task that called this task (assuming this cline is a subtask)
+	// if undefined is set, then the connection is broken and the parent is no longer saved in the subtask member
+	setParentTask(parentToSet: Cline | undefined) {
+		this.parentTask = parentToSet
+	}
+
+	// this method returns the cline instance that is the root task (top most parent) that eventually launched this subtask (assuming this cline is a subtask)
+	// if undefined is returned, then there is no root task and this is not a subtask or connection has been severed
+	getRootTask(): Cline | undefined {
+		return this.rootTask
+	}
+
+	// this method sets a cline instance that is the root task (top most patrnt) that called this task (assuming this cline is a subtask)
+	// if undefined is set, then the connection is broken and the root is no longer saved in the subtask member
+	setRootTask(rootToSet: Cline | undefined) {
+		this.rootTask = rootToSet
 	}
 
 	// Add method to update diffStrategy
@@ -308,6 +359,7 @@ export class Cline {
 
 			await this.providerRef.deref()?.updateTaskHistory({
 				id: this.taskId,
+				number: this.taskNumber,
 				ts: lastRelevantMessage.ts,
 				task: taskMessage.text ?? "",
 				tokensIn: apiMetrics.totalTokensIn,
@@ -332,7 +384,7 @@ export class Cline {
 	): Promise<{ response: ClineAskResponse; text?: string; images?: string[] }> {
 		// If this Cline instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of Cline now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set Cline = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
 		if (this.abort) {
-			throw new Error("Roo Code instance aborted")
+			throw new Error(`Task: ${this.taskNumber} Roo Code instance aborted (#1)`)
 		}
 		let askTs: number
 		if (partial !== undefined) {
@@ -350,7 +402,7 @@ export class Cline {
 					await this.providerRef
 						.deref()
 						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage })
-					throw new Error("Current ask promise was ignored 1")
+					throw new Error("Current ask promise was ignored (#1)")
 				} else {
 					// this is a new partial message, so add it with partial state
 					// this.askResponse = undefined
@@ -360,7 +412,7 @@ export class Cline {
 					this.lastMessageTs = askTs
 					await this.addToClineMessages({ ts: askTs, type: "ask", ask: type, text, partial })
 					await this.providerRef.deref()?.postStateToWebview()
-					throw new Error("Current ask promise was ignored 2")
+					throw new Error("Current ask promise was ignored (#2)")
 				}
 			} else {
 				// partial=false means its a complete version of a previously partial message
@@ -434,7 +486,7 @@ export class Cline {
 		checkpoint?: Record<string, unknown>,
 	): Promise<undefined> {
 		if (this.abort) {
-			throw new Error("Roo Code instance aborted")
+			throw new Error(`Task: ${this.taskNumber} Roo Code instance aborted (#2)`)
 		}
 
 		if (partial !== undefined) {
@@ -520,6 +572,32 @@ export class Cline {
 			},
 			...imageBlocks,
 		])
+	}
+
+	async resumePausedTask(lastMessage?: string) {
+		// release this Cline instance from paused state
+		this.isPaused = false
+
+		// fake an answer from the subtask that it has completed running and this is the result of what it has done
+		// add the message to the chat history and to the webview ui
+		try {
+			await this.say("text", `${lastMessage ?? "Please continue to the next task."}`)
+
+			await this.addToApiConversationHistory({
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: `[new_task completed] Result: ${lastMessage ?? "Please continue to the next task."}`,
+					},
+				],
+			})
+		} catch (error) {
+			this.providerRef
+				.deref()
+				?.log(`Error failed to add reply from subtast into conversation of parent task, error: ${error}`)
+			throw error
+		}
 	}
 
 	private async resumeTaskFromHistory() {
@@ -1105,7 +1183,7 @@ export class Cline {
 
 	async presentAssistantMessage() {
 		if (this.abort) {
-			throw new Error("Roo Code instance aborted")
+			throw new Error(`Task: ${this.taskNumber} Roo Code instance aborted (#3)`)
 		}
 
 		if (this.presentAssistantMessageLocked) {
@@ -2565,10 +2643,7 @@ export class Cline {
 								}
 
 								// Switch the mode using shared handler
-								const provider = this.providerRef.deref()
-								if (provider) {
-									await provider.handleModeSwitch(mode_slug)
-								}
+								await this.providerRef.deref()?.handleModeSwitch(mode_slug)
 								pushToolResult(
 									`Successfully switched from ${getModeBySlug(currentMode)?.name ?? currentMode} mode to ${
 										targetMode.name
@@ -2630,19 +2705,25 @@ export class Cline {
 									break
 								}
 
+								// before switching roo mode (currently a global settings), save the current mode so we can
+								// resume the parent task (this Cline instance) later with the same mode
+								const currentMode =
+									(await this.providerRef.deref()?.getState())?.mode ?? defaultModeSlug
+								this.pausedModeSlug = currentMode
+
 								// Switch mode first, then create new task instance
-								const provider = this.providerRef.deref()
-								if (provider) {
-									await provider.handleModeSwitch(mode)
-									await provider.initClineWithTask(message)
-									pushToolResult(
-										`Successfully created new task in ${targetMode.name} mode with message: ${message}`,
-									)
-								} else {
-									pushToolResult(
-										formatResponse.toolError("Failed to create new task: provider not available"),
-									)
-								}
+								await this.providerRef.deref()?.handleModeSwitch(mode)
+								// wait for mode to actually switch in UI and in State
+								await delay(500) // delay to allow mode change to take effect before next tool is executed
+								this.providerRef
+									.deref()
+									?.log(`[subtasks] Task: ${this.taskNumber} creating new task in '${mode}' mode`)
+								await this.providerRef.deref()?.initClineWithSubTask(message)
+								pushToolResult(
+									`Successfully created new task in ${targetMode.name} mode with message: ${message}`,
+								)
+								// set the isPaused flag to true so the parent task can wait for the sub-task to finish
+								this.isPaused = true
 								break
 							}
 						} catch (error) {
@@ -2698,6 +2779,15 @@ export class Cline {
 											undefined,
 											false,
 										)
+
+										if (this.isSubTask) {
+											// tell the provider to remove the current subtask and resume the previous task in the stack (it might decide to run the command)
+											await this.providerRef
+												.deref()
+												?.finishSubTask(`new_task finished successfully! ${lastMessage?.text}`)
+											break
+										}
+
 										await this.ask(
 											"command",
 											removeClosingTag("command", command),
@@ -2729,6 +2819,13 @@ export class Cline {
 									if (lastMessage && lastMessage.ask !== "command") {
 										// havent sent a command message yet so first send completion_result then command
 										await this.say("completion_result", result, undefined, false)
+										if (this.isSubTask) {
+											// tell the provider to remove the current subtask and resume the previous task in the stack
+											await this.providerRef
+												.deref()
+												?.finishSubTask(`Task complete: ${lastMessage?.text}`)
+											break
+										}
 									}
 
 									// complete command message
@@ -2746,6 +2843,13 @@ export class Cline {
 									commandResult = execCommandResult
 								} else {
 									await this.say("completion_result", result, undefined, false)
+									if (this.isSubTask) {
+										// tell the provider to remove the current subtask and resume the previous task in the stack
+										await this.providerRef
+											.deref()
+											?.finishSubTask(`Task complete: ${lastMessage?.text}`)
+										break
+									}
 								}
 
 								// we already sent completion_result says, an empty string asks relinquishes control over button and field
@@ -2821,12 +2925,26 @@ export class Cline {
 		}
 	}
 
+	// this function checks if this Cline instance is set to pause state and wait for being resumed,
+	// this is used when a sub-task is launched and the parent task is waiting for it to finish
+	async waitForResume() {
+		// wait until isPaused is false
+		await new Promise<void>((resolve) => {
+			const interval = setInterval(() => {
+				if (!this.isPaused) {
+					clearInterval(interval)
+					resolve()
+				}
+			}, 1000) // TBD: the 1 sec should be added to the settings, also should add a timeout to prevent infinit wait
+		})
+	}
+
 	async recursivelyMakeClineRequests(
 		userContent: UserContent,
 		includeFileDetails: boolean = false,
 	): Promise<boolean> {
 		if (this.abort) {
-			throw new Error("Roo Code instance aborted")
+			throw new Error(`Task: ${this.taskNumber} Roo Code instance aborted (#4)`)
 		}
 
 		if (this.consecutiveMistakeCount >= 3) {
@@ -2852,6 +2970,27 @@ export class Cline {
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
 		const previousApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
+
+		// in this Cline request loop, we need to check if this cline (Task) instance has been asked to wait
+		// for a sub-task (it has launched) to finish before continuing
+		if (this.isPaused) {
+			this.providerRef.deref()?.log(`[subtasks] Task: ${this.taskNumber} has paused`)
+			await this.waitForResume()
+			this.providerRef.deref()?.log(`[subtasks] Task: ${this.taskNumber} has resumed`)
+			// waiting for resume is done, resume the task mode
+			const currentMode = (await this.providerRef.deref()?.getState())?.mode ?? defaultModeSlug
+			if (currentMode !== this.pausedModeSlug) {
+				// the mode has changed, we need to switch back to the paused mode
+				await this.providerRef.deref()?.handleModeSwitch(this.pausedModeSlug)
+				// wait for mode to actually switch in UI and in State
+				await delay(500) // delay to allow mode change to take effect before next tool is executed
+				this.providerRef
+					.deref()
+					?.log(
+						`[subtasks] Task: ${this.taskNumber} has switched back to mode: '${this.pausedModeSlug}' from mode: '${currentMode}'`,
+					)
+			}
+		}
 
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
@@ -3042,7 +3181,7 @@ export class Cline {
 
 			// need to call here in case the stream was aborted
 			if (this.abort || this.abandoned) {
-				throw new Error("Roo Code instance aborted")
+				throw new Error(`Task: ${this.taskNumber} Roo Code instance aborted (#5)`)
 			}
 
 			this.didCompleteReadingStream = true

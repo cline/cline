@@ -9,6 +9,7 @@ import { GlobalStateKey, SecretKey } from "../../../shared/globalState"
 import { setSoundEnabled } from "../../../utils/sound"
 import { defaultModeSlug } from "../../../shared/modes"
 import { experimentDefault } from "../../../shared/experiments"
+import { Cline } from "../../Cline"
 
 // Mock setup must come before imports
 jest.mock("../../prompts/sections/custom-instructions")
@@ -238,12 +239,17 @@ jest.mock("../../Cline", () => ({
 		.fn()
 		.mockImplementation(
 			(provider, apiConfiguration, customInstructions, diffEnabled, fuzzyMatchThreshold, task, taskId) => ({
+				api: undefined,
 				abortTask: jest.fn(),
 				handleWebviewAskResponse: jest.fn(),
 				clineMessages: [],
 				apiConversationHistory: [],
 				overwriteClineMessages: jest.fn(),
 				overwriteApiConversationHistory: jest.fn(),
+				getTaskNumber: jest.fn().mockReturnValue(0),
+				setTaskNumber: jest.fn(),
+				setParentTask: jest.fn(),
+				setRootTask: jest.fn(),
 				taskId: taskId || "test-task-id",
 			}),
 		),
@@ -457,15 +463,46 @@ describe("ClineProvider", () => {
 	})
 
 	test("clearTask aborts current task", async () => {
-		const mockAbortTask = jest.fn()
-		// @ts-ignore - accessing private property for testing
-		provider.cline = { abortTask: mockAbortTask }
+		// Setup Cline instance with auto-mock from the top of the file
+		const { Cline } = require("../../Cline") // Get the mocked class
+		const mockCline = new Cline() // Create a new mocked instance
 
-		await provider.clearTask()
+		// add the mock object to the stack
+		await provider.addClineToStack(mockCline)
 
-		expect(mockAbortTask).toHaveBeenCalled()
-		// @ts-ignore - accessing private property for testing
-		expect(provider.cline).toBeUndefined()
+		// get the stack size before the abort call
+		const stackSizeBeforeAbort = provider.getClineStackSize()
+
+		// call the removeClineFromStack method so it will call the current cline abort and remove it from the stack
+		await provider.removeClineFromStack()
+
+		// get the stack size after the abort call
+		const stackSizeAfterAbort = provider.getClineStackSize()
+
+		// check if the abort method was called
+		expect(mockCline.abortTask).toHaveBeenCalled()
+
+		// check if the stack size was decreased
+		expect(stackSizeBeforeAbort - stackSizeAfterAbort).toBe(1)
+	})
+
+	test("addClineToStack adds multiple Cline instances to the stack", async () => {
+		// Setup Cline instance with auto-mock from the top of the file
+		const { Cline } = require("../../Cline") // Get the mocked class
+		const mockCline1 = new Cline() // Create a new mocked instance
+		const mockCline2 = new Cline() // Create a new mocked instance
+		Object.defineProperty(mockCline1, "taskId", { value: "test-task-id-1", writable: true })
+		Object.defineProperty(mockCline2, "taskId", { value: "test-task-id-2", writable: true })
+
+		// add Cline instances to the stack
+		await provider.addClineToStack(mockCline1)
+		await provider.addClineToStack(mockCline2)
+
+		// verify cline instances were added to the stack
+		expect(provider.getClineStackSize()).toBe(2)
+
+		// verify current cline instance is the last one added
+		expect(provider.getCurrentCline()).toBe(mockCline2)
 	})
 
 	test("getState returns correct initial state", async () => {
@@ -878,18 +915,12 @@ describe("ClineProvider", () => {
 
 			const mockApiHistory = [{ ts: 1000 }, { ts: 2000 }, { ts: 3000 }, { ts: 4000 }, { ts: 5000 }, { ts: 6000 }]
 
-			// Setup Cline instance with mock data
-			const mockCline = {
-				clineMessages: mockMessages,
-				apiConversationHistory: mockApiHistory,
-				overwriteClineMessages: jest.fn(),
-				overwriteApiConversationHistory: jest.fn(),
-				taskId: "test-task-id",
-				abortTask: jest.fn(),
-				handleWebviewAskResponse: jest.fn(),
-			}
-			// @ts-ignore - accessing private property for testing
-			provider.cline = mockCline
+			// Setup Cline instance with auto-mock from the top of the file
+			const { Cline } = require("../../Cline") // Get the mocked class
+			const mockCline = new Cline() // Create a new mocked instance
+			mockCline.clineMessages = mockMessages // Set test-specific messages
+			mockCline.apiConversationHistory = mockApiHistory // Set API history
+			await provider.addClineToStack(mockCline) // Add the mocked instance to the stack
 
 			// Mock getTaskWithId
 			;(provider as any).getTaskWithId = jest.fn().mockResolvedValue({
@@ -931,18 +962,12 @@ describe("ClineProvider", () => {
 
 			const mockApiHistory = [{ ts: 1000 }, { ts: 2000 }, { ts: 3000 }, { ts: 4000 }]
 
-			// Setup Cline instance with mock data
-			const mockCline = {
-				clineMessages: mockMessages,
-				apiConversationHistory: mockApiHistory,
-				overwriteClineMessages: jest.fn(),
-				overwriteApiConversationHistory: jest.fn(),
-				taskId: "test-task-id",
-				abortTask: jest.fn(),
-				handleWebviewAskResponse: jest.fn(),
-			}
-			// @ts-ignore - accessing private property for testing
-			provider.cline = mockCline
+			// Setup Cline instance with auto-mock from the top of the file
+			const { Cline } = require("../../Cline") // Get the mocked class
+			const mockCline = new Cline() // Create a new mocked instance
+			mockCline.clineMessages = mockMessages
+			mockCline.apiConversationHistory = mockApiHistory
+			await provider.addClineToStack(mockCline)
 
 			// Mock getTaskWithId
 			;(provider as any).getTaskWithId = jest.fn().mockResolvedValue({
@@ -964,15 +989,12 @@ describe("ClineProvider", () => {
 			// Mock user selecting "Cancel"
 			;(vscode.window.showInformationMessage as jest.Mock).mockResolvedValue("Cancel")
 
-			const mockCline = {
-				clineMessages: [{ ts: 1000 }, { ts: 2000 }],
-				apiConversationHistory: [{ ts: 1000 }, { ts: 2000 }],
-				overwriteClineMessages: jest.fn(),
-				overwriteApiConversationHistory: jest.fn(),
-				taskId: "test-task-id",
-			}
-			// @ts-ignore - accessing private property for testing
-			provider.cline = mockCline
+			// Setup Cline instance with auto-mock from the top of the file
+			const { Cline } = require("../../Cline") // Get the mocked class
+			const mockCline = new Cline() // Create a new mocked instance
+			mockCline.clineMessages = [{ ts: 1000 }, { ts: 2000 }]
+			mockCline.apiConversationHistory = [{ ts: 1000 }, { ts: 2000 }]
+			await provider.addClineToStack(mockCline)
 
 			// Trigger message deletion
 			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
@@ -1472,13 +1494,10 @@ describe("ClineProvider", () => {
 					.mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
 			} as any
 
-			// Setup mock Cline instance
-			const mockCline = {
-				api: undefined,
-				abortTask: jest.fn(),
-			}
-			// @ts-ignore - accessing private property for testing
-			provider.cline = mockCline
+			// Setup Cline instance with auto-mock from the top of the file
+			const { Cline } = require("../../Cline") // Get the mocked class
+			const mockCline = new Cline() // Create a new mocked instance
+			await provider.addClineToStack(mockCline)
 
 			const testApiConfig = {
 				apiProvider: "anthropic" as const,
