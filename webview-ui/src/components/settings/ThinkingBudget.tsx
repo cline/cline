@@ -35,8 +35,8 @@ export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, mod
 	}
 
 	return (
-		<div className="flex flex-col gap-2">
-			<div className="flex flex-col gap-1 mt-2">
+		<>
+			<div className="flex flex-col gap-1">
 				<div className="font-medium">Max Tokens</div>
 				<div className="flex items-center gap-1">
 					<Slider
@@ -49,7 +49,7 @@ export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, mod
 					<div className="w-12 text-sm text-center">{tokens}</div>
 				</div>
 			</div>
-			<div className="flex flex-col gap-1 mt-2">
+			<div className="flex flex-col gap-1">
 				<div className="font-medium">Max Thinking Tokens</div>
 				<div className="flex items-center gap-1">
 					<Slider
@@ -62,6 +62,6 @@ export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, mod
 					<div className="w-12 text-sm text-center">{thinkingTokens}</div>
 				</div>
 			</div>
-		</div>
+		</>
 	)
 }
