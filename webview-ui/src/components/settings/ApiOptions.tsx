@@ -6,6 +6,7 @@ import {
 	VSCodeRadio,
 	VSCodeRadioGroup,
 	VSCodeTextField,
+	VSCodeButton,
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
@@ -48,6 +49,7 @@ import { vscode } from "../../utils/vscode"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
+import AccountView, { ClineAccountView } from "../account/AccountView"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -185,6 +187,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						minWidth: 130,
 						position: "relative",
 					}}>
+					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
@@ -205,6 +208,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="xai">X AI</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
+
+			{selectedProvider === "cline" && (
+				<div style={{ marginBottom: 8, marginTop: 4 }}>
+					<ClineAccountView />
+				</div>
+			)}
 
 			{selectedProvider === "asksage" && (
 				<div>
@@ -1236,6 +1245,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{selectedProvider !== "openrouter" &&
+				selectedProvider !== "cline" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
 				selectedProvider !== "lmstudio" &&
@@ -1276,7 +1286,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</>
 				)}
 
-			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker isPopup={isPopup} />}
+			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
+				<OpenRouterModelPicker isPopup={isPopup} />
+			)}
 
 			{modelIdErrorMessage && (
 				<p
@@ -1477,6 +1489,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 		case "asksage":
 			return getProviderData(askSageModels, askSageDefaultModelId)
 		case "openrouter":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
+				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
+			}
+		case "cline":
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
