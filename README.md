@@ -121,9 +121,9 @@ Make Roo Code work your way with:
     ```
 
 if that fails, try:
-`bash
+    ```bash
     npm run install:ci
-    `
+    ```
 
 3. **Build** the extension:
     ```bash
