@@ -69,30 +69,30 @@ export function arePathsEqual(path1?: string, path2?: string): boolean {
 
 function normalizePath(p: string): string {
 	// Convert to POSIX first for consistent normalization
-	let normalized = path.normalize(p.replace(/\\/g, "/"));
+	let normalized = path.normalize(p.replace(/\\/g, "/"))
 	// Remove trailing slash except for root paths
 	if (normalized.length > 1 && normalized.endsWith("/")) {
-		normalized = normalized.slice(0, -1);
+		normalized = normalized.slice(0, -1)
 	}
-	return normalized;
+	return normalized
 }
 
 export function getReadablePath(cwd: string, relPath?: string): string {
-  relPath = relPath || "";
+	relPath = relPath || ""
 
-  const absolutePath = path.posix.resolve(cwd, relPath);
+	const absolutePath = path.posix.resolve(cwd, relPath)
 
-  if (arePathsEqual(normalizePath(cwd), normalizePath(path.join(os.homedir(), "Desktop")))) {
-    return toPosixPath(path.join(cwd, relPath));
-  }
+	if (arePathsEqual(normalizePath(cwd), normalizePath(path.join(os.homedir(), "Desktop")))) {
+		return toPosixPath(path.join(cwd, relPath))
+	}
 
-  if (arePathsEqual(absolutePath, cwd)) {
-    return path.posix.basename(absolutePath);
-  } else {
-    const relativePath = path.posix.relative(cwd, absolutePath);
-    if (relativePath.startsWith("..")) {
-      return absolutePath;
-    }
-    return relativePath;
-  }
+	if (arePathsEqual(absolutePath, cwd)) {
+		return path.posix.basename(absolutePath)
+	} else {
+		const relativePath = path.posix.relative(cwd, absolutePath)
+		if (relativePath.startsWith("..")) {
+			return absolutePath
+		}
+		return relativePath
+	}
 }
