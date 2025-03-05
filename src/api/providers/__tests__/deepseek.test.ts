@@ -72,7 +72,7 @@ describe("DeepSeekHandler", () => {
 		mockOptions = {
 			deepSeekApiKey: "test-api-key",
 			apiModelId: "deepseek-chat",
-			deepSeekBaseUrl: "https://api.deepseek.com/v1",
+			deepSeekBaseUrl: "https://api.deepseek.com",
 		}
 		handler = new DeepSeekHandler(mockOptions)
 		mockCreate.mockClear()
@@ -110,7 +110,7 @@ describe("DeepSeekHandler", () => {
 			// The base URL is passed to OpenAI client internally
 			expect(OpenAI).toHaveBeenCalledWith(
 				expect.objectContaining({
-					baseURL: "https://api.deepseek.com/v1",
+					baseURL: "https://api.deepseek.com",
 				}),
 			)
 		})
