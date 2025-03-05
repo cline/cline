@@ -2060,7 +2060,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		if (id === this.getCurrentCline()?.taskId) {
 			// if we found the taskid to delete - call finish to abort this task and allow a new task to be started,
 			// if we are deleting a subtask and parent task is still waiting for subtask to finish - it allows the parent to resume (this case should neve exist)
-			await this.finishSubTask(`new_task finished with an error!, it was stopped and delted by the user.`)
+			await this.finishSubTask(`Task failure: It was stopped and deleted by the user.`)
 		}
 
 		// delete task from the task history state
