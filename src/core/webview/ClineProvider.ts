@@ -34,7 +34,6 @@ import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
-import { validateThinkingBudget } from "../../utils/validation"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 
@@ -134,8 +133,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.mcpHub = new McpHub(this)
-
-		this.authManager = new FirebaseAuthManager(this)
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
