@@ -1,5 +1,4 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { Mistral } from "@mistralai/mistralai"
 import { AssistantMessage } from "@mistralai/mistralai/models/components/assistantmessage"
 import { SystemMessage } from "@mistralai/mistralai/models/components/systemmessage"
 import { ToolMessage } from "@mistralai/mistralai/models/components/toolmessage"
@@ -21,22 +20,15 @@ export function convertToMistralMessages(anthropicMessages: Anthropic.Messages.M
 			})
 		} else {
 			if (anthropicMessage.role === "user") {
-				const { nonToolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-				}>(
-					(acc, part) => {
-						if (part.type === "text" || part.type === "image") {
-							acc.nonToolMessages.push(part)
-						}
-						return acc
-					},
-					{ nonToolMessages: [] },
+				// Filter to only include text and image blocks
+				const textAndImageBlocks = anthropicMessage.content.filter(
+					(part) => part.type === "text" || part.type === "image",
 				)
 
-				if (nonToolMessages.length > 0) {
+				if (textAndImageBlocks.length > 0) {
 					mistralMessages.push({
 						role: "user",
-						content: nonToolMessages.map((part) => {
+						content: textAndImageBlocks.map((part) => {
 							if (part.type === "image") {
 								return {
 									type: "image_url",
@@ -50,34 +42,17 @@ export function convertToMistralMessages(anthropicMessages: Anthropic.Messages.M
 					})
 				}
 			} else if (anthropicMessage.role === "assistant") {
-				const { nonToolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-				}>(
-					(acc, part) => {
-						if (part.type === "text" || part.type === "image") {
-							acc.nonToolMessages.push(part)
-						}
-						return acc
-					},
-					{ nonToolMessages: [] },
-				)
+				// Only process text blocks - assistant cannot send images or other content types in Mistral's API format
+				const textBlocks = anthropicMessage.content.filter((part) => part.type === "text")
 
-				let content: string | undefined
-				if (nonToolMessages.length > 0) {
-					content = nonToolMessages
-						.map((part) => {
-							if (part.type === "image") {
-								return "" // impossible as the assistant cannot send images
-							}
-							return part.text
-						})
-						.join("\n")
+				if (textBlocks.length > 0) {
+					const content = textBlocks.map((part) => part.text).join("\n")
+
+					mistralMessages.push({
+						role: "assistant",
+						content,
+					})
 				}
-
-				mistralMessages.push({
-					role: "assistant",
-					content,
-				})
 			}
 		}
 	}
