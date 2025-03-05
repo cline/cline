@@ -1399,7 +1399,7 @@ const ApiOptions = ({
 							lineHeight: "1.4",
 						}}>
 						During use, a dialog box will pop up and the current message will be copied to the clipboard
-						automatically. You need to paste these to web versions of AI (such as ChatGPT or Claude),Then
+						automatically. You need to paste these to web versions of AI (such as ChatGPT or Claude), then
 						copy the AI's reply back to the dialog box and click the confirm button.
 					</p>
 				</div>
