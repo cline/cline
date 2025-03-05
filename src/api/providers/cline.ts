@@ -19,7 +19,15 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const genId = yield* streamOpenRouterFormatRequest(this.client, systemPrompt, messages, this.getModel())
+		const model = this.getModel()
+		const genId = yield* streamOpenRouterFormatRequest(
+			this.client,
+			systemPrompt,
+			messages,
+			model,
+			this.options.o3MiniReasoningEffort,
+			this.options.thinkingBudgetTokens,
+		)
 
 		try {
 			const response = await axios.get(`https://api.cline.bot/v1/generation?id=${genId}`, {
