@@ -33,7 +33,7 @@ export async function addCustomInstructions(
 	globalCustomInstructions: string,
 	cwd: string,
 	mode: string,
-	options: { preferredLanguage?: string } = {},
+	options: { preferredLanguage?: string; rooIgnoreInstructions?: string } = {},
 ): Promise<string> {
 	const sections = []
 
@@ -68,6 +68,10 @@ export async function addCustomInstructions(
 	if (modeRuleContent && modeRuleContent.trim()) {
 		const modeRuleFile = `.clinerules-${mode}`
 		rules.push(`# Rules from ${modeRuleFile}:\n${modeRuleContent}`)
+	}
+
+	if (options.rooIgnoreInstructions) {
+		rules.push(options.rooIgnoreInstructions)
 	}
 
 	// Add generic rules

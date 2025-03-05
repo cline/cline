@@ -25,8 +25,6 @@ import {
 	addCustomInstructions,
 } from "./sections"
 import { loadSystemPromptFile } from "./sections/custom-system-prompt"
-import fs from "fs/promises"
-import path from "path"
 
 async function generatePrompt(
 	context: vscode.ExtensionContext,
@@ -43,6 +41,7 @@ async function generatePrompt(
 	diffEnabled?: boolean,
 	experiments?: Record<string, boolean>,
 	enableMcpServerCreation?: boolean,
+	rooIgnoreInstructions?: string,
 ): Promise<string> {
 	if (!context) {
 		throw new Error("Extension context is required for generating system prompt")
@@ -91,7 +90,7 @@ ${getSystemInfoSection(cwd, mode, customModeConfigs)}
 
 ${getObjectiveSection()}
 
-${await addCustomInstructions(promptComponent?.customInstructions || modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, { preferredLanguage })}`
+${await addCustomInstructions(promptComponent?.customInstructions || modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, { preferredLanguage, rooIgnoreInstructions })}`
 
 	return basePrompt
 }
@@ -111,6 +110,7 @@ export const SYSTEM_PROMPT = async (
 	diffEnabled?: boolean,
 	experiments?: Record<string, boolean>,
 	enableMcpServerCreation?: boolean,
+	rooIgnoreInstructions?: string,
 ): Promise<string> => {
 	if (!context) {
 		throw new Error("Extension context is required for generating system prompt")
@@ -139,7 +139,7 @@ export const SYSTEM_PROMPT = async (
 
 ${fileCustomSystemPrompt}
 
-${await addCustomInstructions(promptComponent?.customInstructions || currentMode.customInstructions || "", globalCustomInstructions || "", cwd, mode, { preferredLanguage })}`
+${await addCustomInstructions(promptComponent?.customInstructions || currentMode.customInstructions || "", globalCustomInstructions || "", cwd, mode, { preferredLanguage, rooIgnoreInstructions })}`
 	}
 
 	// If diff is disabled, don't pass the diffStrategy
@@ -160,5 +160,6 @@ ${await addCustomInstructions(promptComponent?.customInstructions || currentMode
 		diffEnabled,
 		experiments,
 		enableMcpServerCreation,
+		rooIgnoreInstructions,
 	)
 }

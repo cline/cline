@@ -59,6 +59,7 @@ import { calculateApiCost } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { parseMentions } from "./mentions"
+import { RooIgnoreController, LOCK_TEXT_SYMBOL } from "./ignore/RooIgnoreController"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
 import { SYSTEM_PROMPT } from "./prompts/system"
@@ -118,6 +119,7 @@ export class Cline {
 
 	apiConversationHistory: (Anthropic.MessageParam & { ts?: number })[] = []
 	clineMessages: ClineMessage[] = []
+	rooIgnoreController?: RooIgnoreController
 	private askResponse?: ClineAskResponse
 	private askResponseText?: string
 	private askResponseImages?: string[]
@@ -167,6 +169,11 @@ export class Cline {
 		if (startTask && !task && !images && !historyItem) {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
+
+		this.rooIgnoreController = new RooIgnoreController(cwd)
+		this.rooIgnoreController.initialize().catch((error) => {
+			console.error("Failed to initialize RooIgnoreController:", error)
+		})
 
 		this.taskId = historyItem ? historyItem.id : crypto.randomUUID()
 		this.taskNumber = -1
@@ -893,6 +900,7 @@ export class Cline {
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
 		this.browserSession.closeBrowser()
+		this.rooIgnoreController?.dispose()
 
 		// If we're not streaming then `abortStream` (which reverts the diff
 		// view changes) won't be called, so we need to revert the changes here.
@@ -1044,6 +1052,8 @@ export class Cline {
 			})
 		}
 
+		const rooIgnoreInstructions = this.rooIgnoreController?.getInstructions()
+
 		const {
 			browserViewportSize,
 			mode,
@@ -1074,6 +1084,7 @@ export class Cline {
 				this.diffEnabled,
 				experiments,
 				enableMcpServerCreation,
+				rooIgnoreInstructions,
 			)
 		})()
 
@@ -1448,6 +1459,15 @@ export class Cline {
 							// wait so we can determine if it's a new file or editing an existing file
 							break
 						}
+
+						const accessAllowed = this.rooIgnoreController?.validateAccess(relPath)
+						if (!accessAllowed) {
+							await this.say("rooignore_error", relPath)
+							pushToolResult(formatResponse.toolError(formatResponse.rooIgnoreError(relPath)))
+
+							break
+						}
+
 						// Check if file exists using cached map or fs.access
 						let fileExists: boolean
 						if (this.diffViewProvider.editType !== undefined) {
@@ -1654,6 +1674,14 @@ export class Cline {
 								if (!diffContent) {
 									this.consecutiveMistakeCount++
 									pushToolResult(await this.sayAndCreateMissingParamError("apply_diff", "diff"))
+									break
+								}
+
+								const accessAllowed = this.rooIgnoreController?.validateAccess(relPath)
+								if (!accessAllowed) {
+									await this.say("rooignore_error", relPath)
+									pushToolResult(formatResponse.toolError(formatResponse.rooIgnoreError(relPath)))
+
 									break
 								}
 
@@ -2115,6 +2143,15 @@ export class Cline {
 									pushToolResult(await this.sayAndCreateMissingParamError("read_file", "path"))
 									break
 								}
+
+								const accessAllowed = this.rooIgnoreController?.validateAccess(relPath)
+								if (!accessAllowed) {
+									await this.say("rooignore_error", relPath)
+									pushToolResult(formatResponse.toolError(formatResponse.rooIgnoreError(relPath)))
+
+									break
+								}
+
 								this.consecutiveMistakeCount = 0
 								const absolutePath = path.resolve(cwd, relPath)
 								const completeMessage = JSON.stringify({
@@ -2160,7 +2197,12 @@ export class Cline {
 								this.consecutiveMistakeCount = 0
 								const absolutePath = path.resolve(cwd, relDirPath)
 								const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
-								const result = formatResponse.formatFilesList(absolutePath, files, didHitLimit)
+								const result = formatResponse.formatFilesList(
+									absolutePath,
+									files,
+									didHitLimit,
+									this.rooIgnoreController,
+								)
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: result,
@@ -2201,7 +2243,10 @@ export class Cline {
 								}
 								this.consecutiveMistakeCount = 0
 								const absolutePath = path.resolve(cwd, relDirPath)
-								const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath)
+								const result = await parseSourceCodeForDefinitionsTopLevel(
+									absolutePath,
+									this.rooIgnoreController,
+								)
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: result,
@@ -2249,7 +2294,13 @@ export class Cline {
 								}
 								this.consecutiveMistakeCount = 0
 								const absolutePath = path.resolve(cwd, relDirPath)
-								const results = await regexSearchFiles(cwd, absolutePath, regex, filePattern)
+								const results = await regexSearchFiles(
+									cwd,
+									absolutePath,
+									regex,
+									filePattern,
+									this.rooIgnoreController,
+								)
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: results,
@@ -2428,6 +2479,19 @@ export class Cline {
 									)
 									break
 								}
+
+								const ignoredFileAttemptedToAccess = this.rooIgnoreController?.validateCommand(command)
+								if (ignoredFileAttemptedToAccess) {
+									await this.say("rooignore_error", ignoredFileAttemptedToAccess)
+									pushToolResult(
+										formatResponse.toolError(
+											formatResponse.rooIgnoreError(ignoredFileAttemptedToAccess),
+										),
+									)
+
+									break
+								}
+
 								this.consecutiveMistakeCount = 0
 
 								const didApprove = await askApproval("command", command)
@@ -3349,13 +3413,18 @@ export class Cline {
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += "\n\n# VSCode Visible Files"
-		const visibleFiles = vscode.window.visibleTextEditors
+		const visibleFilePaths = vscode.window.visibleTextEditors
 			?.map((editor) => editor.document?.uri?.fsPath)
 			.filter(Boolean)
-			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
-			.join("\n")
-		if (visibleFiles) {
-			details += `\n${visibleFiles}`
+			.map((absolutePath) => path.relative(cwd, absolutePath))
+
+		// Filter paths through rooIgnoreController
+		const allowedVisibleFiles = this.rooIgnoreController
+			? this.rooIgnoreController.filterPaths(visibleFilePaths)
+			: visibleFilePaths.map((p) => p.toPosix()).join("\n")
+
+		if (allowedVisibleFiles) {
+			details += `\n${allowedVisibleFiles}`
 		} else {
 			details += "\n(No visible files)"
 		}
@@ -3363,15 +3432,20 @@ export class Cline {
 		details += "\n\n# VSCode Open Tabs"
 		const { maxOpenTabsContext } = (await this.providerRef.deref()?.getState()) ?? {}
 		const maxTabs = maxOpenTabsContext ?? 20
-		const openTabs = vscode.window.tabGroups.all
+		const openTabPaths = vscode.window.tabGroups.all
 			.flatMap((group) => group.tabs)
 			.map((tab) => (tab.input as vscode.TabInputText)?.uri?.fsPath)
 			.filter(Boolean)
 			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
 			.slice(0, maxTabs)
-			.join("\n")
-		if (openTabs) {
-			details += `\n${openTabs}`
+
+		// Filter paths through rooIgnoreController
+		const allowedOpenTabs = this.rooIgnoreController
+			? this.rooIgnoreController.filterPaths(openTabPaths)
+			: openTabPaths.map((p) => p.toPosix()).join("\n")
+
+		if (allowedOpenTabs) {
+			details += `\n${allowedOpenTabs}`
 		} else {
 			details += "\n(No open tabs)"
 		}
@@ -3530,7 +3604,7 @@ export class Cline {
 				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
 			} else {
 				const [files, didHitLimit] = await listFiles(cwd, true, 200)
-				const result = formatResponse.formatFilesList(cwd, files, didHitLimit)
+				const result = formatResponse.formatFilesList(cwd, files, didHitLimit, this.rooIgnoreController)
 				details += result
 			}
 		}
