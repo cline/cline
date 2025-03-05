@@ -47,10 +47,7 @@ export async function downloadTask(dateTs: number, conversationHistory: Anthropi
 	}
 }
 
-export function formatContentBlockToMarkdown(
-	block: Anthropic.ContentBlockParam,
-	// messages: Anthropic.MessageParam[]
-): string {
+export function formatContentBlockToMarkdown(block: Anthropic.ContentBlockParam): string {
 	switch (block.type) {
 		case "text":
 			return block.text
@@ -69,32 +66,16 @@ export function formatContentBlockToMarkdown(
 			}
 			return `[Tool Use: ${block.name}]\n${input}`
 		case "tool_result":
-			// For now we're not doing tool name lookup since we don't use tools anymore
-			// const toolName = findToolName(block.tool_use_id, messages)
-			const toolName = "Tool"
 			if (typeof block.content === "string") {
-				return `[${toolName}${block.is_error ? " (Error)" : ""}]\n${block.content}`
+				return `[Tool${block.is_error ? " (Error)" : ""}]\n${block.content}`
 			} else if (Array.isArray(block.content)) {
-				return `[${toolName}${block.is_error ? " (Error)" : ""}]\n${block.content
+				return `[Tool${block.is_error ? " (Error)" : ""}]\n${block.content
 					.map((contentBlock) => formatContentBlockToMarkdown(contentBlock))
 					.join("\n")}`
 			} else {
-				return `[${toolName}${block.is_error ? " (Error)" : ""}]`
+				return `[Tool${block.is_error ? " (Error)" : ""}]`
 			}
 		default:
 			return "[Unexpected content type]"
 	}
-}
-
-export function findToolName(toolCallId: string, messages: Anthropic.MessageParam[]): string {
-	for (const message of messages) {
-		if (Array.isArray(message.content)) {
-			for (const block of message.content) {
-				if (block.type === "tool_use" && block.id === toolCallId) {
-					return block.name
-				}
-			}
-		}
-	}
-	return "Unknown Tool"
 }
