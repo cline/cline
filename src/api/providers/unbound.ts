@@ -147,7 +147,6 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 
 	async completePrompt(prompt: string): Promise<string> {
 		try {
-			console.log("completePrompt running in Unbound: ", prompt)
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
 				model: this.getModel().id.split("/")[1],
 				messages: [{ role: "user", content: prompt }],
