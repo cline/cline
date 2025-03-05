@@ -1,3 +1,5 @@
+// npx jest src/components/settings/__tests__/SettingsView.test.ts
+
 import { render, screen, fireEvent } from "@testing-library/react"
 import SettingsView from "../SettingsView"
 import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext"
@@ -9,6 +11,22 @@ jest.mock("../../../utils/vscode", () => ({
 		postMessage: jest.fn(),
 	},
 }))
+
+// Mock all lucide-react icons with a proxy to handle any icon requested
+jest.mock("lucide-react", () => {
+	return new Proxy(
+		{},
+		{
+			get: function (obj, prop) {
+				// Return a component factory for any icon that's requested
+				if (prop === "__esModule") {
+					return true
+				}
+				return () => <div data-testid={`${String(prop)}-icon`}>{String(prop)}</div>
+			},
+		},
+	)
+})
 
 // Mock ApiConfigManager component
 jest.mock("../ApiConfigManager", () => ({

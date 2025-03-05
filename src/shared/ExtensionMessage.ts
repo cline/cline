@@ -7,6 +7,7 @@ import { GitCommit } from "../utils/git"
 import { Mode, CustomModePrompts, ModeConfig } from "./modes"
 import { CustomSupportPrompts } from "./support-prompt"
 import { ExperimentId } from "./experiments"
+import { CheckpointStorage } from "./checkpoints"
 
 export interface LanguageModelChatSelector {
 	vendor?: string
@@ -114,6 +115,7 @@ export interface ExtensionState {
 	soundVolume?: number
 	diffEnabled?: boolean
 	enableCheckpoints: boolean
+	checkpointStorage: CheckpointStorage
 	browserViewportSize?: string
 	screenshotQuality?: number
 	fuzzyMatchThreshold?: number

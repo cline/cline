@@ -7,25 +7,14 @@ interface ExperimentalFeatureProps {
 	onChange: (value: boolean) => void
 }
 
-const ExperimentalFeature = ({ name, description, enabled, onChange }: ExperimentalFeatureProps) => {
-	return (
-		<div>
-			<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-				<span style={{ color: "var(--vscode-errorForeground)" }}>⚠️</span>
-				<VSCodeCheckbox checked={enabled} onChange={(e: any) => onChange(e.target.checked)}>
-					<span style={{ fontWeight: "500" }}>{name}</span>
-				</VSCodeCheckbox>
-			</div>
-			<p
-				style={{
-					fontSize: "12px",
-					marginBottom: 15,
-					color: "var(--vscode-descriptionForeground)",
-				}}>
-				{description}
-			</p>
+export const ExperimentalFeature = ({ name, description, enabled, onChange }: ExperimentalFeatureProps) => (
+	<div>
+		<div className="flex items-center gap-2">
+			<span className="text-vscode-errorForeground">⚠️</span>
+			<VSCodeCheckbox checked={enabled} onChange={(e: any) => onChange(e.target.checked)}>
+				<span className="font-medium">{name}</span>
+			</VSCodeCheckbox>
 		</div>
-	)
-}
-
-export default ExperimentalFeature
+		<p className="text-vscode-descriptionForeground text-sm mt-0">{description}</p>
+	</div>
+)

@@ -71,6 +71,7 @@ export type GlobalStateKey =
 	| "soundVolume"
 	| "diffEnabled"
 	| "enableCheckpoints"
+	| "checkpointStorage"
 	| "browserViewportSize"
 	| "screenshotQuality"
 	| "fuzzyMatchThreshold"
@@ -102,7 +103,9 @@ export type GlobalStateKey =
 	| "modelMaxThinkingTokens"
 	| "mistralCodestralUrl"
 	| "maxOpenTabsContext"
-	| "browserToolEnabled" // Setting to enable/disable the browser tool
+	| "browserToolEnabled"
+	| "lmStudioSpeculativeDecodingEnabled"
+	| "lmStudioDraftModelId"
 
 export const GLOBAL_STATE_KEYS: GlobalStateKey[] = [
 	"apiProvider",
@@ -175,4 +178,7 @@ export const GLOBAL_STATE_KEYS: GlobalStateKey[] = [
 	"modelMaxTokens",
 	"mistralCodestralUrl",
 	"maxOpenTabsContext",
+	"browserToolEnabled",
+	"lmStudioSpeculativeDecodingEnabled",
+	"lmStudioDraftModelId",
 ]
