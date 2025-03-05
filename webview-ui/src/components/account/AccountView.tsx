@@ -161,7 +161,7 @@ export const ClineAccountView = () => {
 				</div>
 			) : (
 				<div style={{}}>
-					<VSCodeButton onClick={handleLogin} style={{ marginTop: 6 }}>
+					<VSCodeButton onClick={handleLogin} style={{ marginTop: 0 }}>
 						Sign Up with Cline
 					</VSCodeButton>
 				</div>
