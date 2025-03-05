@@ -1785,7 +1785,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			const mode = message.mode ?? defaultModeSlug
 			const customModes = await this.customModesManager.getCustomModes()
 
-			const rooIgnoreInstructions = this.cline?.rooIgnoreController?.getInstructions()
+			const rooIgnoreInstructions = this.getCurrentCline()?.rooIgnoreController?.getInstructions()
 
 			const systemPrompt = await SYSTEM_PROMPT(
 				this.context,
