@@ -22,6 +22,8 @@ export type GlobalStateKey =
 	| "awsUseCrossRegionInference"
 	| "awsProfile"
 	| "awsUseProfile"
+	| "vertexKeyFile"
+	| "vertexJsonCredentials"
 	| "vertexProjectId"
 	| "vertexRegion"
 	| "lastShownAnnouncementId"

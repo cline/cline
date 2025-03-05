@@ -605,6 +605,20 @@ const ApiOptions = ({
 			{selectedProvider === "vertex" && (
 				<div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
 					<VSCodeTextField
+						value={apiConfiguration?.vertexJsonCredentials || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("vertexJsonCredentials")}
+						placeholder="Enter Credentials JSON...">
+						<span className="font-medium">Google Cloud Credentials</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.vertexKeyFile || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("vertexKeyFile")}
+						placeholder="Enter Key File Path...">
+						<span className="font-medium">Google Cloud Key File Path</span>
+					</VSCodeTextField>
+					<VSCodeTextField
 						value={apiConfiguration?.vertexProjectId || ""}
 						style={{ width: "100%" }}
 						onInput={handleInputChange("vertexProjectId")}
@@ -648,6 +662,11 @@ const ApiOptions = ({
 							href="https://cloud.google.com/docs/authentication/provide-credentials-adc#google-idp"
 							style={{ display: "inline", fontSize: "inherit" }}>
 							{"2) install the Google Cloud CLI › configure Application Default Credentials."}
+						</VSCodeLink>
+						<VSCodeLink
+							href="https://developers.google.com/workspace/guides/create-credentials?hl=en#service-account"
+							style={{ display: "inline", fontSize: "inherit" }}>
+							{"3) or create a service account with credentials."}
 						</VSCodeLink>
 					</p>
 				</div>

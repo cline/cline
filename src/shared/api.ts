@@ -40,6 +40,8 @@ export interface ApiHandlerOptions {
 	awsUseProfile?: boolean
 	vertexProjectId?: string
 	vertexRegion?: string
+	vertexKeyFile?: string
+	vertexJsonCredentials?: string
 	openAiBaseUrl?: string
 	openAiApiKey?: string
 	openAiModelId?: string
