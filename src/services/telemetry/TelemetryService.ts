@@ -17,7 +17,7 @@ class PostHogClient {
 			RESTARTED: "task.restarted",
 			// Tracks when a task is finished, with acceptance or rejection status
 			COMPLETED: "task.completed",
-			// Tracks individual message exchanges in a conversation either user or assistant messages
+			// Tracks individual message exchanges in a conversation from either user or model sources
 			MESSAGE: "task.message",
 			// Tracks token consumption for cost and usage analysis
 			TOKEN_USAGE: "task.tokens",
@@ -170,11 +170,11 @@ class PostHogClient {
 	 * @param taskId Unique identifier for the task
 	 * @param provider The API provider (e.g., OpenAI, Anthropic)
 	 * @param model The specific model used (e.g., GPT-4, Claude)
-	 * @param type either assistant or user message so we can identify user messages
+	 * @param source The source of the message ("user" | "model"). Used to track message patterns and identify when users need to correct the model's responses.
 	 */
-	public captureMessage(taskId: string, provider: string, model: string, type: string) {
+	public captureMessage(taskId: string, provider: string, model: string, source: "user" | "model") {
 		// Ensure required parameters are provided
-		if (!taskId || !provider || !model || !type) {
+		if (!taskId || !provider || !model || !source) {
 			console.warn("TelemetryService: Missing required parameters for message capture")
 			return
 		}
@@ -183,7 +183,7 @@ class PostHogClient {
 			taskId,
 			provider,
 			model,
-			type,
+			source,
 			timestamp: new Date().toISOString(), // Add timestamp for message sequencing
 		}
 

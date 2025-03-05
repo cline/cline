@@ -3099,7 +3099,7 @@ export class Cline {
 			const model = this.api.getModel()
 			const provider = "unknown" // TODO update this to have the correct provider set
 			const modelId = model.id
-			telemetryService.captureMessage(this.taskId, provider, modelId)
+			telemetryService.captureMessage(this.taskId, provider, modelId, "user")
 		} catch (error) {
 			console.error("Failed to capture message telemetry:", error)
 			// Don't throw - telemetry errors shouldn't affect the main flow
@@ -3179,6 +3179,17 @@ export class Cline {
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
 				updateApiReqMsg(cancelReason, streamingFailedMessage)
 				await this.saveClineMessages()
+
+				// Capture telemetry for the model's response, even if interrupted
+				try {
+					const model = this.api.getModel()
+					const provider = "unknown" // TODO update this to have the correct provider set
+					const modelId = model.id
+					telemetryService.captureMessage(this.taskId, provider, modelId, "model")
+				} catch (error) {
+					console.error("Failed to capture message telemetry:", error)
+					// Don't throw - telemetry errors shouldn't affect the main flow
+				}
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.didFinishAbortingStream = true
@@ -3303,6 +3314,17 @@ export class Cline {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
+				// Capture telemetry for the model's complete response
+				try {
+					const model = this.api.getModel()
+					const provider = "unknown" // TODO update this to have the correct provider set
+					const modelId = model.id
+					telemetryService.captureMessage(this.taskId, provider, modelId, "model")
+				} catch (error) {
+					console.error("Failed to capture message telemetry:", error)
+					// Don't throw - telemetry errors shouldn't affect the main flow
+				}
+
 				await this.addToApiConversationHistory({
 					role: "assistant",
 					content: [{ type: "text", text: assistantMessage }],
