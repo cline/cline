@@ -90,6 +90,20 @@ describe("OpenAiHandler", () => {
 			})
 			expect(handlerWithCustomUrl).toBeInstanceOf(OpenAiHandler)
 		})
+
+		it("should set default headers correctly", () => {
+			// Get the mock constructor from the jest mock system
+			const openAiMock = jest.requireMock("openai").default
+
+			expect(openAiMock).toHaveBeenCalledWith({
+				baseURL: expect.any(String),
+				apiKey: expect.any(String),
+				defaultHeaders: {
+					"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
+					"X-Title": "Roo Code",
+				},
+			})
+		})
 	})
 
 	describe("createMessage", () => {

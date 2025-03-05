@@ -257,6 +257,7 @@ const ApiOptions = ({
 						{ value: "ollama", label: "Ollama" },
 						{ value: "unbound", label: "Unbound" },
 						{ value: "requesty", label: "Requesty" },
+						{ value: "human-relay", label: "Human Relay" },
 					]}
 				/>
 			</div>
@@ -1374,6 +1375,32 @@ const ApiOptions = ({
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						This key is stored locally and only used to make API requests from this extension.
+					</p>
+				</div>
+			)}
+
+			{selectedProvider === "human-relay" && (
+				<div>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 5,
+							color: "var(--vscode-descriptionForeground)",
+							lineHeight: "1.4",
+						}}>
+						The API key is not required, but the user needs to help copy and paste the information to the
+						web chat AI.
+					</p>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 10,
+							color: "var(--vscode-descriptionForeground)",
+							lineHeight: "1.4",
+						}}>
+						During use, a dialog box will pop up and the current message will be copied to the clipboard
+						automatically. You need to paste these to web versions of AI (such as ChatGPT or Claude), then
+						copy the AI's reply back to the dialog box and click the confirm button.
 					</p>
 				</div>
 			)}

@@ -16,9 +16,13 @@ import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { BaseProvider } from "./base-provider"
 
 const DEEP_SEEK_DEFAULT_TEMPERATURE = 0.6
-export interface OpenAiHandlerOptions extends ApiHandlerOptions {
-	defaultHeaders?: Record<string, string>
+
+export const defaultHeaders = {
+	"HTTP-Referer": "https://github.com/RooVetGit/Roo-Cline",
+	"X-Title": "Roo Code",
 }
+
+export interface OpenAiHandlerOptions extends ApiHandlerOptions {}
 
 export class OpenAiHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: OpenAiHandlerOptions
@@ -47,9 +51,10 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 				baseURL,
 				apiKey,
 				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+				defaultHeaders,
 			})
 		} else {
-			this.client = new OpenAI({ baseURL, apiKey, defaultHeaders: this.options.defaultHeaders })
+			this.client = new OpenAI({ baseURL, apiKey, defaultHeaders })
 		}
 	}
 

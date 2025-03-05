@@ -1,90 +1,100 @@
-export type SecretKey =
-	| "apiKey"
-	| "glamaApiKey"
-	| "openRouterApiKey"
-	| "awsAccessKey"
-	| "awsSecretKey"
-	| "awsSessionToken"
-	| "openAiApiKey"
-	| "geminiApiKey"
-	| "openAiNativeApiKey"
-	| "deepSeekApiKey"
-	| "mistralApiKey"
-	| "unboundApiKey"
-	| "requestyApiKey"
+// Define the array first with 'as const' to create a readonly tuple type
+export const SECRET_KEYS = [
+	"apiKey",
+	"glamaApiKey",
+	"openRouterApiKey",
+	"awsAccessKey",
+	"awsSecretKey",
+	"awsSessionToken",
+	"openAiApiKey",
+	"geminiApiKey",
+	"openAiNativeApiKey",
+	"deepSeekApiKey",
+	"mistralApiKey",
+	"unboundApiKey",
+	"requestyApiKey",
+] as const
 
-export type GlobalStateKey =
-	| "apiProvider"
-	| "apiModelId"
-	| "glamaModelId"
-	| "glamaModelInfo"
-	| "awsRegion"
-	| "awsUseCrossRegionInference"
-	| "awsProfile"
-	| "awsUseProfile"
-	| "vertexProjectId"
-	| "vertexRegion"
-	| "lastShownAnnouncementId"
-	| "customInstructions"
-	| "alwaysAllowReadOnly"
-	| "alwaysAllowWrite"
-	| "alwaysAllowExecute"
-	| "alwaysAllowBrowser"
-	| "alwaysAllowMcp"
-	| "alwaysAllowModeSwitch"
-	| "taskHistory"
-	| "openAiBaseUrl"
-	| "openAiModelId"
-	| "openAiCustomModelInfo"
-	| "openAiUseAzure"
-	| "ollamaModelId"
-	| "ollamaBaseUrl"
-	| "lmStudioModelId"
-	| "lmStudioBaseUrl"
-	| "lmStudioDraftModelId"
-	| "lmStudioSpeculativeDecodingEnabled"
-	| "anthropicBaseUrl"
-	| "azureApiVersion"
-	| "openAiStreamingEnabled"
-	| "openRouterModelId"
-	| "openRouterModelInfo"
-	| "openRouterBaseUrl"
-	| "openRouterUseMiddleOutTransform"
-	| "allowedCommands"
-	| "soundEnabled"
-	| "soundVolume"
-	| "diffEnabled"
-	| "enableCheckpoints"
-	| "checkpointStorage"
-	| "browserViewportSize"
-	| "screenshotQuality"
-	| "fuzzyMatchThreshold"
-	| "preferredLanguage" // Language setting for Cline's communication
-	| "writeDelayMs"
-	| "terminalOutputLineLimit"
-	| "mcpEnabled"
-	| "enableMcpServerCreation"
-	| "alwaysApproveResubmit"
-	| "requestDelaySeconds"
-	| "rateLimitSeconds"
-	| "currentApiConfigName"
-	| "listApiConfigMeta"
-	| "vsCodeLmModelSelector"
-	| "mode"
-	| "modeApiConfigs"
-	| "customModePrompts"
-	| "customSupportPrompts"
-	| "enhancementApiConfigId"
-	| "experiments" // Map of experiment IDs to their enabled state
-	| "autoApprovalEnabled"
-	| "customModes" // Array of custom modes
-	| "unboundModelId"
-	| "requestyModelId"
-	| "requestyModelInfo"
-	| "unboundModelInfo"
-	| "modelTemperature"
-	| "modelMaxTokens"
-	| "anthropicThinking" // TODO: Rename to `modelMaxThinkingTokens`.
-	| "mistralCodestralUrl"
-	| "maxOpenTabsContext"
-	| "browserToolEnabled" // Setting to enable/disable the browser tool
+// Derive the type from the array - creates a union of string literals
+export type SecretKey = (typeof SECRET_KEYS)[number]
+
+// Define the array first with 'as const' to create a readonly tuple type
+export const GLOBAL_STATE_KEYS = [
+	"apiProvider",
+	"apiModelId",
+	"glamaModelId",
+	"glamaModelInfo",
+	"awsRegion",
+	"awsUseCrossRegionInference",
+	"awsProfile",
+	"awsUseProfile",
+	"vertexProjectId",
+	"vertexRegion",
+	"lastShownAnnouncementId",
+	"customInstructions",
+	"alwaysAllowReadOnly",
+	"alwaysAllowWrite",
+	"alwaysAllowExecute",
+	"alwaysAllowBrowser",
+	"alwaysAllowMcp",
+	"alwaysAllowModeSwitch",
+	"taskHistory",
+	"openAiBaseUrl",
+	"openAiModelId",
+	"openAiCustomModelInfo",
+	"openAiUseAzure",
+	"ollamaModelId",
+	"ollamaBaseUrl",
+	"lmStudioModelId",
+	"lmStudioBaseUrl",
+	"anthropicBaseUrl",
+	"modelMaxThinkingTokens",
+	"azureApiVersion",
+	"openAiStreamingEnabled",
+	"openRouterModelId",
+	"openRouterModelInfo",
+	"openRouterBaseUrl",
+	"openRouterUseMiddleOutTransform",
+	"allowedCommands",
+	"soundEnabled",
+	"soundVolume",
+	"diffEnabled",
+	"enableCheckpoints",
+	"checkpointStorage",
+	"browserViewportSize",
+	"screenshotQuality",
+	"fuzzyMatchThreshold",
+	"preferredLanguage", // Language setting for Cline's communication
+	"writeDelayMs",
+	"terminalOutputLineLimit",
+	"mcpEnabled",
+	"enableMcpServerCreation",
+	"alwaysApproveResubmit",
+	"requestDelaySeconds",
+	"rateLimitSeconds",
+	"currentApiConfigName",
+	"listApiConfigMeta",
+	"vsCodeLmModelSelector",
+	"mode",
+	"modeApiConfigs",
+	"customModePrompts",
+	"customSupportPrompts",
+	"enhancementApiConfigId",
+	"experiments", // Map of experiment IDs to their enabled state
+	"autoApprovalEnabled",
+	"customModes", // Array of custom modes
+	"unboundModelId",
+	"requestyModelId",
+	"requestyModelInfo",
+	"unboundModelInfo",
+	"modelTemperature",
+	"modelMaxTokens",
+	"mistralCodestralUrl",
+	"maxOpenTabsContext",
+	"browserToolEnabled",
+	"lmStudioSpeculativeDecodingEnabled",
+	"lmStudioDraftModelId",
+] as const
+
+// Derive the type from the array - creates a union of string literals
+export type GlobalStateKey = (typeof GLOBAL_STATE_KEYS)[number]
