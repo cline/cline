@@ -45,7 +45,6 @@ export interface WebviewMessage {
 		| "getLatestState"
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
-		| "subscribeEmail"
 		| "authStateChanged"
 		| "authCallback"
 		| "fetchMcpMarketplace"

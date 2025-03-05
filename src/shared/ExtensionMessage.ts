@@ -27,7 +27,6 @@ export interface ExtensionMessage {
 		| "relinquishControl"
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
-		| "emailSubscribed"
 		| "authCallback"
 		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
