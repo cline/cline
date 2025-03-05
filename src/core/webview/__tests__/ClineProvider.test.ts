@@ -182,16 +182,6 @@ jest.mock("../../../utils/sound", () => ({
 	setSoundEnabled: jest.fn(),
 }))
 
-// Mock logger
-jest.mock("../../../utils/logging", () => ({
-	logger: {
-		debug: jest.fn(),
-		error: jest.fn(),
-		warn: jest.fn(),
-		info: jest.fn(),
-	},
-}))
-
 // Mock ESM modules
 jest.mock("p-wait-for", () => ({
 	__esModule: true,
@@ -1527,7 +1517,6 @@ describe("ClineProvider", () => {
 				apiConfiguration: testApiConfig,
 			})
 
-			// Reset jest.mock calls tracking
 			// Verify config was saved
 			expect(provider.configManager.saveConfig).toHaveBeenCalledWith("test-config", testApiConfig)
 
@@ -1538,9 +1527,6 @@ describe("ClineProvider", () => {
 			expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("listApiConfigMeta", [
 				{ name: "test-config", id: "test-id", apiProvider: "anthropic" },
 			])
-
-			// Reset jest.mock calls tracking for subsequent tests
-			jest.clearAllMocks()
 		})
 	})
 })
