@@ -73,8 +73,7 @@ class PostHogClient {
 	 * Initializes PostHog client with configuration
 	 */
 	private constructor() {
-		// production key phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K remove before release
-		this.client = new PostHog("phc_uY24EJXNBcc9kwO1K8TJUl5hPQntGM6LL1Mtrz0CBD4", {
+		this.client = new PostHog("phc_qfOAGxZw2TL5O8p9KYd9ak3bPBFzfjC8fy5L6jNWY7K", {
 			host: "https://us.i.posthog.com",
 			enableExceptionAutocapture: false,
 		})
