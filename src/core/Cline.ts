@@ -69,7 +69,7 @@ type UserContent = Array<Anthropic.ContentBlockParam>
 
 export class Cline {
 	readonly taskId: string
-	readonly apiConfiguration: ApiConfiguration
+	readonly apiProvider?: string
 	api: ApiHandler
 	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
@@ -130,7 +130,7 @@ export class Cline {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 		})
 		this.providerRef = new WeakRef(provider)
-		this.apiConfiguration = apiConfiguration
+		this.apiProvider = apiConfiguration.apiProvider
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
@@ -153,10 +153,10 @@ export class Cline {
 
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.taskId, apiConfiguration.apiProvider)
+			telemetryService.captureTaskRestarted(this.taskId, this.apiProvider)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.taskId, apiConfiguration.apiProvider)
+			telemetryService.captureTaskCreated(this.taskId, this.apiProvider)
 		}
 	}
 
@@ -3095,12 +3095,7 @@ export class Cline {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(
-			this.taskId,
-			this.apiConfiguration.apiProvider,
-			this.api.getModel().id,
-			"user",
-		)
+		telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "user")
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
@@ -3177,12 +3172,7 @@ export class Cline {
 				updateApiReqMsg(cancelReason, streamingFailedMessage)
 				await this.saveClineMessages()
 
-				telemetryService.captureConversationTurnEvent(
-					this.taskId,
-					this.apiConfiguration.apiProvider,
-					this.api.getModel().id,
-					"assistant",
-				)
+				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.didFinishAbortingStream = true
@@ -3307,12 +3297,7 @@ export class Cline {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(
-					this.taskId,
-					this.apiConfiguration.apiProvider,
-					this.api.getModel().id,
-					"assistant",
-				)
+				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
 
 				await this.addToApiConversationHistory({
 					role: "assistant",
