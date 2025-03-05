@@ -93,4 +93,40 @@ export class ContextProxy {
 			return this.originalContext.secrets.store(key, value)
 		}
 	}
+	/**
+	 * Set a value in either secrets or global state based on key type.
+	 * If the key is in SECRET_KEYS, it will be stored as a secret.
+	 * If the key is in GLOBAL_STATE_KEYS or unknown, it will be stored in global state.
+	 * @param key The key to set
+	 * @param value The value to set
+	 * @returns A promise that resolves when the operation completes
+	 */
+	setValue(key: string, value: any): Thenable<void> {
+		if (SECRET_KEYS.includes(key as any)) {
+			return this.storeSecret(key, value)
+		}
+
+		if (GLOBAL_STATE_KEYS.includes(key as any)) {
+			return this.updateGlobalState(key, value)
+		}
+
+		logger.warn(`Unknown key: ${key}. Storing as global state.`)
+		return this.updateGlobalState(key, value)
+	}
+
+	/**
+	 * Set multiple values at once. Each key will be routed to either
+	 * secrets or global state based on its type.
+	 * @param values An object containing key-value pairs to set
+	 * @returns A promise that resolves when all operations complete
+	 */
+	async setValues(values: Record<string, any>): Promise<void[]> {
+		const promises: Thenable<void>[] = []
+
+		for (const [key, value] of Object.entries(values)) {
+			promises.push(this.setValue(key, value))
+		}
+
+		return Promise.all(promises)
+	}
 }

@@ -1688,20 +1688,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
-		// Create an array of promises to update state
-		const promises: Promise<any>[] = []
-
-		// For each property in apiConfiguration, update the appropriate state
-		Object.entries(apiConfiguration).forEach(([key, value]) => {
-			// Check if this key is a secret
-			if (SECRET_KEYS.includes(key as SecretKey)) {
-				promises.push(this.storeSecret(key as SecretKey, value))
-			} else {
-				promises.push(this.updateGlobalState(key as GlobalStateKey, value))
-			}
-		})
-
-		await Promise.all(promises)
+		// Use the new setValues method to handle routing values to secrets or global state
+		await this.contextProxy.setValues(apiConfiguration)
 
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
@@ -1805,8 +1793,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
-		await this.updateGlobalState("apiProvider", openrouter)
-		await this.storeSecret("openRouterApiKey", apiKey)
+		await this.contextProxy.setValues({
+			apiProvider: openrouter,
+			openRouterApiKey: apiKey,
+		})
+
 		await this.postStateToWebview()
 		if (this.cline) {
 			this.cline.api = buildApiHandler({ apiProvider: openrouter, openRouterApiKey: apiKey })
@@ -1833,8 +1824,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 
 		const glama: ApiProvider = "glama"
-		await this.updateGlobalState("apiProvider", glama)
-		await this.storeSecret("glamaApiKey", apiKey)
+		await this.contextProxy.setValues({
+			apiProvider: glama,
+			glamaApiKey: apiKey,
+		})
 		await this.postStateToWebview()
 		if (this.cline) {
 			this.cline.api = buildApiHandler({
