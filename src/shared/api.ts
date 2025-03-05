@@ -42,6 +42,7 @@ export interface ApiHandlerOptions {
 	openAiApiKey?: string
 	openAiModelId?: string
 	openAiModelInfo?: ModelInfo
+	openAiTemperature?: number
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
 	lmStudioModelId?: string

@@ -829,6 +829,18 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									}}>
 									<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
 								</VSCodeTextField>
+								<VSCodeTextField
+									value={
+										apiConfiguration?.openAiTemperature ? apiConfiguration.openAiTemperature.toString() : "0"
+									}
+									onInput={(input: any) => {
+										setApiConfiguration({
+											...apiConfiguration,
+											openAiTemperature: input.target.value,
+										})
+									}}>
+									<span style={{ fontWeight: 500 }}>Temperature</span>
+								</VSCodeTextField>
 							</div>
 							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 								<VSCodeTextField
