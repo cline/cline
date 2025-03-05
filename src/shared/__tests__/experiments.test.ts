@@ -20,6 +20,7 @@ describe("experiments", () => {
 				experimentalDiffStrategy: false,
 				search_and_replace: false,
 				insert_content: false,
+				multi_search_and_replace: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(false)
 		})
@@ -30,6 +31,7 @@ describe("experiments", () => {
 				experimentalDiffStrategy: false,
 				search_and_replace: false,
 				insert_content: false,
+				multi_search_and_replace: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(true)
 		})
@@ -40,6 +42,7 @@ describe("experiments", () => {
 				search_and_replace: false,
 				insert_content: false,
 				powerSteering: false,
+				multi_search_and_replace: false,
 			}
 			expect(Experiments.isEnabled(experiments, EXPERIMENT_IDS.POWER_STEERING)).toBe(false)
 		})
