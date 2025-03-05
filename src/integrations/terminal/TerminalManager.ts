@@ -191,20 +191,24 @@ export class TerminalManager {
 			})
 		})
 
-		// if shell integration is already active, run the command immediately
-		if (terminalInfo.terminal.shellIntegration) {
-			process.waitForShellIntegration = false
-			process.run(terminalInfo.terminal, command)
-		} else {
-			// docs recommend waiting 3s for shell integration to activate
-			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 }).finally(() => {
+		// Always use pWaitFor, which resolves immediately if shell integration is already available
+		pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 })
+			.then(() => {
 				const existingProcess = this.processes.get(terminalInfo.id)
-				if (existingProcess && existingProcess.waitForShellIntegration) {
-					existingProcess.waitForShellIntegration = false
+				if (existingProcess) {
 					existingProcess.run(terminalInfo.terminal, command)
+				} else {
+					console.error("[TerminalManager] existingProcess not found for terminal", terminalInfo.id)
 				}
 			})
-		}
+			.catch(() => {
+				// Shell integration did not become available within timeout
+				const existingProcess = this.processes.get(terminalInfo.id)
+				if (existingProcess) {
+					console.log("[TerminalManager] Shell integration not available. Command execution aborted.")
+					existingProcess.emit("no_shell_integration")
+				}
+			})
 
 		return mergePromise(process, promise)
 	}

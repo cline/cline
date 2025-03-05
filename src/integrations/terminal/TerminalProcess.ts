@@ -32,7 +32,6 @@ const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
 const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
-	waitForShellIntegration: boolean = true
 	private isListening: boolean = true
 	private terminalInfo: Terminal | undefined
 	private lastEmitTime_ms: number = 0
@@ -289,19 +288,23 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			this.isHot = false
 
 			this.emit("completed", this.removeEscapeSequences(this.fullOutput))
-			this.emit("continue")
 		} else {
 			terminal.sendText(command, true)
-			// For terminals without shell integration, we can't know when the command completes
-			// So we'll just emit the continue event after a delay
-			this.emit("completed")
-			this.emit("continue")
+
+			// Do not execute commands when shell integration is not available
+			console.warn(
+				"[TerminalProcess] Shell integration not available. Command sent without knowledge of response.",
+			)
 			this.emit("no_shell_integration")
-			// setTimeout(() => {
-			// 	console.log(`Emitting continue after delay for terminal`)
-			// 	// can't emit completed since we don't if the command actually completed, it could still be running server
-			// }, 500) // Adjust this delay as needed
+
+			// unknown, but trigger the event
+			this.emit(
+				"completed",
+				"<shell integration is not available, so terminal output and command execution status is unknown>",
+			)
 		}
+
+		this.emit("continue")
 	}
 
 	private emitRemainingBufferIfListening() {

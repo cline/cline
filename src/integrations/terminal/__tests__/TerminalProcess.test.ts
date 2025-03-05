@@ -107,13 +107,23 @@ describe("TerminalProcess", () => {
 				shellIntegration: undefined,
 			} as unknown as vscode.Terminal
 
+			// Set up event listeners to verify events are emitted
 			const noShellPromise = new Promise<void>((resolve) => {
 				terminalProcess.once("no_shell_integration", resolve)
 			})
+			const completedPromise = new Promise<void>((resolve) => {
+				terminalProcess.once("completed", (_output?: string) => resolve())
+			})
+			const continuePromise = new Promise<void>((resolve) => {
+				terminalProcess.once("continue", resolve)
+			})
 
 			await terminalProcess.run(noShellTerminal, "test command")
-			await noShellPromise
 
+			// Verify all expected events are emitted
+			await Promise.all([noShellPromise, completedPromise, continuePromise])
+
+			// Verify sendText is called with the command
 			expect(noShellTerminal.sendText).toHaveBeenCalledWith("test command", true)
 		})
 
