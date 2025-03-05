@@ -282,12 +282,19 @@ class CheckpointTracker {
 			const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
 			console.info(`Getting commits from branch: ${currentBranch}`)
 
-			// Get the first commit in the branch
-			const firstCommit = (await git.raw(["rev-list", "--max-parents=0", currentBranch])).trim()
-			if (!firstCommit) {
-				throw new Error("No commits found in the branch.")
+			try {
+				// Get all commits that match the checkpoint pattern for this specific task
+				const commitPattern = `checkpoint-${this.cwdHash}-${this.taskId}`
+				const branchCommits = await git.log(["--grep", commitPattern, "--reverse"])
+				if (!branchCommits.all.length) {
+					throw new Error("No commits found in the branch.")
+				}
+				// Get the first commit that matches our task's checkpoint pattern
+				baseHash = branchCommits.all[0].hash
+			} catch (error) {
+				console.error("Failed to get branch commits:", error)
+				throw new Error("Failed to determine branch history")
 			}
-			baseHash = firstCommit
 		}
 
 		// Stage all changes so that untracked files appear in diff summary
