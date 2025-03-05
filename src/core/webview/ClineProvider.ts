@@ -118,7 +118,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.mcpHub = undefined
 		this.customModesManager?.dispose()
 		this.outputChannel.appendLine("Disposed all disposables")
-		// Dispose the context proxy to commit any pending changes
 		ClineProvider.activeInstances.delete(this)
 
 		// Unregister from McpServerManager
@@ -2081,24 +2080,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const customModesPromise = this.customModesManager.getCustomModes()
 
 		let idx = 0
-		const secretValuesArray = await Promise.all([
-			...statePromises,
-			...secretPromises,
-			customModesPromise,
-		])
+		const valuePromises = await Promise.all([...statePromises, ...secretPromises, customModesPromise])
 
 		// Populate stateValues and secretValues
 		GLOBAL_STATE_KEYS.forEach((key, _) => {
-			stateValues[key] = secretValuesArray[idx]
+			stateValues[key] = valuePromises[idx]
 			idx = idx + 1
 		})
 
 		SECRET_KEYS.forEach((key, index) => {
-			secretValues[key] = secretValuesArray[idx]
+			secretValues[key] = valuePromises[idx]
 			idx = idx + 1
 		})
 
-		let customModes = secretValuesArray[idx] as ModeConfig[] | undefined
+		let customModes = valuePromises[idx] as ModeConfig[] | undefined
 
 		// Determine apiProvider with the same logic as before
 		let apiProvider: ApiProvider
@@ -2219,7 +2214,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// global
 
 	async updateGlobalState(key: GlobalStateKey, value: any) {
-		this.outputChannel.appendLine(`Updating global state: ${key}`)
 		await this.contextProxy.updateGlobalState(key, value)
 	}
 
@@ -2230,7 +2224,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// secrets
 
 	public async storeSecret(key: SecretKey, value?: string) {
-		this.outputChannel.appendLine(`Storing secret: ${key}`)
 		await this.contextProxy.storeSecret(key, value)
 	}
 

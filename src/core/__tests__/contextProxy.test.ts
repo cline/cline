@@ -3,16 +3,6 @@ import { ContextProxy } from "../contextProxy"
 import { logger } from "../../utils/logging"
 import { GLOBAL_STATE_KEYS, SECRET_KEYS } from "../../shared/globalState"
 
-// Mock the logger
-jest.mock("../../utils/logging", () => ({
-	logger: {
-		debug: jest.fn(),
-		info: jest.fn(),
-		warn: jest.fn(),
-		error: jest.fn(),
-	},
-}))
-
 // Mock shared/globalState
 jest.mock("../../shared/globalState", () => ({
 	GLOBAL_STATE_KEYS: ["apiProvider", "apiModelId", "mode"],
@@ -121,9 +111,6 @@ describe("ContextProxy", () => {
 		it("should update state directly in original context", async () => {
 			await proxy.updateGlobalState("test-key", "new-value")
 
-			// Should have called logger.debug
-			expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("updating state for key"))
-
 			// Should have called original context
 			expect(mockGlobalState.update).toHaveBeenCalledWith("test-key", "new-value")
 
@@ -147,9 +134,6 @@ describe("ContextProxy", () => {
 	describe("storeSecret", () => {
 		it("should store secret directly in original context", async () => {
 			await proxy.storeSecret("api-key", "new-secret")
-
-			// Should have called logger.debug
-			expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining("storing secret for key"))
 
 			// Should have called original context
 			expect(mockSecrets.store).toHaveBeenCalledWith("api-key", "new-secret")
