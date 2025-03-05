@@ -21,19 +21,16 @@ export function convertToMistralMessages(anthropicMessages: Anthropic.Messages.M
 			})
 		} else {
 			if (anthropicMessage.role === "user") {
-				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
+				const { nonToolMessages } = anthropicMessage.content.reduce<{
 					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-					toolMessages: Anthropic.ToolResultBlockParam[]
 				}>(
 					(acc, part) => {
-						if (part.type === "tool_result") {
-							acc.toolMessages.push(part)
-						} else if (part.type === "text" || part.type === "image") {
+						if (part.type === "text" || part.type === "image") {
 							acc.nonToolMessages.push(part)
-						} // user cannot send tool_use messages
+						}
 						return acc
 					},
-					{ nonToolMessages: [], toolMessages: [] },
+					{ nonToolMessages: [] },
 				)
 
 				if (nonToolMessages.length > 0) {
@@ -53,19 +50,16 @@ export function convertToMistralMessages(anthropicMessages: Anthropic.Messages.M
 					})
 				}
 			} else if (anthropicMessage.role === "assistant") {
-				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
+				const { nonToolMessages } = anthropicMessage.content.reduce<{
 					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-					toolMessages: Anthropic.ToolUseBlockParam[]
 				}>(
 					(acc, part) => {
-						if (part.type === "tool_use") {
-							acc.toolMessages.push(part)
-						} else if (part.type === "text" || part.type === "image") {
+						if (part.type === "text" || part.type === "image") {
 							acc.nonToolMessages.push(part)
-						} // assistant cannot send tool_result messages
+						}
 						return acc
 					},
-					{ nonToolMessages: [], toolMessages: [] },
+					{ nonToolMessages: [] },
 				)
 
 				let content: string | undefined
