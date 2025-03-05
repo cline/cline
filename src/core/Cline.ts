@@ -141,6 +141,8 @@ export class Cline {
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
+			// Capture telemetry for resumed task
+			telemetryService.captureTaskCreated(this.taskId)
 			this.resumeTaskFromHistory()
 		} else if (task || images) {
 			this.taskId = Date.now().toString()
@@ -763,6 +765,9 @@ export class Cline {
 	// Task lifecycle
 
 	private async startTask(task?: string, images?: string[]): Promise<void> {
+		// Capture telemetry for new task creation
+		telemetryService.captureTaskCreated(this.taskId)
+
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
 		this.clineMessages = []
@@ -1822,10 +1827,12 @@ export class Cline {
 									// : undefined,
 								} satisfies ClineSayTool)
 
-								if (this.shouldAutoApproveTool(block.name)) {
+								const isAutoApproved = this.shouldAutoApproveTool(block.name)
+								if (isAutoApproved) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
+									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
 
 									// we need an artificial delay to let the diagnostics catch up to the changes
 									await delay(3_500)
@@ -1835,7 +1842,6 @@ export class Cline {
 										`Cline wants to ${fileExists ? "edit" : "create"} ${path.basename(relPath)}`,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
-									// const didApprove = await askApproval("tool", completeMessage)
 
 									// Need a more customized tool response for file edits to highlight the fact that the file was not updated (particularly important for deepseek)
 									let didApprove = true
@@ -1853,17 +1859,18 @@ export class Cline {
 										}
 										this.didRejectTool = true
 										didApprove = false
+										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
 									} else {
 										// User hit the approve button, and may have provided feedback
 										if (text || images?.length) {
 											pushAdditionalToolFeedback(text, images)
 											await this.say("user_feedback", text, images)
 										}
+										telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 									}
 
 									if (!didApprove) {
 										await this.diffViewProvider.revertChanges()
-
 										break
 									}
 								}
@@ -1967,10 +1974,12 @@ export class Cline {
 									...sharedMessageProps,
 									content: absolutePath,
 								} satisfies ClineSayTool)
-								if (this.shouldAutoApproveTool(block.name)) {
+								const isAutoApproved = this.shouldAutoApproveTool(block.name)
+								if (isAutoApproved) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
-									await this.say("tool", completeMessage, undefined, false) // need to be sending partialValue bool, since undefined has its own purpose in that the message is treated neither as a partial or completion of a partial, but as a single complete message
+									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
+									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to read ${path.basename(absolutePath)}`,
@@ -1978,8 +1987,10 @@ export class Cline {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
+										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
 										break
 									}
+									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 								}
 								// now execute the tool like normal
 								const content = await extractTextFromFile(absolutePath)
@@ -2038,10 +2049,12 @@ export class Cline {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (this.shouldAutoApproveTool(block.name)) {
+								const isAutoApproved = this.shouldAutoApproveTool(block.name)
+								if (isAutoApproved) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
+									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to view directory ${path.basename(absolutePath)}/`,
@@ -2049,8 +2062,10 @@ export class Cline {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
+										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
 										break
 									}
+									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 								}
 								pushToolResult(result)
 
@@ -2102,10 +2117,12 @@ export class Cline {
 									...sharedMessageProps,
 									content: result,
 								} satisfies ClineSayTool)
-								if (this.shouldAutoApproveTool(block.name)) {
+								const isAutoApproved = this.shouldAutoApproveTool(block.name)
+								if (isAutoApproved) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
+									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to view source code definitions in ${path.basename(absolutePath)}/`,
@@ -2113,8 +2130,10 @@ export class Cline {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
+										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
 										break
 									}
+									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 								}
 								pushToolResult(result)
 
@@ -2178,10 +2197,12 @@ export class Cline {
 									...sharedMessageProps,
 									content: results,
 								} satisfies ClineSayTool)
-								if (this.shouldAutoApproveTool(block.name)) {
+								const isAutoApproved = this.shouldAutoApproveTool(block.name)
+								if (isAutoApproved) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
 									await this.say("tool", completeMessage, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
+									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to search files in ${path.basename(absolutePath)}/`,
@@ -2189,8 +2210,10 @@ export class Cline {
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
 									if (!didApprove) {
+										telemetryService.captureToolUsage(this.taskId, block.name, false, false)
 										break
 									}
+									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 								}
 								pushToolResult(results)
 
@@ -2866,6 +2889,7 @@ export class Cline {
 										await this.say("completion_result", result, undefined, false)
 										await this.saveCheckpoint(true)
 										await addNewChangesFlagToLastCompletionResultMessage()
+										telemetryService.captureTaskCompleted(this.taskId)
 									} else {
 										// we already sent a command message, meaning the complete completion message has also been sent
 										await this.saveCheckpoint(true)
@@ -3069,6 +3093,17 @@ export class Cline {
 			role: "user",
 			content: userContent,
 		})
+
+		// Capture telemetry for the user message
+		try {
+			const model = this.api.getModel()
+			const provider = "unknown" // TODO update this to have the correct provider set
+			const modelId = model.id
+			telemetryService.captureMessage(this.taskId, provider, modelId)
+		} catch (error) {
+			console.error("Failed to capture message telemetry:", error)
+			// Don't throw - telemetry errors shouldn't affect the main flow
+		}
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
