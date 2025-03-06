@@ -882,7 +882,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 											? apiConfiguration.openAiModelInfo
 											: { ...openAiModelInfoSaneDefaults }
 										modelInfo.openAiTemperature =
-											parseFloat(input.target.value) || openAiModelInfoSaneDefaults.openAiTemperature
+											parseFloat(input.target.value) ?? openAiModelInfoSaneDefaults.openAiTemperature
 										setApiConfiguration({
 											...apiConfiguration,
 											openAiModelInfo: modelInfo,
