@@ -875,7 +875,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									value={
 										apiConfiguration?.openAiModelInfo?.openAiTemperature
 											? apiConfiguration.openAiModelInfo.openAiTemperature.toString()
-											: openAiModelInfoSaneDefaults.openAiTemperature.toString()
+											: openAiModelInfoSaneDefaults.openAiTemperature?.toString()
 									}
 									onInput={(input: any) => {
 										let modelInfo = apiConfiguration?.openAiModelInfo
