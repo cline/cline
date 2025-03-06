@@ -41,12 +41,17 @@ export interface TerminalProcessEvents {
 	error: [error: Error]
 	no_shell_integration: []
 	/**
-	 * Emitted when a shell execution completes
+	 * Emitted when a shell execution completes.
 	 * @param id The terminal ID
 	 * @param exitDetails Contains exit code and signal information if process was terminated by signal
 	 */
 	shell_execution_complete: [id: number, exitDetails: ExitCodeDetails]
 	stream_available: [id: number, stream: AsyncIterable<string>]
+	/**
+	 * Emitted when an execution fails to emit a "line" event for a given period of time.
+	 * @param id The terminal ID
+	 */
+	stream_stalled: [id: number]
 }
 
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
@@ -55,7 +60,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 	private isListening = true
 	private terminalInfo: TerminalInfo | undefined
-	private lastEmitTime_ms = 0
+	private lastEmitAt = 0
 	private outputBuilder?: OutputBuilder
 	private hotTimer: NodeJS.Timeout | null = null
 
@@ -67,14 +72,18 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this._isHot = value
 	}
 
-	constructor(private readonly terminalOutputLimit: number) {
+	constructor(
+		private readonly terminalOutputLimit: number,
+		private readonly stallTimeout: number = 5_000,
+	) {
 		super()
 	}
 
 	async run(terminal: vscode.Terminal, command: string) {
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
-			// Get terminal info to access stream
+			// Get terminal info to access stream.
 			const terminalInfo = TerminalRegistry.getTerminalInfoByTerminal(terminal)
+
 			if (!terminalInfo) {
 				console.error("[TerminalProcess] Terminal not found in registry")
 				this.emit("no_shell_integration")
@@ -127,11 +136,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 			this.outputBuilder = new OutputBuilder({ maxSize: this.terminalOutputLimit })
 
-			/**
-			 * Some commands won't result in output flushing until the command
-			 * completes. This locks the UI. Should we set a timer to prompt
-			 * the user to continue?
-			 */
+			let stallTimer: NodeJS.Timeout | null = setTimeout(() => {
+				this.emit("stream_stalled", terminalInfo.id)
+			}, this.stallTimeout)
 
 			for await (let data of stream) {
 				// Check for command output start marker.
@@ -158,11 +165,17 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				// right away but this wouldn't happen until it emits a line break, so
 				// as soon as we get any output we emit to let webview know to show spinner.
 				const now = Date.now()
-				const timeSinceLastEmit = now - this.lastEmitTime_ms
+				const timeSinceLastEmit = now - this.lastEmitAt
 
 				if (this.isListening && timeSinceLastEmit > EMIT_INTERVAL) {
-					this.flushLine()
-					this.lastEmitTime_ms = now
+					if (this.flushLine()) {
+						if (stallTimer) {
+							clearTimeout(stallTimer)
+							stallTimer = null
+						}
+
+						this.lastEmitAt = now
+					}
 				}
 
 				// Set isHot depending on the command.
@@ -258,7 +271,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 		if (line) {
 			this.emit("line", line)
+			return true
 		}
+
+		return false
 	}
 
 	private flushAll() {
@@ -270,7 +286,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 		if (buffer) {
 			this.emit("line", buffer)
+			return true
 		}
+
+		return false
 	}
 
 	private processOutput(outputToProcess: string) {
