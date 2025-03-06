@@ -124,7 +124,7 @@ export interface ExtensionState {
 	fuzzyMatchThreshold?: number
 	preferredLanguage: string
 	writeDelayMs: number
-	terminalOutputLineLimit?: number
+	terminalOutputLimit?: number
 	mcpEnabled: boolean
 	enableMcpServerCreation: boolean
 	mode: Mode

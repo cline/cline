@@ -3,6 +3,7 @@ import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { Cog } from "lucide-react"
 
 import { EXPERIMENT_IDS, ExperimentId } from "../../../../src/shared/experiments"
+import { TERMINAL_OUTPUT_LIMIT } from "../../../../src/shared/terminal"
 
 import { cn } from "@/lib/utils"
 
@@ -13,12 +14,12 @@ import { Section } from "./Section"
 
 type AdvancedSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	rateLimitSeconds: number
-	terminalOutputLineLimit?: number
+	terminalOutputLimit?: number
 	maxOpenTabsContext: number
 	diffEnabled?: boolean
 	fuzzyMatchThreshold?: number
 	setCachedStateField: SetCachedStateField<
-		"rateLimitSeconds" | "terminalOutputLineLimit" | "maxOpenTabsContext" | "diffEnabled" | "fuzzyMatchThreshold"
+		"rateLimitSeconds" | "terminalOutputLimit" | "maxOpenTabsContext" | "diffEnabled" | "fuzzyMatchThreshold"
 	>
 	experiments: Record<ExperimentId, boolean>
 	setExperimentEnabled: SetExperimentEnabled
@@ -26,7 +27,7 @@ type AdvancedSettingsProps = HTMLAttributes<HTMLDivElement> & {
 
 export const AdvancedSettings = ({
 	rateLimitSeconds,
-	terminalOutputLineLimit,
+	terminalOutputLimit = TERMINAL_OUTPUT_LIMIT,
 	maxOpenTabsContext,
 	diffEnabled,
 	fuzzyMatchThreshold,
@@ -71,21 +72,20 @@ export const AdvancedSettings = ({
 						<div className="flex items-center gap-2">
 							<input
 								type="range"
-								min="100"
-								max="5000"
-								step="100"
-								value={terminalOutputLineLimit ?? 500}
-								onChange={(e) =>
-									setCachedStateField("terminalOutputLineLimit", parseInt(e.target.value))
-								}
+								min={1024}
+								max={1024 * 1024}
+								step={1024}
+								value={terminalOutputLimit}
+								onChange={(e) => setCachedStateField("terminalOutputLimit", parseInt(e.target.value))}
 								className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 							/>
-							<span style={{ ...sliderLabelStyle }}>{terminalOutputLineLimit ?? 500}</span>
+							<span style={{ ...sliderLabelStyle }}>{Math.floor(terminalOutputLimit / 1024)} KB</span>
 						</div>
 					</div>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Maximum number of lines to include in terminal output when executing commands. When exceeded
-						lines will be removed from the middle, saving tokens.
+						Maximum amount of terminal output (in kilobytes) to send to the LLM when executing commands. If
+						the output exceeds this limit, it will be removed from the middle so that the start and end of
+						the output are preserved.
 					</p>
 				</div>
 
