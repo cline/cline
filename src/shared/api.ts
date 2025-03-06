@@ -41,8 +41,7 @@ export interface ApiHandlerOptions {
 	openAiBaseUrl?: string
 	openAiApiKey?: string
 	openAiModelId?: string
-	openAiModelInfo?: ModelInfo
-	openAiTemperature?: number
+	openAiModelInfo?: OpenAiCompatibleModelInfo
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
 	lmStudioModelId?: string
@@ -83,6 +82,10 @@ export interface ModelInfo {
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
+}
+
+export interface OpenAiCompatibleModelInfo extends ModelInfo {
+	openAiTemperature?: number
 }
 
 // Anthropic
@@ -371,13 +374,14 @@ export const vertexModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-export const openAiModelInfoSaneDefaults: ModelInfo = {
+export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,
 	supportsPromptCache: false,
 	inputPrice: 0,
 	outputPrice: 0,
+	openAiTemperature: 0,
 }
 
 // Gemini

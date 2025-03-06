@@ -39,7 +39,8 @@ export class OpenAiHandler implements ApiHandler {
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-		let temperature: number | undefined = this.options.openAiTemperature ?? 0
+		let temperature: number | undefined =
+			this.options.openAiModelInfo?.openAiTemperature ?? openAiModelInfoSaneDefaults.openAiTemperature
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined = undefined
 
 		if (isDeepseekReasoner) {

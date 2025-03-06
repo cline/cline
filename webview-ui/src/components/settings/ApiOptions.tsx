@@ -873,12 +873,19 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 								<VSCodeTextField
 									value={
-										apiConfiguration?.openAiTemperature ? apiConfiguration.openAiTemperature.toString() : "0"
+										apiConfiguration?.openAiModelInfo?.openAiTemperature
+											? apiConfiguration.openAiModelInfo.openAiTemperature.toString()
+											: openAiModelInfoSaneDefaults.openAiTemperature.toString()
 									}
 									onInput={(input: any) => {
+										let modelInfo = apiConfiguration?.openAiModelInfo
+											? apiConfiguration.openAiModelInfo
+											: { ...openAiModelInfoSaneDefaults }
+										modelInfo.openAiTemperature =
+											parseFloat(input.target.value) || openAiModelInfoSaneDefaults.openAiTemperature
 										setApiConfiguration({
 											...apiConfiguration,
-											openAiTemperature: parseFloat(input.target.value) || 0,
+											openAiModelInfo: modelInfo,
 										})
 									}}>
 									<span style={{ fontWeight: 500 }}>Temperature</span>

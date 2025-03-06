@@ -77,7 +77,6 @@ type GlobalStateKey =
 	| "openAiBaseUrl"
 	| "openAiModelId"
 	| "openAiModelInfo"
-	| "openAiTemperature"
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
 	| "lmStudioModelId"
@@ -578,7 +577,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openAiApiKey,
 								openAiModelId,
 								openAiModelInfo,
-								openAiTemperature,
 								ollamaModelId,
 								ollamaBaseUrl,
 								lmStudioModelId,
@@ -624,7 +622,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("openAiApiKey", openAiApiKey)
 							await this.updateGlobalState("openAiModelId", openAiModelId)
 							await this.updateGlobalState("openAiModelInfo", openAiModelInfo)
-							await this.updateGlobalState("openAiTemperature", openAiTemperature)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
 							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
 							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
@@ -1881,7 +1878,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			openAiApiKey,
 			openAiModelId,
 			openAiModelInfo,
-			openAiTemperature,
 			ollamaModelId,
 			ollamaBaseUrl,
 			lmStudioModelId,
@@ -1940,7 +1936,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getSecret("openAiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelId") as Promise<string | undefined>,
 			this.getGlobalState("openAiModelInfo") as Promise<ModelInfo | undefined>,
-			this.getGlobalState("openAiTemperature") as Promise<number | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
@@ -2022,7 +2017,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				openAiApiKey,
 				openAiModelId,
 				openAiModelInfo,
-				openAiTemperature,
 				ollamaModelId,
 				ollamaBaseUrl,
 				lmStudioModelId,
