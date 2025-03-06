@@ -55,7 +55,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			if (this.terminalInfo) {
 				console.log(`no_shell_integration received for terminal ${this.terminalInfo.id}`)
 				TerminalRegistry.removeTerminal(this.terminalInfo.id)
-				// Note: TerminalManager.terminalIds cleanup would need to be handled
 			}
 		})
 	}
@@ -159,8 +158,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		const terminal = this.terminalInfo.terminal
 
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
-			// When executeCommand() is called, onDidStartTerminalShellExecution will fire in TerminalManager
-			// which creates a new stream via execution.read() and emits 'stream_available'
+			// Create a promise that resolves when the stream becomes available
 			const streamAvailable = new Promise<AsyncIterable<string>>((resolve) => {
 				this.once("stream_available", (id: number, stream: AsyncIterable<string>) => {
 					if (id === this.terminalInfo.id) {

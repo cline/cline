@@ -5,8 +5,6 @@ import { execSync } from "child_process"
 import { TerminalProcess, ExitCodeDetails } from "../TerminalProcess"
 import { Terminal } from "../Terminal"
 import { TerminalRegistry } from "../TerminalRegistry"
-import { TerminalManager } from "../TerminalManager"
-
 // Mock the vscode module
 jest.mock("vscode", () => {
 	// Store event handlers so we can trigger them in tests
@@ -137,9 +135,6 @@ async function testTerminalCommand(
 	// Add the terminal to the registry
 	TerminalRegistry["terminals"] = [mockTerminalInfo]
 
-	// Create a terminal manager (this will set up the event handlers)
-	const terminalManager = new TerminalManager()
-
 	// Create a new terminal process for testing
 	startTime = process.hrtime.bigint() // Start timing from terminal process creation
 	const terminalProcess = new TerminalProcess(mockTerminalInfo)
@@ -177,9 +172,8 @@ async function testTerminalCommand(
 			})
 		})
 
-		// Set the process on the terminal and add terminal ID to manager
+		// Set the process on the terminal
 		mockTerminalInfo.process = terminalProcess
-		terminalManager["terminalIds"].add(mockTerminalInfo.id)
 
 		// Run the command (now handled by constructor)
 		// We've already created the process, so we'll trigger the events manually
@@ -235,7 +229,6 @@ async function testTerminalCommand(
 	} finally {
 		// Clean up
 		terminalProcess.removeAllListeners()
-		terminalManager.disposeAll()
 		TerminalRegistry["terminals"] = []
 	}
 }

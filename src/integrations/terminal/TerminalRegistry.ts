@@ -19,37 +19,43 @@ export class TerminalRegistry {
 
 		try {
 			// onDidStartTerminalShellExecution
-			const startDisposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
-				// Get a handle to the stream as early as possible:
-				const stream = e?.execution.read()
-				const terminalInfo = this.getTerminalByVSCETerminal(e.terminal)
-				if (terminalInfo) {
-					terminalInfo.setActiveStream(stream)
-				} else {
-					console.error("[TerminalRegistry] Stream failed, not registered for terminal")
-				}
+			const startDisposable = vscode.window.onDidStartTerminalShellExecution?.(
+				async (e: vscode.TerminalShellExecutionStartEvent) => {
+					// Get a handle to the stream as early as possible:
+					const stream = e?.execution.read()
+					const terminalInfo = this.getTerminalByVSCETerminal(e.terminal)
+					if (terminalInfo) {
+						terminalInfo.setActiveStream(stream)
+					} else {
+						console.error("[TerminalRegistry] Stream failed, not registered for terminal")
+					}
 
-				console.info("[TerminalRegistry] Shell execution started:", {
-					hasExecution: !!e?.execution,
-					command: e?.execution?.commandLine?.value,
-					terminalId: terminalInfo?.id,
-				})
-			})
+					console.info("[TerminalRegistry] Shell execution started:", {
+						hasExecution: !!e?.execution,
+						command: e?.execution?.commandLine?.value,
+						terminalId: terminalInfo?.id,
+					})
+				},
+			)
 
 			// onDidEndTerminalShellExecution
-			const endDisposable = (vscode.window as vscode.Window).onDidEndTerminalShellExecution?.(async (e) => {
-				const terminalInfo = this.getTerminalByVSCETerminal(e.terminal)
-				const process = terminalInfo?.process
-				const exitDetails = process ? TerminalProcess.interpretExitCode(e?.exitCode) : { exitCode: e?.exitCode }
-				console.info("[TerminalRegistry] Shell execution ended:", {
-					...exitDetails,
-				})
+			const endDisposable = vscode.window.onDidEndTerminalShellExecution?.(
+				async (e: vscode.TerminalShellExecutionEndEvent) => {
+					const terminalInfo = this.getTerminalByVSCETerminal(e.terminal)
+					const process = terminalInfo?.process
+					const exitDetails = process
+						? TerminalProcess.interpretExitCode(e?.exitCode)
+						: { exitCode: e?.exitCode }
+					console.info("[TerminalRegistry] Shell execution ended:", {
+						...exitDetails,
+					})
 
-				// Signal completion to any waiting processes
-				if (terminalInfo) {
-					terminalInfo.shellExecutionComplete(exitDetails)
-				}
-			})
+					// Signal completion to any waiting processes
+					if (terminalInfo) {
+						terminalInfo.shellExecutionComplete(exitDetails)
+					}
+				},
+			)
 
 			if (startDisposable) {
 				this.disposables.push(startDisposable)
