@@ -11,6 +11,7 @@ export class Terminal {
 	public running: boolean
 	private streamClosed: boolean
 	public process?: TerminalProcess
+	public taskId?: string
 
 	constructor(id: number, terminal: vscode.Terminal) {
 		this.id = id

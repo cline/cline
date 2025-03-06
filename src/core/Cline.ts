@@ -27,7 +27,6 @@ import {
 	everyLineHasLineNumbers,
 	truncateOutput,
 } from "../integrations/misc/extract-text"
-import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { ExitCodeDetails } from "../integrations/terminal/TerminalProcess"
 import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
@@ -111,7 +110,6 @@ export class Cline {
 	private rootTask: Cline | undefined = undefined
 	readonly apiConfiguration: ApiConfiguration
 	api: ApiHandler
-	private terminalManager: TerminalManager
 	private urlContentFetcher: UrlContentFetcher
 	private browserSession: BrowserSession
 	private didEditFile: boolean = false
@@ -182,7 +180,6 @@ export class Cline {
 		this.taskNumber = -1
 		this.apiConfiguration = apiConfiguration
 		this.api = buildApiHandler(apiConfiguration)
-		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context)
 		this.customInstructions = customInstructions
@@ -906,7 +903,9 @@ export class Cline {
 
 		this.abort = true
 
-		this.terminalManager.disposeAll()
+		// Release any terminals associated with this task
+		TerminalRegistry.releaseTerminalsForTask(this.taskId)
+
 		this.urlContentFetcher.closeBrowser()
 		this.browserSession.closeBrowser()
 		this.rooIgnoreController?.dispose()
@@ -921,7 +920,7 @@ export class Cline {
 	// Tools
 
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
-		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
+		const terminalInfo = await TerminalRegistry.getOrCreateTerminal(cwd, this.taskId)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
 		const process = terminalInfo.runCommand(command)
 
@@ -3475,17 +3474,13 @@ export class Cline {
 
 		const busyTerminals = TerminalRegistry.getTerminals(true)
 		const inactiveTerminals = TerminalRegistry.getTerminals(false)
-		// const allTerminals = [...busyTerminals, ...inactiveTerminals]
 
 		if (busyTerminals.length > 0 && this.didEditFile) {
-			//  || this.didEditFile
 			await delay(300) // delay after saving file to let terminals catch up
 		}
 
-		// let terminalWasBusy = false
 		if (busyTerminals.length > 0) {
 			// wait for terminals to cool down
-			// terminalWasBusy = allTerminals.some((t) => this.terminalManager.isProcessHot(t.id))
 			await pWaitFor(() => busyTerminals.every((t) => !TerminalRegistry.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,

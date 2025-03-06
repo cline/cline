@@ -177,14 +177,46 @@ export class TerminalRegistry {
 	}
 
 	/**
+	 * Releases all terminals associated with a task
+	 * @param taskId The task ID
+	 */
+	static releaseTerminalsForTask(taskId?: string): void {
+		if (!taskId) return
+
+		this.terminals.forEach((terminal) => {
+			if (terminal.taskId === taskId) {
+				terminal.taskId = undefined
+			}
+		})
+	}
+
+	/**
 	 * Gets an existing terminal or creates a new one for the given working directory
 	 * @param cwd The working directory path
+	 * @param taskId Optional task ID to associate with the terminal
 	 * @returns A Terminal instance
 	 */
-	static async getOrCreateTerminal(cwd: string): Promise<Terminal> {
+	static async getOrCreateTerminal(cwd: string, taskId?: string): Promise<Terminal> {
 		const terminals = this.getAllTerminals()
 
-		// Find available terminal from our pool first (created for this task)
+		// First priority: Find a terminal already assigned to this task with matching directory
+		if (taskId) {
+			const taskTerminal = terminals.find((t) => {
+				if (t.busy || t.taskId !== taskId) {
+					return false
+				}
+				const terminalCwd = t.terminal.shellIntegration?.cwd
+				if (!terminalCwd) {
+					return false
+				}
+				return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
+			})
+			if (taskTerminal) {
+				return taskTerminal
+			}
+		}
+
+		// Second priority: Find any available terminal with matching directory
 		const matchingTerminal = terminals.find((t) => {
 			if (t.busy) {
 				return false
@@ -196,18 +228,22 @@ export class TerminalRegistry {
 			return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
 		})
 		if (matchingTerminal) {
+			matchingTerminal.taskId = taskId
 			return matchingTerminal
 		}
 
-		// If no matching terminal exists, try to find any non-busy terminal
+		// Third priority: Find any non-busy terminal
 		const availableTerminal = terminals.find((t) => !t.busy)
 		if (availableTerminal) {
 			// Navigate back to the desired directory
 			await availableTerminal.runCommand(`cd "${cwd}"`)
+			availableTerminal.taskId = taskId
 			return availableTerminal
 		}
 
 		// If all terminals are busy, create a new one
-		return this.createTerminal(cwd)
+		const newTerminal = this.createTerminal(cwd)
+		newTerminal.taskId = taskId
+		return newTerminal
 	}
 }
