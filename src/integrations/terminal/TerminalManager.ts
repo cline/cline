@@ -34,10 +34,13 @@ Windows: pwsh
 
 Example:
 
-const terminalManager = new TerminalManager(context);
+const terminalManager = new TerminalManager();
+
+// Get a terminal for the project directory
+const terminal = await terminalManager.getTerminal('/path/to/project');
 
 // Run a command
-const process = terminalManager.runCommand('npm install', '/path/to/project');
+const process = terminal.runCommand('npm install');
 
 process.on('line', (line) => {
     console.log(line);
@@ -50,7 +53,7 @@ await process;
 process.continue();
 
 // Later, if you need to get the unretrieved output:
-const unretrievedOutput = terminalManager.getUnretrievedOutput(terminalId);
+const unretrievedOutput = TerminalRegistry.getUnretrievedOutput(terminal.id);
 console.log('Unretrieved output:', unretrievedOutput);
 
 Resources:
@@ -98,71 +101,10 @@ declare module "vscode" {
 export class TerminalManager {
 	private terminalIds: Set<number> = new Set()
 
-	runCommand(terminalInfo: Terminal, command: string): TerminalProcessResultPromise {
-		terminalInfo.busy = true
-		terminalInfo.lastCommand = command
-
-		// Create process immediately
-		const process = new TerminalProcess(terminalInfo)
-
-		// Set process on terminal
-		terminalInfo.process = process
-
-		// Create a promise for command completion
-		const promise = new Promise<void>((resolve, reject) => {
-			// Set up event handlers
-			process.once("continue", () => resolve())
-			process.once("error", (error) => {
-				console.error(`Error in terminal ${terminalInfo.id}:`, error)
-				reject(error)
-			})
-
-			// Wait for shell integration before executing the command
-			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 })
-				.then(() => {
-					process.run(command)
-				})
-				.catch(() => {
-					console.log("[TerminalManager] Shell integration not available. Command execution aborted.")
-					process.emit("no_shell_integration")
-				})
-		})
-
-		return mergePromise(process, promise)
-	}
-
 	async getOrCreateTerminal(cwd: string): Promise<Terminal> {
-		const terminals = TerminalRegistry.getAllTerminals()
-
-		// Find available terminal from our pool first (created for this task)
-		const matchingTerminal = terminals.find((t) => {
-			if (t.busy) {
-				return false
-			}
-			const terminalCwd = t.terminal.shellIntegration?.cwd // one of cline's commands could have changed the cwd of the terminal
-			if (!terminalCwd) {
-				return false
-			}
-			return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
-		})
-		if (matchingTerminal) {
-			this.terminalIds.add(matchingTerminal.id)
-			return matchingTerminal
-		}
-
-		// If no matching terminal exists, try to find any non-busy terminal
-		const availableTerminal = terminals.find((t) => !t.busy)
-		if (availableTerminal) {
-			// Navigate back to the desired directory
-			await this.runCommand(availableTerminal, `cd "${cwd}"`)
-			this.terminalIds.add(availableTerminal.id)
-			return availableTerminal
-		}
-
-		// If all terminals are busy, create a new one
-		const newTerminalInfo = TerminalRegistry.createTerminal(cwd)
-		this.terminalIds.add(newTerminalInfo.id)
-		return newTerminalInfo
+		const terminal = await TerminalRegistry.getOrCreateTerminal(cwd)
+		this.terminalIds.add(terminal.id)
+		return terminal
 	}
 
 	disposeAll() {

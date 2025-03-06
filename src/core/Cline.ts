@@ -923,7 +923,7 @@ export class Cline {
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = this.terminalManager.runCommand(terminalInfo, command)
+		const process = terminalInfo.runCommand(command)
 
 		let userFeedback: { text?: string; images?: string[] } | undefined
 		let didContinue = false

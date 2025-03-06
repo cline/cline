@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
-import { ExitCodeDetails, TerminalProcess } from "./TerminalProcess"
+import pWaitFor from "p-wait-for"
+import { ExitCodeDetails, mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
 
 export class Terminal {
 	public terminal: vscode.Terminal
@@ -69,6 +70,39 @@ export class Terminal {
 			this.process.emit("shell_execution_complete", this.id, exitDetails)
 			this.process = undefined
 		}
+	}
+
+	public runCommand(command: string): TerminalProcessResultPromise {
+		this.busy = true
+		this.lastCommand = command
+
+		// Create process immediately
+		const process = new TerminalProcess(this)
+
+		// Set process on terminal
+		this.process = process
+
+		// Create a promise for command completion
+		const promise = new Promise<void>((resolve, reject) => {
+			// Set up event handlers
+			process.once("continue", () => resolve())
+			process.once("error", (error) => {
+				console.error(`Error in terminal ${this.id}:`, error)
+				reject(error)
+			})
+
+			// Wait for shell integration before executing the command
+			pWaitFor(() => this.terminal.shellIntegration !== undefined, { timeout: 4000 })
+				.then(() => {
+					process.run(command)
+				})
+				.catch(() => {
+					console.log("[Terminal] Shell integration not available. Command execution aborted.")
+					process.emit("no_shell_integration")
+				})
+		})
+
+		return mergePromise(process, promise)
 	}
 
 	/**
