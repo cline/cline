@@ -18,14 +18,7 @@ export class DeepSeekHandler extends OpenAiHandler {
 
 	override getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.apiModelId ?? deepSeekDefaultModelId
-		const originalInfo =
-			deepSeekModels[modelId as keyof typeof deepSeekModels] || deepSeekModels[deepSeekDefaultModelId]
-
-		// Apply defaults with proper typing
-		const info: ModelInfo = {
-			...originalInfo,
-			supportsPromptCache: true, // DeepSeek *does* support prompt caching
-		}
+		const info = deepSeekModels[modelId as keyof typeof deepSeekModels] || deepSeekModels[deepSeekDefaultModelId]
 
 		return {
 			id: modelId,
