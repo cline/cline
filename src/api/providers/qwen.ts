@@ -35,12 +35,12 @@ export class QwenHandler implements ApiHandler {
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
-		const isDeepseekReasoner = model.id.includes("deepseek-r1") || model.id.includes("qwq-plus")
+		const isReasoner = model.id.includes("deepseek-r1") || model.id.includes("qwq-plus")
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-		if (isDeepseekReasoner) {
+		if (isReasoner) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 		const stream = await this.client.chat.completions.create({
