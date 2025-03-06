@@ -2,7 +2,7 @@
 
 import * as vscode from "vscode"
 import { execSync } from "child_process"
-import { TerminalProcess } from "../TerminalProcess"
+import { TerminalProcess, ExitCodeDetails } from "../TerminalProcess"
 import { Terminal } from "../Terminal"
 import { TerminalRegistry } from "../TerminalRegistry"
 import { TerminalManager } from "../TerminalManager"
@@ -42,16 +42,45 @@ jest.mock("vscode", () => {
 })
 
 // Create a mock stream that uses real command output with realistic chunking
-function createRealCommandStream(command: string) {
-	// Execute the command and get the real output
-	const realOutput = execSync(command, {
-		encoding: "utf8",
-		maxBuffer: 100 * 1024 * 1024, // Increase buffer size to 100MB
-	})
+function createRealCommandStream(command: string): { stream: AsyncIterable<string>; exitCode: number } {
+	let realOutput: string
+	let exitCode: number
+
+	try {
+		// Execute the command and get the real output
+		realOutput = execSync(command, {
+			encoding: "utf8",
+			maxBuffer: 100 * 1024 * 1024, // Increase buffer size to 100MB
+		})
+		exitCode = 0 // Command succeeded
+	} catch (error: any) {
+		// Command failed - get output and exit code from error
+		realOutput = error.stdout?.toString() || ""
+
+		// Handle signal termination
+		if (error.signal) {
+			// Convert signal name to number using Node's constants
+			const signals: Record<string, number> = {
+				SIGTERM: 15,
+				SIGSEGV: 11,
+				// Add other signals as needed
+			}
+			const signalNum = signals[error.signal]
+			if (signalNum !== undefined) {
+				exitCode = 128 + signalNum // Signal exit codes are 128 + signal number
+			} else {
+				// Log error and default to 1 if signal not recognized
+				console.log(`[DEBUG] Unrecognized signal '${error.signal}' from command '${command}'`)
+				exitCode = 1
+			}
+		} else {
+			exitCode = error.status || 1 // Use status if available, default to 1
+		}
+	}
 
 	// Create an async iterator that yields the command output with proper markers
 	// and realistic chunking (not guaranteed to split on newlines)
-	return {
+	const stream = {
 		async *[Symbol.asyncIterator]() {
 			// First yield the command start marker
 			yield "\x1b]633;C\x07"
@@ -68,6 +97,8 @@ function createRealCommandStream(command: string) {
 			yield "\x1b]633;D\x07"
 		},
 	}
+
+	return { stream, exitCode }
 }
 
 /**
@@ -79,7 +110,7 @@ function createRealCommandStream(command: string) {
 async function testTerminalCommand(
 	command: string,
 	expectedOutput: string,
-): Promise<{ executionTimeUs: number; capturedOutput: string }> {
+): Promise<{ executionTimeUs: number; capturedOutput: string; exitDetails: ExitCodeDetails }> {
 	let startTime: bigint = BigInt(0)
 	let endTime: bigint = BigInt(0)
 	let timeRecorded = false
@@ -114,13 +145,13 @@ async function testTerminalCommand(
 	const terminalProcess = new TerminalProcess(mockTerminalInfo)
 
 	try {
-		// Set up the mock stream with real command output
-		const mockStream = createRealCommandStream(command)
+		// Set up the mock stream with real command output and exit code
+		const { stream, exitCode } = createRealCommandStream(command)
 
 		// Configure the mock terminal to return our stream
 		mockTerminal.shellIntegration.executeCommand.mockImplementation(() => {
 			return {
-				read: jest.fn().mockReturnValue(mockStream),
+				read: jest.fn().mockReturnValue(stream),
 			}
 		})
 
@@ -162,7 +193,7 @@ async function testTerminalCommand(
 				terminal: mockTerminal,
 				execution: {
 					commandLine: { value: command },
-					read: () => mockStream,
+					read: () => stream,
 				},
 			})
 		}
@@ -174,9 +205,12 @@ async function testTerminalCommand(
 		if (eventHandlers.endTerminalShellExecution) {
 			eventHandlers.endTerminalShellExecution({
 				terminal: mockTerminal,
-				exitCode: 0,
+				exitCode: exitCode,
 			})
 		}
+
+		// Store exit details for return
+		const exitDetails = terminalProcess.interpretExitCode(exitCode)
 
 		// Set a timeout to avoid hanging tests
 		const timeoutPromise = new Promise<void>((_, reject) => {
@@ -197,7 +231,7 @@ async function testTerminalCommand(
 		// Verify the output matches the expected output
 		expect(capturedOutput).toBe(expectedOutput)
 
-		return { executionTimeUs, capturedOutput }
+		return { executionTimeUs, capturedOutput, exitDetails }
 	} finally {
 		// Clean up
 		terminalProcess.removeAllListeners()
@@ -215,7 +249,6 @@ describe("TerminalProcess with Real Command Output", () => {
 
 	it("should execute 'echo a' and return exactly 'a\\n' with execution time", async () => {
 		const { executionTimeUs, capturedOutput } = await testTerminalCommand("echo a", "a\n")
-		console.log(`'echo a' execution time: ${executionTimeUs} microseconds (${executionTimeUs / 1000} milliseconds)`)
 	})
 
 	it("should execute 'echo -n a' and return exactly 'a'", async () => {
@@ -283,5 +316,50 @@ describe("TerminalProcess with Real Command Output", () => {
 		for (const index of sampleIndices) {
 			expect(lines[index]).toBe("A".repeat(76))
 		}
+	})
+
+	describe("exit code interpretation", () => {
+		it("should handle exit 2", async () => {
+			const { exitDetails } = await testTerminalCommand("exit 2", "")
+			expect(exitDetails).toEqual({ exitCode: 2 })
+		})
+
+		it("should handle normal exit codes", async () => {
+			// Test successful command
+			const { exitDetails } = await testTerminalCommand("true", "")
+			expect(exitDetails).toEqual({ exitCode: 0 })
+
+			// Test failed command
+			const { exitDetails: exitDetails2 } = await testTerminalCommand("false", "")
+			expect(exitDetails2).toEqual({ exitCode: 1 })
+		})
+
+		it("should interpret SIGTERM exit code", async () => {
+			// Run kill in subshell to ensure signal affects the command
+			const { exitDetails } = await testTerminalCommand("bash -c 'kill $$'", "")
+			expect(exitDetails).toEqual({
+				exitCode: 143, // 128 + 15 (SIGTERM)
+				signal: 15,
+				signalName: "SIGTERM",
+				coreDumpPossible: false,
+			})
+		})
+
+		it("should interpret SIGSEGV exit code", async () => {
+			// Run kill in subshell to ensure signal affects the command
+			const { exitDetails } = await testTerminalCommand("bash -c 'kill -SIGSEGV $$'", "")
+			expect(exitDetails).toEqual({
+				exitCode: 139, // 128 + 11 (SIGSEGV)
+				signal: 11,
+				signalName: "SIGSEGV",
+				coreDumpPossible: true,
+			})
+		})
+
+		it("should handle command not found", async () => {
+			// Test a non-existent command
+			const { exitDetails } = await testTerminalCommand("nonexistentcommand", "")
+			expect(exitDetails?.exitCode).toBe(127) // Command not found
+		})
 	})
 })
