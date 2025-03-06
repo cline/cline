@@ -106,12 +106,12 @@ async function testTerminalCommand(
 	// Add the terminal to the registry
 	TerminalRegistry["terminals"] = [mockTerminalInfo]
 
-	// Create a new terminal process
-	startTime = process.hrtime.bigint() // Start timing from terminal process creation
-	const terminalProcess = new TerminalProcess()
-
 	// Create a terminal manager (this will set up the event handlers)
 	const terminalManager = new TerminalManager()
+
+	// Create a new terminal process for testing
+	startTime = process.hrtime.bigint() // Start timing from terminal process creation
+	const terminalProcess = new TerminalProcess(mockTerminalInfo)
 
 	try {
 		// Set up the mock stream with real command output
@@ -123,6 +123,9 @@ async function testTerminalCommand(
 				read: jest.fn().mockReturnValue(mockStream),
 			}
 		})
+
+		// Execute the command
+		terminalProcess.run(command)
 
 		// Set up event listeners to capture output
 		let capturedOutput = ""
@@ -143,13 +146,12 @@ async function testTerminalCommand(
 			})
 		})
 
-		// Store the process in the manager's processes map
-		// This is needed for the TerminalManager to find the process when events are triggered
-		terminalManager["processes"].set(mockTerminalInfo.id, terminalProcess)
+		// Set the process on the terminal and add terminal ID to manager
+		mockTerminalInfo.process = terminalProcess
 		terminalManager["terminalIds"].add(mockTerminalInfo.id)
 
-		// Run the command
-		const runPromise = terminalProcess.run(mockTerminal, command)
+		// Run the command (now handled by constructor)
+		// We've already created the process, so we'll trigger the events manually
 
 		// Get the event handlers from the mock
 		const eventHandlers = (vscode as any).__eventHandlers
@@ -185,8 +187,6 @@ async function testTerminalCommand(
 
 		// Wait for the command to complete or timeout
 		await Promise.race([completedPromise, timeoutPromise])
-
-		await runPromise
 		// Calculate execution time in microseconds
 		// If endTime wasn't set (unlikely but possible), set it now
 		if (!timeRecorded) {

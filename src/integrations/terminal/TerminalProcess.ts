@@ -33,11 +33,32 @@ const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private isListening: boolean = true
-	private terminalInfo: Terminal | undefined
+	private terminalInfo: Terminal
 	private lastEmitTime_ms: number = 0
 	private fullOutput: string = ""
 	private lastRetrievedIndex: number = 0
 	isHot: boolean = false
+	constructor(terminal: Terminal) {
+		super()
+
+		// Store terminal info for later use
+		this.terminalInfo = terminal
+
+		// Set up event handlers
+		this.once("completed", () => {
+			if (this.terminalInfo) {
+				this.terminalInfo.busy = false
+			}
+		})
+
+		this.once("no_shell_integration", () => {
+			if (this.terminalInfo) {
+				console.log(`no_shell_integration received for terminal ${this.terminalInfo.id}`)
+				TerminalRegistry.removeTerminal(this.terminalInfo.id)
+				// Note: TerminalManager.terminalIds cleanup would need to be handled
+			}
+		})
+	}
 
 	interpretExitCode(exitCode: number | undefined): ExitCodeDetails {
 		if (exitCode === undefined) {
@@ -134,23 +155,15 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	}
 	private hotTimer: NodeJS.Timeout | null = null
 
-	async run(terminal: vscode.Terminal, command: string) {
-		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
-			// Get terminal info to access stream
-			const terminalInfo = TerminalRegistry.getTerminalInfoByTerminal(terminal)
-			if (!terminalInfo) {
-				console.error("[TerminalProcess] Terminal not found in registry")
-				this.emit("no_shell_integration")
-				this.emit("completed")
-				this.emit("continue")
-				return
-			}
+	async run(command: string) {
+		const terminal = this.terminalInfo.terminal
 
+		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			// When executeCommand() is called, onDidStartTerminalShellExecution will fire in TerminalManager
 			// which creates a new stream via execution.read() and emits 'stream_available'
 			const streamAvailable = new Promise<AsyncIterable<string>>((resolve) => {
 				this.once("stream_available", (id: number, stream: AsyncIterable<string>) => {
-					if (id === terminalInfo.id) {
+					if (id === this.terminalInfo.id) {
 						resolve(stream)
 					}
 				})
@@ -159,14 +172,11 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			// Create promise that resolves when shell execution completes for this terminal
 			const shellExecutionComplete = new Promise<ExitCodeDetails>((resolve) => {
 				this.once("shell_execution_complete", (id: number, exitDetails: ExitCodeDetails) => {
-					if (id === terminalInfo.id) {
+					if (id === this.terminalInfo.id) {
 						resolve(exitDetails)
 					}
 				})
 			})
-
-			// getUnretrievedOutput needs to know if streamClosed, so store this for later
-			this.terminalInfo = terminalInfo
 
 			// Execute command
 			terminal.shellIntegration.executeCommand(command)
@@ -253,7 +263,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 			// Set streamClosed immediately after stream ends
 			if (this.terminalInfo) {
-				this.terminalInfo.streamClosed = true
+				this.terminalInfo.setActiveStream(undefined)
 			}
 
 			// Wait for shell execution to complete and handle exit details
@@ -346,7 +356,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		//   For active streams: return only complete lines (up to last \n).
 		//   For closed streams: return all remaining content.
 		if (endIndex === -1) {
-			if (!this.terminalInfo?.streamClosed) {
+			if (this.terminalInfo && !this.terminalInfo.isStreamClosed()) {
 				// Stream still running - only process complete lines
 				endIndex = outputToProcess.lastIndexOf("\n")
 				if (endIndex === -1) {

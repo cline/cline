@@ -51,7 +51,12 @@ export class TerminalRegistry {
 		}
 	}
 
-	static getTerminalInfoByTerminal(terminal: vscode.Terminal): Terminal | undefined {
+	/**
+	 * Gets a terminal by its VSCode terminal instance
+	 * @param terminal The VSCode terminal instance
+	 * @returns The Terminal object, or undefined if not found
+	 */
+	static getTerminalByVSCETerminal(terminal: vscode.Terminal): Terminal | undefined {
 		const terminalInfo = this.terminals.find((t) => t.terminal === terminal)
 
 		if (terminalInfo && this.isTerminalClosed(terminalInfo.terminal)) {
@@ -74,5 +79,40 @@ export class TerminalRegistry {
 	// The exit status of the terminal will be undefined while the terminal is active. (This value is set when onDidCloseTerminal is fired.)
 	private static isTerminalClosed(terminal: vscode.Terminal): boolean {
 		return terminal.exitStatus !== undefined
+	}
+
+	/**
+	 * Gets unretrieved output from a terminal process
+	 * @param terminalId The terminal ID
+	 * @returns The unretrieved output as a string, or empty string if terminal not found
+	 */
+	static getUnretrievedOutput(terminalId: number): string {
+		const terminal = this.getTerminal(terminalId)
+		if (!terminal) {
+			return ""
+		}
+		return terminal.process ? terminal.process.getUnretrievedOutput() : ""
+	}
+
+	/**
+	 * Checks if a terminal process is "hot" (recently active)
+	 * @param terminalId The terminal ID
+	 * @returns True if the process is hot, false otherwise
+	 */
+	static isProcessHot(terminalId: number): boolean {
+		const terminal = this.getTerminal(terminalId)
+		if (!terminal) {
+			return false
+		}
+		return terminal.process ? terminal.process.isHot : false
+	}
+
+	/**
+	 * Gets terminals filtered by busy state
+	 * @param busy Whether to get busy or non-busy terminals
+	 * @returns Array of Terminal objects
+	 */
+	static getTerminals(busy: boolean): Terminal[] {
+		return this.getAllTerminals().filter((t) => t.busy === busy)
 	}
 }

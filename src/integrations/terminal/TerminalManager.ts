@@ -97,7 +97,6 @@ declare module "vscode" {
 
 export class TerminalManager {
 	private terminalIds: Set<number> = new Set()
-	private processes: Map<number, TerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
 
 	constructor() {
@@ -108,15 +107,9 @@ export class TerminalManager {
 			startDisposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
 				// Get a handle to the stream as early as possible:
 				const stream = e?.execution.read()
-				const terminalInfo = TerminalRegistry.getTerminalInfoByTerminal(e.terminal)
-				if (stream && terminalInfo) {
-					const process = this.processes.get(terminalInfo.id)
-					if (process) {
-						terminalInfo.stream = stream
-						terminalInfo.running = true
-						terminalInfo.streamClosed = false
-						process.emit("stream_available", terminalInfo.id, stream)
-					}
+				const terminalInfo = TerminalRegistry.getTerminalByVSCETerminal(e.terminal)
+				if (terminalInfo) {
+					terminalInfo.setActiveStream(stream)
 				} else {
 					console.error("[TerminalManager] Stream failed, not registered for terminal")
 				}
@@ -130,25 +123,16 @@ export class TerminalManager {
 
 			// onDidEndTerminalShellExecution
 			endDisposable = (vscode.window as vscode.Window).onDidEndTerminalShellExecution?.(async (e) => {
-				// Find the terminal ID by the VSCode terminal instance
-				const terminalId = this.findTerminalIdByVscodeTerminal(e.terminal)
-				const process = terminalId !== undefined ? this.processes.get(terminalId) : undefined
+				const terminalInfo = TerminalRegistry.getTerminalByVSCETerminal(e.terminal)
+				const process = terminalInfo?.process
 				const exitDetails = process ? process.interpretExitCode(e?.exitCode) : { exitCode: e?.exitCode }
 				console.info("[TerminalManager] Shell execution ended:", {
 					...exitDetails,
 				})
 
 				// Signal completion to any waiting processes
-				for (const id of this.terminalIds) {
-					const info = TerminalRegistry.getTerminal(id)
-					if (info && info.terminal === e.terminal) {
-						info.running = false
-						const process = this.processes.get(id)
-						if (process) {
-							process.emit("shell_execution_complete", id, exitDetails)
-						}
-						break
-					}
+				if (terminalInfo && this.terminalIds.has(terminalInfo.id)) {
+					terminalInfo.shellExecutionComplete(exitDetails)
 				}
 			})
 		} catch (error) {
@@ -165,50 +149,32 @@ export class TerminalManager {
 	runCommand(terminalInfo: Terminal, command: string): TerminalProcessResultPromise {
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
-		const process = new TerminalProcess()
-		this.processes.set(terminalInfo.id, process)
 
-		process.once("completed", () => {
-			terminalInfo.busy = false
-		})
+		// Create process immediately
+		const process = new TerminalProcess(terminalInfo)
 
-		// if shell integration is not available, remove terminal so it does not get reused as it may be running a long-running process
-		process.once("no_shell_integration", () => {
-			console.log(`no_shell_integration received for terminal ${terminalInfo.id}`)
-			// Remove the terminal so we can't reuse it (in case it's running a long-running process)
-			TerminalRegistry.removeTerminal(terminalInfo.id)
-			this.terminalIds.delete(terminalInfo.id)
-			this.processes.delete(terminalInfo.id)
-		})
+		// Set process on terminal
+		terminalInfo.process = process
 
+		// Create a promise for command completion
 		const promise = new Promise<void>((resolve, reject) => {
-			process.once("continue", () => {
-				resolve()
-			})
+			// Set up event handlers
+			process.once("continue", () => resolve())
 			process.once("error", (error) => {
 				console.error(`Error in terminal ${terminalInfo.id}:`, error)
 				reject(error)
 			})
-		})
 
-		// Always use pWaitFor, which resolves immediately if shell integration is already available
-		pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 })
-			.then(() => {
-				const existingProcess = this.processes.get(terminalInfo.id)
-				if (existingProcess) {
-					existingProcess.run(terminalInfo.terminal, command)
-				} else {
-					console.error("[TerminalManager] existingProcess not found for terminal", terminalInfo.id)
-				}
-			})
-			.catch(() => {
-				// Shell integration did not become available within timeout
-				const existingProcess = this.processes.get(terminalInfo.id)
-				if (existingProcess) {
+			// Wait for shell integration before executing the command
+			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 })
+				.then(() => {
+					process.run(command)
+				})
+				.catch(() => {
 					console.log("[TerminalManager] Shell integration not available. Command execution aborted.")
-					existingProcess.emit("no_shell_integration")
-				}
-			})
+					process.emit("no_shell_integration")
+				})
+		})
 
 		return mergePromise(process, promise)
 	}
@@ -247,47 +213,11 @@ export class TerminalManager {
 		return newTerminalInfo
 	}
 
-	getTerminals(busy: boolean): { id: number; lastCommand: string }[] {
-		return Array.from(this.terminalIds)
-			.map((id) => TerminalRegistry.getTerminal(id))
-			.filter((t): t is Terminal => t !== undefined && t.busy === busy)
-			.map((t) => ({ id: t.id, lastCommand: t.lastCommand }))
-	}
-
-	getUnretrievedOutput(terminalId: number): string {
-		if (!this.terminalIds.has(terminalId)) {
-			return ""
-		}
-		const process = this.processes.get(terminalId)
-		return process ? process.getUnretrievedOutput() : ""
-	}
-
-	/**
-	 * Finds the terminal ID by the VSCode terminal instance
-	 * @param terminal The VSCode terminal instance
-	 * @returns The terminal ID or undefined if not found
-	 */
-	private findTerminalIdByVscodeTerminal(terminal: vscode.Terminal): number | undefined {
-		for (const id of this.terminalIds) {
-			const info = TerminalRegistry.getTerminal(id)
-			if (info && info.terminal === terminal) {
-				return id
-			}
-		}
-		return undefined
-	}
-
-	isProcessHot(terminalId: number): boolean {
-		const process = this.processes.get(terminalId)
-		return process ? process.isHot : false
-	}
-
 	disposeAll() {
 		// for (const info of this.terminals) {
 		// 	//info.terminal.dispose() // dont want to dispose terminals when task is aborted
 		// }
 		this.terminalIds.clear()
-		this.processes.clear()
 		this.disposables.forEach((disposable) => disposable.dispose())
 		this.disposables = []
 	}

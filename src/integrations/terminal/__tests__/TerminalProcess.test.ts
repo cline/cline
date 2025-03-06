@@ -35,8 +35,6 @@ describe("TerminalProcess", () => {
 	let mockStream: AsyncIterableIterator<string>
 
 	beforeEach(() => {
-		terminalProcess = new TerminalProcess()
-
 		// Create properly typed mock terminal
 		mockTerminal = {
 			shellIntegration: {
@@ -60,6 +58,9 @@ describe("TerminalProcess", () => {
 		>
 
 		mockTerminalInfo = new Terminal(1, mockTerminal)
+
+		// Create a process for testing
+		terminalProcess = new TerminalProcess(mockTerminalInfo)
 
 		TerminalRegistry["terminals"].push(mockTerminalInfo)
 
@@ -93,7 +94,7 @@ describe("TerminalProcess", () => {
 
 			mockTerminal.shellIntegration.executeCommand.mockReturnValue(mockExecution)
 
-			const runPromise = terminalProcess.run(mockTerminal, "test command")
+			const runPromise = terminalProcess.run("test command")
 			terminalProcess.emit("stream_available", mockTerminalInfo.id, mockStream)
 			await runPromise
 
@@ -102,28 +103,38 @@ describe("TerminalProcess", () => {
 		})
 
 		it("handles terminals without shell integration", async () => {
+			// Create a terminal without shell integration
 			const noShellTerminal = {
 				sendText: jest.fn(),
 				shellIntegration: undefined,
+				name: "No Shell Terminal",
+				processId: Promise.resolve(456),
+				creationOptions: {},
+				exitStatus: undefined,
+				state: { isInteractedWith: true },
+				dispose: jest.fn(),
+				hide: jest.fn(),
+				show: jest.fn(),
 			} as unknown as vscode.Terminal
 
+			// Create new terminal info with the no-shell terminal
+			const noShellTerminalInfo = new Terminal(2, noShellTerminal)
+
+			// Create new process with the no-shell terminal
+			const noShellProcess = new TerminalProcess(noShellTerminalInfo)
+
 			// Set up event listeners to verify events are emitted
-			const noShellPromise = new Promise<void>((resolve) => {
-				terminalProcess.once("no_shell_integration", resolve)
-			})
-			const completedPromise = new Promise<void>((resolve) => {
-				terminalProcess.once("completed", (_output?: string) => resolve())
-			})
-			const continuePromise = new Promise<void>((resolve) => {
-				terminalProcess.once("continue", resolve)
-			})
+			const eventPromises = Promise.all([
+				new Promise<void>((resolve) => noShellProcess.once("no_shell_integration", resolve)),
+				new Promise<void>((resolve) => noShellProcess.once("completed", (_output?: string) => resolve())),
+				new Promise<void>((resolve) => noShellProcess.once("continue", resolve)),
+			])
 
-			await terminalProcess.run(noShellTerminal, "test command")
+			// Run command and wait for all events
+			await noShellProcess.run("test command")
+			await eventPromises
 
-			// Verify all expected events are emitted
-			await Promise.all([noShellPromise, completedPromise, continuePromise])
-
-			// Verify sendText is called with the command
+			// Verify sendText was called with the command
 			expect(noShellTerminal.sendText).toHaveBeenCalledWith("test command", true)
 		})
 
@@ -153,7 +164,7 @@ describe("TerminalProcess", () => {
 				read: jest.fn().mockReturnValue(mockStream),
 			})
 
-			const runPromise = terminalProcess.run(mockTerminal, "npm run build")
+			const runPromise = terminalProcess.run("npm run build")
 			terminalProcess.emit("stream_available", mockTerminalInfo.id, mockStream)
 
 			expect(terminalProcess.isHot).toBe(true)
@@ -192,7 +203,7 @@ describe("TerminalProcess", () => {
 
 	describe("mergePromise", () => {
 		it("merges promise methods with terminal process", async () => {
-			const process = new TerminalProcess()
+			const process = new TerminalProcess(mockTerminalInfo)
 			const promise = Promise.resolve()
 
 			const merged = mergePromise(process, promise)

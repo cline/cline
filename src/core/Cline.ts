@@ -29,6 +29,7 @@ import {
 } from "../integrations/misc/extract-text"
 import { TerminalManager } from "../integrations/terminal/TerminalManager"
 import { ExitCodeDetails } from "../integrations/terminal/TerminalProcess"
+import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
@@ -3472,8 +3473,8 @@ export class Cline {
 			details += "\n(No open tabs)"
 		}
 
-		const busyTerminals = this.terminalManager.getTerminals(true)
-		const inactiveTerminals = this.terminalManager.getTerminals(false)
+		const busyTerminals = TerminalRegistry.getTerminals(true)
+		const inactiveTerminals = TerminalRegistry.getTerminals(false)
 		// const allTerminals = [...busyTerminals, ...inactiveTerminals]
 
 		if (busyTerminals.length > 0 && this.didEditFile) {
@@ -3485,7 +3486,7 @@ export class Cline {
 		if (busyTerminals.length > 0) {
 			// wait for terminals to cool down
 			// terminalWasBusy = allTerminals.some((t) => this.terminalManager.isProcessHot(t.id))
-			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
+			await pWaitFor(() => busyTerminals.every((t) => !TerminalRegistry.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
 			}).catch(() => {})
@@ -3517,7 +3518,7 @@ export class Cline {
 			terminalDetails += "\n\n# Actively Running Terminals"
 			for (const busyTerminal of busyTerminals) {
 				terminalDetails += `\n## Original command: \`${busyTerminal.lastCommand}\``
-				const newOutput = this.terminalManager.getUnretrievedOutput(busyTerminal.id)
+				const newOutput = TerminalRegistry.getUnretrievedOutput(busyTerminal.id)
 				if (newOutput) {
 					terminalDetails += `\n### New Output\n${newOutput}`
 				} else {
@@ -3529,7 +3530,7 @@ export class Cline {
 		if (inactiveTerminals.length > 0) {
 			const inactiveTerminalOutputs = new Map<number, string>()
 			for (const inactiveTerminal of inactiveTerminals) {
-				const newOutput = this.terminalManager.getUnretrievedOutput(inactiveTerminal.id)
+				const newOutput = TerminalRegistry.getUnretrievedOutput(inactiveTerminal.id)
 				if (newOutput) {
 					inactiveTerminalOutputs.set(inactiveTerminal.id, newOutput)
 				}
