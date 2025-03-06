@@ -129,4 +129,29 @@ export class ContextProxy {
 
 		return Promise.all(promises)
 	}
+
+	/**
+	 * Resets all global state, secrets, and in-memory caches.
+	 * This clears all data from both the in-memory caches and the VSCode storage.
+	 * @returns A promise that resolves when all reset operations are complete
+	 */
+	async resetAllState(): Promise<void> {
+		// Clear in-memory caches
+		this.stateCache.clear()
+		this.secretCache.clear()
+
+		// Reset all global state values to undefined
+		const stateResetPromises = GLOBAL_STATE_KEYS.map((key) =>
+			this.originalContext.globalState.update(key, undefined),
+		)
+
+		// Delete all secrets
+		const secretResetPromises = SECRET_KEYS.map((key) => this.originalContext.secrets.delete(key))
+
+		// Wait for all reset operations to complete
+		await Promise.all([...stateResetPromises, ...secretResetPromises])
+
+		this.initializeStateCache()
+		this.initializeSecretCache()
+	}
 }

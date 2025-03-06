@@ -2432,14 +2432,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			return
 		}
 
-		for (const key of this.context.globalState.keys()) {
-			await this.contextProxy.updateGlobalState(key, undefined)
-		}
-
-		for (const key of SECRET_KEYS) {
-			await this.storeSecret(key, undefined)
-		}
-
+		await this.contextProxy.resetAllState()
 		await this.configManager.resetAllConfigs()
 		await this.customModesManager.resetCustomModes()
 		await this.removeClineFromStack()
