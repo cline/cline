@@ -11,6 +11,7 @@ import { BaseProvider } from "./base-provider"
 
 import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "./constants"
 import { getModelParams, SingleCompletionHandler } from "../"
+import { GoogleAuth } from "google-auth-library"
 
 // Types for Vertex SDK
 
@@ -120,16 +121,56 @@ export class VertexHandler extends BaseProvider implements SingleCompletionHandl
 			throw new Error(`Unknown model ID: ${this.options.apiModelId}`)
 		}
 
-		this.anthropicClient = new AnthropicVertex({
-			projectId: this.options.vertexProjectId ?? "not-provided",
-			// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
-			region: this.options.vertexRegion ?? "us-east5",
-		})
+		if (this.options.vertexJsonCredentials) {
+			this.anthropicClient = new AnthropicVertex({
+				projectId: this.options.vertexProjectId ?? "not-provided",
+				// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
+				region: this.options.vertexRegion ?? "us-east5",
+				googleAuth: new GoogleAuth({
+					scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+					credentials: JSON.parse(this.options.vertexJsonCredentials),
+				}),
+			})
+		} else if (this.options.vertexKeyFile) {
+			this.anthropicClient = new AnthropicVertex({
+				projectId: this.options.vertexProjectId ?? "not-provided",
+				// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
+				region: this.options.vertexRegion ?? "us-east5",
+				googleAuth: new GoogleAuth({
+					scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+					keyFile: this.options.vertexKeyFile,
+				}),
+			})
+		} else {
+			this.anthropicClient = new AnthropicVertex({
+				projectId: this.options.vertexProjectId ?? "not-provided",
+				// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
+				region: this.options.vertexRegion ?? "us-east5",
+			})
+		}
 
-		this.geminiClient = new VertexAI({
-			project: this.options.vertexProjectId ?? "not-provided",
-			location: this.options.vertexRegion ?? "us-east5",
-		})
+		if (this.options.vertexJsonCredentials) {
+			this.geminiClient = new VertexAI({
+				project: this.options.vertexProjectId ?? "not-provided",
+				location: this.options.vertexRegion ?? "us-east5",
+				googleAuthOptions: {
+					credentials: JSON.parse(this.options.vertexJsonCredentials),
+				},
+			})
+		} else if (this.options.vertexKeyFile) {
+			this.geminiClient = new VertexAI({
+				project: this.options.vertexProjectId ?? "not-provided",
+				location: this.options.vertexRegion ?? "us-east5",
+				googleAuthOptions: {
+					keyFile: this.options.vertexKeyFile,
+				},
+			})
+		} else {
+			this.geminiClient = new VertexAI({
+				project: this.options.vertexProjectId ?? "not-provided",
+				location: this.options.vertexRegion ?? "us-east5",
+			})
+		}
 	}
 
 	private formatMessageForCache(message: Anthropic.Messages.MessageParam, shouldCache: boolean): VertexMessage {

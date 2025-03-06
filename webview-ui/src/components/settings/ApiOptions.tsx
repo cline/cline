@@ -565,7 +565,28 @@ const ApiOptions = ({
 								2. Install the Google Cloud CLI & configure application default credentials.
 							</VSCodeLink>
 						</div>
+						<div>
+							<VSCodeLink
+								href="https://developers.google.com/workspace/guides/create-credentials?hl=en#service-account"
+								className="text-sm">
+								3. Or create a service account with credentials.
+							</VSCodeLink>
+						</div>
 					</div>
+					<VSCodeTextField
+						value={apiConfiguration?.vertexJsonCredentials || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("vertexJsonCredentials")}
+						placeholder="Enter Credentials JSON...">
+						<span className="font-medium">Google Cloud Credentials</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.vertexKeyFile || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("vertexKeyFile")}
+						placeholder="Enter Key File Path...">
+						<span className="font-medium">Google Cloud Key File Path</span>
+					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.vertexProjectId || ""}
 						onInput={handleInputChange("vertexProjectId")}
