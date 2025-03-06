@@ -72,23 +72,20 @@ export const ModelPicker = ({
 
 	return (
 		<>
-			<div className="font-semibold">Model</div>
-			<Combobox type="single" inputValue={inputValue} onInputValueChange={onSelect}>
-				<ComboboxInput placeholder="Search model..." data-testid="model-input" />
-				<ComboboxContent>
-					<ComboboxEmpty>No model found.</ComboboxEmpty>
-					{modelIds.map((model) => (
-						<ComboboxItem key={model} value={model}>
-							{model}
-						</ComboboxItem>
-					))}
-				</ComboboxContent>
-			</Combobox>
-			<ThinkingBudget
-				apiConfiguration={apiConfiguration}
-				setApiConfigurationField={setApiConfigurationField}
-				modelInfo={selectedModelInfo}
-			/>
+			<div>
+				<div className="font-medium">Model</div>
+				<Combobox type="single" inputValue={inputValue} onInputValueChange={onSelect}>
+					<ComboboxInput placeholder="Search model..." data-testid="model-input" />
+					<ComboboxContent>
+						<ComboboxEmpty>No model found.</ComboboxEmpty>
+						{modelIds.map((model) => (
+							<ComboboxItem key={model} value={model}>
+								{model}
+							</ComboboxItem>
+						))}
+					</ComboboxContent>
+				</Combobox>
+			</div>
 			{selectedModelId && selectedModelInfo && selectedModelId === inputValue && (
 				<ModelInfoView
 					selectedModelId={selectedModelId}
@@ -97,15 +94,22 @@ export const ModelPicker = ({
 					setIsDescriptionExpanded={setIsDescriptionExpanded}
 				/>
 			)}
-			<p>
+			<ThinkingBudget
+				apiConfiguration={apiConfiguration}
+				setApiConfigurationField={setApiConfigurationField}
+				modelInfo={selectedModelInfo}
+			/>
+			<div className="text-sm text-vscode-descriptionForeground">
 				The extension automatically fetches the latest list of models available on{" "}
-				<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href={serviceUrl}>
-					{serviceName}.
+				<VSCodeLink href={serviceUrl} className="text-sm">
+					{serviceName}
 				</VSCodeLink>
-				If you're unsure which model to choose, Roo Code works best with{" "}
-				<VSCodeLink onClick={() => onSelect(defaultModelId)}>{defaultModelId}.</VSCodeLink>
+				. If you're unsure which model to choose, Roo Code works best with{" "}
+				<VSCodeLink onClick={() => onSelect(defaultModelId)} className="text-sm">
+					{defaultModelId}.
+				</VSCodeLink>
 				You can also try searching "free" for no-cost options currently available.
-			</p>
+			</div>
 		</>
 	)
 }

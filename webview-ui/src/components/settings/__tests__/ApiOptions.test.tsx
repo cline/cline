@@ -1,6 +1,9 @@
+// npx jest src/components/settings/__tests__/ApiOptions.test.ts
+
 import { render, screen } from "@testing-library/react"
-import ApiOptions from "../ApiOptions"
+
 import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext"
+import ApiOptions from "../ApiOptions"
 
 // Mock VSCode components
 jest.mock("@vscode/webview-ui-toolkit/react", () => ({
@@ -13,6 +16,7 @@ jest.mock("@vscode/webview-ui-toolkit/react", () => ({
 	VSCodeLink: ({ children, href }: any) => <a href={href}>{children}</a>,
 	VSCodeRadio: ({ children, value, checked }: any) => <input type="radio" value={value} checked={checked} />,
 	VSCodeRadioGroup: ({ children }: any) => <div>{children}</div>,
+	VSCodeButton: ({ children }: any) => <div>{children}</div>,
 }))
 
 // Mock other components

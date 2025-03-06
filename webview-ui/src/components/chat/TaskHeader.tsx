@@ -175,7 +175,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								flexGrow: 1,
 								minWidth: 0, // This allows the div to shrink below its content size
 							}}>
-							<span style={{ fontWeight: "bold" }}>Task{!isTaskExpanded && ":"}</span>
+							<span style={{ fontWeight: "bold" }}>
+								Task ({currentTaskItem?.number === 0 ? "Main" : currentTaskItem?.number})
+								{!isTaskExpanded && ":"}
+							</span>
 							{!isTaskExpanded && (
 								<span style={{ marginLeft: 4 }}>{highlightMentions(task.text, false)}</span>
 							)}
@@ -415,7 +418,7 @@ const ContextWindowProgress = ({ contextWindow, contextTokens }: { contextWindow
 		<div className="flex items-center gap-1 flex-shrink-0">
 			<span className="font-bold">Context Window:</span>
 		</div>
-		<div className="flex items-center gap-2 flex-1 whitespace-nowrap">
+		<div className="flex items-center gap-2 flex-1 whitespace-nowrap px-2">
 			<div>{formatLargeNumber(contextTokens)}</div>
 			<div className="flex items-center gap-[3px] flex-1">
 				<div className="flex-1 h-1 rounded-[2px] overflow-hidden bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_20%,transparent)]">
