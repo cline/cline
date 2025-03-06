@@ -710,6 +710,8 @@ describe("ShadowCheckpointService", () => {
 			// Create git repo without adding the specific branch
 			const git = simpleGit(workspaceRepoDir)
 			await git.init()
+			await git.addConfig("user.name", "Roo Code")
+			await git.addConfig("user.email", "noreply@example.com")
 
 			// We need to create a commit, but we won't create the specific branch
 			const testFile = path.join(workspaceRepoDir, "test.txt")
