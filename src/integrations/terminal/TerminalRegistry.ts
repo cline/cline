@@ -1,11 +1,65 @@
 import * as vscode from "vscode"
 import { Terminal } from "./Terminal"
+import { TerminalProcess } from "./TerminalProcess"
 
 // Although vscode.window.terminals provides a list of all open terminals, there's no way to know whether they're busy or not (exitStatus does not provide useful information for most commands). In order to prevent creating too many terminals, we need to keep track of terminals through the life of the extension, as well as session specific terminals for the life of a task (to get latest unretrieved output).
 // Since we have promises keeping track of terminal processes, we get the added benefit of keep track of busy terminals even after a task is closed.
 export class TerminalRegistry {
 	private static terminals: Terminal[] = []
 	private static nextTerminalId = 1
+	private static disposables: vscode.Disposable[] = []
+	private static isInitialized = false
+
+	static initialize() {
+		if (this.isInitialized) {
+			throw new Error("TerminalRegistry.initialize() should only be called once")
+		}
+		this.isInitialized = true
+
+		try {
+			// onDidStartTerminalShellExecution
+			const startDisposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
+				// Get a handle to the stream as early as possible:
+				const stream = e?.execution.read()
+				const terminalInfo = this.getTerminalByVSCETerminal(e.terminal)
+				if (terminalInfo) {
+					terminalInfo.setActiveStream(stream)
+				} else {
+					console.error("[TerminalRegistry] Stream failed, not registered for terminal")
+				}
+
+				console.info("[TerminalRegistry] Shell execution started:", {
+					hasExecution: !!e?.execution,
+					command: e?.execution?.commandLine?.value,
+					terminalId: terminalInfo?.id,
+				})
+			})
+
+			// onDidEndTerminalShellExecution
+			const endDisposable = (vscode.window as vscode.Window).onDidEndTerminalShellExecution?.(async (e) => {
+				const terminalInfo = this.getTerminalByVSCETerminal(e.terminal)
+				const process = terminalInfo?.process
+				const exitDetails = process ? TerminalProcess.interpretExitCode(e?.exitCode) : { exitCode: e?.exitCode }
+				console.info("[TerminalRegistry] Shell execution ended:", {
+					...exitDetails,
+				})
+
+				// Signal completion to any waiting processes
+				if (terminalInfo) {
+					terminalInfo.shellExecutionComplete(exitDetails)
+				}
+			})
+
+			if (startDisposable) {
+				this.disposables.push(startDisposable)
+			}
+			if (endDisposable) {
+				this.disposables.push(endDisposable)
+			}
+		} catch (error) {
+			console.error("[TerminalRegistry] Error setting up shell execution handlers:", error)
+		}
+	}
 
 	static createTerminal(cwd?: string | vscode.Uri | undefined): Terminal {
 		const terminal = vscode.window.createTerminal({
@@ -114,5 +168,10 @@ export class TerminalRegistry {
 	 */
 	static getTerminals(busy: boolean): Terminal[] {
 		return this.getAllTerminals().filter((t) => t.busy === busy)
+	}
+
+	static cleanup() {
+		this.disposables.forEach((disposable) => disposable.dispose())
+		this.disposables = []
 	}
 }

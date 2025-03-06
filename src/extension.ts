@@ -18,6 +18,7 @@ import { CodeActionProvider } from "./core/CodeActionProvider"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import { McpServerManager } from "./services/mcp/McpServerManager"
 import { telemetryService } from "./services/telemetry/TelemetryService"
+import { TerminalRegistry } from "./integrations/terminal/TerminalRegistry"
 
 import { handleUri, registerCommands, registerCodeActions, createRooCodeAPI, registerTerminalActions } from "./activate"
 
@@ -42,6 +43,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Initialize telemetry service after environment variables are loaded
 	telemetryService.initialize()
+	// Initialize terminal shell execution handlers
+	TerminalRegistry.initialize()
 
 	// Get default commands from configuration.
 	const defaultCommands = vscode.workspace.getConfiguration("roo-cline").get<string[]>("allowedCommands") || []
@@ -108,4 +111,7 @@ export async function deactivate() {
 	// Clean up MCP server manager
 	await McpServerManager.cleanup(extensionContext)
 	telemetryService.shutdown()
+
+	// Clean up terminal handlers
+	TerminalRegistry.cleanup()
 }

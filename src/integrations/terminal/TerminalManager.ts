@@ -97,54 +97,6 @@ declare module "vscode" {
 
 export class TerminalManager {
 	private terminalIds: Set<number> = new Set()
-	private disposables: vscode.Disposable[] = []
-
-	constructor() {
-		let startDisposable: vscode.Disposable | undefined
-		let endDisposable: vscode.Disposable | undefined
-		try {
-			// onDidStartTerminalShellExecution
-			startDisposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
-				// Get a handle to the stream as early as possible:
-				const stream = e?.execution.read()
-				const terminalInfo = TerminalRegistry.getTerminalByVSCETerminal(e.terminal)
-				if (terminalInfo) {
-					terminalInfo.setActiveStream(stream)
-				} else {
-					console.error("[TerminalManager] Stream failed, not registered for terminal")
-				}
-
-				console.info("[TerminalManager] Shell execution started:", {
-					hasExecution: !!e?.execution,
-					command: e?.execution?.commandLine?.value,
-					terminalId: terminalInfo?.id,
-				})
-			})
-
-			// onDidEndTerminalShellExecution
-			endDisposable = (vscode.window as vscode.Window).onDidEndTerminalShellExecution?.(async (e) => {
-				const terminalInfo = TerminalRegistry.getTerminalByVSCETerminal(e.terminal)
-				const process = terminalInfo?.process
-				const exitDetails = process ? TerminalProcess.interpretExitCode(e?.exitCode) : { exitCode: e?.exitCode }
-				console.info("[TerminalManager] Shell execution ended:", {
-					...exitDetails,
-				})
-
-				// Signal completion to any waiting processes
-				if (terminalInfo && this.terminalIds.has(terminalInfo.id)) {
-					terminalInfo.shellExecutionComplete(exitDetails)
-				}
-			})
-		} catch (error) {
-			console.error("[TerminalManager] Error setting up shell execution handlers:", error)
-		}
-		if (startDisposable) {
-			this.disposables.push(startDisposable)
-		}
-		if (endDisposable) {
-			this.disposables.push(endDisposable)
-		}
-	}
 
 	runCommand(terminalInfo: Terminal, command: string): TerminalProcessResultPromise {
 		terminalInfo.busy = true
@@ -214,11 +166,6 @@ export class TerminalManager {
 	}
 
 	disposeAll() {
-		// for (const info of this.terminals) {
-		// 	//info.terminal.dispose() // dont want to dispose terminals when task is aborted
-		// }
 		this.terminalIds.clear()
-		this.disposables.forEach((disposable) => disposable.dispose())
-		this.disposables = []
 	}
 }

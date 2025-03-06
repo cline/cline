@@ -241,6 +241,11 @@ async function testTerminalCommand(
 }
 
 describe("TerminalProcess with Real Command Output", () => {
+	beforeAll(() => {
+		// Initialize TerminalRegistry event handlers once globally
+		TerminalRegistry.initialize()
+	})
+
 	beforeEach(() => {
 		// Reset the terminals array before each test
 		TerminalRegistry["terminals"] = []
