@@ -157,7 +157,18 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 				requestOptions.max_tokens = this.getModel().info.maxTokens
 			}
 
-			const response = await this.client.chat.completions.create(requestOptions)
+			const response = await this.client.chat.completions.create(requestOptions, {
+				headers: {
+					"X-Unbound-Metadata": JSON.stringify({
+						labels: [
+							{
+								key: "app",
+								value: "roo-code",
+							},
+						],
+					}),
+				},
+			})
 			return response.choices[0]?.message.content || ""
 		} catch (error) {
 			if (error instanceof Error) {
