@@ -28,9 +28,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 	async run(terminal: vscode.Terminal, command: string) {
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
-const execution = terminal.shellIntegration.executeCommand(command)
-const stream = execution.read()
-// todo: need to handle errors
+			const execution = terminal.shellIntegration.executeCommand(command)
+			const stream = execution.read()
+			// todo: need to handle errors
 			let isFirstChunk = true
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
@@ -52,9 +52,9 @@ const stream = execution.read()
 					*/
 					// if you print this data you might see something like "eecho hello worldo hello world;5ba85d14-e92a-40c4-b2fd-71525581eeb0]633;C" but this is actually just a bunch of escape sequences, ignore up to the first ;C
 					/* ddateb15026-6a64-40db-b21f-2a621a9830f0]633;CTue Sep 17 06:37:04 EDT 2024 % ]633;D;0]633;P;Cwd=/Users/saoud/Repositories/test */
-// Gets output between ]633;C (command start) and ]633;D (command end)
-const rawMatch = data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || ""
-const outputBetweenSequences = this.removeLastLineArtifacts(rawMatch).trim()
+					// Gets output between ]633;C (command start) and ]633;D (command end)
+					const rawMatch = data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || ""
+					const outputBetweenSequences = this.removeLastLineArtifacts(rawMatch).trim()
 
 					// Once we've retrieved any potential output between sequences, we can remove everything up to end of the last sequence
 					// https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st
@@ -63,10 +63,10 @@ const outputBetweenSequences = this.removeLastLineArtifacts(rawMatch).trim()
 					if (lastMatch && lastMatch.index !== undefined) {
 						data = data.slice(lastMatch.index + lastMatch[0].length)
 					}
-// Place output back after removing vscode sequences
-if (outputBetweenSequences) {
-data = outputBetweenSequences + "\n" + data
-}
+					// Place output back after removing vscode sequences
+					if (outputBetweenSequences) {
+						data = outputBetweenSequences + "\n" + data
+					}
 					// remove ansi
 					data = stripAnsi(data)
 					// Split data by newlines
@@ -87,14 +87,14 @@ data = outputBetweenSequences + "\n" + data
 						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
 					}
 					// Join lines back
-data = lines.join("\n")
-isFirstChunk = false
+					data = lines.join("\n")
+					isFirstChunk = false
 				} else {
 					data = stripAnsi(data)
 				}
 
-// Process data
-data = data.trim()
+				// Process data
+				data = data.trim()
 
 				// 2. Set isHot depending on the command
 				// Set to hot to stall API requests until terminal is cool again
@@ -166,17 +166,17 @@ data = data.trim()
 	}
 
 	// Inspired by https://github.com/sindresorhus/execa/blob/main/lib/transform/split.js
-private emitIfEol(chunk: string) {
-this.buffer += chunk
-let lineEndIndex: number
-while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
-let line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
+	private emitIfEol(chunk: string) {
+		this.buffer += chunk
+		let lineEndIndex: number
+		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
+			let line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
 			// Remove \r if present (for Windows-style line endings)
 			// if (line.endsWith("\r")) {
 			// 	line = line.slice(0, -1)
 			// }
-this.emit("line", line)
-this.buffer = this.buffer.slice(lineEndIndex + 1)
+			this.emit("line", line)
+			this.buffer = this.buffer.slice(lineEndIndex + 1)
 		}
 	}
 
