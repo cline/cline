@@ -1,5 +1,8 @@
 import React from "react"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { vscode } from "../../utils/vscode"
+import { Invoke } from "../../../../src/shared/ExtensionMessage"
 
 interface CreditLimitErrorProps {
 	currentBalance: number
@@ -30,10 +33,26 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({ currentBalance, tot
 				href="https://app.cline.bot/credits"
 				style={{
 					width: "100%",
+					marginBottom: "8px",
 				}}>
 				<span className="codicon codicon-credit-card" style={{ fontSize: "14px", marginRight: "6px" }} />
 				Buy Credits
 			</VSCodeButtonLink>
+
+			<VSCodeButton
+				onClick={() => {
+					vscode.postMessage({
+						type: "invoke",
+						text: "primaryButtonClick" satisfies Invoke,
+					})
+				}}
+				appearance="secondary"
+				style={{
+					width: "100%",
+				}}>
+				<span className="codicon codicon-refresh" style={{ fontSize: "14px", marginRight: "6px" }} />
+				Retry Request
+			</VSCodeButton>
 		</div>
 	)
 }

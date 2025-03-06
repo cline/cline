@@ -58,6 +58,7 @@ export interface WebviewMessage {
 		| "updateMcpTimeout"
 		| "fetchOpenGraphData"
 		| "checkIsImageUrl"
+		| "invoke"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean

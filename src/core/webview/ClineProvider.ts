@@ -22,7 +22,7 @@ import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shar
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
 import { ChatContent } from "../../shared/ChatContent"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
-import { ExtensionMessage, ExtensionState, Platform } from "../../shared/ExtensionMessage"
+import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
@@ -954,6 +954,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							"workbench.action.openSettings",
 							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
 						)
+						break
+					}
+					case "invoke": {
+						if (message.text) {
+							await this.postMessageToWebview({
+								type: "invoke",
+								invoke: message.text as Invoke,
+							})
+						}
 						break
 					}
 					// telemetry

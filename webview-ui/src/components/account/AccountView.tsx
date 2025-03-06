@@ -68,9 +68,9 @@ export const ClineAccountView = () => {
 				<div
 					style={{
 						padding: "12px 16px",
-						border: "1px solid var(--vscode-widget-border)",
-						borderRadius: "6px",
-						backgroundColor: "var(--vscode-editor-background)",
+						border: "1px solid var(--vscode-input-border)",
+						borderRadius: "2px",
+						backgroundColor: "var(--vscode-dropdown-background)",
 					}}>
 					<div
 						style={{
