@@ -6,8 +6,11 @@ import EventEmitter from "events"
 import simpleGit, { SimpleGit } from "simple-git"
 import { globby } from "globby"
 
-import { GIT_DISABLED_SUFFIX, GIT_EXCLUDES } from "./constants"
+import { fileExistsAtPath } from "../../utils/fs"
+
+import { GIT_DISABLED_SUFFIX } from "./constants"
 import { CheckpointDiff, CheckpointResult, CheckpointEventMap } from "./types"
+import { getExcludePatterns } from "./excludes"
 
 export abstract class ShadowCheckpointService extends EventEmitter {
 	public readonly taskId: string
@@ -65,12 +68,6 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 		const gitVersion = await git.version()
 		this.log(`[${this.constructor.name}#create] git = ${gitVersion}`)
 
-		const fileExistsAtPath = (path: string) =>
-			fs
-				.access(path)
-				.then(() => true)
-				.catch(() => false)
-
 		let created = false
 		const startTime = Date.now()
 
@@ -84,41 +81,16 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 				)
 			}
 
+			await this.writeExcludeFile()
 			this.baseHash = await git.revparse(["HEAD"])
 		} else {
 			this.log(`[${this.constructor.name}#initShadowGit] creating shadow git repo at ${this.checkpointsDir}`)
-
 			await git.init()
 			await git.addConfig("core.worktree", this.workspaceDir) // Sets the working tree to the current workspace.
 			await git.addConfig("commit.gpgSign", "false") // Disable commit signing for shadow repo.
 			await git.addConfig("user.name", "Roo Code")
 			await git.addConfig("user.email", "noreply@example.com")
-
-			let lfsPatterns: string[] = [] // Get LFS patterns from workspace if they exist.
-
-			try {
-				const attributesPath = path.join(this.workspaceDir, ".gitattributes")
-
-				if (await fileExistsAtPath(attributesPath)) {
-					lfsPatterns = (await fs.readFile(attributesPath, "utf8"))
-						.split("\n")
-						.filter((line) => line.includes("filter=lfs"))
-						.map((line) => line.split(" ")[0].trim())
-				}
-			} catch (error) {
-				this.log(
-					`[${this.constructor.name}#initShadowGit] failed to read .gitattributes: ${error instanceof Error ? error.message : String(error)}`,
-				)
-			}
-
-			// Add basic excludes directly in git config, while respecting any
-			// .gitignore in the workspace.
-			// .git/info/exclude is local to the shadow git repo, so it's not
-			// shared with the main repo - and won't conflict with user's
-			// .gitignore.
-			await fs.mkdir(path.join(this.dotGitDir, "info"), { recursive: true })
-			const excludesPath = path.join(this.dotGitDir, "info", "exclude")
-			await fs.writeFile(excludesPath, [...GIT_EXCLUDES, ...lfsPatterns].join("\n"))
+			await this.writeExcludeFile()
 			await this.stageAll(git)
 			const { commit } = await git.commit("initial commit", { "--allow-empty": null })
 			this.baseHash = commit
@@ -126,6 +98,7 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 		}
 
 		const duration = Date.now() - startTime
+
 		this.log(
 			`[${this.constructor.name}#initShadowGit] initialized shadow repo with base commit ${this.baseHash} in ${duration}ms`,
 		)
@@ -145,8 +118,18 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 		return { created, duration }
 	}
 
+	// Add basic excludes directly in git config, while respecting any
+	// .gitignore in the workspace.
+	// .git/info/exclude is local to the shadow git repo, so it's not
+	// shared with the main repo - and won't conflict with user's
+	// .gitignore.
+	protected async writeExcludeFile() {
+		await fs.mkdir(path.join(this.dotGitDir, "info"), { recursive: true })
+		const patterns = await getExcludePatterns(this.workspaceDir)
+		await fs.writeFile(path.join(this.dotGitDir, "info", "exclude"), patterns.join("\n"))
+	}
+
 	private async stageAll(git: SimpleGit) {
-		// await writeExcludesFile(gitPath, await getLfsPatterns(this.cwd)).
 		await this.renameNestedGitRepos(true)
 
 		try {
@@ -188,6 +171,7 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 
 			try {
 				await fs.rename(fullPath, newPath)
+
 				this.log(
 					`[${this.constructor.name}#renameNestedGitRepos] ${disable ? "disabled" : "enabled"} nested git repo ${gitPath}`,
 				)
