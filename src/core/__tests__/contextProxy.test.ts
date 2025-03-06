@@ -255,4 +255,77 @@ describe("ContextProxy", () => {
 			expect(proxy.getGlobalState("unknownKey")).toBe("some-value")
 		})
 	})
+
+	describe("resetAllState", () => {
+		it("should clear all in-memory caches", async () => {
+			// Setup initial state in caches
+			await proxy.setValues({
+				apiModelId: "gpt-4", // global state
+				openAiApiKey: "test-api-key", // secret
+				unknownKey: "some-value", // unknown
+			})
+
+			// Verify initial state
+			expect(proxy.getGlobalState("apiModelId")).toBe("gpt-4")
+			expect(proxy.getSecret("openAiApiKey")).toBe("test-api-key")
+			expect(proxy.getGlobalState("unknownKey")).toBe("some-value")
+
+			// Reset all state
+			await proxy.resetAllState()
+
+			// Caches should be reinitialized with values from the context
+			// Since our mock globalState.get returns undefined by default,
+			// the cache should now contain undefined values
+			expect(proxy.getGlobalState("apiModelId")).toBeUndefined()
+			expect(proxy.getGlobalState("unknownKey")).toBeUndefined()
+		})
+
+		it("should update all global state keys to undefined", async () => {
+			// Setup initial state
+			await proxy.updateGlobalState("apiModelId", "gpt-4")
+			await proxy.updateGlobalState("apiProvider", "openai")
+
+			// Reset all state
+			await proxy.resetAllState()
+
+			// Should have called update with undefined for each key
+			for (const key of GLOBAL_STATE_KEYS) {
+				expect(mockGlobalState.update).toHaveBeenCalledWith(key, undefined)
+			}
+
+			// Total calls should include initial setup + reset operations
+			const expectedUpdateCalls = 2 + GLOBAL_STATE_KEYS.length
+			expect(mockGlobalState.update).toHaveBeenCalledTimes(expectedUpdateCalls)
+		})
+
+		it("should delete all secrets", async () => {
+			// Setup initial secrets
+			await proxy.storeSecret("apiKey", "test-api-key")
+			await proxy.storeSecret("openAiApiKey", "test-openai-key")
+
+			// Reset all state
+			await proxy.resetAllState()
+
+			// Should have called delete for each key
+			for (const key of SECRET_KEYS) {
+				expect(mockSecrets.delete).toHaveBeenCalledWith(key)
+			}
+
+			// Total calls should equal the number of secret keys
+			expect(mockSecrets.delete).toHaveBeenCalledTimes(SECRET_KEYS.length)
+		})
+
+		it("should reinitialize caches after reset", async () => {
+			// Spy on initialization methods
+			const initStateCache = jest.spyOn(proxy as any, "initializeStateCache")
+			const initSecretCache = jest.spyOn(proxy as any, "initializeSecretCache")
+
+			// Reset all state
+			await proxy.resetAllState()
+
+			// Should reinitialize caches
+			expect(initStateCache).toHaveBeenCalledTimes(1)
+			expect(initSecretCache).toHaveBeenCalledTimes(1)
+		})
+	})
 })
