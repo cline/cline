@@ -1,9 +1,3 @@
-/*
-Minimal Kotlin query capturing class, function, and interface declarations.
-See tree-sitter-kotlin's grammar for more advanced captures:
-https://github.com/tree-sitter/tree-sitter-kotlin
-*/
-
 export default `
 (class_declaration
   name: (simple_identifier) @name.definition.class) @definition.class
@@ -19,4 +13,10 @@ export default `
 
 (property_declaration
   name: (simple_identifier) @name.definition.property) @definition.property
-`
+
+(enum_declaration
+  name: (simple_identifier) @name.definition.enum) @definition.enum
+
+(typealias_declaration
+  name: (simple_identifier) @name.definition.typealias) @definition.typealias
+)`
