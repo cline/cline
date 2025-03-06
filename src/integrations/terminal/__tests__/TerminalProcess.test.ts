@@ -201,6 +201,54 @@ describe("TerminalProcess", () => {
 		})
 	})
 
+	describe("interpretExitCode", () => {
+		it("handles undefined exit code", () => {
+			const result = TerminalProcess.interpretExitCode(undefined)
+			expect(result).toEqual({ exitCode: undefined })
+		})
+
+		it("handles normal exit codes (0-128)", () => {
+			const result = TerminalProcess.interpretExitCode(0)
+			expect(result).toEqual({ exitCode: 0 })
+
+			const result2 = TerminalProcess.interpretExitCode(1)
+			expect(result2).toEqual({ exitCode: 1 })
+
+			const result3 = TerminalProcess.interpretExitCode(128)
+			expect(result3).toEqual({ exitCode: 128 })
+		})
+
+		it("interprets signal exit codes (>128)", () => {
+			// SIGTERM (15) -> 128 + 15 = 143
+			const result = TerminalProcess.interpretExitCode(143)
+			expect(result).toEqual({
+				exitCode: 143,
+				signal: 15,
+				signalName: "SIGTERM",
+				coreDumpPossible: false,
+			})
+
+			// SIGSEGV (11) -> 128 + 11 = 139
+			const result2 = TerminalProcess.interpretExitCode(139)
+			expect(result2).toEqual({
+				exitCode: 139,
+				signal: 11,
+				signalName: "SIGSEGV",
+				coreDumpPossible: true,
+			})
+		})
+
+		it("handles unknown signals", () => {
+			const result = TerminalProcess.interpretExitCode(255)
+			expect(result).toEqual({
+				exitCode: 255,
+				signal: 127,
+				signalName: "Unknown Signal (127)",
+				coreDumpPossible: false,
+			})
+		})
+	})
+
 	describe("mergePromise", () => {
 		it("merges promise methods with terminal process", async () => {
 			const process = new TerminalProcess(mockTerminalInfo)

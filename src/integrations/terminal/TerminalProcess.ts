@@ -60,7 +60,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		})
 	}
 
-	interpretExitCode(exitCode: number | undefined): ExitCodeDetails {
+	static interpretExitCode(exitCode: number | undefined): ExitCodeDetails {
 		if (exitCode === undefined) {
 			return { exitCode }
 		}

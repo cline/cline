@@ -210,7 +210,7 @@ async function testTerminalCommand(
 		}
 
 		// Store exit details for return
-		const exitDetails = terminalProcess.interpretExitCode(exitCode)
+		const exitDetails = TerminalProcess.interpretExitCode(exitCode)
 
 		// Set a timeout to avoid hanging tests
 		const timeoutPromise = new Promise<void>((_, reject) => {

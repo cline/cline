@@ -125,7 +125,7 @@ export class TerminalManager {
 			endDisposable = (vscode.window as vscode.Window).onDidEndTerminalShellExecution?.(async (e) => {
 				const terminalInfo = TerminalRegistry.getTerminalByVSCETerminal(e.terminal)
 				const process = terminalInfo?.process
-				const exitDetails = process ? process.interpretExitCode(e?.exitCode) : { exitCode: e?.exitCode }
+				const exitDetails = process ? TerminalProcess.interpretExitCode(e?.exitCode) : { exitCode: e?.exitCode }
 				console.info("[TerminalManager] Shell execution ended:", {
 					...exitDetails,
 				})
