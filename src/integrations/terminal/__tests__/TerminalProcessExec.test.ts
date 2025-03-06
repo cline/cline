@@ -45,8 +45,8 @@ function createRealCommandStream(command: string): { stream: AsyncIterable<strin
 	let exitCode: number
 
 	try {
-		// Execute the command and get the real output
-		realOutput = execSync(command, {
+		// Execute the command and get the real output, redirecting stderr to /dev/null
+		realOutput = execSync(command + " 2>/dev/null", {
 			encoding: "utf8",
 			maxBuffer: 100 * 1024 * 1024, // Increase buffer size to 100MB
 		})
