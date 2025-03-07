@@ -97,6 +97,7 @@ export const GLOBAL_STATE_KEYS = [
 	"lmStudioSpeculativeDecodingEnabled",
 	"lmStudioDraftModelId",
 	"telemetrySetting",
+	"showRooIgnoredFiles",
 ] as const
 
 // Derive the type from the array - creates a union of string literals

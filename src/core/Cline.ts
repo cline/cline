@@ -2223,11 +2223,13 @@ export class Cline {
 								this.consecutiveMistakeCount = 0
 								const absolutePath = path.resolve(cwd, relDirPath)
 								const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
+								const { showRooIgnoredFiles } = (await this.providerRef.deref()?.getState()) ?? {}
 								const result = formatResponse.formatFilesList(
 									absolutePath,
 									files,
 									didHitLimit,
 									this.rooIgnoreController,
+									showRooIgnoredFiles ?? true,
 								)
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
@@ -3626,7 +3628,14 @@ export class Cline {
 				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
 			} else {
 				const [files, didHitLimit] = await listFiles(cwd, true, 200)
-				const result = formatResponse.formatFilesList(cwd, files, didHitLimit, this.rooIgnoreController)
+				const { showRooIgnoredFiles } = (await this.providerRef.deref()?.getState()) ?? {}
+				const result = formatResponse.formatFilesList(
+					cwd,
+					files,
+					didHitLimit,
+					this.rooIgnoreController,
+					showRooIgnoredFiles,
+				)
 				details += result
 			}
 		}

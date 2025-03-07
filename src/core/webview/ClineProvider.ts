@@ -1468,6 +1468,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("browserToolEnabled", message.bool ?? true)
 						await this.postStateToWebview()
 						break
+					case "showRooIgnoredFiles":
+						await this.updateGlobalState("showRooIgnoredFiles", message.bool ?? true)
+						await this.postStateToWebview()
+						break
 					case "enhancementApiConfigId":
 						await this.updateGlobalState("enhancementApiConfigId", message.text)
 						await this.postStateToWebview()
@@ -2201,6 +2205,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			maxOpenTabsContext,
 			browserToolEnabled,
 			telemetrySetting,
+			showRooIgnoredFiles,
 		} = await this.getState()
 		const telemetryKey = process.env.POSTHOG_API_KEY
 		const machineId = vscode.env.machineId
@@ -2262,6 +2267,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			telemetrySetting,
 			telemetryKey,
 			machineId,
+			showRooIgnoredFiles: showRooIgnoredFiles ?? true,
 		}
 	}
 
@@ -2441,6 +2447,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			openRouterUseMiddleOutTransform: stateValues.openRouterUseMiddleOutTransform ?? true,
 			browserToolEnabled: stateValues.browserToolEnabled ?? true,
 			telemetrySetting: stateValues.telemetrySetting || "unset",
+			showRooIgnoredFiles: stateValues.showRooIgnoredFiles ?? true,
 		}
 	}
 

@@ -140,6 +140,7 @@ export interface ExtensionState {
 	telemetrySetting: TelemetrySetting
 	telemetryKey?: string
 	machineId?: string
+	showRooIgnoredFiles: boolean // Whether to show .rooignore'd files in listings
 }
 
 export interface ClineMessage {
