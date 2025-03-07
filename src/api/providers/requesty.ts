@@ -66,29 +66,13 @@ export async function getRequestyModels() {
 				maxTokens: rawModel.max_output_tokens,
 				contextWindow: rawModel.context_window,
 				supportsPromptCache: rawModel.supports_caching,
+				supportsImages: rawModel.supports_vision,
+				supportsComputerUse: rawModel.supports_computer_use,
 				inputPrice: parseApiPrice(rawModel.input_price),
 				outputPrice: parseApiPrice(rawModel.output_price),
 				description: rawModel.description,
 				cacheWritesPrice: parseApiPrice(rawModel.caching_price),
 				cacheReadsPrice: parseApiPrice(rawModel.cached_price),
-			}
-
-			switch (rawModel.id) {
-				case rawModel.id.startsWith("anthropic/claude-3-7-sonnet"):
-					modelInfo.supportsComputerUse = true
-					modelInfo.supportsImages = true
-					modelInfo.maxTokens = 16384
-					break
-				case rawModel.id.startsWith("anthropic/claude-3-5-sonnet-20241022"):
-					modelInfo.supportsComputerUse = true
-					modelInfo.supportsImages = true
-					modelInfo.maxTokens = 8192
-					break
-				case rawModel.id.startsWith("anthropic/"):
-					modelInfo.maxTokens = 8192
-					break
-				default:
-					break
 			}
 
 			models[rawModel.id] = modelInfo
