@@ -953,6 +953,54 @@ export const askSageModels = {
 	},
 }
 
+// Nebius AI Studio
+// https://docs.nebius.com/studio/inference/models
+export type nebiusModelId = keyof typeof nebiusModels
+export const nebiusDefaultModelId: nebiusModelId = "Qwen/Qwen2.5-32B-Instruct-fast"
+export const nebiusDefaultURL: string = " https://api.studio.nebius.ai/v1"
+export const nebiusModels = {
+	"deepseek-ai/DeepSeek-V3": {
+		maxTokens: 32_000,
+		contextWindow: 96_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.5,
+	},
+	"deepseek-ai/DeepSeek-R1": {
+		maxTokens: 32_000,
+		contextWindow: 96_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 2.4,
+	},
+	"deepseek-ai/DeepSeek-R1-fast": {
+		maxTokens: 32_000,
+		contextWindow: 96_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2,
+		outputPrice: 6,
+	},
+	"Qwen/Qwen2.5-32B-Instruct-fast": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.13,
+		outputPrice: 0.4,
+	},
+	"meta-llama/Llama-3.3-70B-Instruct-fast": {
+		maxTokens: 32_000,
+		contextWindow: 96_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.25,
+		outputPrice: 0.75,
+	},
+}
+
 // X AI
 // https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels

@@ -1,11 +1,18 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { withRetry } from "../retry"
-import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
+import {
+	nebiusModelId,
+	nebiusDefaultURL,
+	nebiusDefaultModelId,
+	nebiusModels,
+	ModelInfo,
+	ApiHandlerOptions,
+} from "../../shared/api"
 
 export class NebiusHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -14,7 +21,7 @@ export class NebiusHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new OpenAI({
-			baseURL: "https://api.studio.nebius.ai/v1",
+			baseURL: nebiusDefaultURL,
 			apiKey: this.options.nebiusApiKey,
 		})
 	}
@@ -67,9 +74,14 @@ export class NebiusHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
+		const modelId = this.options.apiModelId
+		if (modelId && modelId in nebiusModels) {
+			const id = modelId as nebiusModelId
+			return { id, info: nebiusModels[id] }
+		}
 		return {
-			id: this.options.nebiusModelId ?? "",
-			info: openAiModelInfoSaneDefaults,
+			id: nebiusDefaultModelId,
+			info: nebiusModels[nebiusDefaultModelId],
 		}
 	}
 }
