@@ -82,7 +82,10 @@ declare module "vscode" {
 	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L10794
 	interface Window {
 		onDidStartTerminalShellExecution?: (
-			listener: (e: any) => any,
+			listener: (e: {
+				terminal: vscode.Terminal
+				execution: { read(): AsyncIterable<string>; commandLine: { value: string } }
+			}) => any,
 			thisArgs?: any,
 			disposables?: vscode.Disposable[],
 		) => vscode.Disposable
@@ -203,57 +206,77 @@ export class TerminalManager {
 	constructor() {
 		let startDisposable: vscode.Disposable | undefined
 		let endDisposable: vscode.Disposable | undefined
+
 		try {
 			// onDidStartTerminalShellExecution
 			startDisposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
 				// Get a handle to the stream as early as possible:
 				const stream = e?.execution.read()
 				const terminalInfo = TerminalRegistry.getTerminalInfoByTerminal(e.terminal)
-				if (stream && terminalInfo) {
-					const process = this.processes.get(terminalInfo.id)
-					if (process) {
-						terminalInfo.stream = stream
-						terminalInfo.running = true
-						terminalInfo.streamClosed = false
-						process.emit("stream_available", terminalInfo.id, stream)
-					}
-				} else {
-					console.error("[TerminalManager] Stream failed, not registered for terminal")
-				}
 
-				console.info("[TerminalManager] Shell execution started:", {
+				console.info("[TerminalManager] shell execution started", {
 					hasExecution: !!e?.execution,
+					hasStream: !!stream,
 					command: e?.execution?.commandLine?.value,
 					terminalId: terminalInfo?.id,
 				})
+
+				if (terminalInfo) {
+					const process = this.processes.get(terminalInfo.id)
+
+					if (process) {
+						if (stream) {
+							terminalInfo.stream = stream
+							terminalInfo.running = true
+							terminalInfo.streamClosed = false
+							console.log(`[TerminalManager] stream_available -> ${terminalInfo.id}`)
+							process.emit("stream_available", terminalInfo.id, stream)
+						} else {
+							process.emit("stream_unavailable", terminalInfo.id)
+							console.error(`[TerminalManager] stream_unavailable -> ${terminalInfo.id}`)
+						}
+					}
+				} else {
+					console.error("[TerminalManager] terminalInfo not available")
+				}
 			})
 
 			// onDidEndTerminalShellExecution
 			endDisposable = (vscode.window as vscode.Window).onDidEndTerminalShellExecution?.(async (e) => {
 				const exitDetails = this.interpretExitCode(e?.exitCode)
-				console.info("[TerminalManager] Shell execution ended:", {
-					...exitDetails,
-				})
+				console.info("[TerminalManager] Shell execution ended:", { ...exitDetails })
+				let emitted = false
 
-				// Signal completion to any waiting processes
+				// Signal completion to any waiting processes.
 				for (const id of this.terminalIds) {
 					const info = TerminalRegistry.getTerminal(id)
+
 					if (info && info.terminal === e.terminal) {
 						info.running = false
 						const process = this.processes.get(id)
+
 						if (process) {
+							console.log(`[TerminalManager] emitting shell_execution_complete -> ${id}`)
+							emitted = true
 							process.emit("shell_execution_complete", id, exitDetails)
 						}
+
 						break
 					}
 				}
+
+				if (!emitted) {
+					console.log(`[TerminalManager#onDidStartTerminalShellExecution] no terminal found`)
+				}
 			})
 		} catch (error) {
-			console.error("[TerminalManager] Error setting up shell execution handlers:", error)
+			console.error("[TerminalManager] failed to configure shell execution handlers", error)
 		}
+
 		if (startDisposable) {
 			this.disposables.push(startDisposable)
 		}
+
 		if (endDisposable) {
 			this.disposables.push(endDisposable)
 		}
@@ -366,9 +389,6 @@ export class TerminalManager {
 	}
 
 	disposeAll() {
-		// for (const info of this.terminals) {
-		// 	//info.terminal.dispose() // dont want to dispose terminals when task is aborted
-		// }
 		this.terminalIds.clear()
 		this.processes.clear()
 		this.disposables.forEach((disposable) => disposable.dispose())
