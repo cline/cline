@@ -219,6 +219,7 @@ const ApiConfigManager = ({
 								value: config.name,
 								label: config.name,
 							}))}
+							className="w-full"
 						/>
 						<VSCodeButton
 							appearance="icon"
