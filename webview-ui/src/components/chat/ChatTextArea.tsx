@@ -742,8 +742,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const unknownModel = "unknown"
 			if (!apiConfiguration) return unknownModel
 			switch (selectedProvider) {
-				case "anthropic":
-				case "openrouter":
+				case "cline":
 					return `${selectedProvider}:${selectedModelId}`
 				case "openai":
 					return `openai-compat:${selectedModelId}`
@@ -761,6 +760,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					return `${selectedProvider}:${apiConfiguration.requestyModelId}`
 				case "nebius":
 					return `${selectedProvider}:${apiConfiguration.nebiusModelId}`
+				case "anthropic":
+				case "openrouter":
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}

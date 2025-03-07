@@ -1,5 +1,40 @@
 # Changelog
 
+## [3.6.0]
+
+-   Add Cline API as a provider option, allowing new users to sign up and get started with Cline for free
+-   Optimize checkpoints with branch-per-task strategy, reducing storage required and first task load times
+-   Fix problem with Plan/Act toggle keyboard shortcut not working in Windows (thanks @yt3trees!)
+-   Add new Gemini models to GCP Vertex (thanks @shohei-ihaya!) and Claude models AskSage (thanks @swhite24!)
+-   Improve OpenRouter/Cline error reporting
+
+## [3.5.1]
+
+-   Add timeout option to MCP servers
+-   Add Gemini Flash models to Vertex provider (thanks @jpaodev!)
+-   Add prompt caching support for AWS Bedrock provider (thanks @buger!)
+-   Add AskSage provider (thanks @swhite24!)
+
+## [3.5.0]
+
+-   Add 'Enable extended thinking' option for Claude 3.7 Sonnet, with ability to set different budgets for Plan and Act modes
+-   Add support for rich MCP responses with automatic image previews, website thumbnails, and WolframAlpha visualizations
+-   Add language preference option in Advanced Settings
+-   Add xAI Provider Integration with support for all Grok models (thanks @andrewmonostate!)
+-   Fix issue with Linux XDG pointing to incorrect path for Document folder (thanks @jonatkinson!)
+
+## [3.4.10]
+
+-   Add support for GPT-4.5 preview model
+
+## [3.4.9]
+
+-   Add toggle to let users opt-in to anonymous telemetry and error reporting
+
+## [3.4.6]
+
+-   Add support for Claude 3.7 Sonnet
+
 ## [3.4.0]
 
 -   Introducing MCP Marketplace! You can now discover and install the best MCP servers right from within the extension, with new servers added regularly
