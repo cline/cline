@@ -5,19 +5,18 @@ import { ExitCodeDetails, mergePromise, TerminalProcess, TerminalProcessResultPr
 export class Terminal {
 	public terminal: vscode.Terminal
 	public busy: boolean
-	public lastCommand: string
 	public id: number
 	private stream?: AsyncIterable<string>
 	public running: boolean
 	private streamClosed: boolean
 	public process?: TerminalProcess
 	public taskId?: string
+	public completedProcesses: TerminalProcess[] = []
 
 	constructor(id: number, terminal: vscode.Terminal) {
 		this.id = id
 		this.terminal = terminal
 		this.busy = false
-		this.lastCommand = ""
 		this.running = false
 		this.streamClosed = false
 	}
@@ -68,17 +67,55 @@ export class Terminal {
 		this.running = false
 
 		if (this.process) {
+			// Add to the front of the queue (most recent first)
+			if (this.process.hasUnretrievedOutput()) {
+				this.completedProcesses.unshift(this.process)
+			}
+
 			this.process.emit("shell_execution_complete", this.id, exitDetails)
 			this.process = undefined
 		}
 	}
 
+	/**
+	 * Gets the last executed command
+	 * @returns The last command string or empty string if none
+	 */
+	public getLastCommand(): string {
+		// Return the command from the active process or the most recent process in the queue
+		if (this.process) {
+			return this.process.command || ""
+		} else if (this.completedProcesses.length > 0) {
+			return this.completedProcesses[0].command || ""
+		}
+		return ""
+	}
+
+	/**
+	 * Cleans the process queue by removing processes that no longer have unretrieved output
+	 */
+	public cleanCompletedProcessQueue(): void {
+		this.completedProcesses = this.completedProcesses.filter((process) => process.hasUnretrievedOutput())
+	}
+
+	/**
+	 * Gets all processes with unretrieved output
+	 * @returns Array of processes with unretrieved output
+	 */
+	public getProcessesWithOutput(): TerminalProcess[] {
+		// Clean the queue first to remove any processes without output
+		this.cleanCompletedProcessQueue()
+		return [...this.completedProcesses]
+	}
+
 	public runCommand(command: string): TerminalProcessResultPromise {
 		this.busy = true
-		this.lastCommand = command
 
 		// Create process immediately
 		const process = new TerminalProcess(this)
+
+		// Store the command on the process for reference
+		process.command = command
 
 		// Set process on terminal
 		this.process = process

@@ -38,6 +38,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private fullOutput: string = ""
 	private lastRetrievedIndex: number = 0
 	isHot: boolean = false
+	command: string = ""
 	constructor(terminal: Terminal) {
 		super()
 
@@ -155,6 +156,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private hotTimer: NodeJS.Timeout | null = null
 
 	async run(command: string) {
+		this.command = command
 		const terminal = this.terminalInfo.terminal
 
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
@@ -330,6 +332,15 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		this.isListening = false
 		this.removeAllListeners("line")
 		this.emit("continue")
+	}
+
+	/**
+	 * Checks if this process has unretrieved output
+	 * @returns true if there is output that hasn't been fully retrieved yet
+	 */
+	hasUnretrievedOutput(): boolean {
+		// If the process is still active or has unretrieved content, return true
+		return this.lastRetrievedIndex < this.fullOutput.length
 	}
 
 	// Returns complete lines with their carriage returns.

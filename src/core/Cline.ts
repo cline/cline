@@ -3512,7 +3512,7 @@ export class Cline {
 			// terminals are cool, let's retrieve their output
 			terminalDetails += "\n\n# Actively Running Terminals"
 			for (const busyTerminal of busyTerminals) {
-				terminalDetails += `\n## Original command: \`${busyTerminal.lastCommand}\``
+				terminalDetails += `\n## Original command: \`${busyTerminal.getLastCommand()}\``
 				const newOutput = TerminalRegistry.getUnretrievedOutput(busyTerminal.id)
 				if (newOutput) {
 					terminalDetails += `\n### New Output\n${newOutput}`
@@ -3521,23 +3521,39 @@ export class Cline {
 				}
 			}
 		}
-		// only show inactive terminals if there's output to show
-		if (inactiveTerminals.length > 0) {
-			const inactiveTerminalOutputs = new Map<number, string>()
-			for (const inactiveTerminal of inactiveTerminals) {
-				const newOutput = TerminalRegistry.getUnretrievedOutput(inactiveTerminal.id)
-				if (newOutput) {
-					inactiveTerminalOutputs.set(inactiveTerminal.id, newOutput)
-				}
-			}
-			if (inactiveTerminalOutputs.size > 0) {
-				terminalDetails += "\n\n# Inactive Terminals"
-				for (const [terminalId, newOutput] of inactiveTerminalOutputs) {
-					const inactiveTerminal = inactiveTerminals.find((t) => t.id === terminalId)
-					if (inactiveTerminal) {
-						terminalDetails += `\n## ${inactiveTerminal.lastCommand}`
-						terminalDetails += `\n### New Output\n${newOutput}`
+
+		// First check if any inactive terminals have completed processes with output
+		const terminalsWithOutput = inactiveTerminals.filter((terminal) => {
+			const completedProcesses = terminal.getProcessesWithOutput()
+			return completedProcesses.length > 0
+		})
+
+		// Only add the header if there are terminals with output
+		if (terminalsWithOutput.length > 0) {
+			terminalDetails += "\n\n# Inactive Terminals with Completed Process Output"
+
+			// Process each terminal with output
+			for (const inactiveTerminal of terminalsWithOutput) {
+				let terminalOutputs: string[] = []
+
+				// Get output from completed processes queue
+				const completedProcesses = inactiveTerminal.getProcessesWithOutput()
+				for (const process of completedProcesses) {
+					const output = process.getUnretrievedOutput()
+					if (output) {
+						terminalOutputs.push(`Command: \`${process.command}\`\n${output}`)
 					}
+				}
+
+				// Clean the queue after retrieving output
+				inactiveTerminal.cleanCompletedProcessQueue()
+
+				// Add this terminal's outputs to the details
+				if (terminalOutputs.length > 0) {
+					terminalDetails += `\n## Terminal ${inactiveTerminal.id}`
+					terminalOutputs.forEach((output, index) => {
+						terminalDetails += `\n### New Output\n${output}`
+					})
 				}
 			}
 		}
