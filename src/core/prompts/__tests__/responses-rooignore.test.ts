@@ -96,7 +96,7 @@ describe("RooIgnore Response Formatting", () => {
 			]
 
 			// Format with controller
-			const result = formatResponse.formatFilesList(TEST_CWD, files, false, controller as any)
+			const result = formatResponse.formatFilesList(TEST_CWD, files, false, controller as any, true)
 
 			// Should contain each file
 			expect(result).toContain("src/app.ts")
@@ -113,6 +113,55 @@ describe("RooIgnore Response Formatting", () => {
 		})
 
 		/**
+		 * Tests formatFilesList when showRooIgnoredFiles is set to false
+		 */
+		it("should hide ignored files when showRooIgnoredFiles is false", async () => {
+			// Create controller
+			const controller = new RooIgnoreController(TEST_CWD)
+			await controller.initialize()
+
+			// Mock validateAccess to control which files are ignored
+			controller.validateAccess = jest.fn().mockImplementation((filePath: string) => {
+				// Only allow files not matching these patterns
+				return (
+					!filePath.includes("node_modules") && !filePath.includes(".git") && !filePath.includes("secrets/")
+				)
+			})
+
+			// Files list with mixed allowed/ignored files
+			const files = [
+				"src/app.ts", // allowed
+				"node_modules/package.json", // ignored
+				"README.md", // allowed
+				".git/HEAD", // ignored
+				"secrets/keys.json", // ignored
+			]
+
+			// Format with controller and showRooIgnoredFiles = false
+			const result = formatResponse.formatFilesList(
+				TEST_CWD,
+				files,
+				false,
+				controller as any,
+				false, // showRooIgnoredFiles = false
+			)
+
+			// Should contain allowed files
+			expect(result).toContain("src/app.ts")
+			expect(result).toContain("README.md")
+
+			// Should NOT contain ignored files (even with lock symbols)
+			expect(result).not.toContain("node_modules/package.json")
+			expect(result).not.toContain(".git/HEAD")
+			expect(result).not.toContain("secrets/keys.json")
+
+			// Double-check with regex to ensure no form of these filenames appears
+			expect(result).not.toMatch(/node_modules\/package\.json/i)
+			expect(result).not.toMatch(/\.git\/HEAD/i)
+			expect(result).not.toMatch(/secrets\/keys\.json/i)
+		})
+
+		/**
 		 * Tests formatFilesList handles truncation correctly with RooIgnoreController
 		 */
 		it("should handle truncation with RooIgnoreController", async () => {
@@ -126,6 +175,7 @@ describe("RooIgnore Response Formatting", () => {
 				["file1.txt", "file2.txt"],
 				true, // didHitLimit = true
 				controller as any,
+				true,
 			)
 
 			// Should contain truncation message (case-insensitive check)
@@ -142,7 +192,7 @@ describe("RooIgnore Response Formatting", () => {
 			await controller.initialize()
 
 			// Format with empty files array
-			const result = formatResponse.formatFilesList(TEST_CWD, [], false, controller as any)
+			const result = formatResponse.formatFilesList(TEST_CWD, [], false, controller as any, true)
 
 			// Should show "No files found"
 			expect(result).toBe("No files found.")

@@ -445,6 +445,7 @@ describe("ClineProvider", () => {
 			maxOpenTabsContext: 20,
 			browserToolEnabled: true,
 			telemetrySetting: "unset",
+			showRooIgnoredFiles: true,
 		}
 
 		const message: ExtensionMessage = {
@@ -701,6 +702,27 @@ describe("ClineProvider", () => {
 		const state = await provider.getState()
 		expect(state).toHaveProperty("browserToolEnabled")
 		expect(state.browserToolEnabled).toBe(true) // Default value should be true
+	})
+
+	test("handles showRooIgnoredFiles setting", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+		// Test showRooIgnoredFiles with true
+		await messageHandler({ type: "showRooIgnoredFiles", bool: true })
+		expect(mockContext.globalState.update).toHaveBeenCalledWith("showRooIgnoredFiles", true)
+		expect(mockPostMessage).toHaveBeenCalled()
+
+		// Test showRooIgnoredFiles with false
+		jest.clearAllMocks() // Clear all mocks including mockContext.globalState.update
+		await messageHandler({ type: "showRooIgnoredFiles", bool: false })
+		expect(mockContext.globalState.update).toHaveBeenCalledWith("showRooIgnoredFiles", false)
+		expect(mockPostMessage).toHaveBeenCalled()
+
+		// Verify state includes showRooIgnoredFiles
+		const state = await provider.getState()
+		expect(state).toHaveProperty("showRooIgnoredFiles")
+		expect(state.showRooIgnoredFiles).toBe(true) // Default value should be true
 	})
 
 	test("handles request delay settings messages", async () => {

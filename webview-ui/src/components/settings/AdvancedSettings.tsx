@@ -18,19 +18,25 @@ type AdvancedSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	maxOpenTabsContext: number
 	diffEnabled?: boolean
 	fuzzyMatchThreshold?: number
+	showRooIgnoredFiles?: boolean
 	setCachedStateField: SetCachedStateField<
-		"rateLimitSeconds" | "terminalOutputLimit" | "maxOpenTabsContext" | "diffEnabled" | "fuzzyMatchThreshold"
+		| "rateLimitSeconds"
+		| "terminalOutputLimit"
+		| "maxOpenTabsContext"
+		| "diffEnabled"
+		| "fuzzyMatchThreshold"
+		| "showRooIgnoredFiles"
 	>
 	experiments: Record<ExperimentId, boolean>
 	setExperimentEnabled: SetExperimentEnabled
 }
-
 export const AdvancedSettings = ({
 	rateLimitSeconds,
 	terminalOutputLimit = TERMINAL_OUTPUT_LIMIT,
 	maxOpenTabsContext,
 	diffEnabled,
 	fuzzyMatchThreshold,
+	showRooIgnoredFiles,
 	setCachedStateField,
 	experiments,
 	setExperimentEnabled,
@@ -196,6 +202,20 @@ export const AdvancedSettings = ({
 							</p>
 						</div>
 					)}
+				</div>
+
+				<div>
+					<VSCodeCheckbox
+						checked={showRooIgnoredFiles}
+						onChange={(e: any) => {
+							setCachedStateField("showRooIgnoredFiles", e.target.checked)
+						}}>
+						<span className="font-medium">Show .rooignore'd files in lists and searches</span>
+					</VSCodeCheckbox>
+					<p className="text-vscode-descriptionForeground text-sm mt-0">
+						When enabled, files matching patterns in .rooignore will be shown in lists with a lock symbol.
+						When disabled, these files will be completely hidden from file lists and searches.
+					</p>
 				</div>
 			</Section>
 		</div>

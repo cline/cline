@@ -99,6 +99,7 @@ export interface WebviewMessage {
 		| "humanRelayCancel"
 		| "browserToolEnabled"
 		| "telemetrySetting"
+		| "showRooIgnoredFiles"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

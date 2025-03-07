@@ -60,7 +60,8 @@ Otherwise, if you have not completed the task and do not need additional informa
 		absolutePath: string,
 		files: string[],
 		didHitLimit: boolean,
-		rooIgnoreController?: RooIgnoreController,
+		rooIgnoreController: RooIgnoreController | undefined,
+		showRooIgnoredFiles: boolean,
 	): string => {
 		const sorted = files
 			.map((file) => {
@@ -90,20 +91,29 @@ Otherwise, if you have not completed the task and do not need additional informa
 				return aParts.length - bParts.length
 			})
 
-		const rooIgnoreParsed = rooIgnoreController
-			? sorted.map((filePath) => {
-					// path is relative to absolute path, not cwd
-					// validateAccess expects either path relative to cwd or absolute path
-					// otherwise, for validating against ignore patterns like "assets/icons", we would end up with just "icons", which would result in the path not being ignored.
-					const absoluteFilePath = path.resolve(absolutePath, filePath)
-					const isIgnored = !rooIgnoreController.validateAccess(absoluteFilePath)
-					if (isIgnored) {
-						return LOCK_TEXT_SYMBOL + " " + filePath
-					}
+		let rooIgnoreParsed: string[] = sorted
 
-					return filePath
-				})
-			: sorted
+		if (rooIgnoreController) {
+			rooIgnoreParsed = []
+			for (const filePath of sorted) {
+				// path is relative to absolute path, not cwd
+				// validateAccess expects either path relative to cwd or absolute path
+				// otherwise, for validating against ignore patterns like "assets/icons", we would end up with just "icons", which would result in the path not being ignored.
+				const absoluteFilePath = path.resolve(absolutePath, filePath)
+				const isIgnored = !rooIgnoreController.validateAccess(absoluteFilePath)
+
+				if (isIgnored) {
+					// If file is ignored and we're not showing ignored files, skip it
+					if (!showRooIgnoredFiles) {
+						continue
+					}
+					// Otherwise, mark it with a lock symbol
+					rooIgnoreParsed.push(LOCK_TEXT_SYMBOL + " " + filePath)
+				} else {
+					rooIgnoreParsed.push(filePath)
+				}
+			}
+		}
 		if (didHitLimit) {
 			return `${rooIgnoreParsed.join(
 				"\n",
