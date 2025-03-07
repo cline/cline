@@ -4,7 +4,7 @@
 
 - Add opt-in telemetry to help us improve Roo Code faster (thanks Cline!)
 - Fix terminal overload / gray screen of death, and other terminal issues
-- Add a new experimental diff editing strategy that applies multiple diff edits at once #1234 (thanks @qdaxb!)
+- Add a new experimental diff editing strategy that applies multiple diff edits at once (thanks @qdaxb!)
 - Add support for a .rooignore to prevent Roo Code from read/writing certain files, with a setting to also exclude them from search/lists (thanks Cline!)
 - Update the new_task tool to return results to the parent task on completion, supporting better orchestration (thanks @shaybc!)
 - Support running Roo in multiple editor windows simultaneously (thanks @samhvw8!)
