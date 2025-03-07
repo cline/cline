@@ -3472,8 +3472,8 @@ export class Cline {
 			details += "\n(No open tabs)"
 		}
 
-		const busyTerminals = TerminalRegistry.getTerminals(true)
-		const inactiveTerminals = TerminalRegistry.getTerminals(false)
+		const busyTerminals = TerminalRegistry.getTerminals(true, this.taskId)
+		const inactiveTerminals = TerminalRegistry.getTerminals(false, this.taskId)
 
 		if (busyTerminals.length > 0 && this.didEditFile) {
 			await delay(300) // delay after saving file to let terminals catch up
@@ -3522,7 +3522,7 @@ export class Cline {
 			}
 		}
 
-		// First check if any inactive terminals have completed processes with output
+		// First check if any inactive terminals in this task have completed processes with output
 		const terminalsWithOutput = inactiveTerminals.filter((terminal) => {
 			const completedProcesses = terminal.getProcessesWithOutput()
 			return completedProcesses.length > 0

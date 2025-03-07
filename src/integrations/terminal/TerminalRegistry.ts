@@ -167,14 +167,26 @@ export class TerminalRegistry {
 		}
 		return terminal.process ? terminal.process.isHot : false
 	}
-
 	/**
-	 * Gets terminals filtered by busy state
+	 * Gets terminals filtered by busy state and optionally by task ID
 	 * @param busy Whether to get busy or non-busy terminals
+	 * @param taskId Optional task ID to filter terminals by
 	 * @returns Array of Terminal objects
 	 */
-	static getTerminals(busy: boolean): Terminal[] {
-		return this.getAllTerminals().filter((t) => t.busy === busy)
+	static getTerminals(busy: boolean, taskId?: string): Terminal[] {
+		return this.getAllTerminals().filter((t) => {
+			// Filter by busy state
+			if (t.busy !== busy) {
+				return false
+			}
+
+			// If taskId is provided, also filter by taskId
+			if (taskId !== undefined && t.taskId !== taskId) {
+				return false
+			}
+
+			return true
+		})
 	}
 
 	static cleanup() {

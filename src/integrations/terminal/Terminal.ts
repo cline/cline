@@ -93,8 +93,19 @@ export class Terminal {
 
 	/**
 	 * Cleans the process queue by removing processes that no longer have unretrieved output
+	 * or don't belong to the current task
 	 */
 	public cleanCompletedProcessQueue(): void {
+		// If this terminal has no task ID, it's not associated with any active task
+		// In this case, we should remove all processes to prevent their output from appearing
+		// in any task's context
+		if (this.taskId === undefined) {
+			this.completedProcesses = []
+			return
+		}
+
+		// If the terminal is associated with a task, keep only processes with unretrieved output
+		// This ensures that when a task is active, it only sees output from its own processes
 		this.completedProcesses = this.completedProcesses.filter((process) => process.hasUnretrievedOutput())
 	}
 
