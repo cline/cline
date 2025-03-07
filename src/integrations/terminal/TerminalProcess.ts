@@ -1,5 +1,5 @@
 import { EventEmitter } from "events"
-import stripAnsi from "strip-ansi"
+import { stripAnsi } from "./ansiUtils"
 import * as vscode from "vscode"
 import { ContentTooLargeError } from "../../shared/errors"
 import { estimateContentSize, wouldExceedSizeLimit } from "../../utils/content-size"

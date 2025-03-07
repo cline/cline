@@ -7,9 +7,9 @@ import SettingsView from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
 import AccountView from "./components/account/AccountView"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
+import { FirebaseAuthProvider } from "./context/FirebaseAuthContext"
 import { vscode } from "./utils/vscode"
 import McpView from "./components/mcp/McpView"
-import posthog from "posthog-js"
 
 const AppContent = () => {
 	const { didHydrateState, showWelcome, shouldShowAnnouncement, telemetrySetting, vscMachineId } = useExtensionState()
@@ -61,14 +61,14 @@ const AppContent = () => {
 
 	useEvent("message", handleMessage)
 
-	useEffect(() => {
-		if (telemetrySetting === "enabled") {
-			posthog.identify(vscMachineId)
-			posthog.opt_in_capturing()
-		} else {
-			posthog.opt_out_capturing()
-		}
-	}, [telemetrySetting, vscMachineId])
+	// useEffect(() => {
+	// 	if (telemetrySetting === "enabled") {
+	// 		posthog.identify(vscMachineId)
+	// 		posthog.opt_in_capturing()
+	// 	} else {
+	// 		posthog.opt_out_capturing()
+	// 	}
+	// }, [telemetrySetting, vscMachineId])
 
 	useEffect(() => {
 		if (shouldShowAnnouncement) {
@@ -113,7 +113,9 @@ const AppContent = () => {
 const App = () => {
 	return (
 		<ExtensionStateContextProvider>
-			<AppContent />
+			<FirebaseAuthProvider>
+				<AppContent />
+			</FirebaseAuthProvider>
 		</ExtensionStateContextProvider>
 	)
 }

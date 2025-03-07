@@ -14,12 +14,15 @@ export type ApiProvider =
 	| "qwen"
 	| "mistral"
 	| "vscode-lm"
+	| "cline"
 	| "litellm"
+	| "asksage"
 	| "xai"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
+	clineApiKey?: string
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
 	liteLlmApiKey?: string
@@ -32,6 +35,7 @@ export interface ApiHandlerOptions {
 	awsSessionToken?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
+	awsBedrockUsePromptCache?: boolean
 	awsUseProfile?: boolean
 	awsProfile?: string
 	vertexProjectId?: string
@@ -42,6 +46,7 @@ export interface ApiHandlerOptions {
 	openAiModelInfo?: ModelInfo
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
+	ollamaApiOptionsCtxNum?: string
 	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
@@ -49,7 +54,6 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	requestyApiKey?: string
 	requestyModelId?: string
-	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
 	togetherModelId?: string
 	qwenApiKey?: string
@@ -58,6 +62,8 @@ export interface ApiHandlerOptions {
 	vsCodeLmModelSelector?: any
 	o3MiniReasoningEffort?: string
 	qwenApiLine?: string
+	asksageApiUrl?: string
+	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
 }
@@ -161,17 +167,21 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
 	},
 	"anthropic.claude-3-5-haiku-20241022-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: false,
-		supportsPromptCache: false,
+		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 5.0,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.08,
 	},
 	"anthropic.claude-3-5-sonnet-20240620-v1:0": {
 		maxTokens: 8192,
@@ -288,6 +298,94 @@ export const vertexModels = {
 		outputPrice: 1.25,
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 0.03,
+	},
+	"gemini-2.0-flash-001": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+	},
+	"gemini-2.0-flash-thinking-exp-1219": {
+		maxTokens: 8192,
+		contextWindow: 32_767,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-flash-exp": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-pro-exp-02-05": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-flash-thinking-exp-01-21": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-exp-1206": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-flash-002": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-flash-exp-0827": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-flash-8b-exp-0827": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-pro-002": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-pro-exp-0827": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -804,20 +902,52 @@ export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	outputPrice: 0,
 }
 
-// Requesty
-// https://requesty.ai/models
-export const requestyDefaultModelId = "anthropic/claude-3-5-sonnet-latest"
-export const requestyDefaultModelInfo: ModelInfo = {
-	maxTokens: 8192,
-	contextWindow: 200_000,
-	supportsImages: true,
-	supportsComputerUse: false,
-	supportsPromptCache: true,
-	inputPrice: 3.0,
-	outputPrice: 15.0,
-	cacheWritesPrice: 3.75,
-	cacheReadsPrice: 0.3,
-	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
+// AskSage Models
+// https://docs.asksage.ai/
+export type AskSageModelId = keyof typeof askSageModels
+export const askSageDefaultModelId: AskSageModelId = "claude-35-sonnet"
+export const askSageDefaultURL: string = "https://api.asksage.ai/server"
+export const askSageModels = {
+	"gpt-4o": {
+		maxTokens: 4096,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gpt-4o-gov": {
+		maxTokens: 4096,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"claude-35-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"aws-bedrock-claude-35-sonnet-gov": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"claude-37-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 }
 
 // X AI

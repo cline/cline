@@ -2,39 +2,9 @@ import { mkdir } from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import os from "os"
-import { fileExistsAtPath } from "../../utils/fs"
-
-/**
- * Gets the path to the legacy shadow Git repository in globalStorage.
- * Legacy checkpoints stored each task's checkpoints in a separate git repository
- * under the tasks/{taskId}/checkpoints directory.
- *
- * Legacy path structure:
- * globalStorage/
- *   tasks/
- *     {taskId}/
- *       checkpoints/
- *         .git/
- *
- * @param globalStoragePath - The VS Code global storage path
- * @param taskId - The ID of the task
- * @returns Promise<string> The absolute path to the legacy shadow git directory
- * @throws Error if global storage path is invalid
- */
-export async function getLegacyShadowGitPath(globalStoragePath: string, taskId: string): Promise<string> {
-	if (!globalStoragePath) {
-		throw new Error("Global storage uri is invalid")
-	}
-	const checkpointsDir = path.join(globalStoragePath, "tasks", taskId, "checkpoints")
-	await mkdir(checkpointsDir, { recursive: true })
-	const gitPath = path.join(checkpointsDir, ".git")
-	console.info(`Legacy shadow git path: ${gitPath}`)
-	return gitPath
-}
 
 /**
  * Gets the path to the shadow Git repository in globalStorage.
- * For legacy checkpoints, delegates to getLegacyShadowGitPath().
  * For new checkpoints, uses the consolidated branch-per-task structure.
  *
  * Branch-per-task path structure:
@@ -46,19 +16,10 @@ export async function getLegacyShadowGitPath(globalStoragePath: string, taskId: 
  * @param globalStoragePath - The VS Code global storage path
  * @param taskId - The ID of the task
  * @param cwdHash - Hash of the working directory path
- * @param isLegacyCheckpoint - Whether this is a legacy checkpoint
  * @returns Promise<string> The absolute path to the shadow git directory
  * @throws Error if global storage path is invalid
  */
-export async function getShadowGitPath(
-	globalStoragePath: string,
-	taskId: string,
-	cwdHash: string,
-	isLegacyCheckpoint: boolean,
-): Promise<string> {
-	if (isLegacyCheckpoint) {
-		return getLegacyShadowGitPath(globalStoragePath, taskId)
-	}
+export async function getShadowGitPath(globalStoragePath: string, taskId: string, cwdHash: string): Promise<string> {
 	if (!globalStoragePath) {
 		throw new Error("Global storage uri is invalid")
 	}
@@ -123,37 +84,4 @@ export function hashWorkingDir(workingDir: string): string {
 	const bigHash = BigInt(hash)
 	const numericHash = bigHash.toString().slice(0, 13)
 	return numericHash
-}
-
-/**
- * Detects if a task uses the legacy checkpoint structure.
- * Legacy checkpoints stored each task's checkpoints in a separate git repository
- * under the tasks/{taskId}/checkpoints directory. New checkpoints use a single
- * repository with branches per task.
- *
- * @param globalStoragePath - The VS Code global storage path
- * @param taskId - The ID of the task to check
- * @returns Promise<boolean> True if task uses legacy checkpoint structure, false otherwise
- *
- * Legacy path structure:
- * globalStorage/
- *   tasks/
- *     {taskId}/
- *       checkpoints/
- *         .git/
- *
- * Branch-per-task structure:
- * globalStorage/
- *   checkpoints/
- *     {cwdHash}/
- *       .git/
- */
-export async function detectLegacyCheckpoint(globalStoragePath: string | undefined, taskId: string): Promise<boolean> {
-	if (!globalStoragePath) {
-		return false
-	}
-	const legacyGitPath = path.join(globalStoragePath, "tasks", taskId, "checkpoints", ".git")
-	const isLegacy = await fileExistsAtPath(legacyGitPath)
-	console.info(`Legacy checkpoint detection result: ${isLegacy}`)
-	return isLegacy
 }

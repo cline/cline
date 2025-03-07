@@ -1,4 +1,4 @@
-import { ApiConfiguration, openRouterDefaultModelId, requestyDefaultModelId } from "../../../src/shared/api"
+import { ApiConfiguration, openRouterDefaultModelId } from "../../../src/shared/api"
 import { ModelInfo } from "../../../src/shared/api"
 export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
@@ -53,6 +53,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "cline":
+				if (!apiConfiguration.clineApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "openai":
 				if (!apiConfiguration.openAiBaseUrl || !apiConfiguration.openAiApiKey || !apiConfiguration.openAiModelId) {
 					return "You must provide a valid base URL, API key, and model ID."
@@ -83,6 +88,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid model selector."
 				}
 				break
+			case "asksage":
+				if (!apiConfiguration.asksageApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 		}
 	}
 	return undefined
@@ -91,26 +101,16 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 export function validateModelId(
 	apiConfiguration?: ApiConfiguration,
 	openRouterModels?: Record<string, ModelInfo>,
-	requestyModels?: Record<string, ModelInfo>,
 ): string | undefined {
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {
 			case "openrouter":
-				const openRouterModelId = apiConfiguration.openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
-				if (!openRouterModelId) {
+			case "cline":
+				const modelId = apiConfiguration.openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
+				if (!modelId) {
 					return "You must provide a model ID."
 				}
-				if (openRouterModels && !Object.keys(openRouterModels).includes(openRouterModelId)) {
-					// even if the model list endpoint failed, extensionstatecontext will always have the default model info
-					return "The model ID you provided is not available. Please choose a different model."
-				}
-				break
-			case "requesty":
-				const requestyModelId = apiConfiguration.requestyModelId || requestyDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
-				if (!requestyModelId) {
-					return "You must provide a model ID."
-				}
-				if (requestyModels && !Object.keys(requestyModels).includes(requestyModelId)) {
+				if (openRouterModels && !Object.keys(openRouterModels).includes(modelId)) {
 					// even if the model list endpoint failed, extensionstatecontext will always have the default model info
 					return "The model ID you provided is not available. Please choose a different model."
 				}

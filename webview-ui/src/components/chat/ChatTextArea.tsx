@@ -214,7 +214,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const { filePaths, chatSettings, apiConfiguration, openRouterModels, requestyModels, platform } = useExtensionState()
+		const { filePaths, chatSettings, apiConfiguration, openRouterModels, platform } = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 
@@ -635,14 +635,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Separate the API config submission logic
 		const submitApiConfig = useCallback(() => {
 			const apiValidationResult = validateApiConfiguration(apiConfiguration)
-			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels, requestyModels)
+			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
 			if (!apiValidationResult && !modelIdValidationResult) {
 				vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			} else {
 				vscode.postMessage({ type: "getLatestState" })
 			}
-		}, [apiConfiguration, openRouterModels, requestyModels])
+		}, [apiConfiguration, openRouterModels])
 
 		const onModeToggle = useCallback(() => {
 			// if (textAreaDisabled) return
@@ -742,6 +742,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const unknownModel = "unknown"
 			if (!apiConfiguration) return unknownModel
 			switch (selectedProvider) {
+				case "cline":
+					return `${selectedProvider}:${selectedModelId}`
 				case "openai":
 					return `openai-compat:${selectedModelId}`
 				case "vscode-lm":

@@ -31,16 +31,6 @@ import { GIT_DISABLED_SUFFIX } from "./CheckpointGitOperations"
  */
 
 /**
- * Interface representing the result of a file exclusion check
- */
-interface ExclusionResult {
-	/** Whether the file should be excluded */
-	excluded: boolean
-	/** Optional reason for exclusion */
-	reason?: string
-}
-
-/**
  * Returns the default list of file and directory patterns to exclude from checkpoints.
  * Combines built-in patterns with workspace-specific LFS patterns.
  *
@@ -129,7 +119,7 @@ function getMediaFilePatterns(): string[] {
 		"*.webp",
 		"*.tiff",
 		"*.tif",
-		"*.svg",
+		// "*.svg",
 		"*.raw",
 		"*.heic",
 		"*.avif",

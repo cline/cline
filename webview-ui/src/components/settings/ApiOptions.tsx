@@ -6,49 +6,50 @@ import {
 	VSCodeRadio,
 	VSCodeRadioGroup,
 	VSCodeTextField,
+	VSCodeButton,
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { useEvent, useInterval } from "react-use"
+import styled from "styled-components"
+import * as vscodemodels from "vscode"
 import {
-	ApiConfiguration,
-	ApiProvider,
-	ModelInfo,
 	anthropicDefaultModelId,
 	anthropicModels,
+	ApiConfiguration,
+	ApiProvider,
 	azureOpenAiDefaultApiVersion,
 	bedrockDefaultModelId,
 	bedrockModels,
 	deepSeekDefaultModelId,
 	deepSeekModels,
-	qwenDefaultModelId,
-	qwenModels,
 	geminiDefaultModelId,
 	geminiModels,
 	mistralDefaultModelId,
 	mistralModels,
+	ModelInfo,
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
-	requestyDefaultModelId,
-	requestyDefaultModelInfo,
+	qwenDefaultModelId,
+	qwenModels,
 	vertexDefaultModelId,
 	vertexModels,
+	askSageModels,
+	askSageDefaultModelId,
+	askSageDefaultURL,
 	xaiDefaultModelId,
 	xaiModels,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
-import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import OpenRouterModelPicker from "./OpenRouterModelPicker"
-import RequestyModelPicker from "./RequestyModelPicker"
-import ModelDescriptionMarkdown from "./ModelDescriptionMarkdown"
-import styled from "styled-components"
-import * as vscodemodels from "vscode"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
+import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
+import AccountView, { ClineAccountView } from "../account/AccountView"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -58,7 +59,7 @@ interface ApiOptionsProps {
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
-const DROPDOWN_Z_INDEX = 1001 // Higher than the Requesty/OpenRouterModelPicker's and ModelSelectorTooltip's z-index
+const DROPDOWN_Z_INDEX = 1001 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
 
 const DropdownContainer = styled.div<{ zIndex?: number }>`
 	position: relative;
@@ -186,6 +187,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						minWidth: 130,
 						position: "relative",
 					}}>
+					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
@@ -202,9 +204,45 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
+					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">X AI</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
+
+			{selectedProvider === "cline" && (
+				<div style={{ marginBottom: 8, marginTop: 4 }}>
+					<ClineAccountView />
+				</div>
+			)}
+
+			{selectedProvider === "asksage" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.asksageApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("asksageApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>AskSage API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+					</p>
+					<VSCodeTextField
+						value={apiConfiguration?.asksageApiUrl || askSageDefaultURL}
+						style={{ width: "100%" }}
+						type="url"
+						onInput={handleInputChange("asksageApiUrl")}
+						placeholder="Enter AskSage API URL...">
+						<span style={{ fontWeight: 500 }}>AskSage API URL</span>
+					</VSCodeTextField>
+				</div>
+			)}
 
 			{selectedProvider === "anthropic" && (
 				<div>
@@ -541,17 +579,35 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
 						</VSCodeDropdown>
 					</DropdownContainer>
-					<VSCodeCheckbox
-						checked={apiConfiguration?.awsUseCrossRegionInference || false}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							setApiConfiguration({
-								...apiConfiguration,
-								awsUseCrossRegionInference: isChecked,
-							})
-						}}>
-						Use cross-region inference
-					</VSCodeCheckbox>
+					<div style={{ display: "flex", flexDirection: "column" }}>
+						<VSCodeCheckbox
+							checked={apiConfiguration?.awsUseCrossRegionInference || false}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								setApiConfiguration({
+									...apiConfiguration,
+									awsUseCrossRegionInference: isChecked,
+								})
+							}}>
+							Use cross-region inference
+						</VSCodeCheckbox>
+
+						{selectedModelInfo.supportsPromptCache && (
+							<>
+								<VSCodeCheckbox
+									checked={apiConfiguration?.awsBedrockUsePromptCache || false}
+									onChange={(e: any) => {
+										const isChecked = e.target.checked === true
+										setApiConfiguration({
+											...apiConfiguration,
+											awsBedrockUsePromptCache: isChecked,
+										})
+									}}>
+									Use prompt caching (Beta)
+								</VSCodeCheckbox>
+							</>
+						)}
+					</div>
 					<p
 						style={{
 							fontSize: "12px",
@@ -849,7 +905,24 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
-					{!apiConfiguration?.requestyApiKey && <a href="https://app.requesty.ai/manage-api">Get API Key</a>}
+					<VSCodeTextField
+						value={apiConfiguration?.requestyModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("requestyModelId")}
+						placeholder={"Enter Model ID..."}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						<span style={{ color: "var(--vscode-errorForeground)" }}>
+							(<span style={{ fontWeight: 500 }}>Note:</span> Cline uses complex prompts and works best with Claude
+							models. Less capable models may not work as expected.)
+						</span>
+					</p>
 				</div>
 			)}
 
@@ -1069,6 +1142,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={"e.g. llama3.1"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.ollamaApiOptionsCtxNum || "32768"}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("ollamaApiOptionsCtxNum")}
+						placeholder={"e.g. 32768"}>
+						<span style={{ fontWeight: 500 }}>Model Context Window</span>
+					</VSCodeTextField>
 					{ollamaModels.length > 0 && (
 						<VSCodeRadioGroup
 							value={
@@ -1165,11 +1245,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{selectedProvider !== "openrouter" &&
-				selectedProvider !== "requesty" &&
+				selectedProvider !== "cline" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
 				selectedProvider !== "lmstudio" &&
 				selectedProvider !== "vscode-lm" &&
+				selectedProvider !== "litellm" &&
+				selectedProvider !== "requesty" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -1184,10 +1266,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
 							{selectedProvider === "qwen" && createDropdown(qwenModels)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
+							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 						</DropdownContainer>
 
-						{selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219" && (
+						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
+							(selectedProvider === "bedrock" && selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
+							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
 							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						)}
 
@@ -1201,8 +1286,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</>
 				)}
 
-			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker isPopup={isPopup} />}
-			{selectedProvider === "requesty" && showModelOptions && <RequestyModelPicker isPopup={isPopup} />}
+			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
+				<OpenRouterModelPicker isPopup={isPopup} />
+			)}
 
 			{modelIdErrorMessage && (
 				<p
@@ -1400,17 +1486,19 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(qwenModels, qwenDefaultModelId)
 		case "mistral":
 			return getProviderData(mistralModels, mistralDefaultModelId)
+		case "asksage":
+			return getProviderData(askSageModels, askSageDefaultModelId)
 		case "openrouter":
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
 				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
 			}
-		case "requesty":
+		case "cline":
 			return {
 				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.requestyModelId || requestyDefaultModelId,
-				selectedModelInfo: apiConfiguration?.requestyModelInfo || requestyDefaultModelInfo,
+				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
+				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
 			}
 		case "openai":
 			return {

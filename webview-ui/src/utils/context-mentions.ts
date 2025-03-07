@@ -180,7 +180,9 @@ export function getContextMenuOptions(
 		const seen = new Set()
 		const deduped = allItems.filter((item) => {
 			const key = `${item.type}-${item.value}`
-			if (seen.has(key)) return false
+			if (seen.has(key)) {
+				return false
+			}
 			seen.add(key)
 			return true
 		})
@@ -195,18 +197,26 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
 	const beforeCursor = text.slice(0, position)
 	const atIndex = beforeCursor.lastIndexOf("@")
 
-	if (atIndex === -1) return false
+	if (atIndex === -1) {
+		return false
+	}
 
 	const textAfterAt = beforeCursor.slice(atIndex + 1)
 
 	// Check if there's any whitespace after the '@'
-	if (/\s/.test(textAfterAt)) return false
+	if (/\s/.test(textAfterAt)) {
+		return false
+	}
 
 	// Don't show the menu if it's a URL
-	if (textAfterAt.toLowerCase().startsWith("http")) return false
+	if (textAfterAt.toLowerCase().startsWith("http")) {
+		return false
+	}
 
 	// Don't show the menu if it's a problems or terminal
-	if (textAfterAt.toLowerCase().startsWith("problems") || textAfterAt.toLowerCase().startsWith("terminal")) return false
+	if (textAfterAt.toLowerCase().startsWith("problems") || textAfterAt.toLowerCase().startsWith("terminal")) {
+		return false
+	}
 
 	// NOTE: it's okay that menu shows when there's trailing punctuation since user could be inputting a path with marks
 

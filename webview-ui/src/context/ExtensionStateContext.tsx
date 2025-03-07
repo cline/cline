@@ -2,14 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { useEvent } from "react-use"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../src/shared/AutoApprovalSettings"
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "../../../src/shared/ExtensionMessage"
-import {
-	ApiConfiguration,
-	ModelInfo,
-	openRouterDefaultModelId,
-	openRouterDefaultModelInfo,
-	requestyDefaultModelId,
-	requestyDefaultModelInfo,
-} from "../../../src/shared/api"
+import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpMarketplaceCatalog, McpServer } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
@@ -23,7 +16,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	showWelcome: boolean
 	theme: any
 	openRouterModels: Record<string, ModelInfo>
-	requestyModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
@@ -47,7 +39,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
-		isLoggedIn: false,
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
 		vscMachineId: "",
@@ -58,9 +49,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [filePaths, setFilePaths] = useState<string[]>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
-	})
-	const [requestyModels, setRequestyModels] = useState<Record<string, ModelInfo>>({
-		[requestyDefaultModelId]: requestyDefaultModelInfo,
 	})
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
@@ -76,7 +64,6 @@ export const ExtensionStateContextProvider: React.FC<{
 					? [
 							config.apiKey,
 							config.openRouterApiKey,
-							config.requestyApiKey,
 							config.awsRegion,
 							config.vertexProjectId,
 							config.openAiApiKey,
@@ -91,6 +78,8 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.qwenApiKey,
 							config.mistralApiKey,
 							config.vsCodeLmModelSelector,
+							config.clineApiKey,
+							config.asksageApiKey,
 							config.xaiApiKey,
 						].some((key) => key !== undefined)
 					: false
@@ -119,14 +108,6 @@ export const ExtensionStateContextProvider: React.FC<{
 						return { ...prevState, clineMessages: newClineMessages }
 					}
 					return prevState
-				})
-				break
-			}
-			case "requestyModels": {
-				const updatedModels = message.requestyModels ?? {}
-				setRequestyModels({
-					[requestyDefaultModelId]: requestyDefaultModelInfo, // in case the extension sent a model list without the default model
-					...updatedModels,
 				})
 				break
 			}
@@ -168,7 +149,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		showWelcome,
 		theme,
 		openRouterModels,
-		requestyModels,
 		openAiModels,
 		mcpServers,
 		mcpMarketplaceCatalog,

@@ -22,13 +22,12 @@ export interface ExtensionMessage {
 		| "invoke"
 		| "partialMessage"
 		| "openRouterModels"
-		| "requestyModels"
 		| "openAiModels"
 		| "mcpServers"
 		| "relinquishControl"
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
-		| "emailSubscribed"
+		| "authCallback"
 		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
 		| "commitSearchResults"
@@ -43,7 +42,7 @@ export interface ExtensionMessage {
 		| "didBecomeVisible"
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
-	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
+	invoke?: Invoke
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]
@@ -52,9 +51,9 @@ export interface ExtensionMessage {
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
-	requestyModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
+	customToken?: string
 	mcpMarketplaceCatalog?: McpMarketplaceCatalog
 	error?: string
 	mcpDownloadDetails?: McpDownloadResponse
@@ -70,6 +69,8 @@ export interface ExtensionMessage {
 	url?: string
 	isImage?: boolean
 }
+
+export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
 
@@ -88,7 +89,6 @@ export interface ExtensionState {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
-	isLoggedIn: boolean
 	platform: Platform
 	userInfo?: {
 		displayName: string | null

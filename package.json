@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.4.10",
+	"version": "3.6.1",
 	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
 		"color": "#617A91",
@@ -211,11 +211,6 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
-				},
-				"cline.modelSettings.anthropic.thinkingBudgetTokens": {
-					"type": "number",
-					"default": 0,
-					"description": "Controls the token budget for Claude's thinking capability. Set to 0 to disable thinking. When enabled, must be ≥1024 and less than the model's max token output."
 				}
 			}
 		}
@@ -231,7 +226,7 @@
 		"watch-tests": "tsc -p . -w --outDir out",
 		"pretest": "npm run compile-tests && npm run compile && npm run lint",
 		"check-types": "tsc --noEmit",
-		"lint": "eslint src --ext ts",
+		"lint": "eslint src --ext ts && eslint webview-ui/src --ext ts",
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
 		"test": "vscode-test",
@@ -252,6 +247,7 @@
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
 		"@types/should": "^11.2.0",
+		"@types/sinon": "^17.0.4",
 		"@types/vscode": "^1.84.0",
 		"@typescript-eslint/eslint-plugin": "^7.14.1",
 		"@typescript-eslint/parser": "^7.11.0",
@@ -264,12 +260,14 @@
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
 		"should": "^13.2.3",
+		"sinon": "^19.0.2",
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
 		"@anthropic-ai/bedrock-sdk": "^0.12.4",
 		"@anthropic-ai/sdk": "^0.37.0",
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
+		"@google-cloud/vertexai": "^1.9.3",
 		"@google/generative-ai": "^0.18.0",
 		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.0.1",
@@ -294,6 +292,7 @@
 		"isbinaryfile": "^5.0.2",
 		"mammoth": "^1.8.0",
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
+		"ollama": "^0.5.13",
 		"open-graph-scraper": "^6.9.0",
 		"openai": "^4.83.0",
 		"os-name": "^6.0.0",
