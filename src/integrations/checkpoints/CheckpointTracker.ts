@@ -3,6 +3,7 @@ import * as path from "path"
 import simpleGit from "simple-git"
 import * as vscode from "vscode"
 import { HistoryItem } from "../../shared/HistoryItem"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { GitOperations } from "./CheckpointGitOperations"
 import { getShadowGitPath, hashWorkingDir, getWorkingDirectory } from "./CheckpointUtils"
 
@@ -113,7 +114,11 @@ class CheckpointTracker {
 			// Branch-per-task structure
 			const gitPath = await getShadowGitPath(newTracker.globalStoragePath, newTracker.taskId, newTracker.cwdHash)
 			await newTracker.gitOperations.initShadowGit(gitPath, workingDir)
+
+			telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized")
+
 			await newTracker.gitOperations.switchToTaskBranch(newTracker.taskId, gitPath)
+
 			return newTracker
 		} catch (error) {
 			console.error("Failed to create CheckpointTracker:", error)
@@ -168,6 +173,7 @@ class CheckpointTracker {
 			})
 			const commitHash = result.commit || ""
 			console.warn(`Checkpoint commit created.`)
+			telemetryService.captureCheckpointUsage(this.taskId, "commit_created")
 			return commitHash
 		} catch (error) {
 			console.error("Failed to create checkpoint:", {
@@ -241,6 +247,7 @@ class CheckpointTracker {
 		await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
 		await git.reset(["--hard", commitHash]) // Hard reset to target commit
 		console.debug(`Successfully reset to checkpoint: ${commitHash}`)
+		telemetryService.captureCheckpointUsage(this.taskId, "restored")
 	}
 
 	/**

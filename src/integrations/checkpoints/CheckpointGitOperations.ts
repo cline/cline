@@ -3,6 +3,7 @@ import { globby } from "globby"
 import * as path from "path"
 import simpleGit, { SimpleGit } from "simple-git"
 import { HistoryItem } from "../../shared/HistoryItem"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { fileExistsAtPath } from "../../utils/fs"
 import { getLfsPatterns, writeExcludesFile } from "./CheckpointExclusions"
 import { getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
@@ -272,6 +273,14 @@ export class GitOperations {
 				if (branches.all.includes(branchName)) {
 					console.info(`Found branch ${branchName} to delete`)
 					await GitOperations.deleteBranchForGit(git, branchName)
+
+					// Determine if the task is active based on whether we had to use the stored worktree path
+					const isTaskActive = !historyItem.shadowGitConfigWorkTree
+					telemetryService.captureCheckpointUsage(
+						taskId,
+						isTaskActive ? "branch_deleted_active" : "branch_deleted_inactive",
+					)
+
 					return
 				}
 				console.warn(`Branch ${branchName} not found in branch-per-task repository`)
@@ -356,6 +365,7 @@ export class GitOperations {
 		if (!branches.all.includes(branchName)) {
 			console.info(`Creating new task branch: ${branchName}`)
 			await git.checkoutLocalBranch(branchName)
+			telemetryService.captureCheckpointUsage(taskId, "branch_created")
 		} else {
 			console.info(`Switching to existing task branch: ${branchName}`)
 			await git.checkout(branchName)
