@@ -1,18 +1,23 @@
 # Roo Code Changelog
 
-## 3.8.0
+## [3.8.0]
 
-### Minor Changes
-
-- v3.8
-
-### Patch Changes
-
-- Disable repo-per-workspace checkpoints
-- Remove item number from history preview cards
-- Add credentials auth for Google vertex
-- Handle outputless commands
-- Improved observability of openai compatible APIs, by sending x-title and http-referer headers, as per Open Router standard.
+- Add opt-in telemetry to help us improve Roo Code faster (thanks Cline!)
+- Fix terminal overload / gray screen of death, and other terminal issues
+- Add a new experimental diff editing strategy that applies multiple diff edits at once #1234 (thanks @qdaxb!)
+- Add support for a .rooignore to prevent Roo Code from read/writing certain files, with a setting to also exclude them from search/lists (thanks Cline!)
+- Update the new_task tool to return results to the parent task on completion, supporting better orchestration (thanks @shaybc!)
+- Support running Roo in multiple editor windows simultaneously (thanks @samhvw8!)
+- Make checkpoints asynchronous and exclude more files to speed them up
+- Redesign the settings page to make it easier to navigate
+- Add credential-based authentication for Vertex AI, enabling users to easily switch between Google Cloud accounts (thanks @eonghk!)
+- Update the DeepSeek provider with the correct baseUrl and track caching correctly (thanks @olweraltuve!)
+- Add a new “Human Relay” provider that allows you to manually copy information to a Web AI when needed, and then paste the AI's response back into Roo Code (thanks @NyxJae)!
+- Add observability for OpenAI providers (thanks @refactorthis!)
+- Support speculative decoding for LM Studio local models (thanks @adamwlarson!)
+- Improve UI for mode/provider selectors in chat
+- Improve styling of the task headers (thanks @monotykamary!)
+- Improve context mention path handling on Windows (thanks @samhvw8!)
 
 ## [3.7.12]
 
