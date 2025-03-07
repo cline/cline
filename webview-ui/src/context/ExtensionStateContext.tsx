@@ -9,6 +9,7 @@ import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
+import { TelemetrySetting } from "../../../src/shared/TelemetrySetting"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -21,6 +22,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	filePaths: string[]
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
+	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 }
 
@@ -37,8 +39,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
-		isLoggedIn: false,
 		platform: DEFAULT_PLATFORM,
+		telemetrySetting: "unset",
+		vscMachineId: "",
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -75,6 +78,9 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.qwenApiKey,
 							config.mistralApiKey,
 							config.vsCodeLmModelSelector,
+							config.clineApiKey,
+							config.asksageApiKey,
+							config.xaiApiKey,
 							config.sapAiCoreClientId,
 						].some((key) => key !== undefined)
 					: false
@@ -157,6 +163,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				customInstructions: value,
+			})),
+		setTelemetrySetting: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				telemetrySetting: value,
 			})),
 		setShowAnnouncement: (value) =>
 			setState((prevState) => ({

@@ -7,6 +7,8 @@ import { Logger } from "./services/logging/Logger"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
+import assert from "node:assert"
+import { telemetryService } from "./services/telemetry/TelemetryService"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -160,10 +162,12 @@ export function activate(context: vscode.ExtensionContext) {
 			case "/auth": {
 				const token = query.get("token")
 				const state = query.get("state")
+				const apiKey = query.get("apiKey")
 
 				console.log("Auth callback received:", {
 					token: token,
 					state: state,
+					apiKey: apiKey,
 				})
 
 				// Validate state parameter
@@ -172,8 +176,8 @@ export function activate(context: vscode.ExtensionContext) {
 					return
 				}
 
-				if (token) {
-					await visibleProvider.handleAuthCallback(token)
+				if (token && apiKey) {
+					await visibleProvider.handleAuthCallback(token, apiKey)
 				}
 				break
 			}
@@ -188,5 +192,25 @@ export function activate(context: vscode.ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export function deactivate() {
+	telemetryService.shutdown()
 	Logger.log("Cline extension deactivated")
+}
+
+// TODO: Find a solution for automatically removing DEV related content from production builds.
+//  This type of code is fine in production to keep. We just will want to remove it from production builds
+//  to bring down built asset sizes.
+//
+// This is a workaround to reload the extension when the source code changes
+// since vscode doesn't support hot reload for extensions
+const { IS_DEV, DEV_WORKSPACE_FOLDER } = process.env
+
+if (IS_DEV && IS_DEV !== "false") {
+	assert(DEV_WORKSPACE_FOLDER, "DEV_WORKSPACE_FOLDER must be set in development")
+	const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(DEV_WORKSPACE_FOLDER, "src/**/*"))
+
+	watcher.onDidChange(({ scheme, path }) => {
+		console.info(`${scheme} ${path} changed. Reloading VSCode...`)
+
+		vscode.commands.executeCommand("workbench.action.reloadWindow")
+	})
 }

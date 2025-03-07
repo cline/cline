@@ -33,7 +33,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<li>
 					<b>Introducing MCP Marketplace:</b> Discover and install the best MCP servers right from the extension, with
 					new servers added regularly! Get started by going to the{" "}
-					<span className="codicon codicon-server" style={{ marginRight: "4px", fontSize: 10 }}></span>
+					<span className="codicon codicon-extensions" style={{ marginRight: "4px", fontSize: 10 }}></span>
 					<VSCodeLink
 						onClick={() => {
 							vscode.postMessage({ type: "showMcpView" })
@@ -56,6 +56,9 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					task.
 				</li>
 			</ul>
+			<VSCodeLink href="https://x.com/sdrzn/status/1892262424881090721" style={{ display: "inline" }}>
+				See a demo of the changes here!
+			</VSCodeLink>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
@@ -112,9 +115,12 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				}}
 			/>
 			<p style={{ margin: "0" }}>
-				Join our{" "}
+				Join us on{" "}
+				<VSCodeLink style={{ display: "inline" }} href="https://x.com/cline">
+					X,
+				</VSCodeLink>{" "}
 				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
-					discord
+					discord,
 				</VSCodeLink>{" "}
 				or{" "}
 				<VSCodeLink style={{ display: "inline" }} href="https://www.reddit.com/r/cline/">

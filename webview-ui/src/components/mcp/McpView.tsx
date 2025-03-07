@@ -1,90 +1,48 @@
-import { VSCodeButton, VSCodeLink, VSCodePanels, VSCodePanelTab, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
-import { useState, useEffect } from "react"
-import { vscode } from "../../utils/vscode"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { McpServer } from "../../../../src/shared/mcp"
-import McpToolRow from "./McpToolRow"
-import McpResourceRow from "./McpResourceRow"
-import McpMarketplaceView from "./marketplace/McpMarketplaceView"
+import {
+	VSCodeButton,
+	VSCodeLink,
+	VSCodePanels,
+	VSCodePanelTab,
+	VSCodePanelView,
+	VSCodeDropdown,
+	VSCodeOption,
+} from "@vscode/webview-ui-toolkit/react"
+import { useEffect, useState } from "react"
 import styled from "styled-components"
+import { DEFAULT_MCP_TIMEOUT_SECONDS, McpServer } from "../../../../src/shared/mcp"
+import { useExtensionState } from "../../context/ExtensionStateContext"
 import { getMcpServerDisplayName } from "../../utils/mcp"
+import { vscode } from "../../utils/vscode"
+import DangerButton from "../common/DangerButton"
+import McpMarketplaceView from "./marketplace/McpMarketplaceView"
+import McpResourceRow from "./McpResourceRow"
+import McpToolRow from "./McpToolRow"
 
 type McpViewProps = {
 	onDone: () => void
 }
 
 const McpView = ({ onDone }: McpViewProps) => {
-	const { mcpServers: servers } = useExtensionState()
-	const [activeTab, setActiveTab] = useState("marketplace")
+	const { mcpServers: servers, mcpMarketplaceEnabled } = useExtensionState()
+	const [activeTab, setActiveTab] = useState(mcpMarketplaceEnabled ? "marketplace" : "installed")
 
 	const handleTabChange = (tab: string) => {
 		setActiveTab(tab)
 	}
 
 	useEffect(() => {
-		vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" })
-	}, [])
+		if (!mcpMarketplaceEnabled && activeTab === "marketplace") {
+			// If marketplace is disabled and we're on marketplace tab, switch to installed
+			setActiveTab("installed")
+		}
+	}, [mcpMarketplaceEnabled, activeTab])
 
-	// const [servers, setServers] = useState<McpServer[]>([
-	// 	// Add some mock servers for testing
-	// 	{
-	// 		name: "local-tools",
-	// 		config: JSON.stringify({
-	// 			mcpServers: {
-	// 				"local-tools": {
-	// 					command: "npx",
-	// 					args: ["-y", "@modelcontextprotocol/server-tools"],
-	// 				},
-	// 			},
-	// 		}),
-	// 		status: "connected",
-	// 		tools: [
-	// 			{
-	// 				name: "execute_command",
-	// 				description: "Run a shell command on the local system",
-	// 			},
-	// 			{
-	// 				name: "read_file",
-	// 				description: "Read contents of a file from the filesystem",
-	// 			},
-	// 		],
-	// 	},
-	// 	{
-	// 		name: "postgres-db",
-	// 		config: JSON.stringify({
-	// 			mcpServers: {
-	// 				"postgres-db": {
-	// 					command: "npx",
-	// 					args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"],
-	// 				},
-	// 			},
-	// 		}),
-	// 		status: "disconnected",
-	// 		error: "Failed to connect to database: Connection refused",
-	// 	},
-	// 	{
-	// 		name: "github-tools",
-	// 		config: JSON.stringify({
-	// 			mcpServers: {
-	// 				"github-tools": {
-	// 					command: "npx",
-	// 					args: ["-y", "@modelcontextprotocol/server-github"],
-	// 				},
-	// 			},
-	// 		}),
-	// 		status: "connecting",
-	// 		resources: [
-	// 			{
-	// 				uri: "github://repo/issues",
-	// 				name: "Repository Issues",
-	// 			},
-	// 			{
-	// 				uri: "github://repo/pulls",
-	// 				name: "Pull Requests",
-	// 			},
-	// 		],
-	// 	},
-	// ])
+	useEffect(() => {
+		if (mcpMarketplaceEnabled) {
+			vscode.postMessage({ type: "silentlyRefreshMcpMarketplace" })
+			vscode.postMessage({ type: "fetchLatestMcpServersFromHub" })
+		}
+	}, [mcpMarketplaceEnabled])
 
 	return (
 		<div
@@ -117,9 +75,11 @@ const McpView = ({ onDone }: McpViewProps) => {
 						padding: "0 20px 0 20px",
 						borderBottom: "1px solid var(--vscode-panel-border)",
 					}}>
-					<TabButton isActive={activeTab === "marketplace"} onClick={() => handleTabChange("marketplace")}>
-						Marketplace
-					</TabButton>
+					{mcpMarketplaceEnabled && (
+						<TabButton isActive={activeTab === "marketplace"} onClick={() => handleTabChange("marketplace")}>
+							Marketplace
+						</TabButton>
+					)}
 					<TabButton isActive={activeTab === "installed"} onClick={() => handleTabChange("installed")}>
 						Installed
 					</TabButton>
@@ -127,7 +87,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 
 				{/* Content container */}
 				<div style={{ width: "100%" }}>
-					{activeTab === "marketplace" && <McpMarketplaceView />}
+					{mcpMarketplaceEnabled && activeTab === "marketplace" && <McpMarketplaceView />}
 					{activeTab === "installed" && (
 						<div style={{ padding: "16px 20px" }}>
 							<div
@@ -171,14 +131,11 @@ const McpView = ({ onDone }: McpViewProps) => {
 										flexDirection: "column",
 										alignItems: "center",
 										gap: "12px",
-										marginTop: "20px",
+										marginTop: 20,
+										marginBottom: 20,
 										color: "var(--vscode-descriptionForeground)",
 									}}>
-									<div>No MCP servers installed yet</div>
-									<VSCodeButton appearance="primary" onClick={() => setActiveTab("marketplace")}>
-										<span className="codicon codicon-cloud-download" style={{ marginRight: "6px" }} />
-										Browse Marketplace
-									</VSCodeButton>
+									No MCP servers installed
 								</div>
 							)}
 
@@ -242,6 +199,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 	const { mcpMarketplaceCatalog } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
+	const [isDeleting, setIsDeleting] = useState(false)
 
 	const getStatusColor = () => {
 		switch (server.status) {
@@ -260,10 +218,48 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		}
 	}
 
+	const [timeoutValue, setTimeoutValue] = useState<string>(() => {
+		try {
+			const config = JSON.parse(server.config)
+			return config.timeout?.toString() || DEFAULT_MCP_TIMEOUT_SECONDS.toString()
+		} catch {
+			return DEFAULT_MCP_TIMEOUT_SECONDS.toString()
+		}
+	})
+
+	const timeoutOptions = [
+		{ value: "30", label: "30 seconds" },
+		{ value: "60", label: "1 minute" },
+		{ value: "300", label: "5 minutes" },
+		{ value: "600", label: "10 minutes" },
+		{ value: "1800", label: "30 minutes" },
+		{ value: "3600", label: "1 hour" },
+	]
+
+	const handleTimeoutChange = (e: any) => {
+		const select = e.target as HTMLSelectElement
+		const value = select.value
+		const num = parseInt(value)
+		setTimeoutValue(value)
+		vscode.postMessage({
+			type: "updateMcpTimeout",
+			serverName: server.name,
+			timeout: num,
+		})
+	}
+
 	const handleRestart = () => {
 		vscode.postMessage({
 			type: "restartMcpServer",
 			text: server.name,
+		})
+	}
+
+	const handleDelete = () => {
+		setIsDeleting(true)
+		vscode.postMessage({
+			type: "deleteMcpServer",
+			serverName: server.name,
 		})
 	}
 
@@ -452,6 +448,16 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							</VSCodePanelView>
 						</VSCodePanels>
 
+						<div style={{ margin: "10px 7px" }}>
+							<label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>Request Timeout</label>
+							<VSCodeDropdown style={{ width: "100%" }} value={timeoutValue} onChange={handleTimeoutChange}>
+								{timeoutOptions.map((option) => (
+									<VSCodeOption key={option.value} value={option.value}>
+										{option.label}
+									</VSCodeOption>
+								))}
+							</VSCodeDropdown>
+						</div>
 						<VSCodeButton
 							appearance="secondary"
 							onClick={handleRestart}
@@ -462,6 +468,16 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							}}>
 							{server.status === "connecting" ? "Restarting..." : "Restart Server"}
 						</VSCodeButton>
+
+						<DangerButton
+							onClick={handleDelete}
+							disabled={isDeleting}
+							style={{
+								width: "calc(100% - 14px)",
+								margin: "5px 7px 3px 7px",
+							}}>
+							{isDeleting ? "Deleting..." : "Delete Server"}
+						</DangerButton>
 					</div>
 				)
 			)}

@@ -35,7 +35,9 @@ export function findMatchingResourceOrTemplate(
 ): McpResource | McpResourceTemplate | undefined {
 	// First try to find an exact resource match
 	const exactMatch = resources.find((resource) => resource.uri === uri)
-	if (exactMatch) return exactMatch
+	if (exactMatch) {
+		return exactMatch
+	}
 
 	// If no exact match, try to find a matching template
 	return findMatchingTemplate(uri, templates)
@@ -50,14 +52,6 @@ export function findMatchingResourceOrTemplate(
 export function getMcpServerDisplayName(serverName: string, mcpMarketplaceCatalog: McpMarketplaceCatalog): string {
 	// Find matching item in marketplace catalog
 	const catalogItem = mcpMarketplaceCatalog.items.find((item) => item.mcpId === serverName)
-	// Log if no matching catalog item found
-	if (!catalogItem) {
-		console.warn(`No marketplace catalog item found for MCP server: ${serverName}`)
-	} else {
-		console.log(`Found marketplace catalog item for MCP server: ${serverName}`, catalogItem)
-	}
-
-	console.log(mcpMarketplaceCatalog)
 
 	// Return display name if found, otherwise return original server name
 	return catalogItem?.name || serverName

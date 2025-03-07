@@ -2,6 +2,7 @@ import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
+import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
 
 export interface WebviewMessage {
@@ -22,6 +23,7 @@ export interface WebviewMessage {
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
 		| "openImage"
+		| "openInBrowser"
 		| "openFile"
 		| "openMention"
 		| "cancelTask"
@@ -29,9 +31,10 @@ export interface WebviewMessage {
 		| "refreshOpenAiModels"
 		| "openMcpSettings"
 		| "restartMcpServer"
+		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
-		| "chatSettings"
+		| "togglePlanActMode"
 		| "checkpointDiff"
 		| "checkpointRestore"
 		| "taskCompletionViewChanges"
@@ -42,12 +45,20 @@ export interface WebviewMessage {
 		| "getLatestState"
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
-		| "subscribeEmail"
+		| "authStateChanged"
+		| "authCallback"
 		| "fetchMcpMarketplace"
 		| "downloadMcp"
 		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
 		| "showMcpView"
+		| "fetchLatestMcpServersFromHub"
+		| "telemetrySetting"
+		| "openSettings"
+		| "updateMcpTimeout"
+		| "fetchOpenGraphData"
+		| "checkIsImageUrl"
+		| "invoke"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -61,11 +72,17 @@ export interface WebviewMessage {
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent
 	mcpId?: string
-
+	timeout?: number
 	// For toggleToolAutoApprove
 	serverName?: string
 	toolName?: string
 	autoApprove?: boolean
+
+	// For auth
+	user?: UserInfo | null
+	customToken?: string
+	// For openInBrowser
+	url?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

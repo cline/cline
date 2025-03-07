@@ -5,25 +5,73 @@ import styled from "styled-components"
 import { vscode } from "../../utils/vscode"
 
 const MERMAID_THEME = {
-	background: "#1e1e1e",
-	textColor: "#ffffff",
-	mainBkg: "#2d2d2d",
-	lineColor: "#cccccc",
-	primaryColor: "#3c3c3c",
+	background: "#1e1e1e", // VS Code dark theme background
+	textColor: "#ffffff", // Main text color
+	mainBkg: "#2d2d2d", // Background for nodes
+	nodeBorder: "#888888", // Border color for nodes
+	lineColor: "#cccccc", // Lines connecting nodes
+	primaryColor: "#3c3c3c", // Primary color for highlights
+	primaryTextColor: "#ffffff", // Text in primary colored elements
+	primaryBorderColor: "#888888",
+	secondaryColor: "#2d2d2d", // Secondary color for alternate elements
+	tertiaryColor: "#454545", // Third color for special elements
+
+	// Class diagram specific
+	classText: "#ffffff",
+
+	// State diagram specific
+	labelColor: "#ffffff",
+
+	// Sequence diagram specific
+	actorLineColor: "#cccccc",
+	actorBkg: "#2d2d2d",
+	actorBorder: "#888888",
+	actorTextColor: "#ffffff",
+
+	// Flow diagram specific
+	fillType0: "#2d2d2d",
+	fillType1: "#3c3c3c",
+	fillType2: "#454545",
 }
 
 mermaid.initialize({
 	startOnLoad: false,
 	securityLevel: "loose",
 	theme: "dark",
-	// themeVariables: {
-	// 	background: MERMAID_THEME.background,
-	// 	textColor: MERMAID_THEME.textColor,
-	// 	mainBkg: MERMAID_THEME.mainBkg,
-	// 	lineColor: MERMAID_THEME.lineColor,
-	// 	fontSize: "16px",
-	// 	primaryColor: MERMAID_THEME.primaryColor,
-	// },
+	themeVariables: {
+		...MERMAID_THEME,
+		fontSize: "16px",
+		fontFamily: "var(--vscode-font-family, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif)",
+
+		// Additional styling
+		noteTextColor: "#ffffff",
+		noteBkgColor: "#454545",
+		noteBorderColor: "#888888",
+
+		// Improve contrast for special elements
+		critBorderColor: "#ff9580",
+		critBkgColor: "#803d36",
+
+		// Task diagram specific
+		taskTextColor: "#ffffff",
+		taskTextOutsideColor: "#ffffff",
+		taskTextLightColor: "#ffffff",
+
+		// Numbers/sections
+		sectionBkgColor: "#2d2d2d",
+		sectionBkgColor2: "#3c3c3c",
+
+		// Alt sections in sequence diagrams
+		altBackground: "#2d2d2d",
+
+		// Links
+		linkColor: "#6cb6ff",
+
+		// Borders and lines
+		compositeBackground: "#2d2d2d",
+		compositeBorder: "#888888",
+		titleColor: "#ffffff",
+	},
 })
 
 interface MermaidBlockProps {
@@ -114,8 +162,8 @@ async function svgToPng(svgEl: SVGElement): Promise<string> {
 	// Calculate the scale factor to fit editor width while maintaining aspect ratio
 
 	// Unless we can find a way to get the actual editor window dimensions through the VS Code API (which might be possible but would require changes to the extension side),
-	// the fixed 1200px width seems like a reliable approach.
-	const editorWidth = 1200
+	// the fixed width seems like a reliable approach.
+	const editorWidth = 3_600
 
 	const scale = editorWidth / originalWidth
 	const scaledHeight = originalHeight * scale
@@ -173,4 +221,7 @@ const SvgContainer = styled.div<SvgContainerProps>`
 	opacity: ${(props) => (props.$isLoading ? 0.3 : 1)};
 	min-height: 20px;
 	transition: opacity 0.2s ease;
+	cursor: pointer;
+	display: flex;
+	justify-content: center;
 `
