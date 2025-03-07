@@ -3688,10 +3688,14 @@ export class Cline {
 				log,
 			}
 
-			const service =
-				this.checkpointStorage === "task"
-					? RepoPerTaskCheckpointService.create(options)
-					: RepoPerWorkspaceCheckpointService.create(options)
+			// Only `task` is supported at the moment until we figure out how
+			// to fully isolate the `workspace` variant.
+			// const service =
+			// 	this.checkpointStorage === "task"
+			// 		? RepoPerTaskCheckpointService.create(options)
+			// 		: RepoPerWorkspaceCheckpointService.create(options)
+
+			const service = RepoPerTaskCheckpointService.create(options)
 
 			service.on("initialize", () => {
 				try {
