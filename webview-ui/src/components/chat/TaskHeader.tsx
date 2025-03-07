@@ -175,6 +175,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								flexGrow: 1,
 								minWidth: 0, // This allows the div to shrink below its content size
 							}}>
+							<span style={{ fontWeight: "bold" }}>Task{!isTaskExpanded && ":"}</span>
 							{!isTaskExpanded && (
 								<span style={{ marginLeft: 4 }}>{highlightMentions(task.text, false)}</span>
 							)}
@@ -199,7 +200,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					<VSCodeButton
 						appearance="icon"
 						onClick={onClose}
-						style={{ marginLeft: 6, flexShrink: 0 }}
+						style={{ marginLeft: 6, flexShrink: 0, color: "var(--vscode-badge-foreground)" }}
 						title="Close task and start a new one">
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
@@ -249,9 +250,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									<div
 										style={{
 											cursor: "pointer",
-											color: "var(--vscode-textLink-foreground)",
-											paddingRight: 0,
-											paddingLeft: 3,
+											color: "var(--vscode-badge-foreground)",
+											fontSize: "11px",
+											paddingRight: 8,
+											paddingLeft: 4,
 											backgroundColor: "var(--vscode-badge-background)",
 										}}
 										onClick={() => setIsTextExpanded(!isTextExpanded)}>
