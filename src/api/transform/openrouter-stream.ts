@@ -98,7 +98,12 @@ export async function* streamOpenRouterFormatRequest(
 
 	let temperature: number | undefined = 0
 	let topP: number | undefined = undefined
-	if (model.id.startsWith("deepseek/deepseek-r1") || model.id === "perplexity/sonar-reasoning") {
+	if (
+		model.id.startsWith("deepseek/deepseek-r1") ||
+		model.id === "perplexity/sonar-reasoning" ||
+		model.id === "qwen/qwq-32b:free" ||
+		model.id === "qwen/qwq-32b"
+	) {
 		// Recommended values from DeepSeek
 		temperature = 0.7
 		topP = 0.95
