@@ -30,6 +30,10 @@ jobs:
         run: |
           npm install -g vsce ovsx
           npm run install:ci
+      - name: Create .env file
+        run: |
+          echo "# PostHog API Keys for telemetry" > .env
+          echo "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}" >> .env
       - name: Package and Publish Extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -43,6 +47,7 @@ jobs:
           echo "$package" | grep -q "dist/extension.js" || exit 1
           echo "$package" | grep -q "extension/webview-ui/build/assets/index.js" || exit 1
           echo "$package" | grep -q "extension/node_modules/@vscode/codicons/dist/codicon.ttf" || exit 1
+          echo "$package" | grep -q ".env" || exit 1
 
           npm run publish:marketplace
           echo "Successfully published version $current_package_version to VS Code Marketplace"
