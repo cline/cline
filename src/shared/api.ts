@@ -18,6 +18,7 @@ export type ApiProvider =
 	| "litellm"
 	| "asksage"
 	| "xai"
+	| "sambanova"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -66,6 +67,7 @@ export interface ApiHandlerOptions {
 	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
+	sambanovaApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -1026,5 +1028,20 @@ export const xaiModels = {
 		inputPrice: 5.0,
 		outputPrice: 15.0,
 		description: "X AI's Grok Beta model (legacy) with 131K context window",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// SambaNova
+// https://docs.sambanova.ai/cloud/docs/get-started/overview
+export type SambanovaModelId = keyof typeof sambanovaModels
+export const sambanovaDefaultModelId: SambanovaModelId = "Meta-Llama-3.3-70B-Instruct"
+export const sambanovaModels = {
+	"Meta-Llama-3.3-70B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>
