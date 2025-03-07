@@ -67,7 +67,7 @@ export const ClineAccountView = () => {
 			{user ? (
 				<div
 					style={{
-						padding: "12px 16px",
+						padding: "8px 10px",
 						border: "1px solid var(--vscode-input-border)",
 						borderRadius: "2px",
 						backgroundColor: "var(--vscode-dropdown-background)",
@@ -76,23 +76,23 @@ export const ClineAccountView = () => {
 						style={{
 							display: "flex",
 							alignItems: "center",
-							gap: "16px",
+							gap: "8px",
 						}}>
 						{user.photoURL ? (
 							<img
 								src={user.photoURL}
 								alt="Profile"
 								style={{
-									width: 48,
-									height: 48,
+									width: 38,
+									height: 38,
 									borderRadius: "50%",
 								}}
 							/>
 						) : (
 							<div
 								style={{
-									width: 48,
-									height: 48,
+									width: 38,
+									height: 38,
 									borderRadius: "50%",
 									backgroundColor: "var(--vscode-button-background)",
 									display: "flex",
@@ -129,7 +129,7 @@ export const ClineAccountView = () => {
 									{user.email}
 								</div>
 							)}
-							<div style={{ display: "flex", gap: "8px" }}>
+							<div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
 								<VSCodeButtonLink
 									href="https://app.cline.bot/account"
 									appearance="primary"
@@ -138,8 +138,8 @@ export const ClineAccountView = () => {
 										transformOrigin: "left center",
 										width: "fit-content",
 										marginTop: 2,
-										marginBottom: -2,
-										marginRight: -8,
+										marginBottom: 0,
+										marginRight: -12,
 									}}>
 									Account
 								</VSCodeButtonLink>
@@ -151,7 +151,8 @@ export const ClineAccountView = () => {
 										transformOrigin: "left center",
 										width: "fit-content",
 										marginTop: 2,
-										marginBottom: -2,
+										marginBottom: 0,
+										marginRight: -12,
 									}}>
 									Log out
 								</VSCodeButton>
