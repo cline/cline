@@ -1,7 +1,16 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
-import { ApiHandlerOptions, QwenModelId, ModelInfo, qwenDefaultModelId, qwenModels } from "../../shared/api"
+import {
+	ApiHandlerOptions,
+	ModelInfo,
+	mainlandQwenModels,
+	internationalQwenModels,
+	mainlandQwenDefaultModelId,
+	internationalQwenDefaultModelId,
+	MainlandQwenModelId,
+	InternationalQwenModelId,
+} from "../../shared/api"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
@@ -21,15 +30,21 @@ export class QwenHandler implements ApiHandler {
 		})
 	}
 
-	getModel(): { id: QwenModelId; info: ModelInfo } {
+	getModel(): { id: MainlandQwenModelId | InternationalQwenModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
-		if (modelId && modelId in qwenModels) {
-			const id = modelId as QwenModelId
-			return { id, info: qwenModels[id] }
-		}
-		return {
-			id: qwenDefaultModelId,
-			info: qwenModels[qwenDefaultModelId],
+		// Branch based on API line to let poor typescript know what to do
+		if (this.options.qwenApiLine === "china") {
+			return {
+				id: (modelId as MainlandQwenModelId) ?? mainlandQwenDefaultModelId,
+				info: mainlandQwenModels[modelId as MainlandQwenModelId] ?? mainlandQwenModels[mainlandQwenDefaultModelId],
+			}
+		} else {
+			return {
+				id: (modelId as InternationalQwenModelId) ?? internationalQwenDefaultModelId,
+				info:
+					internationalQwenModels[modelId as InternationalQwenModelId] ??
+					internationalQwenModels[internationalQwenDefaultModelId],
+			}
 		}
 	}
 
