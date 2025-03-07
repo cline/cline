@@ -1,5 +1,4 @@
 import * as path from "path"
-import crypto from "crypto"
 
 import { CheckpointServiceOptions } from "./types"
 import { ShadowCheckpointService } from "./ShadowCheckpointService"
@@ -64,7 +63,7 @@ export class RepoPerWorkspaceCheckpointService extends ShadowCheckpointService {
 	}
 
 	public static create({ taskId, workspaceDir, shadowDir, log = console.log }: CheckpointServiceOptions) {
-		const workspaceHash = crypto.createHash("sha256").update(workspaceDir).digest("hex").toString().slice(0, 8)
+		const workspaceHash = this.hashWorkspaceDir(workspaceDir)
 
 		return new RepoPerWorkspaceCheckpointService(
 			taskId,

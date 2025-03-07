@@ -8,6 +8,8 @@ import { EventEmitter } from "events"
 import { simpleGit, SimpleGit } from "simple-git"
 
 import { fileExistsAtPath } from "../../../utils/fs"
+
+import { ShadowCheckpointService } from "../ShadowCheckpointService"
 import { RepoPerTaskCheckpointService } from "../RepoPerTaskCheckpointService"
 import { RepoPerWorkspaceCheckpointService } from "../RepoPerWorkspaceCheckpointService"
 
@@ -645,6 +647,85 @@ describe.each([
 
 			// Verify handler was not called after being removed.
 			expect(checkpointHandler).not.toHaveBeenCalled()
+		})
+	})
+})
+
+describe("ShadowCheckpointService", () => {
+	const taskId = "test-task-storage"
+	const tmpDir = path.join(os.tmpdir(), "CheckpointService")
+	const globalStorageDir = path.join(tmpDir, "global-storage-dir")
+	const workspaceDir = path.join(tmpDir, "workspace-dir")
+	const workspaceHash = ShadowCheckpointService.hashWorkspaceDir(workspaceDir)
+
+	beforeEach(async () => {
+		await fs.mkdir(globalStorageDir, { recursive: true })
+		await fs.mkdir(workspaceDir, { recursive: true })
+	})
+
+	afterEach(async () => {
+		await fs.rm(globalStorageDir, { recursive: true, force: true })
+		await fs.rm(workspaceDir, { recursive: true, force: true })
+	})
+
+	describe("getTaskStorage", () => {
+		it("returns 'task' when task repo exists", async () => {
+			const service = RepoPerTaskCheckpointService.create({
+				taskId,
+				shadowDir: globalStorageDir,
+				workspaceDir,
+				log: () => {},
+			})
+
+			await service.initShadowGit()
+
+			const storage = await ShadowCheckpointService.getTaskStorage({ taskId, globalStorageDir, workspaceDir })
+			expect(storage).toBe("task")
+		})
+
+		it("returns 'workspace' when workspace repo exists with task branch", async () => {
+			const service = RepoPerWorkspaceCheckpointService.create({
+				taskId,
+				shadowDir: globalStorageDir,
+				workspaceDir,
+				log: () => {},
+			})
+
+			await service.initShadowGit()
+
+			const storage = await ShadowCheckpointService.getTaskStorage({ taskId, globalStorageDir, workspaceDir })
+			expect(storage).toBe("workspace")
+		})
+
+		it("returns undefined when no repos exist", async () => {
+			const storage = await ShadowCheckpointService.getTaskStorage({ taskId, globalStorageDir, workspaceDir })
+			expect(storage).toBeUndefined()
+		})
+
+		it("returns undefined when workspace repo exists but has no task branch", async () => {
+			// Setup: Create workspace repo without the task branch
+			const workspaceRepoDir = path.join(globalStorageDir, "checkpoints", workspaceHash)
+			await fs.mkdir(workspaceRepoDir, { recursive: true })
+
+			// Create git repo without adding the specific branch
+			const git = simpleGit(workspaceRepoDir)
+			await git.init()
+			await git.addConfig("user.name", "Roo Code")
+			await git.addConfig("user.email", "noreply@example.com")
+
+			// We need to create a commit, but we won't create the specific branch
+			const testFile = path.join(workspaceRepoDir, "test.txt")
+			await fs.writeFile(testFile, "Test content")
+			await git.add(".")
+			await git.commit("Initial commit")
+
+			const storage = await ShadowCheckpointService.getTaskStorage({
+				taskId,
+				globalStorageDir,
+				workspaceDir,
+			})
+
+			expect(storage).toBeUndefined()
 		})
 	})
 })

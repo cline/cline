@@ -7,14 +7,15 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import simpleGit from "simple-git"
-import { setPanel } from "../../activate/registerCommands"
 
+import { setPanel } from "../../activate/registerCommands"
 import { ApiConfiguration, ApiProvider, ModelInfo, API_CONFIG_KEYS } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
 import { SecretKey, GlobalStateKey, SECRET_KEYS, GLOBAL_STATE_KEYS } from "../../shared/globalState"
 import { HistoryItem } from "../../shared/HistoryItem"
+import { CheckpointStorage } from "../../shared/checkpoints"
 import { ApiConfigMeta, ExtensionMessage } from "../../shared/ExtensionMessage"
 import { checkoutDiffPayloadSchema, checkoutRestorePayloadSchema, WebviewMessage } from "../../shared/WebviewMessage"
 import { Mode, PromptComponent, defaultModeSlug, ModeConfig } from "../../shared/modes"
@@ -28,6 +29,7 @@ import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
 import { McpServerManager } from "../../services/mcp/McpServerManager"
+import { ShadowCheckpointService } from "../../services/checkpoints/ShadowCheckpointService"
 import { fileExistsAtPath } from "../../utils/fs"
 import { playSound, setSoundEnabled, setSoundVolume } from "../../utils/sound"
 import { singleCompletionHandler } from "../../utils/single-completion-handler"
@@ -47,7 +49,7 @@ import { getOllamaModels } from "../../api/providers/ollama"
 import { getVsCodeLmModels } from "../../api/providers/vscode-lm"
 import { getLmStudioModels } from "../../api/providers/lmstudio"
 import { ACTION_NAMES } from "../CodeActionProvider"
-import { Cline } from "../Cline"
+import { Cline, ClineOptions } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
@@ -525,22 +527,43 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		const modePrompt = customModePrompts?.[mode] as PromptComponent
 		const effectiveInstructions = [globalInstructions, modePrompt?.customInstructions].filter(Boolean).join("\n\n")
 
-		// TODO: The `checkpointStorage` value should be derived from the
-		// task data on disk; the current setting could be different than
-		// the setting at the time the task was created.
+		const taskId = historyItem.id
+		const globalStorageDir = this.contextProxy.globalStorageUri.fsPath
+		const workspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? ""
+
+		const checkpoints: Pick<ClineOptions, "enableCheckpoints" | "checkpointStorage"> = {
+			enableCheckpoints,
+			checkpointStorage,
+		}
+
+		if (enableCheckpoints) {
+			try {
+				checkpoints.checkpointStorage = await ShadowCheckpointService.getTaskStorage({
+					taskId,
+					globalStorageDir,
+					workspaceDir,
+				})
+
+				this.log(
+					`[ClineProvider#initClineWithHistoryItem] Using ${checkpoints.checkpointStorage} storage for ${taskId}`,
+				)
+			} catch (error) {
+				checkpoints.enableCheckpoints = false
+				this.log(`[ClineProvider#initClineWithHistoryItem] Error getting task storage: ${error.message}`)
+			}
+		}
 
 		const newCline = new Cline({
 			provider: this,
 			apiConfiguration,
 			customInstructions: effectiveInstructions,
 			enableDiff,
-			enableCheckpoints,
-			checkpointStorage,
+			...checkpoints,
 			fuzzyMatchThreshold,
 			historyItem,
 			experiments,
 		})
-		// get this cline task number id from the history item and set it to newCline
+
 		newCline.setTaskNumber(historyItem.number)
 		await this.addClineToStack(newCline)
 	}
@@ -2069,21 +2092,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// delete task from the task history state
 		await this.deleteTaskFromState(id)
 
-		// check if checkpoints are enabled
-		const { enableCheckpoints } = await this.getState()
 		// get the base directory of the project
 		const baseDir = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 
-		// Delete checkpoints branch.
-		// TODO: Also delete the workspace branch if it exists.
-		if (enableCheckpoints && baseDir) {
-			const branchSummary = await simpleGit(baseDir)
-				.branch(["-D", `roo-code-checkpoints-${id}`])
-				.catch(() => undefined)
+		// Delete associated shadow repository or branch.
+		// TODO: Store `workspaceDir` in the `HistoryItem` object.
+		const globalStorageDir = this.contextProxy.globalStorageUri.fsPath
+		const workspaceDir = baseDir ?? ""
 
-			if (branchSummary) {
-				console.log(`[deleteTaskWithId${id}] deleted checkpoints branch`)
-			}
+		try {
+			await ShadowCheckpointService.deleteTask({ taskId: id, globalStorageDir, workspaceDir })
+		} catch (error) {
+			console.error(
+				`[deleteTaskWithId${id}] failed to delete associated shadow repository or branch: ${error instanceof Error ? error.message : String(error)}`,
+			)
 		}
 
 		// delete the entire task directory including checkpoints and all content
