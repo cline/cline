@@ -101,6 +101,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 						commandOutputStarted = true
 						data = match
 						this.fullOutput = "" // Reset fullOutput when command actually starts
+						this.emit("line", "") // Trigger UI to proceed
 					} else {
 						continue
 					}
