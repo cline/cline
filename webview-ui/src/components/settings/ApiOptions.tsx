@@ -42,6 +42,7 @@ import {
 	askSageDefaultURL,
 	xaiDefaultModelId,
 	xaiModels,
+	sambanovaModels,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -206,6 +207,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">X AI</VSCodeOption>
+					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -1233,6 +1235,35 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
+			{selectedProvider === "sambanova" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.sambanovaApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("sambanovaApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>SambaNova API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+					</p>
+					{showModelOptions && (
+						<div style={{ marginTop: 10 }}>
+							<label htmlFor="model-id">
+								<span style={{ fontWeight: 500 }}>Model</span>
+							</label>
+							{createDropdown(sambanovaModels)}
+						</div>
+					)}
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -1537,6 +1568,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
+		case "sambanova":
+			return getProviderData(sambanovaModels, "")
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
