@@ -3252,7 +3252,7 @@ export class Cline {
 					}
 				}
 
-				// Naive check to see if all of the chunks have the same token count due to poor implementaiton of the API
+				// Naive check to see if all of the chunks have the same token count due to poor implementation of the API
 				const someTokenCountsAreDifferent = inputTokenCounts.some((tokens) => tokens !== firstChunkTokenCount.inputTokens)
 				if (!someTokenCountsAreDifferent) {
 					inputTokens = firstChunkTokenCount.inputTokens ?? 0
