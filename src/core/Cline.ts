@@ -2897,14 +2897,6 @@ export class Cline {
 											false,
 										)
 
-										if (this.isSubTask) {
-											// tell the provider to remove the current subtask and resume the previous task in the stack (it might decide to run the command)
-											await this.providerRef
-												.deref()
-												?.finishSubTask(`new_task finished successfully! ${lastMessage?.text}`)
-											break
-										}
-
 										await this.ask(
 											"command",
 											removeClosingTag("command", command),
