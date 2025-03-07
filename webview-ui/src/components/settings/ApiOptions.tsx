@@ -843,7 +843,7 @@ const ApiOptions = ({
 											: "var(--vscode-errorForeground)"
 									})(),
 								}}
-								onInput={handleInputChange("openAiCustomModelInfo", (e) => {
+								onChange={handleInputChange("openAiCustomModelInfo", (e) => {
 									const value = (e.target as HTMLInputElement).value
 									const parsed = parseFloat(value)
 									return {
@@ -881,7 +881,7 @@ const ApiOptions = ({
 											: "var(--vscode-errorForeground)"
 									})(),
 								}}
-								onInput={handleInputChange("openAiCustomModelInfo", (e) => {
+								onChange={handleInputChange("openAiCustomModelInfo", (e) => {
 									const value = (e.target as HTMLInputElement).value
 									const parsed = parseFloat(value)
 									return {
