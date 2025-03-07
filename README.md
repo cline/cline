@@ -34,15 +34,18 @@ Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
 
 ---
 
-## New in 3.7: Claude 3.7 Sonnet Support 🚀
+## 🎉 Roo Code 3.8 Released
 
-We're excited to announce support for Anthropic's latest model, Claude 3.7 Sonnet! The model shows notable improvements in:
+Roo Code 3.8 is out with performance boosts, new features, and bug fixes.
 
-- Front-end development and full-stack updates
-- Agentic workflows for multi-step processes
-- More accurate math, coding, and instruction-following
-
-Try it today in your provider of choice!
+- Faster asynchronous checkpoints
+- Support for .rooignore files
+- Fixed terminal & gray screen issues
+- Roo Code can run in multiple windows
+- Experimental multi-diff editing strategy
+- Subtask to parent task communication
+- Updated DeepSeek provider
+- New "Human Relay" provider
 
 ---
 
