@@ -91,6 +91,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+	const [geminiBaseUrlSelected, setGeminiBaseUrlSelected] = useState(!!apiConfiguration?.geminiBaseUrl)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({
@@ -692,6 +693,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Gemini API Key</span>
 					</VSCodeTextField>
+
 					<p
 						style={{
 							fontSize: "12px",
@@ -710,6 +712,30 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							</VSCodeLink>
 						)}
 					</p>
+					<VSCodeCheckbox
+						checked={geminiBaseUrlSelected}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setGeminiBaseUrlSelected(isChecked)
+							if (!isChecked) {
+								setApiConfiguration({
+									...apiConfiguration,
+									geminiBaseUrl: "",
+								})
+							}
+						}}>
+						Use custom base URL
+					</VSCodeCheckbox>
+
+					{geminiBaseUrlSelected && (
+						<VSCodeTextField
+							value={apiConfiguration?.geminiBaseUrl || ""}
+							style={{ width: "100%", marginTop: 3 }}
+							type="url"
+							onInput={handleInputChange("geminiBaseUrl")}
+							placeholder="Default: https://generativelanguage.googleapis.com"
+						/>
+					)}
 				</div>
 			)}
 
