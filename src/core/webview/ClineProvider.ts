@@ -71,7 +71,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private clineStack: Cline[] = []
 	private workspaceTracker?: WorkspaceTracker
 	protected mcpHub?: McpHub // Change from private to protected
-	private latestAnnouncementId = "feb-27-2025-automatic-checkpoints" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "mar-7-2025-3-8" // update to some unique identifier when we add a new announcement
 	private contextProxy: ContextProxy
 	configManager: ConfigManager
 	customModesManager: CustomModesManager
