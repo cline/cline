@@ -3201,7 +3201,7 @@ export class Cline {
 							cacheWriteTokens += chunk.cacheWriteTokens ?? 0
 							cacheReadTokens += chunk.cacheReadTokens ?? 0
 							totalCost = chunk.totalCost ?? 0
-							if (!firstChunkTokenCount.inputTokens) {
+							if (firstChunkTokenCount.inputTokens === undefined) {
 								firstChunkTokenCount = { inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens, totalCost }
 							}
 							break
