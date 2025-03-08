@@ -7,6 +7,7 @@ import { formatResponse } from "../../core/prompts/responses"
 import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
+import stripBom from "strip-bom"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -104,7 +105,7 @@ export class DiffViewProvider {
 		const edit = new vscode.WorkspaceEdit()
 		const rangeToReplace = new vscode.Range(0, 0, endLine + 1, 0)
 		const contentToReplace = accumulatedLines.slice(0, endLine + 1).join("\n") + "\n"
-		edit.replace(document.uri, rangeToReplace, contentToReplace)
+		edit.replace(document.uri, rangeToReplace, stripBom(stripBom(contentToReplace)))
 		await vscode.workspace.applyEdit(edit)
 		// Update decorations
 		this.activeLineController.setActiveLine(endLine)
@@ -128,7 +129,11 @@ export class DiffViewProvider {
 			}
 			// Apply the final content
 			const finalEdit = new vscode.WorkspaceEdit()
-			finalEdit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), accumulatedContent)
+			finalEdit.replace(
+				document.uri,
+				new vscode.Range(0, 0, document.lineCount, 0),
+				stripBom(stripBom(accumulatedContent)),
+			)
 			await vscode.workspace.applyEdit(finalEdit)
 			// Clear all decorations at the end (after applying final edit)
 			this.fadedOverlayController.clear()
