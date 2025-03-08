@@ -2576,7 +2576,7 @@ export class Cline {
 												if (item.type === "text") {
 													return item.text
 												}
-																								if (item.type === "image") {
+												if (item.type === "image") {
 													if (supportsImages) {
 														return ` data:${item.mimeType};base64,${item.data} `
 													}
