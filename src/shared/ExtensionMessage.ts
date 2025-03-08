@@ -97,6 +97,7 @@ export interface ExtensionState {
 	}
 	mcpMarketplaceEnabled?: boolean
 	telemetrySetting: TelemetrySetting
+	planActSeparateModelsSetting: boolean
 	vscMachineId: string
 }
 
