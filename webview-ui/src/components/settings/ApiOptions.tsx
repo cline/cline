@@ -880,6 +880,38 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									<span style={{ fontWeight: 500 }}>Output Price / 1M tokens</span>
 								</VSCodeTextField>
 							</div>
+							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
+								<VSCodeTextField
+									value={
+										apiConfiguration?.openAiModelInfo?.temperature
+											? apiConfiguration.openAiModelInfo.temperature.toString()
+											: openAiModelInfoSaneDefaults.temperature?.toString()
+									}
+									onInput={(input: any) => {
+										let modelInfo = apiConfiguration?.openAiModelInfo
+											? apiConfiguration.openAiModelInfo
+											: { ...openAiModelInfoSaneDefaults }
+
+										// Check if the input ends with a decimal point or has trailing zeros after decimal
+										const value = input.target.value
+										const shouldPreserveFormat =
+											value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
+
+										modelInfo.temperature =
+											value === ""
+												? openAiModelInfoSaneDefaults.temperature
+												: shouldPreserveFormat
+													? value // Keep as string to preserve decimal format
+													: parseFloat(value)
+
+										setApiConfiguration({
+											...apiConfiguration,
+											openAiModelInfo: modelInfo,
+										})
+									}}>
+									<span style={{ fontWeight: 500 }}>Temperature</span>
+								</VSCodeTextField>
+							</div>
 						</>
 					)}
 					<p
