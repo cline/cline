@@ -130,7 +130,7 @@ async function testTerminalCommand(
 	}
 
 	// Create terminal info
-	const mockTerminalInfo = new Terminal(1, mockTerminal)
+	const mockTerminalInfo = new Terminal(1, mockTerminal, "/test/path")
 
 	// Add the terminal to the registry
 	TerminalRegistry["terminals"] = [mockTerminalInfo]

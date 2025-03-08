@@ -57,7 +57,7 @@ describe("TerminalProcess", () => {
 			}
 		>
 
-		mockTerminalInfo = new Terminal(1, mockTerminal)
+		mockTerminalInfo = new Terminal(1, mockTerminal, "./")
 
 		// Create a process for testing
 		terminalProcess = new TerminalProcess(mockTerminalInfo)
@@ -118,7 +118,7 @@ describe("TerminalProcess", () => {
 			} as unknown as vscode.Terminal
 
 			// Create new terminal info with the no-shell terminal
-			const noShellTerminalInfo = new Terminal(2, noShellTerminal)
+			const noShellTerminalInfo = new Terminal(2, noShellTerminal, "./")
 
 			// Create new process with the no-shell terminal
 			const noShellProcess = new TerminalProcess(noShellTerminalInfo)
