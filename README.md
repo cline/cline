@@ -143,7 +143,7 @@ Cline provides several settings to customize its behavior:
 
 ### Editor Settings
 
-- `cline.editor.skipDiffAnimation`: Disable the animated diff view when Cline makes changes to files. This can significantly speed up file modifications, especially when working with remote repositories. Default: `true`
+- `cline.editor.skipDiffAnimation`: Disable the animated diff view when Cline makes changes to files. This can significantly speed up file modifications, especially when working with remote repositories. Default: `false`
 
 ## Contributing
 
