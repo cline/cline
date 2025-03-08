@@ -6,6 +6,7 @@ import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
+import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions.mjs"
 
 export class OpenAiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -32,20 +33,30 @@ export class OpenAiHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelId = this.options.openAiModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
+		const isO3Mini = modelId.includes("o3-mini")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
+		let temperature: number | undefined = 0
+		let reasoningEffort: ChatCompletionReasoningEffort | undefined = undefined
 
 		if (isDeepseekReasoner) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
+		if (isO3Mini) {
+			openAiMessages = [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)]
+			temperature = undefined // does not support temperature
+			reasoningEffort = (this.options.o3MiniReasoningEffort as ChatCompletionReasoningEffort) || "medium"
+		}
+
 		const stream = await this.client.chat.completions.create({
 			model: modelId,
 			messages: openAiMessages,
-			temperature: 0,
+			temperature,
+			reasoning_effort: reasoningEffort,
 			stream: true,
 			stream_options: { include_usage: true },
 		})
