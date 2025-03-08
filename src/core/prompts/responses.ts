@@ -71,12 +71,11 @@ Otherwise, if you have not completed the task and do not need additional informa
 								},
 								type: "image",
 							} as Anthropic.ImageBlockParam
-						} else {
-							return {
-								type: "text",
-								text: "[Image placeholder (images not supported)]",
-							} as Anthropic.TextBlockParam
 						}
+						return {
+							type: "text",
+							text: "[Image placeholder (images not supported)]",
+						} as Anthropic.TextBlockParam
 					}
 					return { type: "text", text: "" } as Anthropic.TextBlockParam
 				})
