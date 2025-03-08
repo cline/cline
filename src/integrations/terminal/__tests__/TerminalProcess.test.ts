@@ -85,7 +85,7 @@ describe("TerminalProcess", () => {
 				yield "More output\n"
 				yield "Final output"
 				yield "\x1b]633;D\x07" // The last chunk contains the command end sequence with bell character.
-				terminalProcess.emit("shell_execution_complete", mockTerminalInfo.id, { exitCode: 0 })
+				terminalProcess.emit("shell_execution_complete", { exitCode: 0 })
 			})()
 
 			mockExecution = {
@@ -95,7 +95,7 @@ describe("TerminalProcess", () => {
 			mockTerminal.shellIntegration.executeCommand.mockReturnValue(mockExecution)
 
 			const runPromise = terminalProcess.run("test command")
-			terminalProcess.emit("stream_available", mockTerminalInfo.id, mockStream)
+			terminalProcess.emit("stream_available", mockStream)
 			await runPromise
 
 			expect(lines).toEqual(["Initial output", "More output", "Final output"])
@@ -157,7 +157,7 @@ describe("TerminalProcess", () => {
 				yield "still compiling...\n"
 				yield "done"
 				yield "\x1b]633;D\x07" // The last chunk contains the command end sequence with bell character.
-				terminalProcess.emit("shell_execution_complete", mockTerminalInfo.id, { exitCode: 0 })
+				terminalProcess.emit("shell_execution_complete", { exitCode: 0 })
 			})()
 
 			mockTerminal.shellIntegration.executeCommand.mockReturnValue({
@@ -165,7 +165,7 @@ describe("TerminalProcess", () => {
 			})
 
 			const runPromise = terminalProcess.run("npm run build")
-			terminalProcess.emit("stream_available", mockTerminalInfo.id, mockStream)
+			terminalProcess.emit("stream_available", mockStream)
 
 			expect(terminalProcess.isHot).toBe(true)
 			await runPromise

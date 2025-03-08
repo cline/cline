@@ -108,8 +108,8 @@ export interface TerminalProcessEvents {
 	 * @param id The terminal ID
 	 * @param exitDetails Contains exit code and signal information if process was terminated by signal
 	 */
-	shell_execution_complete: [id: number, exitDetails: ExitCodeDetails]
-	stream_available: [id: number, stream: AsyncIterable<string>]
+	shell_execution_complete: [exitDetails: ExitCodeDetails]
+	stream_available: [stream: AsyncIterable<string>]
 }
 
 // how long to wait after a process outputs anything before we consider it "cool" again
@@ -247,19 +247,15 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			// Create a promise that resolves when the stream becomes available
 			const streamAvailable = new Promise<AsyncIterable<string>>((resolve) => {
-				this.once("stream_available", (id: number, stream: AsyncIterable<string>) => {
-					if (id === this.terminalInfo.id) {
-						resolve(stream)
-					}
+				this.once("stream_available", (stream: AsyncIterable<string>) => {
+					resolve(stream)
 				})
 			})
 
 			// Create promise that resolves when shell execution completes for this terminal
 			const shellExecutionComplete = new Promise<ExitCodeDetails>((resolve) => {
-				this.once("shell_execution_complete", (id: number, exitDetails: ExitCodeDetails) => {
-					if (id === this.terminalInfo.id) {
-						resolve(exitDetails)
-					}
+				this.once("shell_execution_complete", (exitDetails: ExitCodeDetails) => {
+					resolve(exitDetails)
 				})
 			})
 

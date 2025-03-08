@@ -982,10 +982,8 @@ export class Cline {
 			completed = true
 		})
 
-		process.once("shell_execution_complete", (id: number, details: ExitCodeDetails) => {
-			if (id === terminalInfo.id) {
-				exitDetails = details
-			}
+		process.once("shell_execution_complete", (details: ExitCodeDetails) => {
+			exitDetails = details
 		})
 
 		process.once("no_shell_integration", async () => {

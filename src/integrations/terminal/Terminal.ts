@@ -60,7 +60,7 @@ export class Terminal {
 
 			this.streamClosed = false
 			this.running = true
-			this.process.emit("stream_available", this.id, stream)
+			this.process.emit("stream_available", stream)
 		} else {
 			// Stream is being closed
 			this.streamClosed = true
@@ -81,7 +81,7 @@ export class Terminal {
 				this.completedProcesses.unshift(this.process)
 			}
 
-			this.process.emit("shell_execution_complete", this.id, exitDetails)
+			this.process.emit("shell_execution_complete", exitDetails)
 			this.process = undefined
 		}
 	}
