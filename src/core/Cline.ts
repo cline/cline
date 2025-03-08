@@ -964,9 +964,9 @@ export class Cline {
 			}
 		}
 
-		let lines: string[] = []
+		let result = ""
 		process.on("line", (line) => {
-			lines.push(line)
+			result += line
 			if (!didContinue) {
 				sendCommandOutput(line)
 			} else {
@@ -978,9 +978,7 @@ export class Cline {
 		let exitDetails: ExitCodeDetails | undefined
 		process.once("completed", (output?: string) => {
 			// Use provided output if available, otherwise keep existing result.
-			if (output) {
-				lines = output.split("\n")
-			}
+			result = output || result
 			completed = true
 		})
 
@@ -1004,8 +1002,7 @@ export class Cline {
 		await delay(50)
 
 		const { terminalOutputLineLimit } = (await this.providerRef.deref()?.getState()) ?? {}
-		const output = truncateOutput(lines.join("\n"), terminalOutputLineLimit)
-		const result = output.trim()
+		result = truncateOutput(result, terminalOutputLineLimit)
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images)
