@@ -1,4 +1,4 @@
-// npx jest src/integrations/terminal/__tests__/TerminalProcess.test.ts
+// npx jest src/integrations/terminal/__tests__/TerminalProcessExec.test.ts
 
 import * as vscode from "vscode"
 import { execSync } from "child_process"
