@@ -873,9 +873,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 								<VSCodeTextField
 									value={
-										apiConfiguration?.openAiModelInfo?.openAiTemperature
-											? apiConfiguration.openAiModelInfo.openAiTemperature.toString()
-											: openAiModelInfoSaneDefaults.openAiTemperature?.toString()
+										apiConfiguration?.openAiModelInfo?.temperature
+											? apiConfiguration.openAiModelInfo.temperature.toString()
+											: openAiModelInfoSaneDefaults.temperature?.toString()
 									}
 									onInput={(input: any) => {
 										let modelInfo = apiConfiguration?.openAiModelInfo
@@ -887,9 +887,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 										const shouldPreserveFormat =
 											value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
 
-										modelInfo.openAiTemperature =
+										modelInfo.temperature =
 											value === ""
-												? openAiModelInfoSaneDefaults.openAiTemperature
+												? openAiModelInfoSaneDefaults.temperature
 												: shouldPreserveFormat
 													? value // Keep as string to preserve decimal format
 													: parseFloat(value)
