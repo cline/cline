@@ -440,21 +440,30 @@ export class Cline {
 		try {
 			if (seeNewChangesSinceLastTaskCompletion) {
 				// Get last task completed
-				const lastTaskCompletedMessage = findLast(
+				const lastTaskCompletedMessageCheckpointHash = findLast(
 					this.clineMessages.slice(0, messageIndex),
 					(m) => m.say === "completion_result",
-				) // ask is only used to relinquish control, its the last say we care about
+				)?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
 				// if undefined, then we get diff from beginning of git
 				// if (!lastTaskCompletedMessage) {
 				// 	console.error("No previous task completion message found")
 				// 	return
 				// }
+				// This value *should* always exist
+				const firstCheckpointMessageCheckpointHash = this.clineMessages.find(
+					(m) => m.say === "checkpoint_created",
+				)?.lastCheckpointHash
+
+				const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
+
+				if (!previousCheckpointHash) {
+					vscode.window.showErrorMessage("Unexpected error: No checkpoint hash found")
+					relinquishButton()
+					return
+				}
 
 				// Get changed files between current state and commit
-				changedFiles = await this.checkpointTracker?.getDiffSet(
-					lastTaskCompletedMessage?.lastCheckpointHash, // if undefined, then we get diff from beginning of git history, AKA when the task was started
-					hash,
-				)
+				changedFiles = await this.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
 				if (!changedFiles?.length) {
 					vscode.window.showInformationMessage("No changes found")
 					relinquishButton()
@@ -535,11 +544,26 @@ export class Cline {
 		const lastTaskCompletedMessage = findLast(this.clineMessages.slice(0, messageIndex), (m) => m.say === "completion_result")
 
 		try {
+			// Get last task completed
+			const lastTaskCompletedMessageCheckpointHash = lastTaskCompletedMessage?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
+			// if undefined, then we get diff from beginning of git
+			// if (!lastTaskCompletedMessage) {
+			// 	console.error("No previous task completion message found")
+			// 	return
+			// }
+			// This value *should* always exist
+			const firstCheckpointMessageCheckpointHash = this.clineMessages.find(
+				(m) => m.say === "checkpoint_created",
+			)?.lastCheckpointHash
+
+			const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
+
+			if (!previousCheckpointHash) {
+				return false
+			}
+
 			// Get changed files between current state and commit
-			const changedFiles = await this.checkpointTracker?.getDiffSet(
-				lastTaskCompletedMessage?.lastCheckpointHash, // if undefined, then we get diff from beginning of git history, AKA when the task was started
-				hash,
-			)
+			const changedFiles = await this.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
 			const changedFilesCount = changedFiles?.length || 0
 			if (changedFilesCount > 0) {
 				return true

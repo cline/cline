@@ -2,10 +2,9 @@ import fs from "fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"
 import * as vscode from "vscode"
-import { HistoryItem } from "../../shared/HistoryItem"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { GitOperations } from "./CheckpointGitOperations"
-import { getShadowGitPath, hashWorkingDir, getWorkingDirectory } from "./CheckpointUtils"
+import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
 
 /**
  * CheckpointTracker Module
@@ -116,8 +115,6 @@ class CheckpointTracker {
 			await newTracker.gitOperations.initShadowGit(gitPath, workingDir)
 
 			telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized")
-
-			await newTracker.gitOperations.switchToTaskBranch(newTracker.taskId, gitPath)
 
 			return newTracker
 		} catch (error) {
@@ -244,7 +241,6 @@ class CheckpointTracker {
 		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 		console.debug(`Using shadow git at: ${gitPath}`)
-		await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
 		await git.reset(["--hard", commitHash]) // Hard reset to target commit
 		console.debug(`Successfully reset to checkpoint: ${commitHash}`)
 		telemetryService.captureCheckpointUsage(this.taskId, "restored")
@@ -264,7 +260,7 @@ class CheckpointTracker {
 	 * @returns Array of file changes with before/after content
 	 */
 	public async getDiffSet(
-		lhsHash?: string,
+		lhsHash: string,
 		rhsHash?: string,
 	): Promise<
 		Array<{
@@ -279,35 +275,10 @@ class CheckpointTracker {
 
 		console.info(`Getting diff between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
 
-		// If lhsHash is missing, iteratively check up to 5 commits to find the first one with tracked files
-		let baseHash = lhsHash
-		if (!baseHash) {
-			// Ensure we're on the correct task branch before getting commits
-			await this.gitOperations.switchToTaskBranch(this.taskId, gitPath)
-
-			// Verify which branch we're on after switching
-			const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
-			console.info(`Getting commits from branch: ${currentBranch}`)
-
-			try {
-				// Get all commits that match the checkpoint pattern for this specific task
-				const commitPattern = `checkpoint-${this.cwdHash}-${this.taskId}`
-				const branchCommits = await git.log(["--grep", commitPattern, "--reverse"])
-				if (!branchCommits.all.length) {
-					throw new Error("No commits found in the branch.")
-				}
-				// Get the first commit that matches our task's checkpoint pattern
-				baseHash = branchCommits.all[0].hash
-			} catch (error) {
-				console.error("Failed to get branch commits:", error)
-				throw new Error("Failed to determine branch history")
-			}
-		}
-
 		// Stage all changes so that untracked files appear in diff summary
 		await this.gitOperations.addCheckpointFiles(git)
 
-		const diffRange = rhsHash ? `${baseHash}..${rhsHash}` : baseHash
+		const diffRange = rhsHash ? `${lhsHash}..${rhsHash}` : lhsHash
 		console.info(`Diff range: ${diffRange}`)
 		const diffSummary = await git.diffSummary([diffRange])
 
@@ -318,7 +289,7 @@ class CheckpointTracker {
 
 			let beforeContent = ""
 			try {
-				beforeContent = await git.show([`${baseHash}:${filePath}`])
+				beforeContent = await git.show([`${lhsHash}:${filePath}`])
 			} catch (_) {
 				// file didn't exist in older commit => remains empty
 			}
@@ -347,21 +318,6 @@ class CheckpointTracker {
 		}
 
 		return result
-	}
-
-	/**
-	 * Deletes all checkpoint data for a given task.
-	 *
-	 * @param taskId - The ID of the task whose checkpoints should be deleted
-	 * @param historyItem - The history item containing the shadow git config for this task
-	 * @param globalStoragePath - the globalStorage path
-	 * @throws Error if deletion fails
-	 */
-	public static async deleteCheckpoints(taskId: string, historyItem: HistoryItem, globalStoragePath: string): Promise<void> {
-		if (!globalStoragePath) {
-			throw new Error("Global storage uri is invalid")
-		}
-		await GitOperations.deleteTaskBranchStatic(taskId, historyItem, globalStoragePath)
 	}
 }
 
