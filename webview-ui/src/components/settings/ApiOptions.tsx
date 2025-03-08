@@ -881,8 +881,19 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 										let modelInfo = apiConfiguration?.openAiModelInfo
 											? apiConfiguration.openAiModelInfo
 											: { ...openAiModelInfoSaneDefaults }
+
+										// Check if the input ends with a decimal point or has trailing zeros after decimal
+										const value = input.target.value
+										const shouldPreserveFormat =
+											value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
+
 										modelInfo.openAiTemperature =
-											parseFloat(input.target.value) ?? openAiModelInfoSaneDefaults.openAiTemperature
+											value === ""
+												? openAiModelInfoSaneDefaults.openAiTemperature
+												: shouldPreserveFormat
+													? value // Keep as string to preserve decimal format
+													: parseFloat(value)
+
 										setApiConfiguration({
 											...apiConfiguration,
 											openAiModelInfo: modelInfo,
