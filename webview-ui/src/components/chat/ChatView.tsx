@@ -149,6 +149,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 									setPrimaryButtonText("Save")
 									setSecondaryButtonText("Reject")
 									break
+								case "finishTask":
+									setPrimaryButtonText("Approve & Continue to the next Task")
+									setSecondaryButtonText(undefined)
+									break
 								default:
 									setPrimaryButtonText("Approve")
 									setSecondaryButtonText("Reject")
@@ -644,7 +648,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					message.ask === "tool" &&
 					(JSON.parse(message.text || "{}")?.tool === "switchMode" ||
 						JSON.parse(message.text || "{}")?.tool === "newTask")) ||
-				(alwaysAllowFinishTask && message.ask === "finishTask")
+				(alwaysAllowFinishTask &&
+					message.ask === "tool" &&
+					JSON.parse(message.text || "{}")?.tool === "finishTask")
 			)
 		},
 		[

@@ -984,6 +984,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("alwaysAllowModeSwitch", message.bool)
 						await this.postStateToWebview()
 						break
+					case "alwaysAllowFinishTask":
+						await this.updateGlobalState("alwaysAllowFinishTask", message.bool)
+						await this.postStateToWebview()
+						break
 					case "askResponse":
 						this.getCurrentCline()?.handleWebviewAskResponse(
 							message.askResponse!,
@@ -2177,6 +2181,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowBrowser,
 			alwaysAllowMcp,
 			alwaysAllowModeSwitch,
+			alwaysAllowFinishTask,
 			soundEnabled,
 			diffEnabled,
 			enableCheckpoints,
@@ -2224,6 +2229,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowBrowser: alwaysAllowBrowser ?? false,
 			alwaysAllowMcp: alwaysAllowMcp ?? false,
 			alwaysAllowModeSwitch: alwaysAllowModeSwitch ?? false,
+			alwaysAllowFinishTask: alwaysAllowFinishTask ?? false,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.getCurrentCline()?.taskId
 				? (taskHistory || []).find((item: HistoryItem) => item.id === this.getCurrentCline()?.taskId)
@@ -2385,6 +2391,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			alwaysAllowBrowser: stateValues.alwaysAllowBrowser ?? false,
 			alwaysAllowMcp: stateValues.alwaysAllowMcp ?? false,
 			alwaysAllowModeSwitch: stateValues.alwaysAllowModeSwitch ?? false,
+			alwaysAllowFinishTask: stateValues.alwaysAllowFinishTask ?? false,
 			taskHistory: stateValues.taskHistory,
 			allowedCommands: stateValues.allowedCommands,
 			soundEnabled: stateValues.soundEnabled ?? false,

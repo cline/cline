@@ -40,6 +40,7 @@ export const GLOBAL_STATE_KEYS = [
 	"alwaysAllowBrowser",
 	"alwaysAllowMcp",
 	"alwaysAllowModeSwitch",
+	"alwaysAllowFinishTask",
 	"taskHistory",
 	"openAiBaseUrl",
 	"openAiModelId",

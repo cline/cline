@@ -85,10 +85,10 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		},
 		{
 			id: "finishTask",
-			label: "Finish subtasks tasks",
-			shortName: "Finish",
+			label: "Continue to next task",
+			shortName: "Continue",
 			enabled: alwaysAllowFinishTask ?? false,
-			description: "Allows automatic completeing a sub-task without requiring user review or approval.",
+			description: "Allow tasks to end execution and continue to the next task, without user review or approval.",
 		},
 		{
 			id: "retryRequests",

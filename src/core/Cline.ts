@@ -2953,19 +2953,7 @@ export class Cline {
 									if (lastMessage && lastMessage.ask !== "command") {
 										// havent sent a command message yet so first send completion_result then command
 										await this.say("completion_result", result, undefined, false)
-										// telemetryService.captureTaskCompleted(this.taskId)
-										if (this.isSubTask) {
-											const didApprove = await askFinishSubTaskApproval()
-											if (!didApprove) {
-												break
-											}
-
-											// tell the provider to remove the current subtask and resume the previous task in the stack
-											await this.providerRef
-												.deref()
-												?.finishSubTask(`Task complete: ${lastMessage?.text}`)
-											break
-										}
+										telemetryService.captureTaskCompleted(this.taskId)
 									}
 
 									// complete command message
@@ -2983,19 +2971,18 @@ export class Cline {
 									commandResult = execCommandResult
 								} else {
 									await this.say("completion_result", result, undefined, false)
-									// telemetryService.captureTaskCompleted(this.taskId)
-									if (this.isSubTask) {
-										const didApprove = await askFinishSubTaskApproval()
-										if (!didApprove) {
-											break
-										}
+									telemetryService.captureTaskCompleted(this.taskId)
+								}
 
-										// tell the provider to remove the current subtask and resume the previous task in the stack
-										await this.providerRef
-											.deref()
-											?.finishSubTask(`Task complete: ${lastMessage?.text}`)
+								if (this.isSubTask) {
+									const didApprove = await askFinishSubTaskApproval()
+									if (!didApprove) {
 										break
 									}
+
+									// tell the provider to remove the current subtask and resume the previous task in the stack
+									await this.providerRef.deref()?.finishSubTask(`Task complete: ${lastMessage?.text}`)
+									break
 								}
 
 								// we already sent completion_result says, an empty string asks relinquishes control over button and field
