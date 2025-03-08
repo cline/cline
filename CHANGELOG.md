@@ -9,6 +9,7 @@
 - Fix bug with enhance prompt on Sonnet 3.7 with a high thinking budget (thanks @moqimoqidea!)
 - Fix bug with the context window management for thinking models (thanks @ReadyPlayerEmma!)
 - Fix bug where checkpoints were no longer enabled by default
+- Add extension and VSCode versions to telemetry
 
 ## [3.8.0]
 
