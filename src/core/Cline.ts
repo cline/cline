@@ -978,12 +978,6 @@ export class Cline {
 			await this.say("shell_integration_warning")
 		})
 
-		process.once("stream_stalled", async (id: number) => {
-			if (id === terminalInfo.id && !didContinue) {
-				sendCommandOutput("")
-			}
-		})
-
 		await process
 
 		// Wait for a short delay to ensure all messages are sent to the webview.
