@@ -35,6 +35,31 @@ jest.mock("vscrui", () => ({
 	Pane: ({ children }: any) => <div>{children}</div>,
 }))
 
+// Mock @shadcn/ui components
+jest.mock("@/components/ui", () => ({
+	Select: ({ children, value, onValueChange }: any) => (
+		<div className="select-mock">
+			<select value={value} onChange={(e) => onValueChange && onValueChange(e.target.value)}>
+				{children}
+			</select>
+		</div>
+	),
+	SelectTrigger: ({ children }: any) => <div className="select-trigger-mock">{children}</div>,
+	SelectValue: ({ children }: any) => <div className="select-value-mock">{children}</div>,
+	SelectContent: ({ children }: any) => <div className="select-content-mock">{children}</div>,
+	SelectGroup: ({ children }: any) => <div className="select-group-mock">{children}</div>,
+	SelectItem: ({ children, value }: any) => (
+		<option value={value} className="select-item-mock">
+			{children}
+		</option>
+	),
+	Button: ({ children, onClick }: any) => (
+		<button onClick={onClick} className="button-mock">
+			{children}
+		</button>
+	),
+}))
+
 jest.mock("../TemperatureControl", () => ({
 	TemperatureControl: ({ value, onChange }: any) => (
 		<div data-testid="temperature-control">
