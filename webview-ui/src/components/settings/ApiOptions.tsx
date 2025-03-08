@@ -1535,6 +1535,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.vortnModelId || vortnDefaultModelId,
 				selectedModelInfo: apiConfiguration?.vortnModelInfo || vortnDefaultModelInfo,
+			}
 		case "cline":
 			return {
 				selectedProvider: provider,
