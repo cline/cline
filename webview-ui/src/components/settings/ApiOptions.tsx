@@ -1410,7 +1410,7 @@ const ApiOptions = ({
 						value={apiConfiguration?.liteLlmModelId || ""}
 						style={{ width: "100%" }}
 						onInput={handleInputChange("liteLlmModelId")}
-						placeholder={"e.g. gpt-4"}>
+						placeholder={"e.g. anthropic/claude-3-5-sonnet-20240620"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
 
