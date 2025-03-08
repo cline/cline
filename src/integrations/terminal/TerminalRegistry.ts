@@ -68,7 +68,7 @@ export class TerminalRegistry {
 		}
 	}
 
-	static createTerminal(cwd?: string | vscode.Uri | undefined): Terminal {
+	static createTerminal(cwd: string | vscode.Uri): Terminal {
 		const terminal = vscode.window.createTerminal({
 			cwd,
 			name: "Roo Code",
@@ -87,7 +87,8 @@ export class TerminalRegistry {
 			},
 		})
 
-		const newTerminal = new Terminal(this.nextTerminalId++, terminal)
+		const cwdString = cwd.toString()
+		const newTerminal = new Terminal(this.nextTerminalId++, terminal, cwdString)
 
 		this.terminals.push(newTerminal)
 		return newTerminal
@@ -211,57 +212,54 @@ export class TerminalRegistry {
 	/**
 	 * Gets an existing terminal or creates a new one for the given working directory
 	 * @param cwd The working directory path
+	 * @param requiredCwd Whether the working directory is required (if false, may reuse any non-busy terminal)
 	 * @param taskId Optional task ID to associate with the terminal
 	 * @returns A Terminal instance
 	 */
-	static async getOrCreateTerminal(cwd: string, taskId?: string): Promise<Terminal> {
+	static async getOrCreateTerminal(cwd: string, requiredCwd: boolean = false, taskId?: string): Promise<Terminal> {
 		const terminals = this.getAllTerminals()
+		let terminal: Terminal | undefined
 
 		// First priority: Find a terminal already assigned to this task with matching directory
 		if (taskId) {
-			const taskTerminal = terminals.find((t) => {
+			terminal = terminals.find((t) => {
 				if (t.busy || t.taskId !== taskId) {
 					return false
 				}
-				const terminalCwd = t.terminal.shellIntegration?.cwd
+				const terminalCwd = t.getCurrentWorkingDirectory()
 				if (!terminalCwd) {
 					return false
 				}
-				return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
+				return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd)
 			})
-			if (taskTerminal) {
-				return taskTerminal
-			}
 		}
 
 		// Second priority: Find any available terminal with matching directory
-		const matchingTerminal = terminals.find((t) => {
-			if (t.busy) {
-				return false
-			}
-			const terminalCwd = t.terminal.shellIntegration?.cwd // one of cline's commands could have changed the cwd of the terminal
-			if (!terminalCwd) {
-				return false
-			}
-			return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd.fsPath)
-		})
-		if (matchingTerminal) {
-			matchingTerminal.taskId = taskId
-			return matchingTerminal
+		if (!terminal) {
+			terminal = terminals.find((t) => {
+				if (t.busy) {
+					return false
+				}
+				const terminalCwd = t.getCurrentWorkingDirectory()
+				if (!terminalCwd) {
+					return false
+				}
+				return arePathsEqual(vscode.Uri.file(cwd).fsPath, terminalCwd)
+			})
 		}
 
-		// Third priority: Find any non-busy terminal
-		const availableTerminal = terminals.find((t) => !t.busy)
-		if (availableTerminal) {
-			// Navigate back to the desired directory
-			await availableTerminal.runCommand(`cd "${cwd}"`)
-			availableTerminal.taskId = taskId
-			return availableTerminal
+		// Third priority: Find any non-busy terminal (only if directory is not required)
+		if (!terminal && !requiredCwd) {
+			terminal = terminals.find((t) => !t.busy)
 		}
 
-		// If all terminals are busy, create a new one
-		const newTerminal = this.createTerminal(cwd)
-		newTerminal.taskId = taskId
-		return newTerminal
+		// If no suitable terminal found, create a new one
+		if (!terminal) {
+			terminal = this.createTerminal(cwd)
+		}
+
+		terminal.taskId = taskId
+
+		return terminal
 	}
 }

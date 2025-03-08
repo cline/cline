@@ -919,8 +919,31 @@ export class Cline {
 
 	// Tools
 
-	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
-		const terminalInfo = await TerminalRegistry.getOrCreateTerminal(cwd, this.taskId)
+	async executeCommandTool(command: string, customCwd?: string): Promise<[boolean, ToolResponse]> {
+		let workingDir: string
+		if (!customCwd) {
+			workingDir = cwd
+		} else if (path.isAbsolute(customCwd)) {
+			workingDir = customCwd
+		} else {
+			workingDir = path.resolve(cwd, customCwd)
+		}
+
+		// Check if directory exists
+		try {
+			await fs.access(workingDir)
+		} catch (error) {
+			return [false, `Working directory '${workingDir}' does not exist.`]
+		}
+
+		const terminalInfo = await TerminalRegistry.getOrCreateTerminal(workingDir, !!customCwd, this.taskId)
+
+		// Update the working directory in case the terminal we asked for has
+		// a different working directory so that the model will know where the
+		// command actually executed:
+		workingDir = terminalInfo.getCurrentWorkingDirectory()
+
+		const workingDirInfo = workingDir ? ` from '${workingDir.toPosix()}'` : ""
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
 		const process = terminalInfo.runCommand(command)
 
@@ -989,7 +1012,7 @@ export class Cline {
 			return [
 				true,
 				formatResponse.toolResult(
-					`Command is still running in the user's terminal.${
+					`Command is still running in terminal ${terminalInfo.id}${workingDirInfo}.${
 						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
 					userFeedback.images,
@@ -1009,11 +1032,18 @@ export class Cline {
 					exitStatus = `Exit code: ${exitDetails.exitCode}`
 				}
 			}
-			return [false, `Command executed. ${exitStatus}${result.length > 0 ? `\nOutput:\n${result}` : ""}`]
+			const workingDirInfo = workingDir ? ` from '${workingDir.toPosix()}'` : ""
+
+			const outputInfo = `\nOutput:\n${result}`
+
+			return [
+				false,
+				`Command executed in terminal ${terminalInfo.id}${workingDirInfo}. ${exitStatus}${outputInfo}`,
+			]
 		} else {
 			return [
 				false,
-				`Command is still running in the user's terminal.${
+				`Command is still running in terminal ${terminalInfo.id}${workingDirInfo}.${
 					result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 				}\n\nYou will be updated on the terminal status and new output in the future.`,
 			]
@@ -2494,6 +2524,7 @@ export class Cline {
 					}
 					case "execute_command": {
 						const command: string | undefined = block.params.command
+						const customCwd: string | undefined = block.params.cwd
 						try {
 							if (block.partial) {
 								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
@@ -2527,7 +2558,7 @@ export class Cline {
 								if (!didApprove) {
 									break
 								}
-								const [userRejected, result] = await this.executeCommandTool(command)
+								const [userRejected, result] = await this.executeCommandTool(command, customCwd)
 								if (userRejected) {
 									this.didRejectTool = true
 								}

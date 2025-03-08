@@ -12,13 +12,32 @@ export class Terminal {
 	public process?: TerminalProcess
 	public taskId?: string
 	public completedProcesses: TerminalProcess[] = []
+	private initialCwd: string
 
-	constructor(id: number, terminal: vscode.Terminal) {
+	constructor(id: number, terminal: vscode.Terminal, cwd: string) {
 		this.id = id
 		this.terminal = terminal
 		this.busy = false
 		this.running = false
 		this.streamClosed = false
+
+		// Initial working directory is used as a fallback when
+		// shell integration is not yet initialized or unavailable:
+		this.initialCwd = cwd
+	}
+
+	/**
+	 * Gets the current working directory from shell integration or falls back to initial cwd
+	 * @returns The current working directory
+	 */
+	public getCurrentWorkingDirectory(): string {
+		// Try to get the cwd from shell integration if available
+		if (this.terminal.shellIntegration?.cwd) {
+			return this.terminal.shellIntegration.cwd.fsPath
+		} else {
+			// Fall back to the initial cwd
+			return this.initialCwd
+		}
 	}
 
 	/**
