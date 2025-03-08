@@ -23,7 +23,7 @@ class PostHogClient {
 			TOKEN_USAGE: "task.tokens",
 			// Tracks switches between plan and act modes
 			MODE_SWITCH: "task.mode",
-			// Tracks usage of the git-based checkpoint system (create/restore/delete)
+			// Tracks usage of the git-based checkpoint system (shadow_git_initialized, commit_created, branch_created, branch_deleted_active, branch_deleted_inactive, restored)
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
 			TOOL_USED: "task.tool_used",
@@ -249,9 +249,18 @@ class PostHogClient {
 	/**
 	 * Records interactions with the git-based checkpoint system
 	 * @param taskId Unique identifier for the task
-	 * @param action The type of checkpoint action (created/restored/deleted)
+	 * @param action The type of checkpoint action
 	 */
-	public captureCheckpointUsage(taskId: string, action: "created" | "restored" | "deleted") {
+	public captureCheckpointUsage(
+		taskId: string,
+		action:
+			| "shadow_git_initialized"
+			| "commit_created"
+			| "branch_created"
+			| "branch_deleted_active"
+			| "branch_deleted_inactive"
+			| "restored",
+	) {
 		this.capture({
 			event: PostHogClient.EVENTS.TASK.CHECKPOINT_USED,
 			properties: {
