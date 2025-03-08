@@ -162,10 +162,12 @@ export function activate(context: vscode.ExtensionContext) {
 			case "/auth": {
 				const token = query.get("token")
 				const state = query.get("state")
+				const apiKey = query.get("apiKey")
 
 				console.log("Auth callback received:", {
 					token: token,
 					state: state,
+					apiKey: apiKey,
 				})
 
 				// Validate state parameter
@@ -174,8 +176,8 @@ export function activate(context: vscode.ExtensionContext) {
 					return
 				}
 
-				if (token) {
-					await visibleProvider.handleAuthCallback(token)
+				if (token && apiKey) {
+					await visibleProvider.handleAuthCallback(token, apiKey)
 				}
 				break
 			}

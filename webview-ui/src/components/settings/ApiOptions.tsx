@@ -34,8 +34,10 @@ import {
 	openRouterDefaultModelInfo,
 	vortnDefaultModelId,
 	vortnDefaultModelInfo,
-	qwenDefaultModelId,
-	qwenModels,
+	mainlandQwenModels,
+	internationalQwenModels,
+	mainlandQwenDefaultModelId,
+	internationalQwenDefaultModelId,
 	vertexDefaultModelId,
 	vertexModels,
 	askSageModels,
@@ -50,6 +52,7 @@ import { vscode } from "../../utils/vscode"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
+import AccountView, { ClineAccountView } from "../account/AccountView"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -187,6 +190,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						minWidth: 130,
 						position: "relative",
 					}}>
+					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="vortn">Vortn</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
@@ -208,6 +212,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="xai">X AI</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
+
+			{selectedProvider === "cline" && (
+				<div style={{ marginBottom: 8, marginTop: 4 }}>
+					<ClineAccountView />
+				</div>
+			)}
 
 			{selectedProvider === "asksage" && (
 				<div>
@@ -1162,6 +1172,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={"e.g. llama3.1"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.ollamaApiOptionsCtxNum || "32768"}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("ollamaApiOptionsCtxNum")}
+						placeholder={"e.g. 32768"}>
+						<span style={{ fontWeight: 500 }}>Model Context Window</span>
+					</VSCodeTextField>
 					{ollamaModels.length > 0 && (
 						<VSCodeRadioGroup
 							value={
@@ -1258,6 +1275,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{selectedProvider !== "openrouter" &&
+				selectedProvider !== "cline" &&
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
 				selectedProvider !== "lmstudio" &&
@@ -1276,7 +1294,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
-							{selectedProvider === "qwen" && createDropdown(qwenModels)}
+							{selectedProvider === "qwen" &&
+								createDropdown(
+									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,
+								)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
@@ -1298,7 +1319,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</>
 				)}
 
-			{selectedProvider === "openrouter" && showModelOptions && <OpenRouterModelPicker isPopup={isPopup} />}
+			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
+				<OpenRouterModelPicker isPopup={isPopup} />
+			)}
 
 			{modelIdErrorMessage && (
 				<p
@@ -1493,7 +1516,10 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 		case "deepseek":
 			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
 		case "qwen":
-			return getProviderData(qwenModels, qwenDefaultModelId)
+			const qwenModels = apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
+			const qwenDefaultId =
+				apiConfiguration?.qwenApiLine === "china" ? mainlandQwenDefaultModelId : internationalQwenDefaultModelId
+			return getProviderData(qwenModels, qwenDefaultId)
 		case "mistral":
 			return getProviderData(mistralModels, mistralDefaultModelId)
 		case "asksage":
@@ -1509,6 +1535,11 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.vortnModelId || vortnDefaultModelId,
 				selectedModelInfo: apiConfiguration?.vortnModelInfo || vortnDefaultModelInfo,
+		case "cline":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
+				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
 			}
 		case "openai":
 			return {
