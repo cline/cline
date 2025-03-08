@@ -2,7 +2,13 @@
 
 ## [3.8.1]
 
-- v3.8.1
+- Show the reserved output tokens in the context window visualization
+- Improve the UI of the configuration profile dropdown (thanks @DeXtroTip!)
+- Fix bug where custom temperature could not be unchecked (thanks @System233!)
+- Fix bug where decimal prices could not be entered for OpenAI-compatible providers (thanks @System233!)
+- Fix bug with enhance prompt on Sonnet 3.7 with a high thinking budget (thanks @moqimoqidea!)
+- Fix bug with the context window management for thinking models (thanks @ReadyPlayerEmma!)
+- Fix bug where checkpoints were no longer enabled by default
 
 ## [3.8.0]
 
