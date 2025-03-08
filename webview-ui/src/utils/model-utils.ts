@@ -3,6 +3,11 @@
  */
 
 /**
+ * Default maximum tokens for thinking-capable models when no specific value is provided
+ */
+export const DEFAULT_THINKING_MODEL_MAX_TOKENS = 16_384
+
+/**
  * Model information interface with properties used in token calculations
  */
 export interface ModelInfo {
@@ -70,7 +75,7 @@ export const getMaxTokensForModel = (
 	apiConfig: ApiConfig | undefined,
 ): number | undefined => {
 	if (modelInfo?.thinking) {
-		return apiConfig?.modelMaxTokens || modelInfo?.maxTokens
+		return apiConfig?.modelMaxTokens || DEFAULT_THINKING_MODEL_MAX_TOKENS
 	}
 	return modelInfo?.maxTokens
 }
