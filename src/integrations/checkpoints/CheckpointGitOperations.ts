@@ -18,7 +18,6 @@ interface CheckpointAddResult {
  * - Git repository initialization and configuration
  * - Git settings management (user, LFS, etc.)
  * - Worktree configuration and management
- * - Task-specific branch management (creation, switching, deletion)
  * - Managing nested git repositories during checkpoint operations
  * - File staging and checkpoint creation
  * - Shadow git repository maintenance and cleanup
@@ -89,7 +88,6 @@ export class GitOperations {
 		const lfsPatterns = await getLfsPatterns(cwd)
 		await writeExcludesFile(gitPath, lfsPatterns)
 
-		// Stage all files for initial commit (important so main branch is created with all files in initial commit, and branches created from it will take up less space)
 		await this.addCheckpointFiles(git)
 
 		// Initial commit only on first repo creation
