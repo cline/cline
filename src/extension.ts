@@ -19,7 +19,7 @@ import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import { McpServerManager } from "./services/mcp/McpServerManager"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 
-import { handleUri, registerCommands, registerCodeActions, createRooCodeAPI } from "./activate"
+import { handleUri, registerCommands, registerCodeActions, createRooCodeAPI, registerTerminalActions } from "./activate"
 
 /**
  * Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -98,10 +98,16 @@ export function activate(context: vscode.ExtensionContext) {
 
 	registerCodeActions(context)
 
+	/**
+	 * Temporary disabled until we have a better way to share the terminal
+	 * manager.
+	 */
+	// registerTerminalActions(context)
+
 	return createRooCodeAPI(outputChannel, sidebarProvider)
 }
 
-// This method is called when your extension is deactivated.
+// This method is called when your extension is deactivated
 export async function deactivate() {
 	outputChannel.appendLine("Roo-Code extension deactivated")
 	// Clean up MCP server manager
