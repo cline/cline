@@ -2576,10 +2576,10 @@ export class Cline {
 												if (item.type === "text") {
 													return item.text
 												}
-												if (item.type === "image" && supportsImages) {
-													return ` data:${item.mimeType};base64,${item.data} `
-												}
-												if (item.type === "image" && !supportsImages) {
+																								if (item.type === "image") {
+													if (supportsImages) {
+														return ` data:${item.mimeType};base64,${item.data} `
+													}
 													return "[Image placeholder (images not supported)]"
 												}
 												if (item.type === "resource") {
