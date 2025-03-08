@@ -115,7 +115,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		)
 	}, [apiConfiguration?.apiProvider, apiConfiguration?.openAiModelInfo])
 
-	const shouldShowPromptCacheInfo = doesModelSupportPromptCache && apiConfiguration?.apiProvider !== "openrouter"
+	const shouldShowPromptCacheInfo =
+		doesModelSupportPromptCache && apiConfiguration?.apiProvider !== "openrouter" && apiConfiguration?.apiProvider !== "cline"
 
 	const ContextWindowComponent = (
 		<>

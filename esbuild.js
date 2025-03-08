@@ -52,6 +52,7 @@ const copyWasmFiles = {
 				"java",
 				"php",
 				"swift",
+				"kotlin",
 			]
 
 			languages.forEach((lang) => {
