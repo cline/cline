@@ -10,6 +10,7 @@ import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 
 export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
@@ -135,6 +136,13 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 		}
 	}, [selectedIndex])
 
+	const showBudgetSlider = useMemo(() => {
+		return (
+			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
+			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet")
+		)
+	}, [selectedModelId])
+
 	return (
 		<div style={{ width: "100%" }}>
 			<style>
@@ -206,13 +214,18 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 			</div>
 
 			{hasInfo ? (
-				<ModelInfoView
-					selectedModelId={selectedModelId}
-					modelInfo={selectedModelInfo}
-					isDescriptionExpanded={isDescriptionExpanded}
-					setIsDescriptionExpanded={setIsDescriptionExpanded}
-					isPopup={isPopup}
-				/>
+				<>
+					{showBudgetSlider && (
+						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+					)}
+					<ModelInfoView
+						selectedModelId={selectedModelId}
+						modelInfo={selectedModelInfo}
+						isDescriptionExpanded={isDescriptionExpanded}
+						setIsDescriptionExpanded={setIsDescriptionExpanded}
+						isPopup={isPopup}
+					/>
+				</>
 			) : (
 				<p
 					style={{

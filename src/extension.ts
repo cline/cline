@@ -8,6 +8,7 @@ import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
+import { telemetryService } from "./services/telemetry/TelemetryService"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -161,10 +162,12 @@ export function activate(context: vscode.ExtensionContext) {
 			case "/auth": {
 				const token = query.get("token")
 				const state = query.get("state")
+				const apiKey = query.get("apiKey")
 
 				console.log("Auth callback received:", {
 					token: token,
 					state: state,
+					apiKey: apiKey,
 				})
 
 				// Validate state parameter
@@ -173,8 +176,8 @@ export function activate(context: vscode.ExtensionContext) {
 					return
 				}
 
-				if (token) {
-					await visibleProvider.handleAuthCallback(token)
+				if (token && apiKey) {
+					await visibleProvider.handleAuthCallback(token, apiKey)
 				}
 				break
 			}
@@ -189,6 +192,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export function deactivate() {
+	telemetryService.shutdown()
 	Logger.log("Cline extension deactivated")
 }
 

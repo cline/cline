@@ -35,7 +35,9 @@ export function findMatchingResourceOrTemplate(
 ): McpResource | McpResourceTemplate | undefined {
 	// First try to find an exact resource match
 	const exactMatch = resources.find((resource) => resource.uri === uri)
-	if (exactMatch) return exactMatch
+	if (exactMatch) {
+		return exactMatch
+	}
 
 	// If no exact match, try to find a matching template
 	return findMatchingTemplate(uri, templates)
