@@ -912,10 +912,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								style={{
 									display: "flex",
 									flexDirection: "column",
-									backgroundColor: "rgba(255, 191, 0, 0.1)",
+									backgroundColor: "var(--vscode-textBlockQuote-background)",
 									padding: 8,
 									borderRadius: 3,
 									fontSize: 12,
+									color: "var(--vscode-foreground)",
+									opacity: 0.8,
 								}}>
 								<div
 									style={{
@@ -924,24 +926,15 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										marginBottom: 4,
 									}}>
 									<i
-										className="codicon codicon-error"
+										className="codicon codicon-warning"
 										style={{
 											marginRight: 8,
-											fontSize: 18,
-											color: "#FFA500",
+											fontSize: 14,
+											color: "var(--vscode-descriptionForeground)",
 										}}></i>
-									<span
-										style={{
-											fontWeight: 500,
-											color: "#FFA500",
-										}}>
-										Diff Edit Failed
-									</span>
+									<span style={{ fontWeight: 500 }}>Diff Edit Mismatch</span>
 								</div>
-								<div>
-									This usually happens when the model uses search patterns that don't match anything in the
-									file. Retrying...
-								</div>
+								<div>The model used search patterns that don't match anything in the file. Retrying...</div>
 							</div>
 						</>
 					)
