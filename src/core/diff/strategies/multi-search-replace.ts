@@ -1,6 +1,8 @@
 import { DiffStrategy, DiffResult } from "../types"
 import { addLineNumbers, everyLineHasLineNumbers, stripLineNumbers } from "../../../integrations/misc/extract-text"
 import { distance } from "fastest-levenshtein"
+import { ToolProgressStatus } from "../../../shared/ExtensionMessage"
+import { ToolUse } from "../../assistant-message"
 
 const BUFFER_LINES = 40 // Number of extra context lines to show before and after matches
 
@@ -361,5 +363,26 @@ Only use a single line of '=======' between search and replacement content, beca
 			content: finalContent,
 			failParts: diffResults,
 		}
+	}
+
+	getProgressStatus(toolUse: ToolUse, result?: DiffResult): ToolProgressStatus {
+		const diffContent = toolUse.params.diff
+		if (diffContent) {
+			if (toolUse.partial) {
+				if (diffContent.length < 1000 || (diffContent.length / 50) % 10 === 0) {
+					return { text: `progressing ${(diffContent.match(/SEARCH/g) || []).length} blocks...` }
+				}
+			} else if (result) {
+				const searchBlockCount = (diffContent.match(/SEARCH/g) || []).length
+				if (result.failParts) {
+					return {
+						text: `progressed ${searchBlockCount - result.failParts.length}/${searchBlockCount} blocks.`,
+					}
+				} else {
+					return { text: `progressed ${searchBlockCount} blocks.` }
+				}
+			}
+		}
+		return {}
 	}
 }
