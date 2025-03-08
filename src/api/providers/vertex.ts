@@ -32,7 +32,7 @@ export class VertexHandler implements ApiHandler {
 
 		if (modelId.includes("claude")) {
 			let budget_tokens = this.options.thinkingBudgetTokens || 0
-			const reasoningOn = budget_tokens !== 0 ? true : false
+			const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
 			let stream
 			switch (modelId) {

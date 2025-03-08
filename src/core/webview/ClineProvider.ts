@@ -14,15 +14,15 @@ import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-pre
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { FirebaseAuthManager, UserInfo } from "../../services/auth/FirebaseAuthManager"
 import { McpHub } from "../../services/mcp/McpHub"
+import { UserInfo } from "../../shared/UserInfo"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
 import { ChatContent } from "../../shared/ChatContent"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
-import { ExtensionMessage, ExtensionState, Platform } from "../../shared/ExtensionMessage"
+import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
@@ -34,7 +34,8 @@ import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
-import { validateThinkingBudget } from "../../utils/validation"
+import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
+import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { MemoryBankSettings, DEFAULT_MEMORY_BANK_SETTINGS } from "../../shared/MemoryBankSettings"
 
 /*
@@ -45,6 +46,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 type SecretKey =
 	| "apiKey"
+	| "clineApiKey"
 	| "openRouterApiKey"
 	| "awsAccessKey"
 	| "awsSecretKey"
@@ -58,7 +60,6 @@ type SecretKey =
 	| "qwenApiKey"
 	| "mistralApiKey"
 	| "liteLlmApiKey"
-	| "authToken"
 	| "authNonce"
 	| "asksageApiKey"
 	| "xaiApiKey"
@@ -80,6 +81,7 @@ type GlobalStateKey =
 	| "openAiModelInfo"
 	| "ollamaModelId"
 	| "ollamaBaseUrl"
+	| "ollamaApiOptionsCtxNum"
 	| "lmStudioModelId"
 	| "lmStudioBaseUrl"
 	| "anthropicBaseUrl"
@@ -123,7 +125,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private cline?: Cline
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
-	private authManager: FirebaseAuthManager
 	private latestAnnouncementId = "feb-19-2025" // update to some unique identifier when we add a new announcement
 
 	constructor(
@@ -134,7 +135,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.mcpHub = new McpHub(this)
-		this.authManager = new FirebaseAuthManager(this)
+
+		// Clean up legacy checkpoints
+		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
+			console.error("Failed to cleanup legacy checkpoints:", error)
+		})
 	}
 
 	/*
@@ -160,7 +165,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.workspaceTracker = undefined
 		this.mcpHub?.dispose()
 		this.mcpHub = undefined
-		this.authManager.dispose()
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 	}
@@ -168,15 +172,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// Auth methods
 	async handleSignOut() {
 		try {
-			await this.authManager.signOut()
+			await this.storeSecret("clineApiKey", undefined)
+			await this.updateGlobalState("apiProvider", "openrouter")
+			await this.postStateToWebview()
 			vscode.window.showInformationMessage("Successfully logged out of Cline")
 		} catch (error) {
 			vscode.window.showErrorMessage("Logout failed")
 		}
-	}
-
-	async setAuthToken(token?: string) {
-		await this.storeSecret("authToken", token)
 	}
 
 	async setUserInfo(info?: { displayName: string | null; email: string | null; photoURL: string | null }) {
@@ -292,16 +294,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			task,
 			images,
 		)
-
-		// New task started
-		if (telemetryService.isTelemetryEnabled()) {
-			telemetryService.capture({
-				event: "New task started",
-				properties: {
-					apiProvider: apiConfiguration.apiProvider,
-				},
-			})
-		}
 	}
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
@@ -320,16 +312,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			undefined,
 			historyItem,
 		)
-
-		// Open task from history
-		if (telemetryService.isTelemetryEnabled()) {
-			telemetryService.capture({
-				event: "Open task from history",
-				properties: {
-					apiProvider: apiConfiguration.apiProvider,
-				},
-			})
-		}
 	}
 
 	// Send any JSON serializable data to the react app
@@ -400,7 +382,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
             <meta name="theme-color" content="#000000">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
             <link href="${codiconsUri}" rel="stylesheet" />
-						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://*.posthog.com; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' https://*.posthog.com;">
+						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://*.posthog.com https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' 'unsafe-eval';">
             <title>Cline</title>
           </head>
           <body>
@@ -496,6 +478,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		webview.onDidReceiveMessage(
 			async (message: WebviewMessage) => {
 				switch (message.type) {
+					case "authStateChanged":
+						await this.setUserInfo(message.user || undefined)
+						await this.postStateToWebview()
+						break
 					case "webviewDidLaunch":
 						this.postStateToWebview()
 						this.workspaceTracker?.populateFilePaths() // don't await
@@ -583,6 +569,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								openAiModelInfo,
 								ollamaModelId,
 								ollamaBaseUrl,
+								ollamaApiOptionsCtxNum,
 								lmStudioModelId,
 								lmStudioBaseUrl,
 								anthropicBaseUrl,
@@ -607,6 +594,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								asksageApiUrl,
 								xaiApiKey,
 								thinkingBudgetTokens,
+								clineApiKey,
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -628,6 +616,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("openAiModelInfo", openAiModelInfo)
 							await this.updateGlobalState("ollamaModelId", ollamaModelId)
 							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
+							await this.updateGlobalState("ollamaApiOptionsCtxNum", ollamaApiOptionsCtxNum)
 							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
 							await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
 							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
@@ -652,6 +641,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.storeSecret("asksageApiKey", asksageApiKey)
 							await this.updateGlobalState("asksageApiUrl", asksageApiUrl)
 							await this.updateGlobalState("thinkingBudgetTokens", thinkingBudgetTokens)
+							await this.storeSecret("clineApiKey", clineApiKey)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
@@ -817,9 +807,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "getLatestState":
 						await this.postStateToWebview()
 						break
-					case "subscribeEmail":
-						this.subscribeEmail(message.text)
-						break
 					case "accountLoginClicked": {
 						// Generate nonce for state validation
 						const nonce = crypto.randomBytes(32).toString("hex")
@@ -982,6 +969,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						)
 						break
 					}
+					case "invoke": {
+						if (message.text) {
+							await this.postMessageToWebview({
+								type: "invoke",
+								invoke: message.text as Invoke,
+							})
+						}
+						break
+					}
 					// telemetry
 					case "openSettings": {
 						await this.postMessageToWebview({
@@ -1010,6 +1006,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent) {
 		const didSwitchToActMode = chatSettings.mode === "act"
 
+		// Capture mode switch telemetry | Capture regardless of if we know the taskId
+		telemetryService.captureModeSwitch(this.cline?.taskId ?? "0", chatSettings.mode)
+
 		// Get previous model info that we will revert to after saving current mode api info
 		const {
 			apiConfiguration,
@@ -1031,6 +1030,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
 				break
 			case "openrouter":
+			case "cline":
 				await this.updateGlobalState("previousModeModelId", apiConfiguration.openRouterModelId)
 				await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openRouterModelInfo)
 				break
@@ -1068,6 +1068,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					await this.updateGlobalState("apiModelId", newModelId)
 					break
 				case "openrouter":
+				case "cline":
 					await this.updateGlobalState("openRouterModelId", newModelId)
 					await this.updateGlobalState("openRouterModelInfo", newModelInfo)
 					break
@@ -1100,12 +1101,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		await this.updateGlobalState("chatSettings", chatSettings)
 		await this.postStateToWebview()
-		// console.log("chatSettings", message.chatSettings)
+
 		if (this.cline) {
 			this.cline.updateChatSettings(chatSettings)
 			if (this.cline.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.cline.didRespondToPlanAskBySwitchingMode = true
-				// this is necessary for the webview to update accordingly, but Cline instance will not send text back as feedback message
+				// Use chatContent if provided, otherwise use default message
 				await this.postMessageToWebview({
 					type: "invoke",
 					invoke: "sendMessage",
@@ -1115,36 +1116,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			} else {
 				this.cancelTask()
 			}
-		}
-	}
-
-	async subscribeEmail(email?: string) {
-		if (!email) {
-			return
-		}
-		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-		if (!emailRegex.test(email)) {
-			vscode.window.showErrorMessage("Please enter a valid email address")
-			return
-		}
-		console.log("Subscribing email:", email)
-		this.postMessageToWebview({ type: "emailSubscribed" })
-		// Currently ignoring errors to this endpoint, but after accounts we'll remove this anyways
-		try {
-			const response = await axios.post(
-				"https://app.cline.bot/api/mailing-list",
-				{
-					email: email,
-				},
-				{
-					headers: {
-						"Content-Type": "application/json",
-					},
-				},
-			)
-			console.log("Email subscribed successfully. Response:", response.data)
-		} catch (error) {
-			console.error("Failed to subscribe email:", error)
 		}
 	}
 
@@ -1302,18 +1273,39 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		return true
 	}
 
-	async handleAuthCallback(token: string) {
+	async handleAuthCallback(customToken: string, apiKey: string) {
 		try {
-			// First sign in with Firebase to trigger auth state change
-			await this.authManager.signInWithCustomToken(token)
+			// Store API key for API calls
+			await this.storeSecret("clineApiKey", apiKey)
 
-			// Then store the token securely
-			await this.storeSecret("authToken", token)
+			// Send custom token to webview for Firebase auth
+			await this.postMessageToWebview({
+				type: "authCallback",
+				customToken,
+			})
+
+			const clineProvider: ApiProvider = "cline"
+			await this.updateGlobalState("apiProvider", clineProvider)
+
+			// Update API configuration with the new provider and API key
+			const { apiConfiguration } = await this.getState()
+			const updatedConfig = {
+				...apiConfiguration,
+				apiProvider: clineProvider,
+				clineApiKey: apiKey,
+			}
+
+			if (this.cline) {
+				this.cline.api = buildApiHandler(updatedConfig)
+			}
+
 			await this.postStateToWebview()
 			vscode.window.showInformationMessage("Successfully logged in to Cline")
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
 			vscode.window.showErrorMessage("Failed to log in to Cline")
+			// Even on login failure, we preserve any existing tokens
+			// Only clear tokens on explicit logout
 		}
 	}
 
@@ -1738,6 +1730,19 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
 
+		// Delete checkpoints
+		console.info("deleting checkpoints")
+		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+		const historyItem = taskHistory.find((item) => item.id === id)
+		//console.log("historyItem: ", historyItem)
+		// if (historyItem) {
+		// 	try {
+		// 		await CheckpointTracker.deleteCheckpoints(id, historyItem, this.context.globalStorageUri.fsPath)
+		// 	} catch (error) {
+		// 		console.error(`Failed to delete checkpoints for task ${id}:`, error)
+		// 	}
+		// }
+
 		await this.deleteTaskFromState(id)
 
 		// Delete the task files
@@ -1752,17 +1757,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
 		if (await fileExistsAtPath(legacyMessagesFilePath)) {
 			await fs.unlink(legacyMessagesFilePath)
-		}
-
-		// Delete the checkpoints directory if it exists
-		const checkpointsDir = path.join(taskDirPath, "checkpoints")
-		if (await fileExistsAtPath(checkpointsDir)) {
-			try {
-				await fs.rm(checkpointsDir, { recursive: true, force: true })
-			} catch (error) {
-				console.error(`Failed to delete checkpoints directory for task ${id}:`, error)
-				// Continue with deletion of task directory - don't throw since this is a cleanup operation
-			}
 		}
 
 		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
@@ -1794,7 +1788,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			chatSettings,
 			memoryBankSettings,
 			userInfo,
-			authToken,
 			mcpMarketplaceEnabled,
 			telemetrySetting,
 		} = await this.getState()
@@ -1814,7 +1807,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			browserSettings,
 			chatSettings,
 			memoryBankSettings,
-			isLoggedIn: !!authToken,
 			userInfo,
 			mcpMarketplaceEnabled,
 			telemetrySetting,
@@ -1879,6 +1871,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			apiModelId,
 			apiKey,
 			openRouterApiKey,
+			clineApiKey,
 			awsAccessKey,
 			awsSecretKey,
 			awsSessionToken,
@@ -1895,6 +1888,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			openAiModelInfo,
 			ollamaModelId,
 			ollamaBaseUrl,
+			ollamaApiOptionsCtxNum,
 			lmStudioModelId,
 			lmStudioBaseUrl,
 			anthropicBaseUrl,
@@ -1921,7 +1915,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			liteLlmBaseUrl,
 			liteLlmModelId,
 			userInfo,
-			authToken,
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
@@ -1938,6 +1931,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
 			this.getSecret("apiKey") as Promise<string | undefined>,
 			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
+			this.getSecret("clineApiKey") as Promise<string | undefined>,
 			this.getSecret("awsAccessKey") as Promise<string | undefined>,
 			this.getSecret("awsSecretKey") as Promise<string | undefined>,
 			this.getSecret("awsSessionToken") as Promise<string | undefined>,
@@ -1954,6 +1948,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("openAiModelInfo") as Promise<ModelInfo | undefined>,
 			this.getGlobalState("ollamaModelId") as Promise<string | undefined>,
 			this.getGlobalState("ollamaBaseUrl") as Promise<string | undefined>,
+			this.getGlobalState("ollamaApiOptionsCtxNum") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioModelId") as Promise<string | undefined>,
 			this.getGlobalState("lmStudioBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
@@ -1980,7 +1975,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("liteLlmBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("liteLlmModelId") as Promise<string | undefined>,
 			this.getGlobalState("userInfo") as Promise<UserInfo | undefined>,
-			this.getSecret("authToken") as Promise<string | undefined>,
 			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
@@ -2003,7 +1997,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			if (apiKey) {
 				apiProvider = "anthropic"
 			} else {
-				// New users should default to openrouter
+				// New users should default to openrouter, since they've opted to use an API key instead of signing in
 				apiProvider = "openrouter"
 			}
 		}
@@ -2020,6 +2014,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				apiModelId,
 				apiKey,
 				openRouterApiKey,
+				clineApiKey,
 				awsAccessKey,
 				awsSecretKey,
 				awsSessionToken,
@@ -2036,6 +2031,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				openAiModelInfo,
 				ollamaModelId,
 				ollamaBaseUrl,
+				ollamaApiOptionsCtxNum,
 				lmStudioModelId,
 				lmStudioBaseUrl,
 				anthropicBaseUrl,
@@ -2070,7 +2066,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 			memoryBankSettings: memoryBankSettings || DEFAULT_MEMORY_BANK_SETTINGS,
 			userInfo,
-			authToken,
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
@@ -2204,8 +2199,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			"togetherApiKey",
 			"qwenApiKey",
 			"mistralApiKey",
+			"clineApiKey",
 			"liteLlmApiKey",
-			"authToken",
 			"asksageApiKey",
 			"xaiApiKey",
 		]

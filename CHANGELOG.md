@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.6.3]
+
+-   Improve QwQ support for Alibaba (thanks @meglinge!) and OpenRouter
+-   Improve diff edit prompting to prevent immediately reverting to write_to_file when a model uses search patterns that don't match anything in the file
+-   Fix bug where new checkpoints system would revert file changes when switching between tasks
+-   Fix issue with incorrect token count for some OpenAI compatible providers
+
+## [3.6.0]
+
+-   Add Cline API as a provider option, allowing new users to sign up and get started with Cline for free
+-   Optimize checkpoints with branch-per-task strategy, reducing storage required and first task load times
+-   Fix problem with Plan/Act toggle keyboard shortcut not working in Windows (thanks @yt3trees!)
+-   Add new Gemini models to GCP Vertex (thanks @shohei-ihaya!) and Claude models AskSage (thanks @swhite24!)
+-   Improve OpenRouter/Cline error reporting
+
+## [3.5.1]
+
+-   Add timeout option to MCP servers
+-   Add Gemini Flash models to Vertex provider (thanks @jpaodev!)
+-   Add prompt caching support for AWS Bedrock provider (thanks @buger!)
+-   Add AskSage provider (thanks @swhite24!)
+
 ## [3.5.0]
 
 -   Add 'Enable extended thinking' option for Claude 3.7 Sonnet, with ability to set different budgets for Plan and Act modes
