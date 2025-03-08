@@ -34,7 +34,7 @@ import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./Checkpo
  *
  * Checkpoint Architecture:
  * - Unique shadow git repository for each workspace
- * - Workspaces are idenfied by name, and hashed to a unique number
+ * - Workspaces are identified by name, and hashed to a unique number
  * - All commits for a workspace are stored in one shadow git, under a single branch
  */
 
