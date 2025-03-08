@@ -30,6 +30,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		setAlwaysAllowMcp,
 		alwaysAllowModeSwitch,
 		setAlwaysAllowModeSwitch,
+		alwaysAllowFinishTask,
+		setAlwaysAllowFinishTask,
 		alwaysApproveResubmit,
 		setAlwaysApproveResubmit,
 		autoApprovalEnabled,
@@ -80,6 +82,13 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			enabled: alwaysAllowModeSwitch ?? false,
 			description:
 				"Allows automatic switching between different AI modes and creating new tasks without requiring approval.",
+		},
+		{
+			id: "finishTask",
+			label: "Finish subtasks tasks",
+			shortName: "Finish",
+			enabled: alwaysAllowFinishTask ?? false,
+			description: "Allows automatic completeing a sub-task without requiring user review or approval.",
 		},
 		{
 			id: "retryRequests",
@@ -136,6 +145,12 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		vscode.postMessage({ type: "alwaysAllowModeSwitch", bool: newValue })
 	}, [alwaysAllowModeSwitch, setAlwaysAllowModeSwitch])
 
+	const handleFinishTaskChange = useCallback(() => {
+		const newValue = !(alwaysAllowFinishTask ?? false)
+		setAlwaysAllowFinishTask(newValue)
+		vscode.postMessage({ type: "alwaysAllowFinishTask", bool: newValue })
+	}, [alwaysAllowFinishTask, setAlwaysAllowFinishTask])
+
 	const handleRetryChange = useCallback(() => {
 		const newValue = !(alwaysApproveResubmit ?? false)
 		setAlwaysApproveResubmit(newValue)
@@ -150,6 +165,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		useBrowser: handleBrowserChange,
 		useMcp: handleMcpChange,
 		switchModes: handleModeSwitchChange,
+		finishTask: handleFinishTaskChange,
 		retryRequests: handleRetryChange,
 	}
 
