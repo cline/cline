@@ -47,7 +47,6 @@ export interface TerminalProcessEvents {
 	 */
 	shell_execution_complete: [id: number, exitDetails: ExitCodeDetails]
 	stream_available: [id: number, stream: AsyncIterable<string>]
-	stream_unavailable: [id: number]
 	/**
 	 * Emitted when an execution fails to emit a "line" event for a given period of time.
 	 * @param id The terminal ID
@@ -86,24 +85,15 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			const terminalInfo = TerminalRegistry.getTerminalInfoByTerminal(terminal)
 
 			if (!terminalInfo) {
-				console.error("[TerminalProcess#run] terminal not found in registry")
+				console.error("[TerminalProcess] Terminal not found in registry")
 				this.emit("no_shell_integration")
 				this.emit("completed")
 				this.emit("continue")
 				return
 			}
 
-			this.once("stream_unavailable", (id: number) => {
-				if (id === terminalInfo.id) {
-					console.error(`[TerminalProcess#run] stream_unavailable`)
-					this.emit("completed")
-					this.emit("continue")
-				}
-			})
-
-			// When `executeCommand()` is called, `onDidStartTerminalShellExecution`
-			// will fire in `TerminalManager` which creates a new stream via
-			// `execution.read()` and emits `stream_available`.
+			// When executeCommand() is called, onDidStartTerminalShellExecution will fire in TerminalManager
+			// which creates a new stream via execution.read() and emits 'stream_available'
 			const streamAvailable = new Promise<AsyncIterable<string>>((resolve) => {
 				this.once("stream_available", (id: number, stream: AsyncIterable<string>) => {
 					if (id === terminalInfo.id) {
@@ -121,35 +111,15 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				})
 			})
 
-			// `readLine()` needs to know if streamClosed, so store this for later.
-			// NOTE: This doesn't seem to be used anywhere.
+			// readLine needs to know if streamClosed, so store this for later
 			this.terminalInfo = terminalInfo
 
-			// Execute command.
+			// Execute command
 			terminal.shellIntegration.executeCommand(command)
 			this.isHot = true
 
-			// Wait for stream to be available.
-			// const stream = await streamAvailable
-
-			// Wait for stream to be available.
-			let stream: AsyncIterable<string>
-
-			try {
-				stream = await Promise.race([
-					streamAvailable,
-					new Promise<never>((_, reject) => {
-						setTimeout(
-							() => reject(new Error("Timeout waiting for terminal stream to become available")),
-							10_000,
-						)
-					}),
-				])
-			} catch (error) {
-				console.error(`[TerminalProcess#run] timed out waiting for stream`)
-				this.emit("stream_stalled", terminalInfo.id)
-				stream = await streamAvailable
-			}
+			// Wait for stream to be available
+			const stream = await streamAvailable
 
 			let preOutput = ""
 			let commandOutputStarted = false
@@ -286,7 +256,6 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	}
 
 	public continue() {
-		console.log(`[TerminalProcess#continue] flushing all`)
 		this.flushAll()
 		this.isListening = false
 		this.removeAllListeners("line")
