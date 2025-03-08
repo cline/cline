@@ -70,7 +70,7 @@ export interface ApiHandlerOptions {
 	requestyApiKey?: string
 	requestyModelId?: string
 	requestyModelInfo?: ModelInfo
-	modelTemperature?: number
+	modelTemperature?: number | null
 	modelMaxTokens?: number
 	modelMaxThinkingTokens?: number
 }

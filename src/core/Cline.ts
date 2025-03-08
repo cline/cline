@@ -158,7 +158,7 @@ export class Cline {
 		apiConfiguration,
 		customInstructions,
 		enableDiff,
-		enableCheckpoints = false,
+		enableCheckpoints = true,
 		checkpointStorage = "task",
 		fuzzyMatchThreshold,
 		task,
@@ -1124,9 +1124,12 @@ export class Cline {
 
 			const totalTokens = tokensIn + tokensOut + cacheWrites + cacheReads
 
+			// Default max tokens value for thinking models when no specific value is set
+			const DEFAULT_THINKING_MODEL_MAX_TOKENS = 16_384
+
 			const modelInfo = this.api.getModel().info
 			const maxTokens = modelInfo.thinking
-				? this.apiConfiguration.modelMaxTokens || modelInfo.maxTokens
+				? this.apiConfiguration.modelMaxTokens || DEFAULT_THINKING_MODEL_MAX_TOKENS
 				: modelInfo.maxTokens
 			const contextWindow = modelInfo.contextWindow
 			const trimmedMessages = await truncateConversationIfNeeded({

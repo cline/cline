@@ -214,12 +214,12 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 	}
 
 	async completePrompt(prompt: string) {
-		let { id: modelId, maxTokens, thinking, temperature } = this.getModel()
+		let { id: modelId, temperature } = this.getModel()
 
 		const message = await this.client.messages.create({
 			model: modelId,
-			max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
-			thinking,
+			max_tokens: ANTHROPIC_DEFAULT_MAX_TOKENS,
+			thinking: undefined,
 			temperature,
 			messages: [{ role: "user", content: prompt }],
 			stream: false,

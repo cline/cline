@@ -4,6 +4,8 @@ import { Checkbox, Dropdown, type DropdownOption } from "vscrui"
 import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import * as vscodemodels from "vscode"
 
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue, Button } from "@/components/ui"
+
 import {
 	ApiConfiguration,
 	ModelInfo,
@@ -42,7 +44,6 @@ import { TemperatureControl } from "./TemperatureControl"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import { ApiErrorMessage } from "./ApiErrorMessage"
 import { ThinkingBudget } from "./ThinkingBudget"
-import { Button } from "../ui"
 
 const modelsByProvider: Record<string, Record<string, ModelInfo>> = {
 	anthropic: anthropicModels,
@@ -53,6 +54,25 @@ const modelsByProvider: Record<string, Record<string, ModelInfo>> = {
 	deepseek: deepSeekModels,
 	mistral: mistralModels,
 }
+
+const providers = [
+	{ value: "openrouter", label: "OpenRouter" },
+	{ value: "anthropic", label: "Anthropic" },
+	{ value: "gemini", label: "Google Gemini" },
+	{ value: "deepseek", label: "DeepSeek" },
+	{ value: "openai-native", label: "OpenAI" },
+	{ value: "openai", label: "OpenAI Compatible" },
+	{ value: "vertex", label: "GCP Vertex AI" },
+	{ value: "bedrock", label: "AWS Bedrock" },
+	{ value: "glama", label: "Glama" },
+	{ value: "vscode-lm", label: "VS Code LM API" },
+	{ value: "mistral", label: "Mistral" },
+	{ value: "lmstudio", label: "LM Studio" },
+	{ value: "ollama", label: "Ollama" },
+	{ value: "unbound", label: "Unbound" },
+	{ value: "requesty", label: "Requesty" },
+	{ value: "human-relay", label: "Human Relay" },
+]
 
 interface ApiOptionsProps {
 	uriScheme: string | undefined
@@ -238,30 +258,22 @@ const ApiOptions = ({
 				<label htmlFor="api-provider" className="font-medium">
 					API Provider
 				</label>
-				<Dropdown
-					id="api-provider"
+				<Select
 					value={selectedProvider}
-					onChange={handleInputChange("apiProvider", dropdownEventTransform)}
-					options={[
-						{ value: "openrouter", label: "OpenRouter" },
-						{ value: "anthropic", label: "Anthropic" },
-						{ value: "gemini", label: "Google Gemini" },
-						{ value: "deepseek", label: "DeepSeek" },
-						{ value: "openai-native", label: "OpenAI" },
-						{ value: "openai", label: "OpenAI Compatible" },
-						{ value: "vertex", label: "GCP Vertex AI" },
-						{ value: "bedrock", label: "AWS Bedrock" },
-						{ value: "glama", label: "Glama" },
-						{ value: "vscode-lm", label: "VS Code LM API" },
-						{ value: "mistral", label: "Mistral" },
-						{ value: "lmstudio", label: "LM Studio" },
-						{ value: "ollama", label: "Ollama" },
-						{ value: "unbound", label: "Unbound" },
-						{ value: "requesty", label: "Requesty" },
-						{ value: "human-relay", label: "Human Relay" },
-					]}
-					className="w-full"
-				/>
+					onValueChange={handleInputChange("apiProvider", dropdownEventTransform)}>
+					<SelectTrigger className="w-full">
+						<SelectValue placeholder="Select" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectGroup>
+							{providers.map(({ value, label }) => (
+								<SelectItem key={value} value={value}>
+									{label}
+								</SelectItem>
+							))}
+						</SelectGroup>
+					</SelectContent>
+				</Select>
 			</div>
 
 			{errorMessage && <ApiErrorMessage errorMessage={errorMessage} />}
@@ -424,10 +436,10 @@ const ApiOptions = ({
 				<>
 					<VSCodeTextField
 						value={apiConfiguration?.mistralApiKey || ""}
-						style={{ width: "100%" }}
 						type="password"
 						onInput={handleInputChange("mistralApiKey")}
-						placeholder="Enter API Key...">
+						placeholder="Enter API Key..."
+						className="w-full">
 						<span className="font-medium">Mistral API Key</span>
 					</VSCodeTextField>
 					<div className="text-sm text-vscode-descriptionForeground -mt-2">
@@ -575,16 +587,16 @@ const ApiOptions = ({
 					</div>
 					<VSCodeTextField
 						value={apiConfiguration?.vertexJsonCredentials || ""}
-						style={{ width: "100%" }}
 						onInput={handleInputChange("vertexJsonCredentials")}
-						placeholder="Enter Credentials JSON...">
+						placeholder="Enter Credentials JSON..."
+						className="w-full">
 						<span className="font-medium">Google Cloud Credentials</span>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.vertexKeyFile || ""}
-						style={{ width: "100%" }}
 						onInput={handleInputChange("vertexKeyFile")}
-						placeholder="Enter Key File Path...">
+						placeholder="Enter Key File Path..."
+						className="w-full">
 						<span className="font-medium">Google Cloud Key File Path</span>
 					</VSCodeTextField>
 					<VSCodeTextField
@@ -620,10 +632,10 @@ const ApiOptions = ({
 				<>
 					<VSCodeTextField
 						value={apiConfiguration?.geminiApiKey || ""}
-						style={{ width: "100%" }}
 						type="password"
 						onInput={handleInputChange("geminiApiKey")}
-						placeholder="Enter API Key...">
+						placeholder="Enter API Key..."
+						className="w-full">
 						<span className="font-medium">Gemini API Key</span>
 					</VSCodeTextField>
 					<div className="text-sm text-vscode-descriptionForeground -mt-2">
@@ -713,10 +725,13 @@ const ApiOptions = ({
 								}
 								type="text"
 								style={{
-									width: "100%",
 									borderColor: (() => {
 										const value = apiConfiguration?.openAiCustomModelInfo?.maxTokens
-										if (!value) return "var(--vscode-input-border)"
+
+										if (!value) {
+											return "var(--vscode-input-border)"
+										}
+
 										return value > 0
 											? "var(--vscode-charts-green)"
 											: "var(--vscode-errorForeground)"
@@ -725,12 +740,14 @@ const ApiOptions = ({
 								title="Maximum number of tokens the model can generate in a single response"
 								onInput={handleInputChange("openAiCustomModelInfo", (e) => {
 									const value = parseInt((e.target as HTMLInputElement).value)
+
 									return {
 										...(apiConfiguration?.openAiCustomModelInfo || openAiModelInfoSaneDefaults),
 										maxTokens: isNaN(value) ? undefined : value,
 									}
 								})}
-								placeholder="e.g. 4096">
+								placeholder="e.g. 4096"
+								className="w-full">
 								<span className="font-medium">Max Output Tokens</span>
 							</VSCodeTextField>
 							<div className="text-sm text-vscode-descriptionForeground">
@@ -748,10 +765,13 @@ const ApiOptions = ({
 								}
 								type="text"
 								style={{
-									width: "100%",
 									borderColor: (() => {
 										const value = apiConfiguration?.openAiCustomModelInfo?.contextWindow
-										if (!value) return "var(--vscode-input-border)"
+
+										if (!value) {
+											return "var(--vscode-input-border)"
+										}
+
 										return value > 0
 											? "var(--vscode-charts-green)"
 											: "var(--vscode-errorForeground)"
@@ -761,6 +781,7 @@ const ApiOptions = ({
 								onInput={handleInputChange("openAiCustomModelInfo", (e) => {
 									const value = (e.target as HTMLInputElement).value
 									const parsed = parseInt(value)
+
 									return {
 										...(apiConfiguration?.openAiCustomModelInfo || openAiModelInfoSaneDefaults),
 										contextWindow: isNaN(parsed)
@@ -768,7 +789,8 @@ const ApiOptions = ({
 											: parsed,
 									}
 								})}
-								placeholder="e.g. 128000">
+								placeholder="e.g. 128000"
+								className="w-full">
 								<span className="font-medium">Context Window Size</span>
 							</VSCodeTextField>
 							<div className="text-sm text-vscode-descriptionForeground">
@@ -834,24 +856,29 @@ const ApiOptions = ({
 								}
 								type="text"
 								style={{
-									width: "100%",
 									borderColor: (() => {
 										const value = apiConfiguration?.openAiCustomModelInfo?.inputPrice
-										if (!value && value !== 0) return "var(--vscode-input-border)"
+
+										if (!value && value !== 0) {
+											return "var(--vscode-input-border)"
+										}
+
 										return value >= 0
 											? "var(--vscode-charts-green)"
 											: "var(--vscode-errorForeground)"
 									})(),
 								}}
-								onInput={handleInputChange("openAiCustomModelInfo", (e) => {
+								onChange={handleInputChange("openAiCustomModelInfo", (e) => {
 									const value = (e.target as HTMLInputElement).value
 									const parsed = parseFloat(value)
+
 									return {
 										...(apiConfiguration?.openAiCustomModelInfo ?? openAiModelInfoSaneDefaults),
 										inputPrice: isNaN(parsed) ? openAiModelInfoSaneDefaults.inputPrice : parsed,
 									}
 								})}
-								placeholder="e.g. 0.0001">
+								placeholder="e.g. 0.0001"
+								className="w-full">
 								<div className="flex items-center gap-1">
 									<span className="font-medium">Input Price</span>
 									<i
@@ -872,24 +899,29 @@ const ApiOptions = ({
 								}
 								type="text"
 								style={{
-									width: "100%",
 									borderColor: (() => {
 										const value = apiConfiguration?.openAiCustomModelInfo?.outputPrice
-										if (!value && value !== 0) return "var(--vscode-input-border)"
+
+										if (!value && value !== 0) {
+											return "var(--vscode-input-border)"
+										}
+
 										return value >= 0
 											? "var(--vscode-charts-green)"
 											: "var(--vscode-errorForeground)"
 									})(),
 								}}
-								onInput={handleInputChange("openAiCustomModelInfo", (e) => {
+								onChange={handleInputChange("openAiCustomModelInfo", (e) => {
 									const value = (e.target as HTMLInputElement).value
 									const parsed = parseFloat(value)
+
 									return {
 										...(apiConfiguration?.openAiCustomModelInfo || openAiModelInfoSaneDefaults),
 										outputPrice: isNaN(parsed) ? openAiModelInfoSaneDefaults.outputPrice : parsed,
 									}
 								})}
-								placeholder="e.g. 0.0002">
+								placeholder="e.g. 0.0002"
+								className="w-full">
 								<div className="flex items-center gap-1">
 									<span className="font-medium">Output Price</span>
 									<i
@@ -960,9 +992,9 @@ const ApiOptions = ({
 							<div>
 								<VSCodeTextField
 									value={apiConfiguration?.lmStudioDraftModelId || ""}
-									style={{ width: "100%" }}
 									onInput={handleInputChange("lmStudioDraftModelId")}
-									placeholder={"e.g. lmstudio-community/llama-3.2-1b-instruct"}>
+									placeholder={"e.g. lmstudio-community/llama-3.2-1b-instruct"}
+									className="w-full">
 									<span className="font-medium">Draft Model ID</span>
 								</VSCodeTextField>
 								<div className="text-sm text-vscode-descriptionForeground">

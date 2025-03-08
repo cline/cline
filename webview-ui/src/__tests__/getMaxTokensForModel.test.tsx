@@ -1,4 +1,4 @@
-import { getMaxTokensForModel } from "@/utils/model-utils"
+import { DEFAULT_THINKING_MODEL_MAX_TOKENS, getMaxTokensForModel } from "@/utils/model-utils"
 
 describe("getMaxTokensForModel utility from model-utils", () => {
 	test("should return maxTokens from modelInfo when thinking is false", () => {
@@ -29,7 +29,7 @@ describe("getMaxTokensForModel utility from model-utils", () => {
 		expect(result).toBe(4096)
 	})
 
-	test("should fallback to modelInfo.maxTokens when thinking is true but apiConfig.modelMaxTokens is not defined", () => {
+	test("should fallback to DEFAULT_THINKING_MODEL_MAX_TOKENS when thinking is true but apiConfig.modelMaxTokens is not defined", () => {
 		const modelInfo = {
 			maxTokens: 2048,
 			thinking: true,
@@ -38,7 +38,7 @@ describe("getMaxTokensForModel utility from model-utils", () => {
 		const apiConfig = {}
 
 		const result = getMaxTokensForModel(modelInfo, apiConfig)
-		expect(result).toBe(2048)
+		expect(result).toBe(DEFAULT_THINKING_MODEL_MAX_TOKENS)
 	})
 
 	test("should handle undefined inputs gracefully", () => {
