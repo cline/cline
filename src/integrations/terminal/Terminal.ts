@@ -6,7 +6,6 @@ export class Terminal {
 	public terminal: vscode.Terminal
 	public busy: boolean
 	public id: number
-	private stream?: AsyncIterable<string>
 	public running: boolean
 	private streamClosed: boolean
 	public process?: TerminalProcess
@@ -41,13 +40,6 @@ export class Terminal {
 	}
 
 	/**
-	 * Gets the terminal's stream
-	 */
-	public getStream(): AsyncIterable<string> | undefined {
-		return this.stream
-	}
-
-	/**
 	 * Checks if the stream is closed
 	 */
 	public isStreamClosed(): boolean {
@@ -60,8 +52,6 @@ export class Terminal {
 	 * @throws Error if process is undefined when a stream is provided
 	 */
 	public setActiveStream(stream: AsyncIterable<string> | undefined): void {
-		this.stream = stream
-
 		if (stream) {
 			// New stream is available
 			if (!this.process) {
