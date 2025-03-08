@@ -3,8 +3,8 @@ import { useEffect, useState } from "react"
 import { useDebounce } from "react-use"
 
 interface TemperatureControlProps {
-	value: number | undefined
-	onChange: (value: number | undefined) => void
+	value: number | undefined | null
+	onChange: (value: number | undefined | null) => void
 	maxValue?: number // Some providers like OpenAI use 0-2 range
 }
 
@@ -14,7 +14,7 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 	useDebounce(() => onChange(inputValue), 50, [onChange, inputValue])
 	// Sync internal state with prop changes when switching profiles
 	useEffect(() => {
-		const hasCustomTemperature = value !== undefined
+		const hasCustomTemperature = value !== undefined && value !== null
 		setIsCustomTemperature(hasCustomTemperature)
 		setInputValue(value)
 	}, [value])
@@ -28,7 +28,7 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 						const isChecked = e.target.checked
 						setIsCustomTemperature(isChecked)
 						if (!isChecked) {
-							setInputValue(undefined) // Unset the temperature
+							setInputValue(null) // Unset the temperature, note that undefined is unserializable
 						} else {
 							setInputValue(value ?? 0) // Use the value from apiConfiguration, if set
 						}
@@ -53,7 +53,7 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 							min="0"
 							max={maxValue}
 							step="0.01"
-							value={inputValue}
+							value={inputValue ?? 0}
 							className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 							onChange={(e) => setInputValue(parseFloat(e.target.value))}
 						/>

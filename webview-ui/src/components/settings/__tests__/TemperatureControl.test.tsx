@@ -33,7 +33,7 @@ describe("TemperatureControl", () => {
 		fireEvent.click(checkbox)
 		// Waiting for debounce
 		await new Promise((x) => setTimeout(x, 100))
-		expect(onChange).toHaveBeenCalledWith(undefined)
+		expect(onChange).toHaveBeenCalledWith(null)
 
 		// Check - should restore previous temperature
 		fireEvent.click(checkbox)
