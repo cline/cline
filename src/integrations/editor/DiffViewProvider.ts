@@ -105,7 +105,7 @@ export class DiffViewProvider {
 		const edit = new vscode.WorkspaceEdit()
 		const rangeToReplace = new vscode.Range(0, 0, endLine + 1, 0)
 		const contentToReplace = accumulatedLines.slice(0, endLine + 1).join("\n") + "\n"
-		edit.replace(document.uri, rangeToReplace, stripBom(stripBom(contentToReplace)))
+		edit.replace(document.uri, rangeToReplace, this.stripAllBOMs(contentToReplace))
 		await vscode.workspace.applyEdit(edit)
 		// Update decorations
 		this.activeLineController.setActiveLine(endLine)
@@ -132,7 +132,7 @@ export class DiffViewProvider {
 			finalEdit.replace(
 				document.uri,
 				new vscode.Range(0, 0, document.lineCount, 0),
-				stripBom(stripBom(accumulatedContent)),
+				this.stripAllBOMs(accumulatedContent),
 			)
 			await vscode.workspace.applyEdit(finalEdit)
 			// Clear all decorations at the end (after applying final edit)
@@ -339,6 +339,16 @@ export class DiffViewProvider {
 				lineCount += part.count || 0
 			}
 		}
+	}
+
+	private stripAllBOMs(input: string): string {
+		let result = input
+		let previous
+		do {
+			previous = result
+			result = stripBom(result)
+		} while (result !== previous)
+		return result
 	}
 
 	// close editor if open?
