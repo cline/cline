@@ -1,11 +1,8 @@
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
-
-import { TERMINAL_OUTPUT_LIMIT } from "../../shared/terminal"
 import { arePathsEqual } from "../../utils/path"
-import { TerminalProcess } from "./TerminalProcess"
+import { mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
-import { mergePromise, TerminalProcessResultPromise } from "./mergePromise"
 
 /*
 TerminalManager:
@@ -17,6 +14,8 @@ TerminalProcess extends EventEmitter and implements Promise:
 - Emits 'line' events with output while promise is pending
 - process.continue() resolves promise and stops event emission
 - Allows real-time output handling or background execution
+
+getUnretrievedOutput() fetches latest output for ongoing commands
 
 Enables flexible command execution:
 - Await for completion
@@ -30,6 +29,7 @@ Notes:
 Supported shells:
 Linux/macOS: bash, fish, pwsh, zsh
 Windows: pwsh
+
 
 Example:
 
@@ -49,7 +49,7 @@ await process;
 process.continue();
 
 // Later, if you need to get the unretrieved output:
-const unretrievedOutput = terminalManager.readLine(terminalId);
+const unretrievedOutput = terminalManager.getUnretrievedOutput(terminalId);
 console.log('Unretrieved output:', unretrievedOutput);
 
 Resources:
@@ -259,14 +259,10 @@ export class TerminalManager {
 		}
 	}
 
-	runCommand(
-		terminalInfo: TerminalInfo,
-		command: string,
-		terminalOutputLimit = TERMINAL_OUTPUT_LIMIT,
-	): TerminalProcessResultPromise {
+	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
-		const process = new TerminalProcess(terminalOutputLimit)
+		const process = new TerminalProcess()
 		this.processes.set(terminalInfo.id, process)
 
 		process.once("completed", () => {
@@ -351,13 +347,12 @@ export class TerminalManager {
 			.map((t) => ({ id: t.id, lastCommand: t.lastCommand }))
 	}
 
-	readLine(terminalId: number): string {
+	getUnretrievedOutput(terminalId: number): string {
 		if (!this.terminalIds.has(terminalId)) {
 			return ""
 		}
-
 		const process = this.processes.get(terminalId)
-		return process ? process.readLine() : ""
+		return process ? process.getUnretrievedOutput() : ""
 	}
 
 	isProcessHot(terminalId: number): boolean {

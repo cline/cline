@@ -25,6 +25,7 @@ import {
 	addLineNumbers,
 	stripLineNumbers,
 	everyLineHasLineNumbers,
+	truncateOutput,
 } from "../integrations/misc/extract-text"
 import { TerminalManager, ExitCodeDetails } from "../integrations/terminal/TerminalManager"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
@@ -59,7 +60,7 @@ import { calculateApiCostAnthropic } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { parseMentions } from "./mentions"
-import { RooIgnoreController } from "./ignore/RooIgnoreController"
+import { RooIgnoreController, LOCK_TEXT_SYMBOL } from "./ignore/RooIgnoreController"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
 import { SYSTEM_PROMPT } from "./prompts/system"
@@ -70,7 +71,6 @@ import { BrowserSession } from "../services/browser/BrowserSession"
 import { McpHub } from "../services/mcp/McpHub"
 import crypto from "crypto"
 import { insertGroups } from "./diff/insert-groups"
-import { OutputBuilder } from "../integrations/terminal/OutputBuilder"
 import { telemetryService } from "../services/telemetry/TelemetryService"
 
 const cwd =
@@ -919,43 +919,30 @@ export class Cline {
 	// Tools
 
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
-		const { terminalOutputLimit } = (await this.providerRef.deref()?.getState()) ?? {}
-
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
-		// Weird visual bug when creating new terminals (even manually) where
-		// there's an empty space at the top.
-		terminalInfo.terminal.show()
-		const process = this.terminalManager.runCommand(terminalInfo, command, terminalOutputLimit)
+		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
+		const process = this.terminalManager.runCommand(terminalInfo, command)
 
 		let userFeedback: { text?: string; images?: string[] } | undefined
 		let didContinue = false
-
-		const sendCommandOutput = async (line: string) => {
+		const sendCommandOutput = async (line: string): Promise<void> => {
 			try {
 				const { response, text, images } = await this.ask("command_output", line)
-
 				if (response === "yesButtonClicked") {
-					// Proceed while running.
+					// proceed while running
 				} else {
 					userFeedback = { text, images }
 				}
-
 				didContinue = true
-				process.continue() // Continue past the await.
+				process.continue() // continue past the await
 			} catch {
-				// This can only happen if this ask promise was ignored, so ignore this error.
+				// This can only happen if this ask promise was ignored, so ignore this error
 			}
 		}
 
-		let completed = false
-		let exitDetails: ExitCodeDetails | undefined
-
-		let builder = new OutputBuilder({ maxSize: terminalOutputLimit })
-		let output: string | undefined = undefined
-
+		let lines: string[] = []
 		process.on("line", (line) => {
-			builder.append(line)
-
+			lines.push(line)
 			if (!didContinue) {
 				sendCommandOutput(line)
 			} else {
@@ -963,8 +950,13 @@ export class Cline {
 			}
 		})
 
-		process.once("completed", (buffer?: string) => {
-			output = buffer
+		let completed = false
+		let exitDetails: ExitCodeDetails | undefined
+		process.once("completed", (output?: string) => {
+			// Use provided output if available, otherwise keep existing result.
+			if (output) {
+				lines = output.split("\n")
+			}
 			completed = true
 		})
 
@@ -980,17 +972,19 @@ export class Cline {
 
 		await process
 
-		// Wait for a short delay to ensure all messages are sent to the webview.
+		// Wait for a short delay to ensure all messages are sent to the webview
 		// This delay allows time for non-awaited promises to be created and
 		// for their associated messages to be sent to the webview, maintaining
 		// the correct order of messages (although the webview is smart about
-		// grouping command_output messages despite any gaps anyways).
+		// grouping command_output messages despite any gaps anyways)
 		await delay(50)
-		const result = output || builder.content
+
+		const { terminalOutputLineLimit } = (await this.providerRef.deref()?.getState()) ?? {}
+		const output = truncateOutput(lines.join("\n"), terminalOutputLineLimit)
+		const result = output.trim()
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images)
-
 			return [
 				true,
 				formatResponse.toolResult(
@@ -1004,11 +998,9 @@ export class Cline {
 
 		if (completed) {
 			let exitStatus = "No exit code available"
-
 			if (exitDetails !== undefined) {
 				if (exitDetails.signal) {
 					exitStatus = `Process terminated by signal ${exitDetails.signal} (${exitDetails.signalName})`
-
 					if (exitDetails.coreDumpPossible) {
 						exitStatus += " - core dump possible"
 					}
@@ -1016,16 +1008,15 @@ export class Cline {
 					exitStatus = `Exit code: ${exitDetails.exitCode}`
 				}
 			}
-
 			return [false, `Command executed. ${exitStatus}${result.length > 0 ? `\nOutput:\n${result}` : ""}`]
+		} else {
+			return [
+				false,
+				`Command is still running in the user's terminal.${
+					result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+				}\n\nYou will be updated on the terminal status and new output in the future.`,
+			]
 		}
-
-		return [
-			false,
-			`Command is still running in the user's terminal.${
-				result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
-			}\n\nYou will be updated on the terminal status and new output in the future.`,
-		]
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number, retryAttempt: number = 0): ApiStream {
@@ -3525,7 +3516,7 @@ export class Cline {
 			terminalDetails += "\n\n# Actively Running Terminals"
 			for (const busyTerminal of busyTerminals) {
 				terminalDetails += `\n## Original command: \`${busyTerminal.lastCommand}\``
-				const newOutput = this.terminalManager.readLine(busyTerminal.id)
+				const newOutput = this.terminalManager.getUnretrievedOutput(busyTerminal.id)
 				if (newOutput) {
 					terminalDetails += `\n### New Output\n${newOutput}`
 				} else {
@@ -3537,7 +3528,7 @@ export class Cline {
 		if (inactiveTerminals.length > 0) {
 			const inactiveTerminalOutputs = new Map<number, string>()
 			for (const inactiveTerminal of inactiveTerminals) {
-				const newOutput = this.terminalManager.readLine(inactiveTerminal.id)
+				const newOutput = this.terminalManager.getUnretrievedOutput(inactiveTerminal.id)
 				if (newOutput) {
 					inactiveTerminalOutputs.set(inactiveTerminal.id, newOutput)
 				}

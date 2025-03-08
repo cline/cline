@@ -1,1 +1,0 @@
-export const TERMINAL_OUTPUT_LIMIT = 100 * 1024
