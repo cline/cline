@@ -158,7 +158,7 @@ export class Cline {
 		apiConfiguration,
 		customInstructions,
 		enableDiff,
-		enableCheckpoints = false,
+		enableCheckpoints = true,
 		checkpointStorage = "task",
 		fuzzyMatchThreshold,
 		task,
