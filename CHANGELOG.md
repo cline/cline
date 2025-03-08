@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.8.1
+
+### Patch Changes
+
+- v3.8.1
+
 ## [3.8.0]
 
 - Add opt-in telemetry to help us improve Roo Code faster (thanks Cline!)
