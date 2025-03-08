@@ -85,7 +85,7 @@ export interface ModelInfo {
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
-	openAiTemperature?: number
+	temperature?: number
 }
 
 // Anthropic
@@ -381,7 +381,7 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	supportsPromptCache: false,
 	inputPrice: 0,
 	outputPrice: 0,
-	openAiTemperature: 0,
+	temperature: 0,
 }
 
 // Gemini
