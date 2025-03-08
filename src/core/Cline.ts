@@ -2568,6 +2568,7 @@ export class Cline {
 									?.mcpHub?.callTool(server_name, tool_name, parsedArguments)
 
 								// TODO: add progress indicator and ability to parse images and non-text responses
+								const supportsImages = this.api.getModel().info.supportsImages ?? false
 								const toolResultPretty =
 									(toolResult?.isError ? "Error:\n" : "") +
 										toolResult?.content
@@ -2575,8 +2576,11 @@ export class Cline {
 												if (item.type === "text") {
 													return item.text
 												}
-												if (item.type === "image") {
+												if (item.type === "image" && supportsImages) {
 													return ` data:${item.mimeType};base64,${item.data} `
+												}
+												if (item.type === "image" && !supportsImages) {
+													return "[Image placeholder (images not supported)]"
 												}
 												if (item.type === "resource") {
 													const { blob, ...rest } = item.resource
@@ -2590,7 +2594,6 @@ export class Cline {
 								if (toolResult?.isError) {
 									pushToolResult(formatResponse.toolResult(toolResultPretty))
 								} else {
-									const supportsImages = this.api.getModel().info.supportsImages ?? true
 									pushToolResult(formatResponse.mcpToolResult(toolResult, supportsImages))
 								}
 

@@ -74,7 +74,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 						} else {
 							return {
 								type: "text",
-								text: "[image]",
+								text: "[Image placeholder (images not supported)]",
 							} as Anthropic.TextBlockParam
 						}
 					}
