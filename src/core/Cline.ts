@@ -3174,6 +3174,20 @@ export class Cline {
 			let assistantMessage = ""
 			let reasoningMessage = ""
 			this.isStreaming = true
+			let firstChunkTokenCount: {
+				inputTokens: number | undefined
+				outputTokens: number | undefined
+				cacheWriteTokens: number | undefined
+				cacheReadTokens: number | undefined
+				totalCost: number | undefined
+			} = {
+				inputTokens: undefined,
+				outputTokens: undefined,
+				cacheWriteTokens: undefined,
+				cacheReadTokens: undefined,
+				totalCost: undefined,
+			}
+			const inputTokenCounts = []
 			try {
 				for await (const chunk of stream) {
 					if (!chunk) {
@@ -3181,11 +3195,15 @@ export class Cline {
 					}
 					switch (chunk.type) {
 						case "usage":
+							inputTokenCounts.push(chunk.inputTokens)
 							inputTokens += chunk.inputTokens
 							outputTokens += chunk.outputTokens
 							cacheWriteTokens += chunk.cacheWriteTokens ?? 0
 							cacheReadTokens += chunk.cacheReadTokens ?? 0
-							totalCost = chunk.totalCost
+							totalCost = chunk.totalCost ?? 0
+							if (firstChunkTokenCount.inputTokens === undefined) {
+								firstChunkTokenCount = { inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens, totalCost }
+							}
 							break
 						case "reasoning":
 							// reasoning will always come before assistant message
@@ -3232,6 +3250,16 @@ export class Cline {
 							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
 						break
 					}
+				}
+
+				// Naive check to see if all of the chunks have the same token count due to poor implementation of the API
+				const someTokenCountsAreDifferent = inputTokenCounts.some((tokens) => tokens !== firstChunkTokenCount.inputTokens)
+				if (!someTokenCountsAreDifferent) {
+					inputTokens = firstChunkTokenCount.inputTokens ?? 0
+					outputTokens = firstChunkTokenCount.outputTokens ?? 0
+					cacheWriteTokens = firstChunkTokenCount.cacheWriteTokens ?? 0
+					cacheReadTokens = firstChunkTokenCount.cacheReadTokens ?? 0
+					totalCost = firstChunkTokenCount.totalCost ?? 0
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
