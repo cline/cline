@@ -125,6 +125,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	}
 
 	const handleTabChange = (tab: "plan" | "act") => {
+		if (tab === chatSettings.mode) {
+			return
+		}
 		setPendingTabChange(tab)
 		handleSubmit(true)
 	}
