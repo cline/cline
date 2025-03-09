@@ -277,5 +277,6 @@ export interface HumanRelayCancelMessage {
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
 
 export type ToolProgressStatus = {
+	icon?: string
 	text?: string
 }
