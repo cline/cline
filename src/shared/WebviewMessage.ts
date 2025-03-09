@@ -60,6 +60,7 @@ export interface WebviewMessage {
 		| "checkIsImageUrl"
 		| "invoke"
 		| "updateSettings"
+		| "clearAllTaskHistory"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
