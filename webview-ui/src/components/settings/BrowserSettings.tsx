@@ -12,13 +12,17 @@ type BrowserSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	browserToolEnabled?: boolean
 	browserViewportSize?: string
 	screenshotQuality?: number
-	setCachedStateField: SetCachedStateField<"browserToolEnabled" | "browserViewportSize" | "screenshotQuality">
+	remoteBrowserHost?: string
+	setCachedStateField: SetCachedStateField<
+		"browserToolEnabled" | "browserViewportSize" | "screenshotQuality" | "remoteBrowserHost"
+	>
 }
 
 export const BrowserSettings = ({
 	browserToolEnabled,
 	browserViewportSize,
 	screenshotQuality,
+	remoteBrowserHost,
 	setCachedStateField,
 	...props
 }: BrowserSettingsProps) => {
@@ -94,6 +98,33 @@ export const BrowserSettings = ({
 								<p className="text-vscode-descriptionForeground text-sm mt-0">
 									Adjust the WebP quality of browser screenshots. Higher values provide clearer
 									screenshots but increase token usage.
+								</p>
+							</div>
+							<div className="mt-4">
+								<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
+									Remote Chrome DevTools Host (optional)
+								</label>
+								<input
+									type="text"
+									value={remoteBrowserHost ?? ""}
+									placeholder="http://localhost:9222"
+									style={{
+										width: "100%",
+										padding: "4px 8px",
+										backgroundColor: "var(--vscode-input-background)",
+										color: "var(--vscode-input-foreground)",
+										border: "1px solid var(--vscode-input-border)",
+										borderRadius: "2px",
+									}}
+									onChange={(e) =>
+										setCachedStateField("remoteBrowserHost", e.target.value || undefined)
+									}
+								/>
+								<p className="text-vscode-descriptionForeground text-sm mt-0">
+									Connect to a remote Chrome browser by providing the DevTools Protocol host address.
+									Roo will automatically fetch the WebSocket endpoint from this address. If provided,
+									Roo will use this browser instead of launching a local one. Leave empty to use the
+									built-in browser.
 								</p>
 							</div>
 						</div>

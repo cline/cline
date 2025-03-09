@@ -123,6 +123,7 @@ export interface ExtensionState {
 	checkpointStorage: CheckpointStorage
 	browserViewportSize?: string
 	screenshotQuality?: number
+	remoteBrowserHost?: string
 	fuzzyMatchThreshold?: number
 	preferredLanguage: string
 	writeDelayMs: number

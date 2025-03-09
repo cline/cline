@@ -66,6 +66,7 @@ export const GLOBAL_STATE_KEYS = [
 	"checkpointStorage",
 	"browserViewportSize",
 	"screenshotQuality",
+	"remoteBrowserHost",
 	"fuzzyMatchThreshold",
 	"preferredLanguage", // Language setting for Cline's communication
 	"writeDelayMs",

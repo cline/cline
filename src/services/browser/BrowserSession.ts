@@ -1,11 +1,12 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
+import { Browser, Page, ScreenshotOptions, TimeoutError, launch, connect } from "puppeteer-core"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
 import delay from "delay"
+import axios from "axios"
 import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
 
@@ -52,6 +53,41 @@ export class BrowserSession {
 			await this.closeBrowser() // this may happen when the model launches a browser again after having used it already before
 		}
 
+		const remoteBrowserHost = this.context.globalState.get("remoteBrowserHost") as string | undefined
+
+		if (remoteBrowserHost) {
+			console.log(`Attempting to connect to remote browser at ${remoteBrowserHost}`)
+			try {
+				// Fetch the WebSocket endpoint from the Chrome DevTools Protocol
+				const versionUrl = `${remoteBrowserHost.replace(/\/$/, "")}/json/version`
+				console.log(`Fetching WebSocket endpoint from ${versionUrl}`)
+
+				const response = await axios.get(versionUrl)
+				const browserWSEndpoint = response.data.webSocketDebuggerUrl
+
+				if (!browserWSEndpoint) {
+					throw new Error("Could not find webSocketDebuggerUrl in the response")
+				}
+
+				console.log(`Found WebSocket endpoint: ${browserWSEndpoint}`)
+
+				this.browser = await connect({
+					browserWSEndpoint,
+					defaultViewport: (() => {
+						const size =
+							(this.context.globalState.get("browserViewportSize") as string | undefined) || "900x600"
+						const [width, height] = size.split("x").map(Number)
+						return { width, height }
+					})(),
+				})
+				this.page = await this.browser?.newPage()
+				return
+			} catch (error) {
+				console.error(`Failed to connect to remote browser: ${error}`)
+				// Fall back to local browser if remote connection fails
+			}
+		}
+
 		const stats = await this.ensureChromiumExists()
 		this.browser = await stats.puppeteer.launch({
 			args: [
@@ -72,7 +108,14 @@ export class BrowserSession {
 	async closeBrowser(): Promise<BrowserActionResult> {
 		if (this.browser || this.page) {
 			console.log("closing browser...")
-			await this.browser?.close().catch(() => {})
+
+			const remoteBrowserHost = this.context.globalState.get("remoteBrowserHost") as string | undefined
+			if (remoteBrowserHost && this.browser) {
+				await this.browser.disconnect().catch(() => {})
+			} else {
+				await this.browser?.close().catch(() => {})
+			}
+
 			this.browser = undefined
 			this.page = undefined
 			this.currentMousePosition = undefined

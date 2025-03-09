@@ -1262,6 +1262,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("browserViewportSize", browserViewportSize)
 						await this.postStateToWebview()
 						break
+					case "remoteBrowserHost":
+						await this.updateGlobalState("remoteBrowserHost", message.text)
+						await this.postStateToWebview()
+						break
 					case "fuzzyMatchThreshold":
 						await this.updateGlobalState("fuzzyMatchThreshold", message.value)
 						await this.postStateToWebview()
@@ -2188,6 +2192,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundVolume,
 			browserViewportSize,
 			screenshotQuality,
+			remoteBrowserHost,
 			preferredLanguage,
 			writeDelayMs,
 			terminalOutputLimit,
@@ -2246,6 +2251,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundVolume: soundVolume ?? 0.5,
 			browserViewportSize: browserViewportSize ?? "900x600",
 			screenshotQuality: screenshotQuality ?? 75,
+			remoteBrowserHost,
 			preferredLanguage: preferredLanguage ?? "English",
 			writeDelayMs: writeDelayMs ?? 1000,
 			terminalOutputLimit: terminalOutputLimit ?? TERMINAL_OUTPUT_LIMIT,
@@ -2399,6 +2405,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			soundVolume: stateValues.soundVolume,
 			browserViewportSize: stateValues.browserViewportSize ?? "900x600",
 			screenshotQuality: stateValues.screenshotQuality ?? 75,
+			remoteBrowserHost: stateValues.remoteBrowserHost,
 			fuzzyMatchThreshold: stateValues.fuzzyMatchThreshold ?? 1.0,
 			writeDelayMs: stateValues.writeDelayMs ?? 1000,
 			terminalOutputLimit: stateValues.terminalOutputLimit ?? TERMINAL_OUTPUT_LIMIT,

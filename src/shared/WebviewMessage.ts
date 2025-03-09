@@ -57,6 +57,7 @@ export interface WebviewMessage {
 		| "checkpointStorage"
 		| "browserViewportSize"
 		| "screenshotQuality"
+		| "remoteBrowserHost"
 		| "openMcpSettings"
 		| "restartMcpServer"
 		| "toggleToolAlwaysAllow"
