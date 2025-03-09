@@ -1047,7 +1047,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							}}>
 							When enabled, Roo allows you to create custom modes using prompts like ‘Make me a custom
 							mode that…’. Disabling this reduces your system prompt by about 700 tokens when this feature
-							isn’t needed. When disabled you can still manually create custom prompts using the + button
+							isn’t needed. When disabled you can still manually create custom modes using the + button
 							above or by editing the related config JSON.
 						</p>
 					</div>
