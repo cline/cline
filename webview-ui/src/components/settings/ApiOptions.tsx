@@ -265,6 +265,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								setApiConfiguration({
 									...apiConfiguration,
 									anthropicBaseUrl: "",
+									anthropicCustomAuthHeader: "",
 								})
 							}
 						}}>
@@ -272,13 +273,23 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</VSCodeCheckbox>
 
 					{anthropicBaseUrlSelected && (
-						<VSCodeTextField
-							value={apiConfiguration?.anthropicBaseUrl || ""}
-							style={{ width: "100%", marginTop: 3 }}
-							type="url"
-							onInput={handleInputChange("anthropicBaseUrl")}
-							placeholder="Default: https://api.anthropic.com"
-						/>
+						<>
+							<VSCodeTextField
+								value={apiConfiguration?.anthropicBaseUrl || ""}
+								style={{ width: "100%", marginTop: 3 }}
+								type="url"
+								onInput={handleInputChange("anthropicBaseUrl")}
+								placeholder="Default: https://api.anthropic.com"
+							/>
+							<VSCodeTextField
+								value={apiConfiguration?.anthropicCustomAuthHeader || ""}
+								style={{ width: "100%", marginTop: 3 }}
+								type="text"
+								onInput={handleInputChange("anthropicCustomAuthHeader")}
+								placeholder="Custom Authorization header (optional)">
+								<span style={{ fontWeight: 500 }}>Custom Auth Header</span>
+							</VSCodeTextField>
+						</>
 					)}
 
 					<p
