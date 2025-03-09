@@ -2,6 +2,7 @@
 
 ## [3.6.5]
 
+-   Add 'Delete all Task History' button to History view
 -   Add toggle to disable model switching between Plan/Act modes in Settings (new users default to disabled)
 -   Add temperature option to OpenAI Compatible
 -   Add Kotlin support to tree-sitter parser (thanks @fumiya-kume!)
