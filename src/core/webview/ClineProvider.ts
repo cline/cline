@@ -1760,15 +1760,21 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	async deleteAllTaskHistory() {
 		await this.clearTask()
 		await this.updateGlobalState("taskHistory", undefined)
-		// Remove all contents of tasks directory
-		const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks")
-		if (await fileExistsAtPath(taskDirPath)) {
-			await fs.rm(taskDirPath, { recursive: true, force: true })
-		}
-		// Remove checkpoints directory contents
-		const checkpointsDirPath = path.join(this.context.globalStorageUri.fsPath, "checkpoints")
-		if (await fileExistsAtPath(checkpointsDirPath)) {
-			await fs.rm(checkpointsDirPath, { recursive: true, force: true })
+		try {
+			// Remove all contents of tasks directory
+			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks")
+			if (await fileExistsAtPath(taskDirPath)) {
+				await fs.rm(taskDirPath, { recursive: true, force: true })
+			}
+			// Remove checkpoints directory contents
+			const checkpointsDirPath = path.join(this.context.globalStorageUri.fsPath, "checkpoints")
+			if (await fileExistsAtPath(checkpointsDirPath)) {
+				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
+			}
+		} catch (error) {
+			vscode.window.showErrorMessage(
+				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
+			)
 		}
 		// await this.postStateToWebview()
 	}
