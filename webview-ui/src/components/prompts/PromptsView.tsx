@@ -563,7 +563,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	*/}
 					<div style={{ marginBottom: 15 }}>
 						<VSCodeCheckbox
-							checked={enableCustomModeCreation || false}
+							checked={enableCustomModeCreation ?? true}
 							onChange={(e: any) => {
 								// Just update the local state through React context
 								// The React context will update the global state
