@@ -1,7 +1,6 @@
 import { memo, useMemo } from "react"
 import { getLanguageFromPath } from "../../utils/getLanguageFromPath"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
-import { ToolProgressStatus } from "../../../../src/shared/ExtensionMessage"
 
 interface CodeAccordianProps {
 	code?: string
@@ -13,7 +12,6 @@ interface CodeAccordianProps {
 	isExpanded: boolean
 	onToggleExpand: () => void
 	isLoading?: boolean
-	progressStatus?: ToolProgressStatus
 }
 
 /*
@@ -34,7 +32,6 @@ const CodeAccordian = ({
 	isExpanded,
 	onToggleExpand,
 	isLoading,
-	progressStatus,
 }: CodeAccordianProps) => {
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
@@ -98,14 +95,6 @@ const CodeAccordian = ({
 						</>
 					)}
 					<div style={{ flexGrow: 1 }}></div>
-					{progressStatus && progressStatus.text && (
-						<>
-							{progressStatus.icon && <span className={`codicon codicon-${progressStatus.icon} mr-1`} />}
-							<span className="mr-1 ml-auto text-vscode-descriptionForeground">
-								{progressStatus.text}
-							</span>
-						</>
-					)}
 					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 				</div>
 			)}
