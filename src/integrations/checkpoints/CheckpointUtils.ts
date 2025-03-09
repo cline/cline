@@ -5,9 +5,8 @@ import os from "os"
 
 /**
  * Gets the path to the shadow Git repository in globalStorage.
- * For new checkpoints, uses the consolidated branch-per-task structure.
  *
- * Branch-per-task path structure:
+ * Checkpoints path structure:
  * globalStorage/
  *   checkpoints/
  *     {cwdHash}/

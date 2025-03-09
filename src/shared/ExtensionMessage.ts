@@ -34,6 +34,7 @@ export interface ExtensionMessage {
 		| "commitSearchResults"
 		| "openGraphData"
 		| "isImageUrlResult"
+		| "didUpdateSettings"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -99,6 +100,7 @@ export interface ExtensionState {
 	}
 	mcpMarketplaceEnabled?: boolean
 	telemetrySetting: TelemetrySetting
+	planActSeparateModelsSetting: boolean
 	vscMachineId: string
 }
 

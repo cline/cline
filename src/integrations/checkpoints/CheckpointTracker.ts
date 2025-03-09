@@ -33,9 +33,9 @@ import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./Checkpo
  * - Handles cleanup and resource disposal
  *
  * Checkpoint Architecture:
- * - Uses a branch-per-task model to consolidate shadow git repositories
- * - Each task gets its own branch within a single shadow git per workspace
- * - Automatically cleans up by deleting task branches when tasks are removed
+ * - Unique shadow git repository for each workspace
+ * - Workspaces are identified by name, and hashed to a unique number
+ * - All commits for a workspace are stored in one shadow git, under a single branch
  */
 
 class CheckpointTracker {
@@ -64,7 +64,7 @@ class CheckpointTracker {
 
 	/**
 	 * Creates a new CheckpointTracker instance for tracking changes in a task.
-	 * Handles initialization of the shadow git repository and branch setup.
+	 * Handles initialization of the shadow git repository.
 	 *
 	 * @param taskId - Unique identifier for the task to track
 	 * @param globalStoragePath - the globalStorage path
@@ -78,11 +78,9 @@ class CheckpointTracker {
 	 * Key operations:
 	 * - Validates git installation and settings
 	 * - Creates/initializes shadow git repository
-	 * - Sets up task-specific branch for new checkpoints
 	 *
 	 * Configuration:
 	 * - Respects 'cline.enableCheckpoints' VS Code setting
-	 * - Uses branch-per-task architecture for new checkpoints
 	 */
 	public static async create(taskId: string, globalStoragePath: string | undefined): Promise<CheckpointTracker | undefined> {
 		if (!globalStoragePath) {
@@ -110,7 +108,6 @@ class CheckpointTracker {
 
 			const newTracker = new CheckpointTracker(globalStoragePath, taskId, workingDir, cwdHash)
 
-			// Branch-per-task structure
 			const gitPath = await getShadowGitPath(newTracker.globalStoragePath, newTracker.taskId, newTracker.cwdHash)
 			await newTracker.gitOperations.initShadowGit(gitPath, workingDir)
 
@@ -128,28 +125,24 @@ class CheckpointTracker {
 	 *
 	 * Key behaviors:
 	 * - Creates commit with checkpoint files in shadow git repo
-	 * - For new tasks, switches to task-specific branch first
 	 * - Caches the created commit hash
 	 *
 	 * Commit structure:
-	 * - Branch-per-task: "checkpoint-{cwdHash}-{taskId}"
+	 * - Commit message: "checkpoint-{cwdHash}-{taskId}"
 	 * - Always allows empty commits
 	 *
 	 * Dependencies:
 	 * - Requires initialized shadow git (getShadowGitPath)
-	 * - For new checkpoints, requires task branch setup
 	 * - Uses addCheckpointFiles to stage changes using 'git add .'
 	 * - Relies on git's native exclusion handling via the exclude file
 	 *
 	 * @returns Promise<string | undefined> The created commit hash, or undefined if:
 	 * - Shadow git access fails
-	 * - Branch switch fails
 	 * - Staging files fails
 	 * - Commit creation fails
 	 * @throws Error if unable to:
 	 * - Access shadow git path
 	 * - Initialize simple-git
-	 * - Switch branches
 	 * - Stage or commit files
 	 */
 	public async commit(): Promise<string | undefined> {
@@ -225,7 +218,6 @@ class CheckpointTracker {
 	 *
 	 * Dependencies:
 	 * - Requires initialized shadow git (getShadowGitPath)
-	 * - For new checkpoints, requires task branch setup
 	 * - Must be called with a valid commit hash from this task's history
 	 *
 	 * @param commitHash - The hash of the checkpoint commit to reset to
@@ -233,7 +225,6 @@ class CheckpointTracker {
 	 * @throws Error if unable to:
 	 * - Access shadow git path
 	 * - Initialize simple-git
-	 * - Switch to task branch
 	 * - Reset to target commit
 	 */
 	public async resetHead(commitHash: string): Promise<void> {

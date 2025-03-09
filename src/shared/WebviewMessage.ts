@@ -4,12 +4,12 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
+import { TelemetrySetting } from "./TelemetrySetting"
 import { MemoryBankSettings } from "./MemoryBankSettings"
 
 export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
-		| "customInstructions"
 		| "webviewDidLaunch"
 		| "newTask"
 		| "askResponse"
@@ -61,6 +61,8 @@ export interface WebviewMessage {
 		| "fetchOpenGraphData"
 		| "checkIsImageUrl"
 		| "invoke"
+		| "updateSettings"
+		| "clearAllTaskHistory"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -87,6 +89,9 @@ export interface WebviewMessage {
 	customToken?: string
 	// For openInBrowser
 	url?: string
+	planActSeparateModelsSetting?: boolean
+	telemetrySetting?: TelemetrySetting
+	customInstructionsSetting?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

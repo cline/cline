@@ -25,6 +25,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
+	setPlanActSeparateModelsSetting: (value: boolean) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -44,6 +45,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
 		vscMachineId: "",
+		planActSeparateModelsSetting: true,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -169,6 +171,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				telemetrySetting: value,
+			})),
+		setPlanActSeparateModelsSetting: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				planActSeparateModelsSetting: value,
 			})),
 		setShowAnnouncement: (value) =>
 			setState((prevState) => ({
