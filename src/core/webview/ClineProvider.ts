@@ -16,7 +16,7 @@ import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { McpHub } from "../../services/mcp/McpHub"
 import { UserInfo } from "../../shared/UserInfo"
-import { ApiProvider, ModelInfo } from "../../shared/api"
+import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
@@ -105,6 +105,7 @@ type GlobalStateKey =
 	| "telemetrySetting"
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
+	| "planActSeparateModelsSetting"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -138,6 +139,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+
+		// Set defaults for new users
+		;(async () => {
+			const existingPlanActSeparateModelsSetting = await this.getGlobalState("planActSeparateModelsSetting")
+			if (existingPlanActSeparateModelsSetting === undefined) {
+				// If api provider is not set, it's a new user. In order to get past the welcome screen, the user needs to choose an api provider and api key (logging into cline sets provider to cline). This is a good opportunity to set values for NEW users that we don't want to modify defaults for existing users. For example, existing users may already be using model switching between plan/act, but new users shouldn't be opted in to this behavior by default.
+				const apiProvider = await this.getGlobalState("apiProvider")
+				if (!apiProvider) {
+					await this.updateGlobalState("planActSeparateModelsSetting", false)
+				}
+			}
+		})()
 	}
 
 	/*
@@ -544,108 +557,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "apiConfiguration":
 						if (message.apiConfiguration) {
-							const {
-								apiProvider,
-								apiModelId,
-								apiKey,
-								openRouterApiKey,
-								awsAccessKey,
-								awsSecretKey,
-								awsSessionToken,
-								awsRegion,
-								awsUseCrossRegionInference,
-								awsBedrockUsePromptCache,
-								awsProfile,
-								awsUseProfile,
-								vertexProjectId,
-								vertexRegion,
-								openAiBaseUrl,
-								openAiApiKey,
-								openAiModelId,
-								openAiModelInfo,
-								ollamaModelId,
-								ollamaBaseUrl,
-								ollamaApiOptionsCtxNum,
-								lmStudioModelId,
-								lmStudioBaseUrl,
-								anthropicBaseUrl,
-								geminiApiKey,
-								openAiNativeApiKey,
-								deepSeekApiKey,
-								requestyApiKey,
-								requestyModelId,
-								togetherApiKey,
-								togetherModelId,
-								qwenApiKey,
-								mistralApiKey,
-								azureApiVersion,
-								openRouterModelId,
-								openRouterModelInfo,
-								vsCodeLmModelSelector,
-								liteLlmBaseUrl,
-								liteLlmModelId,
-								liteLlmApiKey,
-								qwenApiLine,
-								asksageApiKey,
-								asksageApiUrl,
-								xaiApiKey,
-								thinkingBudgetTokens,
-								clineApiKey,
-							} = message.apiConfiguration
-							await this.updateGlobalState("apiProvider", apiProvider)
-							await this.updateGlobalState("apiModelId", apiModelId)
-							await this.storeSecret("apiKey", apiKey)
-							await this.storeSecret("openRouterApiKey", openRouterApiKey)
-							await this.storeSecret("awsAccessKey", awsAccessKey)
-							await this.storeSecret("awsSecretKey", awsSecretKey)
-							await this.storeSecret("awsSessionToken", awsSessionToken)
-							await this.updateGlobalState("awsRegion", awsRegion)
-							await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
-							await this.updateGlobalState("awsBedrockUsePromptCache", awsBedrockUsePromptCache)
-							await this.updateGlobalState("awsProfile", awsProfile)
-							await this.updateGlobalState("awsUseProfile", awsUseProfile)
-							await this.updateGlobalState("vertexProjectId", vertexProjectId)
-							await this.updateGlobalState("vertexRegion", vertexRegion)
-							await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
-							await this.storeSecret("openAiApiKey", openAiApiKey)
-							await this.updateGlobalState("openAiModelId", openAiModelId)
-							await this.updateGlobalState("openAiModelInfo", openAiModelInfo)
-							await this.updateGlobalState("ollamaModelId", ollamaModelId)
-							await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
-							await this.updateGlobalState("ollamaApiOptionsCtxNum", ollamaApiOptionsCtxNum)
-							await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
-							await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
-							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
-							await this.storeSecret("geminiApiKey", geminiApiKey)
-							await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
-							await this.storeSecret("deepSeekApiKey", deepSeekApiKey)
-							await this.storeSecret("requestyApiKey", requestyApiKey)
-							await this.storeSecret("togetherApiKey", togetherApiKey)
-							await this.storeSecret("qwenApiKey", qwenApiKey)
-							await this.storeSecret("mistralApiKey", mistralApiKey)
-							await this.storeSecret("liteLlmApiKey", liteLlmApiKey)
-							await this.storeSecret("xaiApiKey", xaiApiKey)
-							await this.updateGlobalState("azureApiVersion", azureApiVersion)
-							await this.updateGlobalState("openRouterModelId", openRouterModelId)
-							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
-							await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
-							await this.updateGlobalState("liteLlmBaseUrl", liteLlmBaseUrl)
-							await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
-							await this.updateGlobalState("qwenApiLine", qwenApiLine)
-							await this.updateGlobalState("requestyModelId", requestyModelId)
-							await this.updateGlobalState("togetherModelId", togetherModelId)
-							await this.storeSecret("asksageApiKey", asksageApiKey)
-							await this.updateGlobalState("asksageApiUrl", asksageApiUrl)
-							await this.updateGlobalState("thinkingBudgetTokens", thinkingBudgetTokens)
-							await this.storeSecret("clineApiKey", clineApiKey)
-							if (this.cline) {
-								this.cline.api = buildApiHandler(message.apiConfiguration)
-							}
+							await this.updateApiConfiguration(message.apiConfiguration)
 						}
 						await this.postStateToWebview()
-						break
-					case "customInstructions":
-						await this.updateCustomInstructions(message.text)
 						break
 					case "autoApprovalSettings":
 						if (message.autoApprovalSettings) {
@@ -974,11 +888,39 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					}
 					case "telemetrySetting": {
-						const telemetrySetting = message.text as TelemetrySetting
-						await this.updateGlobalState("telemetrySetting", telemetrySetting)
-						const isOptedIn = telemetrySetting === "enabled"
-						telemetryService.updateTelemetryState(isOptedIn)
+						if (message.telemetrySetting) {
+							await this.updateTelemetrySetting(message.telemetrySetting)
+						}
 						await this.postStateToWebview()
+						break
+					}
+					case "updateSettings": {
+						// api config
+						if (message.apiConfiguration) {
+							await this.updateApiConfiguration(message.apiConfiguration)
+						}
+
+						// custom instructions
+						await this.updateCustomInstructions(message.customInstructionsSetting)
+
+						// telemetry setting
+						if (message.telemetrySetting) {
+							await this.updateTelemetrySetting(message.telemetrySetting)
+						}
+
+						// plan act setting
+						await this.updateGlobalState("planActSeparateModelsSetting", message.planActSeparateModelsSetting)
+
+						// after settings are updated, post state to webview
+						await this.postStateToWebview()
+
+						await this.postMessageToWebview({ type: "didUpdateSettings" })
+						break
+					}
+					case "clearAllTaskHistory": {
+						await this.deleteAllTaskHistory()
+						await this.postStateToWebview()
+						this.postMessageToWebview({ type: "relinquishControl" })
 						break
 					}
 					// Add more switch case statements here as more webview message commands
@@ -988,6 +930,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables,
 		)
+	}
+
+	async updateTelemetrySetting(telemetrySetting: TelemetrySetting) {
+		await this.updateGlobalState("telemetrySetting", telemetrySetting)
+		const isOptedIn = telemetrySetting === "enabled"
+		telemetryService.updateTelemetryState(isOptedIn)
 	}
 
 	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent) {
@@ -1003,86 +951,91 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeModelId: newModelId,
 			previousModeModelInfo: newModelInfo,
 			previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
+			planActSeparateModelsSetting,
 		} = await this.getState()
 
-		// Save the last model used in this mode
-		await this.updateGlobalState("previousModeApiProvider", apiConfiguration.apiProvider)
-		await this.updateGlobalState("previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
-		switch (apiConfiguration.apiProvider) {
-			case "anthropic":
-			case "bedrock":
-			case "vertex":
-			case "gemini":
-			case "asksage":
-				await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
-				break
-			case "openrouter":
-			case "cline":
-				await this.updateGlobalState("previousModeModelId", apiConfiguration.openRouterModelId)
-				await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openRouterModelInfo)
-				break
-			case "vscode-lm":
-				await this.updateGlobalState("previousModeModelId", apiConfiguration.vsCodeLmModelSelector)
-				break
-			case "openai":
-				await this.updateGlobalState("previousModeModelId", apiConfiguration.openAiModelId)
-				await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openAiModelInfo)
-				break
-			case "ollama":
-				await this.updateGlobalState("previousModeModelId", apiConfiguration.ollamaModelId)
-				break
-			case "lmstudio":
-				await this.updateGlobalState("previousModeModelId", apiConfiguration.lmStudioModelId)
-				break
-			case "litellm":
-				await this.updateGlobalState("previousModeModelId", apiConfiguration.liteLlmModelId)
-				break
-			case "requesty":
-				await this.updateGlobalState("previousModeModelId", apiConfiguration.requestyModelId)
-				break
-		}
+		const shouldSwitchModel = planActSeparateModelsSetting === true
 
-		// Restore the model used in previous mode
-		if (newApiProvider && newModelId) {
-			await this.updateGlobalState("apiProvider", newApiProvider)
-			await this.updateGlobalState("thinkingBudgetTokens", newThinkingBudgetTokens)
-			switch (newApiProvider) {
+		if (shouldSwitchModel) {
+			// Save the last model used in this mode
+			await this.updateGlobalState("previousModeApiProvider", apiConfiguration.apiProvider)
+			await this.updateGlobalState("previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
+			switch (apiConfiguration.apiProvider) {
 				case "anthropic":
 				case "bedrock":
 				case "vertex":
 				case "gemini":
 				case "asksage":
-					await this.updateGlobalState("apiModelId", newModelId)
+					await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
 					break
 				case "openrouter":
 				case "cline":
-					await this.updateGlobalState("openRouterModelId", newModelId)
-					await this.updateGlobalState("openRouterModelInfo", newModelInfo)
+					await this.updateGlobalState("previousModeModelId", apiConfiguration.openRouterModelId)
+					await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openRouterModelInfo)
 					break
 				case "vscode-lm":
-					await this.updateGlobalState("vsCodeLmModelSelector", newModelId)
+					await this.updateGlobalState("previousModeModelId", apiConfiguration.vsCodeLmModelSelector)
 					break
 				case "openai":
-					await this.updateGlobalState("openAiModelId", newModelId)
-					await this.updateGlobalState("openAiModelInfo", newModelInfo)
+					await this.updateGlobalState("previousModeModelId", apiConfiguration.openAiModelId)
+					await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openAiModelInfo)
 					break
 				case "ollama":
-					await this.updateGlobalState("ollamaModelId", newModelId)
+					await this.updateGlobalState("previousModeModelId", apiConfiguration.ollamaModelId)
 					break
 				case "lmstudio":
-					await this.updateGlobalState("lmStudioModelId", newModelId)
+					await this.updateGlobalState("previousModeModelId", apiConfiguration.lmStudioModelId)
 					break
 				case "litellm":
-					await this.updateGlobalState("liteLlmModelId", newModelId)
+					await this.updateGlobalState("previousModeModelId", apiConfiguration.liteLlmModelId)
 					break
 				case "requesty":
-					await this.updateGlobalState("requestyModelId", newModelId)
+					await this.updateGlobalState("previousModeModelId", apiConfiguration.requestyModelId)
 					break
 			}
 
-			if (this.cline) {
-				const { apiConfiguration: updatedApiConfiguration } = await this.getState()
-				this.cline.api = buildApiHandler(updatedApiConfiguration)
+			// Restore the model used in previous mode
+			if (newApiProvider || newModelId || newThinkingBudgetTokens !== undefined) {
+				await this.updateGlobalState("apiProvider", newApiProvider)
+				await this.updateGlobalState("thinkingBudgetTokens", newThinkingBudgetTokens)
+				switch (newApiProvider) {
+					case "anthropic":
+					case "bedrock":
+					case "vertex":
+					case "gemini":
+					case "asksage":
+						await this.updateGlobalState("apiModelId", newModelId)
+						break
+					case "openrouter":
+					case "cline":
+						await this.updateGlobalState("openRouterModelId", newModelId)
+						await this.updateGlobalState("openRouterModelInfo", newModelInfo)
+						break
+					case "vscode-lm":
+						await this.updateGlobalState("vsCodeLmModelSelector", newModelId)
+						break
+					case "openai":
+						await this.updateGlobalState("openAiModelId", newModelId)
+						await this.updateGlobalState("openAiModelInfo", newModelInfo)
+						break
+					case "ollama":
+						await this.updateGlobalState("ollamaModelId", newModelId)
+						break
+					case "lmstudio":
+						await this.updateGlobalState("lmStudioModelId", newModelId)
+						break
+					case "litellm":
+						await this.updateGlobalState("liteLlmModelId", newModelId)
+						break
+					case "requesty":
+						await this.updateGlobalState("requestyModelId", newModelId)
+						break
+				}
+
+				if (this.cline) {
+					const { apiConfiguration: updatedApiConfiguration } = await this.getState()
+					this.cline.api = buildApiHandler(updatedApiConfiguration)
+				}
 			}
 		}
 
@@ -1141,7 +1094,106 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		if (this.cline) {
 			this.cline.customInstructions = instructions || undefined
 		}
-		await this.postStateToWebview()
+	}
+
+	async updateApiConfiguration(apiConfiguration: ApiConfiguration) {
+		const {
+			apiProvider,
+			apiModelId,
+			apiKey,
+			openRouterApiKey,
+			awsAccessKey,
+			awsSecretKey,
+			awsSessionToken,
+			awsRegion,
+			awsUseCrossRegionInference,
+			awsBedrockUsePromptCache,
+			awsProfile,
+			awsUseProfile,
+			vertexProjectId,
+			vertexRegion,
+			openAiBaseUrl,
+			openAiApiKey,
+			openAiModelId,
+			openAiModelInfo,
+			ollamaModelId,
+			ollamaBaseUrl,
+			ollamaApiOptionsCtxNum,
+			lmStudioModelId,
+			lmStudioBaseUrl,
+			anthropicBaseUrl,
+			geminiApiKey,
+			openAiNativeApiKey,
+			deepSeekApiKey,
+			requestyApiKey,
+			requestyModelId,
+			togetherApiKey,
+			togetherModelId,
+			qwenApiKey,
+			mistralApiKey,
+			azureApiVersion,
+			openRouterModelId,
+			openRouterModelInfo,
+			vsCodeLmModelSelector,
+			liteLlmBaseUrl,
+			liteLlmModelId,
+			liteLlmApiKey,
+			qwenApiLine,
+			asksageApiKey,
+			asksageApiUrl,
+			xaiApiKey,
+			thinkingBudgetTokens,
+			clineApiKey,
+		} = apiConfiguration
+		await this.updateGlobalState("apiProvider", apiProvider)
+		await this.updateGlobalState("apiModelId", apiModelId)
+		await this.storeSecret("apiKey", apiKey)
+		await this.storeSecret("openRouterApiKey", openRouterApiKey)
+		await this.storeSecret("awsAccessKey", awsAccessKey)
+		await this.storeSecret("awsSecretKey", awsSecretKey)
+		await this.storeSecret("awsSessionToken", awsSessionToken)
+		await this.updateGlobalState("awsRegion", awsRegion)
+		await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
+		await this.updateGlobalState("awsBedrockUsePromptCache", awsBedrockUsePromptCache)
+		await this.updateGlobalState("awsProfile", awsProfile)
+		await this.updateGlobalState("awsUseProfile", awsUseProfile)
+		await this.updateGlobalState("vertexProjectId", vertexProjectId)
+		await this.updateGlobalState("vertexRegion", vertexRegion)
+		await this.updateGlobalState("openAiBaseUrl", openAiBaseUrl)
+		await this.storeSecret("openAiApiKey", openAiApiKey)
+		await this.updateGlobalState("openAiModelId", openAiModelId)
+		await this.updateGlobalState("openAiModelInfo", openAiModelInfo)
+		await this.updateGlobalState("ollamaModelId", ollamaModelId)
+		await this.updateGlobalState("ollamaBaseUrl", ollamaBaseUrl)
+		await this.updateGlobalState("ollamaApiOptionsCtxNum", ollamaApiOptionsCtxNum)
+		await this.updateGlobalState("lmStudioModelId", lmStudioModelId)
+		await this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl)
+		await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
+		await this.storeSecret("geminiApiKey", geminiApiKey)
+		await this.storeSecret("openAiNativeApiKey", openAiNativeApiKey)
+		await this.storeSecret("deepSeekApiKey", deepSeekApiKey)
+		await this.storeSecret("requestyApiKey", requestyApiKey)
+		await this.storeSecret("togetherApiKey", togetherApiKey)
+		await this.storeSecret("qwenApiKey", qwenApiKey)
+		await this.storeSecret("mistralApiKey", mistralApiKey)
+		await this.storeSecret("liteLlmApiKey", liteLlmApiKey)
+		await this.storeSecret("xaiApiKey", xaiApiKey)
+		await this.updateGlobalState("azureApiVersion", azureApiVersion)
+		await this.updateGlobalState("openRouterModelId", openRouterModelId)
+		await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+		await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
+		await this.updateGlobalState("liteLlmBaseUrl", liteLlmBaseUrl)
+		await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
+		await this.updateGlobalState("qwenApiLine", qwenApiLine)
+		await this.updateGlobalState("requestyModelId", requestyModelId)
+		await this.updateGlobalState("togetherModelId", togetherModelId)
+		await this.storeSecret("asksageApiKey", asksageApiKey)
+		await this.updateGlobalState("asksageApiUrl", asksageApiUrl)
+		await this.updateGlobalState("thinkingBudgetTokens", thinkingBudgetTokens)
+		await this.storeSecret("clineApiKey", clineApiKey)
+		if (this.cline) {
+			this.cline.api = buildApiHandler(apiConfiguration)
+		}
 	}
 
 	// MCP
@@ -1707,6 +1759,28 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		await downloadTask(historyItem.ts, apiConversationHistory)
 	}
 
+	async deleteAllTaskHistory() {
+		await this.clearTask()
+		await this.updateGlobalState("taskHistory", undefined)
+		try {
+			// Remove all contents of tasks directory
+			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks")
+			if (await fileExistsAtPath(taskDirPath)) {
+				await fs.rm(taskDirPath, { recursive: true, force: true })
+			}
+			// Remove checkpoints directory contents
+			const checkpointsDirPath = path.join(this.context.globalStorageUri.fsPath, "checkpoints")
+			if (await fileExistsAtPath(checkpointsDirPath)) {
+				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
+			}
+		} catch (error) {
+			vscode.window.showErrorMessage(
+				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+		// await this.postStateToWebview()
+	}
+
 	async deleteTaskWithId(id: string) {
 		console.info("deleteTaskWithId: ", id)
 
@@ -1776,6 +1850,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			userInfo,
 			mcpMarketplaceEnabled,
 			telemetrySetting,
+			planActSeparateModelsSetting,
 		} = await this.getState()
 
 		return {
@@ -1786,7 +1861,10 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			currentTaskItem: this.cline?.taskId ? (taskHistory || []).find((item) => item.id === this.cline?.taskId) : undefined,
 			checkpointTrackerErrorMessage: this.cline?.checkpointTrackerErrorMessage,
 			clineMessages: this.cline?.clineMessages || [],
-			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
+			taskHistory: (taskHistory || [])
+				.filter((item) => item.ts && item.task)
+				.sort((a, b) => b.ts - a.ts)
+				.slice(0, 100), // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			platform: process.platform as Platform,
 			autoApprovalSettings,
@@ -1795,6 +1873,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			userInfo,
 			mcpMarketplaceEnabled,
 			telemetrySetting,
+			planActSeparateModelsSetting,
 			vscMachineId: vscode.env.machineId,
 		}
 	}
@@ -1910,6 +1989,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			asksageApiUrl,
 			xaiApiKey,
 			thinkingBudgetTokens,
+			planActSeparateModelsSetting,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -1969,6 +2049,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("asksageApiUrl") as Promise<string | undefined>,
 			this.getSecret("xaiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("thinkingBudgetTokens") as Promise<number | undefined>,
+			this.getGlobalState("planActSeparateModelsSetting") as Promise<boolean | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2054,6 +2135,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeThinkingBudgetTokens,
 			mcpMarketplaceEnabled,
 			telemetrySetting: telemetrySetting || "unset",
+			planActSeparateModelsSetting: planActSeparateModelsSetting ?? true,
 		}
 	}
 
