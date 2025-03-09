@@ -246,8 +246,24 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			// Create a promise that resolves when the stream becomes available
-			const streamAvailable = new Promise<AsyncIterable<string>>((resolve) => {
+			const streamAvailable = new Promise<AsyncIterable<string>>((resolve, reject) => {
+				const timeoutId = setTimeout(() => {
+					// Remove event listener to prevent memory leaks
+					this.removeAllListeners("stream_available")
+
+					// Emit no_shell_integration event with descriptive message
+					this.emit(
+						"no_shell_integration",
+						"VSCE shell integration stream did not start within 3 seconds. Terminal problem?",
+					)
+
+					// Reject with descriptive error
+					reject(new Error("VSCE shell integration stream did not start within 3 seconds."))
+				}, 3000)
+
+				// Clean up timeout if stream becomes available
 				this.once("stream_available", (stream: AsyncIterable<string>) => {
+					clearTimeout(timeoutId)
 					resolve(stream)
 				})
 			})
@@ -264,7 +280,28 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			this.isHot = true
 
 			// Wait for stream to be available
-			const stream = await streamAvailable
+			let stream: AsyncIterable<string>
+			try {
+				stream = await streamAvailable
+			} catch (error) {
+				// Stream timeout or other error occurred
+				console.error("[Terminal Process] Stream error:", error.message)
+
+				// Emit completed event with error message
+				this.emit(
+					"completed",
+					"<VSCE shell integration stream did not start: terminal output and command execution status is unknown>",
+				)
+
+				// Ensure terminal is marked as not busy
+				if (this.terminalInfo) {
+					this.terminalInfo.busy = false
+				}
+
+				// Emit continue event to allow execution to proceed
+				this.emit("continue")
+				return
+			}
 
 			let preOutput = ""
 			let commandOutputStarted = false
