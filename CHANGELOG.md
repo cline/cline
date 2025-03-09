@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.8.3] - 2025-03-09
+
+- Fix VS Code LM API model picker truncation issue
+
 ## [3.8.2] - 2025-03-08
 
 - Create an auto-approval toggle for subtask creation and completion (thanks @shaybc!)
