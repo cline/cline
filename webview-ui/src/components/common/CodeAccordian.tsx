@@ -99,12 +99,14 @@ const CodeAccordian = ({
 					)}
 					<div style={{ flexGrow: 1 }}></div>
 					{progressStatus && progressStatus.text && (
-						<>
-							{progressStatus.icon && <span className={`codicon codicon-${progressStatus.icon} mr-1`} />}
-							<span className="mr-1 ml-auto text-vscode-descriptionForeground">
-								{progressStatus.text}
-							</span>
-						</>
+						<span
+							style={{
+								color: "var(--vscode-descriptionForeground)",
+								borderTop: isExpanded ? "1px solid var(--vscode-editorGroup-border)" : "none",
+								marginLeft: "auto", // Right-align the text
+							}}>
+							{progressStatus.text}
+						</span>
 					)}
 					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 				</div>

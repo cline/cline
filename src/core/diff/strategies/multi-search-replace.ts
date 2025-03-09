@@ -368,20 +368,18 @@ Only use a single line of '=======' between search and replacement content, beca
 	getProgressStatus(toolUse: ToolUse, result?: DiffResult): ToolProgressStatus {
 		const diffContent = toolUse.params.diff
 		if (diffContent) {
-			const icon = "diff-multiple"
-			const searchBlockCount = (diffContent.match(/SEARCH/g) || []).length
 			if (toolUse.partial) {
 				if (diffContent.length < 1000 || (diffContent.length / 50) % 10 === 0) {
-					return { icon, text: `${searchBlockCount}` }
+					return { text: `progressing ${(diffContent.match(/SEARCH/g) || []).length} blocks...` }
 				}
 			} else if (result) {
-				if (result.failParts?.length) {
+				const searchBlockCount = (diffContent.match(/SEARCH/g) || []).length
+				if (result.failParts) {
 					return {
-						icon,
-						text: `${searchBlockCount - result.failParts.length}/${searchBlockCount}`,
+						text: `progressed ${searchBlockCount - result.failParts.length}/${searchBlockCount} blocks.`,
 					}
 				} else {
-					return { icon, text: `${searchBlockCount}` }
+					return { text: `progressed ${searchBlockCount} blocks.` }
 				}
 			}
 		}
