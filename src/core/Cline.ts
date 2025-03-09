@@ -964,13 +964,15 @@ export class Cline {
 			}
 		}
 
+		const { terminalOutputLineLimit } = (await this.providerRef.deref()?.getState()) ?? {}
+
 		let result = ""
 		process.on("line", (line) => {
 			result += line
 			if (!didContinue) {
-				sendCommandOutput(line)
+				sendCommandOutput(truncateOutput(line, terminalOutputLineLimit))
 			} else {
-				this.say("command_output", line)
+				this.say("command_output", truncateOutput(line, terminalOutputLineLimit))
 			}
 		})
 
@@ -999,7 +1001,6 @@ export class Cline {
 		// grouping command_output messages despite any gaps anyways)
 		await delay(50)
 
-		const { terminalOutputLineLimit } = (await this.providerRef.deref()?.getState()) ?? {}
 		result = truncateOutput(result, terminalOutputLineLimit)
 
 		if (userFeedback) {
@@ -3461,6 +3462,8 @@ export class Cline {
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
 		let details = ""
 
+		const { terminalOutputLineLimit } = (await this.providerRef.deref()?.getState()) ?? {}
+
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += "\n\n# VSCode Visible Files"
 		const visibleFilePaths = vscode.window.visibleTextEditors
@@ -3541,8 +3544,9 @@ export class Cline {
 			terminalDetails += "\n\n# Actively Running Terminals"
 			for (const busyTerminal of busyTerminals) {
 				terminalDetails += `\n## Original command: \`${busyTerminal.getLastCommand()}\``
-				const newOutput = TerminalRegistry.getUnretrievedOutput(busyTerminal.id)
+				let newOutput = TerminalRegistry.getUnretrievedOutput(busyTerminal.id)
 				if (newOutput) {
+					newOutput = truncateOutput(newOutput, terminalOutputLineLimit)
 					terminalDetails += `\n### New Output\n${newOutput}`
 				} else {
 					// details += `\n(Still running, no new output)` // don't want to show this right after running the command
@@ -3567,8 +3571,9 @@ export class Cline {
 				// Get output from completed processes queue
 				const completedProcesses = inactiveTerminal.getProcessesWithOutput()
 				for (const process of completedProcesses) {
-					const output = process.getUnretrievedOutput()
+					let output = process.getUnretrievedOutput()
 					if (output) {
+						output = truncateOutput(output, terminalOutputLineLimit)
 						terminalOutputs.push(`Command: \`${process.command}\`\n${output}`)
 					}
 				}
