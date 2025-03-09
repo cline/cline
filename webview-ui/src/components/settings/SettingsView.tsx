@@ -229,10 +229,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						Help improve Cline by sending anonymous usage data and error reports. No code, prompts, or personal
-						information is ever sent. See our{" "}
-						<VSCodeLink
-							href="https://github.com/cline/cline/blob/main/docs/PRIVACY.md"
-							style={{ fontSize: "inherit" }}>
+						information are ever sent. See our{" "}
+						<VSCodeLink href="https://docs.cline.bot/more-info/telemetry" style={{ fontSize: "inherit" }}>
+							telemetry overview
+						</VSCodeLink>{" "}
+						and{" "}
+						<VSCodeLink href="https://cline.bot/privacy" style={{ fontSize: "inherit" }}>
 							privacy policy
 						</VSCodeLink>{" "}
 						for more details.
