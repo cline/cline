@@ -1,11 +1,9 @@
 # Roo Code Changelog
 
-## 3.8.4
+## [3.8.4] - 2025-03-09
 
-### Patch Changes
-
-- Revert tool progress for now
-- v3.8.4
+- Roll back multi-diff progress indicator temporarily to fix a double-confirmation in saving edits
+- Add an option in the prompts tab to save tokens by disabling the ability to ask Roo to create/edit custom modes for you (thanks @hannesrudolph!)
 
 ## [3.8.3] - 2025-03-09
 
