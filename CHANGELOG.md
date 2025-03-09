@@ -1,8 +1,8 @@
 # Roo Code Changelog
 
-## [3.8.3]
+## [3.8.3] - 2025-03-09
 
-- Fix VS Code LM API model picker
+- Fix VS Code LM API model picker truncation issue
 
 ## [3.8.2] - 2025-03-08
 
