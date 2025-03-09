@@ -4,12 +4,29 @@ import pdf from "pdf-parse/lib/pdf-parse"
 import mammoth from "mammoth"
 import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
+import { estimateFileSize, wouldExceedSizeLimit } from "../../utils/content-size"
+import { ContentTooLargeError } from "../../shared/errors"
 
-export async function extractTextFromFile(filePath: string): Promise<string> {
+export async function extractTextFromFile(filePath: string, contextLimit: number): Promise<string> {
 	try {
 		await fs.access(filePath)
 	} catch (error) {
 		throw new Error(`File not found: ${filePath}`)
+	}
+
+	// Get file stats to check size
+	const stats = await fs.stat(filePath)
+
+	// Check if file size would exceed limit before attempting to read
+	// This is more efficient than creating a full SizeEstimate object when we just need a boolean check
+	if (wouldExceedSizeLimit(stats.size, contextLimit)) {
+		// Only create the full size estimate when we need it for the error
+		const sizeEstimate = await estimateFileSize(filePath, contextLimit)
+		throw new ContentTooLargeError({
+			type: "file",
+			path: filePath,
+			size: sizeEstimate,
+		})
 	}
 	const fileExtension = path.extname(filePath).toLowerCase()
 	switch (fileExtension) {

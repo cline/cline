@@ -62,6 +62,7 @@ import { ClineHandler } from "../api/providers/cline"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 import { telemetryService } from "../services/telemetry/TelemetryService"
+import { getMaxAllowedSize } from "../utils/content-size"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1160,9 +1161,12 @@ export class Cline {
 	// Tools
 
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
+		const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
+		const maxAllowedSize = getMaxAllowedSize(contextWindow)
+
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = this.terminalManager.runCommand(terminalInfo, command)
+		const process = this.terminalManager.runCommand(terminalInfo, command, maxAllowedSize)
 
 		let userFeedback: { text?: string; images?: string[] } | undefined
 		let didContinue = false
@@ -1333,25 +1337,12 @@ export class Cline {
 			if (previousRequest && previousRequest.text) {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				let contextWindow = this.api.getModel().info.contextWindow || 128_000
+				let contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
 				// FIXME: hack to get anyone using openai compatible with deepseek to have the proper context window instead of the default 128k. We need a way for the user to specify the context window for models they input through openai compatible
 				if (this.api instanceof OpenAiHandler && this.api.getModel().id.toLowerCase().includes("deepseek")) {
 					contextWindow = 64_000
 				}
-				let maxAllowedSize: number
-				switch (contextWindow) {
-					case 64_000: // deepseek models
-						maxAllowedSize = contextWindow - 27_000
-						break
-					case 128_000: // most models
-						maxAllowedSize = contextWindow - 30_000
-						break
-					case 200_000: // claude models
-						maxAllowedSize = contextWindow - 40_000
-						break
-					default:
-						maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8) // for deepseek, 80% of 64k meant only ~10k buffer which was too small and resulted in users getting context window errors.
-				}
+				const maxAllowedSize = getMaxAllowedSize(contextWindow)
 
 				// This is the most reliable way to know when we're close to hitting the context window.
 				if (totalTokens >= maxAllowedSize) {
@@ -1995,8 +1986,12 @@ export class Cline {
 									}
 									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 								}
+								// Get context window and used context from API model
+								const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
+								const maxAllowedSize = getMaxAllowedSize(contextWindow)
+
 								// now execute the tool like normal
-								const content = await extractTextFromFile(absolutePath)
+								const content = await extractTextFromFile(absolutePath, maxAllowedSize)
 								pushToolResult(content)
 
 								break
@@ -3372,7 +3367,7 @@ export class Cline {
 						) {
 							return {
 								...block,
-								text: await parseMentions(block.text, cwd, this.urlContentFetcher),
+								text: await parseMentions(block.text, cwd, this.urlContentFetcher, this.api),
 							}
 						}
 					}

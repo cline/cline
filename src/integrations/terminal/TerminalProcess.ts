@@ -1,6 +1,8 @@
 import { EventEmitter } from "events"
 import { stripAnsi } from "./ansiUtils"
 import * as vscode from "vscode"
+import { ContentTooLargeError } from "../../shared/errors"
+import { estimateContentSize, wouldExceedSizeLimit } from "../../utils/content-size"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -22,11 +24,18 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private lastRetrievedIndex: number = 0
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
+	private totalBytes: number = 0
+	private contextLimit: number = 64_000 // minimum context (Deepseek)
+	private lastCommand: string = ""
 
 	// constructor() {
 	// 	super()
 
-	async run(terminal: vscode.Terminal, command: string) {
+	async run(terminal: vscode.Terminal, command: string, contextLimit?: number) {
+		if (contextLimit) {
+			this.contextLimit = contextLimit
+		}
+		this.lastCommand = command
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
@@ -35,6 +44,26 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
 			for await (let data of stream) {
+				// Add to total bytes before checking size
+				const dataBytes = Buffer.from(data).length
+				this.totalBytes += dataBytes
+
+				// Check total accumulated size against half of context limit
+				// Use wouldExceedSizeLimit to avoid creating unnecessary buffer
+				if (wouldExceedSizeLimit(this.totalBytes, this.contextLimit)) {
+					// Create size estimate only when needed for error details
+					const sizeEstimate = estimateContentSize(Buffer.alloc(this.totalBytes), this.contextLimit)
+					this.emit(
+						"error",
+						new ContentTooLargeError({
+							type: "terminal",
+							command,
+							size: sizeEstimate,
+						}),
+					)
+					return
+				}
+
 				// 1. Process chunk and remove artifacts
 				if (isFirstChunk) {
 					/*
@@ -184,6 +213,22 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 	// Inspired by https://github.com/sindresorhus/execa/blob/main/lib/transform/split.js
 	private emitIfEol(chunk: string) {
+		// Check size before adding to buffer against half of context limit
+		const newBufferSize = this.buffer.length + chunk.length
+		if (wouldExceedSizeLimit(newBufferSize, this.contextLimit)) {
+			// Create size estimate only when needed for error details
+			const sizeEstimate = estimateContentSize(Buffer.alloc(0, newBufferSize), this.contextLimit)
+			this.emit(
+				"error",
+				new ContentTooLargeError({
+					type: "terminal",
+					command: this.lastCommand,
+					size: sizeEstimate,
+				}),
+			)
+			return
+		}
+
 		this.buffer += chunk
 		let lineEndIndex: number
 		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
