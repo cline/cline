@@ -577,7 +577,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								marginTop: "5px",
 								color: "var(--vscode-descriptionForeground)",
 							}}>
-							When enabled, Roo can help you create project-level custom modes. You can disable this to
+							When enabled, Roo can help you create custom modes. You can disable this to
 							reduce Roo's token usage.
 						</p>
 					</div>
