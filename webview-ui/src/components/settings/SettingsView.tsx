@@ -102,7 +102,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					mode: tab,
 				},
 			})
-		}, 150)
+		}, 120)
 		// return
 		// // const newMode = chatSettings.mode === "plan" ? "act" : "plan"
 		// vscode.postMessage({

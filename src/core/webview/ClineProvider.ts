@@ -975,7 +975,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 
 			// Restore the model used in previous mode
-			if (newApiProvider && newModelId) {
+			if (newApiProvider || newModelId || newThinkingBudgetTokens) {
 				await this.updateGlobalState("apiProvider", newApiProvider)
 				await this.updateGlobalState("thinkingBudgetTokens", newThinkingBudgetTokens)
 				switch (newApiProvider) {
