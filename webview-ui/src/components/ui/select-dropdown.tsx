@@ -7,7 +7,6 @@ import {
 	DropdownMenuSeparator,
 } from "./dropdown-menu"
 import { cn } from "@/lib/utils"
-import { useEffect, useState } from "react"
 
 // Constants for option types
 export enum DropdownOptionType {
@@ -39,6 +38,8 @@ export interface SelectDropdownProps {
 	shortcutText?: string
 }
 
+// TODO: Get rid of this and use the native @shadcn/ui `Select` component.
+
 export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownMenuTrigger>, SelectDropdownProps>(
 	(
 		{
@@ -60,16 +61,6 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 	) => {
 		// Track open state
 		const [open, setOpen] = React.useState(false)
-		const [portalContainer, setPortalContainer] = useState<HTMLElement>()
-
-		useEffect(() => {
-			// The dropdown menu uses a portal from @shadcn/ui which by default renders
-			// at the document root. This causes the menu to remain visible even when
-			// the parent ChatView component is hidden (during settings/history view).
-			// By moving the portal inside ChatView, the menu will properly hide when
-			// its parent is hidden.
-			setPortalContainer(document.getElementById("chat-view-portal") || undefined)
-		}, [])
 
 		// Find the selected option label
 		const selectedOption = options.find((option) => option.value === value)
@@ -130,7 +121,6 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 					sideOffset={sideOffset}
 					onEscapeKeyDown={() => setOpen(false)}
 					onInteractOutside={() => setOpen(false)}
-					container={portalContainer}
 					className={cn(
 						"bg-vscode-dropdown-background text-vscode-dropdown-foreground border border-vscode-dropdown-border z-50",
 						contentClassName,

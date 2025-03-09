@@ -9,6 +9,7 @@ import { formatLargeNumber, formatDate } from "@/utils/format"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui"
 
+import { Tab, TabContent, TabHeader } from "../common/Tab"
 import { useTaskSearch } from "./useTaskSearch"
 import { ExportButton } from "./ExportButton"
 import { CopyButton } from "./CopyButton"
@@ -25,8 +26,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
 
 	return (
-		<div className="fixed inset-0 flex flex-col">
-			<div className="flex flex-col gap-2 px-5 py-2.5 border-b border-vscode-panel-border">
+		<Tab>
+			<TabHeader className="flex flex-col gap-2">
 				<div className="flex justify-between items-center">
 					<h3 className="text-vscode-foreground m-0">History</h3>
 					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
@@ -81,8 +82,9 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						</VSCodeRadio>
 					</VSCodeRadioGroup>
 				</div>
-			</div>
-			<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
+			</TabHeader>
+
+			<TabContent className="p-0">
 				<Virtuoso
 					style={{
 						flexGrow: 1,
@@ -312,11 +314,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						</div>
 					)}
 				/>
-			</div>
+			</TabContent>
+
 			{deleteTaskId && (
 				<DeleteTaskDialog taskId={deleteTaskId} onOpenChange={(open) => !open && setDeleteTaskId(null)} open />
 			)}
-		</div>
+		</Tab>
 	)
 }
 

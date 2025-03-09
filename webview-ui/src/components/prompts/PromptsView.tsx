@@ -42,6 +42,7 @@ import {
 
 import { TOOL_GROUPS, GROUP_DISPLAY_NAMES, ToolGroup } from "../../../../src/shared/tool-groups"
 import { vscode } from "../../utils/vscode"
+import { Tab, TabContent, TabHeader } from "../common/Tab"
 
 // Get all available groups that should show in prompts view
 const availableGroups = (Object.keys(TOOL_GROUPS) as ToolGroup[]).filter((group) => !TOOL_GROUPS[group].alwaysAvailable)
@@ -406,12 +407,13 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	}
 
 	return (
-		<div className="fixed inset-0 flex flex-col">
-			<div className="flex justify-between items-center px-5 py-2.5 border-b border-vscode-panel-border">
+		<Tab>
+			<TabHeader className="flex justify-between items-center">
 				<h3 className="text-vscode-foreground m-0">Prompts</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
-			</div>
-			<div className="flex-1 overflow-auto p-5">
+			</TabHeader>
+
+			<TabContent>
 				<div className="pb-5 border-b border-vscode-input-border">
 					<div className="mb-5">
 						<div className="font-bold mb-1">Preferred Language</div>
@@ -934,6 +936,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						</div>
 					</div>
 				</div>
+
 				<div
 					style={{
 						paddingBottom: "40px",
@@ -1172,7 +1175,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						)}
 					</div>
 				</div>
-			</div>
+			</TabContent>
+
 			{isCreateModeDialogOpen && (
 				<div
 					style={{
@@ -1396,6 +1400,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 				</div>
 			)}
+
 			{isDialogOpen && (
 				<div
 					style={{
@@ -1463,6 +1468,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 				</div>
 			)}
+
 			{isCustomLanguage && (
 				<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
 					<div className="bg-[var(--vscode-editor-background)] p-6 rounded-lg w-96">
@@ -1497,7 +1503,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 				</div>
 			)}
-		</div>
+		</Tab>
 	)
 }
 

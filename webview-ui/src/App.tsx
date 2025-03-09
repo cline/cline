@@ -17,6 +17,12 @@ import { HumanRelayDialog } from "./components/human-relay/HumanRelayDialog"
 
 type Tab = "settings" | "history" | "mcp" | "prompts" | "chat"
 
+type HumanRelayDialogState = {
+	isOpen: boolean
+	requestId: string
+	promptText: string
+}
+
 const tabsByMessageAction: Partial<Record<NonNullable<ExtensionMessage["action"]>, Tab>> = {
 	chatButtonClicked: "chat",
 	settingsButtonClicked: "settings",
@@ -24,23 +30,20 @@ const tabsByMessageAction: Partial<Record<NonNullable<ExtensionMessage["action"]
 	mcpButtonClicked: "mcp",
 	historyButtonClicked: "history",
 }
+
 const App = () => {
 	const { didHydrateState, showWelcome, shouldShowAnnouncement, telemetrySetting, telemetryKey, machineId } =
 		useExtensionState()
+
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
 	const [tab, setTab] = useState<Tab>("chat")
-	const settingsRef = useRef<SettingsViewRef>(null)
-
-	// Human Relay Dialog Status
-	const [humanRelayDialogState, setHumanRelayDialogState] = useState<{
-		isOpen: boolean
-		requestId: string
-		promptText: string
-	}>({
+	const [humanRelayDialogState, setHumanRelayDialogState] = useState<HumanRelayDialogState>({
 		isOpen: false,
 		requestId: "",
 		promptText: "",
 	})
+
+	const settingsRef = useRef<SettingsViewRef>(null)
 
 	const switchTab = useCallback((newTab: Tab) => {
 		if (settingsRef.current?.checkUnsaveChanges) {
@@ -74,23 +77,6 @@ const App = () => {
 		[switchTab],
 	)
 
-	// Processing Human Relay Dialog Submission
-	const handleHumanRelaySubmit = (requestId: string, text: string) => {
-		vscode.postMessage({
-			type: "humanRelayResponse",
-			requestId,
-			text,
-		})
-	}
-
-	// Handle Human Relay dialog box cancel
-	const handleHumanRelayCancel = (requestId: string) => {
-		vscode.postMessage({
-			type: "humanRelayCancel",
-			requestId,
-		})
-	}
-
 	useEvent("message", onMessage)
 
 	useEffect(() => {
@@ -106,7 +92,7 @@ const App = () => {
 		}
 	}, [telemetrySetting, telemetryKey, machineId, didHydrateState])
 
-	// Tell Extension that we are ready to receive messages
+	// Tell the extension that we are ready to receive messages.
 	useEffect(() => {
 		vscode.postMessage({ type: "webviewDidLaunch" })
 	}, [])
@@ -121,24 +107,23 @@ const App = () => {
 		<WelcomeView />
 	) : (
 		<>
-			{tab === "settings" && <SettingsView ref={settingsRef} onDone={() => setTab("chat")} />}
-			{tab === "history" && <HistoryView onDone={() => switchTab("chat")} />}
-			{tab === "mcp" && <McpView onDone={() => switchTab("chat")} />}
 			{tab === "prompts" && <PromptsView onDone={() => switchTab("chat")} />}
+			{tab === "mcp" && <McpView onDone={() => switchTab("chat")} />}
+			{tab === "history" && <HistoryView onDone={() => switchTab("chat")} />}
+			{tab === "settings" && <SettingsView ref={settingsRef} onDone={() => setTab("chat")} />}
 			<ChatView
 				isHidden={tab !== "chat"}
 				showAnnouncement={showAnnouncement}
 				hideAnnouncement={() => setShowAnnouncement(false)}
 				showHistoryView={() => switchTab("history")}
 			/>
-			{/* Human Relay Dialog */}
 			<HumanRelayDialog
 				isOpen={humanRelayDialogState.isOpen}
 				requestId={humanRelayDialogState.requestId}
 				promptText={humanRelayDialogState.promptText}
 				onClose={() => setHumanRelayDialogState((prev) => ({ ...prev, isOpen: false }))}
-				onSubmit={handleHumanRelaySubmit}
-				onCancel={handleHumanRelayCancel}
+				onSubmit={(requestId, text) => vscode.postMessage({ type: "humanRelayResponse", requestId, text })}
+				onCancel={(requestId) => vscode.postMessage({ type: "humanRelayCancel", requestId })}
 			/>
 		</>
 	)
@@ -147,6 +132,7 @@ const App = () => {
 const AppWithProviders = () => (
 	<ExtensionStateContextProvider>
 		<App />
+		<div id="roo-portal" />
 	</ExtensionStateContextProvider>
 )
 

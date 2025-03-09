@@ -39,8 +39,10 @@ function SelectContent({
 	position = "popper",
 	...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+	const container = React.useMemo(() => document.getElementById("roo-portal"), [])
+
 	return (
-		<SelectPrimitive.Portal>
+		<SelectPrimitive.Portal container={container}>
 			<SelectPrimitive.Content
 				data-slot="select-content"
 				className={cn(
