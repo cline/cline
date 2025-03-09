@@ -61,6 +61,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setMode,
 		autoApprovalEnabled,
 		alwaysAllowModeSwitch,
+		alwaysAllowFinishTask,
 		customModes,
 		telemetrySetting,
 	} = useExtensionState()
@@ -147,6 +148,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								case "newFileCreated":
 									setPrimaryButtonText("Save")
 									setSecondaryButtonText("Reject")
+									break
+								case "finishTask":
+									setPrimaryButtonText("Approve & Continue to the next Task")
+									setSecondaryButtonText(undefined)
 									break
 								default:
 									setPrimaryButtonText("Approve")
@@ -642,7 +647,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				(alwaysAllowModeSwitch &&
 					message.ask === "tool" &&
 					(JSON.parse(message.text || "{}")?.tool === "switchMode" ||
-						JSON.parse(message.text || "{}")?.tool === "newTask"))
+						JSON.parse(message.text || "{}")?.tool === "newTask")) ||
+				(alwaysAllowFinishTask &&
+					message.ask === "tool" &&
+					JSON.parse(message.text || "{}")?.tool === "finishTask")
 			)
 		},
 		[
@@ -657,6 +665,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			alwaysAllowMcp,
 			isMcpToolAlwaysAllowed,
 			alwaysAllowModeSwitch,
+			alwaysAllowFinishTask,
 		],
 	)
 

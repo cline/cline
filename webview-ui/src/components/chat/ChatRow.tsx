@@ -459,6 +459,18 @@ export const ChatRowContent = ({
 						</div>
 					</>
 				)
+			case "finishTask":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("new-file")}
+							<span style={{ fontWeight: "bold" }}>Roo wants to finish this task</span>
+						</div>
+						<div style={{ paddingLeft: "26px", marginTop: "4px" }}>
+							<code>{tool.content}</code>
+						</div>
+					</>
+				)
 			default:
 				return null
 		}
