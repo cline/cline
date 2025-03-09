@@ -139,6 +139,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+
+		// Set defaults for new users
+		// If api provider is not set, it's a new user. In order to get past the welcome screen, the user needs to choose an api provider and api key (logging into cline sets provider to cline). This is a good opportunity to set values for NEW users that we don't want to modify defaults for existing users. For example, existing users may already be using model switching between plan/act, but new users shouldn't be opted in to this behavior by default.
+		;(async () => {
+			const apiProvider = await this.getGlobalState("apiProvider")
+			if (!apiProvider) {
+				console.log("Detected new user...")
+				await this.updateGlobalState("planActSeparateModelsSetting", false)
+			}
+		})()
 	}
 
 	/*
@@ -1811,6 +1821,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			planActSeparateModelsSetting,
 		} = await this.getState()
 
+		console.log("shouldShowAnnouncement", lastShownAnnouncementId)
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
