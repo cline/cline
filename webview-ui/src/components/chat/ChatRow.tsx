@@ -258,7 +258,6 @@ export const ChatRowContent = ({
 							<span style={{ fontWeight: "bold" }}>Roo wants to edit this file:</span>
 						</div>
 						<CodeAccordian
-							progressStatus={message.progressStatus}
 							isLoading={message.partial}
 							diff={tool.diff!}
 							path={tool.path!}
