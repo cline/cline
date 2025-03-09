@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## 3.8.4
+
+### Patch Changes
+
+- Revert tool progress for now
+- v3.8.4
+
 ## [3.8.3] - 2025-03-09
 
 - Fix VS Code LM API model picker truncation issue
