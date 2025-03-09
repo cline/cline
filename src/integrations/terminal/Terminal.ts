@@ -156,7 +156,10 @@ export class Terminal {
 				})
 				.catch(() => {
 					console.log("[Terminal] Shell integration not available. Command execution aborted.")
-					process.emit("no_shell_integration")
+					process.emit(
+						"no_shell_integration",
+						"Shell integration initialization sequence '\\x1b]633;A' was not received within 4 seconds. Shell integration has been disabled for this terminal instance.",
+					)
 				})
 		})
 

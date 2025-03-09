@@ -986,8 +986,8 @@ export class Cline {
 			exitDetails = details
 		})
 
-		process.once("no_shell_integration", async () => {
-			await this.say("shell_integration_warning")
+		process.once("no_shell_integration", async (message: string) => {
+			await this.say("shell_integration_warning", message)
 		})
 
 		await process

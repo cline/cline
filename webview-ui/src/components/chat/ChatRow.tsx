@@ -706,12 +706,14 @@ export const ChatRowContent = ({
 									</span>
 								</div>
 								<div>
-									Roo won't be able to view the command's output. Please update VSCode (
-									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported
-									shell: zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> →
-									"Terminal: Select Default Profile").{" "}
+									<strong>{message.text}</strong>
+									<br />
+									<br />
+									Please update VSCode (<code>CMD/CTRL + Shift + P</code> → "Update") and make sure
+									you're using a supported shell: zsh, bash, fish, or PowerShell (
+									<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default Profile").{" "}
 									<a
-										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable"
+										href="http://docs.roocode.com/troubleshooting/shell-integration/"
 										style={{ color: "inherit", textDecoration: "underline" }}>
 										Still having trouble?
 									</a>

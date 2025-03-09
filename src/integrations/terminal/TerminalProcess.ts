@@ -102,7 +102,7 @@ export interface TerminalProcessEvents {
 	continue: []
 	completed: [output?: string]
 	error: [error: Error]
-	no_shell_integration: []
+	no_shell_integration: [message: string]
 	/**
 	 * Emitted when a shell execution completes
 	 * @param id The terminal ID
@@ -387,7 +387,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			console.warn(
 				"[TerminalProcess] Shell integration not available. Command sent without knowledge of response.",
 			)
-			this.emit("no_shell_integration")
+			this.emit(
+				"no_shell_integration",
+				"Command was submitted; output is not available, as shell integration is inactive.",
+			)
 
 			// unknown, but trigger the event
 			this.emit(
