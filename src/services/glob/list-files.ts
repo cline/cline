@@ -3,6 +3,10 @@ import os from "os"
 import * as path from "path"
 import { arePathsEqual } from "../../utils/path"
 
+function escapeGlobPattern(pattern: string): string {
+	return pattern.replace(/[(){}[\]]/g, "\\$&")
+}
+
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
 	const absolutePath = path.resolve(dirPath)
 	// Do not allow listing files in root or home directory, which cline tends to want to do when the user's prompt is vague.
@@ -48,7 +52,8 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 	}
 
 	// * globs all files in one dir, ** globs files in nested directories
-	const filePaths = recursive ? await globbyLevelByLevel(limit, options) : (await globby("*", options)).slice(0, limit)
+	const pattern = escapeGlobPattern("*")
+	const filePaths = recursive ? await globbyLevelByLevel(limit, options) : (await globby(pattern, options)).slice(0, limit)
 
 	return [filePaths, filePaths.length >= limit]
 }
@@ -67,7 +72,7 @@ Breadth-first traversal of directory structure level by level up to a limit:
 */
 async function globbyLevelByLevel(limit: number, options?: Options) {
 	let results: Set<string> = new Set()
-	let queue: string[] = ["*"]
+	let queue: string[] = [escapeGlobPattern("*")]
 
 	const globbingProcess = async () => {
 		while (queue.length > 0 && results.size < limit) {
@@ -80,7 +85,7 @@ async function globbyLevelByLevel(limit: number, options?: Options) {
 				}
 				results.add(file)
 				if (file.endsWith("/")) {
-					queue.push(`${file}*`)
+					queue.push(escapeGlobPattern(`${file}*`))
 				}
 			}
 		}
