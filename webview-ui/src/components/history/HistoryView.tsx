@@ -466,7 +466,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					}}>
 					<DangerButton
 						style={{ width: "100%" }}
-						disabled={deleteAllDisabled}
+						disabled={deleteAllDisabled || taskHistory.length === 0}
 						onClick={() => {
 							setDeleteAllDisabled(true)
 							vscode.postMessage({ type: "clearAllTaskHistory" })
