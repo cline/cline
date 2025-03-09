@@ -1023,6 +1023,9 @@ export class Cline {
 					if (exitDetails.coreDumpPossible) {
 						exitStatus += " - core dump possible"
 					}
+				} else if (exitDetails.exitCode === undefined) {
+					result += "<VSCE exit code is undefined: terminal output and command execution status is unknown.>"
+					exitStatus = `Exit code: <undefined, notify user>`
 				} else {
 					exitStatus = `Exit code: ${exitDetails.exitCode}`
 				}
@@ -1030,7 +1033,6 @@ export class Cline {
 			const workingDirInfo = workingDir ? ` from '${workingDir.toPosix()}'` : ""
 
 			const outputInfo = `\nOutput:\n${result}`
-
 			return [
 				false,
 				`Command executed in terminal ${terminalInfo.id}${workingDirInfo}. ${exitStatus}${outputInfo}`,
