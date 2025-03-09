@@ -393,10 +393,27 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 				// Emit any remaining output before completing
 				this.emitRemainingBufferIfListening()
 			} else {
-				console.error(
-					"[Terminal Process] VSCE output start escape sequence (]633;C or ]133;C) not received! VSCE Bug? preOutput: " +
-						inspect(preOutput, { colors: false, breakLength: Infinity }),
+				const errorMsg =
+					"VSCE output start escape sequence (]633;C or ]133;C) not received, but the stream has started. Upstream VSCE Bug?"
+
+				const inspectPreOutput = inspect(preOutput, { colors: false, breakLength: Infinity })
+				console.error(`[Terminal Process] ${errorMsg} preOutput: ${inspectPreOutput}`)
+
+				// Emit no_shell_integration event
+				this.emit("no_shell_integration", errorMsg)
+
+				// Emit completed event with error message
+				this.emit(
+					"completed",
+					"<VSCE shell integration markers not found: terminal output and command execution status is unknown>\n" +
+						`<preOutput>${inspectPreOutput}</preOutput>\n` +
+						"AI MODEL: You MUST notify the user with the information above so they can open a bug report.",
 				)
+
+				this.continue()
+
+				// Return early since we can't process output without shell integration markers
+				return
 			}
 
 			// console.debug("[Terminal Process] raw output: " + inspect(output, { colors: false, breakLength: Infinity }))
