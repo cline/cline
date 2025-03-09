@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## [3.8.2] - 2025-03-08
+
+- Create an auto-approval toggle for subtask creation and completion (thanks @shaybc!)
+- Show a progress indicator when using the multi-diff editing strategy (thanks @qdaxb!)
+- Add o3-mini support to the OpenAI-compatible provider (thanks @yt3trees!)
+- Fix encoding issue where unreadable characters were sometimes getting added to the beginning of files
+- Fix issue where settings dropdowns were getting truncated in some cases
+
 ## [3.8.1] - 2025-03-07
 
 - Show the reserved output tokens in the context window visualization
