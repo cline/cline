@@ -125,7 +125,9 @@ describe("TerminalProcess", () => {
 
 			// Set up event listeners to verify events are emitted
 			const eventPromises = Promise.all([
-				new Promise<void>((resolve) => noShellProcess.once("no_shell_integration", resolve)),
+				new Promise<void>((resolve) =>
+					noShellProcess.once("no_shell_integration", (_message: string) => resolve()),
+				),
 				new Promise<void>((resolve) => noShellProcess.once("completed", (_output?: string) => resolve())),
 				new Promise<void>((resolve) => noShellProcess.once("continue", resolve)),
 			])
