@@ -14,6 +14,8 @@ import { vscode } from "../../utils/vscode"
 import SettingsButton from "../common/SettingsButton"
 import ApiOptions from "./ApiOptions"
 import { TabButton } from "../mcp/McpView"
+import { useEvent } from "react-use"
+import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 const { IS_DEV } = process.env
 
 type SettingsViewProps = {
@@ -35,6 +37,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
+	const [pendingTabChange, setPendingTabChange] = useState<"plan" | "act" | null>(null)
 
 	const handleSubmit = (withoutDone: boolean = false) => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
@@ -43,10 +46,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		// setApiErrorMessage(apiValidationResult)
 		// setModelIdErrorMessage(modelIdValidationResult)
 
-		// if the api configuration is invalid, we don't save it
 		let apiConfigurationToSubmit = apiConfiguration
 		if (!apiValidationResult && !modelIdValidationResult) {
-			apiConfigurationToSubmit = undefined
 			// vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			// vscode.postMessage({
 			// 	type: "customInstructions",
@@ -56,12 +57,14 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			// 	type: "telemetrySetting",
 			// 	text: telemetrySetting,
 			// })
-
 			// console.log("handleSubmit", withoutDone)
 			// vscode.postMessage({
 			// 	type: "separateModeSetting",
 			// 	text: separateModeSetting,
 			// })
+		} else {
+			// if the api configuration is invalid, we don't save it
+			apiConfigurationToSubmit = undefined
 		}
 
 		vscode.postMessage({
@@ -84,38 +87,46 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 	// validate as soon as the component is mounted
 	/*
-	useEffect will use stale values of variables if they are not included in the dependency array. so trying to use useEffect with a dependency array of only one value for example will use any other variables' old values. In most cases you don't want this, and should opt to use react-use hooks.
-	
-	useEffect(() => {
-		// uses someVar and anotherVar
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [someVar])
-
+    useEffect will use stale values of variables if they are not included in the dependency array. 
+    so trying to use useEffect with a dependency array of only one value for example will use any 
+    other variables' old values. In most cases you don't want this, and should opt to use react-use 
+    hooks.
+    
+        // uses someVar and anotherVar
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [someVar])
 	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
-	*/
+    */
+
+	const handleMessage = useCallback(
+		(event: MessageEvent) => {
+			const message: ExtensionMessage = event.data
+			switch (message.type) {
+				case "didUpdateSettings":
+					if (pendingTabChange) {
+						vscode.postMessage({
+							type: "togglePlanActMode",
+							chatSettings: {
+								mode: pendingTabChange,
+							},
+						})
+						setPendingTabChange(null)
+					}
+					break
+			}
+		},
+		[pendingTabChange],
+	)
+
+	useEvent("message", handleMessage)
 
 	const handleResetState = () => {
 		vscode.postMessage({ type: "resetState" })
 	}
 
 	const handleTabChange = (tab: "plan" | "act") => {
+		setPendingTabChange(tab)
 		handleSubmit(true)
-		setTimeout(() => {
-			vscode.postMessage({
-				type: "togglePlanActMode",
-				chatSettings: {
-					mode: tab,
-				},
-			})
-		}, 100)
-		// return
-		// // const newMode = chatSettings.mode === "plan" ? "act" : "plan"
-		// vscode.postMessage({
-		// 	type: "togglePlanActMode",
-		// 	chatSettings: {
-		// 		mode: tab,
-		// 	},
-		// })
 	}
 
 	return (

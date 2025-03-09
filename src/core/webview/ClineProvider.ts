@@ -911,6 +911,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 						// after settings are updated, post state to webview
 						await this.postStateToWebview()
+
+						await this.postMessageToWebview({ type: "didUpdateSettings" })
 						break
 					}
 					// Add more switch case statements here as more webview message commands

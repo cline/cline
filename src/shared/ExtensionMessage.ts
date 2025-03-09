@@ -33,6 +33,7 @@ export interface ExtensionMessage {
 		| "commitSearchResults"
 		| "openGraphData"
 		| "isImageUrlResult"
+		| "didUpdateSettings"
 	text?: string
 	action?:
 		| "chatButtonClicked"
