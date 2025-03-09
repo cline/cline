@@ -43,7 +43,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		// setApiErrorMessage(apiValidationResult)
 		// setModelIdErrorMessage(modelIdValidationResult)
 
+		// if the api configuration is invalid, we don't save it
+		let apiConfigurationToSubmit = apiConfiguration
 		if (!apiValidationResult && !modelIdValidationResult) {
+			apiConfigurationToSubmit = undefined
 			// vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			// vscode.postMessage({
 			// 	type: "customInstructions",
@@ -53,19 +56,21 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			// 	type: "telemetrySetting",
 			// 	text: telemetrySetting,
 			// })
-			vscode.postMessage({
-				type: "updateSettings",
-				planActSeparateModelsSetting,
-				customInstructionsSetting: customInstructions,
-				telemetrySetting,
-				apiConfiguration,
-			})
+
 			// console.log("handleSubmit", withoutDone)
 			// vscode.postMessage({
 			// 	type: "separateModeSetting",
 			// 	text: separateModeSetting,
 			// })
 		}
+
+		vscode.postMessage({
+			type: "updateSettings",
+			planActSeparateModelsSetting,
+			customInstructionsSetting: customInstructions,
+			telemetrySetting,
+			apiConfiguration: apiConfigurationToSubmit,
+		})
 
 		if (!withoutDone) {
 			onDone()
