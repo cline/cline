@@ -561,7 +561,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	  which are managed in this component. This is an intentional deviation from
 	  the standard pattern described in cline_docs/settings.md.
 	*/}
-					<div style={{ marginBottom: 15 }}>
+					<div className="mb-4">
 						<VSCodeCheckbox
 							checked={enableCustomModeCreation ?? true}
 							onChange={(e: any) => {
@@ -577,8 +577,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								marginTop: "5px",
 								color: "var(--vscode-descriptionForeground)",
 							}}>
-							When enabled, Roo can help you create custom modes. You can disable this to
-							reduce Roo's token usage.
+							When enabled, Roo can help you create custom modes. You can disable this to reduce Roo's
+							token usage.
 						</p>
 					</div>
 					<div onClick={(e) => e.stopPropagation()} className="flex justify-between items-center mb-3">
