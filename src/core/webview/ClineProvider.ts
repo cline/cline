@@ -876,10 +876,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					}
 					case "telemetrySetting": {
-						const telemetrySetting = message.telemetrySetting
-						await this.updateGlobalState("telemetrySetting", telemetrySetting)
-						const isOptedIn = telemetrySetting === "enabled"
-						telemetryService.updateTelemetryState(isOptedIn)
+						if (message.telemetrySetting) {
+							await this.updateTelemetrySetting(message.telemetrySetting)
+						}
 						await this.postStateToWebview()
 						break
 					}
@@ -893,14 +892,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateCustomInstructions(message.customInstructionsSetting)
 
 						// telemetry setting
-						const telemetrySetting = message.telemetrySetting
-						await this.updateGlobalState("telemetrySetting", telemetrySetting)
-						const isOptedIn = telemetrySetting === "enabled"
-						telemetryService.updateTelemetryState(isOptedIn)
+						if (message.telemetrySetting) {
+							await this.updateTelemetrySetting(message.telemetrySetting)
+						}
 
 						// plan act setting
-						const planActSeparateModelsSetting = message.planActSeparateModelsSetting
-						await this.updateGlobalState("planActSeparateModelsSetting", planActSeparateModelsSetting)
+						await this.updateGlobalState("planActSeparateModelsSetting", message.planActSeparateModelsSetting)
 
 						// after settings are updated, post state to webview
 						await this.postStateToWebview()
@@ -913,6 +910,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			null,
 			this.disposables,
 		)
+	}
+
+	async updateTelemetrySetting(telemetrySetting: TelemetrySetting) {
+		await this.updateGlobalState("telemetrySetting", telemetrySetting)
+		const isOptedIn = telemetrySetting === "enabled"
+		telemetryService.updateTelemetryState(isOptedIn)
 	}
 
 	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent) {
