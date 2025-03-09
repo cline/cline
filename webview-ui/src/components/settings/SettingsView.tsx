@@ -161,47 +161,45 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					display: "flex",
 					flexDirection: "column",
 				}}>
-				<div style={{ marginBottom: 10 }}>
-					<VSCodeCheckbox
-						style={{ marginBottom: "5px" }}
-						checked={planActSeparateModelsSetting}
-						onChange={(e: any) => {
-							const checked = e.target.checked === true
-							setPlanActSeparateModelsSetting(checked)
-						}}>
-						Use different models for Plan & Act
-					</VSCodeCheckbox>
-				</div>
 				{/* Tabs container */}
-				{planActSeparateModelsSetting && (
+				{planActSeparateModelsSetting ? (
 					<div
 						style={{
-							display: "flex",
-							gap: "1px",
-							marginBottom: "10px",
-							marginTop: -8,
-							borderBottom: "1px solid var(--vscode-panel-border)",
+							border: "1px solid var(--vscode-panel-border)",
+							borderRadius: "4px",
+							padding: "10px",
+							marginBottom: "20px",
+							background: "var(--vscode-panel-background)",
 						}}>
-						<TabButton isActive={chatSettings.mode === "plan"} onClick={() => handleTabChange("plan")}>
-							Plan Mode
-						</TabButton>
-						<TabButton isActive={chatSettings.mode === "act"} onClick={() => handleTabChange("act")}>
-							Act Mode
-						</TabButton>
-					</div>
-				)}
+						<div
+							style={{
+								display: "flex",
+								gap: "1px",
+								marginBottom: "10px",
+								marginTop: -8,
+								borderBottom: "1px solid var(--vscode-panel-border)",
+							}}>
+							<TabButton isActive={chatSettings.mode === "plan"} onClick={() => handleTabChange("plan")}>
+								Plan Mode
+							</TabButton>
+							<TabButton isActive={chatSettings.mode === "act"} onClick={() => handleTabChange("act")}>
+								Act Mode
+							</TabButton>
+						</div>
 
-				{/* Content container */}
-				{chatSettings.mode === "act" ? (
-					<ApiOptions
-						key={"act"}
-						showModelOptions={true}
-						apiErrorMessage={apiErrorMessage}
-						modelIdErrorMessage={modelIdErrorMessage}
-					/>
+						{/* Content container */}
+						<div style={{ marginBottom: -12 }}>
+							<ApiOptions
+								key={chatSettings.mode}
+								showModelOptions={true}
+								apiErrorMessage={apiErrorMessage}
+								modelIdErrorMessage={modelIdErrorMessage}
+							/>
+						</div>
+					</div>
 				) : (
 					<ApiOptions
-						key={"plan"}
+						key={"single"}
 						showModelOptions={true}
 						apiErrorMessage={apiErrorMessage}
 						modelIdErrorMessage={modelIdErrorMessage}
@@ -225,6 +223,27 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						These instructions are added to the end of the system prompt sent with every request.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						style={{ marginBottom: "5px" }}
+						checked={planActSeparateModelsSetting}
+						onChange={(e: any) => {
+							const checked = e.target.checked === true
+							setPlanActSeparateModelsSetting(checked)
+						}}>
+						Use different models for Plan and Act modes
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be
+						helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on.
 					</p>
 				</div>
 
