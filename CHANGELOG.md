@@ -1,5 +1,12 @@
 # Roo Code Changelog
 
+## 3.8.2
+
+### Patch Changes
+
+- v3.8.2
+- Add o3-mini support to openai compatible
+
 ## [3.8.1] - 2025-03-07
 
 - Show the reserved output tokens in the context window visualization
