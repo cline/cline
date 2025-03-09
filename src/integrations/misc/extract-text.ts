@@ -110,16 +110,42 @@ export function truncateOutput(content: string, lineLimit?: number): string {
 		return content
 	}
 
-	const lines = content.split("\n")
-	if (lines.length <= lineLimit) {
+	// Count total lines
+	let totalLines = 0
+	let pos = -1
+	while ((pos = content.indexOf("\n", pos + 1)) !== -1) {
+		totalLines++
+	}
+	totalLines++ // Account for last line without newline
+
+	if (totalLines <= lineLimit) {
 		return content
 	}
 
 	const beforeLimit = Math.floor(lineLimit * 0.2) // 20% of lines before
 	const afterLimit = lineLimit - beforeLimit // remaining 80% after
-	return [
-		...lines.slice(0, beforeLimit),
-		`\n[...${lines.length - lineLimit} lines omitted...]\n`,
-		...lines.slice(-afterLimit),
-	].join("\n")
+
+	// Find start section end position
+	let startEndPos = -1
+	let lineCount = 0
+	pos = 0
+	while (lineCount < beforeLimit && (pos = content.indexOf("\n", pos)) !== -1) {
+		startEndPos = pos
+		lineCount++
+		pos++
+	}
+
+	// Find end section start position
+	let endStartPos = content.length
+	lineCount = 0
+	pos = content.length
+	while (lineCount < afterLimit && (pos = content.lastIndexOf("\n", pos - 1)) !== -1) {
+		endStartPos = pos + 1 // Start after the newline
+		lineCount++
+	}
+
+	const omittedLines = totalLines - lineLimit
+	const startSection = content.slice(0, startEndPos + 1)
+	const endSection = content.slice(endStartPos)
+	return startSection + `\n[...${omittedLines} lines omitted...]\n\n` + endSection
 }
