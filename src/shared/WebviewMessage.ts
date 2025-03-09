@@ -48,7 +48,7 @@ export interface WebviewMessage {
 		| "alwaysAllowBrowser"
 		| "alwaysAllowMcp"
 		| "alwaysAllowModeSwitch"
-		| "alwaysAllowFinishTask"
+		| "alwaysAllowSubtasks"
 		| "playSound"
 		| "soundEnabled"
 		| "soundVolume"

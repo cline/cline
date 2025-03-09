@@ -109,7 +109,7 @@ export interface ExtensionState {
 	alwaysAllowMcp?: boolean
 	alwaysApproveResubmit?: boolean
 	alwaysAllowModeSwitch?: boolean
-	alwaysAllowFinishTask?: boolean
+	alwaysAllowSubtasks?: boolean
 	browserToolEnabled?: boolean
 	requestDelaySeconds: number
 	rateLimitSeconds: number // Minimum time between successive requests (0 = disabled)
@@ -277,5 +277,6 @@ export interface HumanRelayCancelMessage {
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
 
 export type ToolProgressStatus = {
+	icon?: string
 	text?: string
 }

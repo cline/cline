@@ -1431,7 +1431,7 @@ export class Cline {
 					const toolMessage = JSON.stringify({
 						tool: "finishTask",
 						content:
-							"Task completed! You can review the results and suggest any corrections or next steps. If everything looks good, confirm to continue with the next task.",
+							"Subtask completed! You can review the results and suggest any corrections or next steps. If everything looks good, confirm to return the result to the parent task.",
 					})
 
 					return await askApproval("tool", toolMessage)
