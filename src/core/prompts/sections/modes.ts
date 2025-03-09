@@ -12,9 +12,7 @@ export async function getModesSection(context: vscode.ExtensionContext): Promise
 	const allModes = await getAllModesWithPrompts(context)
 
 	// Get enableCustomModeCreation setting from extension state
-	const enableCustomModeCreation = await context.globalState.get<boolean>("enableCustomModeCreation")
-	// Default to true if undefined
-	const shouldEnableCustomModeCreation = enableCustomModeCreation !== undefined ? enableCustomModeCreation : true
+	const shouldEnableCustomModeCreation = await context.globalState.get<boolean>("enableCustomModeCreation") ?? true
 
 	let modesContent = `====
 
