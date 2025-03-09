@@ -1478,6 +1478,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("enhancementApiConfigId", message.text)
 						await this.postStateToWebview()
 						break
+					case "enableCustomModeCreation":
+						await this.updateGlobalState("enableCustomModeCreation", message.bool ?? true)
+						await this.postStateToWebview()
+						break
 					case "autoApprovalEnabled":
 						await this.updateGlobalState("autoApprovalEnabled", message.bool ?? false)
 						await this.postStateToWebview()
