@@ -63,7 +63,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		alwaysAllowExecute,
 		alwaysAllowMcp,
 		alwaysAllowModeSwitch,
-		alwaysAllowFinishTask,
+		alwaysAllowSubtasks,
 		alwaysAllowWrite,
 		alwaysApproveResubmit,
 		browserToolEnabled,
@@ -185,7 +185,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			vscode.postMessage({ type: "currentApiConfigName", text: currentApiConfigName })
 			vscode.postMessage({ type: "updateExperimental", values: experiments })
 			vscode.postMessage({ type: "alwaysAllowModeSwitch", bool: alwaysAllowModeSwitch })
-			vscode.postMessage({ type: "alwaysAllowFinishTask", bool: alwaysAllowFinishTask })
+			vscode.postMessage({ type: "alwaysAllowSubtasks", bool: alwaysAllowSubtasks })
 			vscode.postMessage({ type: "upsertApiConfiguration", text: currentApiConfigName, apiConfiguration })
 			vscode.postMessage({ type: "telemetrySetting", text: telemetrySetting })
 			setChangeDetected(false)
@@ -366,7 +366,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 						requestDelaySeconds={requestDelaySeconds}
 						alwaysAllowMcp={alwaysAllowMcp}
 						alwaysAllowModeSwitch={alwaysAllowModeSwitch}
-						alwaysAllowFinishTask={alwaysAllowFinishTask}
+						alwaysAllowSubtasks={alwaysAllowSubtasks}
 						alwaysAllowExecute={alwaysAllowExecute}
 						allowedCommands={allowedCommands}
 						setCachedStateField={setCachedStateField}

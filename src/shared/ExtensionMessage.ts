@@ -109,7 +109,7 @@ export interface ExtensionState {
 	alwaysAllowMcp?: boolean
 	alwaysApproveResubmit?: boolean
 	alwaysAllowModeSwitch?: boolean
-	alwaysAllowFinishTask?: boolean
+	alwaysAllowSubtasks?: boolean
 	browserToolEnabled?: boolean
 	requestDelaySeconds: number
 	rateLimitSeconds: number // Minimum time between successive requests (0 = disabled)

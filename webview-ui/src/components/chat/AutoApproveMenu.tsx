@@ -30,8 +30,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		setAlwaysAllowMcp,
 		alwaysAllowModeSwitch,
 		setAlwaysAllowModeSwitch,
-		alwaysAllowFinishTask,
-		setAlwaysAllowFinishTask,
+		alwaysAllowSubtasks,
+		setAlwaysAllowSubtasks,
 		alwaysApproveResubmit,
 		setAlwaysApproveResubmit,
 		autoApprovalEnabled,
@@ -77,18 +77,17 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		},
 		{
 			id: "switchModes",
-			label: "Switch modes & create tasks",
+			label: "Switch modes",
 			shortName: "Modes",
 			enabled: alwaysAllowModeSwitch ?? false,
-			description:
-				"Allows automatic switching between different AI modes and creating new tasks without requiring approval.",
+			description: "Allows automatic switching between different modes without requiring approval.",
 		},
 		{
-			id: "finishTask",
-			label: "Continue to next task",
-			shortName: "Continue",
-			enabled: alwaysAllowFinishTask ?? false,
-			description: "Allow tasks to end execution and continue to the next task, without user review or approval.",
+			id: "subtasks",
+			label: "Create & complete subtasks",
+			shortName: "Subtasks",
+			enabled: alwaysAllowSubtasks ?? false,
+			description: "Allow creation and completion of subtasks without requiring approval.",
 		},
 		{
 			id: "retryRequests",
@@ -145,11 +144,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		vscode.postMessage({ type: "alwaysAllowModeSwitch", bool: newValue })
 	}, [alwaysAllowModeSwitch, setAlwaysAllowModeSwitch])
 
-	const handleFinishTaskChange = useCallback(() => {
-		const newValue = !(alwaysAllowFinishTask ?? false)
-		setAlwaysAllowFinishTask(newValue)
-		vscode.postMessage({ type: "alwaysAllowFinishTask", bool: newValue })
-	}, [alwaysAllowFinishTask, setAlwaysAllowFinishTask])
+	const handleSubtasksChange = useCallback(() => {
+		const newValue = !(alwaysAllowSubtasks ?? false)
+		setAlwaysAllowSubtasks(newValue)
+		vscode.postMessage({ type: "alwaysAllowSubtasks", bool: newValue })
+	}, [alwaysAllowSubtasks, setAlwaysAllowSubtasks])
 
 	const handleRetryChange = useCallback(() => {
 		const newValue = !(alwaysApproveResubmit ?? false)
@@ -165,7 +164,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		useBrowser: handleBrowserChange,
 		useMcp: handleMcpChange,
 		switchModes: handleModeSwitchChange,
-		finishTask: handleFinishTaskChange,
+		subtasks: handleSubtasksChange,
 		retryRequests: handleRetryChange,
 	}
 
