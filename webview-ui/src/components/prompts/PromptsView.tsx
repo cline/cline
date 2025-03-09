@@ -1037,7 +1037,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								// The React context will update the global state
 								setEnableCustomModeCreation(e.target.checked)
 							}}>
-							<span style={{ fontWeight: "500" }}>Enable Custom Mode Creation</span>
+							<span style={{ fontWeight: "500" }}>Enable Custom Mode Creation Through Prompts</span>
 						</VSCodeCheckbox>
 						<p
 							style={{
