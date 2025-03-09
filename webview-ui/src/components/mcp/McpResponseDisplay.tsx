@@ -301,7 +301,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 				const text = responseText || ""
 				const matches: UrlMatch[] = []
 
-				const urlRegex = /https?:\/\/[^\s]+/g
+				const urlRegex = /(?:https?:\/\/|data:image\/)[^\s]+/g
 				let urlMatch: RegExpExecArray | null
 
 				while ((urlMatch = urlRegex.exec(text)) !== null) {
@@ -369,7 +369,11 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					}
 
 					// Add the URL text itself
-					segments.push(<UrlText key={`url-${segmentIndex++}`}>{fullMatch}</UrlText>)
+					if (url.startsWith("data:image/")) {
+						segments.push(<UrlText key={`url-${segmentIndex++}`}>[base64 image]</UrlText>)
+					} else {
+						segments.push(<UrlText key={`url-${segmentIndex++}`}>{fullMatch}</UrlText>)
+					}
 
 					// Calculate the end position of this URL in the text
 					const urlEndIndex = index + fullMatch.length
