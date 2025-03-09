@@ -128,6 +128,7 @@ export interface ExtensionState {
 	terminalOutputLimit?: number
 	mcpEnabled: boolean
 	enableMcpServerCreation: boolean
+	enableCustomModeCreation?: boolean
 	mode: Mode
 	modeApiConfigs?: Record<Mode, string>
 	enhancementApiConfigId?: string

@@ -71,6 +71,7 @@ export interface WebviewMessage {
 		| "terminalOutputLimit"
 		| "mcpEnabled"
 		| "enableMcpServerCreation"
+		| "enableCustomModeCreation"
 		| "searchCommits"
 		| "alwaysApproveResubmit"
 		| "requestDelaySeconds"
