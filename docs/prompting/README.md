@@ -128,6 +128,27 @@ Cline's system prompt, on the other hand, is not user-editable ([here's where yo
 -   Focus on Desired Outcomes: Describe the results you want, not the specific steps.
 -   Test and Iterate: Experiment to find what works best for your workflow.
 
+
+### Support for Loading Files from the `.clinerules/` Directory
+All files under the `.clinerules/` directory are recursively loaded, and their contents are merged into clineRulesFileInstructions.
+
+#### Example 1:
+```
+.clinerules/
+├── .local-clinerules
+└── .project-clinerules
+```
+
+#### Example 2:
+```
+.clinerules/
+├── .clinerules-nextjs
+├── .clinerules-serverside
+└── tests/
+    ├── .pytest-clinerules
+    └── .jest-clinerules
+```
+
 ## Prompting Cline 💬
 
 **Prompting is how you communicate your needs for a given task in the back-and-forth chat with Cline.** Cline understands natural language, so write conversationally.

@@ -45,3 +45,17 @@ export async function fileExistsAtPath(filePath: string): Promise<boolean> {
 		return false
 	}
 }
+
+/**
+ * Checks if the path is a directory
+ * @param filePath - The path to check.
+ * @returns A promise that resolves to true if the path is a directory, false otherwise.
+ */
+export async function isDirectory(filePath: string): Promise<boolean> {
+	try {
+		const stats = await fs.stat(filePath)
+		return stats.isDirectory()
+	} catch {
+		return false
+	}
+}
