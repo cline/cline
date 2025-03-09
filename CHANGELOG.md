@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.8.3
-
-### Patch Changes
+## [3.8.3]
 
 - Fix VS Code LM API model picker
 
