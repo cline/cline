@@ -915,6 +915,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.postMessageToWebview({ type: "didUpdateSettings" })
 						break
 					}
+					case "clearAllTaskHistory": {
+						await this.deleteAllTaskHistory()
+						await this.postStateToWebview()
+						this.postMessageToWebview({ type: "relinquishControl" })
+						break
+					}
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
@@ -1751,6 +1757,28 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		await downloadTask(historyItem.ts, apiConversationHistory)
 	}
 
+	async deleteAllTaskHistory() {
+		await this.clearTask()
+		await this.updateGlobalState("taskHistory", undefined)
+		try {
+			// Remove all contents of tasks directory
+			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks")
+			if (await fileExistsAtPath(taskDirPath)) {
+				await fs.rm(taskDirPath, { recursive: true, force: true })
+			}
+			// Remove checkpoints directory contents
+			const checkpointsDirPath = path.join(this.context.globalStorageUri.fsPath, "checkpoints")
+			if (await fileExistsAtPath(checkpointsDirPath)) {
+				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
+			}
+		} catch (error) {
+			vscode.window.showErrorMessage(
+				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+		// await this.postStateToWebview()
+	}
+
 	async deleteTaskWithId(id: string) {
 		console.info("deleteTaskWithId: ", id)
 
@@ -1831,7 +1859,10 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			currentTaskItem: this.cline?.taskId ? (taskHistory || []).find((item) => item.id === this.cline?.taskId) : undefined,
 			checkpointTrackerErrorMessage: this.cline?.checkpointTrackerErrorMessage,
 			clineMessages: this.cline?.clineMessages || [],
-			taskHistory: (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts),
+			taskHistory: (taskHistory || [])
+				.filter((item) => item.ts && item.task)
+				.sort((a, b) => b.ts - a.ts)
+				.slice(0, 100), // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			platform: process.platform as Platform,
 			autoApprovalSettings,
