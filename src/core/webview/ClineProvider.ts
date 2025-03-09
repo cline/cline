@@ -1821,7 +1821,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			planActSeparateModelsSetting,
 		} = await this.getState()
 
-		console.log("shouldShowAnnouncement", lastShownAnnouncementId)
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
