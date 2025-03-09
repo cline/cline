@@ -3,6 +3,7 @@ import { ApiConfiguration, ModelInfo } from "../shared/api"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AwsBedrockHandler } from "./providers/bedrock"
 import { OpenRouterHandler } from "./providers/openrouter"
+import { VortnHandler } from "./providers/vortn"
 import { VertexHandler } from "./providers/vertex"
 import { OpenAiHandler } from "./providers/openai"
 import { OllamaHandler } from "./providers/ollama"
@@ -37,6 +38,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new AnthropicHandler(options)
 		case "openrouter":
 			return new OpenRouterHandler(options)
+		case "vortn":
+			return new VortnHandler(options)
 		case "bedrock":
 			return new AwsBedrockHandler(options)
 		case "vertex":
