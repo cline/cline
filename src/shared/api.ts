@@ -26,6 +26,7 @@ export interface ApiHandlerOptions {
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
 	liteLlmApiKey?: string
+	liteLlmModelInfo?: ModelInfo
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
@@ -1122,7 +1123,7 @@ export const mistralModels = {
 // LiteLLM
 // https://docs.litellm.ai/docs/
 export type LiteLLMModelId = string
-export const liteLlmDefaultModelId = "gpt-3.5-turbo"
+export const liteLlmDefaultModelId = "anthropic/claude-3-5-sonnet-20240620"
 export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
