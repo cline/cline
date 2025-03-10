@@ -177,7 +177,7 @@ export class DiffViewProvider {
 		initial fix is usually correct and it may just take time for linters to catch up.
 		*/
 		const postDiagnostics = vscode.languages.getDiagnostics()
-		const newProblems = diagnosticsToProblemsString(
+		const newProblems = await diagnosticsToProblemsString(
 			getNewDiagnostics(this.preDiagnostics, postDiagnostics),
 			[
 				vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
