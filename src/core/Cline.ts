@@ -1306,7 +1306,8 @@ export class Cline {
 					const ruleFileContent = await Promise.all(
 						ruleFiles.map(async (file) => {
 							const ruleFilePath = path.resolve(clineRulesFilePath, file)
-							return `${ruleFilePath}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
+							const ruleFilePathRelative = path.relative(cwd, ruleFilePath)
+							return `${ruleFilePathRelative}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
 						}),
 					).then((contents) => contents.join("\n\n"))
 					clineRulesFileInstructions = `# .clinerules/\n\nThe following is provided by a root-level .clinerules/ directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${ruleFileContent}`
@@ -1330,6 +1331,8 @@ export class Cline {
 		if (clineIgnoreContent) {
 			clineIgnoreInstructions = `# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${clineIgnoreContent}\n.clineignore`
 		}
+
+		console.log("clineRulesFileInstructions", clineRulesFileInstructions)
 
 		if (
 			settingsCustomInstructions ||
