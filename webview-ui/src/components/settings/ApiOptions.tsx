@@ -43,6 +43,7 @@ import {
 	xaiDefaultModelId,
 	xaiModels,
 	sambanovaModels,
+	sambanovaDefaultModelId,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -1569,7 +1570,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
 		case "sambanova":
-			return getProviderData(sambanovaModels, "")
+			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

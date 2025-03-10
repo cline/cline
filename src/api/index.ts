@@ -72,8 +72,6 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new AskSageHandler(options)
 		case "xai":
 			return new XAIHandler(options)
-		case "sambanova":
-			return new SambanovaHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
