@@ -27,7 +27,7 @@ const instructions = await api.getCustomInstructions()
 console.log("Current custom instructions:", instructions)
 
 // Start a new task with an initial message.
-await api.startNewTask("Hello, Cline! Let's make a new project...")
+await api.startNewTask("Hello, Roo Code API! Let's make a new project...")
 
 // Start a new task with an initial message and images.
 await api.startNewTask("Use this design language", ["data:image/webp;base64,..."])
