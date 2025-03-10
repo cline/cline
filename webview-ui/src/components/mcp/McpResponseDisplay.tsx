@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react"
 import { vscode } from "../../utils/vscode"
 import LinkPreview from "./LinkPreview"
+import ImagePreview from "./ImagePreview"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import DOMPurify from "dompurify"
@@ -364,51 +365,12 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					const urlEndIndex = index + fullMatch.length
 
 					// Add embedded content after the URL
-					// For images, show image if we've determined it's an image
+					// For images, use the ImagePreview component
 					if (match.isImage) {
 						segments.push(
-							<div key={`embed-${segmentIndex++}`} style={{ margin: "10px 0" }}>
-								<ErrorBoundary>
-									<img
-										src={DOMPurify.sanitize(url)}
-										alt={`Image for ${url}`}
-										style={{
-											width: "85%",
-											height: "auto",
-											borderRadius: "4px",
-											cursor: "pointer",
-										}}
-										onClick={() => {
-											try {
-												const formattedUrl = formatUrlForOpening(url)
-												vscode.postMessage({
-													type: "openInBrowser",
-													url: DOMPurify.sanitize(formattedUrl),
-												})
-											} catch (e) {
-												console.log("Error opening URL");
-											}
-										}}
-										onError={(e) => {
-											console.log(`Image could not be loaded: ${url}`);
-											// Show error message instead of hiding
-											const imgElement = e.target as HTMLImageElement;
-											const parent = imgElement.parentElement;
-											if (parent) {
-												const errorMsg = document.createElement('div');
-												errorMsg.textContent = `Failed to load image: ${url}`;
-												errorMsg.style.color = 'var(--vscode-errorForeground)';
-												errorMsg.style.padding = '8px';
-												errorMsg.style.border = '1px solid var(--vscode-editorError-foreground)';
-												errorMsg.style.borderRadius = '4px';
-												errorMsg.style.marginTop = '8px';
-												parent.appendChild(errorMsg);
-												imgElement.style.display = 'none';
-											}
-										}}
-									/>
-								</ErrorBoundary>
-							</div>,
+							<div key={`embed-${segmentIndex++}`}>
+								<ImagePreview url={url} />
+							</div>
 						)
 						embedCount++;
 						console.log(`Added image embed for ${url}, embed count: ${embedCount}`);
