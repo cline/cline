@@ -1974,7 +1974,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// Get platform-specific application data directory
 		let mcpServersDir: string
 		if (process.platform === "win32") {
-			// Windows: %APPDATA%\Cline\MCP
+			// Windows: %APPDATA%\Roo-Code\MCP
 			mcpServersDir = path.join(os.homedir(), "AppData", "Roaming", "Roo-Code", "MCP")
 		} else if (process.platform === "darwin") {
 			// macOS: ~/Documents/Cline/MCP
