@@ -57,6 +57,22 @@ export const getSafeHostname = (url: string): string => {
 	}
 }
 
+// Check if a URL is a localhost URL by examining the hostname
+export const isLocalhostUrl = (url: string): boolean => {
+	try {
+		const hostname = getSafeHostname(url);
+		return hostname === 'localhost' || 
+			hostname === '127.0.0.1' || 
+			hostname === '0.0.0.0' ||
+			hostname.startsWith('192.168.') ||
+			hostname.startsWith('10.') ||
+			hostname.endsWith('.local');
+	} catch (e) {
+		// If we can't parse the URL, assume it's not localhost
+		return false;
+	}
+}
+
 // Function to normalize relative URLs by combining with a base URL
 export const normalizeRelativeUrl = (relativeUrl: string, baseUrl: string): string => {
 	// If it's already an absolute URL or a data URL, return as is
@@ -233,104 +249,6 @@ export const processBatch = async <T>(
 	return results; // Return array with possible null values, let caller handle filtering if needed
 }
 
-// Extract URLs from text using regex
-export const extractUrlsFromText = async (text: string): Promise<{ imageUrls: string[]; regularUrls: string[] }> => {
-	console.log("Extracting URLs from text");
-	const imageUrls: string[] = []
-	const regularUrls: string[] = []
-	const pendingChecks: Promise<void>[] = []
-	
-	let urlCount = 0;
-
-	// Match URLs with image: prefix and extract just the URL part
-	const imageMatches = text.match(/image:\s*(https?:\/\/[^\s]+)/g)
-	if (imageMatches) {
-		// Extract just the URL part from matches with image: prefix
-		const extractedUrls = imageMatches
-			.map((match) => {
-				const urlMatch = /image:\s*(https?:\/\/[^\s]+)/.exec(match)
-				let url = urlMatch ? urlMatch[1] : null
-				
-				// Convert HTTP to HTTPS for security
-				if (url && url.startsWith('http://')) {
-					url = url.replace('http://', 'https://');
-					console.log(`Converted HTTP URL to HTTPS in image prefix: ${url}`);
-				}
-				
-				return url
-			})
-			.filter(Boolean) as string[]
-
-		// Respect URL limit
-		const urlsToAdd = extractedUrls.slice(0, MAX_URLS);
-		console.log(`Found ${extractedUrls.length} image-prefixed URLs, adding ${urlsToAdd.length}`);
-		imageUrls.push(...urlsToAdd)
-		urlCount += urlsToAdd.length;
-	}
-
-	// Match all URLs (including those that might be in the middle of paragraphs)
-	const urlMatches = text.match(/https?:\/\/[^\s<>"']+/g)
-	if (urlMatches && urlCount < MAX_URLS) {
-		// Filter out URLs that are already in imageUrls
-		const filteredUrls = urlMatches
-			.filter((url) => !imageUrls.includes(url))
-			// Limit the number of URLs to process
-			.slice(0, MAX_URLS - urlCount);
-
-		console.log(`Found ${urlMatches.length} URLs, processing ${filteredUrls.length} after filtering`);
-
-		// Check each URL to see if it's an image
-		for (let url of filteredUrls) {
-			// Convert HTTP to HTTPS for security
-			if (url.startsWith('http://')) {
-				url = url.replace('http://', 'https://');
-				console.log(`Converted HTTP URL to HTTPS in filtered URLs: ${url}`);
-			}
-			
-			// Validate URL before processing
-			if (!isUrl(url)) {
-				console.log("Skipping invalid URL:", url);
-				continue;
-			}
-			
-			// Skip localhost URLs to prevent security issues
-			if (url.includes('localhost') || url.includes('127.0.0.1') || url.includes('0.0.0.0')) {
-				console.log("Skipping localhost URL:", url);
-				continue;
-			}
-			
-			// First check with synchronous method
-			if (isImageUrlSync(url)) {
-				imageUrls.push(url)
-			} else {
-				// For URLs that don't obviously look like images, we'll check asynchronously
-				const checkPromise = checkIfImageUrl(url)
-					.then((isImage) => {
-						if (isImage) {
-							imageUrls.push(url)
-						} else {
-							regularUrls.push(url)
-						}
-					})
-					.catch(err => {
-						console.log(`URL check skipped: ${url}`);
-					});
-				pendingChecks.push(checkPromise)
-			}
-			urlCount++;
-		}
-	}
-
-	// Process URL checks in batches
-	if (pendingChecks.length > 0) {
-		console.log(`Processing ${pendingChecks.length} URL checks in batches`);
-		await processBatch(pendingChecks);
-	}
-
-	console.log(`URL extraction complete. Found ${imageUrls.length} image URLs and ${regularUrls.length} regular URLs`);
-	return { imageUrls, regularUrls }
-}
-
 // Find all URLs (both image and regular) in an object
 export const findUrls = async (obj: any): Promise<{ imageUrls: string[]; regularUrls: string[] }> => {
 	console.log("Finding URLs in object");
@@ -354,6 +272,12 @@ export const findUrls = async (obj: any): Promise<{ imageUrls: string[]; regular
 				if (processedValue.startsWith('http://')) {
 					processedValue = processedValue.replace('http://', 'https://');
 					console.log(`Converted HTTP URL to HTTPS in object value: ${processedValue}`);
+				}
+				
+				// Skip localhost URLs to prevent security issues
+				if (isLocalhostUrl(processedValue)) {
+					console.log("Skipping localhost URL:", processedValue);
+					continue;
 				}
 				
 				// First check with synchronous method

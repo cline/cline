@@ -1,21 +1,14 @@
 import React, { useEffect, useState, useCallback, useRef } from "react"
-import { vscode } from "../../utils/vscode"
 import LinkPreview from "./LinkPreview"
 import ImagePreview from "./ImagePreview"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import DOMPurify from "dompurify"
 import {
-	isImageUrlSync,
 	isUrl,
-	safeCreateUrl,
-	getSafeHostname,
 	formatUrlForOpening,
 	checkIfImageUrl,
-	extractUrlsFromText,
-	findUrls,
 	MAX_URLS,
-	processBatch
+	isLocalhostUrl
 } from "./UrlProcessingService"
 
 const ResponseHeader = styled.div`
@@ -231,7 +224,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					}
 					
 					// Skip localhost URLs to prevent security issues
-					if (url.includes('localhost') || url.includes('127.0.0.1') || url.includes('0.0.0.0')) {
+					if (isLocalhostUrl(url)) {
 						console.log("Skipping localhost URL:", url);
 						continue;
 					}
@@ -263,12 +256,6 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					for (let i = 0; i < matches.length; i++) {
 						const match = matches[i];
 						const url = match.url.toLowerCase();
-						
-						// Skip GitHub blob URLs as they're not direct images
-						if (url.includes('github.com') && url.includes('/blob/')) {
-							console.log(`Skipping GitHub blob URL for immediate image detection: ${url}`);
-							continue;
-						}
 						
 						// Check for common image extensions - expanded list
 						if (url.endsWith('.jpg') || url.endsWith('.jpeg') || 
@@ -423,7 +410,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						// For non-image URLs or URLs we haven't processed yet, show link preview
 						try {
 							// Skip localhost URLs
-							if (!url.includes('localhost') && !url.includes('127.0.0.1') && !url.includes('0.0.0.0')) {
+							if (!isLocalhostUrl(url)) {
 								// Use a unique key that includes the URL to ensure each preview is isolated
 								segments.push(
 									<div key={`embed-${url}-${segmentIndex++}`} style={{ margin: "10px 0" }}>
