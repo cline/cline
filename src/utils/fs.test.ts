@@ -3,7 +3,7 @@ import { after, describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
 import "should"
-import { createDirectoriesForFile, fileExistsAtPath } from "./fs"
+import { createDirectoriesForFile, fileExistsAtPath, isDirectory } from "./fs"
 
 describe("Filesystem Utilities", () => {
 	const tmpDir = path.join(os.tmpdir(), "cline-test-" + Math.random().toString(36).slice(2))
@@ -66,6 +66,26 @@ describe("Filesystem Utilities", () => {
 			createdDirs.length.should.equal(1)
 			const exists = await fileExistsAtPath(path.join(tmpDir, "b"))
 			exists.should.be.true()
+		})
+	})
+	describe("isDirectory", () => {
+		it("should return true for directories", async () => {
+			await fs.mkdir(tmpDir, { recursive: true })
+			const isDir = await isDirectory(tmpDir)
+			isDir.should.be.true()
+		})
+
+		it("should return false for files", async () => {
+			const testFile = path.join(tmpDir, "test.txt")
+			await fs.writeFile(testFile, "test")
+			const isDir = await isDirectory(testFile)
+			isDir.should.be.false()
+		})
+
+		it("should return false for non-existent paths", async () => {
+			const nonExistentPath = path.join(tmpDir, "does-not-exist")
+			const isDir = await isDirectory(nonExistentPath)
+			isDir.should.be.false()
 		})
 	})
 })

@@ -46,7 +46,7 @@ import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
 import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessage"
 import { calculateApiCostAnthropic } from "../utils/cost"
-import { fileExistsAtPath } from "../utils/fs"
+import { fileExistsAtPath, isDirectory } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
@@ -1296,13 +1296,33 @@ export class Cline {
 		const clineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 		let clineRulesFileInstructions: string | undefined
 		if (await fileExistsAtPath(clineRulesFilePath)) {
-			try {
-				const ruleFileContent = (await fs.readFile(clineRulesFilePath, "utf8")).trim()
-				if (ruleFileContent) {
-					clineRulesFileInstructions = `# .clinerules\n\nThe following is provided by a root-level .clinerules file where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${ruleFileContent}`
+			if (await isDirectory(clineRulesFilePath)) {
+				try {
+					// Read all files in the .clinerules/ directory.
+					const ruleFiles = await fs
+						.readdir(clineRulesFilePath, { withFileTypes: true, recursive: true })
+						.then((files) => files.filter((file) => file.isFile()))
+						.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
+					const ruleFileContent = await Promise.all(
+						ruleFiles.map(async (file) => {
+							const ruleFilePath = path.resolve(clineRulesFilePath, file)
+							const ruleFilePathRelative = path.relative(cwd, ruleFilePath)
+							return `${ruleFilePathRelative}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
+						}),
+					).then((contents) => contents.join("\n\n"))
+					clineRulesFileInstructions = `# .clinerules/\n\nThe following is provided by a root-level .clinerules/ directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${ruleFileContent}`
+				} catch {
+					console.error(`Failed to read .clinerules directory at ${clineRulesFilePath}`)
 				}
-			} catch {
-				console.error(`Failed to read .clinerules file at ${clineRulesFilePath}`)
+			} else {
+				try {
+					const ruleFileContent = (await fs.readFile(clineRulesFilePath, "utf8")).trim()
+					if (ruleFileContent) {
+						clineRulesFileInstructions = `# .clinerules\n\nThe following is provided by a root-level .clinerules file where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${ruleFileContent}`
+					}
+				} catch {
+					console.error(`Failed to read .clinerules file at ${clineRulesFilePath}`)
+				}
 			}
 		}
 
