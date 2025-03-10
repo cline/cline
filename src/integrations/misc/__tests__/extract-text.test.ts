@@ -1,4 +1,10 @@
-import { addLineNumbers, everyLineHasLineNumbers, stripLineNumbers, truncateOutput } from "../extract-text"
+import {
+	addLineNumbers,
+	everyLineHasLineNumbers,
+	stripLineNumbers,
+	truncateOutput,
+	applyRunLengthEncoding,
+} from "../extract-text"
 
 describe("addLineNumbers", () => {
 	it("should add line numbers starting from 1 by default", () => {
@@ -163,5 +169,24 @@ describe("truncateOutput", () => {
 		const resultLines = result.split(/\r?\n/)
 		const expectedLines = ["line1", "", "[...10 lines omitted...]", "", "line12", "line13", "line14", "line15"]
 		expect(resultLines).toEqual(expectedLines)
+	})
+})
+
+describe("applyRunLengthEncoding", () => {
+	it("should handle empty input", () => {
+		expect(applyRunLengthEncoding("")).toBe("")
+		expect(applyRunLengthEncoding(null as any)).toBe(null as any)
+		expect(applyRunLengthEncoding(undefined as any)).toBe(undefined as any)
+	})
+
+	it("should compress repeated single lines when beneficial", () => {
+		const input = "longerline\nlongerline\nlongerline\nlongerline\nlongerline\nlongerline\n"
+		const expected = "longerline\n<previous line repeated 5 additional times>\n"
+		expect(applyRunLengthEncoding(input)).toBe(expected)
+	})
+
+	it("should not compress when not beneficial", () => {
+		const input = "y\ny\ny\ny\ny\n"
+		expect(applyRunLengthEncoding(input)).toBe(input)
 	})
 })

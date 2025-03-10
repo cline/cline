@@ -149,3 +149,65 @@ export function truncateOutput(content: string, lineLimit?: number): string {
 	const endSection = content.slice(endStartPos)
 	return startSection + `\n[...${omittedLines} lines omitted...]\n\n` + endSection
 }
+
+/**
+ * Applies run-length encoding to compress repeated lines in text.
+ * Only compresses when the compression description is shorter than the repeated content.
+ *
+ * @param content The text content to compress
+ * @returns The compressed text with run-length encoding applied
+ */
+export function applyRunLengthEncoding(content: string): string {
+	if (!content) {
+		return content
+	}
+
+	let result = ""
+	let pos = 0
+	let repeatCount = 0
+	let prevLine = null
+	let firstOccurrence = true
+
+	while (pos < content.length) {
+		const nextNewlineIdx = content.indexOf("\n", pos)
+		const currentLine = nextNewlineIdx === -1 ? content.slice(pos) : content.slice(pos, nextNewlineIdx + 1)
+
+		if (prevLine === null) {
+			prevLine = currentLine
+		} else if (currentLine === prevLine) {
+			repeatCount++
+		} else {
+			if (repeatCount > 0) {
+				const compressionDesc = `<previous line repeated ${repeatCount} additional times>\n`
+				if (compressionDesc.length < prevLine.length * (repeatCount + 1)) {
+					result += prevLine + compressionDesc
+				} else {
+					for (let i = 0; i <= repeatCount; i++) {
+						result += prevLine
+					}
+				}
+				repeatCount = 0
+			} else {
+				result += prevLine
+			}
+			prevLine = currentLine
+		}
+
+		pos = nextNewlineIdx === -1 ? content.length : nextNewlineIdx + 1
+	}
+
+	if (repeatCount > 0 && prevLine !== null) {
+		const compressionDesc = `<previous line repeated ${repeatCount} additional times>\n`
+		if (compressionDesc.length < prevLine.length * repeatCount) {
+			result += prevLine + compressionDesc
+		} else {
+			for (let i = 0; i <= repeatCount; i++) {
+				result += prevLine
+			}
+		}
+	} else if (prevLine !== null) {
+		result += prevLine
+	}
+
+	return result
+}
