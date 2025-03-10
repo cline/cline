@@ -159,11 +159,18 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	})
 	const [urlMatches, setUrlMatches] = useState<UrlMatch[]>([])
 	const [error, setError] = useState<string | null>(null)
+	// Add a counter state for forcing re-renders
+	const [forceUpdateCounter, setForceUpdateCounter] = useState(0)
 
 	const toggleDisplayMode = useCallback(() => {
 		const newMode = displayMode === "rich" ? "plain" : "rich"
-		setDisplayMode(newMode)
-		localStorage.setItem("mcpDisplayMode", newMode)
+		
+		// Force an immediate re-render
+		setForceUpdateCounter(prev => prev + 1);
+		
+		// Update display mode and save preference
+		setDisplayMode(newMode);
+		localStorage.setItem("mcpDisplayMode", newMode);
 		
 		// If switching to plain mode, cancel any ongoing processing
 		if (newMode === "plain") {
@@ -171,9 +178,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			setUrlMatches([]); // Clear any existing matches when switching to plain mode
 		} else {
 			// If switching to rich mode, the useEffect will re-run and fetch data
-			// because displayMode is a dependency of the useEffect
 			console.log("Switching to rich mode - will start URL processing");
-			// No need to do anything else here as the useEffect will handle it
 		}
 	}, [displayMode])
 
@@ -315,7 +320,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			processingCanceled = true;
 			console.log("Cleaning up URL processing");
 		};
-	}, [responseText, displayMode]) // Added displayMode as a dependency
+	}, [responseText, displayMode, forceUpdateCounter]) // Added forceUpdateCounter to dependencies
 
 	// Function to render content based on display mode
 	const renderContent = () => {
