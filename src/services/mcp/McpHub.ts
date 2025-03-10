@@ -43,26 +43,26 @@ const BaseConfigSchema = z.object({
 	alwaysAllow: z.array(z.string()).default([]),
 })
 
-// Stdio specific configuration
-export const StdioConfigSchema = BaseConfigSchema.extend({
-	type: z.literal("stdio"),
-	command: z.string(),
-	args: z.array(z.string()).optional(),
-	env: z.record(z.string()).optional(),
-})
-
-// SSE specific configuration with simplified format
-const SSEConfigSchema = BaseConfigSchema.extend({
-	type: z.literal("sse").optional(),
-	url: z.string().url(),
-	headers: z.record(z.string()).optional(),
-}).transform((data) => ({
-	...data,
-	type: "sse" as const,
-}))
-
-// Combined server configuration schema
-const ServerConfigSchema = z.union([StdioConfigSchema, SSEConfigSchema])
+// Server configuration schema with automatic type inference
+export const ServerConfigSchema = z.union([
+	// Stdio config (has command field)
+	BaseConfigSchema.extend({
+		command: z.string(),
+		args: z.array(z.string()).optional(),
+		env: z.record(z.string()).optional(),
+	}).transform((data) => ({
+		...data,
+		type: "stdio" as const,
+	})),
+	// SSE config (has url field)
+	BaseConfigSchema.extend({
+		url: z.string().url(),
+		headers: z.record(z.string()).optional(),
+	}).transform((data) => ({
+		...data,
+		type: "sse" as const,
+	})),
+])
 
 // Settings schema
 const McpSettingsSchema = z.object({
@@ -167,6 +167,16 @@ export class McpHub {
 		}
 	}
 
+	private isLocalhost(hostname: string): boolean {
+		return (
+			hostname === "localhost" ||
+			hostname === "127.0.0.1" ||
+			hostname === "::1" ||
+			hostname.endsWith(".localhost") ||
+			hostname.endsWith(".local")
+		)
+	}
+
 	private async connectToServer(name: string, config: z.infer<typeof ServerConfigSchema>): Promise<void> {
 		// Remove existing connection if it exists
 		await this.deleteConnection(name)
@@ -241,9 +251,11 @@ export class McpHub {
 				const sseOptions = {
 					requestInit: {
 						headers: config.headers,
-						// Allow self-signed certificates if needed
-						agent: new (require("https").Agent)({
-							rejectUnauthorized: false,
+						// Only disable certificate validation for local development connections
+						...(this.isLocalhost(new URL(config.url).hostname) && {
+							agent: new (require("https").Agent)({
+								rejectUnauthorized: false,
+							}),
 						}),
 					},
 				}
@@ -721,7 +733,7 @@ export class McpHub {
 
 		let timeout: number
 		try {
-			const parsedConfig = StdioConfigSchema.parse(JSON.parse(connection.server.config))
+			const parsedConfig = ServerConfigSchema.parse(JSON.parse(connection.server.config))
 			timeout = (parsedConfig.timeout ?? 60) * 1000
 		} catch (error) {
 			console.error("Failed to parse server config for timeout:", error)
