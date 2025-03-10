@@ -102,6 +102,10 @@ export interface WebviewMessage {
 		| "browserToolEnabled"
 		| "telemetrySetting"
 		| "showRooIgnoredFiles"
+		| "testBrowserConnection"
+		| "discoverBrowser"
+		| "browserConnectionResult"
+		| "remoteBrowserEnabled"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
