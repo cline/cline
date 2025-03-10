@@ -2,7 +2,7 @@ import { vscode } from "../../utils/vscode"
 import DOMPurify from "dompurify"
 
 // Maximum number of URLs to process in total
-export const MAX_URLS = 100
+export const MAX_URLS = 50
 
 // We'll use the backend isImageUrl function for HEAD requests
 // This is a client-side fallback for data URLs and obvious image extensions
