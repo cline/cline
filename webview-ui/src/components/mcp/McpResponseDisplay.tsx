@@ -257,6 +257,12 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						const match = matches[i];
 						const url = match.url.toLowerCase();
 						
+						// Skip GitHub blob URLs as they're not direct images
+						if (url.includes('github.com') && url.includes('/blob/')) {
+							console.log(`Skipping GitHub blob URL for immediate image detection: ${url}`);
+							continue;
+						}
+						
 						// Check for common image extensions - expanded list
 						if (url.endsWith('.jpg') || url.endsWith('.jpeg') || 
 							url.endsWith('.png') || url.endsWith('.gif') || 
@@ -264,15 +270,13 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 							url.endsWith('.bmp') || url.endsWith('.tiff') || 
 							url.endsWith('.tif') || url.endsWith('.avif') ||
 							// Also check for image URLs with query parameters
-							url.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|tif|avif)(\?|#).+$/i) !== null ||
-							// Check for URLs that contain image in the path
-							url.includes('/image/') || url.includes('/images/') ||
-							// Check for URLs that end with =.jpg or similar patterns (common in some CDNs)
-							url.match(/=\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i) !== null) {
+							url.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|tif|avif)(\?|#).+$/i) !== null) {
 							
+							// For URLs that look like images, we'll still verify with the ImagePreview component
+							// which will do a content type check
 							match.isImage = true;
 							match.isProcessed = true;
-							console.log(`Detected image by extension or pattern: ${match.url}`);
+							console.log(`Detected potential image by extension: ${match.url}`);
 						}
 					}
 					

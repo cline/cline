@@ -315,7 +315,23 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 								style={{
 									width: "100%",
 									height: "100%",
-									objectFit: "contain", // Changed from cover to contain
+									objectFit: "contain", // Use contain for link preview thumbnails to handle logos
+									objectPosition: "center", // Center the image
+								}}
+								onLoad={(e) => {
+									// Check aspect ratio to determine if we should use contain or cover
+									const img = e.currentTarget;
+									if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+										const aspectRatio = img.naturalWidth / img.naturalHeight;
+										console.log(`Link preview image aspect ratio: ${aspectRatio}`);
+										
+										// Use contain for extreme aspect ratios (logos), cover for photos
+										if (aspectRatio > 2.5 || aspectRatio < 0.4) {
+											img.style.objectFit = "contain";
+										} else {
+											img.style.objectFit = "cover";
+										}
+									}
 								}}
 								onError={(e) => {
 									console.log(`Image could not be loaded: ${data.image}`);
@@ -335,44 +351,58 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 						display: "flex",
 						flexDirection: "column",
 						overflow: "hidden",
+						height: "100%", // Ensure full height
 					}}>
-					<div
-						className="link-preview-title"
-						style={{
-							fontWeight: "bold",
-							marginBottom: "4px",
-							whiteSpace: "nowrap",
-							overflow: "hidden",
-							textOverflow: "ellipsis",
-						}}>
-						{data.title || "No title"}
+					{/* Top section with title and URL - top aligned */}
+					<div className="link-preview-top">
+						<div
+							className="link-preview-title"
+							style={{
+								fontWeight: "bold",
+								marginBottom: "4px",
+								whiteSpace: "nowrap",
+								overflow: "hidden",
+								textOverflow: "ellipsis",
+							}}>
+							{data.title || "No title"}
+						</div>
+
+						<div
+							className="link-preview-url"
+							style={{
+								fontSize: "12px",
+								color: "var(--vscode-textLink-foreground, #3794ff)",
+								marginBottom: "8px", // Increased for better separation
+								whiteSpace: "nowrap",
+								overflow: "hidden",
+								textOverflow: "ellipsis",
+							}}>
+							{data.siteName || getSafeHostname(url)}
+						</div>
 					</div>
 
+					{/* Description with space-around in the remaining space */}
 					<div
-						className="link-preview-url"
+						className="link-preview-description-container"
 						style={{
-							fontSize: "12px",
-							color: "var(--vscode-textLink-foreground, #3794ff)",
-							marginBottom: "8px",
-							whiteSpace: "nowrap",
-							overflow: "hidden",
-							textOverflow: "ellipsis",
+							flex: 1, // Take up remaining space
+							display: "flex",
+							flexDirection: "column",
+							justifyContent: "space-around", // Space around in the remaining area
 						}}>
-						{data.siteName || getSafeHostname(url)}
-					</div>
-
-					<div
-						className="link-preview-description"
-						style={{
-							fontSize: "12px",
-							color: "var(--vscode-descriptionForeground, rgba(204, 204, 204, 0.7))",
-							overflow: "hidden",
-							display: "-webkit-box",
-							WebkitLineClamp: 3,
-							WebkitBoxOrient: "vertical",
-							textOverflow: "ellipsis",
-						}}>
-						{data.description || "No description available"}
+						<div
+							className="link-preview-description"
+							style={{
+								fontSize: "12px",
+								color: "var(--vscode-descriptionForeground, rgba(204, 204, 204, 0.7))",
+								overflow: "hidden",
+								display: "-webkit-box",
+								WebkitLineClamp: 3,
+								WebkitBoxOrient: "vertical",
+								textOverflow: "ellipsis",
+							}}>
+							{data.description || "No description available"}
+						</div>
 					</div>
 				</div>
 			</div>

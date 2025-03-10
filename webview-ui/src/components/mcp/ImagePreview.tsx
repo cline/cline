@@ -60,6 +60,9 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 		console.log(`ImagePreview constructor for ${props.url}`);
 	}
 	
+	// Track aspect ratio for proper display
+	private aspectRatio: number = 1;
+	
 	componentDidMount() {
 		console.log(`ImagePreview mounted for ${this.props.url}`);
 		
@@ -72,7 +75,7 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 					error: `Timeout loading image: ${this.props.url}`
 				});
 			}
-		}, 15000); // Reduced from 30s to 15s timeout
+		}, 15000); // 15s timeout
 		
 		// Set up a heartbeat to update the UI with elapsed time
 		this.heartbeatId = setInterval(() => {
@@ -81,14 +84,54 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 			}
 		}, 1000);
 		
-		// Create a test image to check if the URL loads
+		// First, check the content type to verify it's actually an image
+		this.checkContentType(this.props.url);
+	}
+	
+	// Check if the URL is an image using existing functionality
+	checkContentType(url: string) {
+		console.log(`Checking if URL is an image: ${url}`);
+		
+		// Use the existing checkIfImageUrl function from UrlProcessingService
+		// This function already sends a message to the extension to check if a URL is an image
+		import("./UrlProcessingService").then(({ checkIfImageUrl }) => {
+			checkIfImageUrl(url)
+				.then(isImage => {
+					if (isImage) {
+						console.log(`URL is confirmed as image: ${url}`);
+						this.loadImage(url);
+					} else {
+						console.log(`URL is not an image: ${url}`);
+						this.handleImageError();
+					}
+				})
+				.catch(error => {
+					console.log(`Error checking if URL is an image: ${error}`);
+					// Fallback to direct image loading
+					this.loadImage(url);
+				});
+		});
+	}
+	
+	// Load the image after content type check or as fallback
+	loadImage(url: string) {
+		// Create a test image to check if the URL loads and get dimensions
 		const testImg = new Image();
+		
 		testImg.onload = () => {
-			console.log(`Test image loaded successfully: ${this.props.url}`);
+			console.log(`Test image loaded successfully: ${url}`);
+			
+			// Calculate aspect ratio for proper display
+			if (testImg.width > 0 && testImg.height > 0) {
+				this.aspectRatio = testImg.width / testImg.height;
+				console.log(`Image aspect ratio: ${this.aspectRatio}`);
+			}
+			
 			this.handleImageLoad();
 		};
+		
 		testImg.onerror = () => {
-			console.log(`Test image failed to load: ${this.props.url}`);
+			console.log(`Test image failed to load: ${url}`);
 			this.handleImageError();
 		};
 		
@@ -97,21 +140,9 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 		
 		// Add a cache-busting parameter to avoid browser caching
 		const cacheBuster = `?_cb=${Date.now()}`;
-		testImg.src = this.props.url.includes('?') 
-			? `${this.props.url}&_cb=${Date.now()}` 
-			: `${this.props.url}${cacheBuster}`;
-		
-		// Also try direct fetch to check if the URL is accessible
-		fetch(this.props.url, { 
-			method: 'HEAD',
-			mode: 'no-cors' // This allows checking if the resource exists without CORS issues
-		})
-		.then(response => {
-			console.log(`Fetch HEAD check successful for ${this.props.url}`);
-		})
-		.catch(error => {
-			console.log(`Fetch HEAD check failed for ${this.props.url}: ${error.message}`);
-		});
+		testImg.src = url.includes('?') 
+			? `${url}&_cb=${Date.now()}` 
+			: `${url}${cacheBuster}`;
 	}
 	
 	componentWillUnmount() {
@@ -260,8 +291,26 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 						width: "85%",
 						height: "auto",
 						borderRadius: "4px",
+						// Use contain only for very extreme aspect ratios, otherwise use cover
+						objectFit: this.aspectRatio > 3 || this.aspectRatio < 0.33 ? "contain" : "cover",
 					}}
-					loading="eager" // Changed from lazy to eager
+					loading="eager"
+					onLoad={(e) => {
+						// Double-check aspect ratio from the actual loaded image
+						const img = e.currentTarget;
+						if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+							const newAspectRatio = img.naturalWidth / img.naturalHeight;
+							console.log(`Loaded image aspect ratio: ${newAspectRatio}`);
+							
+							// Update object-fit based on actual aspect ratio
+							// Use contain only for very extreme aspect ratios, otherwise use cover
+							if (newAspectRatio > 3 || newAspectRatio < 0.33) {
+								img.style.objectFit = "contain";
+							} else {
+								img.style.objectFit = "cover";
+							}
+						}
+					}}
 				/>
 			</div>
 		);
