@@ -25,9 +25,9 @@ import {
 	addLineNumbers,
 	stripLineNumbers,
 	everyLineHasLineNumbers,
-	truncateOutput,
 } from "../integrations/misc/extract-text"
 import { ExitCodeDetails } from "../integrations/terminal/TerminalProcess"
+import { Terminal } from "../integrations/terminal/Terminal"
 import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
@@ -968,9 +968,9 @@ export class Cline {
 
 		process.on("line", (line) => {
 			if (!didContinue) {
-				sendCommandOutput(truncateOutput(line, terminalOutputLineLimit))
+				sendCommandOutput(Terminal.compressTerminalOutput(line, terminalOutputLineLimit))
 			} else {
-				this.say("command_output", truncateOutput(line, terminalOutputLineLimit))
+				this.say("command_output", Terminal.compressTerminalOutput(line, terminalOutputLineLimit))
 			}
 		})
 
@@ -1000,7 +1000,7 @@ export class Cline {
 		// grouping command_output messages despite any gaps anyways)
 		await delay(50)
 
-		result = truncateOutput(result, terminalOutputLineLimit)
+		result = Terminal.compressTerminalOutput(result, terminalOutputLineLimit)
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images)
@@ -3546,7 +3546,7 @@ export class Cline {
 				terminalDetails += `\n## Original command: \`${busyTerminal.getLastCommand()}\``
 				let newOutput = TerminalRegistry.getUnretrievedOutput(busyTerminal.id)
 				if (newOutput) {
-					newOutput = truncateOutput(newOutput, terminalOutputLineLimit)
+					newOutput = Terminal.compressTerminalOutput(newOutput, terminalOutputLineLimit)
 					terminalDetails += `\n### New Output\n${newOutput}`
 				} else {
 					// details += `\n(Still running, no new output)` // don't want to show this right after running the command
@@ -3573,7 +3573,7 @@ export class Cline {
 				for (const process of completedProcesses) {
 					let output = process.getUnretrievedOutput()
 					if (output) {
-						output = truncateOutput(output, terminalOutputLineLimit)
+						output = Terminal.compressTerminalOutput(output, terminalOutputLineLimit)
 						terminalOutputs.push(`Command: \`${process.command}\`\n${output}`)
 					}
 				}

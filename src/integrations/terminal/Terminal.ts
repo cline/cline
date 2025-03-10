@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import pWaitFor from "p-wait-for"
 import { ExitCodeDetails, mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
+import { truncateOutput, applyRunLengthEncoding } from "../misc/extract-text"
 
 export class Terminal {
 	public terminal: vscode.Terminal
@@ -217,5 +218,14 @@ export class Terminal {
 			await vscode.env.clipboard.writeText(tempCopyBuffer)
 			throw error
 		}
+	}
+
+	/**
+	 * Compresses terminal output by applying run-length encoding and truncating to line limit
+	 * @param input The terminal output to compress
+	 * @returns The compressed terminal output
+	 */
+	public static compressTerminalOutput(input: string, lineLimit: number): string {
+		return truncateOutput(applyRunLengthEncoding(input), lineLimit)
 	}
 }
