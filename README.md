@@ -115,36 +115,39 @@ Make Roo Code work your way with:
 ## Local Setup & Development
 
 1. **Clone** the repo:
-    ```bash
-    git clone https://github.com/RooVetGit/Roo-Code.git
-    ```
+
+```sh
+git clone https://github.com/RooVetGit/Roo-Code.git
+```
+
 2. **Install dependencies**:
-    ```bash
-    npm run install:all
-    ```
 
-if that fails, try:
-    ```bash
-    npm run install:ci
-    ```
+```sh
+npm run install:all
+```
 
-3. **Build** the extension:
-    ```bash
-    npm run build
-    ```
-    - A `.vsix` file will appear in the `bin/` directory.
-4. **Install** the `.vsix` manually if desired:
-    ```bash
-    code --install-extension bin/roo-code-4.0.0.vsix
-    ```
-5. **Start the webview (Vite/React app with HMR)**:
-    ```bash
-    npm run dev
-    ```
-6. **Debug**:
-    - Press `F5` (or **Run** → **Start Debugging**) in VSCode to open a new session with Roo Code loaded.
+3. **Start the webview (Vite/React app with HMR)**:
+
+```sh
+npm run dev
+```
+
+4. **Debug**:
+   Press `F5` (or **Run** → **Start Debugging**) in VSCode to open a new session with Roo Code loaded.
 
 Changes to the webview will appear immediately. Changes to the core extension will require a restart of the extension host.
+
+Alternatively you can build a .vsix and install it directly in VSCode:
+
+```sh
+npm run build
+```
+
+A `.vsix` file will appear in the `bin/` directory which can be installed with:
+
+```sh
+code --install-extension bin/roo-cline-<version>.vsix
+```
 
 We use [changesets](https://github.com/changesets/changesets) for versioning and publishing. Check our `CHANGELOG.md` for release notes.
 
