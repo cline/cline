@@ -1,6 +1,8 @@
 # How To Test Rich MCP Responses
 
 Use the `echo` MCP server to read back one of the test cases below into an MCP response.
+https://github.com/Garoth/echo-mcp
+
 Manually check the embeds, images, and whatever other enhancements for proper rendering.
 Remember that toggling Rich MCP off should cancel pending fetches. If the toggle was
 set to Plain, then the image/link previews should never be fetched until it's enabled.
