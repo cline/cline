@@ -24,7 +24,12 @@ class ErrorBoundary extends React.Component<
 	render() {
 		if (this.state.hasError) {
 			return (
-				<div style={{ padding: "10px", color: "var(--vscode-errorForeground)" }}>
+				<div style={{ 
+					padding: "10px", 
+					color: "var(--vscode-errorForeground)",
+					height: "128px", // Fixed height
+					overflow: "auto" // Allow scrolling if content overflows
+				}}>
 					<h3>Something went wrong displaying this link preview</h3>
 					<p>Error: {this.state.error?.message || "Unknown error"}</p>
 				</div>
@@ -199,6 +204,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 						justifyContent: "center",
 						border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
 						borderRadius: "4px",
+						height: "128px", // Fixed height
 					}}>
 					<div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
 						<div
@@ -251,6 +257,8 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 						border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
 						borderRadius: "4px",
 						color: "var(--vscode-errorForeground)",
+						height: "128px", // Fixed height
+						overflow: "auto", // Allow scrolling if content overflows
 					}}
 					onClick={() => {
 						vscode.postMessage({
@@ -290,6 +298,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 					borderRadius: "4px",
 					overflow: "hidden",
 					cursor: "pointer",
+					height: "128px", // Fixed height for all link previews
 				}}
 				onClick={() => {
 					vscode.postMessage({
@@ -306,7 +315,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 								style={{
 									width: "100%",
 									height: "100%",
-									objectFit: "cover",
+									objectFit: "contain", // Changed from cover to contain
 								}}
 								onError={(e) => {
 									console.log(`Image could not be loaded: ${data.image}`);

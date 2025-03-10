@@ -140,7 +140,12 @@ class ErrorBoundary extends React.Component<
 	render() {
 		if (this.state.hasError) {
 			return (
-				<div style={{ padding: "10px", color: "var(--vscode-errorForeground)" }}>
+				<div style={{ 
+					padding: "10px", 
+					color: "var(--vscode-errorForeground)",
+					height: "128px", // Fixed height
+					overflow: "auto" // Allow scrolling if content overflows
+				}}>
 					<h3>Something went wrong displaying this content</h3>
 					<p>Error: {this.state.error?.message || "Unknown error"}</p>
 					<p>Please switch to plain text mode to view the content safely.</p>
@@ -402,7 +407,9 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 										padding: "8px",
 										color: "var(--vscode-errorForeground)",
 										border: "1px solid var(--vscode-editorError-foreground)",
-										borderRadius: "4px"
+										borderRadius: "4px",
+										height: "128px", // Fixed height
+										overflow: "auto" // Allow scrolling if content overflows
 									}}
 								>
 									Failed to create preview for: {url}
