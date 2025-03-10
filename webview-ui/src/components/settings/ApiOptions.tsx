@@ -1253,15 +1253,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.sambanovaApiKey && (
+							<VSCodeLink
+								href="https://docs.sambanova.ai/cloud/docs/get-started/overview"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a SambaNova API key by signing up here.
+							</VSCodeLink>
+						)}
 					</p>
-					{showModelOptions && (
-						<div style={{ marginTop: 10 }}>
-							<label htmlFor="model-id">
-								<span style={{ fontWeight: 500 }}>Model</span>
-							</label>
-							{createDropdown(sambanovaModels)}
-						</div>
-					)}
 				</div>
 			)}
 
@@ -1300,13 +1302,14 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
+							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
 						</DropdownContainer>
 
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
 							(selectedProvider === "bedrock" && selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
 							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
 							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
-						)}
+						))}
 
 						<ModelInfoView
 							selectedModelId={selectedModelId}
