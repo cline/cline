@@ -57,6 +57,16 @@ const LinkPreview: React.FC<LinkPreviewProps> = ({ url }) => {
 		fetchOpenGraphData()
 	}, [url])
 
+	// Safely get hostname from URL
+	const getSafeHostname = (url: string): string => {
+		try {
+			return new URL(url).hostname;
+		} catch (e) {
+			console.log(`Invalid URL in LinkPreview: ${url}`);
+			return "unknown-host";
+		}
+	};
+
 	// Fallback display while loading
 	if (loading) {
 		return (
@@ -89,16 +99,32 @@ const LinkPreview: React.FC<LinkPreviewProps> = ({ url }) => {
             }
           `}
 				</style>
-				Loading preview for {new URL(url).hostname}...
+				Loading preview for {getSafeHostname(url)}...
 			</div>
 		)
 	}
 
+	// Handle error state
+	if (error) {
+		return (
+			<div
+				className="link-preview-error"
+				style={{
+					padding: "12px",
+					border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
+					borderRadius: "4px",
+					color: "var(--vscode-errorForeground)",
+				}}>
+				Unable to load preview for {getSafeHostname(url)}
+			</div>
+		);
+	}
+
 	// Create a fallback object if ogData is null
 	const data = ogData || {
-		title: new URL(url).hostname,
+		title: getSafeHostname(url),
 		description: "No description available",
-		siteName: new URL(url).hostname,
+		siteName: getSafeHostname(url),
 		url: url,
 	}
 
@@ -164,7 +190,7 @@ const LinkPreview: React.FC<LinkPreviewProps> = ({ url }) => {
 						overflow: "hidden",
 						textOverflow: "ellipsis",
 					}}>
-					{data.siteName || new URL(url).hostname}
+					{data.siteName || getSafeHostname(url)}
 				</div>
 
 				<div
