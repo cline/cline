@@ -1971,11 +1971,24 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	// MCP
 
 	async ensureMcpServersDirectoryExists(): Promise<string> {
-		const mcpServersDir = path.join(os.homedir(), "Documents", "Cline", "MCP")
+		// Get platform-specific application data directory
+		let mcpServersDir: string
+		if (process.platform === "win32") {
+			// Windows: %APPDATA%\Cline\MCP
+			mcpServersDir = path.join(os.homedir(), "AppData", "Roaming", "Roo-Code", "MCP")
+		} else if (process.platform === "darwin") {
+			// macOS: ~/Documents/Cline/MCP
+			mcpServersDir = path.join(os.homedir(), "Documents", "Cline", "MCP")
+		} else {
+			// Linux: ~/.local/share/Cline/MCP
+			mcpServersDir = path.join(os.homedir(), ".local", "share", "Roo-Code", "MCP")
+		}
+
 		try {
 			await fs.mkdir(mcpServersDir, { recursive: true })
 		} catch (error) {
-			return "~/Documents/Cline/MCP" // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
+			// Fallback to a relative path if directory creation fails
+			return path.join("~", ".roo-code", "mcp")
 		}
 		return mcpServersDir
 	}
