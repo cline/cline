@@ -164,7 +164,6 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 			// Calculate aspect ratio for proper display
 			if (testImg.width > 0 && testImg.height > 0) {
 				this.aspectRatio = testImg.width / testImg.height;
-				console.log(`Image aspect ratio: ${this.aspectRatio}`);
 			}
 			
 			this.handleImageLoad();
@@ -382,7 +381,6 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 							const img = e.currentTarget;
 							if (img.naturalWidth > 0 && img.naturalHeight > 0) {
 								const newAspectRatio = img.naturalWidth / img.naturalHeight;
-								console.log(`WebP image aspect ratio: ${newAspectRatio}`);
 								
 								// Update object-fit based on actual aspect ratio
 								if (newAspectRatio > 3 || newAspectRatio < 0.33) {

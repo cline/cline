@@ -63,7 +63,7 @@ export async function fetchOpenGraphData(url: string): Promise<OpenGraphData> {
 			type: data.ogType,
 		}
 	} catch (error) {
-		console.error(`Error fetching Open Graph data for ${url}:`, error)
+		console.log(`Error fetching Open Graph data for ${url}`)
 		// Return basic information based on the URL
 		try {
 			const urlObj = new URL(url)
@@ -100,7 +100,7 @@ export async function isImageUrl(url: string): Promise<boolean> {
 		const contentType = response.headers["content-type"]
 		return contentType && contentType.startsWith("image/")
 	} catch (error) {
-		console.error(`Error checking if URL is an image: ${url}`, error)
+		console.log(`Error checking if URL is an image: ${url}`)
 		// If we can't determine, fall back to checking the file extension
 		return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(url)
 	}
