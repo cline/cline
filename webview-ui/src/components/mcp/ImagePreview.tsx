@@ -92,6 +92,16 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 	checkContentType(url: string) {
 		console.log(`Checking if URL is an image: ${url}`);
 		
+		// Check if it's an SVG or WebP by extension first
+		const isWebpOrSvg = /\.(webp|svg)(\?.*)?$/i.test(url);
+		if (isWebpOrSvg) {
+			const isSvg = url.toLowerCase().endsWith('.svg');
+			const isWebp = url.toLowerCase().endsWith('.webp');
+			console.log(`URL is ${isSvg ? 'SVG' : isWebp ? 'WebP' : 'special format'} by extension: ${url}`);
+			this.loadImage(url);
+			return;
+		}
+		
 		// Use the existing checkIfImageUrl function from UrlProcessingService
 		// This function already sends a message to the extension to check if a URL is an image
 		import("./UrlProcessingService").then(({ checkIfImageUrl }) => {
@@ -115,6 +125,15 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 	
 	// Load the image after content type check or as fallback
 	loadImage(url: string) {
+		// For SVG files, we don't need to calculate aspect ratio as they're vector-based
+		if (url.toLowerCase().endsWith('.svg')) {
+			console.log(`SVG image detected, skipping aspect ratio calculation: ${url}`);
+			// Default aspect ratio for SVGs
+			this.aspectRatio = 1;
+			this.handleImageLoad();
+			return;
+		}
+		
 		// Create a test image to check if the URL loads and get dimensions
 		const testImg = new Image();
 		
@@ -231,14 +250,24 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 						</div>
 					)}
 					{/* Hidden image that we'll use to detect load/error events */}
-					<img 
-						src={DOMPurify.sanitize(url)}
-						alt=""
-						ref={this.imgRef}
-						onLoad={this.handleImageLoad}
-						onError={this.handleImageError}
-						style={{ display: 'none' }}
-					/>
+					{url.toLowerCase().endsWith('.svg') ? (
+						<object
+							type="image/svg+xml"
+							data={DOMPurify.sanitize(url)}
+							style={{ display: 'none' }}
+							onLoad={this.handleImageLoad}
+							onError={this.handleImageError}
+						/>
+					) : (
+						<img 
+							src={DOMPurify.sanitize(url)}
+							alt=""
+							ref={this.imgRef}
+							onLoad={this.handleImageLoad}
+							onError={this.handleImageError}
+							style={{ display: 'none' }}
+						/>
+					)}
 				</div>
 			);
 		}
@@ -284,34 +313,60 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 						url: DOMPurify.sanitize(formatUrlForOpening(url)),
 					});
 				}}>
-				<img
-					src={DOMPurify.sanitize(url)}
-					alt={`Image from ${getSafeHostname(url)}`}
-					style={{
-						width: "85%",
-						height: "auto",
-						borderRadius: "4px",
-						// Use contain only for very extreme aspect ratios, otherwise use cover
-						objectFit: this.aspectRatio > 3 || this.aspectRatio < 0.33 ? "contain" : "cover",
-					}}
-					loading="eager"
-					onLoad={(e) => {
-						// Double-check aspect ratio from the actual loaded image
-						const img = e.currentTarget;
-						if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-							const newAspectRatio = img.naturalWidth / img.naturalHeight;
-							console.log(`Loaded image aspect ratio: ${newAspectRatio}`);
-							
-							// Update object-fit based on actual aspect ratio
+				{url.toLowerCase().endsWith('.svg') ? (
+					// Special handling for SVG images
+					<object
+						type="image/svg+xml"
+						data={DOMPurify.sanitize(url)}
+						style={{
+							width: "85%",
+							height: "auto",
+							borderRadius: "4px",
+						}}
+						aria-label={`SVG from ${getSafeHostname(url)}`}
+					>
+						{/* Fallback if object tag fails */}
+						<img
+							src={DOMPurify.sanitize(url)}
+							alt={`SVG from ${getSafeHostname(url)}`}
+							style={{
+								width: "85%",
+								height: "auto",
+								borderRadius: "4px",
+							}}
+						/>
+					</object>
+				) : (
+					// Regular image handling (including WebP)
+					<img
+						src={DOMPurify.sanitize(url)}
+						alt={`Image from ${getSafeHostname(url)}`}
+						style={{
+							width: "85%",
+							height: "auto",
+							borderRadius: "4px",
 							// Use contain only for very extreme aspect ratios, otherwise use cover
-							if (newAspectRatio > 3 || newAspectRatio < 0.33) {
-								img.style.objectFit = "contain";
-							} else {
-								img.style.objectFit = "cover";
+							objectFit: this.aspectRatio > 3 || this.aspectRatio < 0.33 ? "contain" : "cover",
+						}}
+						loading="eager"
+						onLoad={(e) => {
+							// Double-check aspect ratio from the actual loaded image
+							const img = e.currentTarget;
+							if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+								const newAspectRatio = img.naturalWidth / img.naturalHeight;
+								console.log(`Loaded image aspect ratio: ${newAspectRatio}`);
+								
+								// Update object-fit based on actual aspect ratio
+								// Use contain only for very extreme aspect ratios, otherwise use cover
+								if (newAspectRatio > 3 || newAspectRatio < 0.33) {
+									img.style.objectFit = "contain";
+								} else {
+									img.style.objectFit = "cover";
+								}
 							}
-						}
-					}}
-				/>
+						}}
+					/>
+				)}
 			</div>
 		);
 	}
