@@ -2,7 +2,7 @@ import type { McpHub as McpHubType } from "../McpHub"
 import type { ClineProvider } from "../../../core/webview/ClineProvider"
 import type { ExtensionContext, Uri } from "vscode"
 import type { McpConnection } from "../McpHub"
-import { StdioConfigSchema } from "../McpHub"
+import { ServerConfigSchema } from "../McpHub"
 
 const fs = require("fs/promises")
 const { McpHub } = require("../McpHub")
@@ -303,7 +303,7 @@ describe("McpHub", () => {
 					command: "test",
 					timeout: 60,
 				}
-				expect(() => StdioConfigSchema.parse(validConfig)).not.toThrow()
+				expect(() => ServerConfigSchema.parse(validConfig)).not.toThrow()
 
 				// Test invalid timeout values
 				const invalidConfigs = [
@@ -313,7 +313,7 @@ describe("McpHub", () => {
 				]
 
 				invalidConfigs.forEach((config) => {
-					expect(() => StdioConfigSchema.parse(config)).toThrow()
+					expect(() => ServerConfigSchema.parse(config)).toThrow()
 				})
 			})
 
