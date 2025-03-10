@@ -252,8 +252,38 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 				const processImageChecks = async () => {
 					console.log(`Starting sequential URL processing for ${matches.length} URLs`);
 					
-					// Process URLs one at a time to avoid flooding the network
+					// Quick check for common image extensions first - IMMEDIATE PROCESSING
 					for (let i = 0; i < matches.length; i++) {
+						const match = matches[i];
+						const url = match.url.toLowerCase();
+						
+						// Check for common image extensions - expanded list
+						if (url.endsWith('.jpg') || url.endsWith('.jpeg') || 
+							url.endsWith('.png') || url.endsWith('.gif') || 
+							url.endsWith('.webp') || url.endsWith('.svg') ||
+							url.endsWith('.bmp') || url.endsWith('.tiff') || 
+							url.endsWith('.tif') || url.endsWith('.avif') ||
+							// Also check for image URLs with query parameters
+							url.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|tif|avif)(\?|#).+$/i) !== null ||
+							// Check for URLs that contain image in the path
+							url.includes('/image/') || url.includes('/images/') ||
+							// Check for URLs that end with =.jpg or similar patterns (common in some CDNs)
+							url.match(/=\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i) !== null) {
+							
+							match.isImage = true;
+							match.isProcessed = true;
+							console.log(`Detected image by extension or pattern: ${match.url}`);
+						}
+					}
+					
+					// Update state with extension-based detection results
+					setUrlMatches([...matches]);
+					
+					// Process remaining URLs one at a time to avoid flooding the network
+					for (let i = 0; i < matches.length; i++) {
+						// Skip already processed URLs (from extension check)
+						if (matches[i].isProcessed) continue;
+						
 						// Check if processing has been canceled (switched to plain mode)
 						if (processingCancelRef.current) {
 							console.log("URL processing canceled - display mode changed to plain");
@@ -275,9 +305,8 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 							match.isProcessed = true;
 							
 							// Update state after each URL to show progress
-							// This is fine since LinkPreview components are now memoized
-							// and have their own state management
-							setUrlMatches(prevMatches => [...prevMatches]);
+							// Create a new array to ensure React detects the state change
+							setUrlMatches([...matches]);
 							
 						} catch (err) {
 							console.log(`URL check error: ${match.url}`, err);
@@ -285,7 +314,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 							
 							// Update state even on error
 							if (!processingCancelRef.current) {
-								setUrlMatches(prevMatches => [...prevMatches]);
+								setUrlMatches([...matches]);
 							}
 						}
 						
@@ -293,7 +322,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						if (!processingCancelRef.current && i < matches.length - 1) {
 							// Much longer delay between URLs to avoid network flooding
 							// This gives each URL more time to complete before starting the next one
-							await new Promise(resolve => setTimeout(resolve, 1000));
+							await new Promise(resolve => setTimeout(resolve, 500));
 						}
 					}
 					
@@ -373,13 +402,13 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					// For images, use the ImagePreview component
 					if (match.isImage) {
 						segments.push(
-							<div key={`embed-${segmentIndex++}`}>
+							<div key={`embed-image-${url}-${segmentIndex++}`}>
 								<ImagePreview url={url} />
 							</div>
 						)
 						embedCount++;
 						console.log(`Added image embed for ${url}, embed count: ${embedCount}`);
-					} else {
+					} else if (match.isProcessed) {
 						// For non-image URLs or URLs we haven't processed yet, show link preview
 						try {
 							// Skip localhost URLs

@@ -12,8 +12,8 @@ export const isImageUrlSync = (str: string): boolean => {
 		return true
 	}
 
-	// Check for common image file extensions
-	return str.match(/\.(jpg|jpeg|png|gif|webp)$/i) !== null
+	// Check for common image file extensions - added more extensions including gif
+	return str.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|tif|avif)$/i) !== null
 }
 
 // Safely create a URL object with error handling and ensure HTTPS
