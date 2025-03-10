@@ -55,32 +55,25 @@ export async function tryConnect(ipAddress: string): Promise<{ endpoint: string;
 }
 
 /**
- * Get Docker gateway IP
+ * Execute a shell command and return stdout and stderr
+ */
+export async function executeShellCommand(command: string): Promise<{ stdout: string; stderr: string }> {
+	return new Promise<{ stdout: string; stderr: string }>((resolve) => {
+		const cp = require("child_process")
+		cp.exec(command, (err: any, stdout: string, stderr: string) => {
+			resolve({ stdout, stderr })
+		})
+	})
+}
+
+/**
+ * Get Docker gateway IP without UI feedback
  */
 export async function getDockerGatewayIP(): Promise<string | null> {
 	try {
-		// Try to get the default gateway from the route table
 		if (process.platform === "linux") {
 			try {
-				const { stdout } = await vscode.window.withProgress(
-					{
-						location: vscode.ProgressLocation.Notification,
-						title: "Checking Docker gateway IP",
-						cancellable: false,
-					},
-					async () => {
-						const result = await new Promise<{ stdout: string; stderr: string }>((resolve) => {
-							const cp = require("child_process")
-							cp.exec(
-								"ip route | grep default | awk '{print $3}'",
-								(err: any, stdout: string, stderr: string) => {
-									resolve({ stdout, stderr })
-								},
-							)
-						})
-						return result
-					},
-				)
+				const { stdout } = await executeShellCommand("ip route | grep default | awk '{print $3}'")
 				return stdout.trim()
 			} catch (error) {
 				console.log("Could not determine Docker gateway IP:", error)
@@ -159,7 +152,7 @@ export async function discoverChromeInstances(): Promise<string | null> {
 	ipAddresses.push("localhost")
 	ipAddresses.push("127.0.0.1")
 
-	// Try to get Docker gateway IP
+	// Try to get Docker gateway IP (headless mode)
 	const gatewayIP = await getDockerGatewayIP()
 	if (gatewayIP) {
 		console.log("Found Docker gateway IP:", gatewayIP)
