@@ -59,7 +59,7 @@ Cline은 OpenRouter, Anthropic, OpenAI, Google Gemini, AWS Bedrock, Azure, GCP V
 
 VSCode v1.93의 새로운 [셸 통합 업데이트](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api) 덕분에, Cline은 터미널에서 명령을 직접 실행하고 출력을 받을 수 있습니다. 이를 통해 패키지 설치나 빌드 스크립트 실행부터 애플리케이션 배포, 데이터베이스 관리, 테스트 실행까지 광범위한 작업을 수행할 수 있습니다. Cline은 개발 환경과 도구 체인에 맞추어 정확하게 작업을 실행합니다.
 
-개발 서버와 같은 오래 실행되는 프로세스의 경우, "실행 중 계속"(Proceed While Running") 버튼을 사용하여 명령이 백그라운드에서 실행되는 동안 Cline이 작업을 계속할 수 있게 합니다. 작업이 진행되는 동안 Cline은 새로운 터미널 출력을 실시간으로 확인하여, 파일 편집 시 발생하는 컴파일 오류와 같은 문제에 즉시 대응할 수 있습니다.
+개발 서버와 같은 오래 실행되는 프로세스의 경우, "실행 중 계속"(Proceed While Running) 버튼을 사용하여 명령이 백그라운드에서 실행되는 동안 Cline이 작업을 계속할 수 있게 합니다. 작업이 진행되는 동안 Cline은 새로운 터미널 출력을 실시간으로 확인하여, 파일 편집 시 발생하는 컴파일 오류와 같은 문제에 즉시 대응할 수 있습니다.
 
 <img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
 
