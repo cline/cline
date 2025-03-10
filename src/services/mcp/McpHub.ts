@@ -239,14 +239,17 @@ export class McpHub {
 			} else {
 				// SSE connection
 				const sseOptions = {
-					headers: config.headers,
-					https: {
-						rejectUnauthorized: false, // Allow self-signed certificates if needed
+					requestInit: {
+						headers: config.headers,
+						// Allow self-signed certificates if needed
+						agent: new (require("https").Agent)({
+							rejectUnauthorized: false,
+						}),
 					},
 				}
 				// @ts-ignore - EventSource types are not fully compatible
 				global.EventSource = EventSource
-				transport = new SSEClientTransport(new URL(config.url))
+				transport = new SSEClientTransport(new URL(config.url), sseOptions)
 
 				// Set up SSE specific error handling
 				transport.onerror = async (error) => {
