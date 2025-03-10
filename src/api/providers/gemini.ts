@@ -17,10 +17,15 @@ export class GeminiHandler implements ApiHandler, SingleCompletionHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const model = this.client.getGenerativeModel({
-			model: this.getModel().id,
-			systemInstruction: systemPrompt,
-		})
+		const model = this.client.getGenerativeModel(
+			{
+				model: this.getModel().id,
+				systemInstruction: systemPrompt,
+			},
+			{
+				baseUrl: this.options.googleGeminiBaseUrl || undefined,
+			},
+		)
 		const result = await model.generateContentStream({
 			contents: messages.map(convertAnthropicMessageToGemini),
 			generationConfig: {
@@ -55,9 +60,14 @@ export class GeminiHandler implements ApiHandler, SingleCompletionHandler {
 
 	async completePrompt(prompt: string): Promise<string> {
 		try {
-			const model = this.client.getGenerativeModel({
-				model: this.getModel().id,
-			})
+			const model = this.client.getGenerativeModel(
+				{
+					model: this.getModel().id,
+				},
+				{
+					baseUrl: this.options.googleGeminiBaseUrl || undefined,
+				},
+			)
 
 			const result = await model.generateContent({
 				contents: [{ role: "user", parts: [{ text: prompt }] }],

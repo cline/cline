@@ -96,6 +96,7 @@ type GlobalStateKey =
 	| "openRouterModelInfo"
 	| "openRouterBaseUrl"
 	| "openRouterUseMiddleOutTransform"
+	| "googleGeminiBaseUrl"
 	| "allowedCommands"
 	| "soundEnabled"
 	| "soundVolume"
@@ -1657,6 +1658,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			anthropicBaseUrl,
 			anthropicThinking,
 			geminiApiKey,
+			googleGeminiBaseUrl,
 			openAiNativeApiKey,
 			deepSeekApiKey,
 			azureApiVersion,
@@ -1704,6 +1706,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.updateGlobalState("lmStudioBaseUrl", lmStudioBaseUrl),
 			this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl),
 			this.updateGlobalState("anthropicThinking", anthropicThinking),
+			this.updateGlobalState("googleGeminiBaseUrl", googleGeminiBaseUrl),
 			this.storeSecret("geminiApiKey", geminiApiKey),
 			this.storeSecret("openAiNativeApiKey", openAiNativeApiKey),
 			this.storeSecret("deepSeekApiKey", deepSeekApiKey),
@@ -2516,6 +2519,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			anthropicBaseUrl,
 			anthropicThinking,
 			geminiApiKey,
+			googleGeminiBaseUrl,
 			openAiNativeApiKey,
 			deepSeekApiKey,
 			mistralApiKey,
@@ -2598,6 +2602,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("lmStudioBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("anthropicThinking") as Promise<number | undefined>,
+			this.getGlobalState("googleGeminiBaseUrl") as Promise<string | undefined>,
 			this.getSecret("geminiApiKey") as Promise<string | undefined>,
 			this.getSecret("openAiNativeApiKey") as Promise<string | undefined>,
 			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
@@ -2699,6 +2704,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				anthropicBaseUrl,
 				anthropicThinking,
 				geminiApiKey,
+				googleGeminiBaseUrl,
 				openAiNativeApiKey,
 				deepSeekApiKey,
 				mistralApiKey,

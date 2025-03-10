@@ -71,6 +71,9 @@ const ApiOptions = ({
 	const [anthropicThinkingBudget, setAnthropicThinkingBudget] = useState(apiConfiguration?.anthropicThinking)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [openRouterBaseUrlSelected, setOpenRouterBaseUrlSelected] = useState(!!apiConfiguration?.openRouterBaseUrl)
+	const [googleGeminiBaseUrlSelected, setGoogleGeminiBaseUrlSelected] = useState(
+		!!apiConfiguration?.googleGeminiBaseUrl,
+	)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const inputEventTransform = <E,>(event: E) => (event as { target: HTMLInputElement })?.target?.value as any
@@ -574,6 +577,30 @@ const ApiOptions = ({
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>Gemini API Key</span>
 					</VSCodeTextField>
+					<Checkbox
+						checked={googleGeminiBaseUrlSelected}
+						onChange={(checked: boolean) => {
+							setGoogleGeminiBaseUrlSelected(checked)
+							if (!checked) {
+								handleInputChange("googleGeminiBaseUrl")({
+									target: {
+										value: "",
+									},
+								})
+							}
+						}}>
+						Use custom base URL
+					</Checkbox>
+
+					{googleGeminiBaseUrlSelected && (
+						<VSCodeTextField
+							value={apiConfiguration?.googleGeminiBaseUrl || ""}
+							style={{ width: "100%", marginTop: 3 }}
+							type="url"
+							onInput={handleInputChange("googleGeminiBaseUrl")}
+							placeholder="Default: https://generativelanguage.googleapis.com"
+						/>
+					)}
 					<p
 						style={{
 							fontSize: "12px",

@@ -51,6 +51,7 @@ export interface ApiHandlerOptions {
 	lmStudioModelId?: string
 	lmStudioBaseUrl?: string
 	geminiApiKey?: string
+	googleGeminiBaseUrl?: string
 	openAiNativeApiKey?: string
 	mistralApiKey?: string
 	mistralCodestralUrl?: string // New option for Codestral URL
