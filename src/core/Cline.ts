@@ -3798,6 +3798,8 @@ export class Cline {
 			return
 		}
 
+		telemetryService.captureCheckpointDiffed(this.taskId)
+
 		if (!previousCommitHash && mode === "checkpoint") {
 			const previousCheckpoint = this.clineMessages
 				.filter(({ say }) => say === "checkpoint_saved")
@@ -3849,6 +3851,8 @@ export class Cline {
 			return
 		}
 
+		telemetryService.captureCheckpointCreated(this.taskId)
+
 		// Start the checkpoint process in the background.
 		service.saveCheckpoint(`Task: ${this.taskId}, Time: ${Date.now()}`).catch((err) => {
 			console.error("[Cline#checkpointSave] caught unexpected error, disabling checkpoints", err)
@@ -3879,6 +3883,8 @@ export class Cline {
 
 		try {
 			await service.restoreCheckpoint(commitHash)
+
+			telemetryService.captureCheckpointRestored(this.taskId)
 
 			await this.providerRef.deref()?.postMessageToWebview({ type: "currentCheckpointUpdated", text: commitHash })
 
