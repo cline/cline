@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { vscode } from "../../utils/vscode"
 import DOMPurify from "dompurify"
-import { getSafeHostname } from "./UrlProcessingService"
+import { getSafeHostname, normalizeRelativeUrl } from "./UrlProcessingService"
 
 // Error boundary component to prevent crashes
 class ErrorBoundary extends React.Component<
@@ -310,7 +310,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 					<div className="link-preview-image" style={{ width: "128px", height: "128px", flexShrink: 0 }}>
 						<ErrorBoundary>
 							<img
-								src={DOMPurify.sanitize(data.image)}
+								src={DOMPurify.sanitize(normalizeRelativeUrl(data.image, url))}
 								alt=""
 								style={{
 									width: "100%",

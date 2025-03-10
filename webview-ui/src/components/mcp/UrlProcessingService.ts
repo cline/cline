@@ -57,6 +57,43 @@ export const getSafeHostname = (url: string): string => {
 	}
 }
 
+// Function to normalize relative URLs by combining with a base URL
+export const normalizeRelativeUrl = (relativeUrl: string, baseUrl: string): string => {
+	// If it's already an absolute URL or a data URL, return as is
+	if (relativeUrl.startsWith('http://') || 
+		relativeUrl.startsWith('https://') || 
+		relativeUrl.startsWith('data:')) {
+		return relativeUrl;
+	}
+	
+	try {
+		// Parse the base URL
+		const baseUrlObj = safeCreateUrl(baseUrl);
+		if (!baseUrlObj) return relativeUrl; // If we can't parse the base URL, return original
+		
+		// Handle different types of relative paths
+		if (relativeUrl.startsWith('//')) {
+			// Protocol-relative URL
+			return `${baseUrlObj.protocol}${relativeUrl}`;
+		} else if (relativeUrl.startsWith('/')) {
+			// Root-relative URL
+			return `${baseUrlObj.protocol}//${baseUrlObj.host}${relativeUrl}`;
+		} else {
+			// Path-relative URL
+			// Get the directory part of the URL
+			let basePath = baseUrlObj.pathname;
+			if (!basePath.endsWith('/')) {
+				// If the path doesn't end with a slash, remove the file part
+				basePath = basePath.substring(0, basePath.lastIndexOf('/') + 1);
+			}
+			return `${baseUrlObj.protocol}//${baseUrlObj.host}${basePath}${relativeUrl}`;
+		}
+	} catch (error) {
+		console.log(`Error normalizing relative URL: ${error}`);
+		return relativeUrl; // Return original on error
+	}
+};
+
 // Helper to ensure URL is in a format that can be opened
 export const formatUrlForOpening = (url: string): string => {
 	// If it's a data URI, return as is
