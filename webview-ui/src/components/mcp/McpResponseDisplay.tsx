@@ -178,6 +178,12 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		if (newMode === "plain") {
 			console.log("Switching to plain mode - canceling URL processing");
 			processingCancelRef.current = true;
+			setUrlMatches([]); // Clear any existing matches when switching to plain mode
+		} else {
+			// If switching to rich mode, the useEffect will re-run and fetch data
+			// because displayMode is a dependency of the useEffect
+			console.log("Switching to rich mode - will start URL processing");
+			// No need to do anything else here as the useEffect will handle it
 		}
 	}, [displayMode])
 
@@ -189,6 +195,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		// Skip all processing if in plain mode
 		if (displayMode === "plain") {
 			setIsLoading(false);
+			setUrlMatches([]); // Clear any existing matches when in plain mode
 			return;
 		}
 		
