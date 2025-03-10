@@ -93,12 +93,13 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 		console.log(`Checking if URL is an image: ${url}`);
 		
 		// Check if it's an SVG or WebP by extension first
-		const isWebpOrSvg = /\.(webp|svg)(\?.*)?$/i.test(url);
-		if (isWebpOrSvg) {
-			const isSvg = url.toLowerCase().endsWith('.svg');
-			const isWebp = url.toLowerCase().endsWith('.webp');
-			console.log(`URL is ${isSvg ? 'SVG' : isWebp ? 'WebP' : 'special format'} by extension: ${url}`);
-			this.loadImage(url);
+		// Use a more robust regex that handles query parameters and path segments
+		const isSvg = /\.svg(\?.*)?$/i.test(url);
+		const isWebp = /\.webp(\?.*)?$/i.test(url);
+		
+		if (isSvg || isWebp) {
+			console.log(`URL is ${isSvg ? 'SVG' : 'WebP'} by extension: ${url}`);
+			this.loadImage(url, isSvg, isWebp);
 			return;
 		}
 		
@@ -124,13 +125,41 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 	}
 	
 	// Load the image after content type check or as fallback
-	loadImage(url: string) {
+	loadImage(url: string, isSvg: boolean = false, isWebp: boolean = false) {
 		// For SVG files, we don't need to calculate aspect ratio as they're vector-based
-		if (url.toLowerCase().endsWith('.svg')) {
+		if (isSvg) {
 			console.log(`SVG image detected, skipping aspect ratio calculation: ${url}`);
 			// Default aspect ratio for SVGs
 			this.aspectRatio = 1;
 			this.handleImageLoad();
+			return;
+		}
+		
+		// For WebP files, ensure we handle them properly
+		if (isWebp) {
+			console.log(`WebP image detected: ${url}`);
+			// WebP images might need special handling
+			const testImg = new Image();
+			
+			testImg.onload = () => {
+				console.log(`WebP image loaded successfully: ${url}`);
+				
+				// Calculate aspect ratio for proper display
+				if (testImg.width > 0 && testImg.height > 0) {
+					this.aspectRatio = testImg.width / testImg.height;
+					console.log(`WebP image aspect ratio: ${this.aspectRatio}`);
+				}
+				
+				this.handleImageLoad();
+			};
+			
+			testImg.onerror = () => {
+				console.log(`WebP image failed to load: ${url}`);
+				this.handleImageError();
+			};
+			
+			// Don't add cache-busting for WebP as it might cause issues
+			testImg.src = url;
 			return;
 		}
 		
@@ -250,13 +279,22 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 						</div>
 					)}
 					{/* Hidden image that we'll use to detect load/error events */}
-					{url.toLowerCase().endsWith('.svg') ? (
+					{/\.svg(\?.*)?$/i.test(url) ? (
 						<object
 							type="image/svg+xml"
 							data={DOMPurify.sanitize(url)}
 							style={{ display: 'none' }}
 							onLoad={this.handleImageLoad}
 							onError={this.handleImageError}
+						/>
+					) : /\.webp(\?.*)?$/i.test(url) ? (
+						<img 
+							src={DOMPurify.sanitize(url)}
+							alt=""
+							ref={this.imgRef}
+							onLoad={this.handleImageLoad}
+							onError={this.handleImageError}
+							style={{ display: 'none' }}
 						/>
 					) : (
 						<img 
@@ -313,7 +351,7 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 						url: DOMPurify.sanitize(formatUrlForOpening(url)),
 					});
 				}}>
-				{url.toLowerCase().endsWith('.svg') ? (
+				{/\.svg(\?.*)?$/i.test(url) ? (
 					// Special handling for SVG images
 					<object
 						type="image/svg+xml"
@@ -336,6 +374,34 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 							}}
 						/>
 					</object>
+				) : /\.webp(\?.*)?$/i.test(url) ? (
+					// Special handling for WebP images
+					<img
+						src={DOMPurify.sanitize(url)}
+						alt={`WebP image from ${getSafeHostname(url)}`}
+						style={{
+							width: "85%",
+							height: "auto",
+							borderRadius: "4px",
+							objectFit: this.aspectRatio > 3 || this.aspectRatio < 0.33 ? "contain" : "cover",
+						}}
+						loading="eager"
+						onLoad={(e) => {
+							// Double-check aspect ratio from the actual loaded image
+							const img = e.currentTarget;
+							if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+								const newAspectRatio = img.naturalWidth / img.naturalHeight;
+								console.log(`WebP image aspect ratio: ${newAspectRatio}`);
+								
+								// Update object-fit based on actual aspect ratio
+								if (newAspectRatio > 3 || newAspectRatio < 0.33) {
+									img.style.objectFit = "contain";
+								} else {
+									img.style.objectFit = "cover";
+								}
+							}
+						}}
+					/>
 				) : (
 					// Regular image handling (including WebP)
 					<img

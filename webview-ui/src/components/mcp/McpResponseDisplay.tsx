@@ -326,7 +326,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						if (!processingCancelRef.current && i < matches.length - 1) {
 							// Much longer delay between URLs to avoid network flooding
 							// This gives each URL more time to complete before starting the next one
-							await new Promise(resolve => setTimeout(resolve, 500));
+							await new Promise(resolve => setTimeout(resolve, 100));
 						}
 					}
 					
@@ -411,7 +411,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 							</div>
 						)
 						embedCount++;
-						console.log(`Added image embed for ${url}, embed count: ${embedCount}`);
+						// console.log(`Added image embed for ${url}, embed count: ${embedCount}`);
 					} else if (match.isProcessed) {
 						// For non-image URLs or URLs we haven't processed yet, show link preview
 						try {
@@ -427,7 +427,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 								)
 								
 								embedCount++;
-								console.log(`Added link preview for ${url}, embed count: ${embedCount}`);
+								// console.log(`Added link preview for ${url}, embed count: ${embedCount}`);
 							}
 						} catch (e) {
 							console.log("Link preview could not be created");
