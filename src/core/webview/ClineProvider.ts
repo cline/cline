@@ -954,6 +954,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				case "vertex":
 				case "gemini":
 				case "asksage":
+				case "openai-native":
 					await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
 					break
 				case "openrouter":
@@ -992,6 +993,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "vertex":
 					case "gemini":
 					case "asksage":
+					case "openai-native":
 						await this.updateGlobalState("apiModelId", newModelId)
 						break
 					case "openrouter":
