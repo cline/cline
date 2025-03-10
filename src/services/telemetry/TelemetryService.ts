@@ -22,6 +22,9 @@ class PostHogClient {
 			CONVERSATION_MESSAGE: "Conversation Message",
 			MODE_SWITCH: "Mode Switched",
 			TOOL_USED: "Tool Used",
+			CHECKPOINT_CREATED: "Checkpoint Created",
+			CHECKPOINT_RESTORED: "Checkpoint Restored",
+			CHECKPOINT_DIFFED: "Checkpoint Diffed",
 		},
 	}
 
@@ -244,6 +247,18 @@ class TelemetryService {
 			taskId,
 			tool,
 		})
+	}
+
+	public captureCheckpointCreated(taskId: string): void {
+		this.captureEvent(PostHogClient.EVENTS.TASK.CHECKPOINT_CREATED, { taskId })
+	}
+
+	public captureCheckpointDiffed(taskId: string): void {
+		this.captureEvent(PostHogClient.EVENTS.TASK.CHECKPOINT_DIFFED, { taskId })
+	}
+
+	public captureCheckpointRestored(taskId: string): void {
+		this.captureEvent(PostHogClient.EVENTS.TASK.CHECKPOINT_RESTORED, { taskId })
 	}
 
 	/**

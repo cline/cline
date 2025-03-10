@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 
 import { SingleCompletionHandler } from "../"
-import { calculateApiCost } from "../../utils/cost"
+import { calculateApiCostAnthropic } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "../../shared/vsCodeSelectorUtils"
@@ -462,7 +462,7 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 				type: "usage",
 				inputTokens: totalInputTokens,
 				outputTokens: totalOutputTokens,
-				totalCost: calculateApiCost(this.getModel().info, totalInputTokens, totalOutputTokens),
+				totalCost: calculateApiCostAnthropic(this.getModel().info, totalInputTokens, totalOutputTokens),
 			}
 		} catch (error: unknown) {
 			this.ensureCleanState()

@@ -33,7 +33,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</p>
 
 			<h3 style={{ margin: "12px 0 8px" }}>What's New</h3>
-			<p style={{ margin: "5px 0px" }}>
+			<div style={{ margin: "5px 0px" }}>
 				<ul style={{ margin: "4px 0 6px 20px", padding: 0 }}>
 					<li>• Faster asynchronous checkpoints</li>
 					<li>• Support for .rooignore files</li>
@@ -44,7 +44,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					<li>• Updated DeepSeek provider</li>
 					<li>• New "Human Relay" provider</li>
 				</ul>
-			</p>
+			</div>
 
 			<p style={{ margin: "10px 0px 0px" }}>
 				Get more details and discuss in{" "}

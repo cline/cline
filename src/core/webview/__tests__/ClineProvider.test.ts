@@ -1652,3 +1652,62 @@ describe("ContextProxy integration", () => {
 		expect(mockContextProxy.setValues).toBeDefined()
 	})
 })
+
+describe("getTelemetryProperties", () => {
+	let provider: ClineProvider
+	let mockContext: vscode.ExtensionContext
+	let mockOutputChannel: vscode.OutputChannel
+	let mockCline: any
+
+	beforeEach(() => {
+		// Reset mocks
+		jest.clearAllMocks()
+
+		// Setup basic mocks
+		mockContext = {
+			globalState: {
+				get: jest.fn().mockImplementation((key: string) => {
+					if (key === "mode") return "code"
+					if (key === "apiProvider") return "anthropic"
+					return undefined
+				}),
+				update: jest.fn(),
+				keys: jest.fn().mockReturnValue([]),
+			},
+			secrets: { get: jest.fn(), store: jest.fn(), delete: jest.fn() },
+			extensionUri: {} as vscode.Uri,
+			globalStorageUri: { fsPath: "/test/path" },
+			extension: { packageJSON: { version: "1.0.0" } },
+		} as unknown as vscode.ExtensionContext
+
+		mockOutputChannel = { appendLine: jest.fn() } as unknown as vscode.OutputChannel
+		provider = new ClineProvider(mockContext, mockOutputChannel)
+
+		// Setup Cline instance with mocked getModel method
+		const { Cline } = require("../../Cline")
+		mockCline = new Cline()
+		mockCline.api = {
+			getModel: jest.fn().mockReturnValue({
+				id: "claude-3-7-sonnet-20250219",
+				info: { contextWindow: 200000 },
+			}),
+		}
+	})
+
+	test("includes basic properties in telemetry", async () => {
+		const properties = await provider.getTelemetryProperties()
+
+		expect(properties).toHaveProperty("vscodeVersion")
+		expect(properties).toHaveProperty("platform")
+		expect(properties).toHaveProperty("appVersion", "1.0.0")
+	})
+
+	test("includes model ID from current Cline instance if available", async () => {
+		// Add mock Cline to stack
+		await provider.addClineToStack(mockCline)
+
+		const properties = await provider.getTelemetryProperties()
+
+		expect(properties).toHaveProperty("modelId", "claude-3-7-sonnet-20250219")
+	})
+})
