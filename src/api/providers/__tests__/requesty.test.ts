@@ -22,8 +22,10 @@ describe("RequestyHandler", () => {
 			contextWindow: 4000,
 			supportsPromptCache: false,
 			supportsImages: true,
-			inputPrice: 0,
-			outputPrice: 0,
+			inputPrice: 1,
+			outputPrice: 10,
+			cacheReadsPrice: 0.1,
+			cacheWritesPrice: 1.5,
 		},
 		openAiStreamingEnabled: true,
 		includeMaxTokens: true, // Add this to match the implementation
@@ -83,8 +85,12 @@ describe("RequestyHandler", () => {
 						yield {
 							choices: [{ delta: { content: " world" } }],
 							usage: {
-								prompt_tokens: 10,
-								completion_tokens: 5,
+								prompt_tokens: 30,
+								completion_tokens: 10,
+								prompt_tokens_details: {
+									cached_tokens: 15,
+									caching_tokens: 5,
+								},
 							},
 						}
 					},
@@ -105,10 +111,11 @@ describe("RequestyHandler", () => {
 					{ type: "text", text: " world" },
 					{
 						type: "usage",
-						inputTokens: 10,
-						outputTokens: 5,
-						cacheWriteTokens: undefined,
-						cacheReadTokens: undefined,
+						inputTokens: 30,
+						outputTokens: 10,
+						cacheWriteTokens: 5,
+						cacheReadTokens: 15,
+						totalCost: 0.000119, // (10 * 1 / 1,000,000) + (5 * 1.5 / 1,000,000) + (15 * 0.1 / 1,000,000) + (10 * 10 / 1,000,000)
 					},
 				])
 
@@ -182,6 +189,9 @@ describe("RequestyHandler", () => {
 						type: "usage",
 						inputTokens: 10,
 						outputTokens: 5,
+						cacheWriteTokens: 0,
+						cacheReadTokens: 0,
+						totalCost: 0.00006, // (10 * 1 / 1,000,000) + (5 * 10 / 1,000,000)
 					},
 				])
 
