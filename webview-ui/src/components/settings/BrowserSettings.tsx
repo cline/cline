@@ -1,5 +1,5 @@
 import React, { HTMLAttributes, useState, useEffect } from "react"
-import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { Dropdown, type DropdownOption } from "vscrui"
 import { SquareMousePointer } from "lucide-react"
 
@@ -192,28 +192,19 @@ export const BrowserSettings = ({
 								</div>
 								{remoteBrowserEnabled && (
 									<>
-										<div className="flex gap-2 mb-2 ml-6">
-											<input
-												type="text"
+										<div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
+											<VSCodeTextField
 												value={remoteBrowserHost ?? ""}
-												placeholder="http://localhost:9222 (leave empty for auto-discovery)"
-												style={{
-													width: "100%",
-													padding: "4px 8px",
-													backgroundColor: "var(--vscode-input-background)",
-													color: "var(--vscode-input-foreground)",
-													border: "1px solid var(--vscode-input-border)",
-													borderRadius: "2px",
-												}}
-												onChange={(e) =>
+												onChange={(e: any) =>
 													setCachedStateField(
 														"remoteBrowserHost",
 														e.target.value || undefined,
 													)
 												}
+												placeholder="Custom URL (e.g., http://localhost:9222)"
+												style={{ flexGrow: 1 }}
 											/>
 											<VSCodeButton
-												appearance="secondary"
 												disabled={testingConnection}
 												onClick={remoteBrowserHost ? testConnection : discoverBrowser}>
 												{testingConnection || discovering ? "Testing..." : "Test Connection"}
@@ -221,7 +212,7 @@ export const BrowserSettings = ({
 										</div>
 										{testResult && (
 											<div
-												className={`p-2 mb-2 rounded text-sm ml-6 ${
+												className={`p-2 mt-2 mb-2 rounded text-sm ${
 													testResult.success
 														? "bg-green-800/20 text-green-400"
 														: "bg-red-800/20 text-red-400"
@@ -229,10 +220,11 @@ export const BrowserSettings = ({
 												{testResult.message}
 											</div>
 										)}
-										<p className="text-vscode-descriptionForeground text-sm mt-0 ml-6">
-											Enter the DevTools Protocol host address or leave empty to auto-discover
-											Chrome instances on your network. The Test Connection button will try the
-											custom URL if provided, or auto-discover if the field is empty.
+										<p className="text-vscode-descriptionForeground text-sm mt-2">
+											Enter the DevTools Protocol host address or
+											<strong> leave empty to auto-discover Chrome local instances.</strong>
+											The Test Connection button will try the custom URL if provided, or
+											auto-discover if the field is empty.
 										</p>
 									</>
 								)}
