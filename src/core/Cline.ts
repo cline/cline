@@ -966,9 +966,7 @@ export class Cline {
 
 		const { terminalOutputLineLimit } = (await this.providerRef.deref()?.getState()) ?? {}
 
-		let result = ""
 		process.on("line", (line) => {
-			result += line
 			if (!didContinue) {
 				sendCommandOutput(truncateOutput(line, terminalOutputLineLimit))
 			} else {
@@ -977,10 +975,11 @@ export class Cline {
 		})
 
 		let completed = false
+		let result: string = ""
 		let exitDetails: ExitCodeDetails | undefined
 		process.once("completed", (output?: string) => {
 			// Use provided output if available, otherwise keep existing result.
-			result = output || result
+			result = output ?? ""
 			completed = true
 		})
 
@@ -1014,10 +1013,8 @@ export class Cline {
 					userFeedback.images,
 				),
 			]
-		}
-
-		if (completed) {
-			let exitStatus = "No exit code available"
+		} else if (completed) {
+			let exitStatus: string
 			if (exitDetails !== undefined) {
 				if (exitDetails.signal) {
 					exitStatus = `Process terminated by signal ${exitDetails.signal} (${exitDetails.signalName})`
@@ -1030,6 +1027,9 @@ export class Cline {
 				} else {
 					exitStatus = `Exit code: ${exitDetails.exitCode}`
 				}
+			} else {
+				result += "<VSCE exitDetails == undefined: terminal output and command execution status is unknown.>"
+				exitStatus = `Exit code: <undefined, notify user>`
 			}
 			const workingDirInfo = workingDir ? ` from '${workingDir.toPosix()}'` : ""
 
