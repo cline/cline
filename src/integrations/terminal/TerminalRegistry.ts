@@ -153,7 +153,7 @@ export class TerminalRegistry {
 		if (!terminal) {
 			return ""
 		}
-		return terminal.process ? terminal.process.getUnretrievedOutput() : ""
+		return terminal.getUnretrievedOutput()
 	}
 
 	/**
@@ -187,6 +187,33 @@ export class TerminalRegistry {
 			}
 
 			return true
+		})
+	}
+
+	/**
+	 * Gets background terminals (taskId undefined) that have unretrieved output or are still running
+	 * @param busy Whether to get busy or non-busy terminals
+	 * @returns Array of Terminal objects
+	 */
+	/**
+	 * Gets background terminals (taskId undefined) filtered by busy state
+	 * @param busy Whether to get busy or non-busy terminals
+	 * @returns Array of Terminal objects
+	 */
+	static getBackgroundTerminals(busy?: boolean): Terminal[] {
+		return this.getAllTerminals().filter((t) => {
+			// Only get background terminals (taskId undefined)
+			if (t.taskId !== undefined) {
+				return false
+			}
+
+			// If busy is undefined, return all background terminals
+			if (busy === undefined) {
+				return t.getProcessesWithOutput().length > 0 || t.process?.hasUnretrievedOutput()
+			} else {
+				// Filter by busy state
+				return t.busy === busy
+			}
 		})
 	}
 

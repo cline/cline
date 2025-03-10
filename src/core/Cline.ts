@@ -3503,8 +3503,15 @@ export class Cline {
 			details += "\n(No open tabs)"
 		}
 
-		const busyTerminals = TerminalRegistry.getTerminals(true, this.taskId)
-		const inactiveTerminals = TerminalRegistry.getTerminals(false, this.taskId)
+		// Get task-specific and background terminals
+		const busyTerminals = [
+			...TerminalRegistry.getTerminals(true, this.taskId),
+			...TerminalRegistry.getBackgroundTerminals(true),
+		]
+		const inactiveTerminals = [
+			...TerminalRegistry.getTerminals(false, this.taskId),
+			...TerminalRegistry.getBackgroundTerminals(false),
+		]
 
 		if (busyTerminals.length > 0 && this.didEditFile) {
 			await delay(300) // delay after saving file to let terminals catch up

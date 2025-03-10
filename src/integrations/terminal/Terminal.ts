@@ -75,6 +75,7 @@ export class Terminal {
 	 */
 	public shellExecutionComplete(exitDetails: ExitCodeDetails): void {
 		this.running = false
+		this.busy = false
 
 		if (this.process) {
 			// Add to the front of the queue (most recent first)
@@ -106,16 +107,7 @@ export class Terminal {
 	 * or don't belong to the current task
 	 */
 	public cleanCompletedProcessQueue(): void {
-		// If this terminal has no task ID, it's not associated with any active task
-		// In this case, we should remove all processes to prevent their output from appearing
-		// in any task's context
-		if (this.taskId === undefined) {
-			this.completedProcesses = []
-			return
-		}
-
-		// If the terminal is associated with a task, keep only processes with unretrieved output
-		// This ensures that when a task is active, it only sees output from its own processes
+		// Keep only processes with unretrieved output
 		this.completedProcesses = this.completedProcesses.filter((process) => process.hasUnretrievedOutput())
 	}
 
@@ -127,6 +119,32 @@ export class Terminal {
 		// Clean the queue first to remove any processes without output
 		this.cleanCompletedProcessQueue()
 		return [...this.completedProcesses]
+	}
+
+	/**
+	 * Gets all unretrieved output from both active and completed processes
+	 * @returns Combined unretrieved output from all processes
+	 */
+	public getUnretrievedOutput(): string {
+		let output = ""
+
+		// First check completed processes to maintain chronological order
+		for (const process of this.completedProcesses) {
+			const processOutput = process.getUnretrievedOutput()
+			if (processOutput) {
+				output += processOutput
+			}
+		}
+
+		// Then check active process for most recent output
+		const activeOutput = this.process?.getUnretrievedOutput()
+		if (activeOutput) {
+			output += activeOutput
+		}
+
+		this.cleanCompletedProcessQueue()
+
+		return output
 	}
 
 	public runCommand(command: string): TerminalProcessResultPromise {
