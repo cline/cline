@@ -2567,6 +2567,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			properties.apiProvider = apiConfiguration.apiProvider
 		}
 
+		// Add model ID if available
+		const currentCline = this.getCurrentCline()
+		if (currentCline?.api) {
+			const { id: modelId } = currentCline.api.getModel()
+			if (modelId) {
+				properties.modelId = modelId
+			}
+		}
+
 		return properties
 	}
 }
