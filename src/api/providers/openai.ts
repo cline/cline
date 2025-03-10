@@ -116,7 +116,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 					}
 				}
 				if (chunk.usage) {
-					yield this.processUsageMetrics(chunk.usage)
+					yield this.processUsageMetrics(chunk.usage, modelInfo)
 				}
 			}
 		} else {
@@ -139,11 +139,11 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 				type: "text",
 				text: response.choices[0]?.message.content || "",
 			}
-			yield this.processUsageMetrics(response.usage)
+			yield this.processUsageMetrics(response.usage, modelInfo)
 		}
 	}
 
-	protected processUsageMetrics(usage: any): ApiStreamUsageChunk {
+	protected processUsageMetrics(usage: any, modelInfo?: ModelInfo): ApiStreamUsageChunk {
 		return {
 			type: "usage",
 			inputTokens: usage?.prompt_tokens || 0,

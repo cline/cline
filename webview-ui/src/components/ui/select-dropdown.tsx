@@ -1,4 +1,8 @@
 import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+import { useRooPortal } from "./hooks/useRooPortal"
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -6,10 +10,7 @@ import {
 	DropdownMenuTrigger,
 	DropdownMenuSeparator,
 } from "./dropdown-menu"
-import { cn } from "@/lib/utils"
-import { useEffect, useState } from "react"
 
-// Constants for option types
 export enum DropdownOptionType {
 	ITEM = "item",
 	SEPARATOR = "separator",
@@ -20,7 +21,7 @@ export interface DropdownOption {
 	value: string
 	label: string
 	disabled?: boolean
-	type?: DropdownOptionType // Optional type to specify special behaviors
+	type?: DropdownOptionType
 }
 
 export interface SelectDropdownProps {
@@ -58,34 +59,19 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 		},
 		ref,
 	) => {
-		// Track open state
 		const [open, setOpen] = React.useState(false)
-		const [portalContainer, setPortalContainer] = useState<HTMLElement>()
+		const portalContainer = useRooPortal("roo-portal")
 
-		useEffect(() => {
-			// The dropdown menu uses a portal from @shadcn/ui which by default renders
-			// at the document root. This causes the menu to remain visible even when
-			// the parent ChatView component is hidden (during settings/history view).
-			// By moving the portal inside ChatView, the menu will properly hide when
-			// its parent is hidden.
-			setPortalContainer(document.getElementById("chat-view-portal") || undefined)
-		}, [])
-
-		// Find the selected option label
 		const selectedOption = options.find((option) => option.value === value)
 		const displayText = selectedOption?.label || placeholder || ""
 
-		// Handle menu item click
 		const handleSelect = (option: DropdownOption) => {
-			// Check if this is an action option by its explicit type
 			if (option.type === DropdownOptionType.ACTION) {
-				window.postMessage({
-					type: "action",
-					action: option.value,
-				})
+				window.postMessage({ type: "action", action: option.value })
 				setOpen(false)
 				return
 			}
+
 			onChange(option.value)
 			setOpen(false)
 		}
@@ -103,7 +89,7 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 						triggerClassName,
 					)}
 					style={{
-						width: "100%", // Take full width of parent
+						width: "100%", // Take full width of parent.
 						minWidth: "0",
 						maxWidth: "100%",
 					}}>
@@ -136,12 +122,10 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 						contentClassName,
 					)}>
 					{options.map((option, index) => {
-						// Handle separator type
 						if (option.type === DropdownOptionType.SEPARATOR) {
 							return <DropdownMenuSeparator key={`sep-${index}`} />
 						}
 
-						// Handle shortcut text type (disabled label for keyboard shortcuts)
 						if (
 							option.type === DropdownOptionType.SHORTCUT ||
 							(option.disabled && shortcutText && option.label.includes(shortcutText))
@@ -153,7 +137,6 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 							)
 						}
 
-						// Regular menu items
 						return (
 							<DropdownMenuItem
 								key={`item-${option.value}`}

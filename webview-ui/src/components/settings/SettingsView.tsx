@@ -22,6 +22,7 @@ import {
 	Button,
 } from "@/components/ui"
 
+import { Tab, TabContent, TabHeader } from "../common/Tab"
 import { SetCachedStateField, SetExperimentEnabled } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import ApiConfigManager from "./ApiConfigManager"
@@ -263,53 +264,41 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 	const scrollToSection = (ref: React.RefObject<HTMLDivElement>) => ref.current?.scrollIntoView()
 
 	return (
-		<div className="fixed inset-0 flex flex-col overflow-hidden">
-			<div className="px-5 py-2.5 border-b border-vscode-panel-border">
-				<div className="flex flex-col">
-					<div className="flex justify-between items-center">
-						<div className="flex items-center gap-2">
-							<h3 className="text-vscode-foreground m-0">Settings</h3>
-							<div className="hidden [@media(min-width:400px)]:flex items-center">
-								{sections.map(({ id, icon: Icon, ref }) => (
-									<Button
-										key={id}
-										variant="ghost"
-										onClick={() => scrollToSection(ref)}
-										className={cn("w-6 h-6", activeSection === id ? "opacity-100" : "opacity-40")}>
-										<Icon />
-									</Button>
-								))}
-							</div>
-						</div>
-						<div className="flex gap-2">
-							<VSCodeButton
-								appearance={isSettingValid ? "primary" : "secondary"}
-								className={!isSettingValid ? "!border-vscode-errorForeground" : ""}
-								title={
-									!isSettingValid
-										? errorMessage
-										: isChangeDetected
-											? "Save changes"
-											: "Nothing changed"
-								}
-								onClick={handleSubmit}
-								disabled={!isChangeDetected || !isSettingValid}>
-								Save
-							</VSCodeButton>
-							<VSCodeButton
-								appearance="secondary"
-								title="Discard unsaved changes and close settings panel"
-								onClick={() => checkUnsaveChanges(onDone)}>
-								Done
-							</VSCodeButton>
-						</div>
+		<Tab>
+			<TabHeader className="flex justify-between items-center gap-2">
+				<div className="flex items-center gap-2">
+					<h3 className="text-vscode-foreground m-0">Settings</h3>
+					<div className="hidden [@media(min-width:400px)]:flex items-center">
+						{sections.map(({ id, icon: Icon, ref }) => (
+							<Button
+								key={id}
+								variant="ghost"
+								onClick={() => scrollToSection(ref)}
+								className={cn("w-6 h-6", activeSection === id ? "opacity-100" : "opacity-40")}>
+								<Icon />
+							</Button>
+						))}
 					</div>
 				</div>
-			</div>
+				<div className="flex gap-2">
+					<VSCodeButton
+						appearance={isSettingValid ? "primary" : "secondary"}
+						className={!isSettingValid ? "!border-vscode-errorForeground" : ""}
+						title={!isSettingValid ? errorMessage : isChangeDetected ? "Save changes" : "Nothing changed"}
+						onClick={handleSubmit}
+						disabled={!isChangeDetected || !isSettingValid}>
+						Save
+					</VSCodeButton>
+					<VSCodeButton
+						appearance="secondary"
+						title="Discard unsaved changes and close settings panel"
+						onClick={() => checkUnsaveChanges(onDone)}>
+						Done
+					</VSCodeButton>
+				</div>
+			</TabHeader>
 
-			<div
-				className="flex flex-col flex-1 overflow-auto divide-y divide-vscode-sideBar-background"
-				onScroll={handleScroll}>
+			<TabContent className="p-0 divide-y divide-vscode-sideBar-background" onScroll={handleScroll}>
 				<div ref={providersRef}>
 					<SectionHeader>
 						<div className="flex items-center gap-2">
@@ -425,7 +414,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 					telemetrySetting={telemetrySetting}
 					setTelemetrySetting={setTelemetrySetting}
 				/>
-			</div>
+			</TabContent>
 
 			<AlertDialog open={isDiscardDialogShow} onOpenChange={setDiscardDialogShow}>
 				<AlertDialogContent>
@@ -442,7 +431,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</div>
+		</Tab>
 	)
 })
 

@@ -55,7 +55,7 @@ import { ClineAskResponse } from "../shared/WebviewMessage"
 import { GlobalFileNames } from "../shared/globalFileNames"
 import { defaultModeSlug, getModeBySlug, getFullModeDetails } from "../shared/modes"
 import { EXPERIMENT_IDS, experiments as Experiments, ExperimentId } from "../shared/experiments"
-import { calculateApiCost } from "../utils/cost"
+import { calculateApiCostAnthropic } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { parseMentions } from "./mentions"
@@ -875,7 +875,7 @@ export class Cline {
 			//  The way this agentic loop works is that cline will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
 			// There is a MAX_REQUESTS_PER_TASK limit to prevent infinite requests, but Cline is prompted to finish the task as efficiently as he can.
 
-			//const totalCost = this.calculateApiCost(totalInputTokens, totalOutputTokens)
+			//const totalCost = this.calculateApiCostAnthropic(totalInputTokens, totalOutputTokens)
 			if (didEndLoop) {
 				// For now a task never 'completes'. This will only happen if the user hits max requests and denies resetting the count.
 				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
@@ -3173,7 +3173,7 @@ export class Cline {
 					cacheReads: cacheReadTokens,
 					cost:
 						totalCost ??
-						calculateApiCost(
+						calculateApiCostAnthropic(
 							this.api.getModel().info,
 							inputTokens,
 							outputTokens,
@@ -3798,6 +3798,8 @@ export class Cline {
 			return
 		}
 
+		telemetryService.captureCheckpointDiffed(this.taskId)
+
 		if (!previousCommitHash && mode === "checkpoint") {
 			const previousCheckpoint = this.clineMessages
 				.filter(({ say }) => say === "checkpoint_saved")
@@ -3849,6 +3851,8 @@ export class Cline {
 			return
 		}
 
+		telemetryService.captureCheckpointCreated(this.taskId)
+
 		// Start the checkpoint process in the background.
 		service.saveCheckpoint(`Task: ${this.taskId}, Time: ${Date.now()}`).catch((err) => {
 			console.error("[Cline#checkpointSave] caught unexpected error, disabling checkpoints", err)
@@ -3879,6 +3883,8 @@ export class Cline {
 
 		try {
 			await service.restoreCheckpoint(commitHash)
+
+			telemetryService.captureCheckpointRestored(this.taskId)
 
 			await this.providerRef.deref()?.postMessageToWebview({ type: "currentCheckpointUpdated", text: commitHash })
 

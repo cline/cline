@@ -1,3 +1,4 @@
+import { useState } from "react"
 import {
 	VSCodeButton,
 	VSCodeCheckbox,
@@ -6,14 +7,17 @@ import {
 	VSCodePanelTab,
 	VSCodePanelView,
 } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
-import { vscode } from "../../utils/vscode"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+
 import { McpServer } from "../../../../src/shared/mcp"
+
+import { vscode } from "@/utils/vscode"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui"
+
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { Tab, TabContent, TabHeader } from "../common/Tab"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import McpEnabledToggle from "./McpEnabledToggle"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog"
 
 type McpViewProps = {
 	onDone: () => void
@@ -29,12 +33,13 @@ const McpView = ({ onDone }: McpViewProps) => {
 	} = useExtensionState()
 
 	return (
-		<div className="fixed inset-0 flex flex-col">
-			<div className="flex justify-between items-center px-5 py-2.5 border-b border-vscode-panel-border">
+		<Tab>
+			<TabHeader className="flex justify-between items-center">
 				<h3 className="text-vscode-foreground m-0">MCP Servers</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
-			</div>
-			<div className="flex-1 overflow-auto p-5">
+			</TabHeader>
+
+			<TabContent>
 				<div
 					style={{
 						color: "var(--vscode-foreground)",
@@ -103,12 +108,11 @@ const McpView = ({ onDone }: McpViewProps) => {
 						</div>
 					</>
 				)}
-			</div>
-		</div>
+			</TabContent>
+		</Tab>
 	)
 }
 
-// Server Row Component
 const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowMcp?: boolean }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
