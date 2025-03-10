@@ -209,13 +209,8 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 
 				// First pass: Extract all URLs and immediately make them available for rendering
 				while ((urlMatch = urlRegex.exec(text)) !== null && urlCount < MAX_URLS) {
-					let url = urlMatch[0]
-					
-					// Convert HTTP to HTTPS for security
-					if (url.startsWith('http://')) {
-						url = url.replace('http://', 'https://');
-						console.log(`Converted HTTP URL to HTTPS in response: ${url}`);
-					}
+					// Get the original URL from the match - never modify the original URL text
+					const url = urlMatch[0]
 					
 					// Skip invalid URLs
 					if (!isUrl(url)) {
@@ -401,7 +396,8 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					if (match.isImage) {
 						segments.push(
 							<div key={`embed-image-${url}-${segmentIndex++}`}>
-								<ImagePreview url={url} />
+								{/* Use formatUrlForOpening for network calls but preserve original URL in display */}
+								<ImagePreview url={formatUrlForOpening(url)} />
 							</div>
 						)
 						embedCount++;
@@ -415,6 +411,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 								segments.push(
 									<div key={`embed-${url}-${segmentIndex++}`} style={{ margin: "10px 0" }}>
 										<ErrorBoundary>
+											{/* Already using formatUrlForOpening for link previews */}
 											<LinkPreview url={formatUrlForOpening(url)} />
 										</ErrorBoundary>
 									</div>,

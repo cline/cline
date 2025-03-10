@@ -135,10 +135,12 @@ export const checkIfImageUrl = async (url: string): Promise<boolean> => {
 		return true
 	}
 
-	// Convert HTTP to HTTPS for security
-	if (url.startsWith("http://")) {
-		url = url.replace("http://", "https://");
-		console.log(`Converted HTTP URL to HTTPS for image check: ${url}`);
+	// Create a secure URL for the check but don't modify the original URL
+	let secureUrl = url;
+	// Convert HTTP to HTTPS for security in the network request only
+	if (secureUrl.startsWith("http://")) {
+		secureUrl = secureUrl.replace("http://", "https://");
+		console.log(`Using HTTPS version for image check: ${secureUrl}`);
 	}
 
 	// Validate URL before proceeding
@@ -267,24 +269,20 @@ export const findUrls = async (obj: any): Promise<{ imageUrls: string[]; regular
 			}
 			
 			if (typeof value === "string") {
-				// Convert HTTP to HTTPS for security
-				let processedValue = value;
-				if (processedValue.startsWith('http://')) {
-					processedValue = processedValue.replace('http://', 'https://');
-					console.log(`Converted HTTP URL to HTTPS in object value: ${processedValue}`);
-				}
+				const originalUrl = value; // Keep the original URL
 				
 				// Skip localhost URLs to prevent security issues
-				if (isLocalhostUrl(processedValue)) {
-					console.log("Skipping localhost URL:", processedValue);
+				if (isLocalhostUrl(originalUrl)) {
+					console.log("Skipping localhost URL:", originalUrl);
 					continue;
 				}
 				
 				// First check with synchronous method
-				if (isImageUrlSync(processedValue)) {
-					imageUrls.push(processedValue)
+				if (isImageUrlSync(originalUrl)) {
+					// Store the original URL, not a modified version
+					imageUrls.push(originalUrl)
 					urlCount++;
-				} else if (isUrl(processedValue)) {
+				} else if (isUrl(originalUrl)) {
 					// For URLs that don't obviously look like images, we'll check asynchronously
 					const checkPromise = checkIfImageUrl(value).then((isImage) => {
 						if (isImage) {
