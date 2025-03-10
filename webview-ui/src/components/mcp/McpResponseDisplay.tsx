@@ -159,8 +159,6 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	})
 	const [urlMatches, setUrlMatches] = useState<UrlMatch[]>([])
 	const [error, setError] = useState<string | null>(null)
-	// Reference to track if processing should be canceled
-	const processingCancelRef = useRef(false)
 
 	const toggleDisplayMode = useCallback(() => {
 		const newMode = displayMode === "rich" ? "plain" : "rich"
@@ -170,7 +168,6 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		// If switching to plain mode, cancel any ongoing processing
 		if (newMode === "plain") {
 			console.log("Switching to plain mode - canceling URL processing");
-			processingCancelRef.current = true;
 			setUrlMatches([]); // Clear any existing matches when switching to plain mode
 		} else {
 			// If switching to rich mode, the useEffect will re-run and fetch data
@@ -182,15 +179,15 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 
 	// Find all URLs in the text and determine if they're images
 	useEffect(() => {
-		// Reset cancel flag when effect runs
-		processingCancelRef.current = false;
-		
 		// Skip all processing if in plain mode
 		if (displayMode === "plain") {
 			setIsLoading(false);
 			setUrlMatches([]); // Clear any existing matches when in plain mode
 			return;
 		}
+		
+		// Use a direct boolean for cancellation that's scoped to this effect run
+		let processingCanceled = false;
 		
 		const processResponse = async () => {
 			console.log("Processing MCP response for URL extraction");
@@ -257,7 +254,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						if (matches[i].isProcessed) continue;
 						
 						// Check if processing has been canceled (switched to plain mode)
-						if (processingCancelRef.current) {
+						if (processingCanceled) {
 							console.log("URL processing canceled - display mode changed to plain");
 							return;
 						}
@@ -270,7 +267,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 							const isImage = await checkIfImageUrl(match.url);
 							
 							// Skip if processing has been canceled
-							if (processingCancelRef.current) return;
+							if (processingCanceled) return;
 							
 							// Update the match in place
 							match.isImage = isImage;
@@ -285,13 +282,13 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 							match.isProcessed = true;
 							
 							// Update state even on error
-							if (!processingCancelRef.current) {
+							if (!processingCanceled) {
 								setUrlMatches([...matches]);
 							}
 						}
 						
 						// Delay between URL processing to avoid overwhelming the network
-						if (!processingCancelRef.current && i < matches.length - 1) {
+						if (!processingCanceled && i < matches.length - 1) {
 							// Much longer delay between URLs to avoid network flooding
 							// This gives each URL more time to complete before starting the next one
 							await new Promise(resolve => setTimeout(resolve, 100));
@@ -315,7 +312,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		
 		// Cleanup function to cancel processing if component unmounts or dependencies change
 		return () => {
-			processingCancelRef.current = true;
+			processingCanceled = true;
 			console.log("Cleaning up URL processing");
 		};
 	}, [responseText, displayMode]) // Added displayMode as a dependency

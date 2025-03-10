@@ -186,7 +186,6 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 	}
 	
 	componentWillUnmount() {
-		console.log(`ImagePreview unmounting for ${this.props.url}`);
 		this.cleanup();
 	}
 	

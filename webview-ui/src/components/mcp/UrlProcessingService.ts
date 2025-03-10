@@ -22,7 +22,6 @@ export const safeCreateUrl = (url: string): URL | null => {
 		// Convert HTTP to HTTPS for security
 		if (url.startsWith('http://')) {
 			url = url.replace('http://', 'https://');
-			console.log(`Converted HTTP URL to HTTPS: ${url}`);
 		}
 		
 		return new URL(url);
