@@ -84,7 +84,9 @@ export const normalizeRelativeUrl = (relativeUrl: string, baseUrl: string): stri
 	try {
 		// Parse the base URL
 		const baseUrlObj = safeCreateUrl(baseUrl)
-		if (!baseUrlObj) return relativeUrl // If we can't parse the base URL, return original
+		if (!baseUrlObj) {
+			return relativeUrl // If we can't parse the base URL, return original
+		}
 
 		// Handle different types of relative paths
 		if (relativeUrl.startsWith("//")) {
