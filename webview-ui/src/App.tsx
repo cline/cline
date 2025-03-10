@@ -132,7 +132,6 @@ const App = () => {
 const AppWithProviders = () => (
 	<ExtensionStateContextProvider>
 		<App />
-		<div id="roo-portal" />
 	</ExtensionStateContextProvider>
 )
 

@@ -1,4 +1,8 @@
 import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+import { useRooPortal } from "./hooks/useRooPortal"
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -6,9 +10,7 @@ import {
 	DropdownMenuTrigger,
 	DropdownMenuSeparator,
 } from "./dropdown-menu"
-import { cn } from "@/lib/utils"
 
-// Constants for option types
 export enum DropdownOptionType {
 	ITEM = "item",
 	SEPARATOR = "separator",
@@ -19,7 +21,7 @@ export interface DropdownOption {
 	value: string
 	label: string
 	disabled?: boolean
-	type?: DropdownOptionType // Optional type to specify special behaviors
+	type?: DropdownOptionType
 }
 
 export interface SelectDropdownProps {
@@ -37,8 +39,6 @@ export interface SelectDropdownProps {
 	placeholder?: string
 	shortcutText?: string
 }
-
-// TODO: Get rid of this and use the native @shadcn/ui `Select` component.
 
 export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownMenuTrigger>, SelectDropdownProps>(
 	(
@@ -59,24 +59,19 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 		},
 		ref,
 	) => {
-		// Track open state
 		const [open, setOpen] = React.useState(false)
+		const portalContainer = useRooPortal("roo-portal")
 
-		// Find the selected option label
 		const selectedOption = options.find((option) => option.value === value)
 		const displayText = selectedOption?.label || placeholder || ""
 
-		// Handle menu item click
 		const handleSelect = (option: DropdownOption) => {
-			// Check if this is an action option by its explicit type
 			if (option.type === DropdownOptionType.ACTION) {
-				window.postMessage({
-					type: "action",
-					action: option.value,
-				})
+				window.postMessage({ type: "action", action: option.value })
 				setOpen(false)
 				return
 			}
+
 			onChange(option.value)
 			setOpen(false)
 		}
@@ -94,7 +89,7 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 						triggerClassName,
 					)}
 					style={{
-						width: "100%", // Take full width of parent
+						width: "100%", // Take full width of parent.
 						minWidth: "0",
 						maxWidth: "100%",
 					}}>
@@ -121,17 +116,16 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 					sideOffset={sideOffset}
 					onEscapeKeyDown={() => setOpen(false)}
 					onInteractOutside={() => setOpen(false)}
+					container={portalContainer}
 					className={cn(
 						"bg-vscode-dropdown-background text-vscode-dropdown-foreground border border-vscode-dropdown-border z-50",
 						contentClassName,
 					)}>
 					{options.map((option, index) => {
-						// Handle separator type
 						if (option.type === DropdownOptionType.SEPARATOR) {
 							return <DropdownMenuSeparator key={`sep-${index}`} />
 						}
 
-						// Handle shortcut text type (disabled label for keyboard shortcuts)
 						if (
 							option.type === DropdownOptionType.SHORTCUT ||
 							(option.disabled && shortcutText && option.label.includes(shortcutText))
@@ -143,7 +137,6 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 							)
 						}
 
-						// Regular menu items
 						return (
 							<DropdownMenuItem
 								key={`item-${option.value}`}

@@ -2,6 +2,7 @@ import { useState, useCallback } from "react"
 import { CheckIcon, Cross2Icon } from "@radix-ui/react-icons"
 
 import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui"
+import { useRooPortal } from "@/components/ui/hooks"
 
 import { vscode } from "../../../utils/vscode"
 import { Checkpoint } from "./schema"
@@ -16,6 +17,7 @@ type CheckpointMenuProps = {
 export const CheckpointMenu = ({ ts, commitHash, currentHash, checkpoint }: CheckpointMenuProps) => {
 	const [isOpen, setIsOpen] = useState(false)
 	const [isConfirming, setIsConfirming] = useState(false)
+	const portalContainer = useRooPortal("roo-portal")
 
 	const isCurrent = currentHash === commitHash
 	const isFirst = checkpoint.isFirst
@@ -60,7 +62,7 @@ export const CheckpointMenu = ({ ts, commitHash, currentHash, checkpoint }: Chec
 							<span className="codicon codicon-history" />
 						</Button>
 					</PopoverTrigger>
-					<PopoverContent align="end">
+					<PopoverContent align="end" container={portalContainer}>
 						<div className="flex flex-col gap-2">
 							{!isCurrent && (
 								<div className="flex flex-col gap-1 group hover:text-foreground">
