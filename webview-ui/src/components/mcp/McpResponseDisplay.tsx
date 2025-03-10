@@ -4,300 +4,18 @@ import LinkPreview from "./LinkPreview"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import DOMPurify from "dompurify"
-
-// We'll use the backend isImageUrl function for HEAD requests
-// This is a client-side fallback for data URLs and obvious image extensions
-const isImageUrlSync = (str: string): boolean => {
-	// Check for data URLs which are definitely images
-	if (str.startsWith("data:image/")) {
-		return true
-	}
-
-	// Check for common image file extensions
-	return str.match(/\.(jpg|jpeg|png|gif|webp)$/i) !== null
-}
-
-export const isUrl = (str: string): boolean => {
-	try {
-		// Try to construct a URL object - this is the most reliable way to validate
-		new URL(str);
-		return true;
-	} catch (e) {
-		// If the URL doesn't have a protocol, try adding https://
-		if (!str.startsWith('http://') && !str.startsWith('https://')) {
-			try {
-				new URL(`https://${str}`);
-				return true;
-			} catch (e) {
-				return false;
-			}
-		}
-		return false;
-	}
-}
-
-// Safely create a URL object with error handling
-export const safeCreateUrl = (url: string): URL | null => {
-	try {
-		return new URL(url);
-	} catch (e) {
-		// If the URL doesn't have a protocol, try adding https://
-		if (!url.startsWith('http://') && !url.startsWith('https://')) {
-			try {
-				return new URL(`https://${url}`);
-			} catch (e) {
-				console.log(`Invalid URL: ${url}`);
-				return null;
-			}
-		}
-		console.log(`Invalid URL: ${url}`);
-		return null;
-	}
-}
-
-// Get hostname safely
-export const getSafeHostname = (url: string): string => {
-	try {
-		const urlObj = safeCreateUrl(url);
-		return urlObj ? urlObj.hostname : new URL('https://example.com').hostname;
-	} catch (e) {
-		return 'unknown-host';
-	}
-}
-
-// Function to check if a URL is an image using HEAD request
-export const checkIfImageUrl = async (url: string): Promise<boolean> => {
-	// For data URLs, we can check synchronously
-	if (url.startsWith("data:image/")) {
-		return true
-	}
-
-	// Validate URL before proceeding
-	if (!isUrl(url)) {
-		console.log("Invalid URL format:", url);
-		return false;
-	}
-
-	// For http/https URLs, we need to send a message to the extension
-	if (url.startsWith("http")) {
-		try {
-			// Create a promise that will resolve when we get a response
-			return new Promise((resolve) => {
-				// Set up a one-time listener for the response
-				const messageListener = (event: MessageEvent) => {
-					const message = event.data
-					if (message.type === "isImageUrlResult" && message.url === url) {
-						window.removeEventListener("message", messageListener)
-						resolve(message.isImage)
-					}
-				}
-
-				window.addEventListener("message", messageListener)
-
-				// Send the request to the extension
-				vscode.postMessage({
-					type: "checkIsImageUrl",
-					text: url,
-				})
-
-				// Set a timeout to avoid hanging indefinitely
-				setTimeout(() => {
-					window.removeEventListener("message", messageListener)
-					// Fall back to extension check
-					resolve(isImageUrlSync(url))
-				}, 3000)
-			})
-		} catch (error) {
-			console.log("Error checking if URL is an image:", url);
-			return isImageUrlSync(url)
-		}
-	}
-
-	// Fall back to extension check for other URLs
-	return isImageUrlSync(url)
-}
-
-// Helper to ensure URL is in a format that can be opened
-export const formatUrlForOpening = (url: string): string => {
-	// If it's a data URI, return as is
-	if (url.startsWith("data:image/")) {
-		return url
-	}
-
-	// Validate URL
-	try {
-		// If it's a regular URL but doesn't have a protocol, add https://
-		if (!url.startsWith("http://") && !url.startsWith("https://")) {
-			// Validate with https:// prefix
-			new URL(`https://${url}`);
-			return `https://${url}`
-		}
-		
-		// Validate as-is
-		new URL(url);
-		return url;
-	} catch (e) {
-		console.log(`Invalid URL format: ${url}`);
-		// Return a safe fallback that won't crash
-		return "about:blank";
-	}
-}
-
-// Find all URLs (both image and regular) in an object
-export const findUrls = async (obj: any): Promise<{ imageUrls: string[]; regularUrls: string[] }> => {
-	const imageUrls: string[] = []
-	const regularUrls: string[] = []
-	const pendingChecks: Promise<void>[] = []
-	
-	// Limit the number of URLs to process to prevent performance issues
-	const MAX_URLS = 100;
-	let urlCount = 0;
-
-	if (typeof obj === "object" && obj !== null) {
-		for (const value of Object.values(obj)) {
-			// Stop processing if we've reached the limit
-			if (urlCount >= MAX_URLS) break;
-			
-			if (typeof value === "string") {
-				// First check with synchronous method
-				if (isImageUrlSync(value)) {
-					imageUrls.push(value)
-					urlCount++;
-				} else if (isUrl(value)) {
-					// For URLs that don't obviously look like images, we'll check asynchronously
-					const checkPromise = checkIfImageUrl(value).then((isImage) => {
-						if (isImage) {
-							imageUrls.push(value)
-						} else {
-							regularUrls.push(value)
-						}
-					}).catch(err => {
-						console.log(`URL check skipped: ${value}`);
-					});
-					pendingChecks.push(checkPromise)
-					urlCount++;
-				}
-			} else if (typeof value === "object") {
-				const nestedUrlsPromise = findUrls(value).then((nestedUrls) => {
-					// Respect the URL limit for nested objects too
-					const remainingSlots = MAX_URLS - urlCount;
-					if (remainingSlots > 0) {
-						const imageUrlsToAdd = nestedUrls.imageUrls.slice(0, remainingSlots);
-						imageUrls.push(...imageUrlsToAdd);
-						
-						const newCount = urlCount + imageUrlsToAdd.length;
-						const regularUrlsToAdd = nestedUrls.regularUrls.slice(0, MAX_URLS - newCount);
-						regularUrls.push(...regularUrlsToAdd);
-						
-						urlCount = newCount + regularUrlsToAdd.length;
-					}
-				}).catch(err => {
-					console.log("Some nested URLs could not be processed");
-				});
-				pendingChecks.push(nestedUrlsPromise)
-			}
-		}
-	}
-
-	// Process URLs in batches of 4 at a time to limit parallel connections
-	try {
-		// Process in batches of 4
-		for (let i = 0; i < pendingChecks.length; i += 4) {
-			const batch = pendingChecks.slice(i, i + 4);
-			await Promise.race([
-				Promise.all(batch),
-				new Promise(resolve => setTimeout(resolve, 5000)) // 5 second timeout per batch
-			]);
-		}
-	} catch (error) {
-		console.log("Some URLs could not be processed within the timeout period");
-	}
-
-	return { imageUrls, regularUrls }
-}
-
-// Extract URLs from text using regex
-export const extractUrlsFromText = async (text: string): Promise<{ imageUrls: string[]; regularUrls: string[] }> => {
-	const imageUrls: string[] = []
-	const regularUrls: string[] = []
-	const pendingChecks: Promise<void>[] = []
-	
-	// Limit the number of URLs to process
-	const MAX_URLS = 100;
-	let urlCount = 0;
-
-	// Match URLs with image: prefix and extract just the URL part
-	const imageMatches = text.match(/image:\s*(https?:\/\/[^\s]+)/g)
-	if (imageMatches) {
-		// Extract just the URL part from matches with image: prefix
-		const extractedUrls = imageMatches
-			.map((match) => {
-				const urlMatch = /image:\s*(https?:\/\/[^\s]+)/.exec(match)
-				return urlMatch ? urlMatch[1] : null
-			})
-			.filter(Boolean) as string[]
-
-		// Respect URL limit
-		const urlsToAdd = extractedUrls.slice(0, MAX_URLS);
-		imageUrls.push(...urlsToAdd)
-		urlCount += urlsToAdd.length;
-	}
-
-	// Match all URLs (including those that might be in the middle of paragraphs)
-	const urlMatches = text.match(/https?:\/\/[^\s]+/g)
-	if (urlMatches && urlCount < MAX_URLS) {
-		// Filter out URLs that are already in imageUrls
-		const filteredUrls = urlMatches
-			.filter((url) => !imageUrls.includes(url))
-			// Limit the number of URLs to process
-			.slice(0, MAX_URLS - urlCount);
-
-		// Check each URL to see if it's an image
-		for (const url of filteredUrls) {
-			// Validate URL before processing
-			if (!isUrl(url)) {
-				console.log("Skipping invalid URL:", url);
-				continue;
-			}
-			
-			// First check with synchronous method
-			if (isImageUrlSync(url)) {
-				imageUrls.push(url)
-			} else {
-				// For URLs that don't obviously look like images, we'll check asynchronously
-				const checkPromise = checkIfImageUrl(url)
-					.then((isImage) => {
-						if (isImage) {
-							imageUrls.push(url)
-						} else {
-							regularUrls.push(url)
-						}
-					})
-					.catch(err => {
-						console.log(`URL check skipped: ${url}`);
-					});
-				pendingChecks.push(checkPromise)
-			}
-			urlCount++;
-		}
-	}
-
-	// Process URLs in batches of 4 at a time to limit parallel connections
-	try {
-		// Process in batches of 4
-		for (let i = 0; i < pendingChecks.length; i += 4) {
-			const batch = pendingChecks.slice(i, i + 4);
-			await Promise.race([
-				Promise.all(batch),
-				new Promise(resolve => setTimeout(resolve, 5000)) // 5 second timeout per batch
-			]);
-		}
-	} catch (error) {
-		console.log("Some URLs could not be processed within the timeout period");
-	}
-
-	return { imageUrls, regularUrls }
-}
+import {
+	isImageUrlSync,
+	isUrl,
+	safeCreateUrl,
+	getSafeHostname,
+	formatUrlForOpening,
+	checkIfImageUrl,
+	extractUrlsFromText,
+	findUrls,
+	MAX_URLS,
+	processBatch
+} from "./UrlProcessingService"
 
 const ResponseHeader = styled.div`
 	display: flex;
@@ -452,6 +170,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	// Find all URLs in the text and determine if they're images
 	useEffect(() => {
 		const processResponse = async () => {
+			console.log("Processing MCP response for URL extraction");
 			setIsLoading(true)
 			setError(null)
 
@@ -463,8 +182,6 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 				const urlRegex = /https?:\/\/[^\s<>"']+/g
 				let urlMatch: RegExpExecArray | null
 				
-				// Limit the number of URLs to process
-				const MAX_URLS = 100;
 				let urlCount = 0;
 
 				while ((urlMatch = urlRegex.exec(text)) !== null && urlCount < MAX_URLS) {
@@ -493,38 +210,54 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					urlCount++;
 				}
 
-				// Check if URLs are images with a timeout
-				const checkPromises = matches.map(match => {
-					return Promise.race([
-						checkIfImageUrl(match.url)
+				console.log(`Found ${matches.length} URLs in text, checking if they are images`);
+
+				// First set the matches with default values so UI can start rendering
+				setUrlMatches(matches);
+				
+				// Then process in smaller batches with progressive updates
+				const batchSize = 4; // Process 4 at a time to avoid overwhelming the system
+				
+				for (let i = 0; i < matches.length; i += batchSize) {
+					const batchMatches = matches.slice(i, i + batchSize);
+					console.log(`Processing URL batch ${Math.floor(i/batchSize) + 1} of ${Math.ceil(matches.length/batchSize)}`);
+					
+					// Create promises for each URL in this batch
+					const checkPromises = batchMatches.map(match => {
+						return checkIfImageUrl(match.url)
 							.then(isImage => {
+								// Update the match in place
 								match.isImage = isImage;
 								return match;
 							})
 							.catch(err => {
 								console.log(`URL check skipped: ${match.url}`);
 								return match; // Return the match unchanged on error
-							}),
-						// Timeout after 3 seconds
-						new Promise<typeof match>(resolve => {
-							setTimeout(() => resolve(match), 3000);
-						})
-					]);
-				});
-
-				// Process URL checks in batches of 4 at a time
-				for (let i = 0; i < checkPromises.length; i += 4) {
-					const batch = checkPromises.slice(i, i + 4);
-					await Promise.race([
-						Promise.all(batch),
-						new Promise(resolve => setTimeout(resolve, 5000)) // 5 second timeout per batch
-					]);
+							});
+					});
+					
+					// Process this batch with individual timeouts
+					const processedBatch = await processBatch(checkPromises, batchSize, 3000);
+					
+					// Update state after each batch to show progress
+					setUrlMatches(prevMatches => {
+						// Create a new array to trigger re-render
+						const newMatches = [...prevMatches];
+						return newMatches;
+					});
+					
+					// Small delay between batches to allow UI to update
+					if (i + batchSize < matches.length) {
+						await new Promise(resolve => setTimeout(resolve, 50));
+					}
 				}
 
-				// Sort by position in the text
-				matches.sort((a, b) => a.index - b.index)
-
-				setUrlMatches(matches)
+				// Final sort by position in the text
+				setUrlMatches(prevMatches => {
+					const sortedMatches = [...prevMatches].sort((a, b) => a.index - b.index);
+					console.log(`URL processing complete. Found ${sortedMatches.filter(m => m.isImage).length} image URLs`);
+					return sortedMatches;
+				});
 			} catch (error) {
 				console.log("Error processing MCP response - switching to plain text mode");
 				setError("Failed to process response content. Switch to plain text mode to view safely.")
@@ -562,11 +295,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			let lastIndex = 0
 			let segmentIndex = 0
 
-			// Reset the processed flag for all URLs
-			const processedUrls = new Set<string>()
-			
-			// Limit the number of embedded previews to prevent performance issues
-			const MAX_EMBEDS = 5;
+			// Track embed count for logging
 			let embedCount = 0;
 
 			// Add the text before the first URL
@@ -590,62 +319,87 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					// Calculate the end position of this URL in the text
 					const urlEndIndex = index + fullMatch.length
 
-					// Add embedded content after the URL (with limits)
-					if (embedCount < MAX_EMBEDS) {
-						if (match.isImage) {
-							segments.push(
-								<div key={`embed-${segmentIndex++}`} style={{ margin: "10px 0" }}>
-									<ErrorBoundary>
-										<img
-											src={DOMPurify.sanitize(url)}
-											alt={`Image for ${url}`}
-											style={{
-												width: "85%",
-												height: "auto",
-												borderRadius: "4px",
-												cursor: "pointer",
-											}}
-											onClick={() => {
-												try {
-													const formattedUrl = formatUrlForOpening(url)
-													vscode.postMessage({
-														type: "openInBrowser",
-														url: DOMPurify.sanitize(formattedUrl),
-													})
-												} catch (e) {
-													console.log("Error opening URL");
-												}
-											}}
-											onError={(e) => {
-												console.log(`Image could not be loaded: ${url}`);
-												// Hide the broken image
-												(e.target as HTMLImageElement).style.display = 'none';
-											}}
-										/>
-									</ErrorBoundary>
-								</div>,
-							)
-							embedCount++;
-						} else if (!processedUrls.has(url)) {
-							// For non-image URLs, only show the preview once
-							try {
-								// Skip localhost URLs
-								if (!url.includes('localhost') && !url.includes('127.0.0.1') && !url.includes('0.0.0.0')) {
-									segments.push(
-										<div key={`embed-${segmentIndex++}`} style={{ margin: "10px 0" }}>
-											<ErrorBoundary>
-												<LinkPreview url={formatUrlForOpening(url)} />
-											</ErrorBoundary>
-										</div>,
-									)
-									
-									// Mark this URL as processed
-									processedUrls.add(url)
-									embedCount++;
-								}
-							} catch (e) {
-								console.log("Link preview could not be created");
+					// Add embedded content after the URL - always show embed for every URL instance
+					if (match.isImage) {
+						segments.push(
+							<div key={`embed-${segmentIndex++}`} style={{ margin: "10px 0" }}>
+								<ErrorBoundary>
+									<img
+										src={DOMPurify.sanitize(url)}
+										alt={`Image for ${url}`}
+										style={{
+											width: "85%",
+											height: "auto",
+											borderRadius: "4px",
+											cursor: "pointer",
+										}}
+										onClick={() => {
+											try {
+												const formattedUrl = formatUrlForOpening(url)
+												vscode.postMessage({
+													type: "openInBrowser",
+													url: DOMPurify.sanitize(formattedUrl),
+												})
+											} catch (e) {
+												console.log("Error opening URL");
+											}
+										}}
+										onError={(e) => {
+											console.log(`Image could not be loaded: ${url}`);
+											// Show error message instead of hiding
+											const imgElement = e.target as HTMLImageElement;
+											const parent = imgElement.parentElement;
+											if (parent) {
+												const errorMsg = document.createElement('div');
+												errorMsg.textContent = `Failed to load image: ${url}`;
+												errorMsg.style.color = 'var(--vscode-errorForeground)';
+												errorMsg.style.padding = '8px';
+												errorMsg.style.border = '1px solid var(--vscode-editorError-foreground)';
+												errorMsg.style.borderRadius = '4px';
+												errorMsg.style.marginTop = '8px';
+												parent.appendChild(errorMsg);
+												imgElement.style.display = 'none';
+											}
+										}}
+									/>
+								</ErrorBoundary>
+							</div>,
+						)
+						embedCount++;
+						console.log(`Added image embed for ${url}, embed count: ${embedCount}`);
+					} else {
+						// For non-image URLs, always show the preview
+						try {
+							// Skip localhost URLs
+							if (!url.includes('localhost') && !url.includes('127.0.0.1') && !url.includes('0.0.0.0')) {
+								segments.push(
+									<div key={`embed-${segmentIndex++}`} style={{ margin: "10px 0" }}>
+										<ErrorBoundary>
+											<LinkPreview url={formatUrlForOpening(url)} />
+										</ErrorBoundary>
+									</div>,
+								)
+								
+								embedCount++;
+								console.log(`Added link preview for ${url}, embed count: ${embedCount}`);
 							}
+						} catch (e) {
+							console.log("Link preview could not be created");
+							// Show error message for failed link preview
+							segments.push(
+								<div 
+									key={`embed-error-${segmentIndex++}`} 
+									style={{ 
+										margin: "10px 0",
+										padding: "8px",
+										color: "var(--vscode-errorForeground)",
+										border: "1px solid var(--vscode-editorError-foreground)",
+										borderRadius: "4px"
+									}}
+								>
+									Failed to create preview for: {url}
+								</div>
+							);
 						}
 					}
 
@@ -697,4 +451,13 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	}
 }
 
-export default McpResponseDisplay
+// Wrap the entire McpResponseDisplay component with an error boundary
+const McpResponseDisplayWithErrorBoundary: React.FC<McpResponseDisplayProps> = (props) => {
+	return (
+		<ErrorBoundary>
+			<McpResponseDisplay {...props} />
+		</ErrorBoundary>
+	);
+};
+
+export default McpResponseDisplayWithErrorBoundary;

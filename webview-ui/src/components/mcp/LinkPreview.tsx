@@ -1,6 +1,39 @@
 import React, { useEffect, useState } from "react"
 import { vscode } from "../../utils/vscode"
 import DOMPurify from "dompurify"
+import { getSafeHostname } from "./UrlProcessingService"
+
+// Error boundary component to prevent crashes
+class ErrorBoundary extends React.Component<
+	{ children: React.ReactNode },
+	{ hasError: boolean; error: Error | null }
+> {
+	constructor(props: { children: React.ReactNode }) {
+		super(props);
+		this.state = { hasError: false, error: null };
+	}
+
+	static getDerivedStateFromError(error: Error) {
+		return { hasError: true, error };
+	}
+
+	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+		console.log("Error in LinkPreview component:", error.message);
+	}
+
+	render() {
+		if (this.state.hasError) {
+			return (
+				<div style={{ padding: "10px", color: "var(--vscode-errorForeground)" }}>
+					<h3>Something went wrong displaying this link preview</h3>
+					<p>Error: {this.state.error?.message || "Unknown error"}</p>
+				</div>
+			);
+		}
+
+		return this.props.children;
+	}
+}
 
 interface OpenGraphData {
 	title?: string
@@ -43,9 +76,23 @@ const LinkPreview: React.FC<LinkPreviewProps> = ({ url }) => {
 
 				window.addEventListener("message", messageListener)
 
-				// Clean up the listener if the component unmounts
+				// Set a timeout to avoid hanging indefinitely
+				const timeoutId = setTimeout(() => {
+					window.removeEventListener("message", messageListener)
+					// Fallback to basic data if timeout occurs
+					setOgData({
+						title: getSafeHostname(url),
+						description: "Preview timed out. Click to open in browser.",
+						siteName: getSafeHostname(url),
+						url: url,
+					})
+					setLoading(false)
+				}, 5000)
+
+				// Clean up the listener and timeout if the component unmounts
 				return () => {
 					window.removeEventListener("message", messageListener)
+					clearTimeout(timeoutId)
 				}
 			} catch (err) {
 				setError("Failed to fetch preview data")
@@ -57,15 +104,6 @@ const LinkPreview: React.FC<LinkPreviewProps> = ({ url }) => {
 		fetchOpenGraphData()
 	}, [url])
 
-	// Safely get hostname from URL
-	const getSafeHostname = (url: string): string => {
-		try {
-			return new URL(url).hostname;
-		} catch (e) {
-			console.log(`Invalid URL in LinkPreview: ${url}`);
-			return "unknown-host";
-		}
-	};
 
 	// Fallback display while loading
 	if (loading) {
@@ -147,15 +185,22 @@ const LinkPreview: React.FC<LinkPreviewProps> = ({ url }) => {
 			}}>
 			{data.image && (
 				<div className="link-preview-image" style={{ width: "128px", height: "128px", flexShrink: 0 }}>
-					<img
-						src={DOMPurify.sanitize(data.image)}
-						alt=""
-						style={{
-							width: "100%",
-							height: "100%",
-							objectFit: "cover",
-						}}
-					/>
+					<ErrorBoundary>
+						<img
+							src={DOMPurify.sanitize(data.image)}
+							alt=""
+							style={{
+								width: "100%",
+								height: "100%",
+								objectFit: "cover",
+							}}
+							onError={(e) => {
+								console.log(`Image could not be loaded: ${data.image}`);
+								// Hide the broken image
+								(e.target as HTMLImageElement).style.display = 'none';
+							}}
+						/>
+					</ErrorBoundary>
 				</div>
 			)}
 
@@ -211,4 +256,13 @@ const LinkPreview: React.FC<LinkPreviewProps> = ({ url }) => {
 	)
 }
 
-export default LinkPreview
+// Wrap the LinkPreview component with an error boundary
+const LinkPreviewWithErrorBoundary: React.FC<LinkPreviewProps> = (props) => {
+	return (
+		<ErrorBoundary>
+			<LinkPreview {...props} />
+		</ErrorBoundary>
+	);
+};
+
+export default LinkPreviewWithErrorBoundary;
