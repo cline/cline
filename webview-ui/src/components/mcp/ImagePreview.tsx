@@ -88,29 +88,20 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 		this.checkContentType(this.props.url);
 	}
 	
-	// Check if the URL is an image using existing functionality
+	// Check if the URL is an image using content type verification
 	checkContentType(url: string) {
 		console.log(`Checking if URL is an image: ${url}`);
 		
-		// Check if it's an SVG or WebP by extension first
-		// Use a more robust regex that handles query parameters and path segments
-		const isSvg = /\.svg(\?.*)?$/i.test(url);
-		const isWebp = /\.webp(\?.*)?$/i.test(url);
-		
-		if (isSvg || isWebp) {
-			console.log(`URL is ${isSvg ? 'SVG' : 'WebP'} by extension: ${url}`);
-			this.loadImage(url, isSvg, isWebp);
-			return;
-		}
-		
-		// Use the existing checkIfImageUrl function from UrlProcessingService
-		// This function already sends a message to the extension to check if a URL is an image
+		// Always verify content type, even for URLs that look like images by extension
 		import("./UrlProcessingService").then(({ checkIfImageUrl }) => {
 			checkIfImageUrl(url)
 				.then(isImage => {
 					if (isImage) {
 						console.log(`URL is confirmed as image: ${url}`);
-						this.loadImage(url);
+						// Detect SVG and WebP for special handling, but only after content type verification
+						const isSvg = /\.svg(\?.*)?$/i.test(url);
+						const isWebp = /\.webp(\?.*)?$/i.test(url);
+						this.loadImage(url, isSvg, isWebp);
 					} else {
 						console.log(`URL is not an image: ${url}`);
 						this.handleImageError();
@@ -118,8 +109,9 @@ class ImagePreview extends React.Component<ImagePreviewProps, {
 				})
 				.catch(error => {
 					console.log(`Error checking if URL is an image: ${error}`);
-					// Fallback to direct image loading
-					this.loadImage(url);
+					// Don't fallback to direct image loading on error
+					// Instead, report the error so the URL can be handled as a non-image
+					this.handleImageError();
 				});
 		});
 	}

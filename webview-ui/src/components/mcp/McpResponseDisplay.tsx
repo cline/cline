@@ -247,30 +247,9 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 				const processImageChecks = async () => {
 					console.log(`Starting sequential URL processing for ${matches.length} URLs`);
 					
-					// Quick check for common image extensions first - IMMEDIATE PROCESSING
-					for (let i = 0; i < matches.length; i++) {
-						const match = matches[i];
-						const url = match.url.toLowerCase();
-						
-						// Check for common image extensions - expanded list
-						if (url.endsWith('.jpg') || url.endsWith('.jpeg') || 
-							url.endsWith('.png') || url.endsWith('.gif') || 
-							url.endsWith('.webp') || url.endsWith('.svg') ||
-							url.endsWith('.bmp') || url.endsWith('.tiff') || 
-							url.endsWith('.tif') || url.endsWith('.avif') ||
-							// Also check for image URLs with query parameters
-							url.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|tif|avif)(\?|#).+$/i) !== null) {
-							
-							// For URLs that look like images, we'll still verify with the ImagePreview component
-							// which will do a content type check
-							match.isImage = true;
-							match.isProcessed = true;
-							console.log(`Detected potential image by extension: ${match.url}`);
-						}
-					}
-					
-					// Update state with extension-based detection results
-					setUrlMatches([...matches]);
+					// We no longer do quick checks based on extensions alone
+					// All URLs need proper content type verification
+					console.log(`Will perform content type checks for all ${matches.length} URLs`);
 					
 					// Process remaining URLs one at a time to avoid flooding the network
 					for (let i = 0; i < matches.length; i++) {

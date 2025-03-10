@@ -174,18 +174,25 @@ export const checkIfImageUrl = async (url: string): Promise<boolean> => {
 				// Set a timeout to avoid hanging indefinitely
 				setTimeout(() => {
 					window.removeEventListener("message", messageListener)
-					// Fall back to extension check
-					resolve(isImageUrlSync(url))
+					// Don't fall back to extension check on timeout
+					// Instead, return false to indicate it's not an image
+					console.log(`Timeout checking if URL is an image: ${url}`);
+					resolve(false)
 				}, 3000)
 			})
 		} catch (error) {
 			console.log("Error checking if URL is an image:", url);
-			return isImageUrlSync(url)
+			// Don't fall back to extension check on error
+			// Instead, return false to indicate it's not an image
+			return false;
 		}
 	}
 
-	// Fall back to extension check for other URLs
-	return isImageUrlSync(url)
+	// Don't fall back to extension check for other URLs
+	// Only data URLs (handled above) are guaranteed to be images
+	// For all other URLs, we need proper content type verification
+	console.log(`URL protocol not supported for image check: ${url}`);
+	return false;
 }
 
 // Process a batch of promises with individual timeouts - only try once, no retries
@@ -277,13 +284,9 @@ export const findUrls = async (obj: any): Promise<{ imageUrls: string[]; regular
 					continue;
 				}
 				
-				// First check with synchronous method
-				if (isImageUrlSync(originalUrl)) {
-					// Store the original URL, not a modified version
-					imageUrls.push(originalUrl)
-					urlCount++;
-				} else if (isUrl(originalUrl)) {
-					// For URLs that don't obviously look like images, we'll check asynchronously
+				// Only check if it's a valid URL first
+				if (isUrl(originalUrl)) {
+					// Always use proper content type verification for all URLs
 					const checkPromise = checkIfImageUrl(value).then((isImage) => {
 						if (isImage) {
 							imageUrls.push(value)
