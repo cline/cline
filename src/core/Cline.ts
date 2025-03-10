@@ -1402,8 +1402,12 @@ export class Cline {
 					isCheckpointPossible = true
 				}
 
-				const askApproval = async (type: ClineAsk, partialMessage?: string) => {
-					const { response, text, images } = await this.ask(type, partialMessage, false)
+				const askApproval = async (
+					type: ClineAsk,
+					partialMessage?: string,
+					progressStatus?: ToolProgressStatus,
+				) => {
+					const { response, text, images } = await this.ask(type, partialMessage, false, progressStatus)
 					if (response !== "yesButtonClicked") {
 						// Handle both messageResponse and noButtonClicked with text
 						if (text) {
@@ -1819,11 +1823,8 @@ export class Cline {
 								if (this.diffStrategy && this.diffStrategy.getProgressStatus) {
 									toolProgressStatus = this.diffStrategy.getProgressStatus(block, diffResult)
 								}
-								await this.ask("tool", completeMessage, block.partial, toolProgressStatus).catch(
-									() => {},
-								)
 
-								const didApprove = await askApproval("tool", completeMessage)
+								const didApprove = await askApproval("tool", completeMessage, toolProgressStatus)
 								if (!didApprove) {
 									await this.diffViewProvider.revertChanges() // This likely handles closing the diff view
 									break
