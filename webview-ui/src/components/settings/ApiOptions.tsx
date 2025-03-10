@@ -1076,27 +1076,31 @@ const ApiOptions = ({
 							Language Model
 						</label>
 						{vsCodeLmModels.length > 0 ? (
-							<Dropdown
-								id="vscode-lm-model"
+							<Select
 								value={
 									apiConfiguration?.vsCodeLmModelSelector
 										? `${apiConfiguration.vsCodeLmModelSelector.vendor ?? ""}/${apiConfiguration.vsCodeLmModelSelector.family ?? ""}`
 										: ""
 								}
-								onChange={handleInputChange("vsCodeLmModelSelector", (e) => {
-									const valueStr = (e as DropdownOption)?.value
+								onValueChange={handleInputChange("vsCodeLmModelSelector", (valueStr) => {
 									const [vendor, family] = valueStr.split("/")
 									return { vendor, family }
-								})}
-								options={[
-									{ value: "", label: "Select a model..." },
-									...vsCodeLmModels.map((model) => ({
-										value: `${model.vendor}/${model.family}`,
-										label: `${model.vendor} - ${model.family}`,
-									})),
-								]}
-								className="w-full"
-							/>
+								})}>
+								<SelectTrigger className="w-full">
+									<SelectValue placeholder="Select a model..." />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectGroup>
+										{vsCodeLmModels.map((model) => (
+											<SelectItem
+												key={`${model.vendor}/${model.family}`}
+												value={`${model.vendor}/${model.family}`}>
+												{`${model.vendor} - ${model.family}`}
+											</SelectItem>
+										))}
+									</SelectGroup>
+								</SelectContent>
+							</Select>
 						) : (
 							<div className="text-sm text-vscode-descriptionForeground">
 								The VS Code Language Model API allows you to run models provided by other VS Code

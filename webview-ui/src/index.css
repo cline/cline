@@ -111,6 +111,10 @@
 
 	--color-vscode-charts-green: var(--vscode-charts-green);
 	--color-vscode-charts-yellow: var(--vscode-charts-yellow);
+
+	--color-vscode-inputValidation-infoForeground: var(--vscode-inputValidation-infoForeground);
+	--color-vscode-inputValidation-infoBackground: var(--vscode-inputValidation-infoBackground);
+	--color-vscode-inputValidation-infoBorder: var(--vscode-inputValidation-infoBorder);
 }
 
 @layer base {
