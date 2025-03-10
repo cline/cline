@@ -7,7 +7,7 @@ Cline에 기여하는 것에 관심을 가져주셔서 감사합니다! 버그 �
 버그 보고는 Cline을 모두에게 더 나은 것으로 만드는 데 도움이 됩니다! 새로운 이슈를 생성하기 전에, 중복을 피하기 위해 [기존 이슈를 검색](https://github.com/cline/cline/issues)해 주세요. 버그를 보고할 준비가 되었다면, [이슈 페이지](https://github.com/cline/cline/issues/new/choose)로 이동하여 관련 정보를 작성하기 위한 템플릿을 사용해 주세요.
 
 <blockquote class='warning-note'>
-    🔐 <b>중요:</b> 보안 취약점을 발견한 경우, <a href="https://github.com/cline/cline/security/advisories/new">Github 보안 도구를 사용하여 비공개로 보고</a>해 주세요.
+    🔐 <b>중요:</b> 보안 취약점을 발견한 경우, <a href="https://github.com/cline/cline/security/advisories/new">GitHub 보안 도구를 사용하여 비공개로 보고</a>해 주세요.
 </blockquote>
 
 ## 작업 내용 결정하기
