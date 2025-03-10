@@ -16,13 +16,19 @@ export const isImageUrlSync = (str: string): boolean => {
 	return str.match(/\.(jpg|jpeg|png|gif|webp)$/i) !== null
 }
 
-// Safely create a URL object with error handling
+// Safely create a URL object with error handling and ensure HTTPS
 export const safeCreateUrl = (url: string): URL | null => {
 	try {
+		// Convert HTTP to HTTPS for security
+		if (url.startsWith('http://')) {
+			url = url.replace('http://', 'https://');
+			console.log(`Converted HTTP URL to HTTPS: ${url}`);
+		}
+		
 		return new URL(url);
 	} catch (e) {
-		// If the URL doesn't have a protocol, try adding https://
-		if (!url.startsWith('http://') && !url.startsWith('https://')) {
+		// If the URL doesn't have a protocol, add https://
+		if (!url.startsWith('https://')) {
 			try {
 				return new URL(`https://${url}`);
 			} catch (e) {
@@ -76,14 +82,20 @@ export const checkIfImageUrl = async (url: string): Promise<boolean> => {
 		return true
 	}
 
+	// Convert HTTP to HTTPS for security
+	if (url.startsWith("http://")) {
+		url = url.replace("http://", "https://");
+		console.log(`Converted HTTP URL to HTTPS for image check: ${url}`);
+	}
+
 	// Validate URL before proceeding
 	if (!isUrl(url)) {
 		console.log("Invalid URL format:", url);
 		return false;
 	}
 
-	// For http/https URLs, we need to send a message to the extension
-	if (url.startsWith("http")) {
+	// For https URLs, we need to send a message to the extension
+	if (url.startsWith("https")) {
 		try {
 			// Create a promise that will resolve when we get a response
 			return new Promise((resolve) => {
@@ -124,52 +136,64 @@ export const checkIfImageUrl = async (url: string): Promise<boolean> => {
 // Process a batch of promises with individual timeouts - only try once, no retries
 export const processBatch = async <T>(
 	promises: Promise<T>[],
-	batchSize: number = 4,
-	timeoutMs: number = 5000
-): Promise<T[]> => {
+	batchSize: number = 2, // Reduced default batch size
+	timeoutMs: number = 8000 // Increased default timeout
+): Promise<Array<T | null>> => {
 	console.log(`Processing ${promises.length} promises in batches of ${batchSize}`);
-	const results: T[] = [];
+	const results: Array<T | null> = [];
 
 	// Process in batches
 	for (let i = 0; i < promises.length; i += batchSize) {
 		console.log(`Processing batch ${Math.floor(i/batchSize) + 1} of ${Math.ceil(promises.length/batchSize)}`);
 		const batch = promises.slice(i, i + batchSize);
 		
-		// Process each promise in the batch with its own timeout
-		const batchPromises = batch.map(promise => 
-			Promise.race([
-				promise,
-				new Promise<never>((_, reject) => 
-					setTimeout(() => reject(new Error("Item timeout")), timeoutMs)
-				)
-			])
+		// Create an array to track which promises have completed
+		const completedFlags = new Array(batch.length).fill(false);
+		
+		// Process each promise in the batch individually to prevent one timeout from affecting others
+		const batchResults = await Promise.all(
+			batch.map((promise, idx) => {
+				// Create a promise that resolves with the result or null on timeout
+				return new Promise<T | null>(resolve => {
+					// Set up timeout
+					const timeoutId = setTimeout(() => {
+						if (!completedFlags[idx]) {
+							console.log(`Promise ${i + idx} timed out after ${timeoutMs}ms`);
+							resolve(null);
+						}
+					}, timeoutMs);
+					
+					// Process the actual promise
+					promise.then(result => {
+						// Only resolve if we haven't already timed out
+						if (!completedFlags[idx]) {
+							completedFlags[idx] = true;
+							clearTimeout(timeoutId);
+							resolve(result);
+						}
+					}).catch(err => {
+						console.log(`Promise ${i + idx} failed: ${err.message}`);
+						if (!completedFlags[idx]) {
+							completedFlags[idx] = true;
+							clearTimeout(timeoutId);
+							resolve(null);
+						}
+					});
+				});
+			})
 		);
 		
-		// Use Promise.allSettled to handle individual promise failures
-		const batchResults = await Promise.allSettled(batchPromises);
+		// Add results to the final array
+		results.push(...batchResults);
 		
-		// Process results, including both successful and failed ones
-		// This ensures we don't lose track of any URLs
-		batchResults.forEach((result, index) => {
-			if (result.status === 'fulfilled') {
-				results.push(result.value);
-			} else {
-				// For failed promises, we still add the result to maintain the order
-				// The caller will need to handle these appropriately
-				console.log(`Item ${index} in batch failed: ${result.reason}`);
-				// We can't access the original promise value directly, so push null
-				results.push(null as unknown as T);
-			}
-		});
-		
-		// Add a small delay between batches to prevent overwhelming
+		// Add a larger delay between batches to prevent overwhelming servers
 		if (i + batchSize < promises.length) {
-			await new Promise(resolve => setTimeout(resolve, 50));
+			await new Promise(resolve => setTimeout(resolve, 150));
 		}
 	}
 
 	console.log(`Processed ${results.length} of ${promises.length} promises (including failed ones)`);
-	return results;
+	return results; // Return array with possible null values, let caller handle filtering if needed
 }
 
 // Extract URLs from text using regex
@@ -188,7 +212,15 @@ export const extractUrlsFromText = async (text: string): Promise<{ imageUrls: st
 		const extractedUrls = imageMatches
 			.map((match) => {
 				const urlMatch = /image:\s*(https?:\/\/[^\s]+)/.exec(match)
-				return urlMatch ? urlMatch[1] : null
+				let url = urlMatch ? urlMatch[1] : null
+				
+				// Convert HTTP to HTTPS for security
+				if (url && url.startsWith('http://')) {
+					url = url.replace('http://', 'https://');
+					console.log(`Converted HTTP URL to HTTPS in image prefix: ${url}`);
+				}
+				
+				return url
 			})
 			.filter(Boolean) as string[]
 
@@ -211,7 +243,13 @@ export const extractUrlsFromText = async (text: string): Promise<{ imageUrls: st
 		console.log(`Found ${urlMatches.length} URLs, processing ${filteredUrls.length} after filtering`);
 
 		// Check each URL to see if it's an image
-		for (const url of filteredUrls) {
+		for (let url of filteredUrls) {
+			// Convert HTTP to HTTPS for security
+			if (url.startsWith('http://')) {
+				url = url.replace('http://', 'https://');
+				console.log(`Converted HTTP URL to HTTPS in filtered URLs: ${url}`);
+			}
+			
 			// Validate URL before processing
 			if (!isUrl(url)) {
 				console.log("Skipping invalid URL:", url);
@@ -274,11 +312,18 @@ export const findUrls = async (obj: any): Promise<{ imageUrls: string[]; regular
 			}
 			
 			if (typeof value === "string") {
+				// Convert HTTP to HTTPS for security
+				let processedValue = value;
+				if (processedValue.startsWith('http://')) {
+					processedValue = processedValue.replace('http://', 'https://');
+					console.log(`Converted HTTP URL to HTTPS in object value: ${processedValue}`);
+				}
+				
 				// First check with synchronous method
-				if (isImageUrlSync(value)) {
-					imageUrls.push(value)
+				if (isImageUrlSync(processedValue)) {
+					imageUrls.push(processedValue)
 					urlCount++;
-				} else if (isUrl(value)) {
+				} else if (isUrl(processedValue)) {
 					// For URLs that don't obviously look like images, we'll check asynchronously
 					const checkPromise = checkIfImageUrl(value).then((isImage) => {
 						if (isImage) {

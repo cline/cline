@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react"
+import React, { useEffect, useState, useCallback, useRef } from "react"
 import { vscode } from "../../utils/vscode"
 import LinkPreview from "./LinkPreview"
 import styled from "styled-components"
@@ -160,15 +160,32 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	})
 	const [urlMatches, setUrlMatches] = useState<UrlMatch[]>([])
 	const [error, setError] = useState<string | null>(null)
+	// Reference to track if processing should be canceled
+	const processingCancelRef = useRef(false)
 
 	const toggleDisplayMode = useCallback(() => {
 		const newMode = displayMode === "rich" ? "plain" : "rich"
 		setDisplayMode(newMode)
 		localStorage.setItem("mcpDisplayMode", newMode)
+		
+		// If switching to plain mode, cancel any ongoing processing
+		if (newMode === "plain") {
+			console.log("Switching to plain mode - canceling URL processing");
+			processingCancelRef.current = true;
+		}
 	}, [displayMode])
 
 	// Find all URLs in the text and determine if they're images
 	useEffect(() => {
+		// Reset cancel flag when effect runs
+		processingCancelRef.current = false;
+		
+		// Skip all processing if in plain mode
+		if (displayMode === "plain") {
+			setIsLoading(false);
+			return;
+		}
+		
 		const processResponse = async () => {
 			console.log("Processing MCP response for URL extraction");
 			setIsLoading(true)
@@ -184,8 +201,15 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 				
 				let urlCount = 0;
 
+				// First pass: Extract all URLs and immediately make them available for rendering
 				while ((urlMatch = urlRegex.exec(text)) !== null && urlCount < MAX_URLS) {
-					const url = urlMatch[0]
+					let url = urlMatch[0]
+					
+					// Convert HTTP to HTTPS for security
+					if (url.startsWith('http://')) {
+						url = url.replace('http://', 'https://');
+						console.log(`Converted HTTP URL to HTTPS in response: ${url}`);
+					}
 					
 					// Skip invalid URLs
 					if (!isUrl(url)) {
@@ -210,64 +234,84 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					urlCount++;
 				}
 
-				console.log(`Found ${matches.length} URLs in text, checking if they are images`);
+				console.log(`Found ${matches.length} URLs in text, will check if they are images`);
 
-				// First set the matches with default values so UI can start rendering
-				setUrlMatches(matches);
+				// Set matches immediately so UI can start rendering with loading states
+				setUrlMatches(matches.sort((a, b) => a.index - b.index));
 				
-				// Then process in smaller batches with progressive updates
-				const batchSize = 4; // Process 4 at a time to avoid overwhelming the system
+				// Mark loading as complete to show content immediately
+				setIsLoading(false)
 				
-				for (let i = 0; i < matches.length; i += batchSize) {
-					const batchMatches = matches.slice(i, i + batchSize);
-					console.log(`Processing URL batch ${Math.floor(i/batchSize) + 1} of ${Math.ceil(matches.length/batchSize)}`);
+				// Process image checks in the background - one at a time to avoid network flooding
+				const processImageChecks = async () => {
+					console.log(`Starting sequential URL processing for ${matches.length} URLs`);
 					
-					// Create promises for each URL in this batch
-					const checkPromises = batchMatches.map(match => {
-						return checkIfImageUrl(match.url)
-							.then(isImage => {
-								// Update the match in place
-								match.isImage = isImage;
-								return match;
-							})
-							.catch(err => {
-								console.log(`URL check skipped: ${match.url}`);
-								return match; // Return the match unchanged on error
-							});
-					});
-					
-					// Process this batch with individual timeouts
-					const processedBatch = await processBatch(checkPromises, batchSize, 3000);
-					
-					// Update state after each batch to show progress
-					setUrlMatches(prevMatches => {
-						// Create a new array to trigger re-render
-						const newMatches = [...prevMatches];
-						return newMatches;
-					});
-					
-					// Small delay between batches to allow UI to update
-					if (i + batchSize < matches.length) {
-						await new Promise(resolve => setTimeout(resolve, 50));
+					// Process URLs one at a time to avoid flooding the network
+					for (let i = 0; i < matches.length; i++) {
+						// Check if processing has been canceled (switched to plain mode)
+						if (processingCancelRef.current) {
+							console.log("URL processing canceled - display mode changed to plain");
+							return;
+						}
+						
+						const match = matches[i];
+						console.log(`Processing URL ${i + 1} of ${matches.length}: ${match.url}`);
+						
+						try {
+							// Process each URL individually
+							const isImage = await checkIfImageUrl(match.url);
+							
+							// Skip if processing has been canceled
+							if (processingCancelRef.current) return;
+							
+							// Update the match in place
+							match.isImage = isImage;
+							match.isProcessed = true;
+							
+							// Update state after each URL to show progress
+							// This is fine since LinkPreview components are now memoized
+							// and have their own state management
+							setUrlMatches(prevMatches => [...prevMatches]);
+							
+						} catch (err) {
+							console.log(`URL check error: ${match.url}`, err);
+							match.isProcessed = true;
+							
+							// Update state even on error
+							if (!processingCancelRef.current) {
+								setUrlMatches(prevMatches => [...prevMatches]);
+							}
+						}
+						
+						// Delay between URL processing to avoid overwhelming the network
+						if (!processingCancelRef.current && i < matches.length - 1) {
+							// Much longer delay between URLs to avoid network flooding
+							// This gives each URL more time to complete before starting the next one
+							await new Promise(resolve => setTimeout(resolve, 1000));
+						}
 					}
-				}
-
-				// Final sort by position in the text
-				setUrlMatches(prevMatches => {
-					const sortedMatches = [...prevMatches].sort((a, b) => a.index - b.index);
-					console.log(`URL processing complete. Found ${sortedMatches.filter(m => m.isImage).length} image URLs`);
-					return sortedMatches;
-				});
+					
+					console.log(`URL processing complete. Found ${matches.filter(m => m.isImage).length} image URLs`);
+				};
+				
+				// Start the background processing
+				processImageChecks();
+				
 			} catch (error) {
 				console.log("Error processing MCP response - switching to plain text mode");
 				setError("Failed to process response content. Switch to plain text mode to view safely.")
-			} finally {
 				setIsLoading(false)
 			}
 		}
 
 		processResponse()
-	}, [responseText])
+		
+		// Cleanup function to cancel processing if component unmounts or dependencies change
+		return () => {
+			processingCancelRef.current = true;
+			console.log("Cleaning up URL processing");
+		};
+	}, [responseText, displayMode]) // Added displayMode as a dependency
 
 	// Function to render content based on display mode
 	const renderContent = () => {
@@ -319,7 +363,8 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					// Calculate the end position of this URL in the text
 					const urlEndIndex = index + fullMatch.length
 
-					// Add embedded content after the URL - always show embed for every URL instance
+					// Add embedded content after the URL
+					// For images, show image if we've determined it's an image
 					if (match.isImage) {
 						segments.push(
 							<div key={`embed-${segmentIndex++}`} style={{ margin: "10px 0" }}>
@@ -368,12 +413,13 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						embedCount++;
 						console.log(`Added image embed for ${url}, embed count: ${embedCount}`);
 					} else {
-						// For non-image URLs, always show the preview
+						// For non-image URLs or URLs we haven't processed yet, show link preview
 						try {
 							// Skip localhost URLs
 							if (!url.includes('localhost') && !url.includes('127.0.0.1') && !url.includes('0.0.0.0')) {
+								// Use a unique key that includes the URL to ensure each preview is isolated
 								segments.push(
-									<div key={`embed-${segmentIndex++}`} style={{ margin: "10px 0" }}>
+									<div key={`embed-${url}-${segmentIndex++}`} style={{ margin: "10px 0" }}>
 										<ErrorBoundary>
 											<LinkPreview url={formatUrlForOpening(url)} />
 										</ErrorBoundary>
