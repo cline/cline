@@ -1,13 +1,13 @@
 import * as path from "path"
 import Mocha from "mocha"
 import { glob } from "glob"
-import { ClineAPI, ClineProvider } from "../../../src/exports/cline"
+import { RooCodeAPI, ClineProvider } from "../../../src/exports/roo-code"
 import * as vscode from "vscode"
 
 declare global {
-	var api: ClineAPI
+	var api: RooCodeAPI
 	var provider: ClineProvider
-	var extension: vscode.Extension<ClineAPI> | undefined
+	var extension: vscode.Extension<RooCodeAPI> | undefined
 	var panel: vscode.WebviewPanel | undefined
 }
 

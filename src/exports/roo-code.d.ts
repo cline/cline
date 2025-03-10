@@ -1,4 +1,4 @@
-export interface ClineAPI {
+export interface RooCodeAPI {
 	/**
 	 * Sets the custom instructions in the global storage.
 	 * @param value The custom instructions to be saved.
@@ -38,7 +38,60 @@ export interface ClineAPI {
 	/**
 	 * The sidebar provider instance.
 	 */
-	sidebarProvider: ClineSidebarProvider
+	sidebarProvider: ClineProvider
+}
+
+export type ClineAsk =
+	| "followup"
+	| "command"
+	| "command_output"
+	| "completion_result"
+	| "tool"
+	| "api_req_failed"
+	| "resume_task"
+	| "resume_completed_task"
+	| "mistake_limit_reached"
+	| "browser_action_launch"
+	| "use_mcp_server"
+	| "finishTask"
+
+export type ClineSay =
+	| "task"
+	| "error"
+	| "api_req_started"
+	| "api_req_finished"
+	| "api_req_retried"
+	| "api_req_retry_delayed"
+	| "api_req_deleted"
+	| "text"
+	| "reasoning"
+	| "completion_result"
+	| "user_feedback"
+	| "user_feedback_diff"
+	| "command_output"
+	| "tool"
+	| "shell_integration_warning"
+	| "browser_action"
+	| "browser_action_result"
+	| "command"
+	| "mcp_server_request_started"
+	| "mcp_server_response"
+	| "new_task_started"
+	| "new_task"
+	| "checkpoint_saved"
+	| "rooignore_error"
+
+export interface ClineMessage {
+	ts: number
+	type: "ask" | "say"
+	ask?: ClineAsk
+	say?: ClineSay
+	text?: string
+	images?: string[]
+	partial?: boolean
+	reasoning?: string
+	conversationHistoryIndex?: number
+	checkpoint?: Record<string, unknown>
 }
 
 export interface ClineProvider {
@@ -83,11 +136,6 @@ export interface ClineProvider {
 	cancelTask(): Promise<void>
 
 	/**
-	 * Clears the current task
-	 */
-	clearTask(): Promise<void>
-
-	/**
 	 * Gets the current state
 	 */
 	getState(): Promise<any>
@@ -111,12 +159,6 @@ export interface ClineProvider {
 	 * @param value The secret value to store, or undefined to remove the secret
 	 */
 	storeSecret(key: SecretKey, value?: string): Promise<void>
-
-	/**
-	 * Retrieves a secret value from secure storage
-	 * @param key The key of the secret to retrieve
-	 */
-	getSecret(key: SecretKey): Promise<string | undefined>
 
 	/**
 	 * Resets the state

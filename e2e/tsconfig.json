@@ -11,6 +11,6 @@
 		"useUnknownInCatchVariables": false,
 		"outDir": "out"
 	},
-	"include": ["src", "../src/exports/cline.d.ts"],
+	"include": ["src", "../src/exports/roo-code.d.ts"],
 	"exclude": [".vscode-test", "**/node_modules/**", "out"]
 }

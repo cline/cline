@@ -58,9 +58,9 @@ The following global objects are available in tests:
 
 ```typescript
 declare global {
-	var api: ClineAPI
+	var api: RooCodeAPI
 	var provider: ClineProvider
-	var extension: vscode.Extension<ClineAPI>
+	var extension: vscode.Extension<RooCodeAPI>
 	var panel: vscode.WebviewPanel
 }
 ```
