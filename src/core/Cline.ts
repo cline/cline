@@ -1332,8 +1332,6 @@ export class Cline {
 			clineIgnoreInstructions = `# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${clineIgnoreContent}\n.clineignore`
 		}
 
-		console.log("clineRulesFileInstructions", clineRulesFileInstructions)
-
 		if (
 			settingsCustomInstructions ||
 			clineRulesFileInstructions ||
