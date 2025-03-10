@@ -10,6 +10,8 @@ env:
 jobs:
   publish-extension:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for pushing tags
     if: >
         ( github.event_name == 'pull_request' &&
         github.event.pull_request.base.ref == 'main' &&
@@ -51,3 +53,10 @@ jobs:
 
           npm run publish:marketplace
           echo "Successfully published version $current_package_version to VS Code Marketplace"
+      
+      - name: Create and Push Git Tag
+        run: |
+          current_package_version=$(node -p "require('./package.json').version")
+          git tag -a "v${current_package_version}" -m "Release v${current_package_version}"
+          git push origin "v${current_package_version}"
+          echo "Successfully created and pushed git tag v${current_package_version}"
