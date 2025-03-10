@@ -11,7 +11,7 @@ jobs:
   publish-extension:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Required for pushing tags
+      contents: write # Required for pushing tags.
     if: >
         ( github.event_name == 'pull_request' &&
         github.event.pull_request.base.ref == 'main' &&
@@ -33,13 +33,9 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install -g vsce ovsx
-          npm run install:ci
-
+          npm run install:all
       - name: Create .env file
-        run: |
-          echo "# PostHog API Keys for telemetry" > .env
-          echo "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}" >> .env
-
+        run: echo "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}" >> .env
       - name: Package Extension
         run: |
           current_package_version=$(node -p "require('./package.json').version")
