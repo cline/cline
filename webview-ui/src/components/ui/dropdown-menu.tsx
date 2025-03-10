@@ -1,5 +1,6 @@
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
+import { PortalProps } from "@radix-ui/react-portal"
 import { CheckIcon, ChevronRightIcon, DotFilledIcon } from "@radix-ui/react-icons"
 
 import { cn } from "@/lib/utils"
@@ -53,9 +54,7 @@ DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayNam
 
 const DropdownMenuContent = React.forwardRef<
 	React.ElementRef<typeof DropdownMenuPrimitive.Content>,
-	React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
-		container?: HTMLElement
-	}
+	React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & Pick<PortalProps, "container">
 >(({ className, sideOffset = 4, container, ...props }, ref) => (
 	<DropdownMenuPrimitive.Portal container={container}>
 		<DropdownMenuPrimitive.Content

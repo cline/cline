@@ -1,4 +1,5 @@
 import * as React from "react"
+import { PortalProps } from "@radix-ui/react-portal"
 import * as PopoverPrimitive from "@radix-ui/react-popover"
 
 import { cn } from "@/lib/utils"
@@ -11,9 +12,7 @@ const PopoverAnchor = PopoverPrimitive.Anchor
 
 const PopoverContent = React.forwardRef<
 	React.ElementRef<typeof PopoverPrimitive.Content>,
-	React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> & {
-		container?: HTMLElement
-	}
+	React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> & Pick<PortalProps, "container">
 >(({ className, align = "center", sideOffset = 4, container, ...props }, ref) => (
 	<PopoverPrimitive.Portal container={container}>
 		<PopoverPrimitive.Content

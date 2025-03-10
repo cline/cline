@@ -1,22 +1,25 @@
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
+
 import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+import { WebviewMessage } from "../../../../src/shared/WebviewMessage"
+import { Mode, getAllModes } from "../../../../src/shared/modes"
+
+import { vscode } from "@/utils/vscode"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptions,
 	insertMention,
 	removeMention,
 	shouldShowContextMenu,
-} from "../../utils/context-mentions"
+} from "@/utils/context-mentions"
+import { SelectDropdown, DropdownOptionType } from "@/components/ui"
+
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import Thumbnails from "../common/Thumbnails"
+import { convertToMentionPath } from "../../utils/path-mentions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
-import Thumbnails from "../common/Thumbnails"
-import { vscode } from "../../utils/vscode"
-import { WebviewMessage } from "../../../../src/shared/WebviewMessage"
-import { Mode, getAllModes } from "../../../../src/shared/modes"
-import { convertToMentionPath } from "../../utils/path-mentions"
-import { SelectDropdown, DropdownOptionType } from "../ui"
 
 interface ChatTextAreaProps {
 	inputValue: string

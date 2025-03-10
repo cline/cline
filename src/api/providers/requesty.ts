@@ -1,9 +1,20 @@
 import axios from "axios"
 
 import { ModelInfo, requestyModelInfoSaneDefaults, requestyDefaultModelId } from "../../shared/api"
-import { parseApiPrice } from "../../utils/cost"
+import { calculateApiCostOpenAI, parseApiPrice } from "../../utils/cost"
 import { ApiStreamUsageChunk } from "../transform/stream"
 import { OpenAiHandler, OpenAiHandlerOptions } from "./openai"
+import OpenAI from "openai"
+
+// Requesty usage includes an extra field for Anthropic use cases.
+// Safely cast the prompt token details section to the appropriate structure.
+interface RequestyUsage extends OpenAI.CompletionUsage {
+	prompt_tokens_details?: {
+		caching_tokens?: number
+		cached_tokens?: number
+	}
+	total_cost?: number
+}
 
 export class RequestyHandler extends OpenAiHandler {
 	constructor(options: OpenAiHandlerOptions) {
@@ -27,13 +38,22 @@ export class RequestyHandler extends OpenAiHandler {
 		}
 	}
 
-	protected override processUsageMetrics(usage: any): ApiStreamUsageChunk {
+	protected override processUsageMetrics(usage: any, modelInfo?: ModelInfo): ApiStreamUsageChunk {
+		const requestyUsage = usage as RequestyUsage
+		const inputTokens = requestyUsage?.prompt_tokens || 0
+		const outputTokens = requestyUsage?.completion_tokens || 0
+		const cacheWriteTokens = requestyUsage?.prompt_tokens_details?.caching_tokens || 0
+		const cacheReadTokens = requestyUsage?.prompt_tokens_details?.cached_tokens || 0
+		const totalCost = modelInfo
+			? calculateApiCostOpenAI(modelInfo, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+			: 0
 		return {
 			type: "usage",
-			inputTokens: usage?.prompt_tokens || 0,
-			outputTokens: usage?.completion_tokens || 0,
-			cacheWriteTokens: usage?.cache_creation_input_tokens,
-			cacheReadTokens: usage?.cache_read_input_tokens,
+			inputTokens: inputTokens,
+			outputTokens: outputTokens,
+			cacheWriteTokens: cacheWriteTokens,
+			cacheReadTokens: cacheReadTokens,
+			totalCost: totalCost,
 		}
 	}
 }
