@@ -12,7 +12,9 @@
 		"statusBarItem.remoteBackground": "#00000000",
 		"ports.iconRunningProcessForeground": "#FFFFFF",
 		"editorWhitespace.foreground": "#7c7c7c",
-		"actionBar.toggledBackground": "#383a49"
+		"actionBar.toggledBackground": "#383a49",
+		"textCodeBlock.background": "#21ACFF",
+		"textPreformat.foreground": "#000000"
 	},
 	"tokenColors": [
 		{
