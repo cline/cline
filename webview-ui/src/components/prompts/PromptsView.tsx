@@ -71,6 +71,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		preferredLanguage,
 		setPreferredLanguage,
 		customModes,
+		enableCustomModeCreation,
+		setEnableCustomModeCreation,
 	} = useExtensionState()
 
 	// Memoize modes to preserve array order
@@ -341,6 +343,17 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		return () => document.removeEventListener("click", handleClickOutside)
 	}, [showConfigMenu])
 
+	// Add effect to sync enableCustomModeCreation with backend
+	useEffect(() => {
+		if (enableCustomModeCreation !== undefined) {
+			// Send the value to the extension's global state
+			vscode.postMessage({
+				type: "enableCustomModeCreation", // Using dedicated message type
+				bool: enableCustomModeCreation,
+			})
+		}
+	}, [enableCustomModeCreation])
+
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
 			const message = event.data
@@ -541,7 +554,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						in your workspace.
 					</div>
 				</div>
-
 				<div className="mt-5">
 					<div onClick={(e) => e.stopPropagation()} className="flex justify-between items-center mb-3">
 						<h3 className="text-vscode-foreground m-0">Modes</h3>
@@ -1009,6 +1021,35 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								consistency checks (especially around tool usage), so be careful!
 							</div>
 						)}
+					</div>
+
+					{/*
+			NOTE: This setting is placed in PromptsView rather than SettingsView since it
+			directly affects the functionality related to modes and custom mode creation,
+			which are managed in this component. This is an intentional deviation from
+			the standard pattern described in cline_docs/settings.md.
+	*/}
+					<div className="mb-4 mt-4">
+						<VSCodeCheckbox
+							checked={enableCustomModeCreation ?? true}
+							onChange={(e: any) => {
+								// Just update the local state through React context
+								// The React context will update the global state
+								setEnableCustomModeCreation(e.target.checked)
+							}}>
+							<span style={{ fontWeight: "500" }}>Enable Custom Mode Creation Through Prompts</span>
+						</VSCodeCheckbox>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							When enabled, Roo allows you to create custom modes using prompts like ‘Make me a custom
+							mode that…’. Disabling this reduces your system prompt by about 700 tokens when this feature
+							isn’t needed. When disabled you can still manually create custom modes using the + button
+							above or by editing the related config JSON.
+						</p>
 					</div>
 				</div>
 

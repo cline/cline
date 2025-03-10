@@ -7,6 +7,7 @@ import { formatResponse } from "../../core/prompts/responses"
 import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
+import stripBom from "strip-bom"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
@@ -104,7 +105,7 @@ export class DiffViewProvider {
 		const edit = new vscode.WorkspaceEdit()
 		const rangeToReplace = new vscode.Range(0, 0, endLine + 1, 0)
 		const contentToReplace = accumulatedLines.slice(0, endLine + 1).join("\n") + "\n"
-		edit.replace(document.uri, rangeToReplace, contentToReplace)
+		edit.replace(document.uri, rangeToReplace, this.stripAllBOMs(contentToReplace))
 		await vscode.workspace.applyEdit(edit)
 		// Update decorations
 		this.activeLineController.setActiveLine(endLine)
@@ -128,7 +129,11 @@ export class DiffViewProvider {
 			}
 			// Apply the final content
 			const finalEdit = new vscode.WorkspaceEdit()
-			finalEdit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), accumulatedContent)
+			finalEdit.replace(
+				document.uri,
+				new vscode.Range(0, 0, document.lineCount, 0),
+				this.stripAllBOMs(accumulatedContent),
+			)
 			await vscode.workspace.applyEdit(finalEdit)
 			// Clear all decorations at the end (after applying final edit)
 			this.fadedOverlayController.clear()
@@ -172,7 +177,7 @@ export class DiffViewProvider {
 		initial fix is usually correct and it may just take time for linters to catch up.
 		*/
 		const postDiagnostics = vscode.languages.getDiagnostics()
-		const newProblems = diagnosticsToProblemsString(
+		const newProblems = await diagnosticsToProblemsString(
 			getNewDiagnostics(this.preDiagnostics, postDiagnostics),
 			[
 				vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
@@ -334,6 +339,16 @@ export class DiffViewProvider {
 				lineCount += part.count || 0
 			}
 		}
+	}
+
+	private stripAllBOMs(input: string): string {
+		let result = input
+		let previous
+		do {
+			previous = result
+			result = stripBom(result)
+		} while (result !== previous)
+		return result
 	}
 
 	// close editor if open?

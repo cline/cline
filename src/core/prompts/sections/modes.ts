@@ -11,12 +11,19 @@ export async function getModesSection(context: vscode.ExtensionContext): Promise
 	// Get all modes with their overrides from extension state
 	const allModes = await getAllModesWithPrompts(context)
 
-	return `====
+	// Get enableCustomModeCreation setting from extension state
+	const shouldEnableCustomModeCreation = (await context.globalState.get<boolean>("enableCustomModeCreation")) ?? true
+
+	let modesContent = `====
 
 MODES
 
 - These are the currently available modes:
-${allModes.map((mode: ModeConfig) => `  * "${mode.name}" mode (${mode.slug}) - ${mode.roleDefinition.split(".")[0]}`).join("\n")}
+${allModes.map((mode: ModeConfig) => `  * "${mode.name}" mode (${mode.slug}) - ${mode.roleDefinition.split(".")[0]}`).join("\n")}`
+
+	// Only include custom modes documentation if the feature is enabled
+	if (shouldEnableCustomModeCreation) {
+		modesContent += `
 
 - Custom modes can be configured in two ways:
   1. Globally via '${customModesPath}' (created automatically on startup)
@@ -56,4 +63,7 @@ Both files should follow this structure:
     }
   ]
 }`
+	}
+
+	return modesContent
 }

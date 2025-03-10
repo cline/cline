@@ -1417,6 +1417,18 @@ export class Cline {
 					return true
 				}
 
+				const askFinishSubTaskApproval = async () => {
+					// ask the user to approve this task has completed, and he has reviewd it, and we can declare task is finished
+					// and return control to the parent task to continue running the rest of the sub-tasks
+					const toolMessage = JSON.stringify({
+						tool: "finishTask",
+						content:
+							"Subtask completed! You can review the results and suggest any corrections or next steps. If everything looks good, confirm to return the result to the parent task.",
+					})
+
+					return await askApproval("tool", toolMessage)
+				}
+
 				const handleError = async (action: string, error: Error) => {
 					const errorString = `Error ${action}: ${JSON.stringify(serializeError(error))}`
 					await this.say(
@@ -2945,13 +2957,6 @@ export class Cline {
 										// havent sent a command message yet so first send completion_result then command
 										await this.say("completion_result", result, undefined, false)
 										telemetryService.captureTaskCompleted(this.taskId)
-										if (this.isSubTask) {
-											// tell the provider to remove the current subtask and resume the previous task in the stack
-											await this.providerRef
-												.deref()
-												?.finishSubTask(`Task complete: ${lastMessage?.text}`)
-											break
-										}
 									}
 
 									// complete command message
@@ -2970,13 +2975,17 @@ export class Cline {
 								} else {
 									await this.say("completion_result", result, undefined, false)
 									telemetryService.captureTaskCompleted(this.taskId)
-									if (this.isSubTask) {
-										// tell the provider to remove the current subtask and resume the previous task in the stack
-										await this.providerRef
-											.deref()
-											?.finishSubTask(`Task complete: ${lastMessage?.text}`)
+								}
+
+								if (this.isSubTask) {
+									const didApprove = await askFinishSubTaskApproval()
+									if (!didApprove) {
 										break
 									}
+
+									// tell the provider to remove the current subtask and resume the previous task in the stack
+									await this.providerRef.deref()?.finishSubTask(`Task complete: ${lastMessage?.text}`)
+									break
 								}
 
 								// we already sent completion_result says, an empty string asks relinquishes control over button and field

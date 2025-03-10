@@ -18,6 +18,7 @@ type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	requestDelaySeconds: number
 	alwaysAllowMcp?: boolean
 	alwaysAllowModeSwitch?: boolean
+	alwaysAllowSubtasks?: boolean
 	alwaysAllowExecute?: boolean
 	allowedCommands?: string[]
 	setCachedStateField: SetCachedStateField<keyof ExtensionStateContextType>
@@ -32,6 +33,7 @@ export const AutoApproveSettings = ({
 	requestDelaySeconds,
 	alwaysAllowMcp,
 	alwaysAllowModeSwitch,
+	alwaysAllowSubtasks,
 	alwaysAllowExecute,
 	allowedCommands,
 	setCachedStateField,
@@ -173,10 +175,21 @@ export const AutoApproveSettings = ({
 					<VSCodeCheckbox
 						checked={alwaysAllowModeSwitch}
 						onChange={(e: any) => setCachedStateField("alwaysAllowModeSwitch", e.target.checked)}>
-						<span className="font-medium">Always approve mode switching & task creation</span>
+						<span className="font-medium">Always approve mode switching</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Automatically switch between different AI modes and create new tasks without requiring approval
+						Automatically switch between different modes without requiring approval
+					</p>
+				</div>
+
+				<div>
+					<VSCodeCheckbox
+						checked={alwaysAllowSubtasks}
+						onChange={(e: any) => setCachedStateField("alwaysAllowSubtasks", e.target.checked)}>
+						<span className="font-medium">Always approve creation & completion of subtasks</span>
+					</VSCodeCheckbox>
+					<p className="text-vscode-descriptionForeground text-sm mt-0">
+						Allow creation and completion of subtasks without requiring approval
 					</p>
 				</div>
 

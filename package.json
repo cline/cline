@@ -3,7 +3,7 @@
 	"displayName": "Roo Code (prev. Roo Cline)",
 	"description": "A whole dev team of AI agents in your editor.",
 	"publisher": "RooVeterinaryInc",
-	"version": "3.8.1",
+	"version": "3.8.4",
 	"icon": "assets/icons/rocket.png",
 	"galleryBanner": {
 		"color": "#617A91",
@@ -305,6 +305,7 @@
 		"sound-play": "^1.1.0",
 		"string-similarity": "^4.0.4",
 		"strip-ansi": "^7.1.0",
+		"strip-bom": "^5.0.0",
 		"tmp": "^0.2.3",
 		"tree-sitter-wasms": "^0.1.11",
 		"turndown": "^7.2.0",
