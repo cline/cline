@@ -1161,9 +1161,6 @@ export class Cline {
 	// Tools
 
 	async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
-		const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-		const maxAllowedSize = getMaxAllowedSize(contextWindow)
-
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
 		const process = this.terminalManager.runCommand(terminalInfo, command)
@@ -2003,7 +2000,7 @@ export class Cline {
 									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 								}
 								// Get context window and used context from API model
-								const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
+								const contextWindow = this.api.getModel().info.contextWindow
 
 								// Pass the raw context window size - extractTextFromFile will calculate the appropriate limit
 								const content = await extractTextFromFile(absolutePath, contextWindow)
@@ -3379,9 +3376,10 @@ export class Cline {
 							block.text.includes("<task>") ||
 							block.text.includes("<user_message>")
 						) {
+							let contextWindow = this.api.getModel().info.contextWindow
 							return {
 								...block,
-								text: await parseMentions(block.text, cwd, this.urlContentFetcher, this.api),
+								text: await parseMentions(block.text, cwd, this.urlContentFetcher, contextWindow),
 							}
 						}
 					}

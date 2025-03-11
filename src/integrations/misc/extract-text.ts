@@ -44,7 +44,10 @@ export async function extractTextFromTerminal(content: string | Buffer, contextW
 	return cleanContent
 }
 
-export async function extractTextFromFile(filePath: string, contextWindow: number): Promise<string> {
+export async function extractTextFromFile(
+	filePath: string,
+	contextWindow: number = 64_000 /* minimum context (Deepseek) */,
+): Promise<string> {
 	try {
 		await fs.access(filePath)
 	} catch (error) {
