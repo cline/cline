@@ -54,7 +54,7 @@ export async function readJsonConfigFile<T>(filePath: string, contextWindow: num
 		return JSON.parse(content) as T
 	} catch (error) {
 		if (error instanceof SyntaxError) {
-			throw new Error(`Invalid JSON in config file ${filePath}: ${error.message}`)
+			throw new Error(`Invalid JSON in config file ${filePath}: ${error.message}`, { cause: error })
 		}
 		throw new Error(`Failed to read config file ${filePath}: ${error instanceof Error ? error.message : String(error)}`)
 	}
