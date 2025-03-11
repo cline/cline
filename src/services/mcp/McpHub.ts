@@ -167,16 +167,6 @@ export class McpHub {
 		}
 	}
 
-	private isLocalhost(hostname: string): boolean {
-		return (
-			hostname === "localhost" ||
-			hostname === "127.0.0.1" ||
-			hostname === "::1" ||
-			hostname.endsWith(".localhost") ||
-			hostname.endsWith(".local")
-		)
-	}
-
 	private async connectToServer(name: string, config: z.infer<typeof ServerConfigSchema>): Promise<void> {
 		// Remove existing connection if it exists
 		await this.deleteConnection(name)
@@ -251,15 +241,8 @@ export class McpHub {
 				const sseOptions = {
 					requestInit: {
 						headers: config.headers,
-						// Only disable certificate validation for local development connections
-						...(this.isLocalhost(new URL(config.url).hostname) && {
-							agent: new (require("https").Agent)({
-								rejectUnauthorized: false,
-							}),
-						}),
 					},
 				}
-				// @ts-ignore - EventSource types are not fully compatible
 				global.EventSource = EventSource
 				transport = new SSEClientTransport(new URL(config.url), sseOptions)
 
