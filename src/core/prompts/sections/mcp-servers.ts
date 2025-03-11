@@ -49,7 +49,10 @@ export async function getMcpServersSection(
 
 	const baseSection = `MCP SERVERS
 
-The Model Context Protocol (MCP) enables communication between the system and locally running MCP servers that provide additional tools and resources to extend your capabilities.
+The Model Context Protocol (MCP) enables communication between the system and MCP servers that provide additional tools and resources to extend your capabilities. MCP servers can be one of two types:
+
+1. Local (Stdio-based) servers: These run locally on the user's machine and communicate via standard input/output
+2. Remote (SSE-based) servers: These run on remote machines and communicate via Server-Sent Events (SSE) over HTTP/HTTPS
 
 # Connected MCP Servers
 
@@ -71,13 +74,51 @@ The user may ask you something along the lines of "add a tool" that does some fu
 
 When creating MCP servers, it's important to understand that they operate in a non-interactive environment. The server cannot initiate OAuth flows, open browser windows, or prompt for user input during runtime. All credentials and authentication tokens must be provided upfront through environment variables in the MCP settings configuration. For example, Spotify's API uses OAuth to get a refresh token for the user, but the MCP server cannot initiate this flow. While you can walk the user through obtaining an application client ID and secret, you may have to create a separate one-time setup script (like get-refresh-token.js) that captures and logs the final piece of the puzzle: the user's refresh token (i.e. you might run the script using execute_command which would open a browser for authentication, and then log the refresh token so that you can see it in the command output for you to use in the MCP settings configuration).
 
-Unless the user specifies otherwise, new MCP servers should be created in: ${await mcpHub.getMcpServersPath()}
+Unless the user specifies otherwise, new local MCP servers should be created in: ${await mcpHub.getMcpServersPath()}
 
-### Example MCP Server
+### MCP Server Types and Configuration
+
+MCP servers can be configured in two ways in the MCP settings file:
+
+1. Local (Stdio) Server Configuration:
+\`\`\`json
+{
+  "mcpServers": {
+    "local-weather": {
+      "command": "node",
+      "args": ["/path/to/weather-server/build/index.js"],
+      "env": {
+        "OPENWEATHER_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+\`\`\`
+
+2. Remote (SSE) Server Configuration:
+\`\`\`json
+{
+  "mcpServers": {
+    "remote-weather": {
+      "url": "https://api.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer your-api-key"
+      }
+    }
+  }
+}
+\`\`\`
+
+Common configuration options for both types:
+- \`disabled\`: (optional) Set to true to temporarily disable the server
+- \`timeout\`: (optional) Maximum time in seconds to wait for server responses (default: 60)
+- \`alwaysAllow\`: (optional) Array of tool names that don't require user confirmation
+
+### Example Local MCP Server
 
 For example, if the user wanted to give you the ability to retrieve weather information, you could create an MCP server that uses the OpenWeather API to get weather information, add it to the MCP settings configuration file, and then notice that you now have access to new tools and resources in the system prompt that you might use to show the user your new capabilities.
 
-The following example demonstrates how to build an MCP server that provides weather data functionality. While this example shows how to implement resources, resource templates, and tools, in practice you should prefer using tools since they are more flexible and can handle dynamic parameters. The resource and resource template implementations are included here mainly for demonstration purposes of the different MCP capabilities, but a real weather server would likely just expose tools for fetching weather data. (The following steps are for macOS)
+The following example demonstrates how to build a local MCP server that provides weather data functionality using the Stdio transport. While this example shows how to implement resources, resource templates, and tools, in practice you should prefer using tools since they are more flexible and can handle dynamic parameters. The resource and resource template implementations are included here mainly for demonstration purposes of the different MCP capabilities, but a real weather server would likely just expose tools for fetching weather data. (The following steps are for macOS)
 
 1. Use the \`create-typescript-server\` tool to bootstrap a new project in the default MCP servers directory:
 
