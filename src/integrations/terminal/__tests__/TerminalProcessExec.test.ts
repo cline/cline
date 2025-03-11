@@ -129,8 +129,9 @@ async function testTerminalCommand(
 		sendText: jest.fn(),
 	}
 
-	// Create terminal info
+	// Create terminal info with running state
 	const mockTerminalInfo = new Terminal(1, mockTerminal, "/test/path")
+	mockTerminalInfo.running = true
 
 	// Add the terminal to the registry
 	TerminalRegistry["terminals"] = [mockTerminalInfo]
@@ -149,9 +150,6 @@ async function testTerminalCommand(
 				read: jest.fn().mockReturnValue(stream),
 			}
 		})
-
-		// Execute the command
-		terminalProcess.run(command)
 
 		// Set up event listeners to capture output
 		let capturedOutput = ""
@@ -181,6 +179,9 @@ async function testTerminalCommand(
 		// Get the event handlers from the mock
 		const eventHandlers = (vscode as any).__eventHandlers
 
+		// Execute the command first to set up the process
+		terminalProcess.run(command)
+
 		// Trigger the start terminal shell execution event through VSCode mock
 		if (eventHandlers.startTerminalShellExecution) {
 			eventHandlers.startTerminalShellExecution({
@@ -192,10 +193,12 @@ async function testTerminalCommand(
 			})
 		}
 
-		// Wait a short time to ensure stream processing has started
-		await new Promise((resolve) => setTimeout(resolve, 100))
+		// Wait for some output to be processed
+		await new Promise<void>((resolve) => {
+			terminalProcess.once("line", () => resolve())
+		})
 
-		// Trigger the end terminal shell execution event through VSCode mock
+		// Then trigger the end event
 		if (eventHandlers.endTerminalShellExecution) {
 			eventHandlers.endTerminalShellExecution({
 				terminal: mockTerminal,
