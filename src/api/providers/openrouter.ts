@@ -162,7 +162,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			await delay(200) // FIXME: necessary delay to ensure generation endpoint is ready
 
 			try {
-				const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
+				const response = await axios.get(`${this.client.baseURL}/generation?id=${genId}`, {
 					headers: {
 						Authorization: `Bearer ${this.options.openRouterApiKey}`,
 					},
