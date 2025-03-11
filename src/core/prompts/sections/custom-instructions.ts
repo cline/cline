@@ -34,7 +34,7 @@ export async function addCustomInstructions(
 	globalCustomInstructions: string,
 	cwd: string,
 	mode: string,
-	options: { vscodeLanguage?: string; rooIgnoreInstructions?: string } = {},
+	options: { language?: string; rooIgnoreInstructions?: string } = {},
 ): Promise<string> {
 	const sections = []
 
@@ -46,10 +46,8 @@ export async function addCustomInstructions(
 	}
 
 	// Add language preference if provided
-	if (options.vscodeLanguage) {
-		sections.push(
-			`Language Preference:\nYou should always speak and think in the "${options.vscodeLanguage}" language.`,
-		)
+	if (options.language) {
+		sections.push(`Language Preference:\nYou should always speak and think in the "${options.language}" language.`)
 	}
 
 	// Add global instructions first

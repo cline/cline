@@ -131,7 +131,7 @@ export interface ExtensionState {
 	remoteBrowserHost?: string
 	remoteBrowserEnabled?: boolean
 	fuzzyMatchThreshold?: number
-	vscodeLanguage?: string
+	language?: string
 	writeDelayMs: number
 	terminalOutputLineLimit?: number
 	mcpEnabled: boolean

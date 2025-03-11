@@ -70,6 +70,7 @@ import { truncateConversationIfNeeded } from "./sliding-window"
 import { ClineProvider } from "./webview/ClineProvider"
 import { detectCodeOmission } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
+import { formatLanguage } from "../shared/language"
 import { McpHub } from "../services/mcp/McpHub"
 import crypto from "crypto"
 import { insertGroups } from "./diff/insert-groups"
@@ -3668,7 +3669,7 @@ export class Cline {
 		const modeDetails = await getFullModeDetails(currentMode, customModes, customModePrompts, {
 			cwd,
 			globalCustomInstructions,
-			vscodeLanguage: vscode.env.language,
+			language: formatLanguage(vscode.env.language),
 		})
 		details += `\n\n# Current Mode\n`
 		details += `<slug>${currentMode}</slug>\n`

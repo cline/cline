@@ -401,7 +401,7 @@ describe("FileRestrictionError", () => {
 			const options = {
 				cwd: "/test/path",
 				globalCustomInstructions: "Global instructions",
-				vscodeLanguage: "en",
+				language: "en",
 			}
 
 			await getFullModeDetails("debug", undefined, undefined, options)
@@ -411,7 +411,7 @@ describe("FileRestrictionError", () => {
 				"Global instructions",
 				"/test/path",
 				"debug",
-				{ vscodeLanguage: "en" },
+				{ language: "en" },
 			)
 		})
 

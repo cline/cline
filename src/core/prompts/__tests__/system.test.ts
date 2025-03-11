@@ -37,14 +37,14 @@ __setMockImplementation(
 		globalCustomInstructions: string,
 		cwd: string,
 		mode: string,
-		options?: { vscodeLanguage?: string },
+		options?: { language?: string },
 	) => {
 		const sections = []
 
 		// Add language preference if provided
-		if (options?.vscodeLanguage) {
+		if (options?.language) {
 			sections.push(
-				`Language Preference:\nYou should always speak and think in the "${options.vscodeLanguage}" language.`,
+				`Language Preference:\nYou should always speak and think in the "${options.language}" language.`,
 			)
 		}
 
@@ -792,7 +792,7 @@ describe("addCustomInstructions", () => {
 
 	it("should include preferred language when provided", async () => {
 		const instructions = await addCustomInstructions("", "", "/test/path", defaultModeSlug, {
-			vscodeLanguage: "es",
+			language: "es",
 		})
 		expect(instructions).toMatchSnapshot()
 	})
@@ -808,7 +808,7 @@ describe("addCustomInstructions", () => {
 			"",
 			"/test/path",
 			defaultModeSlug,
-			{ vscodeLanguage: "fr" },
+			{ language: "fr" },
 		)
 		expect(instructions).toMatchSnapshot()
 	})

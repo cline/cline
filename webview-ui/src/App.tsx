@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
-
 import { ExtensionMessage } from "../../src/shared/ExtensionMessage"
 import { ShowHumanRelayDialogMessage } from "../../src/shared/ExtensionMessage"
+import TranslationProvider from "./i18n/TranslationContext"
 
 import { vscode } from "./utils/vscode"
 import { telemetryClient } from "./utils/TelemetryClient"
@@ -131,7 +131,9 @@ const App = () => {
 
 const AppWithProviders = () => (
 	<ExtensionStateContextProvider>
-		<App />
+		<TranslationProvider>
+			<App />
+		</TranslationProvider>
 	</ExtensionStateContextProvider>
 )
 

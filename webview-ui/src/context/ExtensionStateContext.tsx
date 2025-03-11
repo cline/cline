@@ -116,7 +116,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		enableCheckpoints: true,
 		checkpointStorage: "task",
 		fuzzyMatchThreshold: 1.0,
-		vscodeLanguage: "en", // Default language code
+		language: "en", // Default language code
 		enableCustomModeCreation: true,
 		writeDelayMs: 1000,
 		browserViewportSize: "900x600",

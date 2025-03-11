@@ -25,6 +25,7 @@ import {
 	addCustomInstructions,
 } from "./sections"
 import { loadSystemPromptFile } from "./sections/custom-system-prompt"
+import { formatLanguage } from "../../shared/language"
 
 async function generatePrompt(
 	context: vscode.ExtensionContext,
@@ -95,7 +96,7 @@ ${getSystemInfoSection(cwd, mode, customModeConfigs)}
 
 ${getObjectiveSection()}
 
-${await addCustomInstructions(promptComponent?.customInstructions || modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, { vscodeLanguage: vscode.env.language, rooIgnoreInstructions })}`
+${await addCustomInstructions(promptComponent?.customInstructions || modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, { language: formatLanguage(vscode.env.language), rooIgnoreInstructions })}`
 
 	return basePrompt
 }
@@ -144,7 +145,7 @@ export const SYSTEM_PROMPT = async (
 			globalCustomInstructions || "",
 			cwd,
 			mode,
-			{ vscodeLanguage: vscode.env.language, rooIgnoreInstructions },
+			{ language: formatLanguage(vscode.env.language), rooIgnoreInstructions },
 		)
 		// For file-based prompts, don't include the tool sections
 		return `${roleDefinition}

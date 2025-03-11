@@ -113,7 +113,7 @@ describe("addCustomInstructions", () => {
 			"global instructions",
 			"/fake/path",
 			"test-mode",
-			{ vscodeLanguage: "es" },
+			{ language: "es" },
 		)
 
 		expect(result).toContain("Language Preference:")

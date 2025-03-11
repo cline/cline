@@ -26,6 +26,7 @@ import { checkoutDiffPayloadSchema, checkoutRestorePayloadSchema, WebviewMessage
 import { Mode, CustomModePrompts, PromptComponent, defaultModeSlug, ModeConfig } from "../../shared/modes"
 import { checkExistKey } from "../../shared/checkExistApiConfig"
 import { EXPERIMENT_IDS, experiments as Experiments, experimentDefault, ExperimentId } from "../../shared/experiments"
+import { formatLanguage } from "../../shared/language"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
@@ -2358,6 +2359,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserToolEnabled,
 			telemetrySetting,
 			showRooIgnoredFiles,
+			language,
 		} = await this.getState()
 		const telemetryKey = process.env.POSTHOG_API_KEY
 		const machineId = vscode.env.machineId
@@ -2422,6 +2424,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			telemetryKey,
 			machineId,
 			showRooIgnoredFiles: showRooIgnoredFiles ?? true,
+			language,
 		}
 	}
 
@@ -2556,7 +2559,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			terminalOutputLineLimit: stateValues.terminalOutputLineLimit ?? 500,
 			mode: stateValues.mode ?? defaultModeSlug,
 			// Pass the VSCode language code directly
-			vscodeLanguage: vscode.env.language,
+			language: formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,
 			enableMcpServerCreation: stateValues.enableMcpServerCreation ?? true,
 			alwaysApproveResubmit: stateValues.alwaysApproveResubmit ?? false,

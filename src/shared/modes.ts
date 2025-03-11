@@ -278,7 +278,7 @@ export async function getFullModeDetails(
 	options?: {
 		cwd?: string
 		globalCustomInstructions?: string
-		vscodeLanguage?: string
+		language?: string
 	},
 ): Promise<ModeConfig> {
 	// First get the base mode config from custom modes or built-in modes
@@ -298,7 +298,7 @@ export async function getFullModeDetails(
 			options.globalCustomInstructions || "",
 			options.cwd,
 			modeSlug,
-			{ vscodeLanguage: options.vscodeLanguage },
+			{ language: options.language },
 		)
 	}
 
