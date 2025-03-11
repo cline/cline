@@ -1826,6 +1826,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				fuzzyMatchThreshold,
 				experiments,
 				enableMcpServerCreation,
+				browserToolEnabled,
 			} = await this.getState()
 
 			// Create diffStrategy based on current model and settings
@@ -1841,10 +1842,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 			const rooIgnoreInstructions = this.getCurrentCline()?.rooIgnoreController?.getInstructions()
 
+			// Determine if browser tools can be used based on model support and user settings
+			const modelSupportsComputerUse = this.getCurrentCline()?.api.getModel().info.supportsComputerUse ?? false
+			const canUseBrowserTool = modelSupportsComputerUse && (browserToolEnabled ?? true)
+
 			const systemPrompt = await SYSTEM_PROMPT(
 				this.context,
 				cwd,
-				apiConfiguration.openRouterModelInfo?.supportsComputerUse ?? false,
+				canUseBrowserTool,
 				mcpEnabled ? this.mcpHub : undefined,
 				diffStrategy,
 				browserViewportSize ?? "900x600",
