@@ -310,6 +310,25 @@ class CheckpointTracker {
 
 		return result
 	}
+
+	/**
+	 * Returns the number of files changed between two commits.
+	 *
+	 * @param lhsHash - The commit to compare from (older commit)
+	 * @param rhsHash - The commit to compare to (newer commit)
+	 * @returns The number of files changed between the commits
+	 */
+	public async getDiffCount(lhsHash: string, rhsHash: string): Promise<number> {
+		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const git = simpleGit(path.dirname(gitPath))
+
+		console.info(`Getting commit diff file count: ${lhsHash} -> ${rhsHash}`)
+
+		const diffRange = `${lhsHash}..${rhsHash}`
+		const diffSummary = await git.diffSummary([diffRange])
+
+		return diffSummary.files.length
+	}
 }
 
 export default CheckpointTracker
