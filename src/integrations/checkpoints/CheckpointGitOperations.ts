@@ -2,17 +2,8 @@ import fs from "fs/promises"
 import { globby } from "globby"
 import * as path from "path"
 import simpleGit, { SimpleGit } from "simple-git"
-import { HistoryItem } from "../../shared/HistoryItem"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { fileExistsAtPath } from "../../utils/fs"
 import { getLfsPatterns, writeExcludesFile } from "./CheckpointExclusions"
-import { getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
-
-interface StorageProvider {
-	context: {
-		globalStorageUri: { fsPath: string }
-	}
-}
 
 interface CheckpointAddResult {
 	success: boolean
@@ -27,7 +18,6 @@ interface CheckpointAddResult {
  * - Git repository initialization and configuration
  * - Git settings management (user, LFS, etc.)
  * - Worktree configuration and management
- * - Task-specific branch management (creation, switching, deletion)
  * - Managing nested git repositories during checkpoint operations
  * - File staging and checkpoint creation
  * - Shadow git repository maintenance and cleanup
@@ -74,6 +64,10 @@ export class GitOperations {
 				throw new Error("Checkpoints can only be used in the original workspace: " + worktree.value)
 			}
 			console.warn(`Using existing shadow git at ${gitPath}`)
+
+			// shadow git repo already exists, but update the excludes just in case
+			await writeExcludesFile(gitPath, await getLfsPatterns(this.cwd))
+
 			return gitPath
 		}
 
@@ -94,7 +88,6 @@ export class GitOperations {
 		const lfsPatterns = await getLfsPatterns(cwd)
 		await writeExcludesFile(gitPath, lfsPatterns)
 
-		// Stage all files for initial commit (important so main branch is created with all files in initial commit, and branches created from it will take up less space)
 		await this.addCheckpointFiles(git)
 
 		// Initial commit only on first repo creation
@@ -122,174 +115,6 @@ export class GitOperations {
 		} catch (error) {
 			console.error("Failed to get shadow git config worktree:", error)
 			return undefined
-		}
-	}
-
-	/**
-	 * Checks if a shadow Git repository exists for the current workspace.
-	 * (checkpoints/{workspaceHash}/.git).
-	 *
-	 * @param provider - The ClineProvider instance for accessing VS Code functionality
-	 * @returns Promise<boolean> True if a branch-per-task shadow git exists, false otherwise
-	 */
-	// public static async doesShadowGitExist(provider?: StorageProvider): Promise<boolean> {
-	// 	const globalStoragePath = provider?.context.globalStorageUri.fsPath
-	// 	if (!globalStoragePath) {
-	// 		return false
-	// 	}
-
-	// 	// Check branch-per-task path for newer tasks
-	// 	const workingDir = await getWorkingDirectory()
-	// 	const cwdHash = hashWorkingDir(workingDir)
-	// 	const gitPath = path.join(globalStoragePath, "checkpoints", cwdHash, ".git")
-	// 	const exists = await fileExistsAtPath(gitPath)
-	// 	if (exists) {
-	// 		console.info("Found existing shadow git")
-	// 	}
-	// 	return exists
-	// }
-
-	/**
-	 * Deletes a branch in the git repository, handling cases where the branch is currently checked out.
-	 * If the branch to be deleted is currently checked out, the method will:
-	 * 1. Save the current worktree configuration
-	 * 2. Temporarily unset the worktree to prevent workspace modifications
-	 * 3. Force switch to master/main branch
-	 * 4. Delete the target branch
-	 * 5. Restore the worktree configuration
-	 *
-	 * @param git - SimpleGit instance to use for operations
-	 * @param branchName - Name of the branch to delete
-	 * @param checkpointsDir - Directory containing the git repository
-	 * @throws Error if:
-	 *  - Branch deletion fails
-	 *  - Unable to switch to master/main branch after 3 retries
-	 *  - Git operations fail during the process
-	 */
-	public static async deleteBranchForGit(git: SimpleGit, branchName: string): Promise<void> {
-		// Check if branch exists
-		const branches = await git.branchLocal()
-		if (!branches.all.includes(branchName)) {
-			console.error(`Task branch ${branchName} does not exist, nothing to delete`)
-			return // Branch doesn't exist, nothing to delete
-		}
-
-		// First, if we're on the branch to be deleted, switch to master/main
-		const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
-		console.info(`Current branch: ${currentBranch}, target branch to delete: ${branchName}`)
-
-		if (currentBranch === branchName) {
-			console.debug("Currently on branch to be deleted, switching to master/main first")
-			// Save the current worktree config
-			const worktree = await git.getConfig("core.worktree")
-			console.debug(`Saved current worktree config: ${worktree.value}`)
-
-			try {
-				await git.raw(["config", "--unset", "core.worktree"])
-
-				// Force discard all changes before we delete the branch
-				await git.reset(["--hard"])
-				await git.clean("f", ["-d"]) // Clean mode 'f' for force, -d for directories
-
-				// Determine default branch (master or main)
-				const defaultBranch = branches.all.includes("main") ? "main" : "master"
-				console.debug(`Using ${defaultBranch} as default branch`)
-
-				// Switch to default branch and delete target branch
-				console.debug(`Attempting to force switch to ${defaultBranch} branch`)
-				await git.checkout([defaultBranch, "--force"])
-
-				// Verify the switch completed, sometimes this takes a second
-				let retries = 3
-				while (retries > 0) {
-					const newBranch = await git.revparse(["--abbrev-ref", "HEAD"])
-					if (newBranch === defaultBranch) {
-						console.debug(`Successfully switched to ${defaultBranch} branch`)
-						break
-					}
-					retries--
-					if (retries === 0) {
-						throw new Error(`Failed to switch to ${defaultBranch} branch`)
-					}
-				}
-
-				console.info(`Deleting branch: ${branchName}`)
-				await git.raw(["branch", "-D", branchName])
-				console.debug(`Successfully deleted branch: ${branchName}`)
-			} finally {
-				// Restore the worktree config
-				if (worktree.value) {
-					await git.addConfig("core.worktree", worktree.value)
-				}
-			}
-		} else {
-			// If we're not on the branch, we can safely delete it
-			console.info(`Directly deleting branch ${branchName}`)
-			await git.raw(["branch", "-D", branchName])
-			console.debug(`Successfully deleted branch: ${branchName}`)
-		}
-	}
-
-	/**
-	 * Static method to delete a task's branch using stored workspace path.
-	 * 1. First attempts to delete branch-per-task checkpoint if it exists
-	 *
-	 * @param taskId - The ID of the task whose branch should be deleted
-	 * @param historyItem - The history item containing the shadow git config
-	 * @param globalStoragePath - Path to VS Code's global storage
-	 * @throws Error if:
-	 *  - Global storage path is invalid
-	 *  - Branch deletion fails
-	 */
-	public static async deleteTaskBranchStatic(
-		taskId: string,
-		historyItem: HistoryItem,
-		globalStoragePath: string,
-	): Promise<void> {
-		try {
-			console.debug("Starting static task branch deletion process...")
-
-			if (!globalStoragePath) {
-				throw new Error("Global storage uri is invalid")
-			}
-
-			// Handle both active and inactive tasks
-			let workingDir: string
-			if (historyItem.shadowGitConfigWorkTree) {
-				workingDir = historyItem.shadowGitConfigWorkTree
-			} else {
-				workingDir = await getWorkingDirectory()
-			}
-
-			const gitPath = path.join(globalStoragePath, "checkpoints", hashWorkingDir(workingDir), ".git")
-
-			if (await fileExistsAtPath(gitPath)) {
-				console.debug(`Found branch-per-task git repository at ${gitPath}`)
-				const git = simpleGit(path.dirname(gitPath))
-				const branchName = `task-${taskId}`
-
-				// Check if the branch exists
-				const branches = await git.branchLocal()
-				if (branches.all.includes(branchName)) {
-					console.info(`Found branch ${branchName} to delete`)
-					await GitOperations.deleteBranchForGit(git, branchName)
-
-					// Determine if the task is active based on whether we had to use the stored worktree path
-					const isTaskActive = !historyItem.shadowGitConfigWorkTree
-					telemetryService.captureCheckpointUsage(
-						taskId,
-						isTaskActive ? "branch_deleted_active" : "branch_deleted_inactive",
-					)
-
-					return
-				}
-				console.warn(`Branch ${branchName} not found in branch-per-task repository`)
-			}
-
-			console.info("No checkpoints found to delete")
-		} catch (error) {
-			console.error("Failed to delete task branch:", error)
-			throw new Error(`Failed to delete task branch: ${error instanceof Error ? error.message : String(error)}`)
 		}
 	}
 
@@ -331,48 +156,6 @@ export class GitOperations {
 				console.error(`CheckpointTracker failed to ${disable ? "disable" : "enable"} nested git repo ${gitPath}:`, error)
 			}
 		}
-	}
-
-	/**
-	 * Switches to or creates a task-specific branch in the shadow Git repository.
-	 * For branch-per-task checkpoints, this ensures we're on the correct task branch before operations.
-	 *
-	 * The method performs the following:
-	 * 1. Gets the shadow git path and initializes simple-git
-	 * 2. Constructs the branch name using the task ID
-	 * 3. Checks if the branch exists:
-	 *    - If not, creates a new branch
-	 *    - If yes, switches to the existing branch
-	 * 4. Verifies the branch switch completed successfully
-	 *
-	 * Branch naming convention:
-	 * task-{taskId}
-	 *
-	 * @param taskId - The ID of the task whose branch to switch to
-	 * @param gitPath - Path to the .git directory
-	 * @returns Promise<void>
-	 * @throws Error if branch operations fail or git commands error
-	 */
-	public async switchToTaskBranch(taskId: string, gitPath: string): Promise<void> {
-		const git = simpleGit(path.dirname(gitPath))
-		const branchName = `task-${taskId}`
-
-		// Update excludes when creating a new branch for a new task
-		await writeExcludesFile(gitPath, await getLfsPatterns(this.cwd))
-
-		// Create new task-specific branch, or switch to one if it already exists.
-		const branches = await git.branchLocal()
-		if (!branches.all.includes(branchName)) {
-			console.info(`Creating new task branch: ${branchName}`)
-			await git.checkoutLocalBranch(branchName)
-			telemetryService.captureCheckpointUsage(taskId, "branch_created")
-		} else {
-			console.info(`Switching to existing task branch: ${branchName}`)
-			await git.checkout(branchName)
-		}
-
-		// const currentBranch = await git.revparse(["--abbrev-ref", "HEAD"])
-		console.info(`Current Checkpoint branch after switch: ${branchName}`)
 	}
 
 	/**

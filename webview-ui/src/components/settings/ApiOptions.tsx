@@ -6,7 +6,6 @@ import {
 	VSCodeRadio,
 	VSCodeRadioGroup,
 	VSCodeTextField,
-	VSCodeButton,
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
@@ -33,8 +32,10 @@ import {
 	openAiNativeModels,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
-	qwenDefaultModelId,
-	qwenModels,
+	mainlandQwenModels,
+	internationalQwenModels,
+	mainlandQwenDefaultModelId,
+	internationalQwenDefaultModelId,
 	vertexDefaultModelId,
 	vertexModels,
 	askSageModels,
@@ -879,6 +880,38 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									<span style={{ fontWeight: 500 }}>Output Price / 1M tokens</span>
 								</VSCodeTextField>
 							</div>
+							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
+								<VSCodeTextField
+									value={
+										apiConfiguration?.openAiModelInfo?.temperature
+											? apiConfiguration.openAiModelInfo.temperature.toString()
+											: openAiModelInfoSaneDefaults.temperature?.toString()
+									}
+									onInput={(input: any) => {
+										let modelInfo = apiConfiguration?.openAiModelInfo
+											? apiConfiguration.openAiModelInfo
+											: { ...openAiModelInfoSaneDefaults }
+
+										// Check if the input ends with a decimal point or has trailing zeros after decimal
+										const value = input.target.value
+										const shouldPreserveFormat =
+											value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
+
+										modelInfo.temperature =
+											value === ""
+												? openAiModelInfoSaneDefaults.temperature
+												: shouldPreserveFormat
+													? value // Keep as string to preserve decimal format
+													: parseFloat(value)
+
+										setApiConfiguration({
+											...apiConfiguration,
+											openAiModelInfo: modelInfo,
+										})
+									}}>
+									<span style={{ fontWeight: 500 }}>Temperature</span>
+								</VSCodeTextField>
+							</div>
 						</>
 					)}
 					<p
@@ -1264,7 +1297,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
 							{selectedProvider === "deepseek" && createDropdown(deepSeekModels)}
-							{selectedProvider === "qwen" && createDropdown(qwenModels)}
+							{selectedProvider === "qwen" &&
+								createDropdown(
+									apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels,
+								)}
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
@@ -1483,7 +1519,10 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 		case "deepseek":
 			return getProviderData(deepSeekModels, deepSeekDefaultModelId)
 		case "qwen":
-			return getProviderData(qwenModels, qwenDefaultModelId)
+			const qwenModels = apiConfiguration?.qwenApiLine === "china" ? mainlandQwenModels : internationalQwenModels
+			const qwenDefaultId =
+				apiConfiguration?.qwenApiLine === "china" ? mainlandQwenDefaultModelId : internationalQwenDefaultModelId
+			return getProviderData(qwenModels, qwenDefaultId)
 		case "mistral":
 			return getProviderData(mistralModels, mistralDefaultModelId)
 		case "asksage":
@@ -1504,7 +1543,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.openAiModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
+				selectedModelInfo: apiConfiguration?.openAiModelInfo || openAiModelInfoSaneDefaults,
 			}
 		case "ollama":
 			return {

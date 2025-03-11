@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.6.1",
+	"version": "3.6.10",
 	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
 		"color": "#617A91",
@@ -276,7 +276,7 @@
 		"@types/pdf-parse": "^1.1.4",
 		"@types/turndown": "^5.0.5",
 		"@vscode/codicons": "^0.0.36",
-		"axios": "^1.7.4",
+		"axios": "^1.8.2",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
 		"clone-deep": "^4.0.1",

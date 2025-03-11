@@ -117,7 +117,11 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}
 
 	const hasInfo = useMemo(() => {
-		return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
+		try {
+			return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
+		} catch {
+			return false
+		}
 	}, [modelIds, searchTerm])
 
 	useEffect(() => {

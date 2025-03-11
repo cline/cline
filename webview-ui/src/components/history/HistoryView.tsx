@@ -2,10 +2,13 @@ import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@v
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { Virtuoso } from "react-virtuoso"
-import { memo, useMemo, useState, useEffect } from "react"
+import { memo, useMemo, useState, useEffect, useCallback } from "react"
 import Fuse, { FuseResult } from "fuse.js"
 import { formatLargeNumber } from "../../utils/format"
 import { formatSize } from "../../utils/size"
+import DangerButton from "../common/DangerButton"
+import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
+import { useEvent } from "react-use"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -18,6 +21,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
+	const [deleteAllDisabled, setDeleteAllDisabled] = useState(false)
+
+	const handleMessage = useCallback((event: MessageEvent<ExtensionMessage>) => {
+		if (event.data.type === "relinquishControl") {
+			setDeleteAllDisabled(false)
+		}
+	}, [])
+
+	useEvent("message", handleMessage)
 
 	useEffect(() => {
 		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
@@ -446,6 +458,21 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							</div>
 						)}
 					/>
+				</div>
+				<div
+					style={{
+						padding: "10px 10px",
+						borderTop: "1px solid var(--vscode-panel-border)",
+					}}>
+					<DangerButton
+						style={{ width: "100%" }}
+						disabled={deleteAllDisabled || taskHistory.length === 0}
+						onClick={() => {
+							setDeleteAllDisabled(true)
+							vscode.postMessage({ type: "clearAllTaskHistory" })
+						}}>
+						Delete All History
+					</DangerButton>
 				</div>
 			</div>
 		</>
