@@ -43,11 +43,42 @@ export class TerminalRegistry {
 				async (e: vscode.TerminalShellExecutionEndEvent) => {
 					const terminalInfo = this.getTerminalByVSCETerminal(e.terminal)
 					const process = terminalInfo?.process
-					const exitDetails = process
-						? TerminalProcess.interpretExitCode(e?.exitCode)
-						: { exitCode: e?.exitCode }
+
+					if (!terminalInfo) {
+						console.error("[TerminalRegistry] Shell execution ended but terminal not found:", {
+							exitCode: e?.exitCode,
+						})
+						return
+					}
+
+					if (!terminalInfo.running) {
+						console.error(
+							"[TerminalRegistry] Shell execution end event received, but process is not running for terminal:",
+							{
+								terminalId: terminalInfo?.id,
+								command: process?.command,
+								exitCode: e?.exitCode,
+							},
+						)
+						return
+					}
+
+					if (!process) {
+						console.error(
+							"[TerminalRegistry] Shell execution end event received on running terminal, but process is undefined:",
+							{
+								terminalId: terminalInfo.id,
+								exitCode: e?.exitCode,
+							},
+						)
+						return
+					}
+
+					const exitDetails = TerminalProcess.interpretExitCode(e?.exitCode)
 					console.info("[TerminalRegistry] Shell execution ended:", {
 						...exitDetails,
+						terminalId: terminalInfo.id,
+						command: process?.command ?? "<unknown>",
 					})
 
 					// Signal completion to any waiting processes
