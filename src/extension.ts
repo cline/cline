@@ -13,14 +13,13 @@ try {
 
 import "./utils/path" // Necessary to have access to String.prototype.toPosix.
 
-import { createClineAPI } from "./exports"
 import { ClineProvider } from "./core/webview/ClineProvider"
 import { CodeActionProvider } from "./core/CodeActionProvider"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import { McpServerManager } from "./services/mcp/McpServerManager"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 
-import { handleUri, registerCommands, registerCodeActions } from "./activate"
+import { handleUri, registerCommands, registerCodeActions, createRooCodeAPI } from "./activate"
 
 /**
  * Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -99,7 +98,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	registerCodeActions(context)
 
-	return createClineAPI(outputChannel, sidebarProvider)
+	return createRooCodeAPI(outputChannel, sidebarProvider)
 }
 
 // This method is called when your extension is deactivated.

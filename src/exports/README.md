@@ -1,55 +1,51 @@
-# Cline API
+# Roo Code API
 
-The Cline extension exposes an API that can be used by other extensions. To use this API in your extension:
+The Roo Code extension exposes an API that can be used by other extensions. To use this API in your extension:
 
-1. Copy `src/extension-api/cline.d.ts` to your extension's source directory.
-2. Include `cline.d.ts` in your extension's compilation.
+1. Copy `src/extension-api/roo-code.d.ts` to your extension's source directory.
+2. Include `roo-code.d.ts` in your extension's compilation.
 3. Get access to the API with the following code:
 
-    ```ts
-    const clineExtension = vscode.extensions.getExtension<ClineAPI>("rooveterinaryinc.roo-cline")
+```typescript
+const extension = vscode.extensions.getExtension<RooCodeAPI>("rooveterinaryinc.roo-cline")
 
-    if (!clineExtension?.isActive) {
-    	throw new Error("Cline extension is not activated")
-    }
+if (!extension?.isActive) {
+	throw new Error("Extension is not activated")
+}
 
-    const cline = clineExtension.exports
+const api = extension.exports
 
-    if (cline) {
-    	// Now you can use the API
+if (!api) {
+	throw new Error("API is not available")
+}
 
-    	// Set custom instructions
-    	await cline.setCustomInstructions("Talk like a pirate")
+// Set custom instructions.
+await api.setCustomInstructions("Talk like a pirate")
 
-    	// Get custom instructions
-    	const instructions = await cline.getCustomInstructions()
-    	console.log("Current custom instructions:", instructions)
+// Get custom instructions.
+const instructions = await api.getCustomInstructions()
+console.log("Current custom instructions:", instructions)
 
-    	// Start a new task with an initial message
-    	await cline.startNewTask("Hello, Cline! Let's make a new project...")
+// Start a new task with an initial message.
+await api.startNewTask("Hello, Roo Code API! Let's make a new project...")
 
-    	// Start a new task with an initial message and images
-    	await cline.startNewTask("Use this design language", ["data:image/webp;base64,..."])
+// Start a new task with an initial message and images.
+await api.startNewTask("Use this design language", ["data:image/webp;base64,..."])
 
-    	// Send a message to the current task
-    	await cline.sendMessage("Can you fix the @problems?")
+// Send a message to the current task.
+await api.sendMessage("Can you fix the @problems?")
 
-    	// Simulate pressing the primary button in the chat interface (e.g. 'Save' or 'Proceed While Running')
-    	await cline.pressPrimaryButton()
+// Simulate pressing the primary button in the chat interface (e.g. 'Save' or 'Proceed While Running').
+await api.pressPrimaryButton()
 
-    	// Simulate pressing the secondary button in the chat interface (e.g. 'Reject')
-    	await cline.pressSecondaryButton()
-    } else {
-    	console.error("Cline API is not available")
-    }
-    ```
+// Simulate pressing the secondary button in the chat interface (e.g. 'Reject').
+await api.pressSecondaryButton()
+```
 
-    **Note:** To ensure that the `rooveterinaryinc.roo-cline` extension is activated before your extension, add it to the `extensionDependencies` in your `package.json`:
+**NOTE:** To ensure that the `rooveterinaryinc.roo-cline` extension is activated before your extension, add it to the `extensionDependencies` in your `package.json`:
 
-    ```json
-    "extensionDependencies": [
-        "rooveterinaryinc.roo-cline"
-    ]
-    ```
+```json
+"extensionDependencies": ["rooveterinaryinc.roo-cline"]
+```
 
-For detailed information on the available methods and their usage, refer to the `cline.d.ts` file.
+For detailed information on the available methods and their usage, refer to the `roo-code.d.ts` file.

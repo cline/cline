@@ -1,9 +1,11 @@
 import * as vscode from "vscode"
-import { ClineProvider } from "../core/webview/ClineProvider"
-import { ClineAPI } from "./cline"
 
-export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarProvider: ClineProvider): ClineAPI {
-	const api: ClineAPI = {
+import { ClineProvider } from "../core/webview/ClineProvider"
+
+import { RooCodeAPI } from "../exports/roo-code"
+
+export function createRooCodeAPI(outputChannel: vscode.OutputChannel, sidebarProvider: ClineProvider): RooCodeAPI {
+	return {
 		setCustomInstructions: async (value: string) => {
 			await sidebarProvider.updateCustomInstructions(value)
 			outputChannel.appendLine("Custom instructions set")
@@ -24,6 +26,7 @@ export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarProvi
 				text: task,
 				images: images,
 			})
+
 			outputChannel.appendLine(
 				`Task started with message: ${task ? `"${task}"` : "undefined"} and ${images?.length || 0} image(s)`,
 			)
@@ -33,6 +36,7 @@ export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarProvi
 			outputChannel.appendLine(
 				`Sending message: ${message ? `"${message}"` : "undefined"} with ${images?.length || 0} image(s)`,
 			)
+
 			await sidebarProvider.postMessageToWebview({
 				type: "invoke",
 				invoke: "sendMessage",
@@ -43,22 +47,14 @@ export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarProvi
 
 		pressPrimaryButton: async () => {
 			outputChannel.appendLine("Pressing primary button")
-			await sidebarProvider.postMessageToWebview({
-				type: "invoke",
-				invoke: "primaryButtonClick",
-			})
+			await sidebarProvider.postMessageToWebview({ type: "invoke", invoke: "primaryButtonClick" })
 		},
 
 		pressSecondaryButton: async () => {
 			outputChannel.appendLine("Pressing secondary button")
-			await sidebarProvider.postMessageToWebview({
-				type: "invoke",
-				invoke: "secondaryButtonClick",
-			})
+			await sidebarProvider.postMessageToWebview({ type: "invoke", invoke: "secondaryButtonClick" })
 		},
 
 		sidebarProvider: sidebarProvider,
 	}
-
-	return api
 }
