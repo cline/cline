@@ -52,6 +52,8 @@ export interface ExtensionMessage {
 		| "humanRelayResponse"
 		| "humanRelayCancel"
 		| "browserToolEnabled"
+		| "browserConnectionResult"
+		| "remoteBrowserEnabled"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -84,6 +86,8 @@ export interface ExtensionMessage {
 	mode?: Mode
 	customMode?: ModeConfig
 	slug?: string
+	success?: boolean
+	values?: Record<string, any>
 }
 
 export interface ApiConfigMeta {
@@ -124,6 +128,8 @@ export interface ExtensionState {
 	checkpointStorage: CheckpointStorage
 	browserViewportSize?: string
 	screenshotQuality?: number
+	remoteBrowserHost?: string
+	remoteBrowserEnabled?: boolean
 	fuzzyMatchThreshold?: number
 	preferredLanguage: string
 	writeDelayMs: number

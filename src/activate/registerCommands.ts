@@ -3,6 +3,8 @@ import delay from "delay"
 
 import { ClineProvider } from "../core/webview/ClineProvider"
 
+import { registerHumanRelayCallback, unregisterHumanRelayCallback, handleHumanRelayResponse } from "./humanRelay"
+
 // Store panel references in both modes
 let sidebarPanel: vscode.WebviewView | undefined = undefined
 let tabPanel: vscode.WebviewPanel | undefined = undefined
@@ -43,22 +45,6 @@ export const registerCommands = (options: RegisterCommandOptions) => {
 	for (const [command, callback] of Object.entries(getCommandsMap(options))) {
 		context.subscriptions.push(vscode.commands.registerCommand(command, callback))
 	}
-
-	// Human Relay Dialog Command
-	context.subscriptions.push(
-		vscode.commands.registerCommand(
-			"roo-cline.showHumanRelayDialog",
-			(params: { requestId: string; promptText: string }) => {
-				if (getPanel()) {
-					getPanel()?.webview.postMessage({
-						type: "showHumanRelayDialog",
-						requestId: params.requestId,
-						promptText: params.promptText,
-					})
-				}
-			},
-		),
-	)
 }
 
 const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOptions) => {
@@ -85,6 +71,20 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 		"roo-cline.helpButtonClicked": () => {
 			vscode.env.openExternal(vscode.Uri.parse("https://docs.roocode.com"))
 		},
+		"roo-cline.showHumanRelayDialog": (params: { requestId: string; promptText: string }) => {
+			const panel = getPanel()
+
+			if (panel) {
+				panel?.webview.postMessage({
+					type: "showHumanRelayDialog",
+					requestId: params.requestId,
+					promptText: params.promptText,
+				})
+			}
+		},
+		"roo-cline.registerHumanRelayCallback": registerHumanRelayCallback,
+		"roo-cline.unregisterHumanRelayCallback": unregisterHumanRelayCallback,
+		"roo-cline.handleHumanRelayResponse": handleHumanRelayResponse,
 	}
 }
 

@@ -41,7 +41,7 @@ import { VSCodeButtonLink } from "../common/VSCodeButtonLink"
 import { ModelInfoView } from "./ModelInfoView"
 import { ModelPicker } from "./ModelPicker"
 import { TemperatureControl } from "./TemperatureControl"
-import { validateApiConfiguration, validateModelId } from "@/utils/validate"
+import { validateApiConfiguration, validateModelId, validateBedrockArn } from "@/utils/validate"
 import { ApiErrorMessage } from "./ApiErrorMessage"
 import { ThinkingBudget } from "./ThinkingBudget"
 
@@ -1267,14 +1267,82 @@ const ApiOptions = ({
 						</label>
 						<Dropdown
 							id="model-id"
-							value={selectedModelId}
+							value={selectedModelId === "custom-arn" ? "custom-arn" : selectedModelId}
 							onChange={(value) => {
-								setApiConfigurationField("apiModelId", typeof value == "string" ? value : value?.value)
+								const modelValue = typeof value == "string" ? value : value?.value
+								setApiConfigurationField("apiModelId", modelValue)
+
+								// Clear custom ARN if not using custom ARN option
+								if (modelValue !== "custom-arn" && selectedProvider === "bedrock") {
+									setApiConfigurationField("awsCustomArn", "")
+								}
 							}}
-							options={selectedProviderModelOptions}
+							options={[
+								...selectedProviderModelOptions,
+								...(selectedProvider === "bedrock"
+									? [{ value: "custom-arn", label: "Use custom ARN..." }]
+									: []),
+							]}
 							className="w-full"
 						/>
 					</div>
+
+					{selectedProvider === "bedrock" && selectedModelId === "custom-arn" && (
+						<>
+							<VSCodeTextField
+								value={apiConfiguration?.awsCustomArn || ""}
+								onInput={(e) => {
+									const value = (e.target as HTMLInputElement).value
+									setApiConfigurationField("awsCustomArn", value)
+								}}
+								placeholder="Enter ARN (e.g. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)"
+								className="w-full">
+								<span className="font-medium">Custom ARN</span>
+							</VSCodeTextField>
+							<div className="text-sm text-vscode-descriptionForeground -mt-2">
+								Enter a valid AWS Bedrock ARN for the model you want to use. Format examples:
+								<ul className="list-disc pl-5 mt-1">
+									<li>
+										arn:aws:bedrock:us-east-1:123456789012:foundation-model/anthropic.claude-3-sonnet-20240229-v1:0
+									</li>
+									<li>
+										arn:aws:bedrock:us-west-2:123456789012:provisioned-model/my-provisioned-model
+									</li>
+									<li>
+										arn:aws:bedrock:us-east-1:123456789012:default-prompt-router/anthropic.claude:1
+									</li>
+								</ul>
+								Make sure the region in the ARN matches your selected AWS Region above.
+							</div>
+							{apiConfiguration?.awsCustomArn &&
+								(() => {
+									const validation = validateBedrockArn(
+										apiConfiguration.awsCustomArn,
+										apiConfiguration.awsRegion,
+									)
+
+									if (!validation.isValid) {
+										return (
+											<div className="text-sm text-vscode-errorForeground mt-2">
+												{validation.errorMessage ||
+													"Invalid ARN format. Please check the examples above."}
+											</div>
+										)
+									}
+
+									if (validation.errorMessage) {
+										return (
+											<div className="text-sm text-vscode-errorForeground mt-2">
+												{validation.errorMessage}
+											</div>
+										)
+									}
+
+									return null
+								})()}
+							=======
+						</>
+					)}
 					<ModelInfoView
 						selectedModelId={selectedModelId}
 						modelInfo={selectedModelInfo}
@@ -1333,6 +1401,19 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 		case "anthropic":
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 		case "bedrock":
+			// Special case for custom ARN
+			if (modelId === "custom-arn") {
+				return {
+					selectedProvider: provider,
+					selectedModelId: "custom-arn",
+					selectedModelInfo: {
+						maxTokens: 5000,
+						contextWindow: 128_000,
+						supportsPromptCache: false,
+						supportsImages: true,
+					},
+				}
+			}
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
 		case "vertex":
 			return getProviderData(vertexModels, vertexDefaultModelId)
