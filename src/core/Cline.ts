@@ -1102,7 +1102,6 @@ export class Cline {
 			browserViewportSize,
 			mode,
 			customModePrompts,
-			preferredLanguage,
 			experiments,
 			enableMcpServerCreation,
 			browserToolEnabled,
@@ -1124,7 +1123,6 @@ export class Cline {
 				customModePrompts,
 				customModes,
 				this.customInstructions,
-				preferredLanguage,
 				this.diffEnabled,
 				experiments,
 				enableMcpServerCreation,
@@ -3665,13 +3663,12 @@ export class Cline {
 			customModePrompts,
 			experiments = {} as Record<ExperimentId, boolean>,
 			customInstructions: globalCustomInstructions,
-			preferredLanguage,
 		} = (await this.providerRef.deref()?.getState()) ?? {}
 		const currentMode = mode ?? defaultModeSlug
 		const modeDetails = await getFullModeDetails(currentMode, customModes, customModePrompts, {
 			cwd,
 			globalCustomInstructions,
-			preferredLanguage,
+			vscodeLanguage: vscode.env.language,
 		})
 		details += `\n\n# Current Mode\n`
 		details += `<slug>${currentMode}</slug>\n`

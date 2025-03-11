@@ -37,9 +37,8 @@ async function generatePrompt(
 	promptComponent?: PromptComponent,
 	customModeConfigs?: ModeConfig[],
 	globalCustomInstructions?: string,
-	preferredLanguage?: string,
 	diffEnabled?: boolean,
-	experiments?: Record<string, boolean>,
+	experiments?: Record<string, boolean> | boolean | undefined,
 	enableMcpServerCreation?: boolean,
 	rooIgnoreInstructions?: string,
 ): Promise<string> {
@@ -61,6 +60,12 @@ async function generatePrompt(
 			: Promise.resolve(""),
 	])
 
+	// Convert experiments to an object if it's a boolean
+	const experimentSettings =
+		typeof experiments === "boolean"
+			? {} // Empty object if experiments is just a boolean
+			: (experiments ?? {})
+
 	const basePrompt = `${roleDefinition}
 
 ${getSharedToolUseSection()}
@@ -73,7 +78,7 @@ ${getToolDescriptionsForMode(
 	browserViewportSize,
 	mcpHub,
 	customModeConfigs,
-	experiments,
+	experimentSettings,
 )}
 
 ${getToolUseGuidelinesSection()}
@@ -84,13 +89,13 @@ ${getCapabilitiesSection(cwd, supportsComputerUse, mcpHub, effectiveDiffStrategy
 
 ${modesSection}
 
-${getRulesSection(cwd, supportsComputerUse, effectiveDiffStrategy, experiments)}
+${getRulesSection(cwd, supportsComputerUse, effectiveDiffStrategy, experimentSettings)}
 
 ${getSystemInfoSection(cwd, mode, customModeConfigs)}
 
 ${getObjectiveSection()}
 
-${await addCustomInstructions(promptComponent?.customInstructions || modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, { preferredLanguage, rooIgnoreInstructions })}`
+${await addCustomInstructions(promptComponent?.customInstructions || modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, { vscodeLanguage: vscode.env.language, rooIgnoreInstructions })}`
 
 	return basePrompt
 }
@@ -106,9 +111,8 @@ export const SYSTEM_PROMPT = async (
 	customModePrompts?: CustomModePrompts,
 	customModes?: ModeConfig[],
 	globalCustomInstructions?: string,
-	preferredLanguage?: string,
 	diffEnabled?: boolean,
-	experiments?: Record<string, boolean>,
+	experiments?: Record<string, boolean> | boolean | undefined,
 	enableMcpServerCreation?: boolean,
 	rooIgnoreInstructions?: string,
 ): Promise<string> => {
@@ -135,15 +139,28 @@ export const SYSTEM_PROMPT = async (
 	// If a file-based custom system prompt exists, use it
 	if (fileCustomSystemPrompt) {
 		const roleDefinition = promptComponent?.roleDefinition || currentMode.roleDefinition
+		const customInstructions = await addCustomInstructions(
+			promptComponent?.customInstructions || currentMode.customInstructions || "",
+			globalCustomInstructions || "",
+			cwd,
+			mode,
+			{ vscodeLanguage: vscode.env.language, rooIgnoreInstructions },
+		)
+		// For file-based prompts, don't include the tool sections
 		return `${roleDefinition}
 
 ${fileCustomSystemPrompt}
 
-${await addCustomInstructions(promptComponent?.customInstructions || currentMode.customInstructions || "", globalCustomInstructions || "", cwd, mode, { preferredLanguage, rooIgnoreInstructions })}`
+${customInstructions}`
 	}
 
 	// If diff is disabled, don't pass the diffStrategy
 	const effectiveDiffStrategy = diffEnabled ? diffStrategy : undefined
+	// Convert experiments to an object if it's a boolean
+	const experimentSettings =
+		typeof experiments === "boolean"
+			? {} // Empty object if experiments is just a boolean
+			: (experiments ?? {})
 
 	return generatePrompt(
 		context,
@@ -156,9 +173,8 @@ ${await addCustomInstructions(promptComponent?.customInstructions || currentMode
 		promptComponent,
 		customModes,
 		globalCustomInstructions,
-		preferredLanguage,
 		diffEnabled,
-		experiments,
+		experimentSettings,
 		enableMcpServerCreation,
 		rooIgnoreInstructions,
 	)

@@ -1,5 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
+import * as vscode from "vscode"
 
 async function safeReadFile(filePath: string): Promise<string> {
 	try {
@@ -33,7 +34,7 @@ export async function addCustomInstructions(
 	globalCustomInstructions: string,
 	cwd: string,
 	mode: string,
-	options: { preferredLanguage?: string; rooIgnoreInstructions?: string } = {},
+	options: { vscodeLanguage?: string; rooIgnoreInstructions?: string } = {},
 ): Promise<string> {
 	const sections = []
 
@@ -45,9 +46,9 @@ export async function addCustomInstructions(
 	}
 
 	// Add language preference if provided
-	if (options.preferredLanguage) {
+	if (options.vscodeLanguage) {
 		sections.push(
-			`Language Preference:\nYou should always speak and think in the ${options.preferredLanguage} language.`,
+			`Language Preference:\nYou should always speak and think in the "${options.vscodeLanguage}" language.`,
 		)
 	}
 

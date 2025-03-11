@@ -9,19 +9,6 @@ import {
 	VSCodeRadioGroup,
 	VSCodeRadio,
 } from "@vscode/webview-ui-toolkit/react"
-import { CaretSortIcon, CheckIcon } from "@radix-ui/react-icons"
-import {
-	Button,
-	Command,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "@/components/ui"
-import { cn } from "@/lib/utils"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import {
 	Mode,
@@ -69,8 +56,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		mode,
 		customInstructions,
 		setCustomInstructions,
-		preferredLanguage,
-		setPreferredLanguage,
 		customModes,
 		enableCustomModeCreation,
 		setEnableCustomModeCreation,
@@ -82,9 +67,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const [testPrompt, setTestPrompt] = useState("")
 	const [isEnhancing, setIsEnhancing] = useState(false)
 	const [isDialogOpen, setIsDialogOpen] = useState(false)
-	const [open, setOpen] = useState(false)
-	const [isCustomLanguage, setIsCustomLanguage] = useState(false)
-	const [customLanguage, setCustomLanguage] = useState("")
 	const [selectedPromptContent, setSelectedPromptContent] = useState("")
 	const [selectedPromptTitle, setSelectedPromptTitle] = useState("")
 	const [isToolsEditMode, setIsToolsEditMode] = useState(false)
@@ -428,93 +410,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 
 			<TabContent>
 				<div className="pb-5 border-b border-vscode-input-border">
-					<div className="mb-5">
-						<div className="font-bold mb-1">Preferred Language</div>
-						<Popover open={open} onOpenChange={setOpen}>
-							<PopoverTrigger asChild>
-								<Button
-									variant="combobox"
-									role="combobox"
-									aria-expanded={open}
-									className="w-full justify-between">
-									{preferredLanguage ?? "Select language..."}
-									<CaretSortIcon className="opacity-50" />
-								</Button>
-							</PopoverTrigger>
-							<PopoverContent align="start" className="p-0">
-								<Command>
-									<CommandInput placeholder="Search language..." className="h-9" />
-									<CommandList>
-										<CommandGroup>
-											{[
-												{ value: "English", label: "English" },
-												{ value: "Arabic", label: "Arabic - العربية" },
-												{
-													value: "Brazilian Portuguese",
-													label: "Portuguese - Português (Brasil)",
-												},
-												{ value: "Catalan", label: "Catalan - Català" },
-												{ value: "Czech", label: "Czech - Čeština" },
-												{ value: "French", label: "French - Français" },
-												{ value: "German", label: "German - Deutsch" },
-												{ value: "Hindi", label: "Hindi - हिन्दी" },
-												{ value: "Hungarian", label: "Hungarian - Magyar" },
-												{ value: "Italian", label: "Italian - Italiano" },
-												{ value: "Japanese", label: "Japanese - 日本語" },
-												{ value: "Korean", label: "Korean - 한국어" },
-												{ value: "Polish", label: "Polish - Polski" },
-												{ value: "Portuguese", label: "Portuguese - Português (Portugal)" },
-												{ value: "Russian", label: "Russian - Русский" },
-												{ value: "Simplified Chinese", label: "Simplified Chinese - 简体中文" },
-												{ value: "Spanish", label: "Spanish - Español" },
-												{
-													value: "Traditional Chinese",
-													label: "Traditional Chinese - 繁體中文",
-												},
-												{ value: "Turkish", label: "Turkish - Türkçe" },
-											].map((language) => (
-												<CommandItem
-													key={language.value}
-													value={language.value}
-													onSelect={(value) => {
-														setPreferredLanguage(value)
-														vscode.postMessage({
-															type: "preferredLanguage",
-															text: value,
-														})
-														setOpen(false)
-													}}>
-													{language.label}
-													<CheckIcon
-														className={cn(
-															"ml-auto",
-															preferredLanguage === language.value
-																? "opacity-100"
-																: "opacity-0",
-														)}
-													/>
-												</CommandItem>
-											))}
-										</CommandGroup>
-									</CommandList>
-								</Command>
-								<div className="border-t border-[var(--vscode-input-border)]">
-									<button
-										className="w-full px-2 py-1.5 text-sm text-left hover:bg-[var(--vscode-list-hoverBackground)]"
-										onClick={() => {
-											setIsCustomLanguage(true)
-											setOpen(false)
-										}}>
-										+ Choose another language
-									</button>
-								</div>
-							</PopoverContent>
-						</Popover>
-						<p className="text-xs mt-1.5 text-vscode-descriptionForeground">
-							Select the language that Roo should use for communication.
-						</p>
-					</div>
-
 					<div className="font-bold mb-1">Custom Instructions for All Modes</div>
 					<div className="text-sm text-vscode-descriptionForeground mb-2">
 						These instructions apply to all modes. They provide a base set of behaviors that can be enhanced
@@ -1505,41 +1400,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								backgroundColor: "var(--vscode-editor-background)",
 							}}>
 							<VSCodeButton onClick={() => setIsDialogOpen(false)}>Close</VSCodeButton>
-						</div>
-					</div>
-				</div>
-			)}
-
-			{isCustomLanguage && (
-				<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-					<div className="bg-[var(--vscode-editor-background)] p-6 rounded-lg w-96">
-						<h3 className="text-lg font-semibold mb-4">Add Custom Language</h3>
-						<input
-							type="text"
-							className="w-full p-2 mb-4 bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded"
-							placeholder="Enter language name"
-							value={customLanguage}
-							onChange={(e) => setCustomLanguage(e.target.value)}
-						/>
-						<div className="flex justify-end gap-2">
-							<Button variant="secondary" onClick={() => setIsCustomLanguage(false)}>
-								Cancel
-							</Button>
-							<Button
-								onClick={() => {
-									if (customLanguage.trim()) {
-										setPreferredLanguage(customLanguage.trim())
-										vscode.postMessage({
-											type: "preferredLanguage",
-											text: customLanguage.trim(),
-										})
-										setIsCustomLanguage(false)
-										setCustomLanguage("")
-									}
-								}}
-								disabled={!customLanguage.trim()}>
-								Add
-							</Button>
 						</div>
 					</div>
 				</div>

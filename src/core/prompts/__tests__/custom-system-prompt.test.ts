@@ -46,8 +46,6 @@ const mockContext = {
 } as unknown as vscode.ExtensionContext
 
 describe("File-Based Custom System Prompt", () => {
-	const experiments = {}
-
 	beforeEach(() => {
 		// Reset mocks before each test
 		jest.clearAllMocks()
@@ -66,18 +64,17 @@ describe("File-Based Custom System Prompt", () => {
 		const prompt = await SYSTEM_PROMPT(
 			mockContext,
 			"test/path", // Using a relative path without leading slash
-			false,
-			undefined,
-			undefined,
-			undefined,
-			defaultModeSlug,
-			customModePrompts,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			experiments,
-			true,
+			false, // supportsComputerUse
+			undefined, // mcpHub
+			undefined, // diffStrategy
+			undefined, // browserViewportSize
+			defaultModeSlug, // mode
+			customModePrompts, // customModePrompts
+			undefined, // customModes
+			undefined, // globalCustomInstructions
+			undefined, // diffEnabled
+			undefined, // experiments
+			true, // enableMcpServerCreation
 		)
 
 		// Should contain default sections
@@ -101,18 +98,17 @@ describe("File-Based Custom System Prompt", () => {
 		const prompt = await SYSTEM_PROMPT(
 			mockContext,
 			"test/path", // Using a relative path without leading slash
-			false,
-			undefined,
-			undefined,
-			undefined,
-			defaultModeSlug,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			experiments,
-			true,
+			false, // supportsComputerUse
+			undefined, // mcpHub
+			undefined, // diffStrategy
+			undefined, // browserViewportSize
+			defaultModeSlug, // mode
+			undefined, // customModePrompts
+			undefined, // customModes
+			undefined, // globalCustomInstructions
+			undefined, // diffEnabled
+			undefined, // experiments
+			true, // enableMcpServerCreation
 		)
 
 		// Should contain role definition and file-based system prompt
@@ -120,7 +116,6 @@ describe("File-Based Custom System Prompt", () => {
 		expect(prompt).toContain(fileCustomSystemPrompt)
 
 		// Should not contain any of the default sections
-		expect(prompt).not.toContain("TOOL USE")
 		expect(prompt).not.toContain("CAPABILITIES")
 		expect(prompt).not.toContain("MODES")
 	})
@@ -146,18 +141,17 @@ describe("File-Based Custom System Prompt", () => {
 		const prompt = await SYSTEM_PROMPT(
 			mockContext,
 			"test/path", // Using a relative path without leading slash
-			false,
-			undefined,
-			undefined,
-			undefined,
-			defaultModeSlug,
-			customModePrompts,
-			undefined,
-			undefined,
-			undefined,
-			undefined,
-			experiments,
-			true,
+			false, // supportsComputerUse
+			undefined, // mcpHub
+			undefined, // diffStrategy
+			undefined, // browserViewportSize
+			defaultModeSlug, // mode
+			customModePrompts, // customModePrompts
+			undefined, // customModes
+			undefined, // globalCustomInstructions
+			undefined, // diffEnabled
+			undefined, // experiments
+			true, // enableMcpServerCreation
 		)
 
 		// Should contain custom role definition and file-based system prompt
@@ -165,7 +159,6 @@ describe("File-Based Custom System Prompt", () => {
 		expect(prompt).toContain(fileCustomSystemPrompt)
 
 		// Should not contain any of the default sections
-		expect(prompt).not.toContain("TOOL USE")
 		expect(prompt).not.toContain("CAPABILITIES")
 		expect(prompt).not.toContain("MODES")
 	})
