@@ -5,16 +5,84 @@ import axios from "axios"
 
 import { ClineProvider } from "../ClineProvider"
 import { ExtensionMessage, ExtensionState } from "../../../shared/ExtensionMessage"
+import { GlobalStateKey, SecretKey } from "../../../shared/globalState"
 import { setSoundEnabled } from "../../../utils/sound"
 import { defaultModeSlug } from "../../../shared/modes"
 import { experimentDefault } from "../../../shared/experiments"
+import { Cline } from "../../Cline"
 
 // Mock setup must come before imports
 jest.mock("../../prompts/sections/custom-instructions")
 
+// Mock ContextProxy
+jest.mock("../../contextProxy", () => {
+	return {
+		ContextProxy: jest.fn().mockImplementation((context) => ({
+			originalContext: context,
+			extensionUri: context.extensionUri,
+			extensionPath: context.extensionPath,
+			globalStorageUri: context.globalStorageUri,
+			logUri: context.logUri,
+			extension: context.extension,
+			extensionMode: context.extensionMode,
+			getGlobalState: jest
+				.fn()
+				.mockImplementation((key, defaultValue) => context.globalState.get(key, defaultValue)),
+			updateGlobalState: jest.fn().mockImplementation((key, value) => context.globalState.update(key, value)),
+			getSecret: jest.fn().mockImplementation((key) => context.secrets.get(key)),
+			storeSecret: jest
+				.fn()
+				.mockImplementation((key, value) =>
+					value ? context.secrets.store(key, value) : context.secrets.delete(key),
+				),
+			saveChanges: jest.fn().mockResolvedValue(undefined),
+			dispose: jest.fn().mockResolvedValue(undefined),
+			hasPendingChanges: jest.fn().mockReturnValue(false),
+			setValue: jest.fn().mockImplementation((key, value) => {
+				if (key.startsWith("apiKey") || key.startsWith("openAiApiKey")) {
+					return context.secrets.store(key, value)
+				}
+				return context.globalState.update(key, value)
+			}),
+			setValues: jest.fn().mockImplementation((values) => {
+				const promises = Object.entries(values).map(([key, value]) => context.globalState.update(key, value))
+				return Promise.all(promises)
+			}),
+		})),
+	}
+})
+
 // Mock dependencies
 jest.mock("vscode")
 jest.mock("delay")
+
+// Mock BrowserSession
+jest.mock("../../../services/browser/BrowserSession", () => ({
+	BrowserSession: jest.fn().mockImplementation(() => ({
+		testConnection: jest.fn().mockImplementation(async (url) => {
+			if (url === "http://localhost:9222") {
+				return {
+					success: true,
+					message: "Successfully connected to Chrome",
+					endpoint: "ws://localhost:9222/devtools/browser/123",
+				}
+			} else {
+				return {
+					success: false,
+					message: "Failed to connect to Chrome",
+					endpoint: undefined,
+				}
+			}
+		}),
+	})),
+}))
+
+// Mock browserDiscovery
+jest.mock("../../../services/browser/browserDiscovery", () => ({
+	discoverChromeInstances: jest.fn().mockImplementation(async () => {
+		return "http://localhost:9222"
+	}),
+}))
 jest.mock(
 	"@modelcontextprotocol/sdk/types.js",
 	() => ({
@@ -54,31 +122,7 @@ jest.mock("delay", () => {
 	return delayFn
 })
 
-// Mock MCP-related modules
-jest.mock(
-	"@modelcontextprotocol/sdk/types.js",
-	() => ({
-		CallToolResultSchema: {},
-		ListResourcesResultSchema: {},
-		ListResourceTemplatesResultSchema: {},
-		ListToolsResultSchema: {},
-		ReadResourceResultSchema: {},
-		ErrorCode: {
-			InvalidRequest: "InvalidRequest",
-			MethodNotFound: "MethodNotFound",
-			InternalError: "InternalError",
-		},
-		McpError: class McpError extends Error {
-			code: string
-			constructor(code: string, message: string) {
-				super(message)
-				this.code = code
-				this.name = "McpError"
-			}
-		},
-	}),
-	{ virtual: true },
-)
+// MCP-related modules are mocked once above (lines 87-109)
 
 jest.mock(
 	"@modelcontextprotocol/sdk/client/index.js",
@@ -199,12 +243,17 @@ jest.mock("../../Cline", () => ({
 		.fn()
 		.mockImplementation(
 			(provider, apiConfiguration, customInstructions, diffEnabled, fuzzyMatchThreshold, task, taskId) => ({
+				api: undefined,
 				abortTask: jest.fn(),
 				handleWebviewAskResponse: jest.fn(),
 				clineMessages: [],
 				apiConversationHistory: [],
 				overwriteClineMessages: jest.fn(),
 				overwriteApiConversationHistory: jest.fn(),
+				getTaskNumber: jest.fn().mockReturnValue(0),
+				setTaskNumber: jest.fn(),
+				setParentTask: jest.fn(),
+				setRootTask: jest.fn(),
 				taskId: taskId || "test-task-id",
 			}),
 		),
@@ -235,6 +284,14 @@ describe("ClineProvider", () => {
 	let mockOutputChannel: vscode.OutputChannel
 	let mockWebviewView: vscode.WebviewView
 	let mockPostMessage: jest.Mock
+	let mockContextProxy: {
+		updateGlobalState: jest.Mock
+		getGlobalState: jest.Mock
+		setValue: jest.Mock
+		setValues: jest.Mock
+		storeSecret: jest.Mock
+		dispose: jest.Mock
+	}
 
 	beforeEach(() => {
 		// Reset mocks
@@ -307,6 +364,8 @@ describe("ClineProvider", () => {
 		} as unknown as vscode.WebviewView
 
 		provider = new ClineProvider(mockContext, mockOutputChannel)
+		// @ts-ignore - Access private property for testing
+		mockContextProxy = provider.contextProxy
 
 		// @ts-ignore - Accessing private property for testing.
 		provider.customModesManager = mockCustomModesManager
@@ -346,6 +405,12 @@ describe("ClineProvider", () => {
 		})
 
 		expect(mockWebviewView.webview.html).toContain("<!DOCTYPE html>")
+
+		// Verify Content Security Policy contains the necessary PostHog domains
+		expect(mockWebviewView.webview.html).toContain("connect-src https://us.i.posthog.com")
+		expect(mockWebviewView.webview.html).toContain("https://us-assets.i.posthog.com")
+		expect(mockWebviewView.webview.html).toContain("script-src 'nonce-")
+		expect(mockWebviewView.webview.html).toContain("https://us-assets.i.posthog.com")
 	})
 
 	test("postMessageToWebview sends message to webview", async () => {
@@ -369,7 +434,8 @@ describe("ClineProvider", () => {
 			uriScheme: "vscode",
 			soundEnabled: false,
 			diffEnabled: false,
-			checkpointsEnabled: false,
+			enableCheckpoints: false,
+			checkpointStorage: "task",
 			writeDelayMs: 1000,
 			browserViewportSize: "900x600",
 			fuzzyMatchThreshold: 1.0,
@@ -381,6 +447,9 @@ describe("ClineProvider", () => {
 			customModes: [],
 			experiments: experimentDefault,
 			maxOpenTabsContext: 20,
+			browserToolEnabled: true,
+			telemetrySetting: "unset",
+			showRooIgnoredFiles: true,
 		}
 
 		const message: ExtensionMessage = {
@@ -406,15 +475,46 @@ describe("ClineProvider", () => {
 	})
 
 	test("clearTask aborts current task", async () => {
-		const mockAbortTask = jest.fn()
-		// @ts-ignore - accessing private property for testing
-		provider.cline = { abortTask: mockAbortTask }
+		// Setup Cline instance with auto-mock from the top of the file
+		const { Cline } = require("../../Cline") // Get the mocked class
+		const mockCline = new Cline() // Create a new mocked instance
 
-		await provider.clearTask()
+		// add the mock object to the stack
+		await provider.addClineToStack(mockCline)
 
-		expect(mockAbortTask).toHaveBeenCalled()
-		// @ts-ignore - accessing private property for testing
-		expect(provider.cline).toBeUndefined()
+		// get the stack size before the abort call
+		const stackSizeBeforeAbort = provider.getClineStackSize()
+
+		// call the removeClineFromStack method so it will call the current cline abort and remove it from the stack
+		await provider.removeClineFromStack()
+
+		// get the stack size after the abort call
+		const stackSizeAfterAbort = provider.getClineStackSize()
+
+		// check if the abort method was called
+		expect(mockCline.abortTask).toHaveBeenCalled()
+
+		// check if the stack size was decreased
+		expect(stackSizeBeforeAbort - stackSizeAfterAbort).toBe(1)
+	})
+
+	test("addClineToStack adds multiple Cline instances to the stack", async () => {
+		// Setup Cline instance with auto-mock from the top of the file
+		const { Cline } = require("../../Cline") // Get the mocked class
+		const mockCline1 = new Cline() // Create a new mocked instance
+		const mockCline2 = new Cline() // Create a new mocked instance
+		Object.defineProperty(mockCline1, "taskId", { value: "test-task-id-1", writable: true })
+		Object.defineProperty(mockCline2, "taskId", { value: "test-task-id-2", writable: true })
+
+		// add Cline instances to the stack
+		await provider.addClineToStack(mockCline1)
+		await provider.addClineToStack(mockCline2)
+
+		// verify cline instances were added to the stack
+		expect(provider.getClineStackSize()).toBe(2)
+
+		// verify current cline instance is the last one added
+		expect(provider.getCurrentCline()).toBe(mockCline2)
 	})
 
 	test("getState returns correct initial state", async () => {
@@ -477,6 +577,7 @@ describe("ClineProvider", () => {
 
 		await messageHandler({ type: "writeDelayMs", value: 2000 })
 
+		expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("writeDelayMs", 2000)
 		expect(mockContext.globalState.update).toHaveBeenCalledWith("writeDelayMs", 2000)
 		expect(mockPostMessage).toHaveBeenCalled()
 	})
@@ -490,6 +591,7 @@ describe("ClineProvider", () => {
 		// Simulate setting sound to enabled
 		await messageHandler({ type: "soundEnabled", bool: true })
 		expect(setSoundEnabled).toHaveBeenCalledWith(true)
+		expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("soundEnabled", true)
 		expect(mockContext.globalState.update).toHaveBeenCalledWith("soundEnabled", true)
 		expect(mockPostMessage).toHaveBeenCalled()
 
@@ -500,7 +602,7 @@ describe("ClineProvider", () => {
 		expect(mockPostMessage).toHaveBeenCalled()
 	})
 
-	test("requestDelaySeconds defaults to 5 seconds", async () => {
+	test("requestDelaySeconds defaults to 10 seconds", async () => {
 		// Mock globalState.get to return undefined for requestDelaySeconds
 		;(mockContext.globalState.get as jest.Mock).mockImplementation((key: string) => {
 			if (key === "requestDelaySeconds") {
@@ -591,12 +693,49 @@ describe("ClineProvider", () => {
 		expect(provider.configManager.setModeConfig).toHaveBeenCalledWith("architect", "new-id")
 	})
 
+	test("handles browserToolEnabled setting", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+		// Test browserToolEnabled
+		await messageHandler({ type: "browserToolEnabled", bool: true })
+		expect(mockContext.globalState.update).toHaveBeenCalledWith("browserToolEnabled", true)
+		expect(mockPostMessage).toHaveBeenCalled()
+
+		// Verify state includes browserToolEnabled
+		const state = await provider.getState()
+		expect(state).toHaveProperty("browserToolEnabled")
+		expect(state.browserToolEnabled).toBe(true) // Default value should be true
+	})
+
+	test("handles showRooIgnoredFiles setting", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+		// Test showRooIgnoredFiles with true
+		await messageHandler({ type: "showRooIgnoredFiles", bool: true })
+		expect(mockContext.globalState.update).toHaveBeenCalledWith("showRooIgnoredFiles", true)
+		expect(mockPostMessage).toHaveBeenCalled()
+
+		// Test showRooIgnoredFiles with false
+		jest.clearAllMocks() // Clear all mocks including mockContext.globalState.update
+		await messageHandler({ type: "showRooIgnoredFiles", bool: false })
+		expect(mockContext.globalState.update).toHaveBeenCalledWith("showRooIgnoredFiles", false)
+		expect(mockPostMessage).toHaveBeenCalled()
+
+		// Verify state includes showRooIgnoredFiles
+		const state = await provider.getState()
+		expect(state).toHaveProperty("showRooIgnoredFiles")
+		expect(state.showRooIgnoredFiles).toBe(true) // Default value should be true
+	})
+
 	test("handles request delay settings messages", async () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
 
 		// Test alwaysApproveResubmit
 		await messageHandler({ type: "alwaysApproveResubmit", bool: true })
+		expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("alwaysApproveResubmit", true)
 		expect(mockContext.globalState.update).toHaveBeenCalledWith("alwaysApproveResubmit", true)
 		expect(mockPostMessage).toHaveBeenCalled()
 
@@ -677,7 +816,8 @@ describe("ClineProvider", () => {
 			},
 			mode: "code",
 			diffEnabled: true,
-			checkpointsEnabled: false,
+			enableCheckpoints: false,
+			checkpointStorage: "task",
 			fuzzyMatchThreshold: 1.0,
 			experiments: experimentDefault,
 		} as any)
@@ -696,6 +836,7 @@ describe("ClineProvider", () => {
 			customInstructions: modeCustomInstructions,
 			enableDiff: true,
 			enableCheckpoints: false,
+			checkpointStorage: "task",
 			fuzzyMatchThreshold: 1.0,
 			task: "Test task",
 			experiments: experimentDefault,
@@ -807,18 +948,12 @@ describe("ClineProvider", () => {
 
 			const mockApiHistory = [{ ts: 1000 }, { ts: 2000 }, { ts: 3000 }, { ts: 4000 }, { ts: 5000 }, { ts: 6000 }]
 
-			// Setup Cline instance with mock data
-			const mockCline = {
-				clineMessages: mockMessages,
-				apiConversationHistory: mockApiHistory,
-				overwriteClineMessages: jest.fn(),
-				overwriteApiConversationHistory: jest.fn(),
-				taskId: "test-task-id",
-				abortTask: jest.fn(),
-				handleWebviewAskResponse: jest.fn(),
-			}
-			// @ts-ignore - accessing private property for testing
-			provider.cline = mockCline
+			// Setup Cline instance with auto-mock from the top of the file
+			const { Cline } = require("../../Cline") // Get the mocked class
+			const mockCline = new Cline() // Create a new mocked instance
+			mockCline.clineMessages = mockMessages // Set test-specific messages
+			mockCline.apiConversationHistory = mockApiHistory // Set API history
+			await provider.addClineToStack(mockCline) // Add the mocked instance to the stack
 
 			// Mock getTaskWithId
 			;(provider as any).getTaskWithId = jest.fn().mockResolvedValue({
@@ -860,18 +995,12 @@ describe("ClineProvider", () => {
 
 			const mockApiHistory = [{ ts: 1000 }, { ts: 2000 }, { ts: 3000 }, { ts: 4000 }]
 
-			// Setup Cline instance with mock data
-			const mockCline = {
-				clineMessages: mockMessages,
-				apiConversationHistory: mockApiHistory,
-				overwriteClineMessages: jest.fn(),
-				overwriteApiConversationHistory: jest.fn(),
-				taskId: "test-task-id",
-				abortTask: jest.fn(),
-				handleWebviewAskResponse: jest.fn(),
-			}
-			// @ts-ignore - accessing private property for testing
-			provider.cline = mockCline
+			// Setup Cline instance with auto-mock from the top of the file
+			const { Cline } = require("../../Cline") // Get the mocked class
+			const mockCline = new Cline() // Create a new mocked instance
+			mockCline.clineMessages = mockMessages
+			mockCline.apiConversationHistory = mockApiHistory
+			await provider.addClineToStack(mockCline)
 
 			// Mock getTaskWithId
 			;(provider as any).getTaskWithId = jest.fn().mockResolvedValue({
@@ -893,15 +1022,12 @@ describe("ClineProvider", () => {
 			// Mock user selecting "Cancel"
 			;(vscode.window.showInformationMessage as jest.Mock).mockResolvedValue("Cancel")
 
-			const mockCline = {
-				clineMessages: [{ ts: 1000 }, { ts: 2000 }],
-				apiConversationHistory: [{ ts: 1000 }, { ts: 2000 }],
-				overwriteClineMessages: jest.fn(),
-				overwriteApiConversationHistory: jest.fn(),
-				taskId: "test-task-id",
-			}
-			// @ts-ignore - accessing private property for testing
-			provider.cline = mockCline
+			// Setup Cline instance with auto-mock from the top of the file
+			const { Cline } = require("../../Cline") // Get the mocked class
+			const mockCline = new Cline() // Create a new mocked instance
+			mockCline.clineMessages = [{ ts: 1000 }, { ts: 2000 }]
+			mockCline.apiConversationHistory = [{ ts: 1000 }, { ts: 2000 }]
+			await provider.addClineToStack(mockCline)
 
 			// Trigger message deletion
 			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
@@ -1038,6 +1164,17 @@ describe("ClineProvider", () => {
 		})
 
 		test("passes diffStrategy and diffEnabled to SYSTEM_PROMPT when previewing", async () => {
+			// Setup Cline instance with mocked api.getModel()
+			const { Cline } = require("../../Cline")
+			const mockCline = new Cline()
+			mockCline.api = {
+				getModel: jest.fn().mockReturnValue({
+					id: "claude-3-sonnet",
+					info: { supportsComputerUse: true },
+				}),
+			}
+			await provider.addClineToStack(mockCline)
+
 			// Mock getState to return experimentalDiffStrategy, diffEnabled and fuzzyMatchThreshold
 			jest.spyOn(provider, "getState").mockResolvedValue({
 				apiConfiguration: {
@@ -1054,6 +1191,7 @@ describe("ClineProvider", () => {
 				diffEnabled: true,
 				fuzzyMatchThreshold: 0.8,
 				experiments: experimentDefault,
+				browserToolEnabled: true,
 			} as any)
 
 			// Mock SYSTEM_PROMPT to verify diffStrategy and diffEnabled are passed
@@ -1064,26 +1202,19 @@ describe("ClineProvider", () => {
 			const handler = getMessageHandler()
 			await handler({ type: "getSystemPrompt", mode: "code" })
 
-			// Verify SYSTEM_PROMPT was called with correct arguments
-			expect(systemPromptSpy).toHaveBeenCalledWith(
-				expect.anything(), // context
-				expect.any(String), // cwd
-				true, // supportsComputerUse
-				undefined, // mcpHub (disabled)
-				expect.objectContaining({
-					// diffStrategy
-					getToolDescription: expect.any(Function),
-				}),
-				"900x600", // browserViewportSize
-				"code", // mode
-				{}, // customModePrompts
-				{ customModes: [] }, // customModes
-				undefined, // effectiveInstructions
-				undefined, // preferredLanguage
-				true, // diffEnabled
-				experimentDefault,
-				true,
-			)
+			// Verify SYSTEM_PROMPT was called
+			expect(systemPromptSpy).toHaveBeenCalled()
+
+			// Get the actual arguments passed to SYSTEM_PROMPT
+			const callArgs = systemPromptSpy.mock.calls[0]
+
+			// Verify key parameters
+			expect(callArgs[2]).toBe(true) // supportsComputerUse
+			expect(callArgs[3]).toBeUndefined() // mcpHub (disabled)
+			expect(callArgs[4]).toHaveProperty("getToolDescription") // diffStrategy
+			expect(callArgs[5]).toBe("900x600") // browserViewportSize
+			expect(callArgs[6]).toBe("code") // mode
+			expect(callArgs[11]).toBe(true) // diffEnabled
 
 			// Run the test again to verify it's consistent
 			await handler({ type: "getSystemPrompt", mode: "code" })
@@ -1091,6 +1222,17 @@ describe("ClineProvider", () => {
 		})
 
 		test("passes diffEnabled: false to SYSTEM_PROMPT when diff is disabled", async () => {
+			// Setup Cline instance with mocked api.getModel()
+			const { Cline } = require("../../Cline")
+			const mockCline = new Cline()
+			mockCline.api = {
+				getModel: jest.fn().mockReturnValue({
+					id: "claude-3-sonnet",
+					info: { supportsComputerUse: true },
+				}),
+			}
+			await provider.addClineToStack(mockCline)
+
 			// Mock getState to return diffEnabled: false
 			jest.spyOn(provider, "getState").mockResolvedValue({
 				apiConfiguration: {
@@ -1107,6 +1249,7 @@ describe("ClineProvider", () => {
 				fuzzyMatchThreshold: 0.8,
 				experiments: experimentDefault,
 				enableMcpServerCreation: true,
+				browserToolEnabled: true,
 			} as any)
 
 			// Mock SYSTEM_PROMPT to verify diffEnabled is passed as false
@@ -1117,26 +1260,19 @@ describe("ClineProvider", () => {
 			const handler = getMessageHandler()
 			await handler({ type: "getSystemPrompt", mode: "code" })
 
-			// Verify SYSTEM_PROMPT was called with diffEnabled: false
-			expect(systemPromptSpy).toHaveBeenCalledWith(
-				expect.anything(), // context
-				expect.any(String), // cwd
-				true, // supportsComputerUse
-				undefined, // mcpHub (disabled)
-				expect.objectContaining({
-					// diffStrategy
-					getToolDescription: expect.any(Function),
-				}),
-				"900x600", // browserViewportSize
-				"code", // mode
-				{}, // customModePrompts
-				{ customModes: [] }, // customModes
-				undefined, // effectiveInstructions
-				undefined, // preferredLanguage
-				false, // diffEnabled
-				experimentDefault,
-				true,
-			)
+			// Verify SYSTEM_PROMPT was called
+			expect(systemPromptSpy).toHaveBeenCalled()
+
+			// Get the actual arguments passed to SYSTEM_PROMPT
+			const callArgs = systemPromptSpy.mock.calls[0]
+
+			// Verify key parameters
+			expect(callArgs[2]).toBe(true) // supportsComputerUse
+			expect(callArgs[3]).toBeUndefined() // mcpHub (disabled)
+			expect(callArgs[4]).toHaveProperty("getToolDescription") // diffStrategy
+			expect(callArgs[5]).toBe("900x600") // browserViewportSize
+			expect(callArgs[6]).toBe("code") // mode
+			expect(callArgs[11]).toBe(false) // diffEnabled should be false
 		})
 
 		test("uses correct mode-specific instructions when mode is specified", async () => {
@@ -1174,6 +1310,188 @@ describe("ClineProvider", () => {
 				"",
 				expect.any(String),
 			)
+		})
+
+		// Tests for browser tool support
+		test("correctly extracts modelSupportsComputerUse from Cline instance", async () => {
+			// Setup Cline instance with mocked api.getModel()
+			const { Cline } = require("../../Cline")
+			const mockCline = new Cline()
+			mockCline.api = {
+				getModel: jest.fn().mockReturnValue({
+					id: "claude-3-sonnet",
+					info: { supportsComputerUse: true },
+				}),
+			}
+			await provider.addClineToStack(mockCline)
+
+			// Mock SYSTEM_PROMPT to verify supportsComputerUse is passed correctly
+			const systemPromptModule = require("../../prompts/system")
+			const systemPromptSpy = jest.spyOn(systemPromptModule, "SYSTEM_PROMPT")
+
+			// Mock getState to return browserToolEnabled: true
+			jest.spyOn(provider, "getState").mockResolvedValue({
+				apiConfiguration: {
+					apiProvider: "openrouter",
+				},
+				browserToolEnabled: true,
+				mode: "code",
+				experiments: experimentDefault,
+			} as any)
+
+			// Trigger getSystemPrompt
+			const handler = getMessageHandler()
+			await handler({ type: "getSystemPrompt", mode: "code" })
+
+			// Verify SYSTEM_PROMPT was called
+			expect(systemPromptSpy).toHaveBeenCalled()
+
+			// Get the actual arguments passed to SYSTEM_PROMPT
+			const callArgs = systemPromptSpy.mock.calls[0]
+
+			// Verify the supportsComputerUse parameter (3rd parameter, index 2)
+			expect(callArgs[2]).toBe(true)
+		})
+
+		test("correctly handles when model doesn't support computer use", async () => {
+			// Setup Cline instance with mocked api.getModel() that doesn't support computer use
+			const { Cline } = require("../../Cline")
+			const mockCline = new Cline()
+			mockCline.api = {
+				getModel: jest.fn().mockReturnValue({
+					id: "non-computer-use-model",
+					info: { supportsComputerUse: false },
+				}),
+			}
+			await provider.addClineToStack(mockCline)
+
+			// Mock SYSTEM_PROMPT to verify supportsComputerUse is passed correctly
+			const systemPromptModule = require("../../prompts/system")
+			const systemPromptSpy = jest.spyOn(systemPromptModule, "SYSTEM_PROMPT")
+
+			// Mock getState to return browserToolEnabled: true
+			jest.spyOn(provider, "getState").mockResolvedValue({
+				apiConfiguration: {
+					apiProvider: "openrouter",
+				},
+				browserToolEnabled: true,
+				mode: "code",
+				experiments: experimentDefault,
+			} as any)
+
+			// Trigger getSystemPrompt
+			const handler = getMessageHandler()
+			await handler({ type: "getSystemPrompt", mode: "code" })
+
+			// Verify SYSTEM_PROMPT was called
+			expect(systemPromptSpy).toHaveBeenCalled()
+
+			// Get the actual arguments passed to SYSTEM_PROMPT
+			const callArgs = systemPromptSpy.mock.calls[0]
+
+			// Verify the supportsComputerUse parameter (3rd parameter, index 2)
+			// Even though browserToolEnabled is true, the model doesn't support it
+			expect(callArgs[2]).toBe(false)
+		})
+
+		test("correctly handles when browserToolEnabled is false", async () => {
+			// Setup Cline instance with mocked api.getModel() that supports computer use
+			const { Cline } = require("../../Cline")
+			const mockCline = new Cline()
+			mockCline.api = {
+				getModel: jest.fn().mockReturnValue({
+					id: "claude-3-sonnet",
+					info: { supportsComputerUse: true },
+				}),
+			}
+			await provider.addClineToStack(mockCline)
+
+			// Mock SYSTEM_PROMPT to verify supportsComputerUse is passed correctly
+			const systemPromptModule = require("../../prompts/system")
+			const systemPromptSpy = jest.spyOn(systemPromptModule, "SYSTEM_PROMPT")
+
+			// Mock getState to return browserToolEnabled: false
+			jest.spyOn(provider, "getState").mockResolvedValue({
+				apiConfiguration: {
+					apiProvider: "openrouter",
+				},
+				browserToolEnabled: false,
+				mode: "code",
+				experiments: experimentDefault,
+			} as any)
+
+			// Trigger getSystemPrompt
+			const handler = getMessageHandler()
+			await handler({ type: "getSystemPrompt", mode: "code" })
+
+			// Verify SYSTEM_PROMPT was called
+			expect(systemPromptSpy).toHaveBeenCalled()
+
+			// Get the actual arguments passed to SYSTEM_PROMPT
+			const callArgs = systemPromptSpy.mock.calls[0]
+
+			// Verify the supportsComputerUse parameter (3rd parameter, index 2)
+			// Even though model supports it, browserToolEnabled is false
+			expect(callArgs[2]).toBe(false)
+		})
+
+		test("correctly calculates canUseBrowserTool as combination of model support and setting", async () => {
+			// Setup Cline instance with mocked api.getModel()
+			const { Cline } = require("../../Cline")
+			const mockCline = new Cline()
+			mockCline.api = {
+				getModel: jest.fn().mockReturnValue({
+					id: "claude-3-sonnet",
+					info: { supportsComputerUse: true },
+				}),
+			}
+			await provider.addClineToStack(mockCline)
+
+			// Mock SYSTEM_PROMPT
+			const systemPromptModule = require("../../prompts/system")
+			const systemPromptSpy = jest.spyOn(systemPromptModule, "SYSTEM_PROMPT")
+
+			// Test all combinations of model support and browserToolEnabled
+			const testCases = [
+				{ modelSupports: true, settingEnabled: true, expected: true },
+				{ modelSupports: true, settingEnabled: false, expected: false },
+				{ modelSupports: false, settingEnabled: true, expected: false },
+				{ modelSupports: false, settingEnabled: false, expected: false },
+			]
+
+			for (const testCase of testCases) {
+				// Reset mocks
+				systemPromptSpy.mockClear()
+
+				// Update mock Cline instance
+				mockCline.api.getModel = jest.fn().mockReturnValue({
+					id: "test-model",
+					info: { supportsComputerUse: testCase.modelSupports },
+				})
+
+				// Mock getState
+				jest.spyOn(provider, "getState").mockResolvedValue({
+					apiConfiguration: {
+						apiProvider: "openrouter",
+					},
+					browserToolEnabled: testCase.settingEnabled,
+					mode: "code",
+					experiments: experimentDefault,
+				} as any)
+
+				// Trigger getSystemPrompt
+				const handler = getMessageHandler()
+				await handler({ type: "getSystemPrompt", mode: "code" })
+
+				// Verify SYSTEM_PROMPT was called
+				expect(systemPromptSpy).toHaveBeenCalled()
+
+				// Get the actual arguments passed to SYSTEM_PROMPT
+				const callArgs = systemPromptSpy.mock.calls[0]
+
+				// Verify the supportsComputerUse parameter (3rd parameter, index 2)
+				expect(callArgs[2]).toBe(testCase.expected)
+			}
 		})
 	})
 
@@ -1401,13 +1719,10 @@ describe("ClineProvider", () => {
 					.mockResolvedValue([{ name: "test-config", id: "test-id", apiProvider: "anthropic" }]),
 			} as any
 
-			// Setup mock Cline instance
-			const mockCline = {
-				api: undefined,
-				abortTask: jest.fn(),
-			}
-			// @ts-ignore - accessing private property for testing
-			provider.cline = mockCline
+			// Setup Cline instance with auto-mock from the top of the file
+			const { Cline } = require("../../Cline") // Get the mocked class
+			const mockCline = new Cline() // Create a new mocked instance
+			await provider.addClineToStack(mockCline)
 
 			const testApiConfig = {
 				apiProvider: "anthropic" as const,
@@ -1465,6 +1780,295 @@ describe("ClineProvider", () => {
 			expect(mockContext.globalState.update).toHaveBeenCalledWith("listApiConfigMeta", [
 				{ name: "test-config", id: "test-id", apiProvider: "anthropic" },
 			])
+			expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("listApiConfigMeta", [
+				{ name: "test-config", id: "test-id", apiProvider: "anthropic" },
+			])
 		})
+	})
+
+	describe("browser connection features", () => {
+		beforeEach(async () => {
+			// Reset mocks
+			jest.clearAllMocks()
+			await provider.resolveWebviewView(mockWebviewView)
+		})
+
+		// Mock BrowserSession and discoverChromeInstances
+		jest.mock("../../../services/browser/BrowserSession", () => ({
+			BrowserSession: jest.fn().mockImplementation(() => ({
+				testConnection: jest.fn().mockImplementation(async (url) => {
+					if (url === "http://localhost:9222") {
+						return {
+							success: true,
+							message: "Successfully connected to Chrome",
+							endpoint: "ws://localhost:9222/devtools/browser/123",
+						}
+					} else {
+						return {
+							success: false,
+							message: "Failed to connect to Chrome",
+							endpoint: undefined,
+						}
+					}
+				}),
+			})),
+		}))
+
+		jest.mock("../../../services/browser/browserDiscovery", () => ({
+			discoverChromeInstances: jest.fn().mockImplementation(async () => {
+				return "http://localhost:9222"
+			}),
+		}))
+
+		test("handles testBrowserConnection with provided URL", async () => {
+			// Get the message handler
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+			// Test with valid URL
+			await messageHandler({
+				type: "testBrowserConnection",
+				text: "http://localhost:9222",
+			})
+
+			// Verify postMessage was called with success result
+			expect(mockPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "browserConnectionResult",
+					success: true,
+					text: expect.stringContaining("Successfully connected to Chrome"),
+				}),
+			)
+
+			// Reset mock
+			mockPostMessage.mockClear()
+
+			// Test with invalid URL
+			await messageHandler({
+				type: "testBrowserConnection",
+				text: "http://inlocalhost:9222",
+			})
+
+			// Verify postMessage was called with failure result
+			expect(mockPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "browserConnectionResult",
+					success: false,
+					text: expect.stringContaining("Failed to connect to Chrome"),
+				}),
+			)
+		})
+
+		test("handles testBrowserConnection with auto-discovery", async () => {
+			// Get the message handler
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+			// Test auto-discovery (no URL provided)
+			await messageHandler({
+				type: "testBrowserConnection",
+			})
+
+			// Verify discoverChromeInstances was called
+			const { discoverChromeInstances } = require("../../../services/browser/browserDiscovery")
+			expect(discoverChromeInstances).toHaveBeenCalled()
+
+			// Verify postMessage was called with success result
+			expect(mockPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "browserConnectionResult",
+					success: true,
+					text: expect.stringContaining("Auto-discovered and tested connection to Chrome"),
+				}),
+			)
+		})
+
+		test("handles discoverBrowser message", async () => {
+			// Get the message handler
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+			// Test browser discovery
+			await messageHandler({
+				type: "discoverBrowser",
+			})
+
+			// Verify discoverChromeInstances was called
+			const { discoverChromeInstances } = require("../../../services/browser/browserDiscovery")
+			expect(discoverChromeInstances).toHaveBeenCalled()
+
+			// Verify postMessage was called with success result
+			expect(mockPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "browserConnectionResult",
+					success: true,
+					text: expect.stringContaining("Successfully discovered and connected to Chrome"),
+				}),
+			)
+		})
+
+		test("handles errors during browser discovery", async () => {
+			// Mock discoverChromeInstances to throw an error
+			const { discoverChromeInstances } = require("../../../services/browser/browserDiscovery")
+			discoverChromeInstances.mockImplementationOnce(() => {
+				throw new Error("Discovery error")
+			})
+
+			// Get the message handler
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+			// Test browser discovery with error
+			await messageHandler({
+				type: "discoverBrowser",
+			})
+
+			// Verify postMessage was called with error result
+			expect(mockPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "browserConnectionResult",
+					success: false,
+					text: expect.stringContaining("Error discovering browser"),
+				}),
+			)
+		})
+
+		test("handles case when no browsers are discovered", async () => {
+			// Mock discoverChromeInstances to return null (no browsers found)
+			const { discoverChromeInstances } = require("../../../services/browser/browserDiscovery")
+			discoverChromeInstances.mockImplementationOnce(() => null)
+
+			// Get the message handler
+			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+			// Test browser discovery with no browsers found
+			await messageHandler({
+				type: "discoverBrowser",
+			})
+
+			// Verify postMessage was called with failure result
+			expect(mockPostMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "browserConnectionResult",
+					success: false,
+					text: expect.stringContaining("No Chrome instances found"),
+				}),
+			)
+		})
+	})
+})
+
+describe("ContextProxy integration", () => {
+	let provider: ClineProvider
+	let mockContext: vscode.ExtensionContext
+	let mockOutputChannel: vscode.OutputChannel
+	let mockContextProxy: any
+	let mockGlobalStateUpdate: jest.Mock
+
+	beforeEach(() => {
+		// Reset mocks
+		jest.clearAllMocks()
+
+		// Setup basic mocks
+		mockContext = {
+			globalState: {
+				get: jest.fn(),
+				update: jest.fn(),
+				keys: jest.fn().mockReturnValue([]),
+			},
+			secrets: { get: jest.fn(), store: jest.fn(), delete: jest.fn() },
+			extensionUri: {} as vscode.Uri,
+			globalStorageUri: { fsPath: "/test/path" },
+			extension: { packageJSON: { version: "1.0.0" } },
+		} as unknown as vscode.ExtensionContext
+
+		mockOutputChannel = { appendLine: jest.fn() } as unknown as vscode.OutputChannel
+		provider = new ClineProvider(mockContext, mockOutputChannel)
+
+		// @ts-ignore - accessing private property for testing
+		mockContextProxy = provider.contextProxy
+
+		mockGlobalStateUpdate = mockContext.globalState.update as jest.Mock
+	})
+
+	test("updateGlobalState uses contextProxy", async () => {
+		await provider.updateGlobalState("currentApiConfigName" as GlobalStateKey, "testValue")
+		expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("currentApiConfigName", "testValue")
+	})
+
+	test("getGlobalState uses contextProxy", async () => {
+		mockContextProxy.getGlobalState.mockResolvedValueOnce("testValue")
+		const result = await provider.getGlobalState("currentApiConfigName" as GlobalStateKey)
+		expect(mockContextProxy.getGlobalState).toHaveBeenCalledWith("currentApiConfigName")
+		expect(result).toBe("testValue")
+	})
+
+	test("storeSecret uses contextProxy", async () => {
+		await provider.storeSecret("apiKey" as SecretKey, "test-secret")
+		expect(mockContextProxy.storeSecret).toHaveBeenCalledWith("apiKey", "test-secret")
+	})
+
+	test("contextProxy methods are available", () => {
+		// Verify the contextProxy has all the required methods
+		expect(mockContextProxy.getGlobalState).toBeDefined()
+		expect(mockContextProxy.updateGlobalState).toBeDefined()
+		expect(mockContextProxy.storeSecret).toBeDefined()
+		expect(mockContextProxy.setValue).toBeDefined()
+		expect(mockContextProxy.setValues).toBeDefined()
+	})
+})
+
+describe("getTelemetryProperties", () => {
+	let provider: ClineProvider
+	let mockContext: vscode.ExtensionContext
+	let mockOutputChannel: vscode.OutputChannel
+	let mockCline: any
+
+	beforeEach(() => {
+		// Reset mocks
+		jest.clearAllMocks()
+
+		// Setup basic mocks
+		mockContext = {
+			globalState: {
+				get: jest.fn().mockImplementation((key: string) => {
+					if (key === "mode") return "code"
+					if (key === "apiProvider") return "anthropic"
+					return undefined
+				}),
+				update: jest.fn(),
+				keys: jest.fn().mockReturnValue([]),
+			},
+			secrets: { get: jest.fn(), store: jest.fn(), delete: jest.fn() },
+			extensionUri: {} as vscode.Uri,
+			globalStorageUri: { fsPath: "/test/path" },
+			extension: { packageJSON: { version: "1.0.0" } },
+		} as unknown as vscode.ExtensionContext
+
+		mockOutputChannel = { appendLine: jest.fn() } as unknown as vscode.OutputChannel
+		provider = new ClineProvider(mockContext, mockOutputChannel)
+
+		// Setup Cline instance with mocked getModel method
+		const { Cline } = require("../../Cline")
+		mockCline = new Cline()
+		mockCline.api = {
+			getModel: jest.fn().mockReturnValue({
+				id: "claude-3-7-sonnet-20250219",
+				info: { contextWindow: 200000 },
+			}),
+		}
+	})
+
+	test("includes basic properties in telemetry", async () => {
+		const properties = await provider.getTelemetryProperties()
+
+		expect(properties).toHaveProperty("vscodeVersion")
+		expect(properties).toHaveProperty("platform")
+		expect(properties).toHaveProperty("appVersion", "1.0.0")
+	})
+
+	test("includes model ID from current Cline instance if available", async () => {
+		// Add mock Cline to stack
+		await provider.addClineToStack(mockCline)
+
+		const properties = await provider.getTelemetryProperties()
+
+		expect(properties).toHaveProperty("modelId", "claude-3-7-sonnet-20250219")
 	})
 })

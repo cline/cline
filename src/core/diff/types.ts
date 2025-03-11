@@ -2,11 +2,14 @@
  * Interface for implementing different diff strategies
  */
 
+import { ToolProgressStatus } from "../../shared/ExtensionMessage"
+import { ToolUse } from "../assistant-message"
+
 export type DiffResult =
-	| { success: true; content: string }
-	| {
+	| { success: true; content: string; failParts?: DiffResult[] }
+	| ({
 			success: false
-			error: string
+			error?: string
 			details?: {
 				similarity?: number
 				threshold?: number
@@ -14,7 +17,8 @@ export type DiffResult =
 				searchContent?: string
 				bestMatch?: string
 			}
-	  }
+			failParts?: DiffResult[]
+	  } & ({ error: string } | { failParts: DiffResult[] }))
 
 export interface DiffStrategy {
 	/**
@@ -33,4 +37,6 @@ export interface DiffStrategy {
 	 * @returns A DiffResult object containing either the successful result or error details
 	 */
 	applyDiff(originalContent: string, diffContent: string, startLine?: number, endLine?: number): Promise<DiffResult>
+
+	getProgressStatus?(toolUse: ToolUse, result?: any): ToolProgressStatus
 }

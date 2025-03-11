@@ -1,43 +1,156 @@
 # Roo Code Changelog
 
-## [3.7.3]
+## [3.8.4] - 2025-03-09
+
+- Roll back multi-diff progress indicator temporarily to fix a double-confirmation in saving edits
+- Add an option in the prompts tab to save tokens by disabling the ability to ask Roo to create/edit custom modes for you (thanks @hannesrudolph!)
+
+## [3.8.3] - 2025-03-09
+
+- Fix VS Code LM API model picker truncation issue
+
+## [3.8.2] - 2025-03-08
+
+- Create an auto-approval toggle for subtask creation and completion (thanks @shaybc!)
+- Show a progress indicator when using the multi-diff editing strategy (thanks @qdaxb!)
+- Add o3-mini support to the OpenAI-compatible provider (thanks @yt3trees!)
+- Fix encoding issue where unreadable characters were sometimes getting added to the beginning of files
+- Fix issue where settings dropdowns were getting truncated in some cases
+
+## [3.8.1] - 2025-03-07
+
+- Show the reserved output tokens in the context window visualization
+- Improve the UI of the configuration profile dropdown (thanks @DeXtroTip!)
+- Fix bug where custom temperature could not be unchecked (thanks @System233!)
+- Fix bug where decimal prices could not be entered for OpenAI-compatible providers (thanks @System233!)
+- Fix bug with enhance prompt on Sonnet 3.7 with a high thinking budget (thanks @moqimoqidea!)
+- Fix bug with the context window management for thinking models (thanks @ReadyPlayerEmma!)
+- Fix bug where checkpoints were no longer enabled by default
+- Add extension and VSCode versions to telemetry
+
+## [3.8.0] - 2025-03-07
+
+- Add opt-in telemetry to help us improve Roo Code faster (thanks Cline!)
+- Fix terminal overload / gray screen of death, and other terminal issues
+- Add a new experimental diff editing strategy that applies multiple diff edits at once (thanks @qdaxb!)
+- Add support for a .rooignore to prevent Roo Code from read/writing certain files, with a setting to also exclude them from search/lists (thanks Cline!)
+- Update the new_task tool to return results to the parent task on completion, supporting better orchestration (thanks @shaybc!)
+- Support running Roo in multiple editor windows simultaneously (thanks @samhvw8!)
+- Make checkpoints asynchronous and exclude more files to speed them up
+- Redesign the settings page to make it easier to navigate
+- Add credential-based authentication for Vertex AI, enabling users to easily switch between Google Cloud accounts (thanks @eonghk!)
+- Update the DeepSeek provider with the correct baseUrl and track caching correctly (thanks @olweraltuve!)
+- Add a new “Human Relay” provider that allows you to manually copy information to a Web AI when needed, and then paste the AI's response back into Roo Code (thanks @NyxJae)!
+- Add observability for OpenAI providers (thanks @refactorthis!)
+- Support speculative decoding for LM Studio local models (thanks @adamwlarson!)
+- Improve UI for mode/provider selectors in chat
+- Improve styling of the task headers (thanks @monotykamary!)
+- Improve context mention path handling on Windows (thanks @samhvw8!)
+
+## [3.7.12] - 2025-03-03
+
+- Expand max tokens of thinking models to 128k, and max thinking budget to over 100k (thanks @monotykamary!)
+- Fix issue where keyboard mode switcher wasn't updating API profile (thanks @aheizi!)
+- Use the count_tokens API in the Anthropic provider for more accurate context window management
+- Default middle-out compression to on for OpenRouter
+- Exclude MCP instructions from the prompt if the mode doesn't support MCP
+- Add a checkbox to disable the browser tool
+- Show a warning if checkpoints are taking too long to load
+- Update the warning text for the VS LM API
+- Correctly populate the default OpenRouter model on the welcome screen
+
+## [3.7.11] - 2025-03-02
+
+- Don't honor custom max tokens for non thinking models
+- Include custom modes in mode switching keyboard shortcut
+- Support read-only modes that can run commands
+
+## [3.7.10] - 2025-03-01
+
+- Add Gemini models on Vertex AI (thanks @ashktn!)
+- Keyboard shortcuts to switch modes (thanks @aheizi!)
+- Add support for Mermaid diagrams (thanks Cline!)
+
+## [3.7.9] - 2025-03-01
+
+- Delete task confirmation enhancements
+- Smarter context window management
+- Prettier thinking blocks
+- Fix maxTokens defaults for Claude 3.7 Sonnet models
+- Terminal output parsing improvements (thanks @KJ7LNW!)
+- UI fix to dropdown hover colors (thanks @SamirSaji!)
+- Add support for Claude Sonnet 3.7 thinking via Vertex AI (thanks @lupuletic!)
+
+## [3.7.8] - 2025-02-27
+
+- Add Vertex AI prompt caching support for Claude models (thanks @aitoroses and @lupuletic!)
+- Add gpt-4.5-preview
+- Add an advanced feature to customize the system prompt
+
+## [3.7.7] - 2025-02-27
+
+- Graduate checkpoints out of beta
+- Fix enhance prompt button when using Thinking Sonnet
+- Add tooltips to make what buttons do more obvious
+
+## [3.7.6] - 2025-02-26
+
+- Handle really long text better in the in the ChatRow similar to TaskHeader (thanks @joemanley201!)
+- Support multiple files in drag-and-drop
+- Truncate search_file output to avoid crashing the extension
+- Better OpenRouter error handling (no more "Provider Error")
+- Add slider to control max output tokens for thinking models
+
+## [3.7.5] - 2025-02-26
+
+- Fix context window truncation math (see [#1173](https://github.com/RooVetGit/Roo-Code/issues/1173))
+- Fix various issues with the model picker (thanks @System233!)
+- Fix model input / output cost parsing (thanks @System233!)
+- Add drag-and-drop for files
+- Enable the "Thinking Budget" slider for Claude 3.7 Sonnet on OpenRouter
+
+## [3.7.4] - 2025-02-25
+
+- Fix a bug that prevented the "Thinking" setting from properly updating when switching profiles.
+
+## [3.7.3] - 2025-02-25
 
 - Support for ["Thinking"](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) Sonnet 3.7 when using the Anthropic provider.
 
-## [3.7.2]
+## [3.7.2] - 2025-02-24
 
 - Fix computer use and prompt caching for OpenRouter's `anthropic/claude-3.7-sonnet:beta` (thanks @cte!)
 - Fix sliding window calculations for Sonnet 3.7 that were causing a context window overflow (thanks @cte!)
 - Encourage diff editing more strongly in the system prompt (thanks @hannesrudolph!)
 
-## [3.7.1]
+## [3.7.1] - 2025-02-24
 
 - Add AWS Bedrock support for Sonnet 3.7 and update some defaults to Sonnet 3.7 instead of 3.5
 
-## [3.7.0]
+## [3.7.0] - 2025-02-24
 
 - Introducing Roo Code 3.7, with support for the new Claude Sonnet 3.7. Because who cares about skipping version numbers anymore? Thanks @lupuletic and @cte for the PRs!
 
-## [3.3.26]
+## [3.3.26] - 2025-02-27
 
 - Adjust the default prompt for Debug mode to focus more on diagnosis and to require user confirmation before moving on to implementation
 
-## [3.3.25]
+## [3.3.25] - 2025-02-21
 
 - Add a "Debug" mode that specializes in debugging tricky problems (thanks [Ted Werbel](https://x.com/tedx_ai/status/1891514191179309457) and [Carlos E. Perez](https://x.com/IntuitMachine/status/1891516362486337739)!)
 - Add an experimental "Power Steering" option to significantly improve adherence to role definitions and custom instructions
 
-## [3.3.24]
+## [3.3.24] - 2025-02-20
 
 - Fixed a bug with region selection preventing AWS Bedrock profiles from being saved (thanks @oprstchn!)
 - Updated the price of gpt-4o (thanks @marvijo-code!)
 
-## [3.3.23]
+## [3.3.23] - 2025-02-20
 
 - Handle errors more gracefully when reading custom instructions from files (thanks @joemanley201!)
 - Bug fix to hitting "Done" on settings page with unsaved changes (thanks @System233!)
 
-## [3.3.22]
+## [3.3.22] - 2025-02-20
 
 - Improve the Provider Settings configuration with clear Save buttons and warnings about unsaved changes (thanks @System233!)
 - Correctly parse `<think>` reasoning tags from Ollama models (thanks @System233!)
@@ -47,7 +160,7 @@
 - Fix a bug where the .roomodes file was not automatically created when adding custom modes from the Prompts tab
 - Allow setting a wildcard (`*`) to auto-approve all command execution (use with caution!)
 
-## [3.3.21]
+## [3.3.21] - 2025-02-17
 
 - Fix input box revert issue and configuration loss during profile switch (thanks @System233!)
 - Fix default preferred language for zh-cn and zh-tw (thanks @System233!)
@@ -56,7 +169,7 @@
 - Fix system prompt to make sure Roo knows about all available modes
 - Enable streaming mode for OpenAI o1
 
-## [3.3.20]
+## [3.3.20] - 2025-02-14
 
 - Support project-specific custom modes in a .roomodes file
 - Add more Mistral models (thanks @d-oit and @bramburn!)
@@ -64,7 +177,7 @@
 - Add a setting to control the number of open editor tabs to tell the model about (665 is probably too many!)
 - Fix race condition bug with entering API key on the welcome screen
 
-## [3.3.19]
+## [3.3.19] - 2025-02-12
 
 - Fix a bug where aborting in the middle of file writes would not revert the write
 - Honor the VS Code theme for dialog backgrounds
@@ -72,7 +185,7 @@
 - Add a help button that links to our new documentation site (which we would love help from the community to improve!)
 - Switch checkpoints logic to use a shadow git repository to work around issues with hot reloads and polluting existing repositories (thanks Cline for the inspiration!)
 
-## [3.3.18]
+## [3.3.18] - 2025-02-11
 
 - Add a per-API-configuration model temperature setting (thanks @joemanley201!)
 - Add retries for fetching usage stats from OpenRouter (thanks @jcbdev!)
@@ -83,18 +196,18 @@
 - Fix logic error where automatic retries were waiting twice as long as intended
 - Rework the checkpoints code to avoid conflicts with file locks on Windows (sorry for the hassle!)
 
-## [3.3.17]
+## [3.3.17] - 2025-02-09
 
 - Fix the restore checkpoint popover
 - Unset git config that was previously set incorrectly by the checkpoints feature
 
-## [3.3.16]
+## [3.3.16] - 2025-02-09
 
 - Support Volcano Ark platform through the OpenAI-compatible provider
 - Fix jumpiness while entering API config by updating on blur instead of input
 - Add tooltips on checkpoint actions and fix an issue where checkpoints were overwriting existing git name/email settings - thanks for the feedback!
 
-## [3.3.15]
+## [3.3.15] - 2025-02-08
 
 - Improvements to MCP initialization and server restarts (thanks @MuriloFP and @hannesrudolph!)
 - Add a copy button to the recent tasks (thanks @hannesrudolph!)

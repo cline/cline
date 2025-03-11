@@ -1,16 +1,18 @@
-import React, { memo, useMemo, useState, useEffect } from "react"
+import React, { memo, useState } from "react"
 import { DeleteTaskDialog } from "./DeleteTaskDialog"
-import { Fzf } from "fzf"
 import prettyBytes from "pretty-bytes"
 import { Virtuoso } from "react-virtuoso"
 import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
 
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
-import { formatLargeNumber } from "../../utils/format"
-import { highlightFzfMatch } from "../../utils/highlight"
-import { useCopyToClipboard } from "../../utils/clipboard"
-import { Button } from "../ui"
+import { vscode } from "@/utils/vscode"
+import { formatLargeNumber, formatDate } from "@/utils/format"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui"
+
+import { Tab, TabContent, TabHeader } from "../common/Tab"
+import { useTaskSearch } from "./useTaskSearch"
+import { ExportButton } from "./ExportButton"
+import { CopyButton } from "./CopyButton"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -19,116 +21,18 @@ type HistoryViewProps = {
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
-	const { taskHistory } = useExtensionState()
-	const [searchQuery, setSearchQuery] = useState("")
-	const [sortOption, setSortOption] = useState<SortOption>("newest")
-	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
+	const { tasks, searchQuery, setSearchQuery, sortOption, setSortOption, setLastNonRelevantSort } = useTaskSearch()
 
-	useEffect(() => {
-		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
-			setLastNonRelevantSort(sortOption)
-			setSortOption("mostRelevant")
-		} else if (!searchQuery && sortOption === "mostRelevant" && lastNonRelevantSort) {
-			setSortOption(lastNonRelevantSort)
-			setLastNonRelevantSort(null)
-		}
-	}, [searchQuery, sortOption, lastNonRelevantSort])
-
-	const handleHistorySelect = (id: string) => {
-		vscode.postMessage({ type: "showTaskWithId", text: id })
-	}
-
-	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-	const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
-
-	const handleDeleteHistoryItem = (id: string) => {
-		setTaskToDelete(id)
-		setDeleteDialogOpen(true)
-	}
-
-	const formatDate = (timestamp: number) => {
-		const date = new Date(timestamp)
-		return date
-			?.toLocaleString("en-US", {
-				month: "long",
-				day: "numeric",
-				hour: "numeric",
-				minute: "2-digit",
-				hour12: true,
-			})
-			.replace(", ", " ")
-			.replace(" at", ",")
-			.toUpperCase()
-	}
-
-	const presentableTasks = useMemo(() => {
-		return taskHistory.filter((item) => item.ts && item.task)
-	}, [taskHistory])
-
-	const fzf = useMemo(() => {
-		return new Fzf(presentableTasks, {
-			selector: (item) => item.task,
-		})
-	}, [presentableTasks])
-
-	const taskHistorySearchResults = useMemo(() => {
-		let results = presentableTasks
-		if (searchQuery) {
-			const searchResults = fzf.find(searchQuery)
-			results = searchResults.map((result) => ({
-				...result.item,
-				task: highlightFzfMatch(result.item.task, Array.from(result.positions)),
-			}))
-		}
-
-		// First apply search if needed
-		const searchResults = searchQuery ? results : presentableTasks
-
-		// Then sort the results
-		return [...searchResults].sort((a, b) => {
-			switch (sortOption) {
-				case "oldest":
-					return (a.ts || 0) - (b.ts || 0)
-				case "mostExpensive":
-					return (b.totalCost || 0) - (a.totalCost || 0)
-				case "mostTokens":
-					const aTokens = (a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheWrites || 0) + (a.cacheReads || 0)
-					const bTokens = (b.tokensIn || 0) + (b.tokensOut || 0) + (b.cacheWrites || 0) + (b.cacheReads || 0)
-					return bTokens - aTokens
-				case "mostRelevant":
-					// Keep fuse order if searching, otherwise sort by newest
-					return searchQuery ? 0 : (b.ts || 0) - (a.ts || 0)
-				case "newest":
-				default:
-					return (b.ts || 0) - (a.ts || 0)
-			}
-		})
-	}, [presentableTasks, searchQuery, fzf, sortOption])
+	const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
 
 	return (
-		<div
-			style={{
-				position: "fixed",
-				top: 0,
-				left: 0,
-				right: 0,
-				bottom: 0,
-				display: "flex",
-				flexDirection: "column",
-				overflow: "hidden",
-			}}>
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					padding: "10px 17px 10px 20px",
-				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>History</h3>
-				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
-			</div>
-			<div style={{ padding: "5px 17px 6px 17px" }}>
-				<div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+		<Tab>
+			<TabHeader className="flex flex-col gap-2">
+				<div className="flex justify-between items-center">
+					<h3 className="text-vscode-foreground m-0">History</h3>
+					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+				</div>
+				<div className="flex flex-col gap-2">
 					<VSCodeTextField
 						style={{ width: "100%" }}
 						placeholder="Fuzzy search history..."
@@ -178,14 +82,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						</VSCodeRadio>
 					</VSCodeRadioGroup>
 				</div>
-			</div>
-			<div style={{ flexGrow: 1, overflowY: "auto", margin: 0 }}>
+			</TabHeader>
+
+			<TabContent className="p-0">
 				<Virtuoso
 					style={{
 						flexGrow: 1,
 						overflowY: "scroll",
 					}}
-					data={taskHistorySearchResults}
+					data={tasks}
 					data-testid="virtuoso-container"
 					components={{
 						List: React.forwardRef((props, ref) => (
@@ -194,15 +99,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					}}
 					itemContent={(index, item) => (
 						<div
-							key={item.id}
 							data-testid={`task-item-${item.id}`}
-							className="history-item"
-							style={{
-								cursor: "pointer",
-								borderBottom:
-									index < taskHistory.length - 1 ? "1px solid var(--vscode-panel-border)" : "none",
-							}}
-							onClick={() => handleHistorySelect(item.id)}>
+							key={item.id}
+							className={cn("cursor-pointer", {
+								"border-b border-vscode-panel-border": index < tasks.length - 1,
+							})}
+							onClick={() => vscode.postMessage({ type: "showTaskWithId", text: item.id })}>
 							<div
 								style={{
 									display: "flex",
@@ -230,10 +132,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										<Button
 											variant="ghost"
 											size="sm"
-											title="Delete Task"
+											title="Delete Task (Shift + Click to skip confirmation)"
 											onClick={(e) => {
 												e.stopPropagation()
-												handleDeleteHistoryItem(item.id)
+
+												if (e.shiftKey) {
+													vscode.postMessage({ type: "deleteTaskWithId", text: item.id })
+												} else {
+													setDeleteTaskId(item.id)
+												}
 											}}>
 											<span className="codicon codicon-trash" />
 											{item.size && prettyBytes(item.size)}
@@ -313,7 +220,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 												{formatLargeNumber(item.tokensOut || 0)}
 											</span>
 										</div>
-										{!item.totalCost && <ExportButton itemId={item.id} />}
+										{!item.totalCost && (
+											<div className="flex flex-row gap-1">
+												<CopyButton itemTask={item.task} />
+												<ExportButton itemId={item.id} />
+											</div>
+										)}
 									</div>
 
 									{!!item.cacheWrites && (
@@ -402,45 +314,13 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						</div>
 					)}
 				/>
-			</div>
-			{taskToDelete && (
-				<DeleteTaskDialog
-					taskId={taskToDelete}
-					open={deleteDialogOpen}
-					onOpenChange={(open) => {
-						setDeleteDialogOpen(open)
-						if (!open) {
-							setTaskToDelete(null)
-						}
-					}}
-				/>
+			</TabContent>
+
+			{deleteTaskId && (
+				<DeleteTaskDialog taskId={deleteTaskId} onOpenChange={(open) => !open && setDeleteTaskId(null)} open />
 			)}
-		</div>
+		</Tab>
 	)
 }
-
-const CopyButton = ({ itemTask }: { itemTask: string }) => {
-	const { showCopyFeedback, copyWithFeedback } = useCopyToClipboard()
-
-	return (
-		<Button variant="ghost" size="icon" title="Copy Prompt" onClick={(e) => copyWithFeedback(itemTask, e)}>
-			{showCopyFeedback ? <span className="codicon codicon-check" /> : <span className="codicon codicon-copy" />}
-		</Button>
-	)
-}
-
-const ExportButton = ({ itemId }: { itemId: string }) => (
-	<Button
-		data-testid="export"
-		variant="ghost"
-		size="icon"
-		title="Export Task"
-		onClick={(e) => {
-			e.stopPropagation()
-			vscode.postMessage({ type: "exportTaskWithId", text: itemId })
-		}}>
-		<span className="codicon codicon-cloud-download" />
-	</Button>
-)
 
 export default memo(HistoryView)

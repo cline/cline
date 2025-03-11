@@ -1,6 +1,9 @@
+// npx jest src/components/settings/__tests__/ApiOptions.test.ts
+
 import { render, screen } from "@testing-library/react"
-import ApiOptions from "../ApiOptions"
+
 import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext"
+import ApiOptions from "../ApiOptions"
 
 // Mock VSCode components
 jest.mock("@vscode/webview-ui-toolkit/react", () => ({
@@ -13,6 +16,7 @@ jest.mock("@vscode/webview-ui-toolkit/react", () => ({
 	VSCodeLink: ({ children, href }: any) => <a href={href}>{children}</a>,
 	VSCodeRadio: ({ children, value, checked }: any) => <input type="radio" value={value} checked={checked} />,
 	VSCodeRadioGroup: ({ children }: any) => <div>{children}</div>,
+	VSCodeButton: ({ children }: any) => <div>{children}</div>,
 }))
 
 // Mock other components
@@ -31,6 +35,31 @@ jest.mock("vscrui", () => ({
 	Pane: ({ children }: any) => <div>{children}</div>,
 }))
 
+// Mock @shadcn/ui components
+jest.mock("@/components/ui", () => ({
+	Select: ({ children, value, onValueChange }: any) => (
+		<div className="select-mock">
+			<select value={value} onChange={(e) => onValueChange && onValueChange(e.target.value)}>
+				{children}
+			</select>
+		</div>
+	),
+	SelectTrigger: ({ children }: any) => <div className="select-trigger-mock">{children}</div>,
+	SelectValue: ({ children }: any) => <div className="select-value-mock">{children}</div>,
+	SelectContent: ({ children }: any) => <div className="select-content-mock">{children}</div>,
+	SelectGroup: ({ children }: any) => <div className="select-group-mock">{children}</div>,
+	SelectItem: ({ children, value }: any) => (
+		<option value={value} className="select-item-mock">
+			{children}
+		</option>
+	),
+	Button: ({ children, onClick }: any) => (
+		<button onClick={onClick} className="button-mock">
+			{children}
+		</button>
+	),
+}))
+
 jest.mock("../TemperatureControl", () => ({
 	TemperatureControl: ({ value, onChange }: any) => (
 		<div data-testid="temperature-control">
@@ -46,11 +75,23 @@ jest.mock("../TemperatureControl", () => ({
 	),
 }))
 
+// Mock ThinkingBudget component
+jest.mock("../ThinkingBudget", () => ({
+	ThinkingBudget: ({ apiConfiguration, setApiConfigurationField, modelInfo, provider }: any) =>
+		modelInfo?.thinking ? (
+			<div data-testid="thinking-budget" data-provider={provider}>
+				<input data-testid="thinking-tokens" value={apiConfiguration?.modelMaxThinkingTokens} />
+			</div>
+		) : null,
+}))
+
 describe("ApiOptions", () => {
 	const renderApiOptions = (props = {}) => {
 		render(
 			<ExtensionStateContextProvider>
 				<ApiOptions
+					errorMessage={undefined}
+					setErrorMessage={() => {}}
 					uriScheme={undefined}
 					apiConfiguration={{}}
 					setApiConfigurationField={() => {}}
@@ -68,5 +109,45 @@ describe("ApiOptions", () => {
 	it("hides temperature control when fromWelcomeView is true", () => {
 		renderApiOptions({ fromWelcomeView: true })
 		expect(screen.queryByTestId("temperature-control")).not.toBeInTheDocument()
+	})
+
+	describe("thinking functionality", () => {
+		it("should show ThinkingBudget for Anthropic models that support thinking", () => {
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "anthropic",
+					apiModelId: "claude-3-7-sonnet-20250219:thinking",
+				},
+			})
+
+			expect(screen.getByTestId("thinking-budget")).toBeInTheDocument()
+		})
+
+		it("should show ThinkingBudget for Vertex models that support thinking", () => {
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "vertex",
+					apiModelId: "claude-3-7-sonnet@20250219:thinking",
+				},
+			})
+
+			expect(screen.getByTestId("thinking-budget")).toBeInTheDocument()
+		})
+
+		it("should not show ThinkingBudget for models that don't support thinking", () => {
+			renderApiOptions({
+				apiConfiguration: {
+					apiProvider: "anthropic",
+					apiModelId: "claude-3-opus-20240229",
+					modelInfo: { thinking: false }, // Non-thinking model
+				},
+			})
+
+			expect(screen.queryByTestId("thinking-budget")).not.toBeInTheDocument()
+		})
+
+		// Note: We don't need to test the actual ThinkingBudget component functionality here
+		// since we have separate tests for that component. We just need to verify that
+		// it's included in the ApiOptions component when appropriate.
 	})
 })

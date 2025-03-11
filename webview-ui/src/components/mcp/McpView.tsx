@@ -1,3 +1,4 @@
+import { useState } from "react"
 import {
 	VSCodeButton,
 	VSCodeCheckbox,
@@ -6,14 +7,17 @@ import {
 	VSCodePanelTab,
 	VSCodePanelView,
 } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
-import { vscode } from "../../utils/vscode"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+
 import { McpServer } from "../../../../src/shared/mcp"
+
+import { vscode } from "@/utils/vscode"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui"
+
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { Tab, TabContent, TabHeader } from "../common/Tab"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import McpEnabledToggle from "./McpEnabledToggle"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog"
 
 type McpViewProps = {
 	onDone: () => void
@@ -29,28 +33,13 @@ const McpView = ({ onDone }: McpViewProps) => {
 	} = useExtensionState()
 
 	return (
-		<div
-			style={{
-				position: "fixed",
-				top: 0,
-				left: 0,
-				right: 0,
-				bottom: 0,
-				display: "flex",
-				flexDirection: "column",
-			}}>
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					padding: "10px 17px 10px 20px",
-				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>MCP Servers</h3>
+		<Tab>
+			<TabHeader className="flex justify-between items-center">
+				<h3 className="text-vscode-foreground m-0">MCP Servers</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
-			</div>
+			</TabHeader>
 
-			<div style={{ flex: 1, overflow: "auto", padding: "0 20px" }}>
+			<TabContent>
 				<div
 					style={{
 						color: "var(--vscode-foreground)",
@@ -119,15 +108,11 @@ const McpView = ({ onDone }: McpViewProps) => {
 						</div>
 					</>
 				)}
-
-				{/* Bottom padding */}
-				<div style={{ height: "20px" }} />
-			</div>
-		</div>
+			</TabContent>
+		</Tab>
 	)
 }
 
-// Server Row Component
 const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowMcp?: boolean }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)

@@ -1,22 +1,24 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { GoogleGenerativeAI } from "@google/generative-ai"
-import { ApiHandler, SingleCompletionHandler } from "../"
+import { SingleCompletionHandler } from "../"
 import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "../../shared/api"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
+import { BaseProvider } from "./base-provider"
 
 const GEMINI_DEFAULT_TEMPERATURE = 0
 
-export class GeminiHandler implements ApiHandler, SingleCompletionHandler {
-	private options: ApiHandlerOptions
+export class GeminiHandler extends BaseProvider implements SingleCompletionHandler {
+	protected options: ApiHandlerOptions
 	private client: GoogleGenerativeAI
 
 	constructor(options: ApiHandlerOptions) {
+		super()
 		this.options = options
 		this.client = new GoogleGenerativeAI(options.geminiApiKey ?? "not-provided")
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.client.getGenerativeModel(
 			{
 				model: this.getModel().id,
@@ -26,6 +28,7 @@ export class GeminiHandler implements ApiHandler, SingleCompletionHandler {
 				baseUrl: this.options.googleGeminiBaseUrl || undefined,
 			},
 		)
+
 		const result = await model.generateContentStream({
 			contents: messages.map(convertAnthropicMessageToGemini),
 			generationConfig: {
@@ -49,7 +52,7 @@ export class GeminiHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	getModel(): { id: GeminiModelId; info: ModelInfo } {
+	override getModel(): { id: GeminiModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in geminiModels) {
 			const id = modelId as GeminiModelId

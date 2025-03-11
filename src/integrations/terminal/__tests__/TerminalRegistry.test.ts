@@ -1,4 +1,5 @@
-import * as vscode from "vscode"
+// npx jest src/integrations/terminal/__tests__/TerminalRegistry.test.ts
+
 import { TerminalRegistry } from "../TerminalRegistry"
 
 // Mock vscode.window.createTerminal
@@ -30,6 +31,8 @@ describe("TerminalRegistry", () => {
 				iconPath: expect.any(Object),
 				env: {
 					PAGER: "cat",
+					PROMPT_COMMAND: "sleep 0.050",
+					VTE_VERSION: "0",
 				},
 			})
 		})

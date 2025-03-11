@@ -1,6 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta/messages/index.mjs"
+
+import { ApiConfiguration, ModelInfo, ApiHandlerOptions } from "../shared/api"
+import { ANTHROPIC_DEFAULT_MAX_TOKENS } from "./providers/constants"
 import { GlamaHandler } from "./providers/glama"
-import { ApiConfiguration, ModelInfo } from "../shared/api"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AwsBedrockHandler } from "./providers/bedrock"
 import { OpenRouterHandler } from "./providers/openrouter"
@@ -16,6 +19,7 @@ import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { ApiStream } from "./transform/stream"
 import { UnboundHandler } from "./providers/unbound"
 import { RequestyHandler } from "./providers/requesty"
+import { HumanRelayHandler } from "./providers/human-relay"
 
 export interface SingleCompletionHandler {
 	completePrompt(prompt: string): Promise<string>
@@ -24,6 +28,16 @@ export interface SingleCompletionHandler {
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
 	getModel(): { id: string; info: ModelInfo }
+
+	/**
+	 * Counts tokens for content blocks
+	 * All providers extend BaseProvider which provides a default tiktoken implementation,
+	 * but they can override this to use their native token counting endpoints
+	 *
+	 * @param content The content to count tokens for
+	 * @returns A promise resolving to the token count
+	 */
+	countTokens(content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number>
 }
 
 export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
@@ -59,7 +73,47 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new UnboundHandler(options)
 		case "requesty":
 			return new RequestyHandler(options)
+		case "human-relay":
+			return new HumanRelayHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}
+}
+
+export function getModelParams({
+	options,
+	model,
+	defaultMaxTokens,
+	defaultTemperature = 0,
+}: {
+	options: ApiHandlerOptions
+	model: ModelInfo
+	defaultMaxTokens?: number
+	defaultTemperature?: number
+}) {
+	const {
+		modelMaxTokens: customMaxTokens,
+		modelMaxThinkingTokens: customMaxThinkingTokens,
+		modelTemperature: customTemperature,
+	} = options
+
+	let maxTokens = model.maxTokens ?? defaultMaxTokens
+	let thinking: BetaThinkingConfigParam | undefined = undefined
+	let temperature = customTemperature ?? defaultTemperature
+
+	if (model.thinking) {
+		// Only honor `customMaxTokens` for thinking models.
+		maxTokens = customMaxTokens ?? maxTokens
+
+		// Clamp the thinking budget to be at most 80% of max tokens and at
+		// least 1024 tokens.
+		const maxBudgetTokens = Math.floor((maxTokens || ANTHROPIC_DEFAULT_MAX_TOKENS) * 0.8)
+		const budgetTokens = Math.max(Math.min(customMaxThinkingTokens ?? maxBudgetTokens, maxBudgetTokens), 1024)
+		thinking = { type: "enabled", budget_tokens: budgetTokens }
+
+		// Anthropic "Thinking" models require a temperature of 1.0.
+		temperature = 1.0
+	}
+
+	return { maxTokens, thinking, temperature }
 }

@@ -4,6 +4,8 @@
 .vscode/**
 .vscode-test/**
 out/**
+out-integration/**
+e2e/**
 node_modules/**
 src/**
 .gitignore
@@ -25,7 +27,6 @@ demo.gif
 .roomodes
 cline_docs/**
 coverage/**
-out-integration/**
 
 # Ignore all webview-ui files except the build directory (https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/frameworks/hello-world-react-cra/.vscodeignore)
 webview-ui/src/**
@@ -47,3 +48,6 @@ webview-ui/node_modules/**
 
 # Include icons
 !assets/icons/**
+
+# Include .env file for telemetry
+!.env

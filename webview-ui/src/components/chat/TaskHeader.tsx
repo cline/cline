@@ -3,15 +3,19 @@ import { useWindowSize } from "react-use"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import prettyBytes from "pretty-bytes"
 
+import { vscode } from "@/utils/vscode"
+import { formatLargeNumber } from "@/utils/format"
+import { calculateTokenDistribution, getMaxTokensForModel } from "@/utils/model-utils"
+import { Button } from "@/components/ui"
+
 import { ClineMessage } from "../../../../src/shared/ExtensionMessage"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
-import Thumbnails from "../common/Thumbnails"
 import { mentionRegexGlobal } from "../../../../src/shared/context-mentions"
-import { formatLargeNumber } from "../../utils/format"
-import { normalizeApiConfiguration } from "../settings/ApiOptions"
-import { Button } from "../ui"
 import { HistoryItem } from "../../../../src/shared/HistoryItem"
+
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import Thumbnails from "../common/Thumbnails"
+import { normalizeApiConfiguration } from "../settings/ApiOptions"
+import { DeleteTaskDialog } from "../history/DeleteTaskDialog"
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -46,7 +50,21 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const contextWindow = selectedModelInfo?.contextWindow || 1
 
 	/*
-	When dealing with event listeners in React components that depend on state variables, we face a challenge. We want our listener to always use the most up-to-date version of a callback function that relies on current state, but we don't want to constantly add and remove event listeners as that function updates. This scenario often arises with resize listeners or other window events. Simply adding the listener in a useEffect with an empty dependency array risks using stale state, while including the callback in the dependencies can lead to unnecessary re-registrations of the listener. There are react hook libraries that provide a elegant solution to this problem by utilizing the useRef hook to maintain a reference to the latest callback function without triggering re-renders or effect re-runs. This approach ensures that our event listener always has access to the most current state while minimizing performance overhead and potential memory leaks from multiple listener registrations. 
+	When dealing with event listeners in React components that depend on state
+	variables, we face a challenge. We want our listener to always use the most
+	up-to-date version of a callback function that relies on current state, but
+	we don't want to constantly add and remove event listeners as that function
+	updates. This scenario often arises with resize listeners or other window
+	events. Simply adding the listener in a useEffect with an empty dependency
+	array risks using stale state, while including the callback in the
+	dependencies can lead to unnecessary re-registrations of the listener. There
+	are react hook libraries that provide a elegant solution to this problem by
+	utilizing the useRef hook to maintain a reference to the latest callback
+	function without triggering re-renders or effect re-runs. This approach
+	ensures that our event listener always has access to the most current state
+	while minimizing performance overhead and potential memory leaks from
+	multiple listener registrations. 
+
 	Sources
 	- https://usehooks-ts.com/react-hook/use-event-listener
 	- https://streamich.github.io/react-use/?path=/story/sensors-useevent--docs
@@ -180,7 +198,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							${totalCost?.toFixed(4)}
 						</div>
 					)}
-					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>
+					<VSCodeButton
+						appearance="icon"
+						onClick={onClose}
+						style={{ marginLeft: 6, flexShrink: 0, color: "var(--vscode-badge-foreground)" }}
+						title="Close task and start a new one">
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
 				</div>
@@ -229,9 +251,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									<div
 										style={{
 											cursor: "pointer",
-											color: "var(--vscode-textLink-foreground)",
-											paddingRight: 0,
-											paddingLeft: 3,
+											color: "var(--vscode-badge-foreground)",
+											fontSize: "11px",
+											paddingRight: 8,
+											paddingLeft: 4,
 											backgroundColor: "var(--vscode-badge-background)",
 										}}
 										onClick={() => setIsTextExpanded(!isTextExpanded)}>
@@ -278,11 +301,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								{!isCostAvailable && <TaskActions item={currentTaskItem} />}
 							</div>
 
-							{isTaskExpanded && contextWindow && (
-								<div className={`flex ${windowWidth < 270 ? "flex-col" : "flex-row"} gap-1 h-[20px]`}>
+							{isTaskExpanded && contextWindow > 0 && (
+								<div
+									className={`w-full flex ${windowWidth < 400 ? "flex-col" : "flex-row"} gap-1 h-auto`}>
 									<ContextWindowProgress
 										contextWindow={contextWindow}
 										contextTokens={contextTokens || 0}
+										maxTokens={getMaxTokensForModel(selectedModelInfo, apiConfiguration)}
 									/>
 								</div>
 							)}
@@ -346,44 +371,156 @@ export const highlightMentions = (text?: string, withShadow = true) => {
 	})
 }
 
-const TaskActions = ({ item }: { item: HistoryItem | undefined }) => (
-	<div className="flex flex-row gap-1">
-		<Button variant="ghost" size="sm" onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}>
-			<span className="codicon codicon-cloud-download" />
-		</Button>
-		{item?.size && (
+const TaskActions = ({ item }: { item: HistoryItem | undefined }) => {
+	const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
+
+	return (
+		<div className="flex flex-row gap-1">
 			<Button
 				variant="ghost"
 				size="sm"
-				onClick={() => vscode.postMessage({ type: "deleteTaskWithId", text: item.id })}>
-				<span className="codicon codicon-trash" />
-				{prettyBytes(item.size)}
+				title="Export task history"
+				onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}>
+				<span className="codicon codicon-cloud-download" />
 			</Button>
-		)}
-	</div>
-)
+			{!!item?.size && item.size > 0 && (
+				<>
+					<Button
+						variant="ghost"
+						size="sm"
+						title="Delete Task (Shift + Click to skip confirmation)"
+						onClick={(e) => {
+							e.stopPropagation()
 
-const ContextWindowProgress = ({ contextWindow, contextTokens }: { contextWindow: number; contextTokens: number }) => (
-	<>
-		<div className="flex items-center gap-1 flex-shrink-0">
-			<span className="font-bold">Context Window:</span>
+							if (e.shiftKey) {
+								vscode.postMessage({ type: "deleteTaskWithId", text: item.id })
+							} else {
+								setDeleteTaskId(item.id)
+							}
+						}}>
+						<span className="codicon codicon-trash" />
+						{prettyBytes(item.size)}
+					</Button>
+					{deleteTaskId && (
+						<DeleteTaskDialog
+							taskId={deleteTaskId}
+							onOpenChange={(open) => !open && setDeleteTaskId(null)}
+							open
+						/>
+					)}
+				</>
+			)}
 		</div>
-		<div className="flex items-center gap-2 flex-1 whitespace-nowrap">
-			<div>{formatLargeNumber(contextTokens)}</div>
-			<div className="flex items-center gap-[3px] flex-1">
-				<div className="flex-1 h-1 rounded-[2px] overflow-hidden bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_20%,transparent)]">
-					<div
-						className="h-full rounded-[2px] bg-[var(--vscode-badge-foreground)]"
-						style={{
-							width: `${(contextTokens / contextWindow) * 100}%`,
-							transition: "width 0.3s ease-out",
-						}}
-					/>
-				</div>
+	)
+}
+
+interface ContextWindowProgressProps {
+	contextWindow: number
+	contextTokens: number
+	maxTokens?: number
+}
+
+const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: ContextWindowProgressProps) => {
+	// Use the shared utility function to calculate all token distribution values
+	const tokenDistribution = useMemo(
+		() => calculateTokenDistribution(contextWindow, contextTokens, maxTokens),
+		[contextWindow, contextTokens, maxTokens],
+	)
+
+	// Destructure the values we need
+	const { currentPercent, reservedPercent, availableSize, reservedForOutput, availablePercent } = tokenDistribution
+
+	// For display purposes
+	const safeContextWindow = Math.max(0, contextWindow)
+	const safeContextTokens = Math.max(0, contextTokens)
+
+	return (
+		<>
+			<div className="flex items-center gap-1 flex-shrink-0">
+				<span className="font-bold">Context Window:</span>
 			</div>
-			<div>{formatLargeNumber(contextWindow)}</div>
-		</div>
-	</>
-)
+			<div className="flex items-center gap-2 flex-1 whitespace-nowrap px-2">
+				<div>{formatLargeNumber(safeContextTokens)}</div>
+				<div className="flex-1 relative">
+					{/* Invisible overlay for hover area */}
+					<div
+						className="absolute w-full cursor-pointer"
+						style={{
+							height: "16px",
+							top: "-7px",
+							zIndex: 5,
+						}}
+						title={`Available space: ${formatLargeNumber(availableSize)} tokens`}
+					/>
+
+					{/* Main progress bar container */}
+					<div className="flex items-center h-1 rounded-[2px] overflow-hidden w-full bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_20%,transparent)]">
+						{/* Current tokens container */}
+						<div className="relative h-full" style={{ width: `${currentPercent}%` }}>
+							{/* Invisible overlay for current tokens section */}
+							<div
+								className="absolute cursor-pointer"
+								style={{
+									height: "16px",
+									top: "-7px",
+									width: "100%",
+									zIndex: 6,
+								}}
+								title={`Tokens used: ${formatLargeNumber(safeContextTokens)} of ${formatLargeNumber(safeContextWindow)}`}
+							/>
+							{/* Current tokens used - darkest */}
+							<div
+								className="h-full w-full bg-[var(--vscode-badge-foreground)]"
+								style={{
+									transition: "width 0.3s ease-out",
+								}}
+							/>
+						</div>
+
+						{/* Container for reserved tokens */}
+						<div className="relative h-full" style={{ width: `${reservedPercent}%` }}>
+							{/* Invisible overlay for reserved section */}
+							<div
+								className="absolute cursor-pointer"
+								style={{
+									height: "16px",
+									top: "-7px",
+									width: "100%",
+									zIndex: 6,
+								}}
+								title={`Reserved for model response: ${formatLargeNumber(reservedForOutput)} tokens`}
+							/>
+							{/* Reserved for output section - medium gray */}
+							<div
+								className="h-full w-full bg-[color-mix(in_srgb,var(--vscode-badge-foreground)_30%,transparent)]"
+								style={{
+									transition: "width 0.3s ease-out",
+								}}
+							/>
+						</div>
+
+						{/* Empty section (if any) */}
+						{availablePercent > 0 && (
+							<div className="relative h-full" style={{ width: `${availablePercent}%` }}>
+								{/* Invisible overlay for available space */}
+								<div
+									className="absolute cursor-pointer"
+									style={{
+										height: "16px",
+										top: "-7px",
+										width: "100%",
+										zIndex: 6,
+									}}
+									title={`Available space: ${formatLargeNumber(availableSize)} tokens`}
+								/>
+							</div>
+						)}
+					</div>
+				</div>
+				<div>{formatLargeNumber(safeContextWindow)}</div>
+			</div>
+		</>
+	)
+}
 
 export default memo(TaskHeader)

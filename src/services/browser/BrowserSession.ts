@@ -1,13 +1,15 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
+import { Browser, Page, ScreenshotOptions, TimeoutError, launch, connect } from "puppeteer-core"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
 import delay from "delay"
+import axios from "axios"
 import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
+import { discoverChromeInstances, testBrowserConnection } from "./browserDiscovery"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -19,9 +21,18 @@ export class BrowserSession {
 	private browser?: Browser
 	private page?: Page
 	private currentMousePosition?: string
+	private cachedWebSocketEndpoint?: string
+	private lastConnectionAttempt: number = 0
 
 	constructor(context: vscode.ExtensionContext) {
 		this.context = context
+	}
+
+	/**
+	 * Test connection to a remote browser
+	 */
+	async testConnection(host: string): Promise<{ success: boolean; message: string; endpoint?: string }> {
+		return testBrowserConnection(host)
 	}
 
 	private async ensureChromiumExists(): Promise<PCRStats> {
@@ -52,17 +63,131 @@ export class BrowserSession {
 			await this.closeBrowser() // this may happen when the model launches a browser again after having used it already before
 		}
 
+		// Function to get viewport size
+		const getViewport = () => {
+			const size = (this.context.globalState.get("browserViewportSize") as string | undefined) || "900x600"
+			const [width, height] = size.split("x").map(Number)
+			return { width, height }
+		}
+
+		// Check if remote browser connection is enabled
+		const remoteBrowserEnabled = this.context.globalState.get("remoteBrowserEnabled") as boolean | undefined
+
+		// If remote browser connection is not enabled, use local browser
+		if (!remoteBrowserEnabled) {
+			console.log("Remote browser connection is disabled, using local browser")
+			const stats = await this.ensureChromiumExists()
+			this.browser = await stats.puppeteer.launch({
+				args: [
+					"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+				],
+				executablePath: stats.executablePath,
+				defaultViewport: getViewport(),
+				// headless: false,
+			})
+			this.page = await this.browser?.newPage()
+			return
+		}
+		// Remote browser connection is enabled
+		let remoteBrowserHost = this.context.globalState.get("remoteBrowserHost") as string | undefined
+		let browserWSEndpoint: string | undefined = this.cachedWebSocketEndpoint
+		let reconnectionAttempted = false
+
+		// Try to connect with cached endpoint first if it exists and is recent (less than 1 hour old)
+		if (browserWSEndpoint && Date.now() - this.lastConnectionAttempt < 3600000) {
+			try {
+				console.log(`Attempting to connect using cached WebSocket endpoint: ${browserWSEndpoint}`)
+				this.browser = await connect({
+					browserWSEndpoint,
+					defaultViewport: getViewport(),
+				})
+				this.page = await this.browser?.newPage()
+				return
+			} catch (error) {
+				console.log(`Failed to connect using cached endpoint: ${error}`)
+				// Clear the cached endpoint since it's no longer valid
+				this.cachedWebSocketEndpoint = undefined
+				// User wants to give up after one reconnection attempt
+				if (remoteBrowserHost) {
+					reconnectionAttempted = true
+				}
+			}
+		}
+
+		// If user provided a remote browser host, try to connect to it
+		if (remoteBrowserHost && !reconnectionAttempted) {
+			console.log(`Attempting to connect to remote browser at ${remoteBrowserHost}`)
+			try {
+				// Fetch the WebSocket endpoint from the Chrome DevTools Protocol
+				const versionUrl = `${remoteBrowserHost.replace(/\/$/, "")}/json/version`
+				console.log(`Fetching WebSocket endpoint from ${versionUrl}`)
+
+				const response = await axios.get(versionUrl)
+				browserWSEndpoint = response.data.webSocketDebuggerUrl
+
+				if (!browserWSEndpoint) {
+					throw new Error("Could not find webSocketDebuggerUrl in the response")
+				}
+
+				console.log(`Found WebSocket endpoint: ${browserWSEndpoint}`)
+
+				// Cache the successful endpoint
+				this.cachedWebSocketEndpoint = browserWSEndpoint
+				this.lastConnectionAttempt = Date.now()
+
+				this.browser = await connect({
+					browserWSEndpoint,
+					defaultViewport: getViewport(),
+				})
+				this.page = await this.browser?.newPage()
+				return
+			} catch (error) {
+				console.error(`Failed to connect to remote browser: ${error}`)
+				// Fall back to auto-discovery if remote connection fails
+			}
+		}
+
+		// Always try auto-discovery if no custom URL is specified or if connection failed
+		try {
+			console.log("Attempting auto-discovery...")
+			const discoveredHost = await discoverChromeInstances()
+
+			if (discoveredHost) {
+				console.log(`Auto-discovered Chrome at ${discoveredHost}`)
+
+				// Don't save the discovered host to global state to avoid overriding user preference
+				// We'll just use it for this session
+
+				// Try to connect to the discovered host
+				const testResult = await testBrowserConnection(discoveredHost)
+
+				if (testResult.success && testResult.endpoint) {
+					// Cache the successful endpoint
+					this.cachedWebSocketEndpoint = testResult.endpoint
+					this.lastConnectionAttempt = Date.now()
+
+					this.browser = await connect({
+						browserWSEndpoint: testResult.endpoint,
+						defaultViewport: getViewport(),
+					})
+					this.page = await this.browser?.newPage()
+					return
+				}
+			}
+		} catch (error) {
+			console.error(`Auto-discovery failed: ${error}`)
+			// Fall back to local browser if auto-discovery fails
+		}
+
+		// If all remote connection attempts fail, fall back to local browser
+		console.log("Falling back to local browser")
 		const stats = await this.ensureChromiumExists()
 		this.browser = await stats.puppeteer.launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
 			],
 			executablePath: stats.executablePath,
-			defaultViewport: (() => {
-				const size = (this.context.globalState.get("browserViewportSize") as string | undefined) || "900x600"
-				const [width, height] = size.split("x").map(Number)
-				return { width, height }
-			})(),
+			defaultViewport: getViewport(),
 			// headless: false,
 		})
 		// (latest version of puppeteer does not add headless to user agent)
@@ -72,7 +197,14 @@ export class BrowserSession {
 	async closeBrowser(): Promise<BrowserActionResult> {
 		if (this.browser || this.page) {
 			console.log("closing browser...")
-			await this.browser?.close().catch(() => {})
+
+			const remoteBrowserEnabled = this.context.globalState.get("remoteBrowserEnabled") as string | undefined
+			if (remoteBrowserEnabled && this.browser) {
+				await this.browser.disconnect().catch(() => {})
+			} else {
+				await this.browser?.close().catch(() => {})
+			}
+
 			this.browser = undefined
 			this.page = undefined
 			this.currentMousePosition = undefined

@@ -3,7 +3,7 @@ import * as childProcess from "child_process"
 import * as path from "path"
 import * as fs from "fs"
 import * as readline from "readline"
-
+import { RooIgnoreController } from "../../core/ignore/RooIgnoreController"
 /*
 This file provides functionality to perform regex searches on files using ripgrep.
 Inspired by: https://github.com/DiscreteTom/vscode-ripgrep-utils
@@ -58,7 +58,19 @@ interface SearchResult {
 	afterContext: string[]
 }
 
+// Constants
 const MAX_RESULTS = 300
+const MAX_LINE_LENGTH = 500
+
+/**
+ * Truncates a line if it exceeds the maximum length
+ * @param line The line to truncate
+ * @param maxLength The maximum allowed length (defaults to MAX_LINE_LENGTH)
+ * @returns The truncated line, or the original line if it's shorter than maxLength
+ */
+export function truncateLine(line: string, maxLength: number = MAX_LINE_LENGTH): string {
+	return line.length > maxLength ? line.substring(0, maxLength) + " [truncated...]" : line
+}
 
 async function getBinPath(vscodeAppRoot: string): Promise<string | undefined> {
 	const checkPath = async (pkgFolder: string) => {
@@ -127,6 +139,7 @@ export async function regexSearchFiles(
 	directoryPath: string,
 	regex: string,
 	filePattern?: string,
+	rooIgnoreController?: RooIgnoreController,
 ): Promise<string> {
 	const vscodeAppRoot = vscode.env.appRoot
 	const rgPath = await getBinPath(vscodeAppRoot)
@@ -140,7 +153,8 @@ export async function regexSearchFiles(
 	let output: string
 	try {
 		output = await execRipgrep(rgPath, args)
-	} catch {
+	} catch (error) {
+		console.error("Error executing ripgrep:", error)
 		return "No results found"
 	}
 	const results: SearchResult[] = []
@@ -154,19 +168,28 @@ export async function regexSearchFiles(
 					if (currentResult) {
 						results.push(currentResult as SearchResult)
 					}
+
+					// Safety check: truncate extremely long lines to prevent excessive output
+					const matchText = parsed.data.lines.text
+					const truncatedMatch = truncateLine(matchText)
+
 					currentResult = {
 						file: parsed.data.path.text,
 						line: parsed.data.line_number,
 						column: parsed.data.submatches[0].start,
-						match: parsed.data.lines.text,
+						match: truncatedMatch,
 						beforeContext: [],
 						afterContext: [],
 					}
 				} else if (parsed.type === "context" && currentResult) {
+					// Apply the same truncation logic to context lines
+					const contextText = parsed.data.lines.text
+					const truncatedContext = truncateLine(contextText)
+
 					if (parsed.data.line_number < currentResult.line!) {
-						currentResult.beforeContext!.push(parsed.data.lines.text)
+						currentResult.beforeContext!.push(truncatedContext)
 					} else {
-						currentResult.afterContext!.push(parsed.data.lines.text)
+						currentResult.afterContext!.push(truncatedContext)
 					}
 				}
 			} catch (error) {
@@ -179,7 +202,12 @@ export async function regexSearchFiles(
 		results.push(currentResult as SearchResult)
 	}
 
-	return formatResults(results, cwd)
+	// Filter results using RooIgnoreController if provided
+	const filteredResults = rooIgnoreController
+		? results.filter((result) => rooIgnoreController.validateAccess(result.file))
+		: results
+
+	return formatResults(filteredResults, cwd)
 }
 
 function formatResults(results: SearchResult[], cwd: string): string {

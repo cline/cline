@@ -1,70 +1,97 @@
-import React, { useEffect, useRef } from "react"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { CaretDownIcon, CaretUpIcon, CounterClockwiseClockIcon } from "@radix-ui/react-icons"
+
 import MarkdownBlock from "../common/MarkdownBlock"
+import { useMount } from "react-use"
 
 interface ReasoningBlockProps {
 	content: string
+	elapsed?: number
 	isCollapsed?: boolean
 	onToggleCollapse?: () => void
-	autoHeight?: boolean
 }
 
-const ReasoningBlock: React.FC<ReasoningBlockProps> = ({
-	content,
-	isCollapsed = false,
-	onToggleCollapse,
-	autoHeight = false,
-}) => {
+export const ReasoningBlock = ({ content, elapsed, isCollapsed = false, onToggleCollapse }: ReasoningBlockProps) => {
 	const contentRef = useRef<HTMLDivElement>(null)
+	const elapsedRef = useRef<number>(0)
+	const [thought, setThought] = useState<string>()
+	const [prevThought, setPrevThought] = useState<string>("Thinking")
+	const [isTransitioning, setIsTransitioning] = useState<boolean>(false)
+	const cursorRef = useRef<number>(0)
+	const queueRef = useRef<string[]>([])
 
-	// Scroll to bottom when content updates
 	useEffect(() => {
 		if (contentRef.current && !isCollapsed) {
 			contentRef.current.scrollTop = contentRef.current.scrollHeight
 		}
 	}, [content, isCollapsed])
 
+	useEffect(() => {
+		if (elapsed) {
+			elapsedRef.current = elapsed
+		}
+	}, [elapsed])
+
+	// Process the transition queue.
+	const processNextTransition = useCallback(() => {
+		const nextThought = queueRef.current.pop()
+		queueRef.current = []
+
+		if (nextThought) {
+			setIsTransitioning(true)
+		}
+
+		setTimeout(() => {
+			if (nextThought) {
+				setPrevThought(nextThought)
+				setIsTransitioning(false)
+			}
+
+			setTimeout(() => processNextTransition(), 500)
+		}, 200)
+	}, [])
+
+	useMount(() => {
+		processNextTransition()
+	})
+
+	useEffect(() => {
+		if (content.length - cursorRef.current > 160) {
+			setThought("... " + content.slice(cursorRef.current))
+			cursorRef.current = content.length
+		}
+	}, [content])
+
+	useEffect(() => {
+		if (thought && thought !== prevThought) {
+			queueRef.current.push(thought)
+		}
+	}, [thought, prevThought])
+
 	return (
-		<div
-			style={{
-				backgroundColor: CODE_BLOCK_BG_COLOR,
-				border: "1px solid var(--vscode-editorGroup-border)",
-				borderRadius: "3px",
-				overflow: "hidden",
-			}}>
+		<div className="bg-vscode-editor-background border border-vscode-border rounded-xs overflow-hidden">
 			<div
-				onClick={onToggleCollapse}
-				style={{
-					padding: "8px 12px",
-					cursor: "pointer",
-					userSelect: "none",
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "space-between",
-					borderBottom: isCollapsed ? "none" : "1px solid var(--vscode-editorGroup-border)",
-				}}>
-				<span style={{ fontWeight: "bold" }}>Reasoning</span>
-				<span className={`codicon codicon-chevron-${isCollapsed ? "right" : "down"}`}></span>
+				className="flex items-center justify-between gap-1 px-3 py-2 cursor-pointer text-muted-foreground"
+				onClick={onToggleCollapse}>
+				<div
+					className={`truncate flex-1 transition-opacity duration-200 ${isTransitioning ? "opacity-0" : "opacity-100"}`}>
+					{prevThought}
+				</div>
+				<div className="flex flex-row items-center gap-1">
+					{elapsedRef.current > 1000 && (
+						<>
+							<CounterClockwiseClockIcon className="scale-80" />
+							<div>{Math.round(elapsedRef.current / 1000)}s</div>
+						</>
+					)}
+					{isCollapsed ? <CaretDownIcon /> : <CaretUpIcon />}
+				</div>
 			</div>
 			{!isCollapsed && (
-				<div
-					ref={contentRef}
-					style={{
-						padding: "8px 12px",
-						maxHeight: autoHeight ? "none" : "160px",
-						overflowY: "auto",
-					}}>
-					<div
-						style={{
-							fontSize: "13px",
-							opacity: 0.9,
-						}}>
-						<MarkdownBlock markdown={content} />
-					</div>
+				<div ref={contentRef} className="px-3 max-h-[160px] overflow-y-auto">
+					<MarkdownBlock markdown={content} />
 				</div>
 			)}
 		</div>
 	)
 }
-
-export default ReasoningBlock

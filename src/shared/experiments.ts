@@ -3,6 +3,7 @@ export const EXPERIMENT_IDS = {
 	SEARCH_AND_REPLACE: "search_and_replace",
 	INSERT_BLOCK: "insert_content",
 	POWER_STEERING: "powerSteering",
+	MULTI_SEARCH_AND_REPLACE: "multi_search_and_replace",
 } as const
 
 export type ExperimentKey = keyof typeof EXPERIMENT_IDS
@@ -40,6 +41,12 @@ export const experimentConfigsMap: Record<ExperimentKey, ExperimentConfig> = {
 		name: 'Use experimental "power steering" mode',
 		description:
 			"When enabled, Roo will remind the model about the details of its current mode definition more frequently. This will lead to stronger adherence to role definitions and custom instructions, but will use more tokens per message.",
+		enabled: false,
+	},
+	MULTI_SEARCH_AND_REPLACE: {
+		name: "Use experimental multi block diff tool",
+		description:
+			"When enabled, Roo will use multi block diff tool. This will try to update multiple code blocks in the file in one request.",
 		enabled: false,
 	},
 }

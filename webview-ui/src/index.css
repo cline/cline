@@ -23,6 +23,8 @@
 
 @theme {
 	--font-display: var(--vscode-font-family);
+
+	--text-xs: calc(var(--vscode-font-size) * 0.85);
 	--text-sm: calc(var(--vscode-font-size) * 0.9);
 	--text-base: var(--vscode-font-size);
 	--text-lg: calc(var(--vscode-font-size) * 1.1);
@@ -64,6 +66,8 @@
 	--color-vscode-editor-foreground: var(--vscode-editor-foreground);
 	--color-vscode-editor-background: var(--vscode-editor-background);
 
+	--color-vscode-editorGroup-border: var(--vscode-editorGroup-border);
+
 	--color-vscode-button-foreground: var(--vscode-button-foreground);
 	--color-vscode-button-background: var(--vscode-button-background);
 	--color-vscode-button-secondaryForeground: var(--vscode-button-secondaryForeground);
@@ -92,6 +96,25 @@
 	--color-vscode-list-hoverForeground: var(--vscode-list-hoverForeground);
 	--color-vscode-list-hoverBackground: var(--vscode-list-hoverBackground);
 	--color-vscode-list-focusBackground: var(--vscode-list-focusBackground);
+
+	--color-vscode-toolbar-hoverBackground: var(--vscode-toolbar-hoverBackground);
+
+	--color-vscode-panel-border: var(--vscode-panel-border);
+
+	--color-vscode-sideBar-foreground: var(--vscode-sideBar-foreground);
+	--color-vscode-sideBar-background: var(--vscode-sideBar-background);
+	--color-vscode-sideBar-border: var(--vscode-sideBar-border);
+
+	--color-vscode-sideBarSectionHeader-foreground: var(--vscode-sideBarSectionHeader-foreground);
+	--color-vscode-sideBarSectionHeader-background: var(--vscode-sideBarSectionHeader-background);
+	--color-vscode-sideBarSectionHeader-border: var(--vscode-sideBarSectionHeader-border);
+
+	--color-vscode-charts-green: var(--vscode-charts-green);
+	--color-vscode-charts-yellow: var(--vscode-charts-yellow);
+
+	--color-vscode-inputValidation-infoForeground: var(--vscode-inputValidation-infoForeground);
+	--color-vscode-inputValidation-infoBackground: var(--vscode-inputValidation-infoBackground);
+	--color-vscode-inputValidation-infoBorder: var(--vscode-inputValidation-infoBorder);
 }
 
 @layer base {

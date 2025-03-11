@@ -26,6 +26,10 @@ jest.mock("openai", () => {
 									prompt_tokens: 10,
 									completion_tokens: 5,
 									total_tokens: 15,
+									prompt_tokens_details: {
+										cache_miss_tokens: 8,
+										cached_tokens: 2,
+									},
 								},
 							}
 						}
@@ -53,6 +57,10 @@ jest.mock("openai", () => {
 										prompt_tokens: 10,
 										completion_tokens: 5,
 										total_tokens: 15,
+										prompt_tokens_details: {
+											cache_miss_tokens: 8,
+											cached_tokens: 2,
+										},
 									},
 								}
 							},
@@ -72,7 +80,7 @@ describe("DeepSeekHandler", () => {
 		mockOptions = {
 			deepSeekApiKey: "test-api-key",
 			apiModelId: "deepseek-chat",
-			deepSeekBaseUrl: "https://api.deepseek.com/v1",
+			deepSeekBaseUrl: "https://api.deepseek.com",
 		}
 		handler = new DeepSeekHandler(mockOptions)
 		mockCreate.mockClear()
@@ -110,7 +118,7 @@ describe("DeepSeekHandler", () => {
 			// The base URL is passed to OpenAI client internally
 			expect(OpenAI).toHaveBeenCalledWith(
 				expect.objectContaining({
-					baseURL: "https://api.deepseek.com/v1",
+					baseURL: "https://api.deepseek.com",
 				}),
 			)
 		})
@@ -149,7 +157,7 @@ describe("DeepSeekHandler", () => {
 			expect(model.info.maxTokens).toBe(8192)
 			expect(model.info.contextWindow).toBe(64_000)
 			expect(model.info.supportsImages).toBe(false)
-			expect(model.info.supportsPromptCache).toBe(false)
+			expect(model.info.supportsPromptCache).toBe(true) // Should be true now
 		})
 
 		it("should return provided model ID with default model info if model does not exist", () => {
@@ -160,7 +168,12 @@ describe("DeepSeekHandler", () => {
 			const model = handlerWithInvalidModel.getModel()
 			expect(model.id).toBe("invalid-model") // Returns provided ID
 			expect(model.info).toBeDefined()
-			expect(model.info).toBe(handler.getModel().info) // But uses default model info
+			// With the current implementation, it's the same object reference when using default model info
+			expect(model.info).toBe(handler.getModel().info)
+			// Should have the same base properties
+			expect(model.info.contextWindow).toBe(handler.getModel().info.contextWindow)
+			// And should have supportsPromptCache set to true
+			expect(model.info.supportsPromptCache).toBe(true)
 		})
 
 		it("should return default model if no model ID is provided", () => {
@@ -171,6 +184,13 @@ describe("DeepSeekHandler", () => {
 			const model = handlerWithoutModel.getModel()
 			expect(model.id).toBe(deepSeekDefaultModelId)
 			expect(model.info).toBeDefined()
+			expect(model.info.supportsPromptCache).toBe(true)
+		})
+
+		it("should include model parameters from getModelParams", () => {
+			const model = handler.getModel()
+			expect(model).toHaveProperty("temperature")
+			expect(model).toHaveProperty("maxTokens")
 		})
 	})
 
@@ -212,6 +232,75 @@ describe("DeepSeekHandler", () => {
 			expect(usageChunks.length).toBeGreaterThan(0)
 			expect(usageChunks[0].inputTokens).toBe(10)
 			expect(usageChunks[0].outputTokens).toBe(5)
+		})
+
+		it("should include cache metrics in usage information", async () => {
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			const usageChunks = chunks.filter((chunk) => chunk.type === "usage")
+			expect(usageChunks.length).toBeGreaterThan(0)
+			expect(usageChunks[0].cacheWriteTokens).toBe(8)
+			expect(usageChunks[0].cacheReadTokens).toBe(2)
+		})
+	})
+
+	describe("processUsageMetrics", () => {
+		it("should correctly process usage metrics including cache information", () => {
+			// We need to access the protected method, so we'll create a test subclass
+			class TestDeepSeekHandler extends DeepSeekHandler {
+				public testProcessUsageMetrics(usage: any) {
+					return this.processUsageMetrics(usage)
+				}
+			}
+
+			const testHandler = new TestDeepSeekHandler(mockOptions)
+
+			const usage = {
+				prompt_tokens: 100,
+				completion_tokens: 50,
+				total_tokens: 150,
+				prompt_tokens_details: {
+					cache_miss_tokens: 80,
+					cached_tokens: 20,
+				},
+			}
+
+			const result = testHandler.testProcessUsageMetrics(usage)
+
+			expect(result.type).toBe("usage")
+			expect(result.inputTokens).toBe(100)
+			expect(result.outputTokens).toBe(50)
+			expect(result.cacheWriteTokens).toBe(80)
+			expect(result.cacheReadTokens).toBe(20)
+		})
+
+		it("should handle missing cache metrics gracefully", () => {
+			class TestDeepSeekHandler extends DeepSeekHandler {
+				public testProcessUsageMetrics(usage: any) {
+					return this.processUsageMetrics(usage)
+				}
+			}
+
+			const testHandler = new TestDeepSeekHandler(mockOptions)
+
+			const usage = {
+				prompt_tokens: 100,
+				completion_tokens: 50,
+				total_tokens: 150,
+				// No prompt_tokens_details
+			}
+
+			const result = testHandler.testProcessUsageMetrics(usage)
+
+			expect(result.type).toBe("usage")
+			expect(result.inputTokens).toBe(100)
+			expect(result.outputTokens).toBe(50)
+			expect(result.cacheWriteTokens).toBeUndefined()
+			expect(result.cacheReadTokens).toBeUndefined()
 		})
 	})
 })

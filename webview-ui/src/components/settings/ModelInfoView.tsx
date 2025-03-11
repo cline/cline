@@ -1,32 +1,29 @@
+import { useMemo } from "react"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { Fragment } from "react"
+
+import { formatPrice } from "@/utils/formatPrice"
+import { cn } from "@/lib/utils"
 
 import { ModelInfo, geminiModels } from "../../../../src/shared/api"
+
 import { ModelDescriptionMarkdown } from "./ModelDescriptionMarkdown"
-import { formatPrice } from "../../utils/formatPrice"
+
+type ModelInfoViewProps = {
+	selectedModelId: string
+	modelInfo: ModelInfo
+	isDescriptionExpanded: boolean
+	setIsDescriptionExpanded: (isExpanded: boolean) => void
+}
 
 export const ModelInfoView = ({
 	selectedModelId,
 	modelInfo,
 	isDescriptionExpanded,
 	setIsDescriptionExpanded,
-}: {
-	selectedModelId: string
-	modelInfo: ModelInfo
-	isDescriptionExpanded: boolean
-	setIsDescriptionExpanded: (isExpanded: boolean) => void
-}) => {
-	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
+}: ModelInfoViewProps) => {
+	const isGemini = useMemo(() => Object.keys(geminiModels).includes(selectedModelId), [selectedModelId])
 
 	const infoItems = [
-		modelInfo.description && (
-			<ModelDescriptionMarkdown
-				key="description"
-				markdown={modelInfo.description}
-				isExpanded={isDescriptionExpanded}
-				setIsExpanded={setIsDescriptionExpanded}
-			/>
-		),
 		<ModelInfoSupportsItem
 			isSupported={modelInfo.supportsImages ?? false}
 			supportsLabel="Supports images"
@@ -45,38 +42,37 @@ export const ModelInfoView = ({
 			/>
 		),
 		modelInfo.maxTokens !== undefined && modelInfo.maxTokens > 0 && (
-			<span key="maxTokens">
-				<span style={{ fontWeight: 500 }}>Max output:</span> {modelInfo.maxTokens?.toLocaleString()} tokens
-			</span>
+			<>
+				<span className="font-medium">Max output:</span> {modelInfo.maxTokens?.toLocaleString()} tokens
+			</>
 		),
 		modelInfo.inputPrice !== undefined && modelInfo.inputPrice > 0 && (
-			<span key="inputPrice">
-				<span style={{ fontWeight: 500 }}>Input price:</span> {formatPrice(modelInfo.inputPrice)}/million tokens
-			</span>
-		),
-		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && (
-			<span key="cacheWritesPrice">
-				<span style={{ fontWeight: 500 }}>Cache writes price:</span>{" "}
-				{formatPrice(modelInfo.cacheWritesPrice || 0)}/million tokens
-			</span>
-		),
-		modelInfo.supportsPromptCache && modelInfo.cacheReadsPrice && (
-			<span key="cacheReadsPrice">
-				<span style={{ fontWeight: 500 }}>Cache reads price:</span>{" "}
-				{formatPrice(modelInfo.cacheReadsPrice || 0)}/million tokens
-			</span>
+			<>
+				<span className="font-medium">Input price:</span> {formatPrice(modelInfo.inputPrice)} / 1M tokens
+			</>
 		),
 		modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 && (
-			<span key="outputPrice">
-				<span style={{ fontWeight: 500 }}>Output price:</span> {formatPrice(modelInfo.outputPrice)}/million
-				tokens
-			</span>
+			<>
+				<span className="font-medium">Output price:</span> {formatPrice(modelInfo.outputPrice)} / 1M tokens
+			</>
+		),
+		modelInfo.supportsPromptCache && modelInfo.cacheReadsPrice && (
+			<>
+				<span className="font-medium">Cache reads price:</span> {formatPrice(modelInfo.cacheReadsPrice || 0)} /
+				1M tokens
+			</>
+		),
+		modelInfo.supportsPromptCache && modelInfo.cacheWritesPrice && (
+			<>
+				<span className="font-medium">Cache writes price:</span> {formatPrice(modelInfo.cacheWritesPrice || 0)}{" "}
+				/ 1M tokens
+			</>
 		),
 		isGemini && (
-			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
+			<span className="italic">
 				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute.
 				After that, billing depends on prompt size.{" "}
-				<VSCodeLink href="https://ai.google.dev/pricing" style={{ display: "inline", fontSize: "inherit" }}>
+				<VSCodeLink href="https://ai.google.dev/pricing" className="text-sm">
 					For more info, see pricing details.
 				</VSCodeLink>
 			</span>
@@ -84,14 +80,21 @@ export const ModelInfoView = ({
 	].filter(Boolean)
 
 	return (
-		<div style={{ fontSize: "12px", marginTop: "2px", color: "var(--vscode-descriptionForeground)" }}>
-			{infoItems.map((item, index) => (
-				<Fragment key={index}>
-					{item}
-					{index < infoItems.length - 1 && <br />}
-				</Fragment>
-			))}
-		</div>
+		<>
+			{modelInfo.description && (
+				<ModelDescriptionMarkdown
+					key="description"
+					markdown={modelInfo.description}
+					isExpanded={isDescriptionExpanded}
+					setIsExpanded={setIsDescriptionExpanded}
+				/>
+			)}
+			<div className="text-sm text-vscode-descriptionForeground">
+				{infoItems.map((item, index) => (
+					<div key={index}>{item}</div>
+				))}
+			</div>
+		</>
 	)
 }
 
@@ -104,21 +107,12 @@ const ModelInfoSupportsItem = ({
 	supportsLabel: string
 	doesNotSupportLabel: string
 }) => (
-	<span
-		style={{
-			fontWeight: 500,
-			color: isSupported ? "var(--vscode-charts-green)" : "var(--vscode-errorForeground)",
-		}}>
-		<i
-			className={`codicon codicon-${isSupported ? "check" : "x"}`}
-			style={{
-				marginRight: 4,
-				marginBottom: isSupported ? 1 : -1,
-				fontSize: isSupported ? 11 : 13,
-				fontWeight: 700,
-				display: "inline-block",
-				verticalAlign: "bottom",
-			}}></i>
+	<div
+		className={cn(
+			"flex items-center gap-1 font-medium",
+			isSupported ? "text-vscode-charts-green" : "text-vscode-errorForeground",
+		)}>
+		<span className={cn("codicon", isSupported ? "codicon-check" : "codicon-x")} />
 		{isSupported ? supportsLabel : doesNotSupportLabel}
-	</span>
+	</div>
 )

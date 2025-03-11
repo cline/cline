@@ -1,17 +1,19 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
-import { ApiHandler, SingleCompletionHandler } from "../"
-import { calculateApiCost } from "../../utils/cost"
+
+import { SingleCompletionHandler } from "../"
+import { calculateApiCostAnthropic } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "../../shared/vsCodeSelectorUtils"
 import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../../shared/api"
+import { BaseProvider } from "./base-provider"
 
 /**
  * Handles interaction with VS Code's Language Model API for chat-based operations.
- * This handler implements the ApiHandler interface to provide VS Code LM specific functionality.
+ * This handler extends BaseProvider to provide VS Code LM specific functionality.
  *
- * @implements {ApiHandler}
+ * @extends {BaseProvider}
  *
  * @remarks
  * The handler manages a VS Code language model chat client and provides methods to:
@@ -34,13 +36,14 @@ import { ApiHandlerOptions, ModelInfo, openAiModelInfoSaneDefaults } from "../..
  * }
  * ```
  */
-export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
-	private options: ApiHandlerOptions
+export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHandler {
+	protected options: ApiHandlerOptions
 	private client: vscode.LanguageModelChat | null
 	private disposable: vscode.Disposable | null
 	private currentRequestCancellation: vscode.CancellationTokenSource | null
 
 	constructor(options: ApiHandlerOptions) {
+		super()
 		this.options = options
 		this.client = null
 		this.disposable = null
@@ -144,7 +147,33 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		}
 	}
 
-	private async countTokens(text: string | vscode.LanguageModelChatMessage): Promise<number> {
+	/**
+	 * Implements the ApiHandler countTokens interface method
+	 * Provides token counting for Anthropic content blocks
+	 *
+	 * @param content The content blocks to count tokens for
+	 * @returns A promise resolving to the token count
+	 */
+	override async countTokens(content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number> {
+		// Convert Anthropic content blocks to a string for VSCode LM token counting
+		let textContent = ""
+
+		for (const block of content) {
+			if (block.type === "text") {
+				textContent += block.text || ""
+			} else if (block.type === "image") {
+				// VSCode LM doesn't support images directly, so we'll just use a placeholder
+				textContent += "[IMAGE]"
+			}
+		}
+
+		return this.internalCountTokens(textContent)
+	}
+
+	/**
+	 * Private implementation of token counting used internally by VsCodeLmHandler
+	 */
+	private async internalCountTokens(text: string | vscode.LanguageModelChatMessage): Promise<number> {
 		// Check for required dependencies
 		if (!this.client) {
 			console.warn("Roo Code <Language Model API>: No client available for token counting")
@@ -215,9 +244,9 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		systemPrompt: string,
 		vsCodeLmMessages: vscode.LanguageModelChatMessage[],
 	): Promise<number> {
-		const systemTokens: number = await this.countTokens(systemPrompt)
+		const systemTokens: number = await this.internalCountTokens(systemPrompt)
 
-		const messageTokens: number[] = await Promise.all(vsCodeLmMessages.map((msg) => this.countTokens(msg)))
+		const messageTokens: number[] = await Promise.all(vsCodeLmMessages.map((msg) => this.internalCountTokens(msg)))
 
 		return systemTokens + messageTokens.reduce((sum: number, tokens: number): number => sum + tokens, 0)
 	}
@@ -318,7 +347,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 		return content
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// Ensure clean state before starting a new request
 		this.ensureCleanState()
 		const client: vscode.LanguageModelChat = await this.getClient()
@@ -426,14 +455,14 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			}
 
 			// Count tokens in the accumulated text after stream completion
-			const totalOutputTokens: number = await this.countTokens(accumulatedText)
+			const totalOutputTokens: number = await this.internalCountTokens(accumulatedText)
 
 			// Report final usage after stream completion
 			yield {
 				type: "usage",
 				inputTokens: totalInputTokens,
 				outputTokens: totalOutputTokens,
-				totalCost: calculateApiCost(this.getModel().info, totalInputTokens, totalOutputTokens),
+				totalCost: calculateApiCostAnthropic(this.getModel().info, totalInputTokens, totalOutputTokens),
 			}
 		} catch (error: unknown) {
 			this.ensureCleanState()
@@ -466,7 +495,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 	}
 
 	// Return model information based on the current client state
-	getModel(): { id: string; info: ModelInfo } {
+	override getModel(): { id: string; info: ModelInfo } {
 		if (this.client) {
 			// Validate client properties
 			const requiredProps = {
@@ -543,5 +572,17 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 			}
 			throw error
 		}
+	}
+}
+
+export async function getVsCodeLmModels() {
+	try {
+		const models = await vscode.lm.selectChatModels({})
+		return models || []
+	} catch (error) {
+		console.error(
+			`Error fetching VS Code LM models: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
+		)
+		return []
 	}
 }

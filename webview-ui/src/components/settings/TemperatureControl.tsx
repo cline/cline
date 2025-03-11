@@ -3,8 +3,8 @@ import { useEffect, useState } from "react"
 import { useDebounce } from "react-use"
 
 interface TemperatureControlProps {
-	value: number | undefined
-	onChange: (value: number | undefined) => void
+	value: number | undefined | null
+	onChange: (value: number | undefined | null) => void
 	maxValue?: number // Some providers like OpenAI use 0-2 range
 }
 
@@ -14,36 +14,36 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 	useDebounce(() => onChange(inputValue), 50, [onChange, inputValue])
 	// Sync internal state with prop changes when switching profiles
 	useEffect(() => {
-		const hasCustomTemperature = value !== undefined
+		const hasCustomTemperature = value !== undefined && value !== null
 		setIsCustomTemperature(hasCustomTemperature)
 		setInputValue(value)
 	}, [value])
 
 	return (
-		<div>
-			<VSCodeCheckbox
-				checked={isCustomTemperature}
-				onChange={(e: any) => {
-					const isChecked = e.target.checked
-					setIsCustomTemperature(isChecked)
-					if (!isChecked) {
-						setInputValue(undefined) // Unset the temperature
-					} else {
-						setInputValue(value ?? 0) // Use the value from apiConfiguration, if set
-					}
-				}}>
-				<span style={{ fontWeight: "500" }}>Use custom temperature</span>
-			</VSCodeCheckbox>
-
-			<p style={{ fontSize: "12px", marginTop: "5px", color: "var(--vscode-descriptionForeground)" }}>
-				Controls randomness in the model's responses.
-			</p>
+		<>
+			<div>
+				<VSCodeCheckbox
+					checked={isCustomTemperature}
+					onChange={(e: any) => {
+						const isChecked = e.target.checked
+						setIsCustomTemperature(isChecked)
+						if (!isChecked) {
+							setInputValue(null) // Unset the temperature, note that undefined is unserializable
+						} else {
+							setInputValue(value ?? 0) // Use the value from apiConfiguration, if set
+						}
+					}}>
+					<span className="font-medium">Use custom temperature</span>
+				</VSCodeCheckbox>
+				<div className="text-sm text-vscode-descriptionForeground">
+					Controls randomness in the model's responses.
+				</div>
+			</div>
 
 			{isCustomTemperature && (
 				<div
 					style={{
-						marginTop: 5,
-						marginBottom: 10,
+						marginLeft: 0,
 						paddingLeft: 10,
 						borderLeft: "2px solid var(--vscode-button-background)",
 					}}>
@@ -53,17 +53,17 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 							min="0"
 							max={maxValue}
 							step="0.01"
-							value={inputValue}
+							value={inputValue ?? 0}
 							className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 							onChange={(e) => setInputValue(parseFloat(e.target.value))}
 						/>
 						<span>{inputValue}</span>
 					</div>
-					<p style={{ fontSize: "12px", marginTop: "8px", color: "var(--vscode-descriptionForeground)" }}>
+					<p className="text-vscode-descriptionForeground text-sm mt-1">
 						Higher values make output more random, lower values make it more deterministic.
 					</p>
 				</div>
 			)}
-		</div>
+		</>
 	)
 }

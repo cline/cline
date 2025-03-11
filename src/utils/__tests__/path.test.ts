@@ -1,6 +1,9 @@
-import { arePathsEqual, getReadablePath } from "../path"
-import * as path from "path"
+// npx jest src/utils/__tests__/path.test.ts
+
 import os from "os"
+import * as path from "path"
+
+import { arePathsEqual, getReadablePath } from "../path"
 
 describe("Path Utilities", () => {
 	const originalPlatform = process.platform
@@ -92,22 +95,24 @@ describe("Path Utilities", () => {
 	describe("getReadablePath", () => {
 		const homeDir = os.homedir()
 		const desktop = path.join(homeDir, "Desktop")
+		const cwd = process.platform === "win32" ? "C:\\Users\\test\\project" : "/Users/test/project"
 
 		it("should return basename when path equals cwd", () => {
-			const cwd = "/Users/test/project"
 			expect(getReadablePath(cwd, cwd)).toBe("project")
 		})
 
 		it("should return relative path when inside cwd", () => {
-			const cwd = "/Users/test/project"
-			const filePath = "/Users/test/project/src/file.txt"
+			const filePath =
+				process.platform === "win32"
+					? "C:\\Users\\test\\project\\src\\file.txt"
+					: "/Users/test/project/src/file.txt"
 			expect(getReadablePath(cwd, filePath)).toBe("src/file.txt")
 		})
 
 		it("should return absolute path when outside cwd", () => {
-			const cwd = "/Users/test/project"
-			const filePath = "/Users/test/other/file.txt"
-			expect(getReadablePath(cwd, filePath)).toBe("/Users/test/other/file.txt")
+			const filePath =
+				process.platform === "win32" ? "C:\\Users\\test\\other\\file.txt" : "/Users/test/other/file.txt"
+			expect(getReadablePath(cwd, filePath)).toBe(filePath.toPosix())
 		})
 
 		it("should handle Desktop as cwd", () => {
@@ -116,19 +121,20 @@ describe("Path Utilities", () => {
 		})
 
 		it("should handle undefined relative path", () => {
-			const cwd = "/Users/test/project"
 			expect(getReadablePath(cwd)).toBe("project")
 		})
 
 		it("should handle parent directory traversal", () => {
-			const cwd = "/Users/test/project"
-			const filePath = "../../other/file.txt"
-			expect(getReadablePath(cwd, filePath)).toBe("/Users/other/file.txt")
+			const filePath =
+				process.platform === "win32" ? "C:\\Users\\test\\other\\file.txt" : "/Users/test/other/file.txt"
+			expect(getReadablePath(cwd, filePath)).toBe(filePath.toPosix())
 		})
 
 		it("should normalize paths with redundant segments", () => {
-			const cwd = "/Users/test/project"
-			const filePath = "/Users/test/project/./src/../src/file.txt"
+			const filePath =
+				process.platform === "win32"
+					? "C:\\Users\\test\\project\\src\\file.txt"
+					: "/Users/test/project/./src/../src/file.txt"
 			expect(getReadablePath(cwd, filePath)).toBe("src/file.txt")
 		})
 	})

@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import * as path from "path"
 import * as diff from "diff"
+import { RooIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/RooIgnoreController"
 
 export const formatResponse = {
 	toolDenied: () => `The user denied this operation.`,
@@ -12,6 +13,9 @@ export const formatResponse = {
 		`The user approved this operation and provided the following context:\n<feedback>\n${feedback}\n</feedback>`,
 
 	toolError: (error?: string) => `The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
+
+	rooIgnoreError: (path: string) =>
+		`Access to ${path} is blocked by the .rooignore file settings. You must try to continue in the task without using this file, or ask the user to update the .rooignore file.`,
 
 	noToolsUsed: () =>
 		`[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
@@ -52,7 +56,13 @@ Otherwise, if you have not completed the task and do not need additional informa
 		return formatImagesIntoBlocks(images)
 	},
 
-	formatFilesList: (absolutePath: string, files: string[], didHitLimit: boolean): string => {
+	formatFilesList: (
+		absolutePath: string,
+		files: string[],
+		didHitLimit: boolean,
+		rooIgnoreController: RooIgnoreController | undefined,
+		showRooIgnoredFiles: boolean,
+	): string => {
 		const sorted = files
 			.map((file) => {
 				// convert absolute path to relative path
@@ -80,14 +90,38 @@ Otherwise, if you have not completed the task and do not need additional informa
 				// the shorter one comes first
 				return aParts.length - bParts.length
 			})
+
+		let rooIgnoreParsed: string[] = sorted
+
+		if (rooIgnoreController) {
+			rooIgnoreParsed = []
+			for (const filePath of sorted) {
+				// path is relative to absolute path, not cwd
+				// validateAccess expects either path relative to cwd or absolute path
+				// otherwise, for validating against ignore patterns like "assets/icons", we would end up with just "icons", which would result in the path not being ignored.
+				const absoluteFilePath = path.resolve(absolutePath, filePath)
+				const isIgnored = !rooIgnoreController.validateAccess(absoluteFilePath)
+
+				if (isIgnored) {
+					// If file is ignored and we're not showing ignored files, skip it
+					if (!showRooIgnoredFiles) {
+						continue
+					}
+					// Otherwise, mark it with a lock symbol
+					rooIgnoreParsed.push(LOCK_TEXT_SYMBOL + " " + filePath)
+				} else {
+					rooIgnoreParsed.push(filePath)
+				}
+			}
+		}
 		if (didHitLimit) {
-			return `${sorted.join(
+			return `${rooIgnoreParsed.join(
 				"\n",
 			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
-		} else if (sorted.length === 0 || (sorted.length === 1 && sorted[0] === "")) {
+		} else if (rooIgnoreParsed.length === 0 || (rooIgnoreParsed.length === 1 && rooIgnoreParsed[0] === "")) {
 			return "No files found."
 		} else {
-			return sorted.join("\n")
+			return rooIgnoreParsed.join("\n")
 		}
 	},
 

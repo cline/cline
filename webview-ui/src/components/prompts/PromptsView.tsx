@@ -42,6 +42,7 @@ import {
 
 import { TOOL_GROUPS, GROUP_DISPLAY_NAMES, ToolGroup } from "../../../../src/shared/tool-groups"
 import { vscode } from "../../utils/vscode"
+import { Tab, TabContent, TabHeader } from "../common/Tab"
 
 // Get all available groups that should show in prompts view
 const availableGroups = (Object.keys(TOOL_GROUPS) as ToolGroup[]).filter((group) => !TOOL_GROUPS[group].alwaysAvailable)
@@ -71,6 +72,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		preferredLanguage,
 		setPreferredLanguage,
 		customModes,
+		enableCustomModeCreation,
+		setEnableCustomModeCreation,
 	} = useExtensionState()
 
 	// Memoize modes to preserve array order
@@ -88,6 +91,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const [showConfigMenu, setShowConfigMenu] = useState(false)
 	const [isCreateModeDialogOpen, setIsCreateModeDialogOpen] = useState(false)
 	const [activeSupportTab, setActiveSupportTab] = useState<SupportPromptType>("ENHANCE")
+	const [isSystemPromptDisclosureOpen, setIsSystemPromptDisclosureOpen] = useState(false)
 
 	// Direct update functions
 	const updateAgentPrompt = useCallback(
@@ -340,6 +344,17 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		return () => document.removeEventListener("click", handleClickOutside)
 	}, [showConfigMenu])
 
+	// Add effect to sync enableCustomModeCreation with backend
+	useEffect(() => {
+		if (enableCustomModeCreation !== undefined) {
+			// Send the value to the extension's global state
+			vscode.postMessage({
+				type: "enableCustomModeCreation", // Using dedicated message type
+				bool: enableCustomModeCreation,
+			})
+		}
+	}, [enableCustomModeCreation])
+
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
 			const message = event.data
@@ -405,13 +420,13 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 	}
 
 	return (
-		<div className="fixed inset-0 flex flex-col">
-			<div className="flex justify-between items-center px-5 py-2.5">
+		<Tab>
+			<TabHeader className="flex justify-between items-center">
 				<h3 className="text-vscode-foreground m-0">Prompts</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
-			</div>
+			</TabHeader>
 
-			<div className="flex-1 overflow-auto px-5">
+			<TabContent>
 				<div className="pb-5 border-b border-vscode-input-border">
 					<div className="mb-5">
 						<div className="font-bold mb-1">Preferred Language</div>
@@ -541,7 +556,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						in your workspace.
 					</div>
 				</div>
-
 				<div className="mt-5">
 					<div onClick={(e) => e.stopPropagation()} className="flex justify-between items-center mb-3">
 						<h3 className="text-vscode-foreground m-0">Modes</h3>
@@ -934,6 +948,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						</div>
 					</div>
 				</div>
+
 				<div
 					style={{
 						paddingBottom: "40px",
@@ -970,6 +985,74 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							data-testid="copy-prompt-button">
 							<span className="codicon codicon-copy"></span>
 						</VSCodeButton>
+					</div>
+
+					{/* Custom System Prompt Disclosure */}
+					<div className="mb-3 mt-12">
+						<button
+							onClick={() => setIsSystemPromptDisclosureOpen(!isSystemPromptDisclosureOpen)}
+							className="flex items-center text-xs text-vscode-foreground hover:text-vscode-textLink-foreground focus:outline-none"
+							aria-expanded={isSystemPromptDisclosureOpen}>
+							<span
+								className={`codicon codicon-${isSystemPromptDisclosureOpen ? "chevron-down" : "chevron-right"} mr-1`}></span>
+							<span>Advanced: Override System Prompt</span>
+						</button>
+
+						{isSystemPromptDisclosureOpen && (
+							<div className="text-xs text-vscode-descriptionForeground mt-2 ml-5">
+								You can completely replace the system prompt for this mode (aside from the role
+								definition and custom instructions) by creating a file at{" "}
+								<span
+									className="text-vscode-textLink-foreground cursor-pointer underline"
+									onClick={() => {
+										const currentMode = getCurrentMode()
+										if (!currentMode) return
+
+										// Open or create an empty file
+										vscode.postMessage({
+											type: "openFile",
+											text: `./.roo/system-prompt-${currentMode.slug}`,
+											values: {
+												create: true,
+												content: "",
+											},
+										})
+									}}>
+									.roo/system-prompt-{getCurrentMode()?.slug || "code"}
+								</span>{" "}
+								in your workspace. This is a very advanced feature that bypasses built-in safeguards and
+								consistency checks (especially around tool usage), so be careful!
+							</div>
+						)}
+					</div>
+
+					{/*
+			NOTE: This setting is placed in PromptsView rather than SettingsView since it
+			directly affects the functionality related to modes and custom mode creation,
+			which are managed in this component. This is an intentional deviation from
+			the standard pattern described in cline_docs/settings.md.
+	*/}
+					<div className="mb-4 mt-4">
+						<VSCodeCheckbox
+							checked={enableCustomModeCreation ?? true}
+							onChange={(e: any) => {
+								// Just update the local state through React context
+								// The React context will update the global state
+								setEnableCustomModeCreation(e.target.checked)
+							}}>
+							<span style={{ fontWeight: "500" }}>Enable Custom Mode Creation Through Prompts</span>
+						</VSCodeCheckbox>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							When enabled, Roo allows you to create custom modes using prompts like ‘Make me a custom
+							mode that…’. Disabling this reduces your system prompt by about 700 tokens when this feature
+							isn’t needed. When disabled you can still manually create custom modes using the + button
+							above or by editing the related config JSON.
+						</p>
 					</div>
 				</div>
 
@@ -1133,7 +1216,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						)}
 					</div>
 				</div>
-			</div>
+			</TabContent>
 
 			{isCreateModeDialogOpen && (
 				<div
@@ -1358,6 +1441,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 				</div>
 			)}
+
 			{isDialogOpen && (
 				<div
 					style={{
@@ -1425,6 +1509,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 				</div>
 			)}
+
 			{isCustomLanguage && (
 				<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
 					<div className="bg-[var(--vscode-editor-background)] p-6 rounded-lg w-96">
@@ -1459,7 +1544,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 					</div>
 				</div>
 			)}
-		</div>
+		</Tab>
 	)
 }
 

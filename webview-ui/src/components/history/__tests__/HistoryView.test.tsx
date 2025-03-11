@@ -23,6 +23,7 @@ jest.mock("react-virtuoso", () => ({
 const mockTaskHistory = [
 	{
 		id: "1",
+		number: 0,
 		task: "Test task 1",
 		ts: new Date("2022-02-16T00:00:00").getTime(),
 		tokensIn: 100,
@@ -31,6 +32,7 @@ const mockTaskHistory = [
 	},
 	{
 		id: "2",
+		number: 0,
 		task: "Test task 2",
 		ts: new Date("2022-02-17T00:00:00").getTime(),
 		tokensIn: 200,
@@ -135,26 +137,54 @@ describe("HistoryView", () => {
 		})
 	})
 
-	it("handles task deletion", async () => {
-		const onDone = jest.fn()
-		render(<HistoryView onDone={onDone} />)
+	describe("task deletion", () => {
+		it("shows confirmation dialog on regular click", () => {
+			const onDone = jest.fn()
+			render(<HistoryView onDone={onDone} />)
 
-		// Find and hover over first task
-		const taskContainer = screen.getByTestId("virtuoso-item-1")
-		fireEvent.mouseEnter(taskContainer)
+			// Find and hover over first task
+			const taskContainer = screen.getByTestId("virtuoso-item-1")
+			fireEvent.mouseEnter(taskContainer)
 
-		// Click delete button to open confirmation dialog
-		const deleteButton = within(taskContainer).getByTitle("Delete Task")
-		fireEvent.click(deleteButton)
+			// Click delete button to open confirmation dialog
+			const deleteButton = within(taskContainer).getByTitle("Delete Task (Shift + Click to skip confirmation)")
+			fireEvent.click(deleteButton)
 
-		// Find and click the confirm delete button in the dialog
-		const confirmDeleteButton = screen.getByRole("button", { name: /delete/i })
-		fireEvent.click(confirmDeleteButton)
+			// Verify dialog is shown
+			const dialog = screen.getByRole("alertdialog")
+			expect(dialog).toBeInTheDocument()
 
-		// Verify vscode message was sent
-		expect(vscode.postMessage).toHaveBeenCalledWith({
-			type: "deleteTaskWithId",
-			text: "1",
+			// Find and click the confirm delete button in the dialog
+			const confirmDeleteButton = within(dialog).getByRole("button", { name: /delete/i })
+			fireEvent.click(confirmDeleteButton)
+
+			// Verify vscode message was sent
+			expect(vscode.postMessage).toHaveBeenCalledWith({
+				type: "deleteTaskWithId",
+				text: "1",
+			})
+		})
+
+		it("deletes immediately on shift-click without confirmation", () => {
+			const onDone = jest.fn()
+			render(<HistoryView onDone={onDone} />)
+
+			// Find and hover over first task
+			const taskContainer = screen.getByTestId("virtuoso-item-1")
+			fireEvent.mouseEnter(taskContainer)
+
+			// Shift-click delete button
+			const deleteButton = within(taskContainer).getByTitle("Delete Task (Shift + Click to skip confirmation)")
+			fireEvent.click(deleteButton, { shiftKey: true })
+
+			// Verify no dialog is shown
+			expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+
+			// Verify vscode message was sent
+			expect(vscode.postMessage).toHaveBeenCalledWith({
+				type: "deleteTaskWithId",
+				text: "1",
+			})
 		})
 	})
 

@@ -108,9 +108,11 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
-      - name: Create env.integration file
-        run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.integration
       - name: Install dependencies
         run: npm run install:all
+      - name: Create env.integration file
+        working-directory: e2e
+        run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.integration
       - name: Run integration tests
-        run: xvfb-run -a npm run test:integration
+        working-directory: e2e
+        run: xvfb-run -a npm run ci
