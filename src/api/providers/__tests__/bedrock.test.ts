@@ -326,7 +326,7 @@ describe("AwsBedrockHandler", () => {
 			})
 			const modelInfo = customArnHandler.getModel()
 			expect(modelInfo.id).toBe("arn:aws:bedrock:us-east-1::foundation-model/custom-model")
-			expect(modelInfo.info.maxTokens).toBe(5000)
+			expect(modelInfo.info.maxTokens).toBe(4096)
 			expect(modelInfo.info.contextWindow).toBe(128_000)
 			expect(modelInfo.info.supportsPromptCache).toBe(false)
 		})
