@@ -1988,7 +1988,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await fs.mkdir(mcpServersDir, { recursive: true })
 		} catch (error) {
 			// Fallback to a relative path if directory creation fails
-			return path.join("~", ".roo-code", "mcp")
+			return path.join(os.homedir(), ".roo-code", "mcp")
 		}
 		return mcpServersDir
 	}
