@@ -54,6 +54,7 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	requestyApiKey?: string
 	requestyModelId?: string
+	requestyModelInfo?: ModelInfo
 	togetherApiKey?: string
 	togetherModelId?: string
 	qwenApiKey?: string
@@ -1258,3 +1259,19 @@ export const xaiModels = {
 		description: "X AI's Grok Beta model (legacy) with 131K context window",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// Requesty
+// https://requesty.ai/models
+export const requestyDefaultModelId = "anthropic/claude-3-5-sonnet-latest"
+export const requestyDefaultModelInfo: ModelInfo = {
+	maxTokens: 8192,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsComputerUse: false,
+	supportsPromptCache: true,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
+	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
+}
