@@ -117,8 +117,7 @@ export async function parseMentions(
 			}
 		} else if (mention === "terminal") {
 			try {
-				const contextWindow = api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-				const terminalOutput = await getLatestTerminalOutput(contextWindow)
+				const terminalOutput = await getLatestTerminalOutput()
 				parsedText += `\n\n<terminal_output>\n${terminalOutput}\n</terminal_output>`
 			} catch (error) {
 				parsedText += `\n\n<terminal_output>\nError fetching terminal output: ${error.message}\n</terminal_output>`

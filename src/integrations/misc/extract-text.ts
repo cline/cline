@@ -16,20 +16,20 @@ import { ContentTooLargeError } from "../../shared/errors"
  * @throws ContentTooLargeError if content exceeds size limit
  */
 export async function extractTextFromTerminal(content: string | Buffer, contextWindow: number, command: string): Promise<string> {
-	console.log(`[TERMINAL_SIZE_CHECK] Checking size for command output: ${command}`)
+	console.debug(`[TERMINAL_SIZE_CHECK] Checking size for command output: ${command}`)
 
 	// Convert to string but don't trim yet
 	const rawContent = content.toString()
-	console.log(`[TERMINAL_SIZE_CHECK] Raw content length: ${rawContent.length}`)
+	console.debug(`[TERMINAL_SIZE_CHECK] Raw content length: ${rawContent.length}`)
 
 	// Check size before trimming
 	const sizeEstimate = estimateContentSize(rawContent, contextWindow)
-	console.log(`[TERMINAL_SIZE_CHECK] Content size: ${sizeEstimate.bytes} bytes`)
-	console.log(`[TERMINAL_SIZE_CHECK] Estimated tokens: ${sizeEstimate.estimatedTokens}`)
-	console.log(`[TERMINAL_SIZE_CHECK] Context window: ${contextWindow}`)
+	console.debug(`[TERMINAL_SIZE_CHECK] Content size: ${sizeEstimate.bytes} bytes`)
+	console.debug(`[TERMINAL_SIZE_CHECK] Estimated tokens: ${sizeEstimate.estimatedTokens}`)
+	console.debug(`[TERMINAL_SIZE_CHECK] Context window: ${contextWindow}`)
 
 	if (sizeEstimate.wouldExceedLimit) {
-		console.log(`[TERMINAL_SIZE_CHECK] Output exceeds size limit`)
+		console.debug(`[TERMINAL_SIZE_CHECK] Output exceeds size limit`)
 		throw new ContentTooLargeError({
 			type: "terminal",
 			command,
@@ -39,8 +39,8 @@ export async function extractTextFromTerminal(content: string | Buffer, contextW
 
 	// Only trim after size check passes
 	const cleanContent = rawContent.trim()
-	console.log(`[TERMINAL_SIZE_CHECK] Clean content length: ${cleanContent.length}`)
-	console.log(`[TERMINAL_SIZE_CHECK] Size check passed`)
+	console.debug(`[TERMINAL_SIZE_CHECK] Clean content length: ${cleanContent.length}`)
+	console.debug(`[TERMINAL_SIZE_CHECK] Size check passed`)
 	return cleanContent
 }
 
@@ -51,20 +51,20 @@ export async function extractTextFromFile(filePath: string, contextWindow: numbe
 		throw new Error(`File not found: ${filePath}`)
 	}
 
-	console.log(`[FILE_READ_CHECK] Checking size for file: ${filePath}`)
+	console.debug(`[FILE_READ_CHECK] Checking size for file: ${filePath}`)
 
 	// Get file stats to check size
 	const stats = await fs.stat(filePath)
-	console.log(`[FILE_SIZE_CHECK] File size: ${stats.size} bytes`)
+	console.debug(`[FILE_SIZE_CHECK] File size: ${stats.size} bytes`)
 
 	// Calculate max allowed size from context window
 	const maxAllowedSize = getMaxAllowedSize(contextWindow)
-	console.log(`[FILE_SIZE_CHECK] Max allowed size: ${maxAllowedSize} tokens`)
+	console.debug(`[FILE_SIZE_CHECK] Max allowed size: ${maxAllowedSize} tokens`)
 
 	// Check if file size would exceed limit before attempting to read
 	// This is more efficient than creating a full SizeEstimate object when we just need a boolean check
 	if (wouldExceedSizeLimit(stats.size, contextWindow)) {
-		console.log(`[FILE_SIZE_CHECK] File exceeds size limit`)
+		console.debug(`[FILE_SIZE_CHECK] File exceeds size limit`)
 		// Only create the full size estimate when we need it for the error
 		const sizeEstimate = await estimateFileSize(filePath, maxAllowedSize)
 		throw new ContentTooLargeError({
@@ -73,9 +73,9 @@ export async function extractTextFromFile(filePath: string, contextWindow: numbe
 			size: sizeEstimate,
 		})
 	}
-	console.log(`[FILE_SIZE_CHECK] File size check passed`)
+	console.debug(`[FILE_SIZE_CHECK] File size check passed`)
 	const fileExtension = path.extname(filePath).toLowerCase()
-	console.log(`[FILE_READ] Reading file: ${filePath}`)
+	console.debug(`[FILE_READ] Reading file: ${filePath}`)
 	let content: string
 	switch (fileExtension) {
 		case ".pdf":
@@ -95,7 +95,7 @@ export async function extractTextFromFile(filePath: string, contextWindow: numbe
 				throw new Error(`Cannot read text for file type: ${fileExtension}`)
 			}
 	}
-	console.log(`[FILE_READ_COMPLETE] File read complete. Content length: ${content.length} chars`)
+	console.debug(`[FILE_READ_COMPLETE] File read complete. Content length: ${content.length} chars`)
 	return content
 }
 

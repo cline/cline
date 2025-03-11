@@ -1,12 +1,10 @@
 import * as vscode from "vscode"
-import { extractTextFromTerminal } from "../../integrations/misc/extract-text"
 
 /**
  * Gets the contents of the active terminal
- * @param contextWindow The context window size in tokens
  * @returns The terminal contents as a string
  */
-export async function getLatestTerminalOutput(contextWindow: number): Promise<string> {
+export async function getLatestTerminalOutput(): Promise<string> {
 	// Store original clipboard content to restore later
 	const originalClipboard = await vscode.env.clipboard.readText()
 
@@ -39,8 +37,7 @@ export async function getLatestTerminalOutput(contextWindow: number): Promise<st
 			terminalContents = lines.slice(Math.max(i, 0)).join("\n")
 		}
 
-		// Check size before returning
-		return await extractTextFromTerminal(terminalContents, contextWindow, "@terminal mention")
+		return terminalContents
 	} finally {
 		// Restore original clipboard content
 		await vscode.env.clipboard.writeText(originalClipboard)

@@ -14,7 +14,6 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
-import { extractTextFromFile } from "../../integrations/misc/extract-text"
 import { ClineProvider, GlobalFileNames } from "../../core/webview/ClineProvider"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
@@ -58,10 +57,8 @@ export class McpHub {
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
-	private api: { getModel: () => { info: { contextWindow?: number } } }
 
-	constructor(provider: ClineProvider, api: { getModel: () => { info: { contextWindow?: number } } }) {
-		this.api = api
+	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
 		this.watchMcpSettingsFile()
 		this.initializeMcpServers()
@@ -110,8 +107,7 @@ export class McpHub {
 		this.disposables.push(
 			vscode.workspace.onDidSaveTextDocument(async (document) => {
 				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
-					const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-					const content = await extractTextFromFile(settingsPath, contextWindow)
+					const content = await fs.readFile(settingsPath, "utf-8")
 					const errorMessage =
 						"Invalid MCP settings format. Please ensure your settings follow the correct JSON format."
 					let config: any
@@ -141,8 +137,7 @@ export class McpHub {
 	private async initializeMcpServers(): Promise<void> {
 		try {
 			const settingsPath = await this.getMcpSettingsFilePath()
-			const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-			const content = await extractTextFromFile(settingsPath, contextWindow)
+			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 			await this.updateServerConnections(config.mcpServers || {})
 		} catch (error) {
@@ -282,8 +277,7 @@ export class McpHub {
 
 			// Get autoApprove settings
 			const settingsPath = await this.getMcpSettingsFilePath()
-			const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-			const content = await extractTextFromFile(settingsPath, contextWindow)
+			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 			const autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
 
@@ -439,8 +433,7 @@ export class McpHub {
 	private async notifyWebviewOfServerChanges(): Promise<void> {
 		// servers should always be sorted in the order they are defined in the settings file
 		const settingsPath = await this.getMcpSettingsFilePath()
-		const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-		const content = await extractTextFromFile(settingsPath, contextWindow)
+		const content = await fs.readFile(settingsPath, "utf-8")
 		const config = JSON.parse(content)
 		const serverOrder = Object.keys(config.mcpServers || {})
 		await this.providerRef.deref()?.postMessageToWebview({
@@ -475,8 +468,7 @@ export class McpHub {
 				console.error("Settings file not accessible:", error)
 				throw new Error("Settings file not accessible")
 			}
-			const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-			const content = await extractTextFromFile(settingsPath, contextWindow)
+			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
 			// Validate the config structure
@@ -599,8 +591,7 @@ export class McpHub {
 	async toggleToolAutoApprove(serverName: string, toolName: string, shouldAllow: boolean): Promise<void> {
 		try {
 			const settingsPath = await this.getMcpSettingsFilePath()
-			const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-			const content = await extractTextFromFile(settingsPath, contextWindow)
+			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
 			// Initialize autoApprove if it doesn't exist
@@ -637,8 +628,7 @@ export class McpHub {
 	public async deleteServer(serverName: string) {
 		try {
 			const settingsPath = await this.getMcpSettingsFilePath()
-			const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-			const content = await extractTextFromFile(settingsPath, contextWindow)
+			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 			if (!config.mcpServers || typeof config.mcpServers !== "object") {
 				config.mcpServers = {}
@@ -671,8 +661,7 @@ export class McpHub {
 			}
 
 			const settingsPath = await this.getMcpSettingsFilePath()
-			const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-			const content = await extractTextFromFile(settingsPath, contextWindow)
+			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
 
 			if (!config.mcpServers?.[serverName]) {

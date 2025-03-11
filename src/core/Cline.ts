@@ -1140,9 +1140,9 @@ export class Cline {
 		const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
 		const maxAllowedSize = getMaxAllowedSize(contextWindow)
 
-		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd, contextWindow)
+		const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = this.terminalManager.runCommand(terminalInfo, command, maxAllowedSize)
+		const process = this.terminalManager.runCommand(terminalInfo, command)
 
 		let userFeedback: { text?: string; images?: string[] } | undefined
 		let didContinue = false
@@ -1188,7 +1188,7 @@ export class Cline {
 		// the correct order of messages (although the webview is smart about
 		// grouping command_output messages despite any gaps anyways)
 		await delay(50)
-		// AKF TODO -> investigate failed results
+
 		result = result.trim()
 
 		if (userFeedback) {
@@ -2963,16 +2963,6 @@ export class Cline {
 			throw new Error("Cline instance aborted")
 		}
 
-		// Log file content being passed to model
-		userContent.forEach((block) => {
-			if (block.type === "text" && block.text) {
-				// Look for file content markers
-				if (block.text.includes("<file_content") || block.text.includes("<final_file_content")) {
-					console.log(`[MODEL_INPUT] File content being passed to model. Content length: ${block.text.length} chars`)
-				}
-			}
-		})
-
 		if (this.consecutiveMistakeCount >= 3) {
 			if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
@@ -3442,44 +3432,34 @@ export class Cline {
 		if (busyTerminals.length > 0) {
 			// terminals are cool, let's retrieve their output
 			terminalDetails += "\n\n# Actively Running Terminals"
-			const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-
-			// Get output from all busy terminals
-			const busyOutputs = await Promise.all(
-				busyTerminals.map(async (terminal) => {
-					const output = await this.terminalManager.getUnretrievedOutput(terminal.id, contextWindow)
-					return { terminal, output }
-				}),
-			)
-
-			// Add output to details
-			for (const { terminal, output } of busyOutputs) {
-				terminalDetails += `\n## Original command: \`${terminal.lastCommand}\``
-				if (output) {
-					terminalDetails += `\n### New Output\n${output}`
+			for (const busyTerminal of busyTerminals) {
+				terminalDetails += `\n## Original command: \`${busyTerminal.lastCommand}\``
+				const newOutput = this.terminalManager.getUnretrievedOutput(busyTerminal.id)
+				if (newOutput) {
+					terminalDetails += `\n### New Output\n${newOutput}`
+				} else {
+					// details += `\n(Still running, no new output)` // don't want to show this right after running the command
 				}
 			}
 		}
 
 		// only show inactive terminals if there's output to show
 		if (inactiveTerminals.length > 0) {
-			const contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-
-			// Get output from all inactive terminals
-			const inactiveOutputs = await Promise.all(
-				inactiveTerminals.map(async (terminal) => {
-					const output = await this.terminalManager.getUnretrievedOutput(terminal.id, contextWindow)
-					return { terminal, output }
-				}),
-			)
-
-			// Filter and add outputs that have content
-			const outputsWithContent = inactiveOutputs.filter(({ output }) => output)
-			if (outputsWithContent.length > 0) {
+			const inactiveTerminalOutputs = new Map<number, string>()
+			for (const inactiveTerminal of inactiveTerminals) {
+				const newOutput = await this.terminalManager.getUnretrievedOutput(inactiveTerminal.id)
+				if (newOutput) {
+					inactiveTerminalOutputs.set(inactiveTerminal.id, newOutput)
+				}
+			}
+			if (inactiveTerminalOutputs.size > 0) {
 				terminalDetails += "\n\n# Inactive Terminals"
-				for (const { terminal, output } of outputsWithContent) {
-					terminalDetails += `\n## ${terminal.lastCommand}`
-					terminalDetails += `\n### New Output\n${output}`
+				for (const [terminalId, newOutput] of inactiveTerminalOutputs) {
+					const inactiveTerminal = inactiveTerminals.find((t) => t.id === terminalId)
+					if (inactiveTerminal) {
+						terminalDetails += `\n## ${inactiveTerminal.lastCommand}`
+						terminalDetails += `\n### New Output\n${newOutput}`
+					}
 				}
 			}
 		}
