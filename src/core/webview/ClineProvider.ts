@@ -1933,8 +1933,16 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async cancelTask() {
 		if (this.getCurrentCline()) {
-			const { historyItem } = await this.getTaskWithId(this.getCurrentCline()!.taskId)
-			this.getCurrentCline()!.abortTask()
+			const currentCline = this.getCurrentCline()!
+			const { historyItem } = await this.getTaskWithId(currentCline.taskId)
+
+			// Store parent task information if this is a subtask
+			// Check if this is a subtask by seeing if it has a parent task
+			const parentTask = currentCline.getParentTask()
+			const isSubTask = parentTask !== undefined
+			const rootTask = isSubTask ? currentCline.getRootTask() : undefined
+
+			currentCline.abortTask()
 
 			await pWaitFor(
 				() =>
@@ -1961,6 +1969,18 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 			// Clears task again, so we need to abortTask manually above.
 			await this.initClineWithHistoryItem(historyItem)
+
+			// Restore parent-child relationship if this was a subtask
+			if (isSubTask && this.getCurrentCline() && parentTask) {
+				this.getCurrentCline()!.setSubTask()
+				this.getCurrentCline()!.setParentTask(parentTask)
+				if (rootTask) {
+					this.getCurrentCline()!.setRootTask(rootTask)
+				}
+				this.log(
+					`[subtasks] Restored parent-child relationship for task: ${this.getCurrentCline()!.getTaskNumber()}`,
+				)
+			}
 		}
 	}
 
