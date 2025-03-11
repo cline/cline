@@ -20,7 +20,7 @@ jobs:
           node-version: '18'
           cache: 'npm'
       - name: Install dependencies
-        run: npm run install:ci
+        run: npm run install:all
       - name: Compile
         run: npm run compile
       - name: Check types
@@ -39,7 +39,7 @@ jobs:
           node-version: '18'
           cache: 'npm'
       - name: Install dependencies
-        run: npm run install:ci
+        run: npm run install:all
       - name: Run knip checks
         run: npm run knip
 
@@ -54,7 +54,7 @@ jobs:
           node-version: '18'
           cache: 'npm'
       - name: Install dependencies
-        run: npm run install:ci
+        run: npm run install:all
       - name: Run unit tests
         run: npx jest --silent
 
@@ -69,7 +69,7 @@ jobs:
           node-version: '18'
           cache: 'npm'
       - name: Install dependencies
-        run: npm run install:ci
+        run: npm run install:all
       - name: Run unit tests
         working-directory: webview-ui
         run: npx jest --silent
@@ -109,7 +109,7 @@ jobs:
           node-version: '18'
           cache: 'npm'
       - name: Install dependencies
-        run: npm run install:ci
+        run: npm run install:all
       - name: Create env.integration file
         working-directory: e2e
         run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.integration
