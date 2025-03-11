@@ -9,18 +9,18 @@ const CONTEXT_LIMIT = 1000 // Context limit of 1000 tokens means max allowed siz
 describe("content-size", () => {
 	describe("estimateTokens", () => {
 		it("estimates tokens based on byte count", () => {
-			expect(estimateTokens(100)).to.equal(25) // 100 bytes / 4 chars per token = 25 tokens
-			expect(estimateTokens(7)).to.equal(2) // Should round up for partial tokens
+			expect(estimateTokens(100)).to.equal(50) // 100 bytes / 2 chars per token = 50 tokens
+			expect(estimateTokens(7)).to.equal(4) // Should round up for partial tokens
 		})
 	})
 
 	describe("wouldExceedSizeLimit", () => {
 		it("checks if byte count would exceed max allowed size", () => {
 			// For deepseek (64k - 27k = 37k tokens)
-			expect(wouldExceedSizeLimit(100, 37_000)).to.equal(false) // 25 tokens < 37k tokens
-			expect(wouldExceedSizeLimit(148000, 37_000)).to.equal(true) // 37k tokens = 37k tokens
+			expect(wouldExceedSizeLimit(100, 37_000)).to.equal(false) // 50 tokens < 37k tokens
+			expect(wouldExceedSizeLimit(148000, 37_000)).to.equal(true) // 74k tokens > 37k tokens
 			// For standard models (128k - 30k = 98k tokens)
-			expect(wouldExceedSizeLimit(392000, 98_000)).to.equal(true) // 98k tokens = 98k tokens
+			expect(wouldExceedSizeLimit(392000, 98_000)).to.equal(true) // 196k tokens > 98k tokens
 		})
 	})
 
@@ -30,7 +30,7 @@ describe("content-size", () => {
 			const result = estimateContentSize(content, CONTEXT_LIMIT)
 
 			expect(result.bytes).to.equal(11)
-			expect(result.estimatedTokens).to.equal(3)
+			expect(result.estimatedTokens).to.equal(6)
 			expect(result.wouldExceedLimit).to.equal(false)
 		})
 
@@ -39,13 +39,13 @@ describe("content-size", () => {
 			const result = estimateContentSize(content, CONTEXT_LIMIT)
 
 			expect(result.bytes).to.equal(11)
-			expect(result.estimatedTokens).to.equal(3)
+			expect(result.estimatedTokens).to.equal(6)
 			expect(result.wouldExceedLimit).to.equal(false)
 		})
 
 		it("detects when content would exceed max allowed size", () => {
 			// Create content that would exceed max allowed size for deepseek (64k - 27k tokens)
-			const largeContent = "x".repeat(148000) // 37k tokens > (64k - 27k) tokens
+			const largeContent = "x".repeat(148000) // 74k tokens > (64k - 27k) tokens
 			const result = estimateContentSize(largeContent, 64_000)
 
 			expect(result.wouldExceedLimit).to.equal(true)
@@ -68,7 +68,7 @@ describe("content-size", () => {
 			const result = await estimateFileSize(tempFilePath, CONTEXT_LIMIT)
 
 			expect(result.bytes).to.equal(11)
-			expect(result.estimatedTokens).to.equal(3)
+			expect(result.estimatedTokens).to.equal(6)
 			expect(result.wouldExceedLimit).to.equal(false)
 		})
 
