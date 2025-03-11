@@ -5,6 +5,8 @@ import { ApiHandler } from "../"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
+import { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
+import { convertToR1Format } from "../transform/r1-format"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -18,19 +20,25 @@ export class AwsBedrockHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
 		let modelId = await this.getModelId()
+		const model = this.getModel()
+
+		// Check if this is a Deepseek model
+		if (modelId.includes("deepseek")) {
+			yield* this.createDeepseekMessage(systemPrompt, messages, modelId, model)
+			return
+		}
 
 		let budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
 		// Get model info and message indices for caching
-		const model = this.getModel()
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
 		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
 		// Create anthropic client, using sessions created or renewed after this handler's
 		// initialization, and allowing for session renewal if necessary as well
-		const client = await this.getClient()
+		const client = await this.getAnthropicClient()
 
 		const stream = await client.messages.create({
 			model: modelId,
@@ -139,12 +147,21 @@ export class AwsBedrockHandler implements ApiHandler {
 		}
 	}
 
-	private async getClient(): Promise<AnthropicBedrock> {
-		// Create AWS credentials by executing a an AWS provider chain exactly as the
-		// Anthropic SDK does it, by wrapping the default chain into a temporary process
-		// environment.
+	// Default AWS region
+	private static readonly DEFAULT_REGION = "us-east-1"
+
+	/**
+	 * Gets AWS credentials using the provider chain
+	 * Centralizes credential retrieval logic for all AWS services
+	 */
+	private async getAwsCredentials(): Promise<{
+		accessKeyId: string
+		secretAccessKey: string
+		sessionToken?: string
+	}> {
+		// Create AWS credentials by executing an AWS provider chain
 		const providerChain = fromNodeProviderChain()
-		const credentials = await AwsBedrockHandler.withTempEnv(
+		return await AwsBedrockHandler.withTempEnv(
 			() => {
 				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
 				AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.options.awsAccessKey)
@@ -154,23 +171,52 @@ export class AwsBedrockHandler implements ApiHandler {
 			},
 			() => providerChain(),
 		)
+	}
+
+	/**
+	 * Gets the AWS region to use, with fallback to default
+	 */
+	private getRegion(): string {
+		return this.options.awsRegion || AwsBedrockHandler.DEFAULT_REGION
+	}
+
+	/**
+	 * Creates a BedrockRuntimeClient with the appropriate credentials
+	 */
+	private async getBedrockClient(): Promise<BedrockRuntimeClient> {
+		const credentials = await this.getAwsCredentials()
+
+		return new BedrockRuntimeClient({
+			region: this.getRegion(),
+			credentials: {
+				accessKeyId: credentials.accessKeyId,
+				secretAccessKey: credentials.secretAccessKey,
+				sessionToken: credentials.sessionToken,
+			},
+		})
+	}
+
+	/**
+	 * Creates an AnthropicBedrock client with the appropriate credentials
+	 */
+	private async getAnthropicClient(): Promise<AnthropicBedrock> {
+		const credentials = await this.getAwsCredentials()
 
 		// Return an AnthropicBedrock client with the resolved/assumed credentials.
-		//
-		// When AnthropicBedrock creates its AWS client, the chain will execute very
-		// fast as the access/secret keys will already be already provided, and have
-		// a higher precedence than the profiles.
 		return new AnthropicBedrock({
 			awsAccessKey: credentials.accessKeyId,
 			awsSecretKey: credentials.secretAccessKey,
 			awsSessionToken: credentials.sessionToken,
-			awsRegion: this.options.awsRegion || "us-east-1",
+			awsRegion: this.getRegion(),
 		})
 	}
 
+	/**
+	 * Gets the appropriate model ID, accounting for cross-region inference if enabled
+	 */
 	async getModelId(): Promise<string> {
 		if (this.options.awsUseCrossRegionInference) {
-			let regionPrefix = (this.options.awsRegion || "").slice(0, 3)
+			let regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
 				case "us-":
 					return `us.${this.getModel().id}`
@@ -201,5 +247,139 @@ export class AwsBedrockHandler implements ApiHandler {
 		if (key !== "" && value !== undefined) {
 			process.env[key] = value
 		}
+	}
+
+	/**
+	 * Creates a message using the Deepseek model through AWS Bedrock
+	 */
+	private async *createDeepseekMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		modelId: string,
+		model: { id: BedrockModelId; info: ModelInfo },
+	): ApiStream {
+		// Get Bedrock client with proper credentials
+		const client = await this.getBedrockClient()
+
+		// Format messages for Deepseek
+		const formattedMessages = this.formatDeepseekMessages(systemPrompt, messages)
+
+		// Prepare the request
+		const command = new InvokeModelWithResponseStreamCommand({
+			modelId: modelId,
+			contentType: "application/json",
+			accept: "application/json",
+			body: JSON.stringify({
+				messages: formattedMessages,
+				max_tokens: model.info.maxTokens || 8000,
+				temperature: 0,
+			}),
+		})
+
+		// Track token usage
+		const inputTokenEstimate = this.estimateInputTokens(systemPrompt, messages)
+		let outputTokens = 0
+		let isFirstChunk = true
+
+		// Execute the streaming request
+		const response = await client.send(command)
+
+		if (response.body) {
+			for await (const chunk of response.body) {
+				if (chunk.chunk?.bytes) {
+					try {
+						// Parse the response chunk
+						const decodedChunk = new TextDecoder().decode(chunk.chunk.bytes)
+						const parsedChunk = JSON.parse(decodedChunk)
+
+						// Report usage on first chunk
+						if (isFirstChunk) {
+							isFirstChunk = false
+							yield {
+								type: "usage",
+								inputTokens: inputTokenEstimate,
+								outputTokens: 0,
+							}
+						}
+
+						// Extract text content from the response
+						if (parsedChunk.delta?.text) {
+							const text = parsedChunk.delta.text
+							outputTokens += this.estimateTokenCount(text)
+
+							yield {
+								type: "text",
+								text: text,
+							}
+
+							// Report token usage updates
+							yield {
+								type: "usage",
+								inputTokens: 0,
+								outputTokens: this.estimateTokenCount(text),
+							}
+						} else if (parsedChunk.delta?.content) {
+							const text = parsedChunk.delta.content
+							outputTokens += this.estimateTokenCount(text)
+
+							yield {
+								type: "text",
+								text: text,
+							}
+
+							// Report token usage updates
+							yield {
+								type: "usage",
+								inputTokens: 0,
+								outputTokens: this.estimateTokenCount(text),
+							}
+						}
+					} catch (error) {
+						console.error("Error parsing Deepseek response chunk:", error)
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Formats messages for the Deepseek model
+	 */
+	private formatDeepseekMessages(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]) {
+		// Start with system message if provided
+		const messagesWithSystem = systemPrompt ? [{ role: "user" as const, content: systemPrompt }, ...messages] : messages
+
+		// Use the r1-format utility to format messages correctly
+		return convertToR1Format(messagesWithSystem)
+	}
+
+	/**
+	 * Estimates token count based on text length (approximate)
+	 * Note: This is a rough estimation, as the actual token count depends on the tokenizer
+	 */
+	private estimateInputTokens(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): number {
+		const systemTokens = systemPrompt.length / 4
+
+		const messageTokens = messages.reduce((total, message) => {
+			if (typeof message.content === "string") {
+				return total + message.content.length / 4
+			} else {
+				const textContent = message.content
+					.filter((item) => item.type === "text")
+					.map((item) => item.text)
+					.join(" ")
+				return total + textContent.length / 4
+			}
+		}, 0)
+
+		return Math.ceil(systemTokens + messageTokens)
+	}
+
+	/**
+	 * Estimates token count for a text string
+	 */
+	private estimateTokenCount(text: string): number {
+		// Approximate 4 characters per token
+		return Math.ceil(text.length / 4)
 	}
 }
