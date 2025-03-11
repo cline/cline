@@ -348,6 +348,11 @@ export class AwsBedrockHandler implements ApiHandler {
 						}
 					} catch (error) {
 						console.error("Error parsing Deepseek response chunk:", error)
+						// Propagate the error by yielding a text response with error information
+						yield {
+							type: "text",
+							text: `[ERROR] Failed to parse Deepseek response: ${error instanceof Error ? error.message : String(error)}`,
+						}
 					}
 				}
 			}
