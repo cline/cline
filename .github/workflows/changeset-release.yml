@@ -37,7 +37,7 @@ jobs:
           cache: 'npm'
             
       - name: Install Dependencies
-        run: npm run install:ci
+        run: npm run install:all
 
       # Check if there are any new changesets to process
       - name: Check for changesets

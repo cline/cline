@@ -80,6 +80,44 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 
 	return undefined
 }
+/**
+ * Validates an AWS Bedrock ARN format and optionally checks if the region in the ARN matches the provided region
+ * @param arn The ARN string to validate
+ * @param region Optional region to check against the ARN's region
+ * @returns An object with validation results: { isValid, arnRegion, errorMessage }
+ */
+export function validateBedrockArn(arn: string, region?: string) {
+	// Validate ARN format
+	const arnRegex = /^arn:aws:bedrock:([^:]+):(\d+):(foundation-model|provisioned-model|default-prompt-router)\/(.+)$/
+	const match = arn.match(arnRegex)
+
+	if (!match) {
+		return {
+			isValid: false,
+			arnRegion: undefined,
+			errorMessage: "Invalid ARN format. Please check the format requirements.",
+		}
+	}
+
+	// Extract region from ARN
+	const arnRegion = match[1]
+
+	// Check if region in ARN matches provided region (if specified)
+	if (region && arnRegion !== region) {
+		return {
+			isValid: true,
+			arnRegion,
+			errorMessage: `Warning: The region in your ARN (${arnRegion}) does not match your selected region (${region}). This may cause access issues. The provider will use the region from the ARN.`,
+		}
+	}
+
+	// ARN is valid and region matches (or no region was provided to check against)
+	return {
+		isValid: true,
+		arnRegion,
+		errorMessage: undefined,
+	}
+}
 
 export function validateModelId(
 	apiConfiguration?: ApiConfiguration,

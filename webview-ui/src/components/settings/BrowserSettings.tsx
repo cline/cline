@@ -1,5 +1,5 @@
-import { HTMLAttributes } from "react"
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import React, { HTMLAttributes, useState, useEffect } from "react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { Dropdown, type DropdownOption } from "vscrui"
 import { SquareMousePointer } from "lucide-react"
 
@@ -7,21 +7,96 @@ import { SetCachedStateField } from "./types"
 import { sliderLabelStyle } from "./styles"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
+import { vscode } from "../../utils/vscode"
 
 type BrowserSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	browserToolEnabled?: boolean
 	browserViewportSize?: string
 	screenshotQuality?: number
-	setCachedStateField: SetCachedStateField<"browserToolEnabled" | "browserViewportSize" | "screenshotQuality">
+	remoteBrowserHost?: string
+	remoteBrowserEnabled?: boolean
+	setCachedStateField: SetCachedStateField<
+		| "browserToolEnabled"
+		| "browserViewportSize"
+		| "screenshotQuality"
+		| "remoteBrowserHost"
+		| "remoteBrowserEnabled"
+	>
 }
 
 export const BrowserSettings = ({
 	browserToolEnabled,
 	browserViewportSize,
 	screenshotQuality,
+	remoteBrowserHost,
+	remoteBrowserEnabled,
 	setCachedStateField,
 	...props
 }: BrowserSettingsProps) => {
+	const [testingConnection, setTestingConnection] = useState(false)
+	const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+	const [discovering, setDiscovering] = useState(false)
+	// We don't need a local state for useRemoteBrowser since we're using the enableRemoteBrowser prop directly
+	// This ensures the checkbox always reflects the current global state
+
+	// Set up message listener for browser connection results
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			const message = event.data
+
+			if (message.type === "browserConnectionResult") {
+				setTestResult({
+					success: message.success,
+					message: message.text,
+				})
+				setTestingConnection(false)
+				setDiscovering(false)
+			}
+		}
+
+		window.addEventListener("message", handleMessage)
+
+		return () => {
+			window.removeEventListener("message", handleMessage)
+		}
+	}, [])
+
+	const testConnection = async () => {
+		setTestingConnection(true)
+		setTestResult(null)
+
+		try {
+			// Send a message to the extension to test the connection
+			vscode.postMessage({
+				type: "testBrowserConnection",
+				text: remoteBrowserHost,
+			})
+		} catch (error) {
+			setTestResult({
+				success: false,
+				message: `Error: ${error instanceof Error ? error.message : String(error)}`,
+			})
+			setTestingConnection(false)
+		}
+	}
+
+	const discoverBrowser = async () => {
+		setDiscovering(true)
+		setTestResult(null)
+
+		try {
+			// Send a message to the extension to discover Chrome instances
+			vscode.postMessage({
+				type: "discoverBrowser",
+			})
+		} catch (error) {
+			setTestResult({
+				success: false,
+				message: `Error: ${error instanceof Error ? error.message : String(error)}`,
+			})
+			setDiscovering(false)
+		}
+	}
 	return (
 		<div {...props}>
 			<SectionHeader>
@@ -95,6 +170,64 @@ export const BrowserSettings = ({
 									Adjust the WebP quality of browser screenshots. Higher values provide clearer
 									screenshots but increase token usage.
 								</p>
+							</div>
+							<div className="mt-4">
+								<div className="mb-2">
+									<VSCodeCheckbox
+										checked={remoteBrowserEnabled}
+										onChange={(e: any) => {
+											// Update the global state - remoteBrowserEnabled now means "enable remote browser connection"
+											setCachedStateField("remoteBrowserEnabled", e.target.checked)
+											if (!e.target.checked) {
+												// If disabling remote browser, clear the custom URL
+												setCachedStateField("remoteBrowserHost", undefined)
+											}
+										}}>
+										<span className="font-medium">Use remote browser connection</span>
+									</VSCodeCheckbox>
+									<p className="text-vscode-descriptionForeground text-sm mt-0 ml-6">
+										Connect to a Chrome browser running with remote debugging enabled
+										(--remote-debugging-port=9222).
+									</p>
+								</div>
+								{remoteBrowserEnabled && (
+									<>
+										<div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
+											<VSCodeTextField
+												value={remoteBrowserHost ?? ""}
+												onChange={(e: any) =>
+													setCachedStateField(
+														"remoteBrowserHost",
+														e.target.value || undefined,
+													)
+												}
+												placeholder="Custom URL (e.g., http://localhost:9222)"
+												style={{ flexGrow: 1 }}
+											/>
+											<VSCodeButton
+												disabled={testingConnection}
+												onClick={remoteBrowserHost ? testConnection : discoverBrowser}>
+												{testingConnection || discovering ? "Testing..." : "Test Connection"}
+											</VSCodeButton>
+										</div>
+										{testResult && (
+											<div
+												className={`p-2 mt-2 mb-2 rounded text-sm ${
+													testResult.success
+														? "bg-green-800/20 text-green-400"
+														: "bg-red-800/20 text-red-400"
+												}`}>
+												{testResult.message}
+											</div>
+										)}
+										<p className="text-vscode-descriptionForeground text-sm mt-2">
+											Enter the DevTools Protocol host address or
+											<strong> leave empty to auto-discover Chrome local instances.</strong>
+											The Test Connection button will try the custom URL if provided, or
+											auto-discover if the field is empty.
+										</p>
+									</>
+								)}
 							</div>
 						</div>
 					)}

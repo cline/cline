@@ -315,5 +315,34 @@ describe("AwsBedrockHandler", () => {
 			expect(modelInfo.info.maxTokens).toBe(5000)
 			expect(modelInfo.info.contextWindow).toBe(128_000)
 		})
+
+		it("should use custom ARN when provided", () => {
+			const customArnHandler = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+				awsRegion: "us-east-1",
+				awsCustomArn: "arn:aws:bedrock:us-east-1::foundation-model/custom-model",
+			})
+			const modelInfo = customArnHandler.getModel()
+			expect(modelInfo.id).toBe("arn:aws:bedrock:us-east-1::foundation-model/custom-model")
+			expect(modelInfo.info.maxTokens).toBe(4096)
+			expect(modelInfo.info.contextWindow).toBe(128_000)
+			expect(modelInfo.info.supportsPromptCache).toBe(false)
+		})
+
+		it("should use default model when custom-arn is selected but no ARN is provided", () => {
+			const customArnHandler = new AwsBedrockHandler({
+				apiModelId: "custom-arn",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+				awsRegion: "us-east-1",
+				// No awsCustomArn provided
+			})
+			const modelInfo = customArnHandler.getModel()
+			// Should fall back to default model
+			expect(modelInfo.id).not.toBe("custom-arn")
+			expect(modelInfo.info).toBeDefined()
+		})
 	})
 })
