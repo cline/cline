@@ -498,6 +498,14 @@ export const vertexModels = {
 		inputPrice: 0.15,
 		outputPrice: 0.6,
 	},
+	"gemini-2.0-pro-exp-02-05": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 	"gemini-2.0-flash-lite-001": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
