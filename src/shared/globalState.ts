@@ -5,7 +5,7 @@ export type { SecretKey, GlobalStateKey, ConfigurationKey, ConfigurationValues }
 /**
  * For convenience we'd like the `RooCodeAPI` to define `SecretKey` and `GlobalStateKey`,
  * but since it is a type definition file we can't export constants without some
- * annoyances. In order to acheive proper type safety without using constants as
+ * annoyances. In order to achieve proper type safety without using constants as
  * in the type definition we use this clever Check<>Exhaustiveness pattern.
  * If you extend the `SecretKey` or `GlobalStateKey` types, you will need to
  * update the `SECRET_KEYS` and `GLOBAL_STATE_KEYS` arrays to include the new
