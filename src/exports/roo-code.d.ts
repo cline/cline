@@ -92,6 +92,7 @@ export interface ClineMessage {
 	reasoning?: string
 	conversationHistoryIndex?: number
 	checkpoint?: Record<string, unknown>
+	progressStatus?: ToolProgressStatus
 }
 
 export interface ClineProvider {
