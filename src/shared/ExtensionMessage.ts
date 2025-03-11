@@ -7,7 +7,7 @@ import { CustomSupportPrompts } from "./support-prompt"
 import { ExperimentId } from "./experiments"
 import { CheckpointStorage } from "./checkpoints"
 import { TelemetrySetting } from "./TelemetrySetting"
-import { ClineMessage, ClineAsk, ClineSay } from "../exports/roo-code"
+import type { ClineMessage, ClineAsk, ClineSay } from "../exports/roo-code"
 
 export interface LanguageModelChatSelector {
 	vendor?: string

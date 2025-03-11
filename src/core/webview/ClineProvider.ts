@@ -6,7 +6,6 @@ import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import simpleGit from "simple-git"
 
 import { setPanel } from "../../activate/registerCommands"
 import { ApiConfiguration, ApiProvider, ModelInfo, API_CONFIG_KEYS } from "../../shared/api"
@@ -14,7 +13,13 @@ import { CheckpointStorage } from "../../shared/checkpoints"
 import { findLast } from "../../shared/array"
 import { CustomSupportPrompts, supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
-import { SecretKey, GlobalStateKey, SECRET_KEYS, GLOBAL_STATE_KEYS } from "../../shared/globalState"
+import {
+	SecretKey,
+	GlobalStateKey,
+	SECRET_KEYS,
+	GLOBAL_STATE_KEYS,
+	ConfigurationValues,
+} from "../../shared/globalState"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { ApiConfigMeta, ExtensionMessage } from "../../shared/ExtensionMessage"
 import { checkoutDiffPayloadSchema, checkoutRestorePayloadSchema, WebviewMessage } from "../../shared/WebviewMessage"
@@ -387,6 +392,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
 		this.outputChannel.appendLine("Resolving webview view")
+
+		if (!this.contextProxy.isInitialized) {
+			await this.contextProxy.initialize()
+		}
+
 		this.view = webviewView
 
 		// Set panel reference according to webview type
@@ -2013,18 +2023,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	private async updateApiConfiguration(apiConfiguration: ApiConfiguration) {
-		// Update mode's default config
+		// Update mode's default config.
 		const { mode } = await this.getState()
+
 		if (mode) {
 			const currentApiConfigName = await this.getGlobalState("currentApiConfigName")
 			const listApiConfig = await this.configManager.listConfig()
 			const config = listApiConfig?.find((c) => c.name === currentApiConfigName)
+
 			if (config?.id) {
 				await this.configManager.setModeConfig(mode, config.id)
 			}
 		}
 
-		// Use the new setValues method to handle routing values to secrets or global state
 		await this.contextProxy.setValues(apiConfiguration)
 
 		if (this.getCurrentCline()) {
@@ -2620,11 +2631,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	// global
 
-	async updateGlobalState(key: GlobalStateKey, value: any) {
+	public async updateGlobalState(key: GlobalStateKey, value: any) {
 		await this.contextProxy.updateGlobalState(key, value)
 	}
 
-	async getGlobalState(key: GlobalStateKey) {
+	public async getGlobalState(key: GlobalStateKey) {
 		return await this.contextProxy.getGlobalState(key)
 	}
 
@@ -2636,6 +2647,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	private async getSecret(key: SecretKey) {
 		return await this.contextProxy.getSecret(key)
+	}
+
+	// global + secret
+
+	public async setValues(values: Partial<ConfigurationValues>) {
+		await this.contextProxy.setValues(values)
 	}
 
 	// dev
