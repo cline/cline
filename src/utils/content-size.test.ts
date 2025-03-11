@@ -72,6 +72,11 @@ describe("content-size", () => {
 			expect(result.wouldExceedLimit).to.equal(false)
 		})
 
+		/**
+		 * Verifies that estimateFileSize properly throws an error when given a
+		 * non-existent file path, which is important for error handling in the application.
+		 * The test expects fs.stat() inside estimateFileSize to fail and throw.
+		 */
 		it("throws error for non-existent file", async () => {
 			const nonExistentPath = path.join(os.tmpdir(), "non-existent.txt")
 			try {
