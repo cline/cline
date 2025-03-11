@@ -49,8 +49,15 @@ export async function readConfigFile(filePath: string, contextWindow: number): P
  * @returns The parsed configuration object
  */
 export async function readJsonConfigFile<T>(filePath: string, contextWindow: number): Promise<T> {
-	const content = await readConfigFile(filePath, contextWindow)
-	return JSON.parse(content) as T
+	try {
+		const content = await readConfigFile(filePath, contextWindow)
+		return JSON.parse(content) as T
+	} catch (error) {
+		if (error instanceof SyntaxError) {
+			throw new Error(`Invalid JSON in config file ${filePath}: ${error.message}`)
+		}
+		throw new Error(`Failed to read config file ${filePath}: ${error instanceof Error ? error.message : String(error)}`)
+	}
 }
 
 /**
