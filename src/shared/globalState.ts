@@ -28,6 +28,7 @@ export const GLOBAL_STATE_KEYS = [
 	"awsUseCrossRegionInference",
 	"awsProfile",
 	"awsUseProfile",
+	"awsCustomArn",
 	"vertexKeyFile",
 	"vertexJsonCredentials",
 	"vertexProjectId",
