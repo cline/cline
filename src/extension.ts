@@ -18,8 +18,9 @@ import { CodeActionProvider } from "./core/CodeActionProvider"
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import { McpServerManager } from "./services/mcp/McpServerManager"
 import { telemetryService } from "./services/telemetry/TelemetryService"
+import { TerminalRegistry } from "./integrations/terminal/TerminalRegistry"
 
-import { handleUri, registerCommands, registerCodeActions, createRooCodeAPI } from "./activate"
+import { handleUri, registerCommands, registerCodeActions, createRooCodeAPI, registerTerminalActions } from "./activate"
 
 /**
  * Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -42,6 +43,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Initialize telemetry service after environment variables are loaded
 	telemetryService.initialize()
+	// Initialize terminal shell execution handlers
+	TerminalRegistry.initialize()
 
 	// Get default commands from configuration.
 	const defaultCommands = vscode.workspace.getConfiguration("roo-cline").get<string[]>("allowedCommands") || []
@@ -97,14 +100,18 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	registerCodeActions(context)
+	registerTerminalActions(context)
 
 	return createRooCodeAPI(outputChannel, sidebarProvider)
 }
 
-// This method is called when your extension is deactivated.
+// This method is called when your extension is deactivated
 export async function deactivate() {
 	outputChannel.appendLine("Roo-Code extension deactivated")
 	// Clean up MCP server manager
 	await McpServerManager.cleanup(extensionContext)
 	telemetryService.shutdown()
+
+	// Clean up terminal handlers
+	TerminalRegistry.cleanup()
 }

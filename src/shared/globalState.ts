@@ -71,7 +71,7 @@ export const GLOBAL_STATE_KEYS = [
 	"fuzzyMatchThreshold",
 	"preferredLanguage", // Language setting for Cline's communication
 	"writeDelayMs",
-	"terminalOutputLimit",
+	"terminalOutputLineLimit",
 	"mcpEnabled",
 	"enableMcpServerCreation",
 	"alwaysApproveResubmit",
