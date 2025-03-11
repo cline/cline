@@ -280,6 +280,8 @@ export class AwsBedrockHandler implements ApiHandler {
 		const inputTokenEstimate = this.estimateInputTokens(systemPrompt, messages)
 		let outputTokens = 0
 		let isFirstChunk = true
+		let accumulatedTokens = 0
+		const TOKEN_REPORT_THRESHOLD = 100 // Report usage after accumulating this many tokens
 
 		// Execute the streaming request
 		const response = await client.send(command)
@@ -305,38 +307,57 @@ export class AwsBedrockHandler implements ApiHandler {
 						// Extract text content from the response
 						if (parsedChunk.delta?.text) {
 							const text = parsedChunk.delta.text
-							outputTokens += this.estimateTokenCount(text)
+							const chunkTokens = this.estimateTokenCount(text)
+							outputTokens += chunkTokens
+							accumulatedTokens += chunkTokens
 
 							yield {
 								type: "text",
 								text: text,
 							}
 
-							// Report token usage updates
-							yield {
-								type: "usage",
-								inputTokens: 0,
-								outputTokens: this.estimateTokenCount(text),
+							// Report aggregated token usage only when threshold is reached
+							if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
+								yield {
+									type: "usage",
+									inputTokens: 0,
+									outputTokens: accumulatedTokens,
+								}
+								accumulatedTokens = 0
 							}
 						} else if (parsedChunk.delta?.content) {
 							const text = parsedChunk.delta.content
-							outputTokens += this.estimateTokenCount(text)
+							const chunkTokens = this.estimateTokenCount(text)
+							outputTokens += chunkTokens
+							accumulatedTokens += chunkTokens
 
 							yield {
 								type: "text",
 								text: text,
 							}
 
-							// Report token usage updates
-							yield {
-								type: "usage",
-								inputTokens: 0,
-								outputTokens: this.estimateTokenCount(text),
+							// Report aggregated token usage only when threshold is reached
+							if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
+								yield {
+									type: "usage",
+									inputTokens: 0,
+									outputTokens: accumulatedTokens,
+								}
+								accumulatedTokens = 0
 							}
 						}
 					} catch (error) {
 						console.error("Error parsing Deepseek response chunk:", error)
 					}
+				}
+			}
+
+			// Report any remaining accumulated tokens at the end of the stream
+			if (accumulatedTokens > 0) {
+				yield {
+					type: "usage",
+					inputTokens: 0,
+					outputTokens: accumulatedTokens,
 				}
 			}
 		}
