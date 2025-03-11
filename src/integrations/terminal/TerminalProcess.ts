@@ -1,8 +1,7 @@
 import { EventEmitter } from "events"
 import { stripAnsi } from "./ansiUtils"
 import * as vscode from "vscode"
-import { ContentTooLargeError } from "../../shared/errors"
-import { estimateContentSize, wouldExceedSizeLimit } from "../../utils/content-size"
+import { extractTextFromTerminal } from "../../integrations/misc/extract-text"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -16,6 +15,13 @@ export interface TerminalProcessEvents {
 const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
 const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
 
+// how long to wait for command output before timing out
+const COMMAND_OUTPUT_TIMEOUT = 5_000
+
+// VSCode shell integration sequences
+const SEQUENCE_START = "\x1b]633;" // OSC 633
+const SEQUENCE_END = "\x07" // BEL
+
 export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
 	private isListening: boolean = true
@@ -24,131 +30,132 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private lastRetrievedIndex: number = 0
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
-	private totalBytes: number = 0
-	private contextLimit: number = 64_000 // minimum context (Deepseek)
+	private contextLimit: number = 0 // Will be set by run() based on API's context window
 	private lastCommand: string = ""
 
-	// constructor() {
-	// 	super()
-
-	async run(terminal: vscode.Terminal, command: string, contextLimit?: number) {
-		if (contextLimit) {
-			this.contextLimit = contextLimit
-		}
+	async run(terminal: vscode.Terminal, command: string, contextLimit: number) {
+		this.contextLimit = contextLimit
 		this.lastCommand = command
 		if (terminal.shellIntegration && terminal.shellIntegration.executeCommand) {
 			const execution = terminal.shellIntegration.executeCommand(command)
 			const stream = execution.read()
-			// todo: need to handle errors
-			let isFirstChunk = true
-			let didOutputNonCommand = false
 			let didEmitEmptyLine = false
-			for await (let data of stream) {
-				// Add to total bytes before checking size
-				const dataBytes = Buffer.from(data).length
-				this.totalBytes += dataBytes
+			let foundCommandStart = false
+			let lastChunkTime = Date.now()
 
-				// Check total accumulated size against half of context limit
-				// Use wouldExceedSizeLimit to avoid creating unnecessary buffer
-				if (wouldExceedSizeLimit(this.totalBytes, this.contextLimit)) {
-					// Create size estimate only when needed for error details
-					const sizeEstimate = estimateContentSize(Buffer.alloc(this.totalBytes), this.contextLimit)
-					this.emit(
-						"error",
-						new ContentTooLargeError({
-							type: "terminal",
-							command,
-							size: sizeEstimate,
-						}),
-					)
+			for await (const chunk of stream) {
+				console.log("[DEBUG] Raw chunk length:", chunk.length)
+				console.log("[DEBUG] Raw chunk:", chunk)
+
+				// Remove control sequences
+				let data = chunk.replace(/\[\?[0-9]+[a-z]/g, "")
+				console.log("[DEBUG] After control sequence removal:", data)
+
+				// Find all sequences
+				let sequences = []
+				let pos = 0
+				while (true) {
+					const startPos = data.indexOf(SEQUENCE_START, pos)
+					if (startPos === -1) break
+
+					const endPos = data.indexOf(SEQUENCE_END, startPos)
+					if (endPos === -1) break
+
+					const sequence = data.slice(startPos + SEQUENCE_START.length, endPos)
+					sequences.push({ type: sequence[0], content: sequence.slice(2), start: startPos, end: endPos + 1 })
+					pos = endPos + 1
+				}
+
+				console.log("[DEBUG] Found sequences:", sequences)
+
+				// Process sequences
+				for (const seq of sequences) {
+					switch (seq.type) {
+						case "C": // Command output start
+							if (!foundCommandStart) {
+								foundCommandStart = true
+								data = data.slice(seq.end)
+								lastChunkTime = Date.now()
+							}
+							break
+						case "D": // Command output end
+							if (foundCommandStart) {
+								data = data.slice(0, seq.start)
+							}
+							break
+					}
+				}
+
+				// Skip if we haven't found command start
+				if (!foundCommandStart) {
+					continue
+				}
+
+				// Remove ANSI escape codes
+				data = stripAnsi(data)
+				console.log("[DEBUG] After ANSI removal:", data)
+
+				// Process lines
+				if (this.isListening) {
+					// Add to buffer and process lines
+					const newBuffer = this.buffer + data
+					console.log("[DEBUG] New buffer:", newBuffer)
+					this.buffer = newBuffer
+
+					// Process complete lines
+					let lineEndIndex: number
+					while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
+						let line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
+						console.log("[DEBUG] Processing line:", line)
+
+						// Clean up line
+						line = line.replace(/[^\x20-\x7E]/g, "") // Remove non-printable characters
+						line = line.replace(/^[^a-zA-Z0-9]*/, "") // Remove leading non-alphanumeric characters
+						line = this.removeLastLineArtifacts(line)
+
+						// Skip command echo and empty lines
+						if (line && !command.includes(line.trim())) {
+							console.log("[DEBUG] Emitting line:", line)
+							this.emit("line", line)
+							this.fullOutput += line + "\n"
+						}
+
+						this.buffer = this.buffer.slice(lineEndIndex + 1)
+					}
+				}
+
+				// Check for timeout
+				if (Date.now() - lastChunkTime > COMMAND_OUTPUT_TIMEOUT) {
+					console.log("[DEBUG] Command output timeout")
+					break
+				}
+
+				// Stop if we found command end
+				if (sequences.some((seq) => seq.type === "D")) {
+					break
+				}
+
+				lastChunkTime = Date.now()
+			}
+
+			// Process any remaining buffer
+			if (this.buffer && this.isListening) {
+				const line = this.removeLastLineArtifacts(this.buffer)
+				if (line && !command.includes(line.trim())) {
+					console.log("[DEBUG] Emitting final line:", line)
+					this.emit("line", line)
+					this.fullOutput += line + "\n"
+				}
+				this.buffer = ""
+			}
+
+			try {
+				// Skip empty output
+				if (!this.fullOutput.trim()) {
 					return
 				}
 
-				// 1. Process chunk and remove artifacts
-				if (isFirstChunk) {
-					/*
-					The first chunk we get from this stream needs to be processed to be more human readable, ie remove vscode's custom escape sequences and identifiers, removing duplicate first char bug, etc.
-					*/
-
-					// bug where sometimes the command output makes its way into vscode shell integration metadata
-					/*
-					]633 is a custom sequence number used by VSCode shell integration:
-					- OSC 633 ; A ST - Mark prompt start
-					- OSC 633 ; B ST - Mark prompt end
-					- OSC 633 ; C ST - Mark pre-execution (start of command output)
-					- OSC 633 ; D [; <exitcode>] ST - Mark execution finished with optional exit code
-					- OSC 633 ; E ; <commandline> [; <nonce>] ST - Explicitly set command line with optional nonce
-					*/
-					// if you print this data you might see something like "eecho hello worldo hello world;5ba85d14-e92a-40c4-b2fd-71525581eeb0]633;C" but this is actually just a bunch of escape sequences, ignore up to the first ;C
-					/* ddateb15026-6a64-40db-b21f-2a621a9830f0]633;CTue Sep 17 06:37:04 EDT 2024 % ]633;D;0]633;P;Cwd=/Users/saoud/Repositories/test */
-					// Gets output between ]633;C (command start) and ]633;D (command end)
-					const outputBetweenSequences = this.removeLastLineArtifacts(
-						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || "",
-					).trim()
-
-					// Once we've retrieved any potential output between sequences, we can remove everything up to end of the last sequence
-					// https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st
-					const vscodeSequenceRegex = /\x1b\]633;.[^\x07]*\x07/g
-					const lastMatch = [...data.matchAll(vscodeSequenceRegex)].pop()
-					if (lastMatch && lastMatch.index !== undefined) {
-						data = data.slice(lastMatch.index + lastMatch[0].length)
-					}
-					// Place output back after removing vscode sequences
-					if (outputBetweenSequences) {
-						data = outputBetweenSequences + "\n" + data
-					}
-					// remove ansi
-					data = stripAnsi(data)
-					// Split data by newlines
-					let lines = data ? data.split("\n") : []
-					// Remove non-human readable characters from the first line
-					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")
-					}
-					// Check if first two characters are the same, if so remove the first character
-					if (lines.length > 0 && lines[0].length >= 2 && lines[0][0] === lines[0][1]) {
-						lines[0] = lines[0].slice(1)
-					}
-					// Remove everything up to the first alphanumeric character for first two lines
-					if (lines.length > 0) {
-						lines[0] = lines[0].replace(/^[^a-zA-Z0-9]*/, "")
-					}
-					if (lines.length > 1) {
-						lines[1] = lines[1].replace(/^[^a-zA-Z0-9]*/, "")
-					}
-					// Join lines back
-					data = lines.join("\n")
-					isFirstChunk = false
-				} else {
-					data = stripAnsi(data)
-				}
-
-				// first few chunks could be the command being echoed back, so we must ignore
-				// note this means that 'echo' commands wont work
-				if (!didOutputNonCommand) {
-					const lines = data.split("\n")
-					for (let i = 0; i < lines.length; i++) {
-						if (command.includes(lines[i].trim())) {
-							lines.splice(i, 1)
-							i-- // Adjust index after removal
-						} else {
-							didOutputNonCommand = true
-							break
-						}
-					}
-					data = lines.join("\n")
-				}
-
-				// FIXME: right now it seems that data chunks returned to us from the shell integration stream contains random commas, which from what I can tell is not the expected behavior. There has to be a better solution here than just removing all commas.
-				data = data.replace(/,/g, "")
-
-				// 2. Set isHot depending on the command
-				// Set to hot to stall API requests until terminal is cool again
-				this.isHot = true
-				if (this.hotTimer) {
-					clearTimeout(this.hotTimer)
-				}
-				// these markers indicate the command is some kind of local dev server recompiling the app, which we want to wait for output of before sending request to cline
+				// Check if output contains compiling markers
 				const compilingMarkers = ["compiling", "building", "bundling", "transpiling", "generating", "starting"]
 				const markerNullifiers = [
 					"compiled",
@@ -165,8 +172,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					"fail",
 				]
 				const isCompiling =
-					compilingMarkers.some((marker) => data.toLowerCase().includes(marker.toLowerCase())) &&
-					!markerNullifiers.some((nullifier) => data.toLowerCase().includes(nullifier.toLowerCase()))
+					compilingMarkers.some((marker) => this.fullOutput.toLowerCase().includes(marker.toLowerCase())) &&
+					!markerNullifiers.some((nullifier) => this.fullOutput.toLowerCase().includes(nullifier.toLowerCase()))
+
+				// Set hot state
+				this.isHot = true
+				if (this.hotTimer) {
+					clearTimeout(this.hotTimer)
+				}
 				this.hotTimer = setTimeout(
 					() => {
 						this.isHot = false
@@ -174,22 +187,14 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					isCompiling ? PROCESS_HOT_TIMEOUT_COMPILING : PROCESS_HOT_TIMEOUT_NORMAL,
 				)
 
-				// For non-immediately returning commands we want to show loading spinner right away but this wouldnt happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
-				if (!didEmitEmptyLine && !this.fullOutput && data) {
-					this.emit("line", "") // empty line to indicate start of command output stream
-					didEmitEmptyLine = true
-				}
-
-				this.fullOutput += data
-				if (this.isListening) {
-					this.emitIfEol(data)
-					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
-				}
+				// Check size
+				await extractTextFromTerminal(this.fullOutput, this.contextLimit, command)
+			} catch (error) {
+				this.emit("error", error)
+				return
 			}
 
-			this.emitRemainingBufferIfListening()
-
-			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore (previous: "even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up")
+			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore
 			if (this.hotTimer) {
 				clearTimeout(this.hotTimer)
 			}
@@ -204,66 +209,17 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			this.emit("completed")
 			this.emit("continue")
 			this.emit("no_shell_integration")
-			// setTimeout(() => {
-			// 	console.log(`Emitting continue after delay for terminal`)
-			// 	// can't emit completed since we don't if the command actually completed, it could still be running server
-			// }, 500) // Adjust this delay as needed
-		}
-	}
-
-	// Inspired by https://github.com/sindresorhus/execa/blob/main/lib/transform/split.js
-	private emitIfEol(chunk: string) {
-		// Check size before adding to buffer against half of context limit
-		const newBufferSize = this.buffer.length + chunk.length
-		if (wouldExceedSizeLimit(newBufferSize, this.contextLimit)) {
-			// Create size estimate only when needed for error details
-			const sizeEstimate = estimateContentSize(Buffer.alloc(0, newBufferSize), this.contextLimit)
-			this.emit(
-				"error",
-				new ContentTooLargeError({
-					type: "terminal",
-					command: this.lastCommand,
-					size: sizeEstimate,
-				}),
-			)
-			return
-		}
-
-		this.buffer += chunk
-		let lineEndIndex: number
-		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
-			let line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
-			// Remove \r if present (for Windows-style line endings)
-			// if (line.endsWith("\r")) {
-			// 	line = line.slice(0, -1)
-			// }
-			this.emit("line", line)
-			this.buffer = this.buffer.slice(lineEndIndex + 1)
-		}
-	}
-
-	private emitRemainingBufferIfListening() {
-		if (this.buffer && this.isListening) {
-			const remainingBuffer = this.removeLastLineArtifacts(this.buffer)
-			if (remainingBuffer) {
-				this.emit("line", remainingBuffer)
-			}
-			this.buffer = ""
-			this.lastRetrievedIndex = this.fullOutput.length
 		}
 	}
 
 	continue() {
-		this.emitRemainingBufferIfListening()
 		this.isListening = false
 		this.removeAllListeners("line")
 		this.emit("continue")
 	}
 
 	getUnretrievedOutput(): string {
-		const unretrieved = this.fullOutput.slice(this.lastRetrievedIndex)
-		this.lastRetrievedIndex = this.fullOutput.length
-		return this.removeLastLineArtifacts(unretrieved)
+		return this.fullOutput
 	}
 
 	// some processing to remove artifacts like '%' at the end of the buffer (it seems that since vsode uses % at the beginning of newlines in terminal, it makes its way into the stream)

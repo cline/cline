@@ -1,5 +1,6 @@
 import fs from "fs/promises"
 import * as path from "path"
+import { extractTextFromFile } from "../integrations/misc/extract-text"
 
 /**
  * Asynchronously creates all non-existing subdirectories for a given file path
@@ -32,10 +33,30 @@ export async function createDirectoriesForFile(filePath: string): Promise<string
 }
 
 /**
- * Helper function to check if a path exists.
- *
- * @param path - The path to check.
- * @returns A promise that resolves to true if the path exists, false otherwise.
+ * Safely reads a configuration file with size checking
+ * @param filePath Path to the configuration file
+ * @param contextWindow Context window limit in tokens
+ * @returns The file contents as a string
+ */
+export async function readConfigFile(filePath: string, contextWindow: number): Promise<string> {
+	return await extractTextFromFile(filePath, contextWindow)
+}
+
+/**
+ * Safely reads and parses a JSON configuration file
+ * @param filePath Path to the JSON configuration file
+ * @param contextWindow Context window limit in tokens
+ * @returns The parsed configuration object
+ */
+export async function readJsonConfigFile<T>(filePath: string, contextWindow: number): Promise<T> {
+	const content = await readConfigFile(filePath, contextWindow)
+	return JSON.parse(content) as T
+}
+
+/**
+ * Helper function to check if a path exists
+ * @param filePath The path to check
+ * @returns A promise that resolves to true if the path exists, false otherwise
  */
 export async function fileExistsAtPath(filePath: string): Promise<boolean> {
 	try {

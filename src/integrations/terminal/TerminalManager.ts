@@ -3,6 +3,7 @@ import * as vscode from "vscode"
 import { arePathsEqual } from "../../utils/path"
 import { mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
 import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
+import { extractTextFromTerminal } from "../../integrations/misc/extract-text"
 
 /*
 TerminalManager:
@@ -109,7 +110,7 @@ export class TerminalManager {
 		}
 	}
 
-	runCommand(terminalInfo: TerminalInfo, command: string, contextLimit?: number): TerminalProcessResultPromise {
+	runCommand(terminalInfo: TerminalInfo, command: string, contextLimit: number): TerminalProcessResultPromise {
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 		const process = new TerminalProcess()
@@ -156,7 +157,7 @@ export class TerminalManager {
 		return mergePromise(process, promise)
 	}
 
-	async getOrCreateTerminal(cwd: string): Promise<TerminalInfo> {
+	async getOrCreateTerminal(cwd: string, contextLimit: number): Promise<TerminalInfo> {
 		const terminals = TerminalRegistry.getAllTerminals()
 
 		// Find available terminal from our pool first (created for this task)
@@ -179,7 +180,7 @@ export class TerminalManager {
 		const availableTerminal = terminals.find((t) => !t.busy)
 		if (availableTerminal) {
 			// Navigate back to the desired directory
-			await this.runCommand(availableTerminal, `cd "${cwd}"`)
+			await this.runCommand(availableTerminal, `cd "${cwd}"`, contextLimit)
 			this.terminalIds.add(availableTerminal.id)
 			return availableTerminal
 		}
@@ -197,12 +198,19 @@ export class TerminalManager {
 			.map((t) => ({ id: t.id, lastCommand: t.lastCommand }))
 	}
 
-	getUnretrievedOutput(terminalId: number): string {
+	async getUnretrievedOutput(terminalId: number, contextLimit: number): Promise<string> {
 		if (!this.terminalIds.has(terminalId)) {
 			return ""
 		}
 		const process = this.processes.get(terminalId)
-		return process ? process.getUnretrievedOutput() : ""
+		if (!process) {
+			return ""
+		}
+		const output = process.getUnretrievedOutput()
+		if (!output) {
+			return ""
+		}
+		return await extractTextFromTerminal(output, contextLimit, `Terminal ${terminalId} output`)
 	}
 
 	isProcessHot(terminalId: number): boolean {

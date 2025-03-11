@@ -1,7 +1,7 @@
 import { stat } from "fs/promises"
 
-// Rough approximation: 1 token ≈ 4 characters for English text
-const CHARS_PER_TOKEN = 4
+// Rough approximation: 1 token ≈ 2 characters for English text
+const CHARS_PER_TOKEN = 2
 
 export interface SizeEstimate {
 	bytes: number
@@ -21,9 +21,10 @@ export function estimateTokens(bytes: number): number {
  * Checks if the given byte count would exceed the size limit
  * More efficient than creating a buffer just to check size
  */
-export function wouldExceedSizeLimit(byteCount: number, contextLimit: number): boolean {
+export function wouldExceedSizeLimit(byteCount: number, maxAllowedSize: number): boolean {
 	const estimatedTokenCount = estimateTokens(byteCount)
-	return estimatedTokenCount >= getMaxAllowedSize(contextLimit)
+	console.log(`[WOULD_EXCEED_SIZE_CHECK] Estimated Token Count: ${estimatedTokenCount} tokens`)
+	return estimatedTokenCount >= maxAllowedSize
 }
 
 /**
