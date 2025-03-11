@@ -28,7 +28,6 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 				baseUrl: this.options.googleGeminiBaseUrl || undefined,
 			},
 		)
-
 		const result = await model.generateContentStream({
 			contents: messages.map(convertAnthropicMessageToGemini),
 			generationConfig: {

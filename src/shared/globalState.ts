@@ -59,6 +59,7 @@ export const GLOBAL_STATE_KEYS = [
 	"openRouterModelInfo",
 	"openRouterBaseUrl",
 	"openRouterUseMiddleOutTransform",
+	"googleGeminiBaseUrl",
 	"allowedCommands",
 	"soundEnabled",
 	"soundVolume",

@@ -116,6 +116,7 @@ export const API_CONFIG_KEYS: GlobalStateKey[] = [
 	"lmStudioBaseUrl",
 	"lmStudioDraftModelId",
 	"lmStudioSpeculativeDecodingEnabled",
+	"googleGeminiBaseUrl",
 	"mistralCodestralUrl",
 	"azureApiVersion",
 	"openRouterUseMiddleOutTransform",
