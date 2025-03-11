@@ -6,7 +6,6 @@ import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels
 import { ApiStream } from "../transform/stream"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
-import { convertToR1Format } from "../transform/r1-format"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -250,7 +249,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	/**
-	 * Creates a message using the Deepseek model through AWS Bedrock
+	 * Creates a message using the Deepseek R1 model through AWS Bedrock
 	 */
 	private async *createDeepseekMessage(
 		systemPrompt: string,
@@ -261,16 +260,16 @@ export class AwsBedrockHandler implements ApiHandler {
 		// Get Bedrock client with proper credentials
 		const client = await this.getBedrockClient()
 
-		// Format messages for Deepseek
-		const formattedMessages = this.formatDeepseekMessages(systemPrompt, messages)
+		// Format prompt for DeepSeek R1 according to documentation
+		const formattedPrompt = this.formatDeepseekR1Prompt(systemPrompt, messages)
 
-		// Prepare the request
+		// Prepare the request based on DeepSeek R1's expected format
 		const command = new InvokeModelWithResponseStreamCommand({
 			modelId: modelId,
 			contentType: "application/json",
 			accept: "application/json",
 			body: JSON.stringify({
-				messages: formattedMessages,
+				prompt: formattedPrompt,
 				max_tokens: model.info.maxTokens || 8000,
 				temperature: 0,
 			}),
@@ -304,8 +303,31 @@ export class AwsBedrockHandler implements ApiHandler {
 							}
 						}
 
-						// Extract text content from the response
-						if (parsedChunk.delta?.text) {
+						// Handle DeepSeek R1 response format
+						if (parsedChunk.choices && parsedChunk.choices.length > 0) {
+							// For non-streaming response (full response)
+							const text = parsedChunk.choices[0].text
+							if (text) {
+								const chunkTokens = this.estimateTokenCount(text)
+								outputTokens += chunkTokens
+								accumulatedTokens += chunkTokens
+
+								yield {
+									type: "text",
+									text: text,
+								}
+
+								if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
+									yield {
+										type: "usage",
+										inputTokens: 0,
+										outputTokens: accumulatedTokens,
+									}
+									accumulatedTokens = 0
+								}
+							}
+						} else if (parsedChunk.delta?.text) {
+							// For streaming response (delta updates)
 							const text = parsedChunk.delta.text
 							const chunkTokens = this.estimateTokenCount(text)
 							outputTokens += chunkTokens
@@ -315,27 +337,6 @@ export class AwsBedrockHandler implements ApiHandler {
 								type: "text",
 								text: text,
 							}
-
-							// Report aggregated token usage only when threshold is reached
-							if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
-								yield {
-									type: "usage",
-									inputTokens: 0,
-									outputTokens: accumulatedTokens,
-								}
-								accumulatedTokens = 0
-							}
-						} else if (parsedChunk.delta?.content) {
-							const text = parsedChunk.delta.content
-							const chunkTokens = this.estimateTokenCount(text)
-							outputTokens += chunkTokens
-							accumulatedTokens += chunkTokens
-
-							yield {
-								type: "text",
-								text: text,
-							}
-
 							// Report aggregated token usage only when threshold is reached
 							if (accumulatedTokens >= TOKEN_REPORT_THRESHOLD) {
 								yield {
@@ -369,14 +370,35 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	/**
-	 * Formats messages for the Deepseek model
+	 * Formats prompt for DeepSeek R1 model according to documentation
 	 */
-	private formatDeepseekMessages(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]) {
-		// Start with system message if provided
-		const messagesWithSystem = systemPrompt ? [{ role: "user" as const, content: systemPrompt }, ...messages] : messages
+	private formatDeepseekR1Prompt(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): string {
+		// Combine all messages into a single prompt string
+		let combinedContent = ""
 
-		// Use the r1-format utility to format messages correctly
-		return convertToR1Format(messagesWithSystem)
+		// Add system prompt if provided
+		if (systemPrompt) {
+			combinedContent += systemPrompt + "\n\n"
+		}
+
+		// Add all messages
+		for (const message of messages) {
+			if (typeof message.content === "string") {
+				combinedContent +=
+					message.role === "user" ? "User: " + message.content + "\n" : "Assistant: " + message.content + "\n"
+			} else if (Array.isArray(message.content)) {
+				// Extract text content from message parts
+				const textParts = message.content
+					.filter((part) => part.type === "text")
+					.map((part) => (part.type === "text" ? part.text : ""))
+					.join("\n")
+
+				combinedContent += message.role === "user" ? "User: " + textParts + "\n" : "Assistant: " + textParts + "\n"
+			}
+		}
+
+		// Format according to DeepSeek R1's expected prompt format
+		return `<｜begin▁of▁sentence｜><｜User｜>${combinedContent}<｜Assistant｜><think>\n`
 	}
 
 	/**
