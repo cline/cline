@@ -6,6 +6,10 @@ import { DiffResult, DiffStrategy } from "../../types"
 export class NewUnifiedDiffStrategy implements DiffStrategy {
 	private readonly confidenceThreshold: number
 
+	getName(): string {
+		return "NewUnified"
+	}
+
 	constructor(confidenceThreshold: number = 1) {
 		this.confidenceThreshold = Math.max(confidenceThreshold, 0.8)
 	}

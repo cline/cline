@@ -33,6 +33,10 @@ export class MultiSearchReplaceDiffStrategy implements DiffStrategy {
 	private fuzzyThreshold: number
 	private bufferLines: number
 
+	getName(): string {
+		return "MultiSearchReplace"
+	}
+
 	constructor(fuzzyThreshold?: number, bufferLines?: number) {
 		// Use provided threshold or default to exact matching (1.0)
 		// Note: fuzzyThreshold is inverted in UI (0% = 1.0, 10% = 0.9)

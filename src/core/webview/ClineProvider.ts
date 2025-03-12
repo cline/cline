@@ -2704,6 +2704,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
+		if (currentCline?.diffStrategy) {
+			properties.diffStrategy = currentCline.diffStrategy.getName()
+		}
+
 		return properties
 	}
 }
