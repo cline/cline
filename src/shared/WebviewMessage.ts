@@ -64,7 +64,6 @@ export interface WebviewMessage {
 		| "toggleMcpServer"
 		| "updateMcpTimeout"
 		| "fuzzyMatchThreshold"
-		| "preferredLanguage"
 		| "writeDelayMs"
 		| "enhancePrompt"
 		| "enhancedPrompt"

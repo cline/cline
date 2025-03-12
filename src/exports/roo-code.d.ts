@@ -164,7 +164,6 @@ export type GlobalStateKey =
 	| "screenshotQuality"
 	| "remoteBrowserHost"
 	| "fuzzyMatchThreshold"
-	| "preferredLanguage" // Language setting for Cline's communication
 	| "writeDelayMs"
 	| "terminalOutputLineLimit"
 	| "mcpEnabled"

@@ -70,6 +70,7 @@ import { truncateConversationIfNeeded } from "./sliding-window"
 import { ClineProvider } from "./webview/ClineProvider"
 import { detectCodeOmission } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
+import { formatLanguage } from "../shared/language"
 import { McpHub } from "../services/mcp/McpHub"
 import crypto from "crypto"
 import { insertGroups } from "./diff/insert-groups"
@@ -1102,7 +1103,6 @@ export class Cline {
 			browserViewportSize,
 			mode,
 			customModePrompts,
-			preferredLanguage,
 			experiments,
 			enableMcpServerCreation,
 			browserToolEnabled,
@@ -1124,7 +1124,6 @@ export class Cline {
 				customModePrompts,
 				customModes,
 				this.customInstructions,
-				preferredLanguage,
 				this.diffEnabled,
 				experiments,
 				enableMcpServerCreation,
@@ -3665,13 +3664,12 @@ export class Cline {
 			customModePrompts,
 			experiments = {} as Record<ExperimentId, boolean>,
 			customInstructions: globalCustomInstructions,
-			preferredLanguage,
 		} = (await this.providerRef.deref()?.getState()) ?? {}
 		const currentMode = mode ?? defaultModeSlug
 		const modeDetails = await getFullModeDetails(currentMode, customModes, customModePrompts, {
 			cwd,
 			globalCustomInstructions,
-			preferredLanguage,
+			language: formatLanguage(vscode.env.language),
 		})
 		details += `\n\n# Current Mode\n`
 		details += `<slug>${currentMode}</slug>\n`
