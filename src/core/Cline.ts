@@ -1355,8 +1355,25 @@ export class Cline {
 			if (previousRequest && previousRequest.text) {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				let contextWindow = this.api.getModel().info.contextWindow || 64_000 // minimum context (Deepseek)
-				const maxAllowedSize = getMaxAllowedSize(contextWindow)
+				let contextWindow = this.api.getModel().info.contextWindow || 128_000
+				// FIXME: hack to get anyone using openai compatible with deepseek to have the proper context window instead of the default 128k. We need a way for the user to specify the context window for models they input through openai compatible
+				if (this.api instanceof OpenAiHandler && this.api.getModel().id.toLowerCase().includes("deepseek")) {
+					contextWindow = 64_000
+				}
+				let maxAllowedSize: number
+				switch (contextWindow) {
+					case 64_000: // deepseek models
+						maxAllowedSize = contextWindow - 27_000
+						break
+					case 128_000: // most models
+						maxAllowedSize = contextWindow - 30_000
+						break
+					case 200_000: // claude models
+						maxAllowedSize = contextWindow - 40_000
+						break
+					default:
+						maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8) // for deepseek, 80% of 64k meant only ~10k buffer which was too small and resulted in users getting context window errors.
+				}
 
 				// This is the most reliable way to know when we're close to hitting the context window.
 				if (totalTokens >= maxAllowedSize) {
@@ -2000,17 +2017,15 @@ export class Cline {
 									}
 									telemetryService.captureToolUsage(this.taskId, block.name, false, true)
 								}
-								// Get context window and used context from API model
-								const contextWindow = this.api.getModel().info.contextWindow
-
-								// Pass the raw context window size - extractTextFromFile will calculate the appropriate limit
-								const content = await extractTextFromFile(absolutePath, contextWindow)
+								// now execute the tool like normal
+								const content = await extractTextFromFile(absolutePath)
 								pushToolResult(content)
 
 								break
 							}
 						} catch (error) {
 							await handleError("reading file", error)
+
 							break
 						}
 					}
@@ -3456,10 +3471,9 @@ export class Cline {
 							block.text.includes("<task>") ||
 							block.text.includes("<user_message>")
 						) {
-							let contextWindow = this.api.getModel().info.contextWindow
 							return {
 								...block,
-								text: await parseMentions(block.text, cwd, this.urlContentFetcher, contextWindow),
+								text: await parseMentions(block.text, cwd, this.urlContentFetcher),
 							}
 						}
 					}
@@ -3564,12 +3578,11 @@ export class Cline {
 				}
 			}
 		}
-
 		// only show inactive terminals if there's output to show
 		if (inactiveTerminals.length > 0) {
 			const inactiveTerminalOutputs = new Map<number, string>()
 			for (const inactiveTerminal of inactiveTerminals) {
-				const newOutput = await this.terminalManager.getUnretrievedOutput(inactiveTerminal.id)
+				const newOutput = this.terminalManager.getUnretrievedOutput(inactiveTerminal.id)
 				if (newOutput) {
 					inactiveTerminalOutputs.set(inactiveTerminal.id, newOutput)
 				}

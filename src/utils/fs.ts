@@ -1,6 +1,5 @@
 import fs from "fs/promises"
 import * as path from "path"
-import { extractTextFromFile } from "../integrations/misc/extract-text"
 
 /**
  * Asynchronously creates all non-existing subdirectories for a given file path
@@ -33,37 +32,10 @@ export async function createDirectoriesForFile(filePath: string): Promise<string
 }
 
 /**
- * Safely reads a configuration file with size checking
- * @param filePath Path to the configuration file
- * @param contextWindow Context window limit in tokens
- * @returns The file contents as a string
- */
-export async function readConfigFile(filePath: string, contextWindow: number): Promise<string> {
-	return await extractTextFromFile(filePath, contextWindow)
-}
-
-/**
- * Safely reads and parses a JSON configuration file
- * @param filePath Path to the JSON configuration file
- * @param contextWindow Context window limit in tokens
- * @returns The parsed configuration object
- */
-export async function readJsonConfigFile<T>(filePath: string, contextWindow: number): Promise<T> {
-	try {
-		const content = await readConfigFile(filePath, contextWindow)
-		return JSON.parse(content) as T
-	} catch (error) {
-		if (error instanceof SyntaxError) {
-			throw new Error(`Invalid JSON in config file ${filePath}: ${error.message}`, { cause: error })
-		}
-		throw new Error(`Failed to read config file ${filePath}: ${error instanceof Error ? error.message : String(error)}`)
-	}
-}
-
-/**
- * Helper function to check if a path exists
- * @param filePath The path to check
- * @returns A promise that resolves to true if the path exists, false otherwise
+ * Helper function to check if a path exists.
+ *
+ * @param path - The path to check.
+ * @returns A promise that resolves to true if the path exists, false otherwise.
  */
 export async function fileExistsAtPath(filePath: string): Promise<boolean> {
 	try {
@@ -85,5 +57,20 @@ export async function isDirectory(filePath: string): Promise<boolean> {
 		return stats.isDirectory()
 	} catch {
 		return false
+	}
+}
+
+/**
+ * Gets the size of a file in kilobytes
+ * @param filePath - Path to the file to check
+ * @returns Promise<number> - Size of the file in KB, or 0 if file doesn't exist
+ */
+export async function getFileSizeInKB(filePath: string): Promise<number> {
+	try {
+		const stats = await fs.stat(filePath)
+		const fileSizeInKB = stats.size / 1000 // Convert bytes to KB (decimal) - matches OS file size display
+		return fileSizeInKB
+	} catch {
+		return 0
 	}
 }
