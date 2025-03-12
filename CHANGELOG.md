@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.6.5]
+
+-   Add 'Delete all Task History' button to History view
+-   Add toggle to disable model switching between Plan/Act modes in Settings (new users default to disabled)
+-   Add temperature option to OpenAI Compatible
+-   Add Kotlin support to tree-sitter parser (thanks @fumiya-kume!)
+
+## [3.6.3]
+
+-   Improve QwQ support for Alibaba (thanks @meglinge!) and OpenRouter
+-   Improve diff edit prompting to prevent immediately reverting to write_to_file when a model uses search patterns that don't match anything in the file
+-   Fix bug where new checkpoints system would revert file changes when switching between tasks
+-   Fix issue with incorrect token count for some OpenAI compatible providers
+
 ## [3.6.0]
 
 -   Add Cline API as a provider option, allowing new users to sign up and get started with Cline for free
