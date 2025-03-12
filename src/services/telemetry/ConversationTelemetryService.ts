@@ -15,6 +15,8 @@ export type TelemetryChatMessage = {
 
 import * as vscode from "vscode"
 
+const { IS_DEV } = process.env
+
 interface ConversationMetadata {
 	apiProvider: string
 	model: string
@@ -54,7 +56,7 @@ export class ConversationTelemetryService {
 		this.clineApiKey = clineApiKey
 
 		// Then initialize the tracer if needed
-		if (this.enabled && !this.tracer) {
+		if (this.enabled && !this.tracer && IS_DEV) {
 			this.initializeTracer()
 		}
 	}
@@ -111,7 +113,7 @@ export class ConversationTelemetryService {
 	 */
 	public captureMessage(taskId: string, message: TelemetryChatMessage, metadata: ConversationMetadata): void {
 		// Do NOT capture message if user has not explicitly opted in
-		if (!this.enabled || !this.tracer) {
+		if (!this.enabled || !this.tracer || !IS_DEV) {
 			return
 		}
 
