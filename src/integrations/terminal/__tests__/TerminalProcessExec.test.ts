@@ -253,7 +253,7 @@ describe("TerminalProcess with Real Command Output", () => {
 	})
 
 	it("should execute 'echo -n a' and return exactly 'a'", async () => {
-		const { executionTimeUs } = await testTerminalCommand("echo -n a", "a")
+		const { executionTimeUs } = await testTerminalCommand("/bin/echo -n a", "a")
 		console.log(
 			`'echo -n a' execution time: ${executionTimeUs} microseconds (${executionTimeUs / 1000} milliseconds)`,
 		)
@@ -275,9 +275,9 @@ describe("TerminalProcess with Real Command Output", () => {
 	})
 
 	// Configure the number of lines for the base64 test
-	const BASE64_TEST_LINES = 1000000
+	const BASE64_TEST_LINES = 1_000_000
 
-	it(`should execute 'base64 < /dev/zero | head -n ${BASE64_TEST_LINES}' and verify ${BASE64_TEST_LINES} lines of 'A's`, async () => {
+	it(`should execute 'yes AAA... | head -n ${BASE64_TEST_LINES}' and verify ${BASE64_TEST_LINES} lines of 'A's`, async () => {
 		// Create an expected output pattern that matches what base64 produces
 		// Each line is 76 'A's followed by a newline
 		const expectedOutput = Array(BASE64_TEST_LINES).fill("A".repeat(76)).join("\n") + "\n"
@@ -285,7 +285,7 @@ describe("TerminalProcess with Real Command Output", () => {
 		// This command will generate BASE64_TEST_LINES lines of base64 encoded zeros
 		// Each line will contain 76 'A' characters (base64 encoding of zeros)
 		const { executionTimeUs, capturedOutput } = await testTerminalCommand(
-			`base64 < /dev/zero | head -n ${BASE64_TEST_LINES}`,
+			`yes "${"A".repeat(76)}" | head -n ${BASE64_TEST_LINES}`,
 			expectedOutput,
 		)
 
