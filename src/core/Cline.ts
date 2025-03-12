@@ -62,7 +62,7 @@ import { ClineHandler } from "../api/providers/cline"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 import { telemetryService } from "../services/telemetry/TelemetryService"
-import { conversationTelemetryService } from "../services/telemetry/ConversationTelemetryService"
+import { conversationTelemetryService, TelemetryChatMessage } from "../services/telemetry/ConversationTelemetryService"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1358,10 +1358,10 @@ export class Cline {
 				tokensOut: 0,
 			}
 
-			const systemMessage = {
+			const systemMessage: TelemetryChatMessage = {
 				role: "system",
 				content: systemPrompt,
-				ts: 0, // Use 0 to indicate it's the system message that precedes all others
+				ts: Date.now(), // we dont uniquely identify system messages, so we use the timestamp as the id
 			}
 
 			conversationTelemetryService.captureMessage(this.taskId, systemMessage, metadata)

@@ -4,6 +4,15 @@ import { Resource } from "@opentelemetry/resources"
 import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base"
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
+
+import { Anthropic } from "@anthropic-ai/sdk"
+
+type TelemetryChatMessage = {
+	role: "user" | "assistant" | "system"
+	ts: number
+	content: Anthropic.Messages.MessageParam["content"]
+}
+
 import * as vscode from "vscode"
 
 interface ConversationMetadata {
@@ -95,7 +104,7 @@ export class ConversationTelemetryService {
 	 * Captures a message in the conversation as an OpenTelemetry span
 	 * ONLY HAPPENS IF USER IS OPTED INTO CONVERSATION TELEMETRY IN ADVANCED SETTINGS
 	 */
-	public captureMessage(taskId: string, message: any, metadata: ConversationMetadata): void {
+	public captureMessage(taskId: string, message: TelemetryChatMessage, metadata: ConversationMetadata): void {
 		// Do NOT capture message if user has not explicitly opted in
 		if (!this.enabled || !this.tracer) return
 
@@ -104,7 +113,7 @@ export class ConversationTelemetryService {
 			const traceId = this.generateTraceIdFromTimestamp(taskId)
 
 			// Convert message timestamp to a valid span ID (must be 16 hex chars)
-			if (!message.ts) {
+			if (!message.ts && message.ts !== 0) {
 				throw new Error("Message timestamp is required")
 			}
 
@@ -124,7 +133,7 @@ export class ConversationTelemetryService {
 				`message.${message.role}`,
 				{
 					kind: SpanKind.CLIENT,
-					startTime: timestamp * 1000000, // Convert to nanoseconds
+					startTime: this.millisecondsToHrTime(timestamp), // Convert to nanoseconds
 				},
 				spanContext,
 			)
@@ -139,6 +148,8 @@ export class ConversationTelemetryService {
 			span.setAttribute("message.timestamp", timestamp)
 			span.setAttribute("message.index", messageIndex)
 
+			const c = message.content
+
 			// Add Braintrust-compatible attributes
 			span.setAttribute("gen_ai.request.model", metadata.model)
 
@@ -148,14 +159,18 @@ export class ConversationTelemetryService {
 				span.setAttribute("gen_ai.completion", this.extractContent(message))
 				span.setAttribute("gen_ai.usage.prompt_tokens", metadata.tokensIn)
 				span.setAttribute("gen_ai.usage.completion_tokens", metadata.tokensOut)
+			} else if (message.role === "system") {
+				span.setAttribute("gen_ai.system_prompt", this.extractContent(message))
 			}
 
 			// Add custom metadata in Braintrust format
 			span.setAttribute("braintrust.metadata.api_provider", metadata.apiProvider)
+			span.setAttribute("braintrust.metadata.ts", message.ts)
 
 			// End the span immediately since messages are discrete events
-			span.end(timestamp * 1000000) // Convert to nanoseconds
+			span.end(this.millisecondsToHrTime(timestamp)) // Convert to nanoseconds
 
+			console.log(`>>>>>>>>>>>`, { message })
 			console.log(`Captured ${message.role} message for task ${taskId}`, { span })
 		} catch (error) {
 			console.error("Error capturing message:", error)
@@ -172,6 +187,17 @@ export class ConversationTelemetryService {
 	}
 
 	/**
+	 * Converts milliseconds to high-resolution time format expected by OpenTelemetry
+	 * Returns [seconds, nanoseconds]
+	 */
+	private millisecondsToHrTime(milliseconds: number): [number, number] {
+		return [
+			Math.floor(milliseconds / 1000), // seconds
+			(milliseconds % 1000) * 1000000, // nanoseconds (remainder in ms * 10^6)
+		]
+	}
+
+	/**
 	 * Convert a decimal timestamp to a valid span ID (16 hex chars)
 	 */
 	private generateSpanIdFromTimestamp(timestamp: number): string {
@@ -183,16 +209,15 @@ export class ConversationTelemetryService {
 	/**
 	 * Helper to extract content from different message formats
 	 */
-	private extractContent(message: any): string {
+	private extractContent(message: TelemetryChatMessage): string {
 		if (typeof message.content === "string") {
 			return message.content
-		} else if (Array.isArray(message.content)) {
-			return message.content
-				.filter((block: any) => block.type === "text")
-				.map((block: any) => block.text)
-				.join("\n")
 		}
-		return ""
+
+		return message.content
+			.map((block) => (block.type === "text" ? block.text : null))
+			.filter(Boolean)
+			.join("\n")
 	}
 
 	/**
