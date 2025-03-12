@@ -995,6 +995,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "vertex":
 					case "gemini":
 					case "asksage":
+					case "openai-native":
 					case "qwen":
 					case "deepseek":
 						await this.updateGlobalState("apiModelId", newModelId)
