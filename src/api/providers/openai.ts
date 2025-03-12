@@ -14,6 +14,7 @@ import { convertToR1Format } from "../transform/r1-format"
 import { convertToSimpleMessages } from "../transform/simple-format"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { BaseProvider } from "./base-provider"
+import { XmlMatcher } from "../../utils/xml-matcher"
 
 const DEEP_SEEK_DEFAULT_TEMPERATURE = 0.6
 
@@ -134,15 +135,23 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 
 			const stream = await this.client.chat.completions.create(requestOptions)
 
+			const matcher = new XmlMatcher(
+				"think",
+				(chunk) =>
+					({
+						type: chunk.matched ? "reasoning" : "text",
+						text: chunk.data,
+					}) as const,
+			)
+
 			let lastUsage
 
 			for await (const chunk of stream) {
 				const delta = chunk.choices[0]?.delta ?? {}
 
 				if (delta.content) {
-					yield {
-						type: "text",
-						text: delta.content,
+					for (const chunk of matcher.update(delta.content)) {
+						yield chunk
 					}
 				}
 
@@ -155,6 +164,9 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 				if (chunk.usage) {
 					lastUsage = chunk.usage
 				}
+			}
+			for (const chunk of matcher.final()) {
+				yield chunk
 			}
 
 			if (lastUsage) {
