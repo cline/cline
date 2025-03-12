@@ -3163,7 +3163,12 @@ export class Cline {
 				ts: lastClineMessage.ts,
 			}
 
+			// Send individual message to telemetry
 			conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
+
+			// Send entire conversation history to cleanup endpoint
+			// This ensures deleted messages are properly handled in telemetry
+			conversationTelemetryService.cleanupTask(this.taskId, this.apiConversationHistory)
 		}
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message

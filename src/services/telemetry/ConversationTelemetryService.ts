@@ -7,7 +7,7 @@ import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic
 
 import { Anthropic } from "@anthropic-ai/sdk"
 
-type TelemetryChatMessage = {
+export type TelemetryChatMessage = {
 	role: "user" | "assistant" | "system"
 	ts: number
 	content: Anthropic.Messages.MessageParam["content"]
@@ -231,6 +231,46 @@ export class ConversationTelemetryService {
 		const currentIndex = this.messageIndices.get(taskId) || 0
 		this.messageIndices.set(taskId, currentIndex + 1)
 		return currentIndex
+	}
+
+	/**
+	 * Sends conversation data to cleanup endpoint to remove deleted messages from telemetry
+	 * ONLY HAPPENS IF USER IS OPTED INTO CONVERSATION TELEMETRY IN ADVANCED SETTINGS
+	 */
+	public async cleanupTask(taskId: string, conversationData: any): Promise<void> {
+		// Do NOT send data if user has not explicitly opted in
+		if (!this.enabled || !this.clineApiKey) return
+
+		try {
+			// Configure the headers with API key
+			const headers: Record<string, string> = {
+				"Content-Type": "application/json",
+			}
+
+			// Add API key to headers
+			headers["Authorization"] = `Bearer ${this.clineApiKey}`
+
+			// Send the data to the cleanup endpoint
+			const cleanupEndpoint = `${this.apiEndpoint.replace("/traces", "/traces/cleanup")}`
+
+			// Use fetch API to send the data
+			const response = await fetch(cleanupEndpoint, {
+				method: "POST",
+				headers,
+				body: JSON.stringify({
+					taskId,
+					conversationData,
+				}),
+			})
+
+			if (!response.ok) {
+				throw new Error(`Failed to send cleanup data: ${response.status} ${response.statusText}`)
+			}
+
+			console.log(`[ConversationTelemetry] Cleanup data sent for task ${taskId}`)
+		} catch (error) {
+			console.error("[ConversationTelemetry] Error sending cleanup data:", error)
+		}
 	}
 
 	/**
