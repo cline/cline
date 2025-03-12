@@ -580,6 +580,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
 						</VSCodeDropdown>
 					</DropdownContainer>
+					<VSCodeTextField
+						value={apiConfiguration?.awsBedrockEndpoint || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("awsBedrockEndpoint")}
+						placeholder="Enter VPC Endpoint URL (optional)">
+						<span style={{ fontWeight: 500 }}>AWS Bedrock VPC Endpoint</span>
+					</VSCodeTextField>
 					<div style={{ display: "flex", flexDirection: "column" }}>
 						<VSCodeCheckbox
 							checked={apiConfiguration?.awsUseCrossRegionInference || false}
