@@ -30,6 +30,7 @@ import {
 import { TOOL_GROUPS, GROUP_DISPLAY_NAMES, ToolGroup } from "../../../../src/shared/tool-groups"
 import { vscode } from "../../utils/vscode"
 import { Tab, TabContent, TabHeader } from "../common/Tab"
+import i18next from "i18next"
 
 // Get all available groups that should show in prompts view
 const availableGroups = (Object.keys(TOOL_GROUPS) as ToolGroup[]).filter((group) => !TOOL_GROUPS[group].alwaysAvailable)
@@ -409,49 +410,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 			</TabHeader>
 
 			<TabContent>
-				<div className="pb-5 border-b border-vscode-input-border">
-					<div className="font-bold mb-1">Custom Instructions for All Modes</div>
-					<div className="text-sm text-vscode-descriptionForeground mb-2">
-						These instructions apply to all modes. They provide a base set of behaviors that can be enhanced
-						by mode-specific instructions below.
-					</div>
-					<VSCodeTextArea
-						value={customInstructions ?? ""}
-						onChange={(e) => {
-							const value =
-								(e as CustomEvent)?.detail?.target?.value ||
-								((e as any).target as HTMLTextAreaElement).value
-							setCustomInstructions(value || undefined)
-							vscode.postMessage({
-								type: "customInstructions",
-								text: value.trim() || undefined,
-							})
-						}}
-						rows={4}
-						resize="vertical"
-						className="w-full"
-						data-testid="global-custom-instructions-textarea"
-					/>
-					<div className="text-xs text-vscode-descriptionForeground mt-1.5 mb-10">
-						Instructions can also be loaded from{" "}
-						<span
-							className="text-vscode-textLink-foreground cursor-pointer underline"
-							onClick={() =>
-								vscode.postMessage({
-									type: "openFile",
-									text: "./.clinerules",
-									values: {
-										create: true,
-										content: "",
-									},
-								})
-							}>
-							.clinerules
-						</span>{" "}
-						in your workspace.
-					</div>
-				</div>
-				<div className="mt-5">
+				<div>
 					<div onClick={(e) => e.stopPropagation()} className="flex justify-between items-center mb-3">
 						<h3 className="text-vscode-foreground m-0">Modes</h3>
 						<div className="flex gap-2">
@@ -882,8 +841,37 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 						</VSCodeButton>
 					</div>
 
+					{/*
+						NOTE: This setting is placed in PromptsView rather than SettingsView since it
+						directly affects the functionality related to modes and custom mode creation,
+						which are managed in this component. This is an intentional deviation from
+						the standard pattern described in cline_docs/settings.md.
+					*/}
+					<div className="mt-12">
+						<VSCodeCheckbox
+							checked={enableCustomModeCreation ?? true}
+							onChange={(e: any) => {
+								// Just update the local state through React context
+								// The React context will update the global state
+								setEnableCustomModeCreation(e.target.checked)
+							}}>
+							<span style={{ fontWeight: "500" }}>Enable Custom Mode Creation Through Prompts</span>
+						</VSCodeCheckbox>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							When enabled, Roo allows you to create custom modes using prompts like ‘Make me a custom
+							mode that…’. Disabling this reduces your system prompt by about 700 tokens when this feature
+							isn’t needed. When disabled you can still manually create custom modes using the + button
+							above or by editing the related config JSON.
+						</p>
+					</div>
+
 					{/* Custom System Prompt Disclosure */}
-					<div className="mb-3 mt-12">
+					<div className="mt-12">
 						<button
 							onClick={() => setIsSystemPromptDisclosureOpen(!isSystemPromptDisclosureOpen)}
 							className="flex items-center text-xs text-vscode-foreground hover:text-vscode-textLink-foreground focus:outline-none"
@@ -920,34 +908,54 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							</div>
 						)}
 					</div>
+				</div>
 
-					{/*
-			NOTE: This setting is placed in PromptsView rather than SettingsView since it
-			directly affects the functionality related to modes and custom mode creation,
-			which are managed in this component. This is an intentional deviation from
-			the standard pattern described in cline_docs/settings.md.
-	*/}
-					<div className="mb-4 mt-4">
-						<VSCodeCheckbox
-							checked={enableCustomModeCreation ?? true}
-							onChange={(e: any) => {
-								// Just update the local state through React context
-								// The React context will update the global state
-								setEnableCustomModeCreation(e.target.checked)
-							}}>
-							<span style={{ fontWeight: "500" }}>Enable Custom Mode Creation Through Prompts</span>
-						</VSCodeCheckbox>
-						<p
-							style={{
-								fontSize: "12px",
-								marginTop: "5px",
-								color: "var(--vscode-descriptionForeground)",
-							}}>
-							When enabled, Roo allows you to create custom modes using prompts like ‘Make me a custom
-							mode that…’. Disabling this reduces your system prompt by about 700 tokens when this feature
-							isn’t needed. When disabled you can still manually create custom modes using the + button
-							above or by editing the related config JSON.
-						</p>
+				<div className="pb-5 border-b border-vscode-input-border">
+					<h3 style={{ color: "var(--vscode-foreground)", marginBottom: "12px" }}>
+						Custom Instructions for All Modes
+					</h3>
+
+					<div className="text-sm text-vscode-descriptionForeground mb-2">
+						These instructions apply to all modes. They provide a base set of behaviors that can be enhanced
+						by mode-specific instructions below.
+						<br />
+						If you would like Roo to think and speak in a different language than your editor display
+						language ({i18next.language}), you can specify it here.
+					</div>
+					<VSCodeTextArea
+						value={customInstructions ?? ""}
+						onChange={(e) => {
+							const value =
+								(e as CustomEvent)?.detail?.target?.value ||
+								((e as any).target as HTMLTextAreaElement).value
+							setCustomInstructions(value || undefined)
+							vscode.postMessage({
+								type: "customInstructions",
+								text: value.trim() || undefined,
+							})
+						}}
+						rows={4}
+						resize="vertical"
+						className="w-full"
+						data-testid="global-custom-instructions-textarea"
+					/>
+					<div className="text-xs text-vscode-descriptionForeground mt-1.5 mb-10">
+						Instructions can also be loaded from{" "}
+						<span
+							className="text-vscode-textLink-foreground cursor-pointer underline"
+							onClick={() =>
+								vscode.postMessage({
+									type: "openFile",
+									text: "./.clinerules",
+									values: {
+										create: true,
+										content: "",
+									},
+								})
+							}>
+							.clinerules
+						</span>{" "}
+						in your workspace.
 					</div>
 				</div>
 

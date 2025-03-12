@@ -16,7 +16,6 @@ function getEditingInstructions(diffStrategy?: DiffStrategy, experiments?: Recor
 	} else {
 		availableTools.push("write_to_file (for creating new files or complete file rewrites)")
 	}
-
 	if (experiments?.["insert_content"]) {
 		availableTools.push("insert_content (for adding lines to existing files)")
 	}

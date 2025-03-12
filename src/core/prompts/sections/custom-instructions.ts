@@ -47,7 +47,9 @@ export async function addCustomInstructions(
 
 	// Add language preference if provided
 	if (options.language) {
-		sections.push(`Language Preference:\nYou should always speak and think in the "${options.language}" language.`)
+		sections.push(
+			`Language Preference:\nYou should always speak and think in the "${options.language}" language unless the user gives you instructions below to do otherwise.`,
+		)
 	}
 
 	// Add global instructions first

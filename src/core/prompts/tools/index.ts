@@ -61,15 +61,13 @@ export function getToolDescriptionsForMode(
 
 	const tools = new Set<string>()
 
-	const experimentSettings = experiments ?? {}
-
 	// Add tools from mode's groups
 	config.groups.forEach((groupEntry) => {
 		const groupName = getGroupName(groupEntry)
 		const toolGroup = TOOL_GROUPS[groupName]
 		if (toolGroup) {
 			toolGroup.tools.forEach((tool) => {
-				if (isToolAllowedForMode(tool as ToolName, mode, customModes ?? [], experimentSettings)) {
+				if (isToolAllowedForMode(tool as ToolName, mode, customModes ?? [], experiments ?? {})) {
 					tools.add(tool)
 				}
 			})

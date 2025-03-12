@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode, useEffect } from "react"
+import React, { createContext, useContext, ReactNode, useEffect, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import i18next, { loadTranslations } from "./setup"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -32,12 +32,18 @@ export const TranslationProvider: React.FC<{ children: ReactNode }> = ({ childre
 		i18n.changeLanguage(extensionState.language)
 	}, [i18n, extensionState.language])
 
+	// Memoize the translation function to prevent unnecessary re-renders
+	const translate = useCallback(
+		(key: string, options?: Record<string, any>) => {
+			return i18n.t(key, options)
+		},
+		[i18n],
+	)
+
 	return (
 		<TranslationContext.Provider
 			value={{
-				t: (key: string, options?: Record<string, any>) => {
-					return i18n.t(key, options)
-				},
+				t: translate,
 				i18n,
 			}}>
 			{children}

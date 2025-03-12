@@ -39,7 +39,7 @@ async function generatePrompt(
 	customModeConfigs?: ModeConfig[],
 	globalCustomInstructions?: string,
 	diffEnabled?: boolean,
-	experiments?: Record<string, boolean> | boolean | undefined,
+	experiments?: Record<string, boolean>,
 	enableMcpServerCreation?: boolean,
 	rooIgnoreInstructions?: string,
 ): Promise<string> {
@@ -61,12 +61,6 @@ async function generatePrompt(
 			: Promise.resolve(""),
 	])
 
-	// Convert experiments to an object if it's a boolean
-	const experimentSettings =
-		typeof experiments === "boolean"
-			? {} // Empty object if experiments is just a boolean
-			: (experiments ?? {})
-
 	const basePrompt = `${roleDefinition}
 
 ${getSharedToolUseSection()}
@@ -79,7 +73,7 @@ ${getToolDescriptionsForMode(
 	browserViewportSize,
 	mcpHub,
 	customModeConfigs,
-	experimentSettings,
+	experiments,
 )}
 
 ${getToolUseGuidelinesSection()}
@@ -90,7 +84,7 @@ ${getCapabilitiesSection(cwd, supportsComputerUse, mcpHub, effectiveDiffStrategy
 
 ${modesSection}
 
-${getRulesSection(cwd, supportsComputerUse, effectiveDiffStrategy, experimentSettings)}
+${getRulesSection(cwd, supportsComputerUse, effectiveDiffStrategy, experiments)}
 
 ${getSystemInfoSection(cwd, mode, customModeConfigs)}
 
@@ -113,7 +107,7 @@ export const SYSTEM_PROMPT = async (
 	customModes?: ModeConfig[],
 	globalCustomInstructions?: string,
 	diffEnabled?: boolean,
-	experiments?: Record<string, boolean> | boolean | undefined,
+	experiments?: Record<string, boolean>,
 	enableMcpServerCreation?: boolean,
 	rooIgnoreInstructions?: string,
 ): Promise<string> => {
@@ -157,11 +151,6 @@ ${customInstructions}`
 
 	// If diff is disabled, don't pass the diffStrategy
 	const effectiveDiffStrategy = diffEnabled ? diffStrategy : undefined
-	// Convert experiments to an object if it's a boolean
-	const experimentSettings =
-		typeof experiments === "boolean"
-			? {} // Empty object if experiments is just a boolean
-			: (experiments ?? {})
 
 	return generatePrompt(
 		context,
@@ -175,7 +164,7 @@ ${customInstructions}`
 		customModes,
 		globalCustomInstructions,
 		diffEnabled,
-		experimentSettings,
+		experiments,
 		enableMcpServerCreation,
 		rooIgnoreInstructions,
 	)
