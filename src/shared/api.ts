@@ -246,6 +246,8 @@ export interface MessageContent {
 
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0"
+// March, 12 2025 - updated prices to match US-West-2 list price shown at https://aws.amazon.com/bedrock/pricing/
+// including older models that are part of the default prompt routers AWS enabled for GA of the promot router feature
 export const bedrockModels = {
 	"amazon.nova-pro-v1:0": {
 		maxTokens: 5000,
@@ -258,6 +260,18 @@ export const bedrockModels = {
 		cacheWritesPrice: 0.8, // per million tokens
 		cacheReadsPrice: 0.2, // per million tokens
 	},
+	"amazon.nova-pro-latency-optimized-v1:0": {
+		maxTokens: 5000,
+		contextWindow: 300_000,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 4.0,
+		cacheWritesPrice: 1.0, // per million tokens
+		cacheReadsPrice: 0.25, // per million tokens
+		description: "Amazon Nova Pro with latency optimized inference",
+	},
 	"amazon.nova-lite-v1:0": {
 		maxTokens: 5000,
 		contextWindow: 300_000,
@@ -265,7 +279,7 @@ export const bedrockModels = {
 		supportsComputerUse: false,
 		supportsPromptCache: false,
 		inputPrice: 0.06,
-		outputPrice: 0.024,
+		outputPrice: 0.24,
 		cacheWritesPrice: 0.06, // per million tokens
 		cacheReadsPrice: 0.015, // per million tokens
 	},
@@ -307,8 +321,8 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 1.0,
-		outputPrice: 5.0,
+		inputPrice: 0.8,
+		outputPrice: 4.0,
 		cacheWritesPrice: 1.0,
 		cacheReadsPrice: 0.08,
 	},
@@ -344,6 +358,33 @@ export const bedrockModels = {
 		inputPrice: 0.25,
 		outputPrice: 1.25,
 	},
+	"anthropic.claude-2-1-v1:0": {
+		maxTokens: 4096,
+		contextWindow: 100_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 8.0,
+		outputPrice: 24.0,
+		description: "Claude 2.1",
+	},
+	"anthropic.claude-2-0-v1:0": {
+		maxTokens: 4096,
+		contextWindow: 100_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 8.0,
+		outputPrice: 24.0,
+		description: "Claude 2.0",
+	},
+	"anthropic.claude-instant-v1:0": {
+		maxTokens: 4096,
+		contextWindow: 100_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 2.4,
+		description: "Claude Instant",
+	},
 	"deepseek.r1-v1:0": {
 		maxTokens: 32_768,
 		contextWindow: 128_000,
@@ -360,6 +401,7 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.72,
 		outputPrice: 0.72,
+		description: "Llama 3.3 Instruct (70B)",
 	},
 	"meta.llama3-2-90b-instruct-v1:0": {
 		maxTokens: 8192,
@@ -369,6 +411,7 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.72,
 		outputPrice: 0.72,
+		description: "Llama 3.2 Instruct (90B)",
 	},
 	"meta.llama3-2-11b-instruct-v1:0": {
 		maxTokens: 8192,
@@ -378,6 +421,7 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.16,
 		outputPrice: 0.16,
+		description: "Llama 3.2 Instruct (11B)",
 	},
 	"meta.llama3-2-3b-instruct-v1:0": {
 		maxTokens: 8192,
@@ -387,6 +431,7 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.15,
 		outputPrice: 0.15,
+		description: "Llama 3.2 Instruct (3B)",
 	},
 	"meta.llama3-2-1b-instruct-v1:0": {
 		maxTokens: 8192,
@@ -396,6 +441,7 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.1,
 		outputPrice: 0.1,
+		description: "Llama 3.2 Instruct (1B)",
 	},
 	"meta.llama3-1-405b-instruct-v1:0": {
 		maxTokens: 8192,
@@ -405,6 +451,7 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 2.4,
 		outputPrice: 2.4,
+		description: "Llama 3.1 Instruct (405B)",
 	},
 	"meta.llama3-1-70b-instruct-v1:0": {
 		maxTokens: 8192,
@@ -414,6 +461,17 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.72,
 		outputPrice: 0.72,
+		description: "Llama 3.1 Instruct (70B)",
+	},
+	"meta.llama3-1-70b-instruct-latency-optimized-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.9,
+		outputPrice: 0.9,
+		description: "Llama 3.1 Instruct (70B) (w/ latency optimized inference)",
 	},
 	"meta.llama3-1-8b-instruct-v1:0": {
 		maxTokens: 8192,
@@ -423,6 +481,7 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.22,
 		outputPrice: 0.22,
+		description: "Llama 3.1 Instruct (8B)",
 	},
 	"meta.llama3-70b-instruct-v1:0": {
 		maxTokens: 2048,
@@ -441,6 +500,44 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.3,
 		outputPrice: 0.6,
+	},
+	"amazon.titan-text-lite-v1:0": {
+		maxTokens: 4096,
+		contextWindow: 8_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.2,
+		description: "Amazon Titan Text Lite",
+	},
+	"amazon.titan-text-express-v1:0": {
+		maxTokens: 4096,
+		contextWindow: 8_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		outputPrice: 0.6,
+		description: "Amazon Titan Text Express",
+	},
+	"amazon.titan-text-embeddings-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 8_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		description: "Amazon Titan Text Embeddings",
+	},
+	"amazon.titan-text-embeddings-v2:0": {
+		maxTokens: 8192,
+		contextWindow: 8_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.02,
+		description: "Amazon Titan Text Embeddings V2",
 	},
 } as const satisfies Record<string, ModelInfo>
 
