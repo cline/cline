@@ -14,6 +14,11 @@ jest.mock("vscode", () => {
 	}
 
 	return {
+		workspace: {
+			getConfiguration: jest.fn().mockReturnValue({
+				get: jest.fn().mockReturnValue(null),
+			}),
+		},
 		window: {
 			createTerminal: jest.fn(),
 			onDidStartTerminalShellExecution: jest.fn().mockImplementation((handler) => {
