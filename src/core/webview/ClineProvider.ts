@@ -789,7 +789,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						// to OpenRouter it would be showing outdated model info
 						// if we hadn't retrieved the latest at this point
 						// (see normalizeApiConfiguration > openrouter).
-						getOpenRouterModels().then(async (openRouterModels) => {
+						const { apiConfiguration: currentApiConfig } = await this.getState()
+						getOpenRouterModels(currentApiConfig).then(async (openRouterModels) => {
 							if (Object.keys(openRouterModels).length > 0) {
 								await fs.writeFile(
 									path.join(cacheDir, GlobalFileNames.openRouterModels),
@@ -1038,8 +1039,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "resetState":
 						await this.resetState()
 						break
-					case "refreshOpenRouterModels":
-						const openRouterModels = await getOpenRouterModels()
+					case "refreshOpenRouterModels": {
+						const { apiConfiguration: configForRefresh } = await this.getState()
+						const openRouterModels = await getOpenRouterModels(configForRefresh)
 
 						if (Object.keys(openRouterModels).length > 0) {
 							const cacheDir = await this.ensureCacheDirectoryExists()
@@ -1051,6 +1053,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 
 						break
+					}
 					case "refreshGlamaModels":
 						const glamaModels = await getGlamaModels()
 
@@ -2154,7 +2157,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	async handleOpenRouterCallback(code: string) {
 		let apiKey: string
 		try {
-			const response = await axios.post("https://openrouter.ai/api/v1/auth/keys", { code })
+			const { apiConfiguration } = await this.getState()
+			const baseUrl = apiConfiguration.openRouterBaseUrl || "https://openrouter.ai/api/v1"
+			// Extract the base domain for the auth endpoint
+			const baseUrlDomain = baseUrl.match(/^(https?:\/\/[^\/]+)/)?.[1] || "https://openrouter.ai"
+			const response = await axios.post(`${baseUrlDomain}/api/v1/auth/keys`, { code })
 			if (response.data && response.data.key) {
 				apiKey = response.data.key
 			} else {
