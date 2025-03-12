@@ -93,6 +93,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "ark":
+				if (!apiConfiguration.arkBaseUrl || !apiConfiguration.arkApiKey) {
+					return "You must provide a valid base URL, API key."
+				}
+				break
 		}
 	}
 	return undefined
