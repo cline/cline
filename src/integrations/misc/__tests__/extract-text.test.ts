@@ -1,4 +1,10 @@
-import { addLineNumbers, everyLineHasLineNumbers, stripLineNumbers } from "../extract-text"
+import {
+	addLineNumbers,
+	everyLineHasLineNumbers,
+	stripLineNumbers,
+	truncateOutput,
+	applyRunLengthEncoding,
+} from "../extract-text"
 
 describe("addLineNumbers", () => {
 	it("should add line numbers starting from 1 by default", () => {
@@ -99,5 +105,88 @@ describe("stripLineNumbers", () => {
 		const input = "  1 | line one\n 10 | line two\n100 | line three"
 		const expected = "line one\nline two\nline three"
 		expect(stripLineNumbers(input)).toBe(expected)
+	})
+})
+
+describe("truncateOutput", () => {
+	it("returns original content when no line limit provided", () => {
+		const content = "line1\nline2\nline3"
+		expect(truncateOutput(content)).toBe(content)
+	})
+
+	it("returns original content when lines are under limit", () => {
+		const content = "line1\nline2\nline3"
+		expect(truncateOutput(content, 5)).toBe(content)
+	})
+
+	it("truncates content with 20/80 split when over limit", () => {
+		// Create 25 lines of content
+		const lines = Array.from({ length: 25 }, (_, i) => `line${i + 1}`)
+		const content = lines.join("\n")
+
+		// Set limit to 10 lines
+		const result = truncateOutput(content, 10)
+
+		// Should keep:
+		// - First 2 lines (20% of 10)
+		// - Last 8 lines (80% of 10)
+		// - Omission indicator in between
+		const expectedLines = [
+			"line1",
+			"line2",
+			"",
+			"[...15 lines omitted...]",
+			"",
+			"line18",
+			"line19",
+			"line20",
+			"line21",
+			"line22",
+			"line23",
+			"line24",
+			"line25",
+		]
+		expect(result).toBe(expectedLines.join("\n"))
+	})
+
+	it("handles empty content", () => {
+		expect(truncateOutput("", 10)).toBe("")
+	})
+
+	it("handles single line content", () => {
+		expect(truncateOutput("single line", 10)).toBe("single line")
+	})
+
+	it("handles windows-style line endings", () => {
+		// Create content with windows line endings
+		const lines = Array.from({ length: 15 }, (_, i) => `line${i + 1}`)
+		const content = lines.join("\r\n")
+
+		const result = truncateOutput(content, 5)
+
+		// Should keep first line (20% of 5 = 1) and last 4 lines (80% of 5 = 4)
+		// Split result by either \r\n or \n to normalize line endings
+		const resultLines = result.split(/\r?\n/)
+		const expectedLines = ["line1", "", "[...10 lines omitted...]", "", "line12", "line13", "line14", "line15"]
+		expect(resultLines).toEqual(expectedLines)
+	})
+})
+
+describe("applyRunLengthEncoding", () => {
+	it("should handle empty input", () => {
+		expect(applyRunLengthEncoding("")).toBe("")
+		expect(applyRunLengthEncoding(null as any)).toBe(null as any)
+		expect(applyRunLengthEncoding(undefined as any)).toBe(undefined as any)
+	})
+
+	it("should compress repeated single lines when beneficial", () => {
+		const input = "longerline\nlongerline\nlongerline\nlongerline\nlongerline\nlongerline\n"
+		const expected = "longerline\n<previous line repeated 5 additional times>\n"
+		expect(applyRunLengthEncoding(input)).toBe(expected)
+	})
+
+	it("should not compress when not beneficial", () => {
+		const input = "y\ny\ny\ny\ny\n"
+		expect(applyRunLengthEncoding(input)).toBe(input)
 	})
 })
