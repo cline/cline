@@ -62,6 +62,7 @@ import { ClineHandler } from "../api/providers/cline"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 import { telemetryService } from "../services/telemetry/TelemetryService"
+import { conversationTelemetryService } from "../services/telemetry/ConversationTelemetryService"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -3076,6 +3077,31 @@ export class Cline {
 
 		telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "user")
 
+		// Capture message data for telemetry if enabled
+		if (this.apiProvider && this.api.getModel().id) {
+			const metadata = {
+				apiProvider: this.apiProvider,
+				model: this.api.getModel().id,
+				tokensIn: 0, // Will be updated after the API request
+				tokensOut: 0,
+			}
+
+			// Get the last message from apiConversationHistory
+			const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+
+			// Get the corresponding timestamp from clineMessages
+			// The last message in clineMessages should be the one we just added
+			const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
+
+			// Add the timestamp to the message object for telemetry
+			const messageWithTs = {
+				...lastMessage,
+				ts: lastClineMessage.ts,
+			}
+
+			conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
+		}
+
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
@@ -3152,6 +3178,35 @@ export class Cline {
 				await this.saveClineMessages()
 
 				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
+
+				// Capture message data for telemetry after assistant response
+				if (this.apiProvider && this.api.getModel().id) {
+					const metadata = {
+						apiProvider: this.apiProvider,
+						model: this.api.getModel().id,
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+					}
+
+					// Get the last message from apiConversationHistory
+					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+
+					// Find the corresponding timestamp from clineMessages
+					// For assistant messages, we need to find the most recent "text" message
+					const lastTextMessage = findLast(this.clineMessages, (m) => m.say === "text")
+
+					// Add the timestamp to the message object for telemetry
+					if (!lastTextMessage) {
+						console.error("No text message found in clineMessages")
+					} else {
+						const messageWithTs = {
+							...lastMessage,
+							ts: lastTextMessage.ts,
+						}
+
+						conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
+					}
+				}
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.didFinishAbortingStream = true

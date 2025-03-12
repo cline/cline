@@ -54,6 +54,7 @@ export interface WebviewMessage {
 		| "showMcpView"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
+		| "conversationDataSetting"
 		| "openSettings"
 		| "updateMcpTimeout"
 		| "fetchOpenGraphData"

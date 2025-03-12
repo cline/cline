@@ -20,6 +20,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		openRouterModels,
 		telemetrySetting,
 		setTelemetrySetting,
+		conversationDataSetting,
+		setConversationDataSetting,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
@@ -40,6 +42,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({
 				type: "telemetrySetting",
 				text: telemetrySetting,
+			})
+			vscode.postMessage({
+				type: "conversationDataSetting",
+				text: conversationDataSetting,
 			})
 			onDone()
 		}
@@ -150,6 +156,28 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							privacy policy
 						</VSCodeLink>{" "}
 						for more details.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						style={{ marginBottom: "5px" }}
+						checked={conversationDataSetting === "enabled"}
+						onChange={(e: any) => {
+							const checked = e.target.checked === true
+							setConversationDataSetting(checked ? "enabled" : "disabled")
+						}}>
+						Allow storing conversation data to improve Cline
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Help improve Cline by allowing us to store your conversations for training and analysis. Your
+						conversations will be used to make Cline better. No personal information is ever shared with third
+						parties.
 					</p>
 				</div>
 

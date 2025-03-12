@@ -33,7 +33,8 @@ import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
-import { TelemetrySetting } from "../../shared/TelemetrySetting"
+import { conversationTelemetryService } from "../../services/telemetry/ConversationTelemetryService"
+import { TelemetrySetting, ConversationDataSetting } from "../../shared/TelemetrySetting"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 
@@ -103,6 +104,7 @@ type GlobalStateKey =
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
+	| "conversationDataSetting"
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 
@@ -525,10 +527,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						})
 
 						// If user already opted in to telemetry, enable telemetry service
-						this.getStateToPostToWebview().then((state) => {
-							const { telemetrySetting } = state
+						this.getStateToPostToWebview().then(async (state) => {
+							const { telemetrySetting, conversationDataSetting, apiConfiguration } = state
+							const clineApiKey = apiConfiguration?.clineApiKey
 							const isOptedIn = telemetrySetting === "enabled"
 							telemetryService.updateTelemetryState(isOptedIn)
+
+							// conversation telemetry is only enabled if user has opted in to conversation data telemetry
+							const isConversationDataEnabled = conversationDataSetting === "enabled"
+							conversationTelemetryService.updateTelemetryState(isConversationDataEnabled, clineApiKey)
 						})
 						break
 					case "newTask":
@@ -978,6 +985,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("telemetrySetting", telemetrySetting)
 						const isOptedIn = telemetrySetting === "enabled"
 						telemetryService.updateTelemetryState(isOptedIn)
+						await this.postStateToWebview()
+						break
+					}
+					case "conversationDataSetting": {
+						const conversationDataSetting = message.text as ConversationDataSetting
+						await this.updateGlobalState("conversationDataSetting", conversationDataSetting)
+						const isOptedIn = conversationDataSetting === "enabled"
+						const clineApiKey = await this.getSecret("clineApiKey")
+						conversationTelemetryService.updateTelemetryState(isOptedIn, clineApiKey)
 						await this.postStateToWebview()
 						break
 					}
@@ -1778,6 +1794,11 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			telemetrySetting,
 		} = await this.getState()
 
+		// Get conversationDataSetting separately
+		const conversationDataSetting = (await this.getGlobalState("conversationDataSetting")) as
+			| ConversationDataSetting
+			| undefined
+
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -1795,6 +1816,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			userInfo,
 			mcpMarketplaceEnabled,
 			telemetrySetting,
+			conversationDataSetting: conversationDataSetting || "unset",
 			vscMachineId: vscode.env.machineId,
 		}
 	}

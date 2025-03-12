@@ -9,6 +9,8 @@ import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
+import { conversationTelemetryService } from "./services/telemetry/ConversationTelemetryService"
+import { TelemetrySetting, ConversationDataSetting } from "./shared/TelemetrySetting"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -29,6 +31,23 @@ export function activate(context: vscode.ExtensionContext) {
 
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
+
+	// Initialize telemetry services
+	const telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
+	const globalTelemetryEnabled = telemetryLevel === "all"
+
+	// Get user settings
+	const telemetrySetting = context.globalState.get<TelemetrySetting>("telemetrySetting") || "unset"
+	const conversationDataSetting = context.globalState.get<ConversationDataSetting>("conversationDataSetting") || "unset"
+
+	// Update telemetry services
+	const telemetryEnabled = globalTelemetryEnabled && telemetrySetting === "enabled"
+	const conversationDataEnabled = globalTelemetryEnabled && conversationDataSetting === "enabled"
+
+	telemetryService.updateTelemetryState(telemetryEnabled)
+	context.secrets.get("clineApiKey").then((clineApiKey) => {
+		conversationTelemetryService.updateTelemetryState(conversationDataEnabled, clineApiKey)
+	})
 
 	const sidebarProvider = new ClineProvider(context, outputChannel)
 
@@ -193,6 +212,9 @@ export function activate(context: vscode.ExtensionContext) {
 // This method is called when your extension is deactivated
 export function deactivate() {
 	telemetryService.shutdown()
+	conversationTelemetryService.shutdown().catch((error) => {
+		console.error("Error shutting down conversation telemetry:", error)
+	})
 	Logger.log("Cline extension deactivated")
 }
 

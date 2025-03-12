@@ -9,7 +9,7 @@ import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
-import { TelemetrySetting } from "../../../src/shared/TelemetrySetting"
+import { TelemetrySetting, ConversationDataSetting } from "../../../src/shared/TelemetrySetting"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -23,6 +23,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
+	setConversationDataSetting: (value: ConversationDataSetting) => void
 	setShowAnnouncement: (value: boolean) => void
 }
 
@@ -167,6 +168,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				telemetrySetting: value,
+			})),
+		setConversationDataSetting: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				conversationDataSetting: value,
 			})),
 		setShowAnnouncement: (value) =>
 			setState((prevState) => ({
