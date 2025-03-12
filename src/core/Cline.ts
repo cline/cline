@@ -1348,7 +1348,7 @@ export class Cline {
 			)
 		}
 
-		// Capture system prompt for telemetry
+		// Capture system prompt for telemetry (ONLY if user is opted in, in advanced settings)
 		if (this.apiProvider && this.api.getModel().id) {
 			const metadata = {
 				apiProvider: this.apiProvider,
@@ -3139,7 +3139,7 @@ export class Cline {
 
 		telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "user")
 
-		// Capture message data for telemetry if enabled
+		// Capture message data for telemetry ONLY if user is opted in, in advanced settings
 		if (this.apiProvider && this.api.getModel().id) {
 			const metadata = {
 				apiProvider: this.apiProvider,
@@ -3241,7 +3241,7 @@ export class Cline {
 
 				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
 
-				// Capture message data for telemetry after assistant response
+				// Capture message data for telemetry after assistant response, ONLY if user is opted in, in advanced settings
 				if (this.apiProvider && this.api.getModel().id) {
 					const metadata = {
 						apiProvider: this.apiProvider,
