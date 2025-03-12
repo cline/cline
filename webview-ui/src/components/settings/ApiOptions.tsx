@@ -819,7 +819,7 @@ const ApiOptions = ({
 									style={{ fontSize: "12px" }}
 								/>
 							</div>
-							<div className="text-sm text-vscode-descriptionForeground">
+							<div className="text-sm text-vscode-descriptionForeground pt-1">
 								Is this model capable of processing and understanding images?
 							</div>
 						</div>
@@ -842,8 +842,31 @@ const ApiOptions = ({
 									style={{ fontSize: "12px" }}
 								/>
 							</div>
-							<div className="text-sm text-vscode-descriptionForeground [pt">
+							<div className="text-sm text-vscode-descriptionForeground pt-1">
 								Is this model capable of interacting with a browser? (e.g. Claude 3.7 Sonnet).
+							</div>
+						</div>
+
+						<div>
+							<div className="flex items-center gap-1">
+								<Checkbox
+									checked={apiConfiguration?.openAiCustomModelInfo?.supportsPromptCache ?? false}
+									onChange={handleInputChange("openAiCustomModelInfo", (checked) => {
+										return {
+											...(apiConfiguration?.openAiCustomModelInfo || openAiModelInfoSaneDefaults),
+											supportsPromptCache: checked,
+										}
+									})}>
+									<span className="font-medium">Prompt Caching</span>
+								</Checkbox>
+								<i
+									className="codicon codicon-info text-vscode-descriptionForeground"
+									title="Enable if the model supports prompt caching. This can improve performance and reduce costs."
+									style={{ fontSize: "12px" }}
+								/>
+							</div>
+							<div className="text-sm text-vscode-descriptionForeground pt-1">
+								Is this model capable of caching prompts?
 							</div>
 						</div>
 
@@ -932,6 +955,93 @@ const ApiOptions = ({
 								</div>
 							</VSCodeTextField>
 						</div>
+
+						{apiConfiguration?.openAiCustomModelInfo?.supportsPromptCache && (
+							<>
+								<div>
+									<VSCodeTextField
+										value={
+											apiConfiguration?.openAiCustomModelInfo?.cacheReadsPrice?.toString() ?? "0"
+										}
+										type="text"
+										style={{
+											borderColor: (() => {
+												const value = apiConfiguration?.openAiCustomModelInfo?.cacheReadsPrice
+
+												if (!value && value !== 0) {
+													return "var(--vscode-input-border)"
+												}
+
+												return value >= 0
+													? "var(--vscode-charts-green)"
+													: "var(--vscode-errorForeground)"
+											})(),
+										}}
+										onChange={handleInputChange("openAiCustomModelInfo", (e) => {
+											const value = (e.target as HTMLInputElement).value
+											const parsed = parseFloat(value)
+
+											return {
+												...(apiConfiguration?.openAiCustomModelInfo ??
+													openAiModelInfoSaneDefaults),
+												cacheReadsPrice: isNaN(parsed) ? 0 : parsed,
+											}
+										})}
+										placeholder="e.g. 0.0001"
+										className="w-full">
+										<div className="flex items-center gap-1">
+											<span className="font-medium">Cache Reads Price</span>
+											<i
+												className="codicon codicon-info text-vscode-descriptionForeground"
+												title="Cost per million tokens for reading from the cache. This is the price charged when a cached response is retrieved."
+												style={{ fontSize: "12px" }}
+											/>
+										</div>
+									</VSCodeTextField>
+								</div>
+								<div>
+									<VSCodeTextField
+										value={
+											apiConfiguration?.openAiCustomModelInfo?.cacheWritesPrice?.toString() ?? "0"
+										}
+										type="text"
+										style={{
+											borderColor: (() => {
+												const value = apiConfiguration?.openAiCustomModelInfo?.cacheWritesPrice
+
+												if (!value && value !== 0) {
+													return "var(--vscode-input-border)"
+												}
+
+												return value >= 0
+													? "var(--vscode-charts-green)"
+													: "var(--vscode-errorForeground)"
+											})(),
+										}}
+										onChange={handleInputChange("openAiCustomModelInfo", (e) => {
+											const value = (e.target as HTMLInputElement).value
+											const parsed = parseFloat(value)
+
+											return {
+												...(apiConfiguration?.openAiCustomModelInfo ??
+													openAiModelInfoSaneDefaults),
+												cacheWritesPrice: isNaN(parsed) ? 0 : parsed,
+											}
+										})}
+										placeholder="e.g. 0.00005"
+										className="w-full">
+										<div className="flex items-center gap-1">
+											<span className="font-medium">Cache Writes Price</span>
+											<i
+												className="codicon codicon-info text-vscode-descriptionForeground"
+												title="Cost per million tokens for writing to the cache. This is the price charged when a prompt is cached for the first time."
+												style={{ fontSize: "12px" }}
+											/>
+										</div>
+									</VSCodeTextField>
+								</div>
+							</>
+						)}
 
 						<Button
 							variant="secondary"

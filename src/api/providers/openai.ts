@@ -72,7 +72,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 		}
 
 		if (this.options.openAiStreamingEnabled ?? true) {
-			const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
+			let systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
 				role: "system",
 				content: systemPrompt,
 			}
@@ -83,7 +83,42 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			} else if (ark) {
 				convertedMessages = [systemMessage, ...convertToSimpleMessages(messages)]
 			} else {
+				if (modelInfo.supportsPromptCache) {
+					systemMessage = {
+						role: "system",
+						content: [
+							{
+								type: "text",
+								text: systemPrompt,
+								// @ts-ignore-next-line
+								cache_control: { type: "ephemeral" },
+							},
+						],
+					}
+				}
 				convertedMessages = [systemMessage, ...convertToOpenAiMessages(messages)]
+				if (modelInfo.supportsPromptCache) {
+					// Note: the following logic is copied from openrouter:
+					// Add cache_control to the last two user messages
+					// (note: this works because we only ever add one user message at a time, but if we added multiple we'd need to mark the user message before the last assistant message)
+					const lastTwoUserMessages = convertedMessages.filter((msg) => msg.role === "user").slice(-2)
+					lastTwoUserMessages.forEach((msg) => {
+						if (typeof msg.content === "string") {
+							msg.content = [{ type: "text", text: msg.content }]
+						}
+						if (Array.isArray(msg.content)) {
+							// NOTE: this is fine since env details will always be added at the end. but if it weren't there, and the user added a image_url type message, it would pop a text part before it and then move it after to the end.
+							let lastTextPart = msg.content.filter((part) => part.type === "text").pop()
+
+							if (!lastTextPart) {
+								lastTextPart = { type: "text", text: "..." }
+								msg.content.push(lastTextPart)
+							}
+							// @ts-ignore-next-line
+							lastTextPart["cache_control"] = { type: "ephemeral" }
+						}
+					})
+				}
 			}
 
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
