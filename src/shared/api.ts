@@ -18,6 +18,7 @@ export type ApiProvider =
 	| "litellm"
 	| "asksage"
 	| "xai"
+	| "sambanova"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -66,6 +67,7 @@ export interface ApiHandlerOptions {
 	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
+	sambanovaApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -1256,5 +1258,124 @@ export const xaiModels = {
 		inputPrice: 5.0,
 		outputPrice: 15.0,
 		description: "X AI's Grok Beta model (legacy) with 131K context window",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// SambaNova
+// https://docs.sambanova.ai/cloud/docs/get-started/overview
+export type SambanovaModelId = keyof typeof sambanovaModels
+export const sambanovaDefaultModelId: SambanovaModelId = "Meta-Llama-3.3-70B-Instruct"
+export const sambanovaModels = {
+	"Meta-Llama-3.3-70B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"DeepSeek-R1-Distill-Llama-70B": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Llama-3.1-Swallow-70B-Instruct-v0.3": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Llama-3.1-Swallow-8B-Instruct-v0.3": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Llama-3.1-Tulu-3-405B": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Meta-Llama-3.1-405B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Meta-Llama-3.1-70B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Meta-Llama-3.1-8B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Meta-Llama-3.2-1B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Meta-Llama-3.2-3B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Meta-Llama-Guard-3-8B": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Qwen2.5-72B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Qwen2.5-Coder-32B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"QwQ-32B-Preview": {
+		maxTokens: 4096,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>
