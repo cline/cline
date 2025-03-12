@@ -50,32 +50,32 @@ export function activate(context: vscode.ExtensionContext) {
 	})
 
 	// Sync VSCode settings with extension state
+	// Only called when the setting is explicitly changed, not on initial load
 	const syncConversationDataSetting = async () => {
 		const config = vscode.workspace.getConfiguration("cline")
-		const configValue = config.get<string>("conversationData")
+		const configValue = config.get<boolean>("conversationData")
 
-		if (configValue && (configValue === "enabled" || configValue === "disabled")) {
-			// Only update if the value is different
-			const currentValue = await context.globalState.get<ConversationDataSetting>("conversationDataSetting")
-			if (currentValue !== configValue) {
-				await context.globalState.update("conversationDataSetting", configValue)
+		if (configValue !== undefined) {
+			// Convert boolean to "enabled"/"disabled" string
+			const stringValue: ConversationDataSetting = configValue ? "enabled" : "disabled"
 
-				// Update telemetry service
-				const isEnabled = configValue === "enabled" && globalTelemetryEnabled
-				const clineApiKey = await context.secrets.get("clineApiKey")
-				conversationTelemetryService.updateTelemetryState(isEnabled, clineApiKey)
+			// Update the global state
+			await context.globalState.update("conversationDataSetting", stringValue)
 
-				// Update all providers
-				const visibleProvider = ClineProvider.getVisibleInstance()
-				if (visibleProvider) {
-					await visibleProvider.postStateToWebview()
-				}
+			// Update telemetry service
+			const isEnabled = configValue && globalTelemetryEnabled
+			const clineApiKey = await context.secrets.get("clineApiKey")
+			conversationTelemetryService.updateTelemetryState(isEnabled, clineApiKey)
+
+			// Update all providers
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (visibleProvider) {
+				await visibleProvider.postStateToWebview()
 			}
 		}
 	}
 
-	// Initial sync
-	syncConversationDataSetting()
+	// No initial sync - we want to preserve the "unset" state for new users
 
 	// Listen for configuration changes
 	context.subscriptions.push(
