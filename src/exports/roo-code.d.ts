@@ -154,6 +154,7 @@ export type GlobalStateKey =
 	| "openRouterModelInfo"
 	| "openRouterBaseUrl"
 	| "openRouterUseMiddleOutTransform"
+	| "googleGeminiBaseUrl"
 	| "allowedCommands"
 	| "soundEnabled"
 	| "soundVolume"
