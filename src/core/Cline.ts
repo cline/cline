@@ -3338,6 +3338,31 @@ export class Cline {
 					content: [{ type: "text", text: assistantMessage }],
 				})
 
+				// Capture message data for telemetry after assistant response
+				if (this.apiProvider && this.api.getModel().id) {
+					const metadata = {
+						apiProvider: this.apiProvider,
+						model: this.api.getModel().id,
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+					}
+
+					// Get the last message from apiConversationHistory
+					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+
+					// Find the corresponding timestamp from clineMessages
+					const lastTextMessage = findLast(this.clineMessages, (m) => m.say === "text")
+
+					if (lastTextMessage) {
+						const messageWithTs = {
+							...lastMessage,
+							ts: lastTextMessage.ts,
+						}
+
+						conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
+					}
+				}
+
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished
 				// it may be the api stream finished after the last parsed content block was executed, so  we are able to detect out of bounds and set userMessageContentReady to true (note you should not call presentAssistantMessage since if the last block is completed it will be presented again)
