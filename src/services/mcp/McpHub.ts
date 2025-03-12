@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport, StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
-import { EventSource } from "eventsource"
+import ReconnectingEventSource from "reconnecting-eventsource"
 import {
 	CallToolResultSchema,
 	ListResourcesResultSchema,
@@ -243,8 +243,16 @@ export class McpHub {
 						headers: config.headers,
 					},
 				}
-				global.EventSource = EventSource
-				transport = new SSEClientTransport(new URL(config.url), sseOptions)
+				// Configure ReconnectingEventSource options
+				const reconnectingEventSourceOptions = {
+					max_retry_time: 5000, // Maximum retry time in milliseconds
+					withCredentials: config.headers?.["Authorization"] ? true : false, // Enable credentials if Authorization header exists
+				}
+				global.EventSource = ReconnectingEventSource
+				transport = new SSEClientTransport(new URL(config.url), {
+					...sseOptions,
+					eventSourceInit: reconnectingEventSourceOptions,
+				})
 
 				// Set up SSE specific error handling
 				transport.onerror = async (error) => {
@@ -255,11 +263,6 @@ export class McpHub {
 						this.appendErrorMessage(connection, error.message)
 					}
 					await this.notifyWebviewOfServerChanges()
-
-					// Attempt reconnection for SSE
-					if (!this.isDisposed) {
-						await this.handleSSEReconnection(name, config)
-					}
 				}
 			}
 
@@ -293,26 +296,6 @@ export class McpHub {
 			}
 			throw error
 		}
-	}
-
-	private async handleSSEReconnection(name: string, config: z.infer<typeof ServerConfigSchema>): Promise<void> {
-		const maxRetries = 3
-		let retryCount = 0
-
-		while (retryCount < maxRetries) {
-			try {
-				await delay(Math.pow(2, retryCount) * 1000) // Exponential backoff
-				await this.connectToServer(name, config)
-				return
-			} catch (error) {
-				retryCount++
-				console.error(`Retry ${retryCount} failed for ${name}:`, error)
-			}
-		}
-
-		vscode.window.showErrorMessage(
-			`Failed to reconnect to ${name} after ${maxRetries} attempts. Please check your connection.`,
-		)
 	}
 
 	private appendErrorMessage(connection: McpConnection, error: string) {
