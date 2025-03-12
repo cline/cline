@@ -6,7 +6,6 @@ jest.mock("../../core/prompts/sections/custom-instructions", () => ({
 }))
 
 import { isToolAllowedForMode, FileRestrictionError, ModeConfig, getFullModeDetails, modes } from "../modes"
-import * as vscode from "vscode"
 import { addCustomInstructions } from "../../core/prompts/sections/custom-instructions"
 
 describe("isToolAllowedForMode", () => {
@@ -402,7 +401,7 @@ describe("FileRestrictionError", () => {
 			const options = {
 				cwd: "/test/path",
 				globalCustomInstructions: "Global instructions",
-				preferredLanguage: "en",
+				language: "en",
 			}
 
 			await getFullModeDetails("debug", undefined, undefined, options)
@@ -412,7 +411,7 @@ describe("FileRestrictionError", () => {
 				"Global instructions",
 				"/test/path",
 				"debug",
-				{ preferredLanguage: "en" },
+				{ language: "en" },
 			)
 		})
 

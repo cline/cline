@@ -110,9 +110,9 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm run install:all
-      - name: Create env.integration file
+      - name: Create .env.local file
         working-directory: e2e
-        run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.integration
+        run: echo "OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}" > .env.local
       - name: Run integration tests
         working-directory: e2e
         run: xvfb-run -a npm run ci

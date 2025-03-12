@@ -25,6 +25,7 @@ import {
 	addCustomInstructions,
 } from "./sections"
 import { loadSystemPromptFile } from "./sections/custom-system-prompt"
+import { formatLanguage } from "../../shared/language"
 
 async function generatePrompt(
 	context: vscode.ExtensionContext,
@@ -37,7 +38,6 @@ async function generatePrompt(
 	promptComponent?: PromptComponent,
 	customModeConfigs?: ModeConfig[],
 	globalCustomInstructions?: string,
-	preferredLanguage?: string,
 	diffEnabled?: boolean,
 	experiments?: Record<string, boolean>,
 	enableMcpServerCreation?: boolean,
@@ -90,7 +90,7 @@ ${getSystemInfoSection(cwd, mode, customModeConfigs)}
 
 ${getObjectiveSection()}
 
-${await addCustomInstructions(promptComponent?.customInstructions || modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, { preferredLanguage, rooIgnoreInstructions })}`
+${await addCustomInstructions(promptComponent?.customInstructions || modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, { language: formatLanguage(vscode.env.language), rooIgnoreInstructions })}`
 
 	return basePrompt
 }
@@ -106,7 +106,6 @@ export const SYSTEM_PROMPT = async (
 	customModePrompts?: CustomModePrompts,
 	customModes?: ModeConfig[],
 	globalCustomInstructions?: string,
-	preferredLanguage?: string,
 	diffEnabled?: boolean,
 	experiments?: Record<string, boolean>,
 	enableMcpServerCreation?: boolean,
@@ -135,11 +134,19 @@ export const SYSTEM_PROMPT = async (
 	// If a file-based custom system prompt exists, use it
 	if (fileCustomSystemPrompt) {
 		const roleDefinition = promptComponent?.roleDefinition || currentMode.roleDefinition
+		const customInstructions = await addCustomInstructions(
+			promptComponent?.customInstructions || currentMode.customInstructions || "",
+			globalCustomInstructions || "",
+			cwd,
+			mode,
+			{ language: formatLanguage(vscode.env.language), rooIgnoreInstructions },
+		)
+		// For file-based prompts, don't include the tool sections
 		return `${roleDefinition}
 
 ${fileCustomSystemPrompt}
 
-${await addCustomInstructions(promptComponent?.customInstructions || currentMode.customInstructions || "", globalCustomInstructions || "", cwd, mode, { preferredLanguage, rooIgnoreInstructions })}`
+${customInstructions}`
 	}
 
 	// If diff is disabled, don't pass the diffStrategy
@@ -156,7 +163,6 @@ ${await addCustomInstructions(promptComponent?.customInstructions || currentMode
 		promptComponent,
 		customModes,
 		globalCustomInstructions,
-		preferredLanguage,
 		diffEnabled,
 		experiments,
 		enableMcpServerCreation,

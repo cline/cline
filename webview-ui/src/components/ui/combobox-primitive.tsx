@@ -50,7 +50,7 @@ export type ComboboxType = "single" | "multiple"
 
 export interface ComboboxBaseProps
 	extends React.ComponentProps<typeof PopoverPrimitive.Root>,
-		Omit<React.ComponentProps<typeof CommandPrimitive>, "value" | "defaultValue" | "onValueChange"> {
+		Omit<React.ComponentProps<typeof CommandPrimitive>, "value" | "defaultValue" | "onValueChange" | "children"> {
 	type?: ComboboxType | undefined
 	inputValue?: string
 	defaultInputValue?: string

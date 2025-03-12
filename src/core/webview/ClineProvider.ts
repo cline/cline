@@ -6,7 +6,6 @@ import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import simpleGit from "simple-git"
 
 import { setPanel } from "../../activate/registerCommands"
 import { ApiConfiguration, ApiProvider, ModelInfo, API_CONFIG_KEYS } from "../../shared/api"
@@ -14,13 +13,20 @@ import { CheckpointStorage } from "../../shared/checkpoints"
 import { findLast } from "../../shared/array"
 import { CustomSupportPrompts, supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
-import { SecretKey, GlobalStateKey, SECRET_KEYS, GLOBAL_STATE_KEYS } from "../../shared/globalState"
+import {
+	SecretKey,
+	GlobalStateKey,
+	SECRET_KEYS,
+	GLOBAL_STATE_KEYS,
+	ConfigurationValues,
+} from "../../shared/globalState"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { ApiConfigMeta, ExtensionMessage } from "../../shared/ExtensionMessage"
 import { checkoutDiffPayloadSchema, checkoutRestorePayloadSchema, WebviewMessage } from "../../shared/WebviewMessage"
 import { Mode, CustomModePrompts, PromptComponent, defaultModeSlug, ModeConfig } from "../../shared/modes"
 import { checkExistKey } from "../../shared/checkExistApiConfig"
 import { EXPERIMENT_IDS, experiments as Experiments, experimentDefault, ExperimentId } from "../../shared/experiments"
+import { formatLanguage } from "../../shared/language"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
@@ -387,6 +393,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
 		this.outputChannel.appendLine("Resolving webview view")
+
+		if (!this.contextProxy.isInitialized) {
+			await this.contextProxy.initialize()
+		}
+
 		this.view = webviewView
 
 		// Set panel reference according to webview type
@@ -1379,10 +1390,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("rateLimitSeconds", message.value ?? 0)
 						await this.postStateToWebview()
 						break
-					case "preferredLanguage":
-						await this.updateGlobalState("preferredLanguage", message.text)
-						await this.postStateToWebview()
-						break
 					case "writeDelayMs":
 						await this.updateGlobalState("writeDelayMs", message.value)
 						await this.postStateToWebview()
@@ -1920,7 +1927,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				apiConfiguration,
 				customModePrompts,
 				customInstructions,
-				preferredLanguage,
 				browserViewportSize,
 				diffEnabled,
 				mcpEnabled,
@@ -1958,7 +1964,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				customModePrompts,
 				customModes,
 				customInstructions,
-				preferredLanguage,
 				diffEnabled,
 				experiments,
 				enableMcpServerCreation,
@@ -2013,18 +2018,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	}
 
 	private async updateApiConfiguration(apiConfiguration: ApiConfiguration) {
-		// Update mode's default config
+		// Update mode's default config.
 		const { mode } = await this.getState()
+
 		if (mode) {
 			const currentApiConfigName = await this.getGlobalState("currentApiConfigName")
 			const listApiConfig = await this.configManager.listConfig()
 			const config = listApiConfig?.find((c) => c.name === currentApiConfigName)
+
 			if (config?.id) {
 				await this.configManager.setModeConfig(mode, config.id)
 			}
 		}
 
-		// Use the new setValues method to handle routing values to secrets or global state
 		await this.contextProxy.setValues(apiConfiguration)
 
 		if (this.getCurrentCline()) {
@@ -2333,7 +2339,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			screenshotQuality,
 			remoteBrowserHost,
 			remoteBrowserEnabled,
-			preferredLanguage,
 			writeDelayMs,
 			terminalOutputLineLimit,
 			fuzzyMatchThreshold,
@@ -2354,6 +2359,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			browserToolEnabled,
 			telemetrySetting,
 			showRooIgnoredFiles,
+			language,
 		} = await this.getState()
 		const telemetryKey = process.env.POSTHOG_API_KEY
 		const machineId = vscode.env.machineId
@@ -2393,7 +2399,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			screenshotQuality: screenshotQuality ?? 75,
 			remoteBrowserHost,
 			remoteBrowserEnabled: remoteBrowserEnabled ?? false,
-			preferredLanguage: preferredLanguage ?? "English",
 			writeDelayMs: writeDelayMs ?? 1000,
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
@@ -2419,6 +2424,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			telemetryKey,
 			machineId,
 			showRooIgnoredFiles: showRooIgnoredFiles ?? true,
+			language,
 		}
 	}
 
@@ -2552,37 +2558,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			writeDelayMs: stateValues.writeDelayMs ?? 1000,
 			terminalOutputLineLimit: stateValues.terminalOutputLineLimit ?? 500,
 			mode: stateValues.mode ?? defaultModeSlug,
-			preferredLanguage:
-				stateValues.preferredLanguage ??
-				(() => {
-					// Get VSCode's locale setting
-					const vscodeLang = vscode.env.language
-					// Map VSCode locale to our supported languages
-					const langMap: { [key: string]: string } = {
-						en: "English",
-						ar: "Arabic",
-						"pt-br": "Brazilian Portuguese",
-						ca: "Catalan",
-						cs: "Czech",
-						fr: "French",
-						de: "German",
-						hi: "Hindi",
-						hu: "Hungarian",
-						it: "Italian",
-						ja: "Japanese",
-						ko: "Korean",
-						pl: "Polish",
-						pt: "Portuguese",
-						ru: "Russian",
-						zh: "Simplified Chinese",
-						"zh-cn": "Simplified Chinese",
-						es: "Spanish",
-						"zh-tw": "Traditional Chinese",
-						tr: "Turkish",
-					}
-					// Return mapped language or default to English
-					return langMap[vscodeLang] ?? langMap[vscodeLang.split("-")[0]] ?? "English"
-				})(),
+			// Pass the VSCode language code directly
+			language: formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,
 			enableMcpServerCreation: stateValues.enableMcpServerCreation ?? true,
 			alwaysApproveResubmit: stateValues.alwaysApproveResubmit ?? false,
@@ -2620,11 +2597,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	// global
 
-	async updateGlobalState(key: GlobalStateKey, value: any) {
+	public async updateGlobalState(key: GlobalStateKey, value: any) {
 		await this.contextProxy.updateGlobalState(key, value)
 	}
 
-	async getGlobalState(key: GlobalStateKey) {
+	public async getGlobalState(key: GlobalStateKey) {
 		return await this.contextProxy.getGlobalState(key)
 	}
 
@@ -2636,6 +2613,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	private async getSecret(key: SecretKey) {
 		return await this.contextProxy.getSecret(key)
+	}
+
+	// global + secret
+
+	public async setValues(values: Partial<ConfigurationValues>) {
+		await this.contextProxy.setValues(values)
 	}
 
 	// dev
