@@ -47,13 +47,16 @@ export class ConversationTelemetryService {
 	}
 
 	public updateTelemetryState(enabled: boolean, clineApiKey?: string): void {
-		// If state is changing from disabled to enabled, initialize the tracer
-		if (!this.enabled && enabled) {
-			this.initializeTracer()
-		}
+		console.log("[ConversationTelemetry] Updating telemetry state...", { enabled, clineApiKey })
 
+		// First update the state variables
 		this.enabled = enabled
 		this.clineApiKey = clineApiKey
+
+		// Then initialize the tracer if needed
+		if (this.enabled && !this.tracer) {
+			this.initializeTracer()
+		}
 	}
 
 	private initializeTracer(): void {
@@ -63,6 +66,8 @@ export class ConversationTelemetryService {
 				[ATTR_SERVICE_NAME]: "cline-extension",
 				[ATTR_SERVICE_VERSION]: "1.0.0",
 			})
+
+			console.log("[ConversationTelemetry] Initializing OpenTelemetry tracer...", { "this.clineApiKey": this.clineApiKey })
 
 			// Configure the OTLP exporter
 			const headers: Record<string, string> = {
