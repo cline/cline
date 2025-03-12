@@ -93,8 +93,10 @@ export class ConversationTelemetryService {
 
 	/**
 	 * Captures a message in the conversation as an OpenTelemetry span
+	 * ONLY HAPPENS IF USER IS OPTED INTO CONVERSATION TELEMETRY IN ADVANCED SETTINGS
 	 */
 	public captureMessage(taskId: string, message: any, metadata: ConversationMetadata): void {
+		// Do NOT capture message if user has not explicitly opted in
 		if (!this.enabled || !this.tracer) return
 
 		try {
