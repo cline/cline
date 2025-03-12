@@ -274,23 +274,19 @@ describe("TerminalProcess with Real Command Output", () => {
 		)
 	})
 
-	// Configure the number of lines for the base64 test
-	const BASE64_TEST_LINES = 1_000_000
+	const TEST_LINES = 1_000_000
 
-	it(`should execute 'yes AAA... | head -n ${BASE64_TEST_LINES}' and verify ${BASE64_TEST_LINES} lines of 'A's`, async () => {
-		// Create an expected output pattern that matches what base64 produces
-		// Each line is 76 'A's followed by a newline
-		const expectedOutput = Array(BASE64_TEST_LINES).fill("A".repeat(76)).join("\n") + "\n"
+	it(`should execute 'yes AAA... | head -n ${TEST_LINES}' and verify ${TEST_LINES} lines of 'A's`, async () => {
+		const expectedOutput = Array(TEST_LINES).fill("A".repeat(76)).join("\n") + "\n"
 
-		// This command will generate BASE64_TEST_LINES lines of base64 encoded zeros
-		// Each line will contain 76 'A' characters (base64 encoding of zeros)
+		// This command will generate 1M lines with 76 'A's each.
 		const { executionTimeUs, capturedOutput } = await testTerminalCommand(
-			`yes "${"A".repeat(76)}" | head -n ${BASE64_TEST_LINES}`,
+			`yes "${"A".repeat(76)}" | head -n ${TEST_LINES}`,
 			expectedOutput,
 		)
 
 		console.log(
-			`'base64 < /dev/zero | head -n ${BASE64_TEST_LINES}' execution time: ${executionTimeUs} microseconds (${executionTimeUs / 1000} milliseconds)`,
+			`'base64 < /dev/zero | head -n ${TEST_LINES}' execution time: ${executionTimeUs} microseconds (${executionTimeUs / 1000} milliseconds)`,
 		)
 
 		// Display a truncated output sample (first 3 lines and last 3 lines)
@@ -299,21 +295,23 @@ describe("TerminalProcess with Real Command Output", () => {
 			lines.slice(0, 3).join("\n") +
 			`\n... (truncated ${lines.length - 6} lines) ...\n` +
 			lines.slice(Math.max(0, lines.length - 3), lines.length).join("\n")
+
 		console.log("Output sample (first 3 lines):\n", truncatedOutput)
-		// Verify the output
 
-		// Check if we have BASE64_TEST_LINES lines (may have an empty line at the end)
-		expect(lines.length).toBeGreaterThanOrEqual(BASE64_TEST_LINES)
+		// Verify the output.
+		// Check if we have TEST_LINES lines (may have an empty line at the end).
+		expect(lines.length).toBeGreaterThanOrEqual(TEST_LINES)
 
-		// Sample some lines to verify they contain 76 'A' characters
-		// Sample indices at beginning, 1%, 10%, 50%, and end of the output
+		// Sample some lines to verify they contain 76 'A' characters.
+		// Sample indices at beginning, 1%, 10%, 50%, and end of the output.
 		const sampleIndices = [
 			0,
-			Math.floor(BASE64_TEST_LINES * 0.01),
-			Math.floor(BASE64_TEST_LINES * 0.1),
-			Math.floor(BASE64_TEST_LINES * 0.5),
-			BASE64_TEST_LINES - 1,
+			Math.floor(TEST_LINES * 0.01),
+			Math.floor(TEST_LINES * 0.1),
+			Math.floor(TEST_LINES * 0.5),
+			TEST_LINES - 1,
 		].filter((i) => i < lines.length)
+
 		for (const index of sampleIndices) {
 			expect(lines[index]).toBe("A".repeat(76))
 		}
