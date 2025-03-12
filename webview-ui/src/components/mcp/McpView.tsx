@@ -188,7 +188,15 @@ const StyledTabButton = styled.button<{ isActive: boolean }>`
 	}
 `
 
-const TabButton = ({ children, isActive, onClick }: { children: React.ReactNode; isActive: boolean; onClick: () => void }) => (
+export const TabButton = ({
+	children,
+	isActive,
+	onClick,
+}: {
+	children: React.ReactNode
+	isActive: boolean
+	onClick: () => void
+}) => (
 	<StyledTabButton isActive={isActive} onClick={onClick}>
 		{children}
 	</StyledTabButton>

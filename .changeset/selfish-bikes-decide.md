@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Checkpoints Telemetry
+Add Korean language
