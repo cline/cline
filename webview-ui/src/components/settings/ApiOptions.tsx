@@ -116,6 +116,9 @@ const ApiOptions = ({
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
 	const [openRouterBaseUrlSelected, setOpenRouterBaseUrlSelected] = useState(!!apiConfiguration?.openRouterBaseUrl)
+	const [googleGeminiBaseUrlSelected, setGoogleGeminiBaseUrlSelected] = useState(
+		!!apiConfiguration?.googleGeminiBaseUrl,
+	)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
 	const noTransform = <T,>(value: T) => value
@@ -646,6 +649,28 @@ const ApiOptions = ({
 							Get Gemini API Key
 						</VSCodeButtonLink>
 					)}
+					<div>
+						<Checkbox
+							checked={googleGeminiBaseUrlSelected}
+							onChange={(checked: boolean) => {
+								setGoogleGeminiBaseUrlSelected(checked)
+
+								if (!checked) {
+									setApiConfigurationField("googleGeminiBaseUrl", "")
+								}
+							}}>
+							Use custom base URL
+						</Checkbox>
+						{googleGeminiBaseUrlSelected && (
+							<VSCodeTextField
+								value={apiConfiguration?.googleGeminiBaseUrl || ""}
+								type="url"
+								onInput={handleInputChange("googleGeminiBaseUrl")}
+								placeholder="https://generativelanguage.googleapis.com"
+								className="w-full mt-1"
+							/>
+						)}
+					</div>
 				</>
 			)}
 

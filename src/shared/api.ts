@@ -56,6 +56,7 @@ export interface ApiHandlerOptions {
 	lmStudioDraftModelId?: string
 	lmStudioSpeculativeDecodingEnabled?: boolean
 	geminiApiKey?: string
+	googleGeminiBaseUrl?: string
 	openAiNativeApiKey?: string
 	mistralApiKey?: string
 	mistralCodestralUrl?: string // New option for Codestral URL
@@ -115,6 +116,7 @@ export const API_CONFIG_KEYS: GlobalStateKey[] = [
 	"lmStudioBaseUrl",
 	"lmStudioDraftModelId",
 	"lmStudioSpeculativeDecodingEnabled",
+	"googleGeminiBaseUrl",
 	"mistralCodestralUrl",
 	"azureApiVersion",
 	"openRouterUseMiddleOutTransform",
