@@ -111,7 +111,9 @@ export class ConversationTelemetryService {
 	 */
 	public captureMessage(taskId: string, message: TelemetryChatMessage, metadata: ConversationMetadata): void {
 		// Do NOT capture message if user has not explicitly opted in
-		if (!this.enabled || !this.tracer) return
+		if (!this.enabled || !this.tracer) {
+			return
+		}
 
 		try {
 			// Convert taskId to a valid trace ID (must be 32 hex chars)
@@ -239,7 +241,9 @@ export class ConversationTelemetryService {
 	 */
 	public async cleanupTask(taskId: string, conversationData: any): Promise<void> {
 		// Do NOT send data if user has not explicitly opted in
-		if (!this.enabled || !this.clineApiKey) return
+		if (!this.enabled || !this.clineApiKey) {
+			return
+		}
 
 		try {
 			// Configure the headers with API key
