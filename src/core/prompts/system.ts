@@ -243,9 +243,13 @@ Your final result description here
 Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution.
 Parameters:
 - response: (required) The response to provide to the user. Do not try to use tools in this parameter, this is simply a chat response.
+- options: (optional) An array of 1-5 options for the user to choose from. Each option should be a string describing a possible choice or path forward in the planning process. This can help guide the discussion and make it easier for the user to provide input on key decisions. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually.
 Usage:
 <plan_mode_response>
 <response>Your response here</response>
+<options>
+Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]
+</options>
 </plan_mode_response>
 
 # Tool Use Examples

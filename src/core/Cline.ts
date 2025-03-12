@@ -38,6 +38,7 @@ import {
 	ClineAskQuestion,
 	ClineAskUseMcpServer,
 	ClineMessage,
+	ClinePlanModeResponse,
 	ClineSay,
 	ClineSayBrowserAction,
 	ClineSayTool,
@@ -2777,11 +2778,14 @@ export class Cline {
 					}
 					case "plan_mode_response": {
 						const response: string | undefined = block.params.response
+						const optionsRaw: string | undefined = block.params.options
+						const sharedMessage = {
+							response: removeClosingTag("response", response),
+							options: parsePartialArrayString(removeClosingTag("options", optionsRaw)),
+						} satisfies ClinePlanModeResponse
 						try {
 							if (block.partial) {
-								await this.ask("plan_mode_response", removeClosingTag("response", response), block.partial).catch(
-									() => {},
-								)
+								await this.ask("plan_mode_response", JSON.stringify(sharedMessage), block.partial).catch(() => {})
 								break
 							} else {
 								if (!response) {
@@ -2800,12 +2804,31 @@ export class Cline {
 								// }
 
 								this.isAwaitingPlanResponse = true
-								let { text, images } = await this.ask("plan_mode_response", response, false)
+								let { text, images } = await this.ask("plan_mode_response", JSON.stringify(sharedMessage), false)
 								this.isAwaitingPlanResponse = false
 
 								// webview invoke sendMessage will send this marker in order to put webview into the proper state (responding to an ask) and as a flag to extension that the user switched to ACT mode.
 								if (text === "PLAN_MODE_TOGGLE_RESPONSE") {
 									text = ""
+								}
+
+								// Check if options contains the text response
+								if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
+									// Valid option selected, don't show user message in UI
+									// Update last followup message with selected option
+									const lastPlanMessage = findLast(this.clineMessages, (m) => m.ask === "plan_mode_response")
+									if (lastPlanMessage) {
+										lastPlanMessage.text = JSON.stringify({
+											...sharedMessage,
+											selected: text,
+										} satisfies ClinePlanModeResponse)
+										await this.saveClineMessages()
+									}
+								} else {
+									// Option not selected, send user feedback
+									if (text || images?.length) {
+										await this.say("user_feedback", text ?? "", images)
+									}
 								}
 
 								if (this.didRespondToPlanAskBySwitchingMode) {
@@ -2821,10 +2844,6 @@ export class Cline {
 								} else {
 									// if we didn't switch to ACT MODE, then we can just send the user_feedback message
 									pushToolResult(formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images))
-								}
-
-								if (text || images?.length) {
-									await this.say("user_feedback", text ?? "", images)
 								}
 
 								//

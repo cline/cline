@@ -8,6 +8,7 @@ import {
 	ClineAskQuestion,
 	ClineAskUseMcpServer,
 	ClineMessage,
+	ClinePlanModeResponse,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 	ExtensionMessage,
@@ -1203,10 +1204,10 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					let options: string[] | undefined
 					let selected: string | undefined
 					try {
-						const sharedMessage = JSON.parse(message.text || "{}") as ClineAskQuestion
-						question = sharedMessage.question
-						options = sharedMessage.options
-						selected = sharedMessage.selected
+						const parsedMessage = JSON.parse(message.text || "{}") as ClineAskQuestion
+						question = parsedMessage.question
+						options = parsedMessage.options
+						selected = parsedMessage.selected
 					} catch (e) {
 						// legacy messages would pass question directly
 						question = message.text
@@ -1226,12 +1227,26 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							</div>
 						</>
 					)
-				case "plan_mode_response":
+				case "plan_mode_response": {
+					let response: string | undefined
+					let options: string[] | undefined
+					let selected: string | undefined
+					try {
+						const parsedMessage = JSON.parse(message.text || "{}") as ClinePlanModeResponse
+						response = parsedMessage.response
+						options = parsedMessage.options
+						selected = parsedMessage.selected
+					} catch (e) {
+						// legacy messages would pass response directly
+						response = message.text
+					}
 					return (
 						<div style={{}}>
-							<Markdown markdown={message.text} />
+							<Markdown markdown={response} />
+							<OptionsButtons options={options} selected={selected} />
 						</div>
 					)
+				}
 				default:
 					return null
 			}
