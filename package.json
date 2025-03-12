@@ -211,6 +211,15 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
+				},
+				"cline.conversationData": {
+					"type": "string",
+					"enum": [
+						"enabled",
+						"disabled"
+					],
+					"default": "disabled",
+					"description": "Allow storing conversation data to improve Cline. Your conversations will be used to make Cline better. No personal information is ever shared with third parties."
 				}
 			}
 		}

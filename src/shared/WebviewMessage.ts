@@ -54,7 +54,6 @@ export interface WebviewMessage {
 		| "showMcpView"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
-		| "conversationDataSetting"
 		| "openSettings"
 		| "updateMcpTimeout"
 		| "fetchOpenGraphData"
@@ -88,7 +87,6 @@ export interface WebviewMessage {
 	url?: string
 	planActSeparateModelsSetting?: boolean
 	telemetrySetting?: TelemetrySetting
-	conversationDataSetting?: ConversationDataSetting
 	customInstructionsSetting?: string
 }
 

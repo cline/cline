@@ -902,15 +902,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateTelemetrySetting(message.telemetrySetting)
 						}
 
-						// conversation data setting
-						if (message.conversationDataSetting) {
-							const conversationDataSetting = message.conversationDataSetting
-							await this.updateGlobalState("conversationDataSetting", conversationDataSetting)
-							const isOptedIn = conversationDataSetting === "enabled"
-							const clineApiKey = await this.getSecret("clineApiKey")
-							conversationTelemetryService.updateTelemetryState(isOptedIn, clineApiKey)
-						}
-
 						// plan act setting
 						await this.updateGlobalState("planActSeparateModelsSetting", message.planActSeparateModelsSetting)
 

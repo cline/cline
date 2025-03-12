@@ -32,7 +32,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		telemetrySetting,
 		setTelemetrySetting,
 		conversationDataSetting,
-		setConversationDataSetting,
 		chatSettings,
 		planActSeparateModelsSetting,
 		setPlanActSeparateModelsSetting,
@@ -74,7 +73,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			planActSeparateModelsSetting,
 			customInstructionsSetting: customInstructions,
 			telemetrySetting,
-			conversationDataSetting,
 			apiConfiguration: apiConfiguration,
 		})
 
@@ -279,28 +277,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							privacy policy
 						</VSCodeLink>{" "}
 						for more details.
-					</p>
-				</div>
-
-				<div style={{ marginBottom: 5 }}>
-					<VSCodeCheckbox
-						style={{ marginBottom: "5px" }}
-						checked={conversationDataSetting === "enabled"}
-						onChange={(e: any) => {
-							const checked = e.target.checked === true
-							setConversationDataSetting(checked ? "enabled" : "disabled")
-						}}>
-						Allow storing conversation data to improve Cline
-					</VSCodeCheckbox>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						Help improve Cline by allowing us to store your conversations for training and analysis. Your
-						conversations will be used to make Cline better. No personal information is ever shared with third
-						parties.
 					</p>
 				</div>
 

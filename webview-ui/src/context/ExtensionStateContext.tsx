@@ -23,7 +23,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
-	setConversationDataSetting: (value: ConversationDataSetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
 }
@@ -170,11 +169,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				telemetrySetting: value,
-			})),
-		setConversationDataSetting: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				conversationDataSetting: value,
 			})),
 		setPlanActSeparateModelsSetting: (value) =>
 			setState((prevState) => ({

@@ -49,6 +49,43 @@ export function activate(context: vscode.ExtensionContext) {
 		conversationTelemetryService.updateTelemetryState(conversationDataEnabled, clineApiKey)
 	})
 
+	// Sync VSCode settings with extension state
+	const syncConversationDataSetting = async () => {
+		const config = vscode.workspace.getConfiguration("cline")
+		const configValue = config.get<string>("conversationData")
+
+		if (configValue && (configValue === "enabled" || configValue === "disabled")) {
+			// Only update if the value is different
+			const currentValue = await context.globalState.get<ConversationDataSetting>("conversationDataSetting")
+			if (currentValue !== configValue) {
+				await context.globalState.update("conversationDataSetting", configValue)
+
+				// Update telemetry service
+				const isEnabled = configValue === "enabled" && globalTelemetryEnabled
+				const clineApiKey = await context.secrets.get("clineApiKey")
+				conversationTelemetryService.updateTelemetryState(isEnabled, clineApiKey)
+
+				// Update all providers
+				const visibleProvider = ClineProvider.getVisibleInstance()
+				if (visibleProvider) {
+					await visibleProvider.postStateToWebview()
+				}
+			}
+		}
+	}
+
+	// Initial sync
+	syncConversationDataSetting()
+
+	// Listen for configuration changes
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeConfiguration(async (e) => {
+			if (e.affectsConfiguration("cline.conversationData")) {
+				await syncConversationDataSetting()
+			}
+		}),
+	)
+
 	const sidebarProvider = new ClineProvider(context, outputChannel)
 
 	context.subscriptions.push(
