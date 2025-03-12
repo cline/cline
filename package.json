@@ -211,6 +211,14 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
+				},
+				"cline.dirsToIgnore": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": null,
+					"description": "Directories to ignore when listing files."
 				}
 			}
 		}
