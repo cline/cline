@@ -2,6 +2,7 @@ import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
+import { convertToR1Format } from "../transform/r1-format"
 import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels, ModelInfo } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
@@ -371,30 +372,32 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	/**
 	 * Formats prompt for DeepSeek R1 model according to documentation
+	 * First uses convertToR1Format to merge consecutive messages with the same role,
+	 * then converts to the string format that DeepSeek R1 expects
 	 */
 	private formatDeepseekR1Prompt(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): string {
-		// Combine all messages into a single prompt string
+		// First use convertToR1Format to merge consecutive messages with the same role
+		const r1Messages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+
+		// Then convert to the special string format expected by DeepSeek R1
 		let combinedContent = ""
 
-		// Add system prompt if provided
-		if (systemPrompt) {
-			combinedContent += systemPrompt + "\n\n"
-		}
+		for (const message of r1Messages) {
+			let content = ""
 
-		// Add all messages
-		for (const message of messages) {
-			if (typeof message.content === "string") {
-				combinedContent +=
-					message.role === "user" ? "User: " + message.content + "\n" : "Assistant: " + message.content + "\n"
-			} else if (Array.isArray(message.content)) {
-				// Extract text content from message parts
-				const textParts = message.content
-					.filter((part) => part.type === "text")
-					.map((part) => (part.type === "text" ? part.text : ""))
-					.join("\n")
-
-				combinedContent += message.role === "user" ? "User: " + textParts + "\n" : "Assistant: " + textParts + "\n"
+			if (message.content) {
+				if (typeof message.content === "string") {
+					content = message.content
+				} else {
+					// Extract text content from message parts
+					content = message.content
+						.filter((part) => part.type === "text")
+						.map((part) => part.text)
+						.join("\n")
+				}
 			}
+
+			combinedContent += message.role === "user" ? "User: " + content + "\n" : "Assistant: " + content + "\n"
 		}
 
 		// Format according to DeepSeek R1's expected prompt format
@@ -406,21 +409,10 @@ export class AwsBedrockHandler implements ApiHandler {
 	 * Note: This is a rough estimation, as the actual token count depends on the tokenizer
 	 */
 	private estimateInputTokens(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): number {
-		const systemTokens = systemPrompt.length / 4
-
-		const messageTokens = messages.reduce((total, message) => {
-			if (typeof message.content === "string") {
-				return total + message.content.length / 4
-			} else {
-				const textContent = message.content
-					.filter((item) => item.type === "text")
-					.map((item) => item.text)
-					.join(" ")
-				return total + textContent.length / 4
-			}
-		}, 0)
-
-		return Math.ceil(systemTokens + messageTokens)
+		// For Deepseek R1, we estimate the token count of the formatted prompt
+		// The formatted prompt includes special tokens and consistent formatting
+		const formattedPrompt = this.formatDeepseekR1Prompt(systemPrompt, messages)
+		return Math.ceil(formattedPrompt.length / 4)
 	}
 
 	/**
