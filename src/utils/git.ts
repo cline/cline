@@ -1,9 +1,9 @@
 import { exec } from "child_process"
 import { promisify } from "util"
-
-import { OutputBuilder } from "../integrations/terminal/OutputBuilder"
+import { truncateOutput } from "../integrations/misc/extract-text"
 
 const execAsync = promisify(exec)
+const GIT_OUTPUT_LINE_LIMIT = 500
 
 export interface GitCommit {
 	hash: string
@@ -122,9 +122,8 @@ export async function getCommitInfo(hash: string, cwd: string): Promise<string> 
 			"\nFull Changes:",
 		].join("\n")
 
-		const builder = new OutputBuilder()
-		builder.append(summary + "\n\n" + diff.trim())
-		return builder.content
+		const output = summary + "\n\n" + diff.trim()
+		return truncateOutput(output, GIT_OUTPUT_LINE_LIMIT)
 	} catch (error) {
 		console.error("Error getting commit info:", error)
 		return `Failed to get commit info: ${error instanceof Error ? error.message : String(error)}`
@@ -151,10 +150,9 @@ export async function getWorkingState(cwd: string): Promise<string> {
 
 		// Get all changes (both staged and unstaged) compared to HEAD
 		const { stdout: diff } = await execAsync("git diff HEAD", { cwd })
-
-		const builder = new OutputBuilder()
-		builder.append(`Working directory changes:\n\n${status}\n\n${diff}`.trim())
-		return builder.content
+		const lineLimit = GIT_OUTPUT_LINE_LIMIT
+		const output = `Working directory changes:\n\n${status}\n\n${diff}`.trim()
+		return truncateOutput(output, lineLimit)
 	} catch (error) {
 		console.error("Error getting working state:", error)
 		return `Failed to get working state: ${error instanceof Error ? error.message : String(error)}`

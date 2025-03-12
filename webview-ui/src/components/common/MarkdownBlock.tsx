@@ -63,9 +63,9 @@ const StyledMarkdown = styled.div`
 		white-space: pre-wrap;
 	}
 
- 	:where(h1, h2, h3, h4, h5, h6):has(code) code {
-    		font-size: inherit;
- 	}
+	:where(h1, h2, h3, h4, h5, h6):has(code) code {
+		font-size: inherit;
+	}
 
 	pre > code {
 		.hljs-deletion {
@@ -101,6 +101,14 @@ const StyledMarkdown = styled.div`
 		white-space: pre-line;
 		word-break: break-word;
 		overflow-wrap: anywhere;
+	}
+
+	/* Target only Dark High Contrast theme using the data attribute VS Code adds to the body */
+	body[data-vscode-theme-kind="vscode-high-contrast"] & code:not(pre > code) {
+		color: var(
+			--vscode-editorInlayHint-foreground,
+			var(--vscode-symbolIcon-stringForeground, var(--vscode-charts-orange, #e9a700))
+		);
 	}
 
 	font-family:

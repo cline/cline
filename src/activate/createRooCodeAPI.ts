@@ -3,24 +3,18 @@ import * as vscode from "vscode"
 import { ClineProvider } from "../core/webview/ClineProvider"
 
 import { RooCodeAPI } from "../exports/roo-code"
+import { ConfigurationValues } from "../shared/globalState"
 
-export function createRooCodeAPI(outputChannel: vscode.OutputChannel, sidebarProvider: ClineProvider): RooCodeAPI {
+export function createRooCodeAPI(outputChannel: vscode.OutputChannel, provider: ClineProvider): RooCodeAPI {
 	return {
-		setCustomInstructions: async (value: string) => {
-			await sidebarProvider.updateCustomInstructions(value)
-			outputChannel.appendLine("Custom instructions set")
-		},
-
-		getCustomInstructions: async () => {
-			return (await sidebarProvider.getGlobalState("customInstructions")) as string | undefined
-		},
-
 		startNewTask: async (task?: string, images?: string[]) => {
 			outputChannel.appendLine("Starting new task")
-			await sidebarProvider.removeClineFromStack()
-			await sidebarProvider.postStateToWebview()
-			await sidebarProvider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
-			await sidebarProvider.postMessageToWebview({
+
+			await provider.removeClineFromStack()
+			await provider.postStateToWebview()
+			await provider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+
+			await provider.postMessageToWebview({
 				type: "invoke",
 				invoke: "sendMessage",
 				text: task,
@@ -32,12 +26,17 @@ export function createRooCodeAPI(outputChannel: vscode.OutputChannel, sidebarPro
 			)
 		},
 
+		cancelTask: async () => {
+			outputChannel.appendLine("Cancelling current task")
+			await provider.cancelTask()
+		},
+
 		sendMessage: async (message?: string, images?: string[]) => {
 			outputChannel.appendLine(
 				`Sending message: ${message ? `"${message}"` : "undefined"} with ${images?.length || 0} image(s)`,
 			)
 
-			await sidebarProvider.postMessageToWebview({
+			await provider.postMessageToWebview({
 				type: "invoke",
 				invoke: "sendMessage",
 				text: message,
@@ -47,14 +46,20 @@ export function createRooCodeAPI(outputChannel: vscode.OutputChannel, sidebarPro
 
 		pressPrimaryButton: async () => {
 			outputChannel.appendLine("Pressing primary button")
-			await sidebarProvider.postMessageToWebview({ type: "invoke", invoke: "primaryButtonClick" })
+			await provider.postMessageToWebview({ type: "invoke", invoke: "primaryButtonClick" })
 		},
 
 		pressSecondaryButton: async () => {
 			outputChannel.appendLine("Pressing secondary button")
-			await sidebarProvider.postMessageToWebview({ type: "invoke", invoke: "secondaryButtonClick" })
+			await provider.postMessageToWebview({ type: "invoke", invoke: "secondaryButtonClick" })
 		},
 
-		sidebarProvider: sidebarProvider,
+		setConfiguration: async (values: Partial<ConfigurationValues>) => {
+			await provider.setValues(values)
+		},
+
+		isReady: () => provider.viewLaunched,
+
+		getMessages: () => provider.messages,
 	}
 }

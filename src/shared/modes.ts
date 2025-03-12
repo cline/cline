@@ -195,10 +195,13 @@ export function isToolAllowedForMode(
 	}
 
 	// Check tool requirements if any exist
-	if (toolRequirements && tool in toolRequirements) {
-		if (!toolRequirements[tool]) {
+	if (toolRequirements && typeof toolRequirements === "object") {
+		if (tool in toolRequirements && !toolRequirements[tool]) {
 			return false
 		}
+	} else if (toolRequirements === false) {
+		// If toolRequirements is a boolean false, all tools are disabled
+		return false
 	}
 
 	const mode = getModeBySlug(modeSlug, customModes)
@@ -275,7 +278,7 @@ export async function getFullModeDetails(
 	options?: {
 		cwd?: string
 		globalCustomInstructions?: string
-		preferredLanguage?: string
+		language?: string
 	},
 ): Promise<ModeConfig> {
 	// First get the base mode config from custom modes or built-in modes
@@ -295,7 +298,7 @@ export async function getFullModeDetails(
 			options.globalCustomInstructions || "",
 			options.cwd,
 			modeSlug,
-			{ preferredLanguage: options.preferredLanguage },
+			{ language: options.language },
 		)
 	}
 

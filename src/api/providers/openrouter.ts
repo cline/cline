@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { BetaThinkingConfigParam } from "@anthropic-ai/sdk/resources/beta"
-import axios from "axios"
+import axios, { AxiosRequestConfig } from "axios"
 import OpenAI from "openai"
 import delay from "delay"
 
@@ -132,61 +132,54 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			const delta = chunk.choices[0]?.delta
 
 			if ("reasoning" in delta && delta.reasoning) {
-				yield {
-					type: "reasoning",
-					text: delta.reasoning,
-				} as ApiStreamChunk
+				yield { type: "reasoning", text: delta.reasoning } as ApiStreamChunk
 			}
 
 			if (delta?.content) {
 				fullResponseText += delta.content
-				yield {
-					type: "text",
-					text: delta.content,
-				} as ApiStreamChunk
+				yield { type: "text", text: delta.content } as ApiStreamChunk
 			}
-
-			// if (chunk.usage) {
-			// 	yield {
-			// 		type: "usage",
-			// 		inputTokens: chunk.usage.prompt_tokens || 0,
-			// 		outputTokens: chunk.usage.completion_tokens || 0,
-			// 	}
-			// }
 		}
 
-		// Retry fetching generation details.
+		const endpoint = `${this.client.baseURL}/generation?id=${genId}`
+
+		const config: AxiosRequestConfig = {
+			headers: { Authorization: `Bearer ${this.options.openRouterApiKey}` },
+			timeout: 3_000,
+		}
+
 		let attempt = 0
+		let lastError: Error | undefined
+		const startTime = Date.now()
 
 		while (attempt++ < 10) {
-			await delay(200) // FIXME: necessary delay to ensure generation endpoint is ready
+			await delay(attempt * 100) // Give OpenRouter some time to produce the generation metadata.
 
 			try {
-				const response = await axios.get(`https://openrouter.ai/api/v1/generation?id=${genId}`, {
-					headers: {
-						Authorization: `Bearer ${this.options.openRouterApiKey}`,
-					},
-					timeout: 5_000, // this request hangs sometimes
-				})
-
+				const response = await axios.get(endpoint, config)
 				const generation = response.data?.data
 
 				yield {
 					type: "usage",
-					// cacheWriteTokens: 0,
-					// cacheReadTokens: 0,
-					// openrouter generation endpoint fails often
 					inputTokens: generation?.native_tokens_prompt || 0,
 					outputTokens: generation?.native_tokens_completion || 0,
 					totalCost: generation?.total_cost || 0,
 					fullResponseText,
 				} as OpenRouterApiStreamUsageChunk
 
-				return
-			} catch (error) {
-				// ignore if fails
-				console.error("Error fetching OpenRouter generation details:", error)
+				break
+			} catch (error: unknown) {
+				if (error instanceof Error) {
+					lastError = error
+				}
 			}
+		}
+
+		if (lastError) {
+			console.error(
+				`Failed to fetch OpenRouter generation details after ${Date.now() - startTime}ms (${genId})`,
+				lastError,
+			)
 		}
 	}
 

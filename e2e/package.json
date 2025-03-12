@@ -3,12 +3,13 @@
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
-		"build": "cd .. && npm run build",
-		"compile": "tsc -p tsconfig.json",
+		"build": "cd .. && npm run compile && npm run build:webview",
+		"compile": "rm -rf out && tsc -p tsconfig.json",
 		"lint": "eslint src --ext ts",
 		"check-types": "tsc --noEmit",
-		"test": "npm run compile && npx dotenvx run -f .env.integration -- node ./out/runTest.js",
-		"ci": "npm run build && npm run test"
+		"test": "npm run compile && npx dotenvx run -f .env.local -- node ./out/runTest.js",
+		"ci": "npm run build && npm run test",
+		"clean": "rimraf out"
 	},
 	"dependencies": {},
 	"devDependencies": {

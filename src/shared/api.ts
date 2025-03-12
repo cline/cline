@@ -344,6 +344,14 @@ export const bedrockModels = {
 		inputPrice: 0.25,
 		outputPrice: 1.25,
 	},
+	"deepseek.r1-v1:0": {
+		maxTokens: 32_768,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.35,
+		outputPrice: 5.4,
+	},
 	"meta.llama3-3-70b-instruct-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 128_000,
@@ -499,6 +507,14 @@ export const vertexModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.15,
 		outputPrice: 0.6,
+	},
+	"gemini-2.0-pro-exp-02-05": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
 	},
 	"gemini-2.0-flash-lite-001": {
 		maxTokens: 8192,

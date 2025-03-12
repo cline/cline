@@ -3,20 +3,20 @@ import { getCapabilitiesSection } from "../sections/capabilities"
 import { DiffStrategy, DiffResult } from "../../diff/types"
 
 describe("addCustomInstructions", () => {
-	test("adds preferred language to custom instructions", async () => {
+	test("adds vscode language to custom instructions", async () => {
 		const result = await addCustomInstructions(
 			"mode instructions",
 			"global instructions",
 			"/test/path",
 			"test-mode",
-			{ preferredLanguage: "French" },
+			{ language: "fr" },
 		)
 
 		expect(result).toContain("Language Preference:")
-		expect(result).toContain("You should always speak and think in the French language")
+		expect(result).toContain('You should always speak and think in the "fr" language')
 	})
 
-	test("works without preferred language", async () => {
+	test("works without vscode language", async () => {
 		const result = await addCustomInstructions(
 			"mode instructions",
 			"global instructions",
