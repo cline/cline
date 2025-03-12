@@ -38,12 +38,7 @@ export function openMention(mention?: string): void {
 	}
 }
 
-export async function parseMentions(
-	text: string,
-	cwd: string,
-	urlContentFetcher: UrlContentFetcher,
-	contextWindow?: number,
-): Promise<string> {
+export async function parseMentions(text: string, cwd: string, urlContentFetcher: UrlContentFetcher): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
 		mentions.add(mention)
@@ -95,7 +90,7 @@ export async function parseMentions(
 		} else if (mention.startsWith("/")) {
 			const mentionPath = mention.slice(1)
 			try {
-				const content = await getFileOrFolderContent(mentionPath, cwd, contextWindow)
+				const content = await getFileOrFolderContent(mentionPath, cwd)
 				if (mention.endsWith("/")) {
 					parsedText += `\n\n<folder_content path="${mentionPath}">\n${content}\n</folder_content>`
 				} else {
@@ -150,7 +145,7 @@ export async function parseMentions(
 	return parsedText
 }
 
-async function getFileOrFolderContent(mentionPath: string, cwd: string, contextWindow?: number): Promise<string> {
+async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise<string> {
 	const absPath = path.resolve(cwd, mentionPath)
 
 	try {
@@ -161,7 +156,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string, contextW
 			if (isBinary) {
 				return "(Binary file, unable to display content)"
 			}
-			const content = await extractTextFromFile(absPath, contextWindow)
+			const content = await extractTextFromFile(absPath)
 			return content
 		} else if (stats.isDirectory()) {
 			const entries = await fs.readdir(absPath, { withFileTypes: true })
@@ -182,7 +177,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string, contextW
 								if (isBinary) {
 									return undefined
 								}
-								const content = await extractTextFromFile(absoluteFilePath, contextWindow)
+								const content = await extractTextFromFile(absoluteFilePath)
 								return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
 							} catch (error) {
 								return undefined
