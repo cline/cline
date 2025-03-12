@@ -226,11 +226,13 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 	}
 }
 
-export async function getOpenRouterModels() {
+export async function getOpenRouterModels(options?: ApiHandlerOptions) {
 	const models: Record<string, ModelInfo> = {}
 
+	const baseURL = options?.openRouterBaseUrl || "https://openrouter.ai/api/v1"
+
 	try {
-		const response = await axios.get("https://openrouter.ai/api/v1/models")
+		const response = await axios.get(`${baseURL}/models`)
 		const rawModels = response.data.data
 
 		for (const rawModel of rawModels) {
