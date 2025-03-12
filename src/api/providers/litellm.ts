@@ -24,10 +24,10 @@ export class LiteLlmHandler implements ApiHandler {
 			content: systemPrompt,
 		}
 		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
-		const isO3Mini = modelId.includes("o3-mini")
+		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini")
 		let temperature: number | undefined = 0
 
-		if (isO3Mini) {
+		if (isOminiModel) {
 			temperature = undefined // does not support temperature
 		}
 
