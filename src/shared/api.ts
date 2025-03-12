@@ -244,6 +244,7 @@ export interface MessageContent {
 
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0"
+export const bedrockDefaultPromptRouterModelId: BedrockModelId = "anthropic.claude-3-sonnet-20240229-v1:0"
 export const bedrockModels = {
 	"amazon.nova-pro-v1:0": {
 		maxTokens: 5000,
