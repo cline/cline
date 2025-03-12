@@ -11,6 +11,7 @@ export class Terminal {
 	private streamClosed: boolean
 	public process?: TerminalProcess
 	public taskId?: string
+	public cmdCounter: number = 0
 	public completedProcesses: TerminalProcess[] = []
 	private initialCwd: string
 

@@ -276,7 +276,20 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			})
 
 			// Execute command
-			terminal.shellIntegration.executeCommand(command)
+			const defaultWindowsShellProfile = vscode.workspace
+				.getConfiguration("terminal.integrated.defaultProfile")
+				.get("windows")
+			const isPowerShell =
+				process.platform === "win32" &&
+				(defaultWindowsShellProfile === null ||
+					(defaultWindowsShellProfile as string)?.toLowerCase().includes("powershell"))
+			if (isPowerShell) {
+				terminal.shellIntegration.executeCommand(
+					`${command} ; ${this.terminalInfo.cmdCounter++} > $null; start-sleep -milliseconds 150`,
+				)
+			} else {
+				terminal.shellIntegration.executeCommand(command)
+			}
 			this.isHot = true
 
 			// Wait for stream to be available
