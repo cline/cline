@@ -94,9 +94,9 @@ export class ConversationTelemetryService {
 			// Get a tracer
 			this.tracer = trace.getTracer("cline-conversation-tracer")
 
-			console.log("OpenTelemetry tracer initialized successfully")
+			console.log("[ConversationTelemetry] OpenTelemetry tracer initialized successfully")
 		} catch (error) {
-			console.error("Failed to initialize OpenTelemetry tracer:", error)
+			console.error("[ConversationTelemetry] Failed to initialize OpenTelemetry tracer:", error)
 		}
 	}
 
@@ -170,10 +170,9 @@ export class ConversationTelemetryService {
 			// End the span immediately since messages are discrete events
 			span.end(this.millisecondsToHrTime(timestamp)) // Convert to nanoseconds
 
-			console.log(`>>>>>>>>>>>`, { message })
-			console.log(`Captured ${message.role} message for task ${taskId}`, { span })
+			console.log(`[ConversationTelemetry] Captured ${message.role} message for task ${taskId}`, { span })
 		} catch (error) {
-			console.error("Error capturing message:", error)
+			console.error("[ConversationTelemetry] Error capturing message:", error)
 		}
 	}
 
