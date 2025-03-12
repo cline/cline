@@ -19,13 +19,6 @@ if (!api) {
 	throw new Error("API is not available")
 }
 
-// Set custom instructions.
-await api.setCustomInstructions("Talk like a pirate")
-
-// Get custom instructions.
-const instructions = await api.getCustomInstructions()
-console.log("Current custom instructions:", instructions)
-
 // Start a new task with an initial message.
 await api.startNewTask("Hello, Roo Code API! Let's make a new project...")
 

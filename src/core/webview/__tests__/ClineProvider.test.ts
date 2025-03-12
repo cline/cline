@@ -19,6 +19,8 @@ jest.mock("../../contextProxy", () => {
 	return {
 		ContextProxy: jest.fn().mockImplementation((context) => ({
 			originalContext: context,
+			isInitialized: true,
+			initialize: jest.fn(),
 			extensionUri: context.extensionUri,
 			extensionPath: context.extensionPath,
 			globalStorageUri: context.globalStorageUri,
