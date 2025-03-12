@@ -2722,13 +2722,13 @@ export class Cline {
 					case "ask_followup_question": {
 						const question: string | undefined = block.params.question
 						const optionsRaw: string | undefined = block.params.options
-						const sharedMessage = JSON.stringify({
+						const sharedMessage = {
 							question: removeClosingTag("question", question),
 							options: parsePartialArrayString(removeClosingTag("options", optionsRaw)),
-						} satisfies ClineAskQuestion)
+						} satisfies ClineAskQuestion
 						try {
 							if (block.partial) {
-								await this.ask("followup", sharedMessage, block.partial).catch(() => {})
+								await this.ask("followup", JSON.stringify(sharedMessage), block.partial).catch(() => {})
 								break
 							} else {
 								if (!question) {
@@ -2746,7 +2746,7 @@ export class Cline {
 									})
 								}
 
-								const { text, images } = await this.ask("followup", sharedMessage, false)
+								const { text, images } = await this.ask("followup", JSON.stringify(sharedMessage), false)
 
 								// Check if options contains the text response
 								if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
@@ -2755,8 +2755,7 @@ export class Cline {
 									const lastFollowupMessage = findLast(this.clineMessages, (m) => m.ask === "followup")
 									if (lastFollowupMessage) {
 										lastFollowupMessage.text = JSON.stringify({
-											question: removeClosingTag("question", question),
-											options: parsePartialArrayString(removeClosingTag("options", optionsRaw)),
+											...sharedMessage,
 											selected: text,
 										} satisfies ClineAskQuestion)
 										await this.saveClineMessages()
