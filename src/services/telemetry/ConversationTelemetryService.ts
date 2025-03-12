@@ -30,7 +30,7 @@ export class ConversationTelemetryService {
 	private enabled: boolean = false
 	private distinctId: string
 	private clineApiKey?: string
-	private apiEndpoint: string = "http://localhost:8100/v1/traces"
+	private apiEndpoint: string = "https://api.cline.bot/v1/traces"
 	private tracerProvider: NodeTracerProvider | undefined
 	private tracer: any
 	private messageIndices: Map<string, number> = new Map()
@@ -262,8 +262,9 @@ export class ConversationTelemetryService {
 				method: "POST",
 				headers,
 				body: JSON.stringify({
-					taskId,
+					taskId: taskId,
 					conversationData,
+					userId: this.distinctId,
 				}),
 			})
 

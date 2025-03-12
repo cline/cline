@@ -1364,6 +1364,7 @@ export class Cline {
 				ts: Date.now(), // we dont uniquely identify system messages, so we use the timestamp as the id
 			}
 
+			// no need for timeout here, as there's no timestamp to compare to
 			conversationTelemetryService.captureMessage(this.taskId, systemMessage, metadata)
 		}
 
@@ -3142,34 +3143,39 @@ export class Cline {
 
 		// Capture message data for telemetry,
 		// ONLY if user is opted in, in advanced settings
-		if (this.apiProvider && this.api.getModel().id) {
-			const metadata = {
-				apiProvider: this.apiProvider,
-				model: this.api.getModel().id,
-				tokensIn: 0, // Will be updated after the API request
-				tokensOut: 0,
+		// This is done after a timeout to ensure the message is added to the conversation history
+		setTimeout(() => {
+			if (this.apiProvider && this.api.getModel().id) {
+				const metadata = {
+					apiProvider: this.apiProvider,
+					model: this.api.getModel().id,
+					tokensIn: 0,
+					tokensOut: 0,
+				}
+
+				// Get the last message from apiConversationHistory
+				const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+
+				// Get the corresponding timestamp from clineMessages
+				// The last message in clineMessages should be the one we just added
+
+				const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
+				const ts = lastClineMessage.ts
+
+				// Add the timestamp to the message object for telemetry
+				const messageWithTs = {
+					...lastMessage,
+					ts,
+				}
+
+				// Send individual message to telemetry
+				conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
+
+				// Send entire conversation history to cleanup endpoint
+				// This ensures deleted messages are properly handled in telemetry
+				conversationTelemetryService.cleanupTask(this.taskId, this.clineMessages)
 			}
-
-			// Get the last message from apiConversationHistory
-			const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
-
-			// Get the corresponding timestamp from clineMessages
-			// The last message in clineMessages should be the one we just added
-			const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
-
-			// Add the timestamp to the message object for telemetry
-			const messageWithTs = {
-				...lastMessage,
-				ts: lastClineMessage.ts,
-			}
-
-			// Send individual message to telemetry
-			conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
-
-			// Send entire conversation history to cleanup endpoint
-			// This ensures deleted messages are properly handled in telemetry
-			conversationTelemetryService.cleanupTask(this.taskId, this.apiConversationHistory)
-		}
+		}, 5)
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
@@ -3274,7 +3280,9 @@ export class Cline {
 							ts: lastTextMessage.ts,
 						}
 
-						conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
+						setTimeout(() => {
+							conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
+						}, 5)
 					}
 				}
 
@@ -3430,7 +3438,9 @@ export class Cline {
 							ts: lastTextMessage.ts,
 						}
 
-						conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
+						setTimeout(() => {
+							conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
+						})
 					}
 				}
 
