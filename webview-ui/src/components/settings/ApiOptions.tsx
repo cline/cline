@@ -649,7 +649,7 @@ const ApiOptions = ({
 							Get Gemini API Key
 						</VSCodeButtonLink>
 					)}
-          <div>
+					<div>
 						<Checkbox
 							checked={googleGeminiBaseUrlSelected}
 							onChange={(checked: boolean) => {
