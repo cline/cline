@@ -22,7 +22,7 @@ import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
 import { ApiConfiguration } from "../shared/api"
-import { findLast, findLastIndex } from "../shared/array"
+import { findLast, findLastIndex, parsePartialArrayString } from "../shared/array"
 import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
 import { BrowserSettings } from "../shared/BrowserSettings"
 import { ChatSettings } from "../shared/ChatSettings"
@@ -35,6 +35,7 @@ import {
 	ClineApiReqCancelReason,
 	ClineApiReqInfo,
 	ClineAsk,
+	ClineAskQuestion,
 	ClineAskUseMcpServer,
 	ClineMessage,
 	ClineSay,
@@ -2720,9 +2721,14 @@ export class Cline {
 					}
 					case "ask_followup_question": {
 						const question: string | undefined = block.params.question
+						const optionsRaw: string | undefined = block.params.options
+						const sharedMessage = JSON.stringify({
+							question: removeClosingTag("question", question),
+							options: parsePartialArrayString(removeClosingTag("options", optionsRaw)),
+						} satisfies ClineAskQuestion)
 						try {
 							if (block.partial) {
-								await this.ask("followup", removeClosingTag("question", question), block.partial).catch(() => {})
+								await this.ask("followup", sharedMessage, block.partial).catch(() => {})
 								break
 							} else {
 								if (!question) {
@@ -2740,8 +2746,26 @@ export class Cline {
 									})
 								}
 
-								const { text, images } = await this.ask("followup", question, false)
-								await this.say("user_feedback", text ?? "", images)
+								const { text, images } = await this.ask("followup", sharedMessage, false)
+
+								// Check if options contains the text response
+								if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
+									// Valid option selected, don't show user message in UI
+									// Update last followup message with selected option
+									const lastFollowupMessage = findLast(this.clineMessages, (m) => m.ask === "followup")
+									if (lastFollowupMessage) {
+										lastFollowupMessage.text = JSON.stringify({
+											question: removeClosingTag("question", question),
+											options: parsePartialArrayString(removeClosingTag("options", optionsRaw)),
+											selected: text,
+										} satisfies ClineAskQuestion)
+										await this.saveClineMessages()
+									}
+								} else {
+									// Option not selected, send user feedback
+									await this.say("user_feedback", text ?? "", images)
+								}
+
 								pushToolResult(formatResponse.toolResult(`<answer>\n${text}\n</answer>`, images))
 
 								break

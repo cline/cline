@@ -199,6 +199,12 @@ export interface ClineAskUseMcpServer {
 	uri?: string
 }
 
+export interface ClineAskQuestion {
+	question: string
+	options?: string[]
+	selected?: string
+}
+
 export interface ClineApiReqInfo {
 	request?: string
 	tokensIn?: number

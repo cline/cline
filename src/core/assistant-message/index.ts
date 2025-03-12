@@ -45,6 +45,7 @@ export const toolParamNames = [
 	"arguments",
 	"uri",
 	"question",
+	"options",
 	"response",
 	"result",
 ] as const
@@ -112,7 +113,7 @@ export interface AccessMcpResourceToolUse extends ToolUse {
 
 export interface AskFollowupQuestionToolUse extends ToolUse {
 	name: "ask_followup_question"
-	params: Partial<Pick<Record<ToolParamName, string>, "question">>
+	params: Partial<Pick<Record<ToolParamName, string>, "question" | "options">>
 }
 
 export interface AttemptCompletionToolUse extends ToolUse {

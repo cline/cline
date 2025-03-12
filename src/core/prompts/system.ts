@@ -216,9 +216,13 @@ Usage:
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- options: (optional) An array of 1-5 options for the user to choose from. Each option should be a string describing a possible answer. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually.
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<options>
+Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]
+</options>
 </ask_followup_question>
 
 ## attempt_completion
@@ -813,7 +817,7 @@ You have access to two tools for working with files: **write_to_file** and **rep
 
 ## Important Considerations
 
-- Using write_to_file requires providing the file’s complete final content.  
+- Using write_to_file requires providing the file's complete final content.  
 - If you only need to make small changes to an existing file, consider using replace_in_file instead to avoid unnecessarily rewriting the entire file.
 - While write_to_file should not be your default choice, don't hesitate to use it when the situation truly calls for it.
 
@@ -826,12 +830,12 @@ You have access to two tools for working with files: **write_to_file** and **rep
 ## When to Use
 
 - Small, localized changes like updating a few lines, function implementations, changing variable names, modifying a section of text, etc.
-- Targeted improvements where only specific portions of the file’s content needs to be altered.
+- Targeted improvements where only specific portions of the file's content needs to be altered.
 - Especially useful for long files where much of the file will remain unchanged.
 
 ## Advantages
 
-- More efficient for minor edits, since you don’t need to supply the entire file content.  
+- More efficient for minor edits, since you don't need to supply the entire file content.  
 - Reduces the chance of errors that can occur when overwriting large files.
 
 # Choosing the Appropriate Tool
