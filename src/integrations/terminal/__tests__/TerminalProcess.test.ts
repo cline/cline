@@ -10,6 +10,11 @@ import { TerminalRegistry } from "../TerminalRegistry"
 const mockCreateTerminal = jest.fn()
 
 jest.mock("vscode", () => ({
+	workspace: {
+		getConfiguration: jest.fn().mockReturnValue({
+			get: jest.fn().mockReturnValue(null),
+		}),
+	},
 	window: {
 		createTerminal: (...args: any[]) => {
 			mockCreateTerminal(...args)
