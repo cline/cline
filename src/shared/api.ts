@@ -222,6 +222,14 @@ export const bedrockModels = {
 		inputPrice: 0.25,
 		outputPrice: 1.25,
 	},
+	"deepseek.r1-v1:0": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.35,
+		outputPrice: 5.4,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // OpenRouter
