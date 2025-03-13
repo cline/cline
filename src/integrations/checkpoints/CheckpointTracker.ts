@@ -310,6 +310,29 @@ class CheckpointTracker {
 
 		return result
 	}
+
+	/**
+	 * Returns the number of files changed between two commits.
+	 *
+	 * @param lhsHash - The commit to compare from (older commit)
+	 * @param rhsHash - The commit to compare to (newer commit).
+	 *                  If omitted, we compare to the working directory.
+	 * @returns The number of files changed between the commits
+	 */
+	public async getDiffCount(lhsHash: string, rhsHash?: string): Promise<number> {
+		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const git = simpleGit(path.dirname(gitPath))
+
+		console.info(`Getting diff count between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
+
+		// Stage all changes so that untracked files appear in diff summary
+		await this.gitOperations.addCheckpointFiles(git)
+
+		const diffRange = rhsHash ? `${lhsHash}..${rhsHash}` : lhsHash
+		const diffSummary = await git.diffSummary([diffRange])
+
+		return diffSummary.files.length
+	}
 }
 
 export default CheckpointTracker

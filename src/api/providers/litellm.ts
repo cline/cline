@@ -23,11 +23,18 @@ export class LiteLlmHandler implements ApiHandler {
 			role: "system",
 			content: systemPrompt,
 		}
+		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
+		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini")
+		let temperature: number | undefined = 0
+
+		if (isOminiModel) {
+			temperature = undefined // does not support temperature
+		}
 
 		const stream = await this.client.chat.completions.create({
 			model: this.options.liteLlmModelId || liteLlmDefaultModelId,
 			messages: [systemMessage, ...formattedMessages],
-			temperature: 0,
+			temperature,
 			stream: true,
 			stream_options: { include_usage: true },
 		})
