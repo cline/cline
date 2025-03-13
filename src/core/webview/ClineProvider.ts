@@ -91,7 +91,6 @@ type GlobalStateKey =
 	| "openRouterModelInfo"
 	| "autoApprovalSettings"
 	| "browserSettings"
-	| "chatSettings"
 	| "vsCodeLmModelSelector"
 	| "userInfo"
 	| "previousModeApiProvider"
@@ -108,6 +107,8 @@ type GlobalStateKey =
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
+
+type WorkspaceStateKey = "chatSettings"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -1035,7 +1036,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
-		await this.updateGlobalState("chatSettings", chatSettings)
+		// Store chatSettings in workspace state instead of global state
+		await this.updateWorkspaceState("chatSettings", chatSettings)
 		await this.postStateToWebview()
 
 		if (this.cline) {
@@ -1930,6 +1932,17 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	*/
 
 	async getState() {
+		// First check if we need to migrate chatSettings from global to workspace state
+		const globalChatSettings = (await this.context.globalState.get("chatSettings")) as ChatSettings | undefined
+		const existingWorkspaceChatSettings = (await this.getWorkspaceState("chatSettings")) as ChatSettings | undefined
+
+		// If we have chatSettings in global state but not in workspace state, migrate them
+		if (globalChatSettings && !existingWorkspaceChatSettings) {
+			await this.updateWorkspaceState("chatSettings", globalChatSettings)
+			// Clear the global state chatSettings after migration
+			await this.context.globalState.update("chatSettings", undefined)
+		}
+
 		const [
 			storedApiProvider,
 			apiModelId,
@@ -1974,7 +1987,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
 			vsCodeLmModelSelector,
 			liteLlmBaseUrl,
 			liteLlmModelId,
@@ -1992,6 +2004,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			thinkingBudgetTokens,
 			sambanovaApiKey,
 			planActSeparateModelsSettingRaw,
+			workspaceChatSettings,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -2036,7 +2049,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
-			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 			this.getGlobalState("liteLlmBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("liteLlmModelId") as Promise<string | undefined>,
@@ -2054,6 +2066,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("thinkingBudgetTokens") as Promise<number | undefined>,
 			this.getSecret("sambanovaApiKey") as Promise<string | undefined>,
 			this.getGlobalState("planActSeparateModelsSetting") as Promise<boolean | undefined>,
+			this.getWorkspaceState("chatSettings") as Promise<ChatSettings | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2151,7 +2164,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			taskHistory,
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
-			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
+			chatSettings: workspaceChatSettings || DEFAULT_CHAT_SETTINGS,
 			userInfo,
 			previousModeApiProvider,
 			previousModeModelId,
