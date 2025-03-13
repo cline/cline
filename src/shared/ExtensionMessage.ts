@@ -43,6 +43,7 @@ export interface ExtensionMessage {
 		| "didBecomeVisible"
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
+		| "accountButtonClicked"
 	invoke?: Invoke
 	state?: ExtensionState
 	images?: string[]

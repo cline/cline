@@ -1,8 +1,10 @@
-import { VSCodeButton, VSCodeDivider } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeDivider, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import { useFirebaseAuth } from "../../context/FirebaseAuthContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import clineLogoWhite from "../../assets/cline-logo-white.svg"
+import CountUp from "react-countup"
 
 type AccountViewProps = {
 	onDone: () => void
@@ -10,38 +12,13 @@ type AccountViewProps = {
 
 const AccountView = ({ onDone }: AccountViewProps) => {
 	return (
-		<div
-			style={{
-				position: "fixed",
-				top: 0,
-				left: 0,
-				right: 0,
-				bottom: 0,
-				padding: "10px 0px 0px 20px",
-				display: "flex",
-				flexDirection: "column",
-				overflow: "hidden",
-			}}>
-			<div
-				style={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: "17px",
-					paddingRight: 17,
-				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Cline Account</h3>
+		<div className="fixed inset-0 flex flex-col overflow-hidden pt-[10px] pl-[20px]">
+			<div className="flex justify-between items-center mb-[17px] pr-[17px]">
+				<h3 className="text-[var(--vscode-foreground)] m-0">Cline Account</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
-			<div
-				style={{
-					flexGrow: 1,
-					overflowY: "scroll",
-					paddingRight: 8,
-					display: "flex",
-					flexDirection: "column",
-				}}>
-				<div style={{ marginBottom: 5 }}>
+			<div className="flex-grow overflow-y-scroll pr-[8px] flex flex-col">
+				<div className="mb-[5px]">
 					<ClineAccountView />
 				</div>
 			</div>
@@ -51,6 +28,7 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 
 export const ClineAccountView = () => {
 	const { user, handleSignOut } = useFirebaseAuth()
+	const amount = 38.06
 
 	const handleLogin = () => {
 		vscode.postMessage({ type: "accountLoginClicked" })
@@ -63,108 +41,75 @@ export const ClineAccountView = () => {
 		handleSignOut()
 	}
 	return (
-		<div style={{ maxWidth: "600px" }}>
+		<div className="max-w-[600px]">
 			{user ? (
-				<div
-					style={{
-						padding: "8px 10px",
-						border: "1px solid var(--vscode-input-border)",
-						borderRadius: "2px",
-						backgroundColor: "var(--vscode-dropdown-background)",
-					}}>
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: "8px",
-						}}>
-						{user.photoURL ? (
-							<img
-								src={user.photoURL}
-								alt="Profile"
-								style={{
-									width: 38,
-									height: 38,
-									borderRadius: "50%",
-								}}
-							/>
-						) : (
-							<div
-								style={{
-									width: 38,
-									height: 38,
-									borderRadius: "50%",
-									backgroundColor: "var(--vscode-button-background)",
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "center",
-									fontSize: "20px",
-									color: "var(--vscode-button-foreground)",
-								}}>
-								{user.displayName?.[0] || user.email?.[0] || "?"}
-							</div>
-						)}
-						<div
-							style={{
-								display: "flex",
-								flexDirection: "column",
-								gap: "4px",
-							}}>
-							{user.displayName && (
-								<div
-									style={{
-										fontSize: "13px",
-										fontWeight: "bold",
-										color: "var(--vscode-foreground)",
-									}}>
-									{user.displayName}
+				<div className="flex flex-col items-center p-[20px] max-w-[600px]">
+					<div className="flex flex-col w-full mb-[20px]">
+						<div className="flex items-center mb-[20px]">
+							{user.photoURL ? (
+								<img src={user.photoURL} alt="Profile" className="w-[64px] h-[64px] rounded-full mr-[16px]" />
+							) : (
+								<div className="w-[64px] h-[64px] rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-[24px] text-[var(--vscode-button-foreground)] mr-[16px]">
+									{user.displayName?.[0] || user.email?.[0] || "?"}
 								</div>
 							)}
-							{user.email && (
-								<div
-									style={{
-										fontSize: "13px",
-										color: "var(--vscode-descriptionForeground)",
-									}}>
-									{user.email}
-								</div>
-							)}
-							<div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-								<VSCodeButtonLink
-									href="https://app.cline.bot/credits"
-									appearance="primary"
-									style={{
-										transform: "scale(0.85)",
-										transformOrigin: "left center",
-										width: "fit-content",
-										marginTop: 2,
-										marginBottom: 0,
-										marginRight: -12,
-									}}>
-									Account
-								</VSCodeButtonLink>
-								<VSCodeButton
-									appearance="secondary"
-									onClick={handleLogout}
-									style={{
-										transform: "scale(0.85)",
-										transformOrigin: "left center",
-										width: "fit-content",
-										marginTop: 2,
-										marginBottom: 0,
-										marginRight: -12,
-									}}>
-									Log out
-								</VSCodeButton>
+
+							<div className="flex flex-col">
+								{user.displayName && (
+									<h2 className="text-[var(--vscode-foreground)] m-0 mb-[5px] text-[24px] font-normal">
+										{user.displayName}
+									</h2>
+								)}
+
+								{user.email && (
+									<div className="text-[16px] text-[var(--vscode-descriptionForeground)]">{user.email}</div>
+								)}
 							</div>
 						</div>
+
+						<div className="flex gap-[10px] mb-[20px] justify-center w-full">
+							<VSCodeButtonLink href="https://app.cline.bot/account" appearance="primary" className="min-w-[120px]">
+								Account
+							</VSCodeButtonLink>
+							<VSCodeButton appearance="secondary" onClick={handleLogout} className="min-w-[120px]">
+								Log out
+							</VSCodeButton>
+						</div>
 					</div>
+
+					<div className="w-full border-b border-dotted border-[var(--vscode-panel-border)] my-[10px]"></div>
+
+					<div className="w-full flex flex-col items-center mt-[10px]">
+						<div className="text-[14px] text-[var(--vscode-descriptionForeground)] mb-[10px]">
+							{"{CURRENT CREDITS}"}
+						</div>
+
+						<div className="text-[36px] font-bold text-[var(--vscode-foreground)] mb-[20px] flex">
+							<span>$</span>
+							<CountUp end={amount} duration={0.66} decimals={2} />
+						</div>
+
+						<VSCodeButtonLink href="https://app.cline.bot/credits/#buy" className="w-full mb-[10px]">
+							Add Credits
+						</VSCodeButtonLink>
+					</div>
+
+					<div className="w-full h-[1px] border-b border-dotted border-[var(--vscode-panel-border)] my-[10px]"></div>
 				</div>
 			) : (
-				<div style={{}}>
-					<VSCodeButton onClick={handleLogin} style={{ marginTop: 0 }}>
-						Sign Up with Cline
+				<div className="flex flex-col items-center p-[20px] max-w-[400px]">
+					<img src={clineLogoWhite} alt="Cline Logo" className="w-[60px] h-[60px] mb-[15px]" />
+
+					<h2 className="text-[var(--vscode-foreground)] m-0 mb-[20px] text-[24px] font-normal">Sign up with Cline</h2>
+
+					<VSCodeButton onClick={handleLogin} className="w-full mb-[20px]">
+						Login with Cline
 					</VSCodeButton>
+
+					<p className="text-[var(--vscode-descriptionForeground)] text-[12px] text-center m-0">
+						By continuing, you agree to the <VSCodeLink href="https://cline.bot/tos">Terms of Service</VSCodeLink> and{" "}
+						<VSCodeLink href="https://cline.bot/privacy">Privacy Policy</VSCodeLink>.
+					</p>
 				</div>
 			)}
 		</div>
