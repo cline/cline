@@ -1,8 +1,8 @@
 # Roo Code Changelog
 
-## [3.8.6]
+## [3.8.6] - 2025-03-13
 
-- Revert "feat: add sse mcp support"
+- Revert SSE MCP support while we debug some config validation issues
 
 ## [3.8.5] - 2025-03-12
 
