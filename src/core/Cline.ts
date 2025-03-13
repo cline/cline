@@ -562,9 +562,8 @@ export class Cline {
 				return false
 			}
 
-			// Get changed files between current state and commit
-			const changedFiles = await this.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
-			const changedFilesCount = changedFiles?.length || 0
+			// Get count of changed files between current state and commit
+			const changedFilesCount = (await this.checkpointTracker?.getDiffCount(previousCheckpointHash, hash)) || 0
 			if (changedFilesCount > 0) {
 				return true
 			}
