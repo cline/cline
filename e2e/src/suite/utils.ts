@@ -41,36 +41,51 @@ export const waitFor = (
 	])
 }
 
-export const waitUntilReady = async (api: RooCodeAPI, { timeout = 10_000, interval = 250 }: WaitForOptions = {}) => {
-	await vscode.commands.executeCommand("roo-cline.SidebarProvider.focus")
-	await waitFor(api.isReady, { timeout, interval })
+type WaitUntilReadyOptions = WaitForOptions & {
+	api: RooCodeAPI
 }
 
-export const waitForToolUse = async (api: RooCodeAPI, toolName: string, options: WaitForOptions = {}) =>
+export const waitUntilReady = async ({ api, ...options }: WaitUntilReadyOptions) => {
+	await vscode.commands.executeCommand("roo-cline.SidebarProvider.focus")
+	await waitFor(() => api.isReady(), options)
+}
+
+type WaitForToolUseOptions = WaitUntilReadyOptions & {
+	taskId: string
+	toolName: string
+}
+
+export const waitForToolUse = async ({ api, taskId, toolName, ...options }: WaitForToolUseOptions) =>
 	waitFor(
 		() =>
 			api
-				.getMessages()
+				.getMessages(taskId)
 				.some(({ type, say, text }) => type === "say" && say === "tool" && text && text.includes(toolName)),
 		options,
 	)
 
-export const waitForMessage = async (
-	api: RooCodeAPI,
-	options: WaitForOptions & { include: string; exclude?: string },
-) =>
-	waitFor(
-		() =>
-			api
-				.getMessages()
-				.some(
-					({ type, text }) =>
-						type === "say" &&
-						text &&
-						text.includes(options.include) &&
-						(!options.exclude || !text.includes(options.exclude)),
-				),
-		options,
-	)
+type WaitForMessageOptions = WaitUntilReadyOptions & {
+	taskId: string
+	include: string
+	exclude?: string
+}
+
+export const waitForMessage = async ({ api, taskId, include, exclude, ...options }: WaitForMessageOptions) =>
+	waitFor(() => !!getMessage({ api, taskId, include, exclude }), options)
+
+type GetMessageOptions = {
+	api: RooCodeAPI
+	taskId: string
+	include: string
+	exclude?: string
+}
+
+export const getMessage = ({ api, taskId, include, exclude }: GetMessageOptions) =>
+	api
+		.getMessages(taskId)
+		.find(
+			({ type, text }) =>
+				type === "say" && text && text.includes(include) && (!exclude || !text.includes(exclude)),
+		)
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))

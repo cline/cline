@@ -132,18 +132,6 @@ export interface WebviewMessage {
 	requestId?: string
 }
 
-// Human relay related message types
-export interface HumanRelayResponseMessage extends WebviewMessage {
-	type: "humanRelayResponse"
-	requestId: string
-	text: string
-}
-
-export interface HumanRelayCancelMessage extends WebviewMessage {
-	type: "humanRelayCancel"
-	requestId: string
-}
-
 export const checkoutDiffPayloadSchema = z.object({
 	ts: z.number(),
 	previousCommitHash: z.string().optional(),

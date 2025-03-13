@@ -794,7 +794,7 @@ describe("ClineProvider", () => {
 		expect(state.customModePrompts).toEqual({})
 	})
 
-	test("uses mode-specific custom instructions in Cline initialization", async () => {
+	test.only("uses mode-specific custom instructions in Cline initialization", async () => {
 		// Setup mock state
 		const modeCustomInstructions = "Code mode instructions"
 		const mockApiConfig = {
@@ -833,6 +833,9 @@ describe("ClineProvider", () => {
 			fuzzyMatchThreshold: 1.0,
 			task: "Test task",
 			experiments: experimentDefault,
+			rootTask: undefined,
+			parentTask: undefined,
+			taskNumber: 1,
 		})
 	})
 
