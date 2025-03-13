@@ -23,14 +23,20 @@ export class AwsBedrockHandler implements ApiHandler {
 		let modelId = await this.getModelId()
 		const model = this.getModel()
 
+		// This baseModelId is used to indicate the capabilities of the model.
+		// If the user selects a custom model, baseModelId will be set to the base model ID of the custom model.
+		// Otherwise, baseModelId will be the same as modelId.
+		const baseModelId =
+			(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : modelId) || modelId
+
 		// Check if this is a Deepseek model
-		if (modelId.includes("deepseek")) {
+		if (baseModelId.includes("deepseek")) {
 			yield* this.createDeepseekMessage(systemPrompt, messages, modelId, model)
 			return
 		}
 
 		let budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
+		const reasoningOn = baseModelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
 		// Get model info and message indices for caching
 		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
@@ -290,7 +296,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		modelId: string,
-		model: { id: BedrockModelId; info: ModelInfo },
+		model: { id: string; info: ModelInfo },
 	): ApiStream {
 		// Get Bedrock client with proper credentials
 		const client = await this.getBedrockClient()
