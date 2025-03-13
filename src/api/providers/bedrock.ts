@@ -8,6 +8,7 @@ import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
+import { Logger } from "../../services/logging/Logger"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -88,6 +89,8 @@ export class AwsBedrockHandler implements ApiHandler {
 		})
 
 		for await (const chunk of stream) {
+			Logger.log(`chunk: ${JSON.stringify(chunk, null, 2)}`)
+
 			switch (chunk.type) {
 				case "message_start":
 					const usage = chunk.message.usage
@@ -108,6 +111,20 @@ export class AwsBedrockHandler implements ApiHandler {
 					break
 				case "content_block_start":
 					switch (chunk.content_block.type) {
+						case "thinking":
+							yield {
+								type: "reasoning",
+								reasoning: chunk.content_block.thinking || "",
+							}
+							break
+						case "redacted_thinking":
+							// Handle redacted thinking blocks - we still mark it as reasoning
+							// but note that the content is encrypted
+							yield {
+								type: "reasoning",
+								reasoning: "[Redacted thinking block]",
+							}
+							break
 						case "text":
 							if (chunk.index > 0) {
 								yield {
@@ -124,6 +141,12 @@ export class AwsBedrockHandler implements ApiHandler {
 					break
 				case "content_block_delta":
 					switch (chunk.delta.type) {
+						case "thinking_delta":
+							yield {
+								type: "reasoning",
+								reasoning: chunk.delta.thinking,
+							}
+							break
 						case "text_delta":
 							yield {
 								type: "text",
