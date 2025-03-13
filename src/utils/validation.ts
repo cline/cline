@@ -14,35 +14,35 @@ import { anthropicModels } from "../shared/api"
  * @returns The validated thinking budget token value
  */
 export function validateThinkingBudget(
-        value: number,
-        maxTokens: number = anthropicModels["claude-3-7-sonnet-20250219"].maxTokens,
-        modelId: string = ""
+	value: number,
+	maxTokens: number = anthropicModels["claude-3-7-sonnet-20250219"].maxTokens,
+	modelId: string = "",
 ): number {
-        // If disabled (0) return as is
-        if (value === 0) {
-                return 0
-        }
+	// If disabled (0) return as is
+	if (value === 0) {
+		return 0
+	}
 
-        // If enabled but less than minimum set to minimum
-        if (value > 0 && value < 1024) {
-                return 1024
-        }
+	// If enabled but less than minimum set to minimum
+	if (value > 0 && value < 1024) {
+		return 1024
+	}
 
-        // Special case for Claude 3.7 models which support extended thinking up to 64K tokens
-        if (modelId.includes("claude-3-7")) {
-                const extendedThinkingMax = 64000
-                if (value >= extendedThinkingMax) {
-                        return extendedThinkingMax
-                }
-                return value
-        }
+	// Special case for Claude 3.7 models which support extended thinking up to 64K tokens
+	if (modelId.includes("claude-3-7")) {
+		const extendedThinkingMax = 64000
+		if (value >= extendedThinkingMax) {
+			return extendedThinkingMax
+		}
+		return value
+	}
 
-        // For other models: if greater than or equal to max allowed tokens (80% of max tokens) cap at that value
-        const maxAllowedTokens = Math.floor(maxTokens * 0.8)
-        if (value >= maxAllowedTokens) {
-                return maxAllowedTokens
-        }
+	// For other models: if greater than or equal to max allowed tokens (80% of max tokens) cap at that value
+	const maxAllowedTokens = Math.floor(maxTokens * 0.8)
+	if (value >= maxAllowedTokens) {
+		return maxAllowedTokens
+	}
 
-        // Otherwise return the original value
-        return value
+	// Otherwise return the original value
+	return value
 }

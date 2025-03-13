@@ -3246,9 +3246,9 @@ export class Cline {
 						case "reasoning":
 							// reasoning will always come before assistant message
 							reasoningMessage += chunk.reasoning
-							totalThinkingTokens = chunk.thinkingTokens || totalThinkingTokens || 0;
+							totalThinkingTokens = chunk.thinkingTokens || totalThinkingTokens || 0
 							// Pass the thinking tokens to the say method
-							await this.say("reasoning", reasoningMessage, undefined, true, totalThinkingTokens);
+							await this.say("reasoning", reasoningMessage, undefined, true, totalThinkingTokens)
 							break
 						case "text":
 							if (reasoningMessage && assistantMessage.length === 0) {
