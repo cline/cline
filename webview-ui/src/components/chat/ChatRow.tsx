@@ -1223,7 +1223,11 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							)}
 							<div style={{ paddingTop: 10 }}>
 								<Markdown markdown={question} />
-								<OptionsButtons options={options} selected={selected} />
+								<OptionsButtons
+									options={options}
+									selected={selected}
+									isActive={isLast && lastModifiedMessage?.ask === "followup"}
+								/>
 							</div>
 						</>
 					)
@@ -1243,7 +1247,11 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					return (
 						<div style={{}}>
 							<Markdown markdown={response} />
-							<OptionsButtons options={options} selected={selected} />
+							<OptionsButtons
+								options={options}
+								selected={selected}
+								isActive={isLast && lastModifiedMessage?.ask === "plan_mode_response"}
+							/>
 						</div>
 					)
 				}

@@ -2,18 +2,18 @@ import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { vscode } from "../../utils/vscode"
 
-const OptionButton = styled.button<{ isSelected?: boolean; hasSelected?: boolean }>`
+const OptionButton = styled.button<{ isSelected?: boolean; isNotSelectable?: boolean }>`
 	padding: 8px 12px;
 	background: ${(props) => (props.isSelected ? "var(--vscode-focusBorder)" : CODE_BLOCK_BG_COLOR)};
 	color: ${(props) => (props.isSelected ? "white" : "var(--vscode-input-foreground)")};
 	border: 1px solid var(--vscode-editorGroup-border);
 	border-radius: 2px;
-	cursor: ${(props) => (props.hasSelected ? "default" : "pointer")};
+	cursor: ${(props) => (props.isNotSelectable ? "default" : "pointer")};
 	text-align: left;
 	font-size: 12px;
 
 	${(props) =>
-		!props.hasSelected &&
+		!props.isNotSelectable &&
 		`
 		&:hover {
 			background: var(--vscode-focusBorder);
@@ -22,7 +22,15 @@ const OptionButton = styled.button<{ isSelected?: boolean; hasSelected?: boolean
 	`}
 `
 
-export const OptionsButtons = ({ options, selected }: { options?: string[]; selected?: string }) => {
+export const OptionsButtons = ({
+	options,
+	selected,
+	isActive,
+}: {
+	options?: string[]
+	selected?: string
+	isActive?: boolean
+}) => {
 	if (!options?.length) return null
 
 	const hasSelected = selected !== undefined && options.includes(selected)
@@ -36,12 +44,18 @@ export const OptionsButtons = ({ options, selected }: { options?: string[]; sele
 				paddingTop: 15,
 				// marginTop: "22px",
 			}}>
+			{/* <div style={{ color: "var(--vscode-descriptionForeground)", fontSize: "11px", textTransform: "uppercase" }}>
+				SELECT ONE:
+			</div> */}
 			{options.map((option, index) => (
 				<OptionButton
 					key={index}
 					isSelected={option === selected}
-					hasSelected={hasSelected}
+					isNotSelectable={hasSelected || !isActive}
 					onClick={() => {
+						if (hasSelected || !isActive) {
+							return
+						}
 						vscode.postMessage({
 							type: "optionsResponse",
 							text: option,
