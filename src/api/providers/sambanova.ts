@@ -5,8 +5,6 @@ import { ApiHandlerOptions, ModelInfo, SambanovaModelId, sambanovaDefaultModelId
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
-import { LogLevel } from "vscode"
-import { Logger } from "../../services/logging/Logger"
 import { convertToR1Format } from "../transform/r1-format"
 
 export class SambanovaHandler implements ApiHandler {
