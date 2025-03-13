@@ -246,6 +246,8 @@ export interface MessageContent {
 
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0"
+export const bedrockDefaultPromptRouterModelId: BedrockModelId = "anthropic.claude-3-sonnet-20240229-v1:0"
+
 // March, 12 2025 - updated prices to match US-West-2 list price shown at https://aws.amazon.com/bedrock/pricing/
 // including older models that are part of the default prompt routers AWS enabled for GA of the promot router feature
 export const bedrockModels = {
