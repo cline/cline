@@ -295,10 +295,6 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 							if (region === "us." || region === "eu.") modelName = modelName.slice(3)
 							this.costModelConfig = this.getModelByName(modelName)
-							logger.debug("Updated modelConfig using invokedModelId from a prompt router response", {
-								ctx: "bedrock",
-								modelConfig: this.costModelConfig,
-							})
 						}
 
 						// Handle metadata events for the promptRouter.
@@ -528,21 +524,17 @@ Please check:
 				modelData.id = this.options.awsCustomArn
 
 				if (modelData) {
-					logger.debug(`Matched custom ARN to model: ${modelName}`, {
-						ctx: "bedrock",
-						modelData,
-					})
 					return modelData
 				}
 			}
 
 			// An ARN was used, but no model info match found, use default values based on common patterns
-			let modelInfo = this.getModelByName(bedrockDefaultPromptRouterModelId)
+			let model = this.getModelByName(bedrockDefaultPromptRouterModelId)
 
 			// For custom ARNs, always return the specific values expected by tests
 			return {
 				id: this.options.awsCustomArn,
-				info: modelInfo.info,
+				info: model.info,
 			}
 		}
 
@@ -556,11 +548,6 @@ Please check:
 
 			// For tests, allow any model ID (but not custom ARNs, which are handled above)
 			if (process.env.NODE_ENV === "test") {
-				logger.debug("Return defaults 4", {
-					ctx: "bedrock",
-					customArn: this.options.awsCustomArn,
-				})
-
 				return {
 					id: this.options.apiModelId,
 					info: {
@@ -662,7 +649,6 @@ Please check:
 				try {
 					const outputStr = new TextDecoder().decode(response.output)
 					const output = JSON.parse(outputStr)
-					logger.debug("Bedrock response", { ctx: "bedrock", output: output })
 					if (output.content) {
 						return output.content
 					}

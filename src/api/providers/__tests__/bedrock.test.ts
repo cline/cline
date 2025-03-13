@@ -348,7 +348,7 @@ describe("AwsBedrockHandler", () => {
 				"arn:aws:bedrock:us-west-2:699475926481:inference-profile/us.meta.llama3-8b-instruct-v1:0",
 			)
 
-			//
+			//these should not be the default fall back. they should be Llama's config
 			expect(modelInfo.info.maxTokens).toBe(2048)
 			expect(modelInfo.info.contextWindow).toBe(4_000)
 			expect(modelInfo.info.supportsImages).toBe(false)
