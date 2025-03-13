@@ -267,10 +267,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							<div
 								style={{
 									cursor: "pointer",
-									color: "var(--vscode-textLink-foreground)",
+									color: "var(--vscode-badge-foreground)",
+									fontSize: "11px",
 									marginLeft: "auto",
 									textAlign: "right",
-									paddingRight: 2,
+									paddingRight: 8,
 								}}
 								onClick={() => setIsTextExpanded(!isTextExpanded)}>
 								See less

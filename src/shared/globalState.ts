@@ -1,4 +1,17 @@
-// Define the array first with 'as const' to create a readonly tuple type
+import type { SecretKey, GlobalStateKey, ConfigurationKey, ConfigurationValues } from "../exports/roo-code"
+
+export type { SecretKey, GlobalStateKey, ConfigurationKey, ConfigurationValues }
+
+/**
+ * For convenience we'd like the `RooCodeAPI` to define `SecretKey` and `GlobalStateKey`,
+ * but since it is a type definition file we can't export constants without some
+ * annoyances. In order to achieve proper type safety without using constants as
+ * in the type definition we use this clever Check<>Exhaustiveness pattern.
+ * If you extend the `SecretKey` or `GlobalStateKey` types, you will need to
+ * update the `SECRET_KEYS` and `GLOBAL_STATE_KEYS` arrays to include the new
+ * keys or a type error will be thrown.
+ */
+
 export const SECRET_KEYS = [
 	"apiKey",
 	"glamaApiKey",
@@ -15,10 +28,10 @@ export const SECRET_KEYS = [
 	"requestyApiKey",
 ] as const
 
-// Derive the type from the array - creates a union of string literals
-export type SecretKey = (typeof SECRET_KEYS)[number]
+type CheckSecretKeysExhaustiveness = Exclude<SecretKey, (typeof SECRET_KEYS)[number]> extends never ? true : false
 
-// Define the array first with 'as const' to create a readonly tuple type
+const _checkSecretKeysExhaustiveness: CheckSecretKeysExhaustiveness = true
+
 export const GLOBAL_STATE_KEYS = [
 	"apiProvider",
 	"apiModelId",
@@ -59,6 +72,7 @@ export const GLOBAL_STATE_KEYS = [
 	"openRouterModelInfo",
 	"openRouterBaseUrl",
 	"openRouterUseMiddleOutTransform",
+	"googleGeminiBaseUrl",
 	"allowedCommands",
 	"soundEnabled",
 	"soundVolume",
@@ -69,9 +83,8 @@ export const GLOBAL_STATE_KEYS = [
 	"screenshotQuality",
 	"remoteBrowserHost",
 	"fuzzyMatchThreshold",
-	"preferredLanguage", // Language setting for Cline's communication
 	"writeDelayMs",
-	"terminalOutputLimit",
+	"terminalOutputLineLimit",
 	"mcpEnabled",
 	"enableMcpServerCreation",
 	"alwaysApproveResubmit",
@@ -85,10 +98,10 @@ export const GLOBAL_STATE_KEYS = [
 	"customModePrompts",
 	"customSupportPrompts",
 	"enhancementApiConfigId",
-	"experiments", // Map of experiment IDs to their enabled state
+	"experiments", // Map of experiment IDs to their enabled state.
 	"autoApprovalEnabled",
-	"enableCustomModeCreation", // Enable the ability for Roo to create custom modes
-	"customModes", // Array of custom modes
+	"enableCustomModeCreation", // Enable the ability for Roo to create custom modes.
+	"customModes", // Array of custom modes.
 	"unboundModelId",
 	"requestyModelId",
 	"requestyModelInfo",
@@ -105,5 +118,12 @@ export const GLOBAL_STATE_KEYS = [
 	"remoteBrowserEnabled",
 ] as const
 
-// Derive the type from the array - creates a union of string literals
-export type GlobalStateKey = (typeof GLOBAL_STATE_KEYS)[number]
+type CheckGlobalStateKeysExhaustiveness =
+	Exclude<GlobalStateKey, (typeof GLOBAL_STATE_KEYS)[number]> extends never ? true : false
+
+const _checkGlobalStateKeysExhaustiveness: CheckGlobalStateKeysExhaustiveness = true
+
+export const isSecretKey = (key: string): key is SecretKey => SECRET_KEYS.includes(key as SecretKey)
+
+export const isGlobalStateKey = (key: string): key is GlobalStateKey =>
+	GLOBAL_STATE_KEYS.includes(key as GlobalStateKey)

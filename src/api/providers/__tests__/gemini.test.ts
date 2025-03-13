@@ -101,10 +101,15 @@ describe("GeminiHandler", () => {
 			})
 
 			// Verify the model configuration
-			expect(mockGetGenerativeModel).toHaveBeenCalledWith({
-				model: "gemini-2.0-flash-thinking-exp-1219",
-				systemInstruction: systemPrompt,
-			})
+			expect(mockGetGenerativeModel).toHaveBeenCalledWith(
+				{
+					model: "gemini-2.0-flash-thinking-exp-1219",
+					systemInstruction: systemPrompt,
+				},
+				{
+					baseUrl: undefined,
+				},
+			)
 
 			// Verify generation config
 			expect(mockGenerateContentStream).toHaveBeenCalledWith(
@@ -149,9 +154,14 @@ describe("GeminiHandler", () => {
 
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("Test response")
-			expect(mockGetGenerativeModel).toHaveBeenCalledWith({
-				model: "gemini-2.0-flash-thinking-exp-1219",
-			})
+			expect(mockGetGenerativeModel).toHaveBeenCalledWith(
+				{
+					model: "gemini-2.0-flash-thinking-exp-1219",
+				},
+				{
+					baseUrl: undefined,
+				},
+			)
 			expect(mockGenerateContent).toHaveBeenCalledWith({
 				contents: [{ role: "user", parts: [{ text: "Test prompt" }] }],
 				generationConfig: {

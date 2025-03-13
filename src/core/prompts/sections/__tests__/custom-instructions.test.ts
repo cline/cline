@@ -113,11 +113,11 @@ describe("addCustomInstructions", () => {
 			"global instructions",
 			"/fake/path",
 			"test-mode",
-			{ preferredLanguage: "Spanish" },
+			{ language: "es" },
 		)
 
 		expect(result).toContain("Language Preference:")
-		expect(result).toContain("Spanish")
+		expect(result).toContain("es")
 		expect(result).toContain("Global Instructions:\nglobal instructions")
 		expect(result).toContain("Mode-specific Instructions:\nmode instructions")
 		expect(result).toContain("Rules from .clinerules-test-mode:\nmode specific rules")

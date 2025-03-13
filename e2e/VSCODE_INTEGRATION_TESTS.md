@@ -30,7 +30,7 @@ The test runner (`runTest.ts`) is responsible for:
 
 ### Environment Setup
 
-1. Create a `.env.integration` file in the root directory with required environment variables:
+1. Create a `.env.local` file in the root directory with required environment variables:
 
 ```
 OPENROUTER_API_KEY=sk-or-v1-...
@@ -67,7 +67,7 @@ declare global {
 
 ## Running Tests
 
-1. Ensure you have the required environment variables set in `.env.integration`
+1. Ensure you have the required environment variables set in `.env.local`
 
 2. Run the integration tests:
 
@@ -117,8 +117,10 @@ const interval = 1000
 2. **State Management**: Reset extension state before/after tests:
 
 ```typescript
-await globalThis.provider.updateGlobalState("mode", "Ask")
-await globalThis.provider.updateGlobalState("alwaysAllowModeSwitch", true)
+await globalThis.api.setConfiguration({
+	mode: "Ask",
+	alwaysAllowModeSwitch: true,
+})
 ```
 
 3. **Assertions**: Use clear assertions with meaningful messages:
@@ -141,8 +143,12 @@ try {
 
 ```typescript
 let startTime = Date.now()
+
 while (Date.now() - startTime < timeout) {
-	if (condition) break
+	if (condition) {
+		break
+	}
+
 	await new Promise((resolve) => setTimeout(resolve, interval))
 }
 ```

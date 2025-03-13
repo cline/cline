@@ -1,22 +1,32 @@
-export interface RooCodeAPI {
-	/**
-	 * Sets the custom instructions in the global storage.
-	 * @param value The custom instructions to be saved.
-	 */
-	setCustomInstructions(value: string): Promise<void>
+import { EventEmitter } from "events"
 
-	/**
-	 * Retrieves the custom instructions from the global storage.
-	 * @returns The saved custom instructions, or undefined if not set.
-	 */
-	getCustomInstructions(): Promise<string | undefined>
+export interface RooCodeEvents {
+	message: [{ taskId: string; action: "created" | "updated"; message: ClineMessage }]
+	taskStarted: [taskId: string]
+	taskPaused: [taskId: string]
+	taskUnpaused: [taskId: string]
+	taskAborted: [taskId: string]
+	taskSpawned: [taskId: string, childTaskId: string]
+}
 
+export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	/**
 	 * Starts a new task with an optional initial message and images.
 	 * @param task Optional initial task message.
 	 * @param images Optional array of image data URIs (e.g., "data:image/webp;base64,...").
+	 * @returns The ID of the new task.
 	 */
-	startNewTask(task?: string, images?: string[]): Promise<void>
+	startNewTask(task?: string, images?: string[]): Promise<string>
+
+	/**
+	 * Clears the current task.
+	 */
+	clearCurrentTask(lastMessage?: string): Promise<void>
+
+	/**
+	 * Cancels the current task.
+	 */
+	cancelCurrentTask(): Promise<void>
 
 	/**
 	 * Sends a message to the current task.
@@ -36,9 +46,22 @@ export interface RooCodeAPI {
 	pressSecondaryButton(): Promise<void>
 
 	/**
-	 * The sidebar provider instance.
+	 * Sets the configuration for the current task.
+	 * @param values An object containing key-value pairs to set.
 	 */
-	sidebarProvider: ClineProvider
+	setConfiguration(values: Partial<ConfigurationValues>): Promise<void>
+
+	/**
+	 * Returns true if the API is ready to use.
+	 */
+	isReady(): boolean
+
+	/**
+	 * Returns the messages for a given task.
+	 * @param taskId The ID of the task.
+	 * @returns An array of ClineMessage objects.
+	 */
+	getMessages(taskId: string): ClineMessage[]
 }
 
 export type ClineAsk =
@@ -95,84 +118,106 @@ export interface ClineMessage {
 	progressStatus?: ToolProgressStatus
 }
 
-export interface ClineProvider {
-	readonly context: vscode.ExtensionContext
-	readonly viewLaunched: boolean
-	readonly messages: ClineMessage[]
+export type SecretKey =
+	| "apiKey"
+	| "glamaApiKey"
+	| "openRouterApiKey"
+	| "awsAccessKey"
+	| "awsSecretKey"
+	| "awsSessionToken"
+	| "openAiApiKey"
+	| "geminiApiKey"
+	| "openAiNativeApiKey"
+	| "deepSeekApiKey"
+	| "mistralApiKey"
+	| "unboundApiKey"
+	| "requestyApiKey"
 
-	/**
-	 * Resolves the webview view for the provider
-	 * @param webviewView The webview view or panel to resolve
-	 */
-	resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel): Promise<void>
+export type GlobalStateKey =
+	| "apiProvider"
+	| "apiModelId"
+	| "glamaModelId"
+	| "glamaModelInfo"
+	| "awsRegion"
+	| "awsUseCrossRegionInference"
+	| "awsProfile"
+	| "awsUseProfile"
+	| "awsCustomArn"
+	| "vertexKeyFile"
+	| "vertexJsonCredentials"
+	| "vertexProjectId"
+	| "vertexRegion"
+	| "lastShownAnnouncementId"
+	| "customInstructions"
+	| "alwaysAllowReadOnly"
+	| "alwaysAllowWrite"
+	| "alwaysAllowExecute"
+	| "alwaysAllowBrowser"
+	| "alwaysAllowMcp"
+	| "alwaysAllowModeSwitch"
+	| "alwaysAllowSubtasks"
+	| "taskHistory"
+	| "openAiBaseUrl"
+	| "openAiModelId"
+	| "openAiCustomModelInfo"
+	| "openAiUseAzure"
+	| "ollamaModelId"
+	| "ollamaBaseUrl"
+	| "lmStudioModelId"
+	| "lmStudioBaseUrl"
+	| "anthropicBaseUrl"
+	| "modelMaxThinkingTokens"
+	| "azureApiVersion"
+	| "openAiStreamingEnabled"
+	| "openRouterModelId"
+	| "openRouterModelInfo"
+	| "openRouterBaseUrl"
+	| "openRouterUseMiddleOutTransform"
+	| "googleGeminiBaseUrl"
+	| "allowedCommands"
+	| "soundEnabled"
+	| "soundVolume"
+	| "diffEnabled"
+	| "enableCheckpoints"
+	| "checkpointStorage"
+	| "browserViewportSize"
+	| "screenshotQuality"
+	| "remoteBrowserHost"
+	| "fuzzyMatchThreshold"
+	| "writeDelayMs"
+	| "terminalOutputLineLimit"
+	| "mcpEnabled"
+	| "enableMcpServerCreation"
+	| "alwaysApproveResubmit"
+	| "requestDelaySeconds"
+	| "rateLimitSeconds"
+	| "currentApiConfigName"
+	| "listApiConfigMeta"
+	| "vsCodeLmModelSelector"
+	| "mode"
+	| "modeApiConfigs"
+	| "customModePrompts"
+	| "customSupportPrompts"
+	| "enhancementApiConfigId"
+	| "experiments" // Map of experiment IDs to their enabled state
+	| "autoApprovalEnabled"
+	| "enableCustomModeCreation" // Enable the ability for Roo to create custom modes
+	| "customModes" // Array of custom modes
+	| "unboundModelId"
+	| "requestyModelId"
+	| "requestyModelInfo"
+	| "unboundModelInfo"
+	| "modelTemperature"
+	| "modelMaxTokens"
+	| "mistralCodestralUrl"
+	| "maxOpenTabsContext"
+	| "browserToolEnabled"
+	| "lmStudioSpeculativeDecodingEnabled"
+	| "lmStudioDraftModelId"
+	| "telemetrySetting"
+	| "showRooIgnoredFiles"
+	| "remoteBrowserEnabled"
 
-	/**
-	 * Initializes Cline with a task
-	 */
-	initClineWithTask(task?: string, images?: string[]): Promise<void>
+export type ConfigurationKey = GlobalStateKey | SecretKey
 
-	/**
-	 * Initializes Cline with a history item
-	 */
-	initClineWithHistoryItem(historyItem: HistoryItem): Promise<void>
-
-	/**
-	 * Posts a message to the webview
-	 */
-	postMessageToWebview(message: ExtensionMessage): Promise<void>
-
-	/**
-	 * Handles mode switching
-	 */
-	handleModeSwitch(newMode: Mode): Promise<void>
-
-	/**
-	 * Updates custom instructions
-	 */
-	updateCustomInstructions(instructions?: string): Promise<void>
-
-	/**
-	 * Cancels the current task
-	 */
-	cancelTask(): Promise<void>
-
-	/**
-	 * Gets the current state
-	 */
-	getState(): Promise<any>
-
-	/**
-	 * Updates a value in the global state
-	 * @param key The key to update
-	 * @param value The value to set
-	 */
-	updateGlobalState(key: GlobalStateKey, value: any): Promise<void>
-
-	/**
-	 * Gets a value from the global state
-	 * @param key The key to get
-	 */
-	getGlobalState(key: GlobalStateKey): Promise<any>
-
-	/**
-	 * Stores a secret value in secure storage
-	 * @param key The key to store the secret under
-	 * @param value The secret value to store, or undefined to remove the secret
-	 */
-	storeSecret(key: SecretKey, value?: string): Promise<void>
-
-	/**
-	 * Resets the state
-	 */
-	resetState(): Promise<void>
-
-	/**
-	 * Logs a message
-	 */
-	log(message: string): void
-
-	/**
-	 * Disposes of the provider
-	 */
-	dispose(): Promise<void>
-}
+export type ConfigurationValues = Record<ConfigurationKey, any>

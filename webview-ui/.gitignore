@@ -23,3 +23,5 @@ yarn-debug.log*
 yarn-error.log*
 
 *storybook.log
+
+tsconfig.tsbuildinfo

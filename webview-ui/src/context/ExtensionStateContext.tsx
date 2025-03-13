@@ -1,8 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
-
 import { ApiConfigMeta, ExtensionMessage, ExtensionState } from "../../../src/shared/ExtensionMessage"
 import { ApiConfiguration } from "../../../src/shared/api"
+import { vscode } from "../utils/vscode"
+import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpServer } from "../../../src/shared/mcp"
 import { checkExistKey } from "../../../src/shared/checkExistApiConfig"
@@ -10,10 +11,6 @@ import { Mode, CustomModePrompts, defaultModeSlug, defaultPrompts, ModeConfig } 
 import { CustomSupportPrompts } from "../../../src/shared/support-prompt"
 import { experimentDefault, ExperimentId } from "../../../src/shared/experiments"
 import { TelemetrySetting } from "../../../src/shared/TelemetrySetting"
-import { TERMINAL_OUTPUT_LIMIT } from "../../../src/shared/terminal"
-
-import { vscode } from "@/utils/vscode"
-import { convertTextMateToHljs } from "@/utils/textMateToHljs"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -42,13 +39,11 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setEnableCheckpoints: (value: boolean) => void
 	setBrowserViewportSize: (value: string) => void
 	setFuzzyMatchThreshold: (value: number) => void
-	preferredLanguage: string
-	setPreferredLanguage: (value: string) => void
 	setWriteDelayMs: (value: number) => void
 	screenshotQuality?: number
 	setScreenshotQuality: (value: number) => void
-	terminalOutputLimit?: number
-	setTerminalOutputLimit: (value: number) => void
+	terminalOutputLineLimit?: number
+	setTerminalOutputLineLimit: (value: number) => void
 	mcpEnabled: boolean
 	setMcpEnabled: (value: boolean) => void
 	enableMcpServerCreation: boolean
@@ -121,12 +116,12 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		enableCheckpoints: true,
 		checkpointStorage: "task",
 		fuzzyMatchThreshold: 1.0,
-		preferredLanguage: "English",
+		language: "en", // Default language code
 		enableCustomModeCreation: true,
 		writeDelayMs: 1000,
 		browserViewportSize: "900x600",
 		screenshotQuality: 75,
-		terminalOutputLimit: TERMINAL_OUTPUT_LIMIT,
+		terminalOutputLineLimit: 500,
 		mcpEnabled: true,
 		enableMcpServerCreation: true,
 		alwaysApproveResubmit: false,
@@ -263,10 +258,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setBrowserViewportSize: (value: string) =>
 			setState((prevState) => ({ ...prevState, browserViewportSize: value })),
 		setFuzzyMatchThreshold: (value) => setState((prevState) => ({ ...prevState, fuzzyMatchThreshold: value })),
-		setPreferredLanguage: (value) => setState((prevState) => ({ ...prevState, preferredLanguage: value })),
 		setWriteDelayMs: (value) => setState((prevState) => ({ ...prevState, writeDelayMs: value })),
 		setScreenshotQuality: (value) => setState((prevState) => ({ ...prevState, screenshotQuality: value })),
-		setTerminalOutputLimit: (value) => setState((prevState) => ({ ...prevState, terminalOutputLimit: value })),
+		setTerminalOutputLineLimit: (value) =>
+			setState((prevState) => ({ ...prevState, terminalOutputLineLimit: value })),
 		setMcpEnabled: (value) => setState((prevState) => ({ ...prevState, mcpEnabled: value })),
 		setEnableMcpServerCreation: (value) =>
 			setState((prevState) => ({ ...prevState, enableMcpServerCreation: value })),

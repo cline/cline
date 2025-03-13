@@ -1,5 +1,37 @@
 # Roo Code Changelog
 
+## [3.8.6] - 2025-03-13
+
+- Revert SSE MCP support while we debug some config validation issues
+
+## [3.8.5] - 2025-03-12
+
+- Refactor terminal architecture to address critical issues with the current design (thanks @KJ7LNW!)
+- MCP over SSE (thanks @aheizi!)
+- Support for remote browser connections (thanks @afshawnlotfi!)
+- Preserve parent-child relationship when cancelling subtasks (thanks @cannuri!)
+- Custom baseUrl for Google AI Studio Gemini (thanks @dqroid!)
+- PowerShell-specific command handling (thanks @KJ7LNW!)
+- OpenAI-compatible DeepSeek/QwQ reasoning support (thanks @lightrabbit!)
+- Anthropic-style prompt caching in the OpenAI-compatible provider (thanks @dleen!)
+- Add Deepseek R1 for AWS Bedrock (thanks @ATempsch!)
+- Fix MarkdownBlock text color for Dark High Contrast theme (thanks @cannuri!)
+- Add gemini-2.0-pro-exp-02-05 model to vertex (thanks @shohei-ihaya!)
+- Bring back progress status for multi-diff edits (thanks @qdaxb!)
+- Refactor alert dialog styles to use the correct vscode theme (thanks @cannuri!)
+- Custom ARNs in AWS Bedrock (thanks @Smartsheet-JB-Brown!)
+- Update MCP servers directory path for platform compatibility (thanks @hannesrudolph!)
+- Fix browser system prompt inclusion rules (thanks @cannuri!)
+- Publish git tags to github from CI (thanks @pdecat!)
+- Fixes to OpenAI-style cost calculations (thanks @dtrugman!)
+- Fix to allow using an excluded directory as your working directory (thanks @Szpadel!)
+- Kotlin language support in list_code_definition_names tool (thanks @kohii!)
+- Better handling of diff application errors (thanks @qdaxb!)
+- Update Bedrock prices to the latest (thanks @Smartsheet-JB-Brown!)
+- Fixes to OpenRouter custom baseUrl support
+- Fix usage tracking for SiliconFlow and other providers that include usage on every chunk
+- Telemetry for checkpoint save/restore/diff and diff strategies
+
 ## [3.8.4] - 2025-03-09
 
 - Roll back multi-diff progress indicator temporarily to fix a double-confirmation in saving edits
