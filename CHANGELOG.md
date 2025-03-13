@@ -1,8 +1,6 @@
 # Roo Code Changelog
 
-## 3.8.6
-
-### Patch Changes
+## [3.8.6]
 
 - Revert "feat: add sse mcp support"
 
