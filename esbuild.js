@@ -79,6 +79,11 @@ const extensionConfig = {
 	platform: "node",
 	outfile: "dist/extension.js",
 	external: ["vscode"],
+	define: {
+		"process.env": JSON.stringify({
+			NODE_ENV: process.env.NODE_ENV,
+		}),
+	},
 }
 
 async function main() {

@@ -13,7 +13,7 @@
 			"outFiles": ["${workspaceFolder}/dist/**/*.js"],
 			"preLaunchTask": "${defaultBuildTask}",
 			"env": {
-				"IS_DEV": "true",
+				"NODE_ENV": "debug",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
 			}
 		}

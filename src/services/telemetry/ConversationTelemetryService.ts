@@ -15,7 +15,7 @@ export type TelemetryChatMessage = {
 
 import * as vscode from "vscode"
 
-const { IS_DEV } = process.env
+const IS_DEV = Boolean(process.env.NODE_ENV === "development" || process.env.NODE_ENV === "debug")
 
 interface ConversationMetadata {
 	apiProvider: string

@@ -16,7 +16,7 @@ import ApiOptions from "./ApiOptions"
 import { TabButton } from "../mcp/McpView"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
-const { IS_DEV } = process.env
+const { NODE_ENV } = process.env
 
 type SettingsViewProps = {
 	onDone: () => void
@@ -279,8 +279,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						for more details.
 					</p>
 				</div>
-
-				{IS_DEV && (
+				{(NODE_ENV === "development" || NODE_ENV === "debug") && (
 					<>
 						<div style={{ marginTop: "10px", marginBottom: "4px" }}>Debug</div>
 						<VSCodeButton onClick={handleResetState} style={{ marginTop: "5px", width: "auto" }}>
