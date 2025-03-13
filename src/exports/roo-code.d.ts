@@ -2,7 +2,11 @@ import { EventEmitter } from "events"
 
 export interface RooCodeEvents {
 	message: [{ taskId: string; action: "created" | "updated"; message: ClineMessage }]
-	taskSpawned: [taskId: string]
+	taskStarted: [taskId: string]
+	taskPaused: [taskId: string]
+	taskUnpaused: [taskId: string]
+	taskAborted: [taskId: string]
+	taskSpawned: [taskId: string, childTaskId: string]
 }
 
 export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
@@ -13,6 +17,11 @@ export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	 * @returns The ID of the new task.
 	 */
 	startNewTask(task?: string, images?: string[]): Promise<string>
+
+	/**
+	 * Clears the current task.
+	 */
+	clearCurrentTask(lastMessage?: string): Promise<void>
 
 	/**
 	 * Cancels the current task.

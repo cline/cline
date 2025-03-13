@@ -50,19 +50,27 @@ export const waitUntilReady = async ({ api, ...options }: WaitUntilReadyOptions)
 	await waitFor(() => api.isReady(), options)
 }
 
-type WaitForToolUseOptions = WaitUntilReadyOptions & {
+type WaitUntilAbortedOptions = WaitForOptions & {
+	api: RooCodeAPI
 	taskId: string
-	toolName: string
 }
 
-export const waitForToolUse = async ({ api, taskId, toolName, ...options }: WaitForToolUseOptions) =>
-	waitFor(
-		() =>
-			api
-				.getMessages(taskId)
-				.some(({ type, say, text }) => type === "say" && say === "tool" && text && text.includes(toolName)),
-		options,
-	)
+export const waitUntilAborted = async ({ api, taskId, ...options }: WaitUntilAbortedOptions) => {
+	const set = new Set<string>()
+	api.on("taskAborted", (taskId) => set.add(taskId))
+	await waitFor(() => set.has(taskId), options)
+}
+
+export const waitForCompletion = async ({
+	api,
+	taskId,
+	...options
+}: WaitUntilReadyOptions & {
+	taskId: string
+}) => waitFor(() => !!getCompletion({ api, taskId }), options)
+
+export const getCompletion = ({ api, taskId }: { api: RooCodeAPI; taskId: string }) =>
+	api.getMessages(taskId).find(({ say, partial }) => say === "completion_result" && partial === false)
 
 type WaitForMessageOptions = WaitUntilReadyOptions & {
 	taskId: string

@@ -113,6 +113,7 @@ export type ClineOptions = {
 
 export class Cline extends EventEmitter<ClineEvents> {
 	readonly taskId: string
+	readonly instanceId: string
 
 	// Subtasks
 	readonly rootTask: Cline | undefined = undefined
@@ -196,6 +197,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		})
 
 		this.taskId = historyItem ? historyItem.id : crypto.randomUUID()
+		this.instanceId = crypto.randomUUID().slice(0, 8)
 		this.taskNumber = -1
 		this.apiConfiguration = apiConfiguration
 		this.api = buildApiHandler(apiConfiguration)
@@ -409,9 +411,11 @@ export class Cline extends EventEmitter<ClineEvents> {
 		// simply removes the reference to this instance, but the instance is
 		// still alive until this promise resolves or rejects.)
 		if (this.abort) {
-			throw new Error(`Task: ${this.taskNumber} Roo Code instance aborted (#1)`)
+			throw new Error(`[Cline#ask] task ${this.taskId}.${this.instanceId} aborted`)
 		}
+
 		let askTs: number
+
 		if (partial !== undefined) {
 			const lastMessage = this.clineMessages.at(-1)
 			const isUpdatingPreviousPartial =
@@ -509,7 +513,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		progressStatus?: ToolProgressStatus,
 	): Promise<undefined> {
 		if (this.abort) {
-			throw new Error(`Task: ${this.taskNumber} Roo Code instance aborted (#2)`)
+			throw new Error(`[Cline#say] task ${this.taskId}.${this.instanceId} aborted`)
 		}
 
 		if (partial !== undefined) {
@@ -584,6 +588,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 		this.isInitialized = true
 
 		let imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
+
+		console.log(`[subtasks] task ${this.taskId}.${this.instanceId} starting`)
+
 		await this.initiateTaskLoop([
 			{
 				type: "text",
@@ -841,6 +848,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 		}
 
 		await this.overwriteApiConversationHistory(modifiedApiConversationHistory)
+
+		console.log(`[subtasks] task ${this.taskId}.${this.instanceId} resuming from history item`)
+
 		await this.initiateTaskLoop(newUserContent)
 	}
 
@@ -857,31 +867,36 @@ export class Cline extends EventEmitter<ClineEvents> {
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
 
-			//  The way this agentic loop works is that cline will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
-			// There is a MAX_REQUESTS_PER_TASK limit to prevent infinite requests, but Cline is prompted to finish the task as efficiently as he can.
+			// The way this agentic loop works is that cline will be given a
+			// task that he then calls tools to complete. Unless there's an
+			// attempt_completion call, we keep responding back to him with his
+			// tool's responses until he either attempt_completion or does not
+			// use anymore tools. If he does not use anymore tools, we ask him
+			// to consider if he's completed the task and then call
+			// attempt_completion, otherwise proceed with completing the task.
+			// There is a MAX_REQUESTS_PER_TASK limit to prevent infinite
+			// requests, but Cline is prompted to finish the task as efficiently
+			// as he can.
 
-			//const totalCost = this.calculateApiCostAnthropic(totalInputTokens, totalOutputTokens)
 			if (didEndLoop) {
-				// For now a task never 'completes'. This will only happen if the user hits max requests and denies resetting the count.
-				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
+				// For now a task never 'completes'. This will only happen if
+				// the user hits max requests and denies resetting the count.
 				break
 			} else {
-				// this.say(
-				// 	"tool",
-				// 	"Cline responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
-				// )
-				nextUserContent = [
-					{
-						type: "text",
-						text: formatResponse.noToolsUsed(),
-					},
-				]
+				nextUserContent = [{ type: "text", text: formatResponse.noToolsUsed() }]
 				this.consecutiveMistakeCount++
 			}
 		}
 	}
 
 	async abortTask(isAbandoned = false) {
+		// if (this.abort) {
+		// 	console.log(`[subtasks] already aborted task ${this.taskId}.${this.instanceId}`)
+		// 	return
+		// }
+
+		console.log(`[subtasks] aborting task ${this.taskId}.${this.instanceId}`)
+
 		// Will stop any autonomously running promises.
 		if (isAbandoned) {
 			this.abandoned = true
@@ -1237,7 +1252,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 	async presentAssistantMessage() {
 		if (this.abort) {
-			throw new Error(`Task: ${this.taskNumber} Roo Code instance aborted (#3)`)
+			throw new Error(`[Cline#presentAssistantMessage] task ${this.taskId}.${this.instanceId} aborted`)
 		}
 
 		if (this.presentAssistantMessageLocked) {
@@ -3113,7 +3128,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		includeFileDetails: boolean = false,
 	): Promise<boolean> {
 		if (this.abort) {
-			throw new Error(`Task: ${this.taskNumber} Roo Code instance aborted (#4)`)
+			throw new Error(`[Cline#recursivelyMakeClineRequests] task ${this.taskId}.${this.instanceId} aborted`)
 		}
 
 		if (this.consecutiveMistakeCount >= 3) {
@@ -3146,9 +3161,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 		const provider = this.providerRef.deref()
 
 		if (this.isPaused && provider) {
-			provider.log(`[subtasks] paused ${this.taskId}`)
+			provider.log(`[subtasks] paused ${this.taskId}.${this.instanceId}`)
 			await this.waitForResume()
-			provider.log(`[subtasks] resumed ${this.taskId}`)
+			provider.log(`[subtasks] resumed ${this.taskId}.${this.instanceId}`)
 			const currentMode = (await provider.getState())?.mode ?? defaultModeSlug
 
 			if (currentMode !== this.pausedModeSlug) {
@@ -3159,7 +3174,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 				await delay(500)
 
 				provider.log(
-					`[subtasks] task ${this.taskId} has switched back to '${this.pausedModeSlug}' from '${currentMode}'`,
+					`[subtasks] task ${this.taskId}.${this.instanceId} has switched back to '${this.pausedModeSlug}' from '${currentMode}'`,
 				)
 			}
 		}
@@ -3279,6 +3294,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 			let assistantMessage = ""
 			let reasoningMessage = ""
 			this.isStreaming = true
+
 			try {
 				for await (const chunk of stream) {
 					if (!chunk) {
@@ -3356,7 +3372,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 			// need to call here in case the stream was aborted
 			if (this.abort || this.abandoned) {
-				throw new Error(`Task: ${this.taskNumber} Roo Code instance aborted (#5)`)
+				throw new Error(`[Cline#recursivelyMakeClineRequests] task ${this.taskId}.${this.instanceId} aborted`)
 			}
 
 			this.didCompleteReadingStream = true

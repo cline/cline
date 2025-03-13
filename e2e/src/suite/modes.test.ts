@@ -1,34 +1,44 @@
 import * as assert from "assert"
 
-import { waitForMessage, getMessage } from "./utils"
+import { getCompletion, getMessage, sleep, waitForCompletion, waitUntilAborted } from "./utils"
 
 suite("Roo Code Modes", () => {
 	test("Should handle switching modes correctly", async function () {
 		const api = globalThis.api
 
-		let prompt =
-			"For each mode (Code, Architect, Ask) respond with the mode name and what it specializes in after switching to that mode, do not start with the current mode, be sure to say 'I AM DONE' after the task is complete."
+		/**
+		 * Switch modes.
+		 */
+
+		const switchModesPrompt =
+			"For each mode (Code, Architect, Ask) respond with the mode name and what it specializes in after switching to that mode. " +
+			"Do not start with the current mode."
 
 		await api.setConfiguration({ mode: "Code", alwaysAllowModeSwitch: true, autoApprovalEnabled: true })
-		let taskId = await api.startNewTask(prompt)
-		await waitForMessage({ api, taskId, include: "I AM DONE", exclude: "be sure to say", timeout: 300_000 })
+		const switchModesTaskId = await api.startNewTask(switchModesPrompt)
+		await waitForCompletion({ api, taskId: switchModesTaskId, timeout: 60_000 })
 
-		// Start grading portion of test to grade the response from 1 to 10.
-		prompt = `Given this prompt: ${prompt} grade the response from 1 to 10 in the format of "Grade: (1-10)": ${api
-			.getMessages(taskId)
-			.filter(({ type }) => type === "say")
-			.map(({ text }) => text ?? "")
-			.join("\n")}\nBe sure to say 'I AM DONE GRADING' after the task is complete.`
+		/**
+		 * Grade the response.
+		 */
+
+		const gradePrompt =
+			`Given this prompt: ${switchModesPrompt} grade the response from 1 to 10 in the format of "Grade: (1-10)": ` +
+			api
+				.getMessages(switchModesTaskId)
+				.filter(({ type }) => type === "say")
+				.map(({ text }) => text ?? "")
+				.join("\n")
 
 		await api.setConfiguration({ mode: "Ask" })
-		taskId = await api.startNewTask(prompt)
-		await waitForMessage({ api, taskId, include: "I AM DONE GRADING", exclude: "be sure to say" })
+		const gradeTaskId = await api.startNewTask(gradePrompt)
+		await waitForCompletion({ api, taskId: gradeTaskId, timeout: 60_000 })
 
-		const match = getMessage({ api, taskId, include: "Grade:", exclude: "Grade: (1-10)" })?.text?.match(
-			/Grade: (\d+)/,
-		)
-
+		const completion = getCompletion({ api, taskId: gradeTaskId })
+		const match = completion?.text?.match(/Grade: (\d+)/)
 		const score = parseInt(match?.[1] ?? "0")
-		assert.ok(score >= 7 && score <= 10, "Grade must be between 7 and 10.")
+		assert.ok(score >= 7 && score <= 10, `Grade must be between 7 and 10 - ${completion?.text}`)
+
+		await api.cancelCurrentTask()
 	})
 })
