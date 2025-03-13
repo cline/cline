@@ -96,7 +96,7 @@ Provide the improved code along with explanations for each enhancement.`,
 		label: "Add to Context",
 		description:
 			"Add context to your current task or conversation. Useful for providing additional information or clarifications. Available in code actions (lightbulb icon in the editor). and the editor context menu (right-click on selected code).",
-		template: `@/\${filePath}:
+		template: `\${filePath}:
 \`\`\`
 \${selectedText}
 \`\`\``,
