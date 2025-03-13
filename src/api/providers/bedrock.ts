@@ -667,7 +667,6 @@ Please check:
 	async completePrompt(prompt: string): Promise<string> {
 		try {
 			const modelConfig = this.getModel()
-			//this.costModelConfig = modelConfig;
 
 			// Handle cross-region inference
 			let modelId: string
