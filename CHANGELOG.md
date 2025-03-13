@@ -1,5 +1,16 @@
 # Roo Code Changelog
 
+## 3.8.5
+
+### Patch Changes
+
+- Update GitHub Actions workflow to automatically create and push git tags during release
+- App tab layout fixes
+- ContextProxy fix - constructor should not be async
+- v3.8.5
+- Add prompt caching to OpenAI-compatible custom model info
+- Fix usage tracking for SiliconFlow etc
+
 ## [3.8.4] - 2025-03-09
 
 - Roll back multi-diff progress indicator temporarily to fix a double-confirmation in saving edits
