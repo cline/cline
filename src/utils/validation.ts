@@ -5,7 +5,7 @@ import { anthropicModels } from "../shared/api"
  * - If disabled (0) return as is
  * - If enabled but less than minimum (1024) set to minimum
  * - If greater than or equal to max tokens set to max tokens - 1
- * - For Claude 3.7 models, allow up to 32K tokens for extended thinking
+ * - For Claude 3.7 models, allow up to 64K tokens for extended thinking
  * - Otherwise return the original value
  *
  * @param value The thinking budget token value to validate
