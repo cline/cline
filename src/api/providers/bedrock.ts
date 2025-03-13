@@ -8,7 +8,6 @@ import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
-import { Logger } from "../../services/logging/Logger"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -89,8 +88,6 @@ export class AwsBedrockHandler implements ApiHandler {
 		})
 
 		for await (const chunk of stream) {
-			Logger.log(`chunk: ${JSON.stringify(chunk, null, 2)}`)
-
 			switch (chunk.type) {
 				case "message_start":
 					const usage = chunk.message.usage
