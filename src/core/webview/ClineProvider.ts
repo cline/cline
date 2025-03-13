@@ -2285,6 +2285,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			"liteLlmApiKey",
 			"asksageApiKey",
 			"xaiApiKey",
+			"sambanovaApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
