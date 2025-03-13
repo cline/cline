@@ -214,6 +214,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				secretAccessKey: credentials.secretAccessKey,
 				sessionToken: credentials.sessionToken,
 			},
+			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
 		})
 	}
 
