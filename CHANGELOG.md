@@ -1,5 +1,11 @@
 # Roo Code Changelog
 
+## 3.8.6
+
+### Patch Changes
+
+- Revert "feat: add sse mcp support"
+
 ## [3.8.5] - 2025-03-12
 
 - Refactor terminal architecture to address critical issues with the current design (thanks @KJ7LNW!)
