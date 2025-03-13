@@ -73,6 +73,7 @@ export class McpHub {
 	private providerRef: WeakRef<ClineProvider>
 	private disposables: vscode.Disposable[] = []
 	private settingsWatcher?: vscode.FileSystemWatcher
+	private projectMcpWatcher?: vscode.FileSystemWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	private isDisposed: boolean = false
 	connections: McpConnection[] = []
@@ -81,7 +82,53 @@ export class McpHub {
 	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
 		this.watchMcpSettingsFile()
+		this.watchProjectMcpFile()
+		this.setupWorkspaceFoldersWatcher()
 		this.initializeMcpServers()
+	}
+
+	private setupWorkspaceFoldersWatcher(): void {
+		this.disposables.push(
+			vscode.workspace.onDidChangeWorkspaceFolders(async () => {
+				await this.updateProjectMcpServers()
+				this.watchProjectMcpFile()
+			}),
+		)
+	}
+
+	private watchProjectMcpFile(): void {
+		this.projectMcpWatcher?.dispose()
+
+		this.projectMcpWatcher = vscode.workspace.createFileSystemWatcher("**/.roo/mcp.json", false, false, false)
+
+		this.disposables.push(
+			this.projectMcpWatcher.onDidChange(async () => {
+				await this.updateProjectMcpServers()
+			}),
+			this.projectMcpWatcher.onDidCreate(async () => {
+				await this.updateProjectMcpServers()
+			}),
+			this.projectMcpWatcher.onDidDelete(async () => {
+				await this.cleanupProjectMcpServers()
+			}),
+		)
+
+		this.disposables.push(this.projectMcpWatcher)
+	}
+
+	private async updateProjectMcpServers(): Promise<void> {
+		await this.cleanupProjectMcpServers()
+		await this.initializeProjectMcpServers()
+	}
+
+	private async cleanupProjectMcpServers(): Promise<void> {
+		const projectServers = this.connections.filter((conn) => conn.server.source === "project")
+
+		for (const conn of projectServers) {
+			await this.deleteConnection(conn.server.name)
+		}
+
+		await this.notifyWebviewOfServerChanges()
 	}
 
 	getServers(): McpServer[] {
@@ -158,16 +205,68 @@ export class McpHub {
 
 	private async initializeMcpServers(): Promise<void> {
 		try {
+			// 1. Initialize global MCP servers
 			const settingsPath = await this.getMcpSettingsFilePath()
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
-			await this.updateServerConnections(config.mcpServers || {})
+			await this.updateServerConnections(config.mcpServers || {}, "global")
+
+			// 2. Initialize project-level MCP servers
+			await this.initializeProjectMcpServers()
 		} catch (error) {
 			console.error("Failed to initialize MCP servers:", error)
 		}
 	}
 
-	private async connectToServer(name: string, config: z.infer<typeof ServerConfigSchema>): Promise<void> {
+	// Get project-level MCP configuration path
+	private async getProjectMcpPath(): Promise<string | null> {
+		if (!vscode.workspace.workspaceFolders?.length) {
+			return null
+		}
+
+		const workspaceFolder = vscode.workspace.workspaceFolders[0]
+		const projectMcpDir = path.join(workspaceFolder.uri.fsPath, ".roo")
+		const projectMcpPath = path.join(projectMcpDir, "mcp.json")
+
+		try {
+			await fs.access(projectMcpPath)
+			return projectMcpPath
+		} catch {
+			return null
+		}
+	}
+
+	// Initialize project-level MCP servers
+	private async initializeProjectMcpServers(): Promise<void> {
+		const projectMcpPath = await this.getProjectMcpPath()
+		if (!projectMcpPath) {
+			return
+		}
+
+		try {
+			const content = await fs.readFile(projectMcpPath, "utf-8")
+			const config = JSON.parse(content)
+
+			// Validate configuration structure
+			const result = McpSettingsSchema.safeParse(config)
+			if (!result.success) {
+				vscode.window.showErrorMessage("项目 MCP 配置格式无效")
+				return
+			}
+
+			// Update server connections
+			await this.updateServerConnections(result.data.mcpServers || {}, "project")
+		} catch (error) {
+			console.error("Failed to initialize project MCP servers:", error)
+			vscode.window.showErrorMessage(`初始化项目 MCP 服务器失败: ${error}`)
+		}
+	}
+
+	private async connectToServer(
+		name: string,
+		config: z.infer<typeof ServerConfigSchema>,
+		source: "global" | "project" = "global",
+	): Promise<void> {
 		// Remove existing connection if it exists
 		await this.deleteConnection(name)
 
@@ -272,6 +371,8 @@ export class McpHub {
 					config: JSON.stringify(config),
 					status: "connecting",
 					disabled: config.disabled,
+					source,
+					projectPath: source === "project" ? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath : undefined,
 				},
 				client,
 				transport,
@@ -366,10 +467,17 @@ export class McpHub {
 		}
 	}
 
-	async updateServerConnections(newServers: Record<string, any>): Promise<void> {
+	async updateServerConnections(
+		newServers: Record<string, any>,
+		source: "global" | "project" = "global",
+	): Promise<void> {
 		this.isConnecting = true
 		this.removeAllFileWatchers()
-		const currentNames = new Set(this.connections.map((conn) => conn.server.name))
+		// Filter connections by source
+		const currentConnections = this.connections.filter(
+			(conn) => conn.server.source === source || (!conn.server.source && source === "global"),
+		)
+		const currentNames = new Set(currentConnections.map((conn) => conn.server.name))
 		const newNames = new Set(Object.keys(newServers))
 
 		// Delete removed servers
@@ -388,7 +496,7 @@ export class McpHub {
 				// New server
 				try {
 					this.setupFileWatcher(name, config)
-					await this.connectToServer(name, config)
+					await this.connectToServer(name, config, source)
 				} catch (error) {
 					console.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
@@ -397,8 +505,8 @@ export class McpHub {
 				try {
 					this.setupFileWatcher(name, config)
 					await this.deleteConnection(name)
-					await this.connectToServer(name, config)
-					console.log(`Reconnected MCP server with updated config: ${name}`)
+					await this.connectToServer(name, config, source)
+					console.log(`Reconnected ${source} MCP server with updated config: ${name}`)
 				} catch (error) {
 					console.error(`Failed to reconnect MCP server ${name}:`, error)
 				}
