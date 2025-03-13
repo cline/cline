@@ -69,6 +69,7 @@ type GlobalStateKey =
 	| "awsRegion"
 	| "awsUseCrossRegionInference"
 	| "awsBedrockUsePromptCache"
+	| "awsBedrockEndpoint"
 	| "awsProfile"
 	| "awsUseProfile"
 	| "vertexProjectId"
@@ -1103,6 +1104,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			awsRegion,
 			awsUseCrossRegionInference,
 			awsBedrockUsePromptCache,
+			awsBedrockEndpoint,
 			awsProfile,
 			awsUseProfile,
 			vertexProjectId,
@@ -1151,6 +1153,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("awsRegion", awsRegion)
 		await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
 		await this.updateGlobalState("awsBedrockUsePromptCache", awsBedrockUsePromptCache)
+		await this.updateGlobalState("awsBedrockEndpoint", awsBedrockEndpoint)
 		await this.updateGlobalState("awsProfile", awsProfile)
 		await this.updateGlobalState("awsUseProfile", awsUseProfile)
 		await this.updateGlobalState("vertexProjectId", vertexProjectId)
@@ -1939,6 +1942,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			awsRegion,
 			awsUseCrossRegionInference,
 			awsBedrockUsePromptCache,
+			awsBedrockEndpoint,
 			awsProfile,
 			awsUseProfile,
 			vertexProjectId,
@@ -2000,6 +2004,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
 			this.getGlobalState("awsUseCrossRegionInference") as Promise<boolean | undefined>,
 			this.getGlobalState("awsBedrockUsePromptCache") as Promise<boolean | undefined>,
+			this.getGlobalState("awsBedrockEndpoint") as Promise<string | undefined>,
 			this.getGlobalState("awsProfile") as Promise<string | undefined>,
 			this.getGlobalState("awsUseProfile") as Promise<boolean | undefined>,
 			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
@@ -2102,6 +2107,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				awsRegion,
 				awsUseCrossRegionInference,
 				awsBedrockUsePromptCache,
+				awsBedrockEndpoint,
 				awsProfile,
 				awsUseProfile,
 				vertexProjectId,
