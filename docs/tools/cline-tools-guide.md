@@ -51,6 +51,7 @@ Cline is your AI assistant that can:
     - Test web pages
     - Capture screenshots
     - Inspect console logs
+    - Inspect rendered HTML content
 
 ## Available Tools
 
