@@ -803,6 +803,21 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								}}>
 								Supports Images
 							</VSCodeCheckbox>
+							<VSCodeCheckbox
+								checked={!!apiConfiguration?.openAiModelInfo?.supportsComputerUse}
+								onChange={(e: any) => {
+									const isChecked = e.target.checked === true
+									let modelInfo = apiConfiguration?.openAiModelInfo
+										? apiConfiguration.openAiModelInfo
+										: { ...openAiModelInfoSaneDefaults }
+									modelInfo = { ...modelInfo, supportsComputerUse: isChecked }
+									setApiConfiguration({
+										...apiConfiguration,
+										openAiModelInfo: modelInfo,
+									})
+								}}>
+								Supports Computer Use
+							</VSCodeCheckbox>
 							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 								<VSCodeTextField
 									value={
