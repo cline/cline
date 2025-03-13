@@ -1,15 +1,23 @@
-export interface RooCodeAPI {
+import { EventEmitter } from "events"
+
+export interface RooCodeEvents {
+	message: [{ taskId: string; action: "created" | "updated"; message: ClineMessage }]
+	taskSpawned: [taskId: string]
+}
+
+export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	/**
 	 * Starts a new task with an optional initial message and images.
 	 * @param task Optional initial task message.
 	 * @param images Optional array of image data URIs (e.g., "data:image/webp;base64,...").
+	 * @returns The ID of the new task.
 	 */
-	startNewTask(task?: string, images?: string[]): Promise<void>
+	startNewTask(task?: string, images?: string[]): Promise<string>
 
 	/**
 	 * Cancels the current task.
 	 */
-	cancelTask(): Promise<void>
+	cancelCurrentTask(): Promise<void>
 
 	/**
 	 * Sends a message to the current task.
@@ -40,9 +48,11 @@ export interface RooCodeAPI {
 	isReady(): boolean
 
 	/**
-	 * Returns the messages from the current task.
+	 * Returns the messages for a given task.
+	 * @param taskId The ID of the task.
+	 * @returns An array of ClineMessage objects.
 	 */
-	getMessages(): ClineMessage[]
+	getMessages(taskId: string): ClineMessage[]
 }
 
 export type ClineAsk =

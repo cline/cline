@@ -1,13 +1,14 @@
+import fs from "fs/promises"
+import * as path from "path"
+import os from "os"
+import crypto from "crypto"
+import EventEmitter from "events"
+
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
-import { DiffStrategy, getDiffStrategy } from "./diff/DiffStrategy"
-import { validateToolUse, isToolAllowedForMode, ToolName } from "./mode-validator"
 import delay from "delay"
-import fs from "fs/promises"
-import os from "os"
 import pWaitFor from "p-wait-for"
 import getFolderSize from "get-folder-size"
-import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 
@@ -62,7 +63,7 @@ import { calculateApiCostAnthropic } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
 import { parseMentions } from "./mentions"
-import { RooIgnoreController, LOCK_TEXT_SYMBOL } from "./ignore/RooIgnoreController"
+import { RooIgnoreController } from "./ignore/RooIgnoreController"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
 import { SYSTEM_PROMPT } from "./prompts/system"
@@ -72,15 +73,25 @@ import { detectCodeOmission } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
 import { formatLanguage } from "../shared/language"
 import { McpHub } from "../services/mcp/McpHub"
-import crypto from "crypto"
+import { DiffStrategy, getDiffStrategy } from "./diff/DiffStrategy"
 import { insertGroups } from "./diff/insert-groups"
 import { telemetryService } from "../services/telemetry/TelemetryService"
+import { validateToolUse, isToolAllowedForMode, ToolName } from "./mode-validator"
 
 const cwd =
 	vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.Messages.ContentBlockParam>
+
+export type ClineEvents = {
+	message: [{ action: "created" | "updated"; message: ClineMessage }]
+	taskStarted: []
+	taskPaused: []
+	taskUnpaused: []
+	taskAborted: []
+	taskSpawned: [taskId: string]
+}
 
 export type ClineOptions = {
 	provider: ClineProvider
@@ -95,21 +106,22 @@ export type ClineOptions = {
 	historyItem?: HistoryItem
 	experiments?: Record<string, boolean>
 	startTask?: boolean
+	rootTask?: Cline
+	parentTask?: Cline
+	taskNumber?: number
 }
 
-export class Cline {
+export class Cline extends EventEmitter<ClineEvents> {
 	readonly taskId: string
-	private taskNumber: number
-	// a flag that indicated if this Cline instance is a subtask (on finish return control to parent task)
-	private isSubTask: boolean = false
-	// a flag that indicated if this Cline instance is paused (waiting for provider to resume it after subtask completion)
+
+	// Subtasks
+	readonly rootTask: Cline | undefined = undefined
+	readonly parentTask: Cline | undefined = undefined
+	readonly taskNumber: number
 	private isPaused: boolean = false
-	// this is the parent task work mode when it launched the subtask to be used when it is restored (so the last used mode by parent task will also be restored)
 	private pausedModeSlug: string = defaultModeSlug
-	// if this is a subtask then this member holds a pointer to the parent task that launched it
-	private parentTask: Cline | undefined = undefined
-	// if this is a subtask then this member holds a pointer to the top parent task that launched it
-	private rootTask: Cline | undefined = undefined
+	private pauseInterval: NodeJS.Timeout | undefined
+
 	readonly apiConfiguration: ApiConfiguration
 	api: ApiHandler
 	private urlContentFetcher: UrlContentFetcher
@@ -168,7 +180,12 @@ export class Cline {
 		historyItem,
 		experiments,
 		startTask = true,
+		rootTask,
+		parentTask,
+		taskNumber,
 	}: ClineOptions) {
+		super()
+
 		if (startTask && !task && !images && !historyItem) {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
@@ -191,6 +208,10 @@ export class Cline {
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.enableCheckpoints = enableCheckpoints
 		this.checkpointStorage = checkpointStorage
+
+		this.rootTask = rootTask
+		this.parentTask = parentTask
+		this.taskNumber = taskNumber ?? -1
 
 		if (historyItem) {
 			telemetryService.captureTaskRestarted(this.taskId)
@@ -231,46 +252,6 @@ export class Cline {
 		return [instance, promise]
 	}
 
-	// a helper function to set the private member isSubTask to true
-	// and by that set this Cline instance to be a subtask (on finish return control to parent task)
-	setSubTask() {
-		this.isSubTask = true
-	}
-
-	// sets the task number (sequencial number of this task from all the subtask ran from this main task stack)
-	setTaskNumber(taskNumber: number) {
-		this.taskNumber = taskNumber
-	}
-
-	// gets the task number, the sequencial number of this task from all the subtask ran from this main task stack
-	getTaskNumber() {
-		return this.taskNumber
-	}
-
-	// this method returns the cline instance that is the parent task that launched this subtask (assuming this cline is a subtask)
-	// if undefined is returned, then there is no parent task and this is not a subtask or connection has been severed
-	getParentTask(): Cline | undefined {
-		return this.parentTask
-	}
-
-	// this method sets a cline instance that is the parent task that called this task (assuming this cline is a subtask)
-	// if undefined is set, then the connection is broken and the parent is no longer saved in the subtask member
-	setParentTask(parentToSet: Cline | undefined) {
-		this.parentTask = parentToSet
-	}
-
-	// this method returns the cline instance that is the root task (top most parent) that eventually launched this subtask (assuming this cline is a subtask)
-	// if undefined is returned, then there is no root task and this is not a subtask or connection has been severed
-	getRootTask(): Cline | undefined {
-		return this.rootTask
-	}
-
-	// this method sets a cline instance that is the root task (top most patrnt) that called this task (assuming this cline is a subtask)
-	// if undefined is set, then the connection is broken and the root is no longer saved in the subtask member
-	setRootTask(rootToSet: Cline | undefined) {
-		this.rootTask = rootToSet
-	}
-
 	// Add method to update diffStrategy
 	async updateDiffStrategy(experimentalDiffStrategy?: boolean, multiSearchReplaceDiffStrategy?: boolean) {
 		// If not provided, get from current state
@@ -283,6 +264,7 @@ export class Cline {
 				multiSearchReplaceDiffStrategy = stateExperimental?.[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE] ?? false
 			}
 		}
+
 		this.diffStrategy = getDiffStrategy(
 			this.api.getModel().id,
 			this.fuzzyMatchThreshold,
@@ -351,12 +333,19 @@ export class Cline {
 
 	private async addToClineMessages(message: ClineMessage) {
 		this.clineMessages.push(message)
+		await this.providerRef.deref()?.postStateToWebview()
+		this.emit("message", { action: "created", message })
 		await this.saveClineMessages()
 	}
 
 	public async overwriteClineMessages(newMessages: ClineMessage[]) {
 		this.clineMessages = newMessages
 		await this.saveClineMessages()
+	}
+
+	private async updateClineMessage(partialMessage: ClineMessage) {
+		await this.providerRef.deref()?.postMessageToWebview({ type: "partialMessage", partialMessage })
+		this.emit("message", { action: "updated", message: partialMessage })
 	}
 
 	private async saveClineMessages() {
@@ -411,7 +400,14 @@ export class Cline {
 		partial?: boolean,
 		progressStatus?: ToolProgressStatus,
 	): Promise<{ response: ClineAskResponse; text?: string; images?: string[] }> {
-		// If this Cline instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of Cline now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set Cline = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
+		// If this Cline instance was aborted by the provider, then the only
+		// thing keeping us alive is a promise still running in the background,
+		// in which case we don't want to send its result to the webview as it
+		// is attached to a new instance of Cline now. So we can safely ignore
+		// the result of any active promises, and this class will be
+		// deallocated. (Although we set Cline = undefined in provider, that
+		// simply removes the reference to this instance, but the instance is
+		// still alive until this promise resolves or rejects.)
 		if (this.abort) {
 			throw new Error(`Task: ${this.taskNumber} Roo Code instance aborted (#1)`)
 		}
@@ -422,32 +418,28 @@ export class Cline {
 				lastMessage && lastMessage.partial && lastMessage.type === "ask" && lastMessage.ask === type
 			if (partial) {
 				if (isUpdatingPreviousPartial) {
-					// existing partial message, so update it
+					// Existing partial message, so update it.
 					lastMessage.text = text
 					lastMessage.partial = partial
 					lastMessage.progressStatus = progressStatus
-					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
-					// await this.saveClineMessages()
-					// await this.providerRef.deref()?.postStateToWebview()
-					await this.providerRef
-						.deref()
-						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage })
+					// TODO: Be more efficient about saving and posting only new
+					// data or one whole message at a time so ignore partial for
+					// saves, and only post parts of partial message instead of
+					// whole array in new listener.
+					this.updateClineMessage(lastMessage)
 					throw new Error("Current ask promise was ignored (#1)")
 				} else {
-					// this is a new partial message, so add it with partial state
-					// this.askResponse = undefined
-					// this.askResponseText = undefined
-					// this.askResponseImages = undefined
+					// This is a new partial message, so add it with partial
+					// state.
 					askTs = Date.now()
 					this.lastMessageTs = askTs
 					await this.addToClineMessages({ ts: askTs, type: "ask", ask: type, text, partial })
-					await this.providerRef.deref()?.postStateToWebview()
 					throw new Error("Current ask promise was ignored (#2)")
 				}
 			} else {
-				// partial=false means its a complete version of a previously partial message
 				if (isUpdatingPreviousPartial) {
-					// this is the complete version of a previously partial message, so replace the partial with the complete version
+					// This is the complete version of a previously partial
+					// message, so replace the partial with the complete version.
 					this.askResponse = undefined
 					this.askResponseText = undefined
 					this.askResponseImages = undefined
@@ -464,39 +456,37 @@ export class Cline {
 					lastMessage.text = text
 					lastMessage.partial = false
 					lastMessage.progressStatus = progressStatus
-
 					await this.saveClineMessages()
-					// await this.providerRef.deref()?.postStateToWebview()
-					await this.providerRef
-						.deref()
-						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage })
+					this.updateClineMessage(lastMessage)
 				} else {
-					// this is a new partial=false message, so add it like normal
+					// This is a new and complete message, so add it like normal.
 					this.askResponse = undefined
 					this.askResponseText = undefined
 					this.askResponseImages = undefined
 					askTs = Date.now()
 					this.lastMessageTs = askTs
 					await this.addToClineMessages({ ts: askTs, type: "ask", ask: type, text })
-					await this.providerRef.deref()?.postStateToWebview()
 				}
 			}
 		} else {
-			// this is a new non-partial message, so add it like normal
-			// const lastMessage = this.clineMessages.at(-1)
+			// This is a new non-partial message, so add it like normal.
 			this.askResponse = undefined
 			this.askResponseText = undefined
 			this.askResponseImages = undefined
 			askTs = Date.now()
 			this.lastMessageTs = askTs
 			await this.addToClineMessages({ ts: askTs, type: "ask", ask: type, text })
-			await this.providerRef.deref()?.postStateToWebview()
 		}
 
 		await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })
+
 		if (this.lastMessageTs !== askTs) {
-			throw new Error("Current ask promise was ignored") // could happen if we send multiple asks in a row i.e. with command_output. It's important that when we know an ask could fail, it is handled gracefully
+			// Could happen if we send multiple asks in a row i.e. with
+			// command_output. It's important that when we know an ask could
+			// fail, it is handled gracefully.
+			throw new Error("Current ask promise was ignored")
 		}
+
 		const result = { response: this.askResponse!, text: this.askResponseText, images: this.askResponseImages }
 		this.askResponse = undefined
 		this.askResponseText = undefined
@@ -533,39 +523,34 @@ export class Cline {
 					lastMessage.images = images
 					lastMessage.partial = partial
 					lastMessage.progressStatus = progressStatus
-					await this.providerRef
-						.deref()
-						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage })
+					this.updateClineMessage(lastMessage)
 				} else {
 					// this is a new partial message, so add it with partial state
 					const sayTs = Date.now()
 					this.lastMessageTs = sayTs
 					await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images, partial })
-					await this.providerRef.deref()?.postStateToWebview()
 				}
 			} else {
-				// partial=false means its a complete version of a previously partial message
+				// New now have a complete version of a previously partial message.
 				if (isUpdatingPreviousPartial) {
-					// this is the complete version of a previously partial message, so replace the partial with the complete version
+					// This is the complete version of a previously partial
+					// message, so replace the partial with the complete version.
 					this.lastMessageTs = lastMessage.ts
 					// lastMessage.ts = sayTs
 					lastMessage.text = text
 					lastMessage.images = images
 					lastMessage.partial = false
 					lastMessage.progressStatus = progressStatus
-
-					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
+					// Instead of streaming partialMessage events, we do a save
+					// and post like normal to persist to disk.
 					await this.saveClineMessages()
-					// await this.providerRef.deref()?.postStateToWebview()
-					await this.providerRef
-						.deref()
-						?.postMessageToWebview({ type: "partialMessage", partialMessage: lastMessage }) // more performant than an entire postStateToWebview
+					// More performant than an entire postStateToWebview.
+					this.updateClineMessage(lastMessage)
 				} else {
-					// this is a new partial=false message, so add it like normal
+					// This is a new and complete message, so add it like normal.
 					const sayTs = Date.now()
 					this.lastMessageTs = sayTs
 					await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images })
-					await this.providerRef.deref()?.postStateToWebview()
 				}
 			}
 		} else {
@@ -573,7 +558,6 @@ export class Cline {
 			const sayTs = Date.now()
 			this.lastMessageTs = sayTs
 			await this.addToClineMessages({ ts: sayTs, type: "say", say: type, text, images, checkpoint })
-			await this.providerRef.deref()?.postStateToWebview()
 		}
 	}
 
@@ -612,6 +596,7 @@ export class Cline {
 	async resumePausedTask(lastMessage?: string) {
 		// release this Cline instance from paused state
 		this.isPaused = false
+		this.emit("taskUnpaused")
 
 		// fake an answer from the subtask that it has completed running and this is the result of what it has done
 		// add the message to the chat history and to the webview ui
@@ -675,16 +660,6 @@ export class Cline {
 			.slice()
 			.reverse()
 			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
-		// const lastClineMessage = this.clineMessages[lastClineMessageIndex]
-		// could be a completion result with a command
-		// const secondLastClineMessage = this.clineMessages
-		// 	.slice()
-		// 	.reverse()
-		// 	.find(
-		// 		(m, index) =>
-		// 			index !== lastClineMessageIndex && !(m.ask === "resume_task" || m.ask === "resume_completed_task")
-		// 	)
-		// (lastClineMessage?.ask === "command" && secondLastClineMessage?.ask === "completion_result")
 
 		let askType: ClineAsk
 		if (lastClineMessage?.ask === "completion_result") {
@@ -876,6 +851,8 @@ export class Cline {
 		let nextUserContent = userContent
 		let includeFileDetails = true
 
+		this.emit("taskStarted")
+
 		while (!this.abort) {
 			const didEndLoop = await this.recursivelyMakeClineRequests(nextUserContent, includeFileDetails)
 			includeFileDetails = false // we only need file details the first time
@@ -911,8 +888,15 @@ export class Cline {
 		}
 
 		this.abort = true
+		this.emit("taskAborted")
 
-		// Release any terminals associated with this task
+		// Stop waiting for child task completion.
+		if (this.pauseInterval) {
+			clearInterval(this.pauseInterval)
+			this.pauseInterval = undefined
+		}
+
+		// Release any terminals associated with this task.
 		TerminalRegistry.releaseTerminalsForTask(this.taskId)
 
 		this.urlContentFetcher.closeBrowser()
@@ -2877,37 +2861,44 @@ export class Cline {
 									break
 								}
 
-								// Show what we're about to do
 								const toolMessage = JSON.stringify({
 									tool: "newTask",
 									mode: targetMode.name,
 									content: message,
 								})
-
 								const didApprove = await askApproval("tool", toolMessage)
+
 								if (!didApprove) {
 									break
 								}
 
-								// before switching roo mode (currently a global settings), save the current mode so we can
-								// resume the parent task (this Cline instance) later with the same mode
-								const currentMode =
-									(await this.providerRef.deref()?.getState())?.mode ?? defaultModeSlug
-								this.pausedModeSlug = currentMode
+								const provider = this.providerRef.deref()
 
-								// Switch mode first, then create new task instance
-								await this.providerRef.deref()?.handleModeSwitch(mode)
-								// wait for mode to actually switch in UI and in State
-								await delay(500) // delay to allow mode change to take effect before next tool is executed
-								this.providerRef
-									.deref()
-									?.log(`[subtasks] Task: ${this.taskNumber} creating new task in '${mode}' mode`)
-								await this.providerRef.deref()?.initClineWithSubTask(message)
+								if (!provider) {
+									break
+								}
+
+								// Preserve the current mode so we can resume with it later.
+								this.pausedModeSlug = (await provider.getState()).mode ?? defaultModeSlug
+
+								// Switch mode first, then create new task instance.
+								await provider.handleModeSwitch(mode)
+
+								// Delay to allow mode change to take effect before next tool is executed.
+								await delay(500)
+
+								const newCline = await provider.initClineWithTask(message, undefined, this)
+								this.emit("taskSpawned", newCline.taskId)
+
 								pushToolResult(
 									`Successfully created new task in ${targetMode.name} mode with message: ${message}`,
 								)
-								// set the isPaused flag to true so the parent task can wait for the sub-task to finish
+
+								// Set the isPaused flag to true so the parent
+								// task can wait for the sub-task to finish.
 								this.isPaused = true
+								this.emit("taskPaused")
+
 								break
 							}
 						} catch (error) {
@@ -3016,8 +3007,9 @@ export class Cline {
 									telemetryService.captureTaskCompleted(this.taskId)
 								}
 
-								if (this.isSubTask) {
+								if (this.parentTask) {
 									const didApprove = await askFinishSubTaskApproval()
+
 									if (!didApprove) {
 										break
 									}
@@ -3100,17 +3092,19 @@ export class Cline {
 		}
 	}
 
-	// this function checks if this Cline instance is set to pause state and wait for being resumed,
-	// this is used when a sub-task is launched and the parent task is waiting for it to finish
+	// Used when a sub-task is launched and the parent task is waiting for it to
+	// finish.
+	// TBD: The 1s should be added to the settings, also should add a timeout to
+	// prevent infinite waiting.
 	async waitForResume() {
-		// wait until isPaused is false
 		await new Promise<void>((resolve) => {
-			const interval = setInterval(() => {
+			this.pauseInterval = setInterval(() => {
 				if (!this.isPaused) {
-					clearInterval(interval)
+					clearInterval(this.pauseInterval)
+					this.pauseInterval = undefined
 					resolve()
 				}
-			}, 1000) // TBD: the 1 sec should be added to the settings, also should add a timeout to prevent infinit wait
+			}, 1000)
 		})
 	}
 
@@ -3143,32 +3137,37 @@ export class Cline {
 			this.consecutiveMistakeCount = 0
 		}
 
-		// get previous api req's index to check token usage and determine if we need to truncate conversation history
+		// Get previous api req's index to check token usage and determine if we
+		// need to truncate conversation history.
 		const previousApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 
-		// in this Cline request loop, we need to check if this cline (Task) instance has been asked to wait
-		// for a sub-task (it has launched) to finish before continuing
-		if (this.isPaused) {
-			this.providerRef.deref()?.log(`[subtasks] Task: ${this.taskNumber} has paused`)
+		// In this Cline request loop, we need to check if this task instance
+		// has been asked to wait for a subtask to finish before continuing.
+		const provider = this.providerRef.deref()
+
+		if (this.isPaused && provider) {
+			provider.log(`[subtasks] paused ${this.taskId}`)
 			await this.waitForResume()
-			this.providerRef.deref()?.log(`[subtasks] Task: ${this.taskNumber} has resumed`)
-			// waiting for resume is done, resume the task mode
-			const currentMode = (await this.providerRef.deref()?.getState())?.mode ?? defaultModeSlug
+			provider.log(`[subtasks] resumed ${this.taskId}`)
+			const currentMode = (await provider.getState())?.mode ?? defaultModeSlug
+
 			if (currentMode !== this.pausedModeSlug) {
-				// the mode has changed, we need to switch back to the paused mode
-				await this.providerRef.deref()?.handleModeSwitch(this.pausedModeSlug)
-				// wait for mode to actually switch in UI and in State
-				await delay(500) // delay to allow mode change to take effect before next tool is executed
-				this.providerRef
-					.deref()
-					?.log(
-						`[subtasks] Task: ${this.taskNumber} has switched back to mode: '${this.pausedModeSlug}' from mode: '${currentMode}'`,
-					)
+				// The mode has changed, we need to switch back to the paused mode.
+				await provider.handleModeSwitch(this.pausedModeSlug)
+
+				// Delay to allow mode change to take effect before next tool is executed.
+				await delay(500)
+
+				provider.log(
+					`[subtasks] task ${this.taskId} has switched back to '${this.pausedModeSlug}' from '${currentMode}'`,
+				)
 			}
 		}
 
-		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
-		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
+		// Getting verbose details is an expensive operation, it uses globby to
+		// top-down build file structure of project which for large projects can
+		// take a few seconds. For the best UX we show a placeholder api_req_started
+		// message with a loading spinner as this happens.
 		await this.say(
 			"api_req_started",
 			JSON.stringify({

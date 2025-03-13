@@ -1,9 +1,9 @@
 import * as assert from "assert"
 
-import { sleep, waitForToolUse, waitForMessage } from "./utils"
+import { sleep, waitForMessage, waitFor, getMessage } from "./utils"
 
 suite("Roo Code Subtasks", () => {
-	test.skip("Should handle subtask cancellation and resumption correctly", async function () {
+	test("Should handle subtask cancellation and resumption correctly", async function () {
 		const api = globalThis.api
 
 		await api.setConfiguration({
@@ -11,48 +11,60 @@ suite("Roo Code Subtasks", () => {
 			alwaysAllowModeSwitch: true,
 			alwaysAllowSubtasks: true,
 			autoApprovalEnabled: true,
+			enableCheckpoints: false,
 		})
 
+		const childPrompt = "You are a calculator. Respond only with numbers. What is the square root of 9?"
+
 		// Start a parent task that will create a subtask.
-		await api.startNewTask(
+		const parentTaskId = await api.startNewTask(
 			"You are the parent task. " +
-				"Create a subtask by using the new_task tool with the message 'You are the subtask'. " +
-				"After creating the subtask, wait for it to complete and then respond with 'Parent task resumed'.",
+				`Create a subtask by using the new_task tool with the message '${childPrompt}'.` +
+				"After creating the subtask, wait for it to complete and then respond 'Parent task resumed'.",
 		)
 
-		await waitForToolUse(api, "new_task")
+		let subTaskId: string | undefined = undefined
 
-		// Cancel the current task (which should be the subtask).
-		await api.cancelTask()
+		// Wait for the subtask to be spawned and then cancel it.
+		api.on("taskSpawned", (taskId) => (subTaskId = taskId))
+		await waitFor(() => !!subTaskId)
+		await sleep(2_000) // Give the task a chance to start and populate the history.
+		await api.cancelCurrentTask()
 
-		// Check if the parent task is still waiting (not resumed). We need to
-		// wait a bit to ensure any task resumption would have happened.
+		// Wait a bit to ensure any task resumption would have happened.
 		await sleep(5_000)
 
 		// The parent task should not have resumed yet, so we shouldn't see
 		// "Parent task resumed".
 		assert.ok(
-			!api.getMessages().some(({ type, text }) => type === "say" && text?.includes("Parent task resumed")),
-			"Parent task should not have resumed after subtask cancellation.",
+			getMessage({
+				api,
+				taskId: parentTaskId,
+				include: "Parent task resumed",
+				exclude: "You are the parent task",
+			}) === undefined,
+			"Parent task should not have resumed after subtask cancellation",
 		)
 
 		// Start a new task with the same message as the subtask.
-		await api.startNewTask("You are the subtask")
+		const anotherTaskId = await api.startNewTask(childPrompt)
+		await waitForMessage({ taskId: anotherTaskId, api, include: "3" })
 
-		// Wait for the subtask to complete.
-		await waitForMessage(api, { include: "Task complete" })
-
-		// Verify that the parent task is still not resumed. We need to wait a
-		// bit to ensure any task resumption would have happened.
+		// Wait a bit to ensure any task resumption would have happened.
 		await sleep(5_000)
 
 		// The parent task should still not have resumed.
 		assert.ok(
-			!api.getMessages().some(({ type, text }) => type === "say" && text?.includes("Parent task resumed")),
-			"Parent task should not have resumed after subtask completion.",
+			getMessage({
+				api,
+				taskId: parentTaskId,
+				include: "Parent task resumed",
+				exclude: "You are the parent task",
+			}) === undefined,
+			"Parent task should not have resumed after subtask cancellation",
 		)
 
 		// Clean up - cancel all tasks.
-		await api.cancelTask()
+		await api.cancelCurrentTask()
 	})
 })

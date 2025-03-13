@@ -62,7 +62,7 @@ export interface ExtensionMessage {
 		| "historyButtonClicked"
 		| "promptsButtonClicked"
 		| "didBecomeVisible"
-	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick" | "setChatBoxMessage"
+	invoke?: "newChat" | "sendMessage" | "primaryButtonClick" | "secondaryButtonClick" | "setChatBoxMessage"
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]
@@ -88,6 +88,8 @@ export interface ExtensionMessage {
 	slug?: string
 	success?: boolean
 	values?: Record<string, any>
+	requestId?: string
+	promptText?: string
 }
 
 export interface ApiConfigMeta {
@@ -211,23 +213,6 @@ export interface ClineApiReqInfo {
 	cost?: number
 	cancelReason?: ClineApiReqCancelReason
 	streamingFailedMessage?: string
-}
-
-export interface ShowHumanRelayDialogMessage {
-	type: "showHumanRelayDialog"
-	requestId: string
-	promptText: string
-}
-
-export interface HumanRelayResponseMessage {
-	type: "humanRelayResponse"
-	requestId: string
-	text: string
-}
-
-export interface HumanRelayCancelMessage {
-	type: "humanRelayCancel"
-	requestId: string
 }
 
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
