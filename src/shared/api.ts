@@ -1262,13 +1262,13 @@ export const xaiModels = {
 } as const satisfies Record<string, ModelInfo>
 
 // SambaNova
-// https://docs.sambanova.ai/cloud/docs/get-started/overview
+// https://docs.sambanova.ai/cloud/docs/get-started/supported-models
 export type SambanovaModelId = keyof typeof sambanovaModels
 export const sambanovaDefaultModelId: SambanovaModelId = "Meta-Llama-3.3-70B-Instruct"
 export const sambanovaModels = {
 	"Meta-Llama-3.3-70B-Instruct": {
 		maxTokens: 4096,
-		contextWindow: 128000,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -1276,7 +1276,7 @@ export const sambanovaModels = {
 	},
 	"DeepSeek-R1-Distill-Llama-70B": {
 		maxTokens: 4096,
-		contextWindow: 128000,
+		contextWindow: 32_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -1284,7 +1284,7 @@ export const sambanovaModels = {
 	},
 	"Llama-3.1-Swallow-70B-Instruct-v0.3": {
 		maxTokens: 4096,
-		contextWindow: 128000,
+		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -1292,15 +1292,7 @@ export const sambanovaModels = {
 	},
 	"Llama-3.1-Swallow-8B-Instruct-v0.3": {
 		maxTokens: 4096,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"Llama-3.1-Tulu-3-405B": {
-		maxTokens: 4096,
-		contextWindow: 128000,
+		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -1308,15 +1300,7 @@ export const sambanovaModels = {
 	},
 	"Meta-Llama-3.1-405B-Instruct": {
 		maxTokens: 4096,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"Meta-Llama-3.1-70B-Instruct": {
-		maxTokens: 4096,
-		contextWindow: 128000,
+		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -1324,7 +1308,7 @@ export const sambanovaModels = {
 	},
 	"Meta-Llama-3.1-8B-Instruct": {
 		maxTokens: 4096,
-		contextWindow: 128000,
+		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -1332,23 +1316,7 @@ export const sambanovaModels = {
 	},
 	"Meta-Llama-3.2-1B-Instruct": {
 		maxTokens: 4096,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"Meta-Llama-3.2-3B-Instruct": {
-		maxTokens: 4096,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"Meta-Llama-Guard-3-8B": {
-		maxTokens: 4096,
-		contextWindow: 128000,
+		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -1356,7 +1324,7 @@ export const sambanovaModels = {
 	},
 	"Qwen2.5-72B-Instruct": {
 		maxTokens: 4096,
-		contextWindow: 128000,
+		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -1364,7 +1332,7 @@ export const sambanovaModels = {
 	},
 	"Qwen2.5-Coder-32B-Instruct": {
 		maxTokens: 4096,
-		contextWindow: 128000,
+		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
@@ -1372,7 +1340,7 @@ export const sambanovaModels = {
 	},
 	"QwQ-32B-Preview": {
 		maxTokens: 4096,
-		contextWindow: 128000,
+		contextWindow: 16_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,

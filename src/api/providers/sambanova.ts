@@ -5,6 +5,9 @@ import { ApiHandlerOptions, ModelInfo, SambanovaModelId, sambanovaDefaultModelId
 import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { LogLevel } from "vscode"
+import { Logger } from "../../services/logging/Logger"
+import { convertToR1Format } from "../transform/r1-format"
 
 export class SambanovaHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -20,10 +23,18 @@ export class SambanovaHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+		const model = this.getModel()
+
+		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
+
+		const modelId = model.id.toLowerCase()
+
+		if (modelId.includes("deepseek") || modelId.includes("qwen") || modelId.includes("qwq")) {
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		}
 
 		const stream = await this.client.chat.completions.create({
 			model: this.getModel().id,

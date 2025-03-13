@@ -1139,7 +1139,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			xaiApiKey,
 			thinkingBudgetTokens,
 			clineApiKey,
-      sambanovaApiKey,
+			sambanovaApiKey,
 		} = apiConfiguration
 		await this.updateGlobalState("apiProvider", apiProvider)
 		await this.updateGlobalState("apiModelId", apiModelId)
@@ -1187,7 +1187,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("asksageApiUrl", asksageApiUrl)
 		await this.updateGlobalState("thinkingBudgetTokens", thinkingBudgetTokens)
 		await this.storeSecret("clineApiKey", clineApiKey)
-    await this.storeSecret("sambanovaApiKey", sambanovaApiKey)
+		await this.storeSecret("sambanovaApiKey", sambanovaApiKey)
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
 		}
