@@ -85,8 +85,12 @@ interface ThinkingBudgetSliderProps {
 }
 
 const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: ThinkingBudgetSliderProps) => {
-	const maxTokens = anthropicModels["claude-3-7-sonnet-20250219"].maxTokens
-	const maxSliderValue = Math.floor(maxTokens * MAX_PERCENTAGE)
+	// Check if using Claude 3.7 model to determine max slider value
+	const isModelClaude37 = apiConfiguration?.apiModelId?.includes("claude-3-7") || false
+	// Special case for Claude 3.7 which supports up to 64K tokens for extended thinking
+	const maxSliderValue = isModelClaude37 
+		? 64000 
+		: Math.floor(anthropicModels["claude-3-7-sonnet-20250219"].maxTokens * MAX_PERCENTAGE)
 	const isEnabled = (apiConfiguration?.thinkingBudgetTokens || 0) > 0
 
 	// Add local state for the slider value
@@ -104,15 +108,19 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 		})
 	}
 
-	const handleToggleChange = (event: any) => {
-		const isChecked = (event.target as HTMLInputElement).checked
-		const newValue = isChecked ? MIN_VALID_TOKENS : 0
-		setLocalValue(newValue)
-		setApiConfiguration({
-			...apiConfiguration,
-			thinkingBudgetTokens: newValue,
-		})
-	}
+  const handleToggleChange = (event: any) => {
+    const isChecked = (event.target as HTMLInputElement).checked
+    // Set default to 32000 for Claude 3.7 models, otherwise use minimum
+    // When unchecked, explicitly set to 0 to disable extended thinking
+    const newValue = isChecked 
+      ? (isModelClaude37 ? 32000 : MIN_VALID_TOKENS) 
+      : 0
+    setLocalValue(newValue)
+    setApiConfiguration({
+      ...apiConfiguration,
+      thinkingBudgetTokens: newValue,
+    })
+  }
 
 	return (
 		<Container>
@@ -141,7 +149,9 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 						$max={maxSliderValue}
 					/>
 
-					<Description>Higher budgets may allow you to achieve more comprehensive and nuanced reasoning</Description>
+					<Description>
+						Higher budgets allow for more comprehensive reasoning. Note: Claude may use fewer tokens than allocated depending on the complexity of the task.
+					</Description>
 				</>
 			)}
 		</Container>

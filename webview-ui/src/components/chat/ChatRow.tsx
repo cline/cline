@@ -131,8 +131,34 @@ const ChatRow = memo(
 export default ChatRow
 
 export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
-	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
+	const { mcpServers, mcpMarketplaceCatalog, clineMessages } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
+	
+	// Create refs for thinking section auto-scrolling - defined at top level for React Hook rules
+	const thinkingRef = useRef<HTMLDivElement>(null);
+	const thinkingContentRef = useRef<HTMLDivElement>(null);
+	
+	// Effect to scroll thinking section into view when expanded
+	useEffect(() => {
+		if (isExpanded && message.say === "reasoning") {
+			// First scroll the thinking box into view
+			if (thinkingRef.current) {
+				thinkingRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+			}
+		}
+	}, [isExpanded, message.say]);
+	
+	// Separate effect specifically for scrolling content to bottom
+	useEffect(() => {
+		if (isExpanded && message.say === "reasoning" && thinkingContentRef.current) {
+			// Use a longer timeout to ensure DOM has fully rendered
+			setTimeout(() => {
+				if (thinkingContentRef.current) {
+					thinkingContentRef.current.scrollTop = thinkingContentRef.current.scrollHeight;
+				}
+			}, 250);
+		}
+	}, [isExpanded, message.say, message.text]);
 
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
@@ -820,62 +846,121 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							<Markdown markdown={message.text} />
 						</div>
 					)
-				case "reasoning":
-					return (
-						<>
-							{message.text && (
-								<div
-									onClick={onToggleExpand}
-									style={{
-										// marginBottom: 15,
-										cursor: "pointer",
-										color: "var(--vscode-descriptionForeground)",
-
-										fontStyle: "italic",
-										overflow: "hidden",
-									}}>
-									{isExpanded ? (
-										<div style={{ marginTop: -3 }}>
-											<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
-												Thinking
-												<span
-													className="codicon codicon-chevron-down"
-													style={{
-														display: "inline-block",
-														transform: "translateY(3px)",
-														marginLeft: "1.5px",
-													}}
-												/>
-											</span>
-											{message.text}
-										</div>
-									) : (
-										<div style={{ display: "flex", alignItems: "center" }}>
-											<span style={{ fontWeight: "bold", marginRight: "4px" }}>Thinking:</span>
-											<span
-												style={{
-													whiteSpace: "nowrap",
-													overflow: "hidden",
-													textOverflow: "ellipsis",
-													direction: "rtl",
-													textAlign: "left",
-													flex: 1,
+					case "reasoning": {
+						// Get total token count across all reasoning messages
+						// Filter to get only reasoning messages
+						const reasoningMessages = clineMessages.filter((m: ClineMessage) => 
+							m.type === "say" && m.say === "reasoning"
+						);
+						
+						const currentReasoningIndex = reasoningMessages.findIndex((m: ClineMessage) => 
+							m.ts === message.ts
+						);
+						
+						// Calculate accumulated tokens up to this message
+						const accumulatedTokens = message.thinkingTokens || 0;
+						
+						// To prevent duplication, we need to handle multiple thinking messages differently
+						const thinkingEndTime = message.thinkingEndTime;
+						
+						// If this is the end marker (empty text with thinkingEndTime), don't render anything
+						if (thinkingEndTime && (!message.text || message.text.length === 0)) {
+							return null;
+						}
+						
+						// Only render the thinking content if there's actual content
+						return (
+							<>
+								{message.text && message.text.length > 0 && (
+									<div
+										ref={thinkingRef}
+										onClick={onToggleExpand}
+										style={{
+											cursor: "pointer",
+											color: "var(--vscode-descriptionForeground)",
+											fontStyle: "italic",
+											overflow: "hidden",
+											border: "1px solid var(--vscode-editorGroup-border)",
+											borderRadius: "3px",
+											padding: "8px",
+											backgroundColor: "var(--vscode-textBlockQuote-background)",
+										}}>
+										{isExpanded ? (
+											<div>
+												<div style={{ 
+													display: "flex", 
+													justifyContent: "space-between", 
+													alignItems: "center",
+													marginBottom: "8px",
+													borderBottom: "1px solid var(--vscode-editorGroup-border)",
+													paddingBottom: "8px"
 												}}>
-												{message.text + "\u200E"}
-											</span>
-											<span
-												className="codicon codicon-chevron-right"
-												style={{
-													marginLeft: "4px",
-													flexShrink: 0,
-												}}
-											/>
-										</div>
-									)}
-								</div>
-							)}
-						</>
-					)
+													<span style={{ fontWeight: "bold", display: "flex", alignItems: "center" }}>
+														<span className="codicon codicon-lightbulb" style={{ marginRight: "6px" }}></span>
+														Extended Thinking
+														<span
+															className="codicon codicon-chevron-down"
+															style={{
+																display: "inline-block",
+																transform: "translateY(3px)",
+																marginLeft: "6px",
+															}}
+														/>
+													</span>
+													<VSCodeBadge style={{ fontSize: "11px", padding: "2px 5px" }}>
+														<span className="codicon codicon-symbol-parameter" style={{ marginRight: "3px", fontSize: "10px" }}></span>
+														{`${accumulatedTokens.toLocaleString()} tokens`}
+													</VSCodeBadge>
+												</div>
+												<div 
+													ref={thinkingContentRef}
+													style={{ 
+														whiteSpace: "pre-wrap",
+														fontFamily: "var(--vscode-editor-font-family)",
+														fontSize: "var(--vscode-editor-font-size)",
+														lineHeight: "1.5",
+														maxHeight: "400px",
+														minHeight: "200px",
+														overflowY: "auto"
+													}}>
+													{message.text}
+												</div>
+											</div>
+										) : (
+											<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+												<div style={{ display: "flex", alignItems: "center", maxWidth: "75%" }}>
+													<span className="codicon codicon-lightbulb" style={{ marginRight: "6px", flexShrink: 0 }}></span>
+													<span style={{ fontWeight: "bold", marginRight: "4px", flexShrink: 0 }}>Extended Thinking:</span>
+													<span
+														style={{
+															whiteSpace: "nowrap",
+															overflow: "hidden",
+															textOverflow: "ellipsis",
+															direction: "ltr",
+															textAlign: "left",
+														}}>
+														{message.text.substring(0, 100) + "..."}
+													</span>
+												</div>
+												<div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+													<VSCodeBadge style={{ fontSize: "10px", padding: "1px 4px" }}>
+														{`${accumulatedTokens.toLocaleString()}`}
+													</VSCodeBadge>
+													<span
+														className="codicon codicon-chevron-right"
+														style={{
+															marginLeft: "2px",
+															flexShrink: 0,
+														}}
+													/>
+												</div>
+											</div>
+										)}
+									</div>
+								)}
+							</>
+						);
+					}
 				case "user_feedback":
 					return (
 						<div

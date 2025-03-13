@@ -115,6 +115,9 @@ export interface ClineMessage {
 	isCheckpointCheckedOut?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
+	thinkingStartTime?: number // timestamp when extended thinking started
+	thinkingEndTime?: number // timestamp when extended thinking ended
+	thinkingTokens?: number // token count for thinking content
 }
 
 export type ClineAsk =
