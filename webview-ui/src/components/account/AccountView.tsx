@@ -41,13 +41,13 @@ export const ClineAccountView = () => {
 		handleSignOut()
 	}
 	return (
-		<div className="max-w-[600px]">
+		<div className="max-w-[400px]">
 			{user ? (
-				<div className="flex flex-col items-center p-[20px] max-w-[600px]">
-					<div className="flex flex-col w-full mb-[20px]">
-						<div className="flex items-center mb-[20px]">
+				<div className="flex flex-col p-[20px]">
+					<div className="flex flex-col w-full">
+						<div className="flex items-center mb-6">
 							{user.photoURL ? (
-								<img src={user.photoURL} alt="Profile" className="w-[64px] h-[64px] rounded-full mr-[16px]" />
+								<img src={user.photoURL} alt="Profile" className="size-16 rounded-full mr-[16px]" />
 							) : (
 								<div className="w-[64px] h-[64px] rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-[24px] text-[var(--vscode-button-foreground)] mr-[16px]">
 									{user.displayName?.[0] || user.email?.[0] || "?"}
@@ -66,23 +66,23 @@ export const ClineAccountView = () => {
 								)}
 							</div>
 						</div>
-
-						<div className="flex gap-[10px] mb-[20px] justify-center w-full">
-							<VSCodeButtonLink href="https://app.cline.bot/account" appearance="primary" className="min-w-[120px]">
-								Account
-							</VSCodeButtonLink>
-							<VSCodeButton appearance="secondary" onClick={handleLogout} className="min-w-[120px]">
-								Log out
-							</VSCodeButton>
-						</div>
 					</div>
 
-					<div className="w-full border-b border-dotted border-[var(--vscode-panel-border)] my-[10px]"></div>
+					<div className="flex gap-2">
+						<VSCodeButtonLink href="https://app.cline.bot/account" appearance="primary" className="w-24">
+							Account
+						</VSCodeButtonLink>
+						<VSCodeButton appearance="secondary" onClick={handleLogout} className="w-24">
+							Log out
+						</VSCodeButton>
+					</div>
+
+					<div className="my-2.5 mt-7 w-full">
+						<VSCodeDivider />
+					</div>
 
 					<div className="w-full flex flex-col items-center mt-[10px]">
-						<div className="text-[14px] text-[var(--vscode-descriptionForeground)] mb-[10px]">
-							{"{CURRENT CREDITS}"}
-						</div>
+						<div className="text-[14px] text-[var(--vscode-descriptionForeground)] mb-[10px]">CURRENT BALANCE</div>
 
 						<div className="text-[36px] font-bold text-[var(--vscode-foreground)] mb-[20px] flex">
 							<span>$</span>
@@ -94,7 +94,9 @@ export const ClineAccountView = () => {
 						</VSCodeButtonLink>
 					</div>
 
-					<div className="w-full h-[1px] border-b border-dotted border-[var(--vscode-panel-border)] my-[10px]"></div>
+					<div className="my-[10px] w-full">
+						<VSCodeDivider />
+					</div>
 				</div>
 			) : (
 				<div className="flex flex-col items-center p-[20px] max-w-[400px]">
