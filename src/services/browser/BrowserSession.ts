@@ -1,3 +1,4 @@
+import * as cheerio from "cheerio"
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
@@ -118,6 +119,13 @@ export class BrowserSession {
 	// 			return path.join(homedir, ".config", "google-chrome")
 	// 	}
 	// }
+
+	private removeStyleTags(html: string): string {
+		const $ = cheerio.load(html)
+		$("style").remove()
+
+		return $.html()
+	}
 
 	async launchBrowser() {
 		console.log("launch browser called")
@@ -242,6 +250,24 @@ export class BrowserSession {
 			throw new Error("Failed to take screenshot.")
 		}
 
+		const browserToolEnableHTMLContent =
+			vscode.workspace.getConfiguration("cline").get<boolean>("browserToolEnableHTMLContent") ?? false
+		const browserToolStripHTMLContentStyleTags =
+			vscode.workspace.getConfiguration("cline").get<boolean>("browserToolStripHTMLContentStyleTags") ?? false
+		const browserToolMaxHTMLContentLength =
+			vscode.workspace.getConfiguration("cline").get<number>("browserToolMaxHTMLContentLength") ?? 0
+
+		let htmlContent = ""
+		if (browserToolEnableHTMLContent) {
+			htmlContent = await this.page.content()
+			if (browserToolStripHTMLContentStyleTags) {
+				htmlContent = this.removeStyleTags(htmlContent)
+			}
+			if (browserToolMaxHTMLContentLength > 0 && htmlContent.length > browserToolMaxHTMLContentLength) {
+				htmlContent = htmlContent.slice(0, browserToolMaxHTMLContentLength)
+			}
+		}
+
 		// this.page.removeAllListeners() <- causes the page to crash!
 		this.page.off("console", consoleListener)
 		this.page.off("pageerror", errorListener)
@@ -251,6 +277,7 @@ export class BrowserSession {
 			logs: logs.join("\n"),
 			currentUrl: this.page.url(),
 			currentMousePosition: this.currentMousePosition,
+			htmlContent,
 		}
 	}
 

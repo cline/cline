@@ -27,6 +27,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
 	const [consoleLogsExpanded, setConsoleLogsExpanded] = useState(false)
+	const [htmlContentExpanded, setHTMLContentExpanded] = useState(false)
 
 	const isLastApiReqInterrupted = useMemo(() => {
 		// Check if last api_req_started is cancelled
@@ -56,6 +57,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				screenshot?: string
 				mousePosition?: string
 				consoleLogs?: string
+				htmlContent?: string
 				messages: ClineMessage[] // messages up to and including the result
 			}
 			nextAction?: {
@@ -86,6 +88,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						screenshot: resultData.screenshot,
 						mousePosition: resultData.currentMousePosition,
 						consoleLogs: resultData.logs,
+						htmlContent: resultData.htmlContent,
 						messages: [...currentStateMessages],
 					},
 					nextAction:
@@ -157,6 +160,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					url: page.currentState.url,
 					mousePosition: page.currentState.mousePosition,
 					consoleLogs: page.currentState.consoleLogs,
+					htmlContent: page.currentState.htmlContent,
 					screenshot: page.currentState.screenshot,
 				}
 			}
@@ -165,6 +169,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 			url: undefined,
 			mousePosition: undefined,
 			consoleLogs: undefined,
+			htmlContent: undefined,
 			screenshot: undefined,
 		}
 	}, [pages])
@@ -180,12 +185,14 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				url: currentPage?.currentState.url || latestState.url || initialUrl,
 				mousePosition: currentPage?.currentState.mousePosition || latestState.mousePosition || defaultMousePosition,
 				consoleLogs: currentPage?.currentState.consoleLogs,
+				htmlContent: currentPage?.currentState.htmlContent,
 				screenshot: currentPage?.currentState.screenshot || latestState.screenshot,
 			}
 		: {
 				url: currentPage?.currentState.url || initialUrl,
 				mousePosition: currentPage?.currentState.mousePosition || defaultMousePosition,
 				consoleLogs: currentPage?.currentState.consoleLogs,
+				htmlContent: currentPage?.currentState.htmlContent,
 				screenshot: currentPage?.currentState.screenshot,
 			}
 
@@ -386,6 +393,29 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					</div>
 					{consoleLogsExpanded && (
 						<CodeBlock source={`${"```"}shell\n${displayState.consoleLogs || "(No new logs)"}\n${"```"}`} />
+					)}
+				</div>
+
+				<div style={{ width: "100%" }}>
+					<div
+						aria-label="View HTML Content"
+						onClick={() => {
+							setHTMLContentExpanded(!htmlContentExpanded)
+						}}
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "4px",
+							// width: "100%",
+							justifyContent: "flex-start",
+							cursor: "pointer",
+							padding: `9px 8px ${htmlContentExpanded ? 0 : 8}px 8px`,
+						}}>
+						<span className={`codicon codicon-chevron-${htmlContentExpanded ? "down" : "right"}`}></span>
+						<span style={{ fontSize: "0.8em" }}>HTML Content</span>
+					</div>
+					{htmlContentExpanded && (
+						<CodeBlock source={`${"```"}html\n${displayState.htmlContent || "(No HTML content)"}\n${"```"}`} />
 					)}
 				</div>
 			</div>

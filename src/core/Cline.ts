@@ -25,6 +25,7 @@ import { ApiConfiguration } from "../shared/api"
 import { findLast, findLastIndex, parsePartialArrayString } from "../shared/array"
 import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
 import { BrowserSettings } from "../shared/BrowserSettings"
+import { BrowserToolSettings } from "../shared/BrowserToolSettings"
 import { ChatSettings } from "../shared/ChatSettings"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "../shared/combineCommandSequences"
@@ -82,6 +83,7 @@ export class Cline {
 	customInstructions?: string
 	autoApprovalSettings: AutoApprovalSettings
 	private browserSettings: BrowserSettings
+	private browserToolSettings: BrowserToolSettings
 	private chatSettings: ChatSettings
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
@@ -143,6 +145,12 @@ export class Cline {
 		this.customInstructions = customInstructions
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
+		this.browserToolSettings = {
+			enableHTMLContent: vscode.workspace.getConfiguration("cline").get<boolean>("browserToolEnableHTMLContent") ?? false,
+			maxHTMLContentLength: vscode.workspace.getConfiguration("cline").get<number>("browserToolMaxHTMLContentLength") ?? 0,
+			stripHTMLContentStyleTags:
+				vscode.workspace.getConfiguration("cline").get<boolean>("browserToolStripHTMLContentStyleTags") ?? false,
+		}
 		this.chatSettings = chatSettings
 		if (historyItem) {
 			this.taskId = historyItem.id
@@ -1282,7 +1290,7 @@ export class Cline {
 
 		const supportsComputerUse = modelSupportsComputerUse && !disableBrowserTool // only enable computer use if the model supports it and the user hasn't disabled it
 
-		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, mcpHub, this.browserSettings)
+		let systemPrompt = await SYSTEM_PROMPT(cwd, supportsComputerUse, mcpHub, this.browserSettings, this.browserToolSettings)
 
 		let settingsCustomInstructions = this.customInstructions?.trim()
 		const preferredLanguage = getLanguageKey(
@@ -2385,9 +2393,9 @@ export class Cline {
 										await this.say("browser_action_result", JSON.stringify(browserActionResult))
 										pushToolResult(
 											formatResponse.toolResult(
-												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
+												`The browser action has been executed. The console logs${this.browserToolSettings.enableHTMLContent ? ", HTML content," : ""} and screenshot have been captured for your analysis.\n\nConsole logs:\n${
 													browserActionResult.logs || "(No new logs)"
-												}\n\n(REMEMBER: if you need to proceed to using non-\`browser_action\` tools or launch a new browser, you MUST first close this browser. For example, if after analyzing the logs and screenshot you need to edit a file, you must first close the browser before you can use the write_to_file tool.)`,
+												}\n\nHTML Content:\n${browserActionResult.htmlContent || "(No HTML content)"}\n\n(REMEMBER: if you need to proceed to using non-\`browser_action\` tools or launch a new browser, you MUST first close this browser. For example, if after analyzing the logs and screenshot you need to edit a file, you must first close the browser before you can use the write_to_file tool.)`,
 												browserActionResult.screenshot ? [browserActionResult.screenshot] : [],
 											),
 										)
@@ -3018,7 +3026,7 @@ export class Cline {
 		}
 
 		/*
-		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
+		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present.
 		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
 		*/
 		this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked

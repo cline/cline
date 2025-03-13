@@ -57,8 +57,14 @@ describe("Extension Tests", function () {
 	it("should handle advanced settings configuration", async () => {
 		// Test browser session setting
 		await vscode.workspace.getConfiguration().update("cline.disableBrowserTool", true, true)
+		// Test browser tool settings
+		await vscode.workspace.getConfiguration().update("cline.browserToolEnableHTMLContent", true, true)
+		await vscode.workspace.getConfiguration().update("cline.browserToolStripHTMLContentStyleTags", true, true)
+
 		const updatedConfig = vscode.workspace.getConfiguration("cline")
 		expect(updatedConfig.get("disableBrowserTool")).to.be.true
+		expect(updatedConfig.get("browserToolEnableHTMLContent")).to.be.true
+		expect(updatedConfig.get("browserToolStripHTMLContentStyleTags")).to.be.true
 
 		// Reset settings
 		await vscode.workspace.getConfiguration().update("cline.disableBrowserTool", undefined, true)

@@ -191,6 +191,7 @@ export type BrowserActionResult = {
 	logs?: string
 	currentUrl?: string
 	currentMousePosition?: string
+	htmlContent?: string
 }
 
 export interface ClineAskUseMcpServer {
