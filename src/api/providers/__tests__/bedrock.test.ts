@@ -326,9 +326,35 @@ describe("AwsBedrockHandler", () => {
 			})
 			const modelInfo = customArnHandler.getModel()
 			expect(modelInfo.id).toBe("arn:aws:bedrock:us-east-1::foundation-model/custom-model")
-			expect(modelInfo.info.maxTokens).toBe(8192)
+			expect(modelInfo.info.maxTokens).toBe(4096)
 			expect(modelInfo.info.contextWindow).toBe(200_000)
 			expect(modelInfo.info.supportsPromptCache).toBe(false)
+		})
+
+		it("should correctly identify model info from inference profile ARN", () => {
+			//this test intentionally uses a model that has different maxTokens, contextWindow and other values than the fall back option in the code
+			const customArnHandler = new AwsBedrockHandler({
+				apiModelId: "meta.llama3-8b-instruct-v1:0", // This will be ignored when awsCustomArn is provided
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+				awsRegion: "us-west-2",
+				awsCustomArn:
+					"arn:aws:bedrock:us-west-2:699475926481:inference-profile/us.meta.llama3-8b-instruct-v1:0",
+			})
+			const modelInfo = customArnHandler.getModel()
+
+			// Verify the ARN is used as the model ID
+			expect(modelInfo.id).toBe(
+				"arn:aws:bedrock:us-west-2:699475926481:inference-profile/us.meta.llama3-8b-instruct-v1:0",
+			)
+
+			//
+			expect(modelInfo.info.maxTokens).toBe(2048)
+			expect(modelInfo.info.contextWindow).toBe(4_000)
+			expect(modelInfo.info.supportsImages).toBe(false)
+			expect(modelInfo.info.supportsPromptCache).toBe(false)
+
+			// This test highlights that the regex in getModel needs to be updated to handle inference-profile ARNs
 		})
 
 		it("should use default model when custom-arn is selected but no ARN is provided", () => {
