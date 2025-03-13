@@ -36,6 +36,7 @@ import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
+import { getTotalTasksSize } from "../../utils/storage"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -807,6 +808,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "requestTotalTasksSize": {
+						this.refreshTotalTasksSize()
+						break
+					}
 					case "restartMcpServer": {
 						try {
 							await this.mcpHub?.restartConnection(message.text!)
@@ -908,6 +913,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "clearAllTaskHistory": {
 						await this.deleteAllTaskHistory()
 						await this.postStateToWebview()
+						this.refreshTotalTasksSize()
 						this.postMessageToWebview({ type: "relinquishControl" })
 						break
 					}
@@ -1771,6 +1777,19 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		// await this.postStateToWebview()
 	}
 
+	async refreshTotalTasksSize() {
+		getTotalTasksSize(this.context.globalStorageUri.fsPath)
+			.then((newTotalSize) => {
+				this.postMessageToWebview({
+					type: "totalTasksSize",
+					totalTasksSize: newTotalSize,
+				})
+			})
+			.catch((error) => {
+				console.error("Error calculating total tasks size:", error)
+			})
+	}
+
 	async deleteTaskWithId(id: string) {
 		console.info("deleteTaskWithId: ", id)
 
@@ -1794,7 +1813,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		// 	}
 		// }
 
-		await this.deleteTaskFromState(id)
+		const updatedTaskHistory = await this.deleteTaskFromState(id)
 
 		// Delete the task files
 		const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
@@ -1811,6 +1830,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		}
 
 		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
+
+		if (updatedTaskHistory.length === 0) {
+			await this.deleteAllTaskHistory()
+		}
+
+		this.refreshTotalTasksSize()
 	}
 
 	async deleteTaskFromState(id: string) {
@@ -1821,6 +1846,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		// Notify the webview that the task has been deleted
 		await this.postStateToWebview()
+
+		return updatedTaskHistory
 	}
 
 	async postStateToWebview() {

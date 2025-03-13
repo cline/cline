@@ -20,6 +20,8 @@ interface ExtensionStateContextType extends ExtensionState {
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
+	totalTasksSize: number | null
+	requestTotalTasksSize: () => void
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
@@ -52,6 +54,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
+	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
@@ -136,6 +139,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				}
 				break
 			}
+			case "totalTasksSize": {
+				setTotalTasksSize(message.totalTasksSize ?? null)
+				break
+			}
 		}
 	}, [])
 
@@ -143,6 +150,10 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	useEffect(() => {
 		vscode.postMessage({ type: "webviewDidLaunch" })
+	}, [])
+
+	const requestTotalTasksSize = useCallback(() => {
+		vscode.postMessage({ type: "requestTotalTasksSize" })
 	}, [])
 
 	const contextValue: ExtensionStateContextType = {
@@ -155,6 +166,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpServers,
 		mcpMarketplaceCatalog,
 		filePaths,
+		totalTasksSize,
+		requestTotalTasksSize,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,
