@@ -278,6 +278,7 @@
 		"@types/turndown": "^5.0.5",
 		"@vscode/codicons": "^0.0.36",
 		"axios": "^1.8.2",
+		"changeset": "^0.2.6",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
 		"clone-deep": "^4.0.1",
