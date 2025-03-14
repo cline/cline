@@ -307,7 +307,8 @@
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
 		"watch-tests": "tsc -p . -w --outDir out",
 		"changeset": "changeset",
-		"knip": "knip --include files"
+		"knip": "knip --include files",
+		"update-contributors": "node scripts/update-contributors.js"
 	},
 	"dependencies": {
 		"@anthropic-ai/bedrock-sdk": "^0.10.2",
