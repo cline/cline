@@ -1,0 +1,6 @@
+{
+	"greeting": "Salut, je suis Roo !",
+	"introduction": "Je peux effectuer toutes sortes de tâches grâce aux dernières avancées en matière de capacités de codage agentique et à l'accès à des outils qui me permettent de créer et de modifier des fichiers, d'explorer des projets complexes, d'utiliser le navigateur et d'exécuter des commandes terminal (avec votre permission, bien sûr). Je peux même utiliser MCP pour créer de nouveaux outils et étendre mes propres capacités.",
+	"notice": "Pour commencer, cette extension a besoin d'un fournisseur d'API.",
+	"start": "C'est parti !"
+}

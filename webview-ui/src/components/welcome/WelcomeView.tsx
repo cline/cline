@@ -7,9 +7,11 @@ import { vscode } from "../../utils/vscode"
 import ApiOptions from "../settings/ApiOptions"
 import { Tab, TabContent } from "../common/Tab"
 import { Alert } from "../common/Alert"
+import { useAppTranslation } from "../../i18n/TranslationContext"
 
 const WelcomeView = () => {
 	const { apiConfiguration, currentApiConfigName, setApiConfiguration, uriScheme } = useExtensionState()
+	const { t } = useAppTranslation()
 
 	const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined)
 
@@ -28,14 +30,9 @@ const WelcomeView = () => {
 	return (
 		<Tab>
 			<TabContent className="flex flex-col gap-5">
-				<h2 className="m-0 p-0">Hi, I'm Roo!</h2>
-				<div>
-					I can do all kinds of tasks thanks to the latest breakthroughs in agentic coding capabilities and
-					access to tools that let me create & edit files, explore complex projects, use the browser, and
-					execute terminal commands (with your permission, of course). I can even use MCP to create new tools
-					and extend my own capabilities.
-				</div>
-				<Alert className="font-bold text-sm">To get started, this extension needs an API provider.</Alert>
+				<h2 className="m-0 p-0">{t("welcome:greeting")}</h2>
+				<div>{t("welcome:introduction")}</div>
+				<Alert className="font-bold text-sm">{t("welcome:notice")}</Alert>
 				<ApiOptions
 					fromWelcomeView
 					apiConfiguration={apiConfiguration || {}}
@@ -47,7 +44,7 @@ const WelcomeView = () => {
 			</TabContent>
 			<div className="sticky bottom-0 bg-vscode-sideBar-background p-5">
 				<div className="flex flex-col gap-1">
-					<VSCodeButton onClick={handleSubmit}>Let's go!</VSCodeButton>
+					<VSCodeButton onClick={handleSubmit}>{t("welcome:start")}</VSCodeButton>
 					{errorMessage && <div className="text-vscode-errorForeground">{errorMessage}</div>}
 				</div>
 			</div>
