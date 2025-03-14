@@ -12,13 +12,17 @@ import { Section } from "./Section"
 type ContextManagementSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	terminalOutputLineLimit?: number
 	maxOpenTabsContext: number
+	maxWorkspaceFiles: number
 	showRooIgnoredFiles?: boolean
-	setCachedStateField: SetCachedStateField<"terminalOutputLineLimit" | "maxOpenTabsContext" | "showRooIgnoredFiles">
+	setCachedStateField: SetCachedStateField<
+		"terminalOutputLineLimit" | "maxOpenTabsContext" | "maxWorkspaceFiles" | "showRooIgnoredFiles"
+	>
 }
 
 export const ContextManagementSettings = ({
 	terminalOutputLineLimit,
 	maxOpenTabsContext,
+	maxWorkspaceFiles,
 	showRooIgnoredFiles,
 	setCachedStateField,
 	className,
@@ -26,7 +30,7 @@ export const ContextManagementSettings = ({
 }: ContextManagementSettingsProps) => {
 	return (
 		<div className={cn("flex flex-col gap-2", className)} {...props}>
-			<SectionHeader>
+			<SectionHeader description="Control what information is included in the AI's context window, affecting token usage and response quality">
 				<div className="flex items-center gap-2">
 					<Database className="w-4" />
 					<div>Context Management</div>
@@ -48,6 +52,7 @@ export const ContextManagementSettings = ({
 									setCachedStateField("terminalOutputLineLimit", parseInt(e.target.value))
 								}
 								className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
+								data-testid="terminal-output-limit-slider"
 							/>
 							<span style={{ ...sliderLabelStyle }}>{terminalOutputLineLimit ?? 500}</span>
 						</div>
@@ -70,6 +75,7 @@ export const ContextManagementSettings = ({
 								value={maxOpenTabsContext ?? 20}
 								onChange={(e) => setCachedStateField("maxOpenTabsContext", parseInt(e.target.value))}
 								className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
+								data-testid="open-tabs-limit-slider"
 							/>
 							<span style={{ ...sliderLabelStyle }}>{maxOpenTabsContext ?? 20}</span>
 						</div>
@@ -81,11 +87,35 @@ export const ContextManagementSettings = ({
 				</div>
 
 				<div>
+					<div className="flex flex-col gap-2">
+						<span className="font-medium">Workspace files context limit</span>
+						<div className="flex items-center gap-2">
+							<input
+								type="range"
+								min="0"
+								max="500"
+								step="1"
+								value={maxWorkspaceFiles ?? 200}
+								onChange={(e) => setCachedStateField("maxWorkspaceFiles", parseInt(e.target.value))}
+								className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
+								data-testid="workspace-files-limit-slider"
+							/>
+							<span style={{ ...sliderLabelStyle }}>{maxWorkspaceFiles ?? 200}</span>
+						</div>
+					</div>
+					<p className="text-vscode-descriptionForeground text-sm mt-0">
+						Maximum number of files to include in current working directory details. Higher values provide
+						more context but increase token usage.
+					</p>
+				</div>
+
+				<div>
 					<VSCodeCheckbox
 						checked={showRooIgnoredFiles}
 						onChange={(e: any) => {
 							setCachedStateField("showRooIgnoredFiles", e.target.checked)
-						}}>
+						}}
+						data-testid="show-rooignored-files-checkbox">
 						<span className="font-medium">Show .rooignore'd files in lists and searches</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">

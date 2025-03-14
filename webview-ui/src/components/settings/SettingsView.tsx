@@ -85,6 +85,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		experiments,
 		fuzzyMatchThreshold,
 		maxOpenTabsContext,
+		maxWorkspaceFiles,
 		mcpEnabled,
 		rateLimitSeconds,
 		requestDelaySeconds,
@@ -196,6 +197,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			vscode.postMessage({ type: "requestDelaySeconds", value: requestDelaySeconds })
 			vscode.postMessage({ type: "rateLimitSeconds", value: rateLimitSeconds })
 			vscode.postMessage({ type: "maxOpenTabsContext", value: maxOpenTabsContext })
+			vscode.postMessage({ type: "maxWorkspaceFiles", value: maxWorkspaceFiles ?? 200 })
 			vscode.postMessage({ type: "showRooIgnoredFiles", bool: showRooIgnoredFiles })
 			vscode.postMessage({ type: "currentApiConfigName", text: currentApiConfigName })
 			vscode.postMessage({ type: "updateExperimental", values: experiments })
@@ -410,6 +412,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 					<ContextManagementSettings
 						terminalOutputLineLimit={terminalOutputLineLimit}
 						maxOpenTabsContext={maxOpenTabsContext}
+						maxWorkspaceFiles={maxWorkspaceFiles ?? 200}
 						showRooIgnoredFiles={showRooIgnoredFiles}
 						setCachedStateField={setCachedStateField}
 					/>
