@@ -27,7 +27,7 @@ jobs:
       - name: Update contributors and check for changes
         run: |
           npm run update-contributors
-          git diff --quiet README.md || echo "changes=true" >> $GITHUB_OUTPUT
+          if git diff --quiet README.md; then echo "changes=false" >> $GITHUB_OUTPUT; else echo "changes=true" >> $GITHUB_OUTPUT; fi
         id: check-changes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
