@@ -194,12 +194,12 @@ export function activate(context: vscode.ExtensionContext) {
 		// Use dynamic import to avoid loading the module in production
 		import("./dev/commands/tasks")
 			.then((module) => {
-				const sizeTestingCommands = module.registerSizeTestingCommands(context, sidebarProvider)
-				context.subscriptions.push(...sizeTestingCommands)
-				Logger.log("Cline size testing tools registered")
+				const devTaskCommands = module.registerTaskCommands(context, sidebarProvider)
+				context.subscriptions.push(...devTaskCommands)
+				Logger.log("Cline dev task commands registered")
 			})
 			.catch((error) => {
-				Logger.log("Failed to register size testing tools: " + error)
+				Logger.log("Failed to register dev task commands: " + error)
 			})
 	}
 
