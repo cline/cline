@@ -1635,6 +1635,10 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	async syncQueueItems(queueItems: QueueItem[]) {
 		const queueItemsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.queueItems)
 		await fs.writeFile(queueItemsFilePath, JSON.stringify(queueItems ?? []))
+		await this.postMessageToWebview({
+			type: "queueItems",
+			queueItems,
+		})
 	}
 
 	async refreshOpenRouterModels() {

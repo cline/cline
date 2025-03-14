@@ -140,7 +140,8 @@ export const ExtensionStateContextProvider: React.FC<{
 				break
 			}
 			case "queueItems": {
-				setQueueItems(message.queueItems ?? [])
+				const queueItems = message.queueItems ?? []
+				setQueueItems(queueItems)
 				break
 			}
 		}

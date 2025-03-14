@@ -157,7 +157,7 @@ const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick, onQueueClick 
 					onMouseEnter={(e) => showTooltip("Queue", e, "center")}
 					onMouseLeave={hideTooltip}
 					onMouseMove={(e) => showTooltip("Queue", e, "center")}>
-					<span className="codicon list-ordered"></span>
+					<span className="codicon codicon-list-tree"></span>
 				</VSCodeButton>
 				<VSCodeButton
 					appearance="icon"
