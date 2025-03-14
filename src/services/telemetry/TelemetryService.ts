@@ -250,13 +250,19 @@ class PostHogClient {
 	 * Records interactions with the git-based checkpoint system
 	 * @param taskId Unique identifier for the task
 	 * @param action The type of checkpoint action
+	 * @param durationMs Optional duration of the operation in milliseconds
 	 */
-	public captureCheckpointUsage(taskId: string, action: "shadow_git_initialized" | "commit_created" | "restored") {
+	public captureCheckpointUsage(
+		taskId: string,
+		action: "shadow_git_initialized" | "commit_created" | "restored" | "diff_generated",
+		durationMs?: number,
+	) {
 		this.capture({
 			event: PostHogClient.EVENTS.TASK.CHECKPOINT_USED,
 			properties: {
 				taskId,
 				action,
+				durationMs,
 			},
 		})
 	}
