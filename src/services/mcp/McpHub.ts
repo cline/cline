@@ -244,7 +244,7 @@ export class McpHub {
 
 	private async connectToServer(
 		name: string,
-		config: z.infer<typeof ServerConfigSchema>,
+		config: z.infer<typeof StdioConfigSchema>,
 		source: "global" | "project" = "global",
 	): Promise<void> {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
