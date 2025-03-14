@@ -351,12 +351,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		])
 
 		// Get KaTeX resources
-		const katexCssUri = getUri(webview, this.context.extensionUri, [
-			"node_modules",
-			"katex",
-			"dist",
-			"katex.min.css",
-		])
+		const katexCssUri = getUri(webview, this.context.extensionUri, ["node_modules", "katex", "dist", "katex.min.css"])
 
 		// Add KaTeX fonts to localResourceRoots
 		webview.options = {
@@ -434,12 +429,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		])
 
 		// Get KaTeX resources
-		const katexCssUri = getUri(webview, this.context.extensionUri, [
-			"node_modules",
-			"katex",
-			"dist",
-			"katex.min.css",
-		])
+		const katexCssUri = getUri(webview, this.context.extensionUri, ["node_modules", "katex", "dist", "katex.min.css"])
 
 		// Add KaTeX fonts to localResourceRoots
 		webview.options = {

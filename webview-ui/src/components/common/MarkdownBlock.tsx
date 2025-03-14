@@ -134,7 +134,7 @@ const StyledMarkdown = styled.div`
 	.katex {
 		font-size: 1.1em;
 		color: var(--vscode-editor-foreground);
-		font-family: KaTeX_Main, 'Times New Roman', serif;
+		font-family: KaTeX_Main, "Times New Roman", serif;
 		line-height: 1.2;
 		white-space: normal;
 		text-indent: 0;
