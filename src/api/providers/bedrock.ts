@@ -41,7 +41,6 @@ export class AwsBedrockHandler implements ApiHandler {
 		// initialization, and allowing for session renewal if necessary as well
 		const client = await this.getAnthropicClient()
 
-		// Always use streaming mode regardless of VPC endpoint configuration
 		const stream = await client.messages.create({
 			model: modelId,
 			max_tokens: model.info.maxTokens || 8192,
