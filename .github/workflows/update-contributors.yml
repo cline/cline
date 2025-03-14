@@ -21,6 +21,11 @@ jobs:
           node-version: '18'
           cache: 'npm'
           
+      - name: Disable Husky
+        run: |
+          echo "HUSKY=0" >> $GITHUB_ENV
+          git config --global core.hooksPath /dev/null
+          
       - name: Install dependencies
         run: npm ci
         
