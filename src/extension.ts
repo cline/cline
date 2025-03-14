@@ -32,6 +32,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const sidebarProvider = new ClineProvider(context, outputChannel)
 
+	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
+
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, sidebarProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
@@ -186,6 +188,20 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
+
+	// Register size testing commands in development mode
+	if (IS_DEV && IS_DEV !== "false") {
+		// Use dynamic import to avoid loading the module in production
+		import("./dev/commands/tasks")
+			.then((module) => {
+				const sizeTestingCommands = module.registerSizeTestingCommands(context, sidebarProvider)
+				context.subscriptions.push(...sizeTestingCommands)
+				Logger.log("Cline size testing tools registered")
+			})
+			.catch((error) => {
+				Logger.log("Failed to register size testing tools: " + error)
+			})
+	}
 
 	return createClineAPI(outputChannel, sidebarProvider)
 }

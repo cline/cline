@@ -94,6 +94,12 @@
 				"command": "cline.openInNewTab",
 				"title": "Open In New Tab",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.dev.createTestTasks",
+				"title": "Create Test Tasks",
+				"category": "Cline",
+				"when": "cline.isDevMode"
 			}
 		],
 		"menus": {
