@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Needed for pushing changes
+      pull-requests: write  # Needed for creating PRs
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
