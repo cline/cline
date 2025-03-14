@@ -5,6 +5,7 @@ import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import clineLogoWhite from "../../assets/cline-logo-white.svg"
 import CountUp from "react-countup"
+import CreditsHistoryTable from "./CreditsHistoryTable"
 
 type AccountViewProps = {
 	onDone: () => void
@@ -41,74 +42,77 @@ export const ClineAccountView = () => {
 		handleSignOut()
 	}
 	return (
-		<div className="max-w-[400px]">
+		<div className="">
 			{user ? (
-				<div className="flex flex-col p-[20px]">
+				<div className="flex flex-col p-5">
 					<div className="flex flex-col w-full">
-						<div className="flex items-center mb-6">
+						<div className="flex items-center mb-6 flex-wrap gap-y-4">
 							{user.photoURL ? (
-								<img src={user.photoURL} alt="Profile" className="size-16 rounded-full mr-[16px]" />
+								<img src={user.photoURL} alt="Profile" className="size-16 rounded-full mr-4" />
 							) : (
-								<div className="w-[64px] h-[64px] rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-[24px] text-[var(--vscode-button-foreground)] mr-[16px]">
+								<div className="size-16 rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-2xl text-[var(--vscode-button-foreground)] mr-4">
 									{user.displayName?.[0] || user.email?.[0] || "?"}
 								</div>
 							)}
 
 							<div className="flex flex-col">
 								{user.displayName && (
-									<h2 className="text-[var(--vscode-foreground)] m-0 mb-[5px] text-[24px] font-normal">
+									<h2 className="text-[var(--vscode-foreground)] m-0 mb-1 text-2xl font-medium">
 										{user.displayName}
 									</h2>
 								)}
 
 								{user.email && (
-									<div className="text-[16px] text-[var(--vscode-descriptionForeground)]">{user.email}</div>
+									<div className="text-base text-[var(--vscode-descriptionForeground)]">{user.email}</div>
 								)}
 							</div>
 						</div>
 					</div>
 
-					<div className="flex gap-2">
-						<VSCodeButtonLink href="https://app.cline.bot/account" appearance="primary" className="w-24">
+					<div className="flex flex-col min-[280px]:flex-row gap-2">
+						<VSCodeButtonLink
+							href="https://app.cline.bot/account"
+							appearance="primary"
+							className="w-full min-[280px]:w-24">
 							Account
 						</VSCodeButtonLink>
-						<VSCodeButton appearance="secondary" onClick={handleLogout} className="w-24">
+						<VSCodeButton appearance="secondary" onClick={handleLogout} className="w-full min-[280px]:w-24">
 							Log out
 						</VSCodeButton>
 					</div>
 
-					<div className="my-2.5 mt-7 w-full">
-						<VSCodeDivider />
-					</div>
+					<VSCodeDivider className="w-full my-6" />
 
-					<div className="w-full flex flex-col items-center mt-[10px]">
-						<div className="text-[14px] text-[var(--vscode-descriptionForeground)] mb-[10px]">CURRENT BALANCE</div>
+					<div className="w-full flex flex-col items-center">
+						<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3">CURRENT BALANCE</div>
 
-						<div className="text-[36px] font-bold text-[var(--vscode-foreground)] mb-[20px] flex">
+						<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6">
 							<span>$</span>
 							<CountUp end={amount} duration={0.66} decimals={2} />
 						</div>
 
-						<VSCodeButtonLink href="https://app.cline.bot/credits/#buy" className="w-full mb-[10px]">
-							Add Credits
-						</VSCodeButtonLink>
+						<div className="w-full max-w-3xs">
+							<VSCodeButtonLink href="https://app.cline.bot/credits/#buy" className="w-full">
+								Add Credits
+							</VSCodeButtonLink>
+						</div>
 					</div>
 
-					<div className="my-[10px] w-full">
-						<VSCodeDivider />
-					</div>
+					<VSCodeDivider className="mt-6 mb-10 w-full" />
+
+					<CreditsHistoryTable />
 				</div>
 			) : (
-				<div className="flex flex-col items-center p-[20px] max-w-[400px]">
-					<img src={clineLogoWhite} alt="Cline Logo" className="w-[60px] h-[60px] mb-[15px]" />
+				<div className="flex flex-col items-center p-5 max-w-[400px]">
+					<img src={clineLogoWhite} alt="Cline Logo" className="size-16 mb-4" />
 
-					<h2 className="text-[var(--vscode-foreground)] m-0 mb-[20px] text-[24px] font-normal">Sign up with Cline</h2>
+					<h2 className="text-[var(--vscode-foreground)] m-0 mb-6 text-2xl font-normal">Sign up with Cline</h2>
 
-					<VSCodeButton onClick={handleLogin} className="w-full mb-[20px]">
+					<VSCodeButton onClick={handleLogin} className="w-full mb-4">
 						Login with Cline
 					</VSCodeButton>
 
-					<p className="text-[var(--vscode-descriptionForeground)] text-[12px] text-center m-0">
+					<p className="text-[var(--vscode-descriptionForeground)] text-xs text-center m-0">
 						By continuing, you agree to the <VSCodeLink href="https://cline.bot/tos">Terms of Service</VSCodeLink> and{" "}
 						<VSCodeLink href="https://cline.bot/privacy">Privacy Policy</VSCodeLink>.
 					</p>
