@@ -24,9 +24,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
         
-      - name: Update contributors and check for changes
+      - name: Update contributors and format
         run: |
           npm run update-contributors
+          npx prettier --write README.md
           if git diff --quiet README.md; then echo "changes=false" >> $GITHUB_OUTPUT; else echo "changes=true" >> $GITHUB_OUTPUT; fi
         id: check-changes
         env:
