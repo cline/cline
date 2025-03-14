@@ -1,0 +1,59 @@
+name: Update Contributors
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  update-contributors:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Needed for pushing changes
+      pull-requests: write  # Needed for creating PRs
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Disable Husky
+        run: |
+          echo "HUSKY=0" >> $GITHUB_ENV
+          git config --global core.hooksPath /dev/null
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Update contributors and format
+        run: |
+          npm run update-contributors
+          npx prettier --write README.md
+          if git diff --quiet README.md; then echo "changes=false" >> $GITHUB_OUTPUT; else echo "changes=true" >> $GITHUB_OUTPUT; fi
+        id: check-changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Pull Request
+        if: steps.check-changes.outputs.changes == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          add-paths: |
+            README.md
+          commit-message: "docs: update contributors list [skip ci]"
+          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          branch: update-contributors
+          branch-suffix: timestamp
+          delete-branch: true
+          title: "Update contributors list"
+          body: |
+            Automated update of contributors list in README.md
+            
+            This PR was created automatically by a GitHub Action workflow.
+          base: main
