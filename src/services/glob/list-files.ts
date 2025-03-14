@@ -1,7 +1,7 @@
-import { globby, Options } from "globby"
 import os from "os"
 import * as path from "path"
 import { arePathsEqual } from "../../utils/path"
+import { readdir } from "fs/promises"
 
 export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
 	const absolutePath = path.resolve(dirPath)
@@ -33,68 +33,46 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 		"deps",
 		"pkg",
 		"Pods",
-		".*", // '!**/.*' excludes hidden directories, while '!**/.*/**' excludes only their contents. This way we are at least aware of the existence of hidden directories.
-	].map((dir) => `**/${dir}/**`)
+		".git",
+	]
 
-	const options: Options = {
-		cwd: dirPath,
-		dot: true, // do not ignore hidden files/directories
-		absolute: true,
-		markDirectories: true, // Append a / on any directories matched (/ is used on windows as well, so dont use path.sep)
-		gitignore: recursive, // globby ignores any files that are gitignored
-		ignore: recursive ? dirsToIgnore : undefined, // just in case there is no gitignore, we ignore sensible defaults
-		onlyFiles: false, // true by default, false means it will list directories on their own too
-		suppressErrors: true,
-	}
-
-	// * globs all files in one dir, ** globs files in nested directories
-	const filePaths = recursive ? await globbyLevelByLevel(limit, options) : (await globby("*", options)).slice(0, limit)
+	const filePaths = await getFilesAndFolders(dirPath, recursive ? dirsToIgnore : [])
 
 	return [filePaths, filePaths.length >= limit]
 }
 
-/*
-Breadth-first traversal of directory structure level by level up to a limit:
-   - Queue-based approach ensures proper breadth-first traversal
-   - Processes directory patterns level by level
-   - Captures a representative sample of the directory structure up to the limit
-   - Minimizes risk of missing deeply nested files
+interface FileEntry {
+	name: string
+	isDirectory(): boolean
+	isFile(): boolean
+}
 
-- Notes:
-   - Relies on globby to mark directories with /
-   - Potential for loops if symbolic links reference back to parent (we could use followSymlinks: false but that may not be ideal for some projects and it's pointless if they're not using symlinks wrong)
-   - Timeout mechanism prevents infinite loops
-*/
-async function globbyLevelByLevel(limit: number, options?: Options) {
-	let results: Set<string> = new Set()
-	let queue: string[] = ["*"]
+async function getFilesAndFolders(dir: string, dirsToIgnore: string[]): Promise<string[]> {
+	const files: string[] = []
+	const folders: string[] = []
 
-	const globbingProcess = async () => {
-		while (queue.length > 0 && results.size < limit) {
-			const pattern = queue.shift()!
-			const filesAtLevel = await globby(pattern, options)
+	async function traverse(currentDir: string): Promise<void> {
+		const entries: FileEntry[] = await readdir(currentDir, { withFileTypes: true })
 
-			for (const file of filesAtLevel) {
-				if (results.size >= limit) {
-					break
+		for (const entry of entries) {
+			const fullPath: string = path.join(currentDir, entry.name)
+			const relativePath = path.relative(dir, fullPath)
+
+			if (entry.isDirectory()) {
+				const shouldIgnore = dirsToIgnore.some((pattern) => {
+					return entry.name === pattern || relativePath.includes(`/${pattern}/`)
+				})
+
+				if (!shouldIgnore) {
+					folders.push(`${fullPath}/`)
+					await traverse(fullPath)
 				}
-				results.add(file)
-				if (file.endsWith("/")) {
-					queue.push(`${file}*`)
-				}
+			} else if (entry.isFile()) {
+				files.push(fullPath)
 			}
 		}
-		return Array.from(results).slice(0, limit)
 	}
 
-	// Timeout after 10 seconds and return partial results
-	const timeoutPromise = new Promise<string[]>((_, reject) => {
-		setTimeout(() => reject(new Error("Globbing timeout")), 10_000)
-	})
-	try {
-		return await Promise.race([globbingProcess(), timeoutPromise])
-	} catch (error) {
-		console.warn("Globbing timed out, returning partial results")
-		return Array.from(results)
-	}
+	await traverse(dir)
+	return [...folders, ...files]
 }
