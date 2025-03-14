@@ -32,25 +32,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Stage changes
-        if: steps.check-changes.outputs.changes == 'true'
-        run: |
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add README.md
-          git commit -m "docs: update contributors list [skip ci]"
-        
       - name: Create Pull Request
         if: steps.check-changes.outputs.changes == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          add-paths: |
+            README.md
+          commit-message: "docs: update contributors list [skip ci]"
+          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          branch: update-contributors
+          branch-suffix: timestamp
+          delete-branch: true
           title: "Update contributors list"
           body: |
             Automated update of contributors list in README.md
             
             This PR was created automatically by a GitHub Action workflow.
-          branch: update-contributors
-          branch-suffix: timestamp
-          delete-branch: true
           base: main
