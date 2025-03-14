@@ -162,6 +162,21 @@ export class VertexHandler implements ApiHandler {
 						break
 					case "content_block_start":
 						switch (chunk.content_block.type) {
+							case "thinking":
+								yield {
+									type: "reasoning",
+									reasoning: chunk.content_block.thinking || "",
+								}
+								break
+							case "redacted_thinking":
+								// Handle redacted thinking blocks - we still mark it as reasoning
+								// but note that the content is encrypted
+								yield {
+									type: "reasoning",
+									reasoning: "[Redacted thinking block]",
+								}
+								break
+
 							case "text":
 								if (chunk.index > 0) {
 									yield {
@@ -178,6 +193,12 @@ export class VertexHandler implements ApiHandler {
 						break
 					case "content_block_delta":
 						switch (chunk.delta.type) {
+							case "thinking_delta":
+								yield {
+									type: "reasoning",
+									reasoning: chunk.delta.thinking,
+								}
+								break
 							case "text_delta":
 								yield {
 									type: "text",
