@@ -77,7 +77,7 @@ export class ClineHandler implements ApiHandler {
 					headers: {
 						Authorization: `Bearer ${this.options.clineApiKey}`,
 					},
-					timeout: 10_000, // this request hangs sometimes
+					timeout: 15_000, // this request hangs sometimes
 				})
 
 				const generation = response.data
