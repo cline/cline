@@ -1637,10 +1637,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		const fileExists = await fileExistsAtPath(queueItemsFilePath)
 		if (fileExists) {
 			const fileContents = await fs.readFile(queueItemsFilePath, "utf8")
-			alert(fileContents)
 			return JSON.parse(fileContents)
 		}
-		alert("[readQueueItems] File does not exist")
 		return undefined
 	}
 
