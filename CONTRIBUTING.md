@@ -2,6 +2,16 @@
 
 We're thrilled you're interested in contributing to Roo Code. Whether you're fixing a bug, adding a feature, or improving our docs, every contribution makes Roo Code smarter! To keep our community vibrant and welcoming, all members must adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
 
+## Join Our Community
+
+We strongly encourage all contributors to join our [Discord community](https://discord.gg/roocode)! Being part of our Discord server helps you:
+
+- Get real-time help and guidance on your contributions
+- Connect with other contributors and core team members
+- Stay updated on project developments and priorities
+- Participate in discussions that shape Roo Code's future
+- Find collaboration opportunities with other developers
+
 ## Reporting Bugs or Issues
 
 Bug reports help make Roo Code better for everyone! Before creating a new issue, please [search existing ones](https://github.com/RooVetGit/Roo-Code/issues) to avoid duplicates. When you're ready to report a bug, head over to our [issues page](https://github.com/RooVetGit/Roo-Code/issues/new/choose) where you'll find a template to help you with filling out the relevant information.
