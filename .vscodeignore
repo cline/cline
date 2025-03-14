@@ -42,3 +42,5 @@ docs/**
 
 # Include icons
 !assets/icons/**
+
+**/*.vsix
