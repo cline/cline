@@ -38,11 +38,18 @@ jobs:
             echo "No changes to README.md"
           fi
           
-      - name: Commit and push changes
+      - name: Create Pull Request
         if: steps.check-changes.outputs.changes == 'true'
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add README.md
-          git commit -m "docs: update contributors list [skip ci]"
-          git push
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "docs: update contributors list"
+          title: "Update contributors list"
+          body: |
+            Automated update of contributors list in README.md
+            
+            This PR was created automatically by a GitHub Action workflow.
+          branch: update-contributors
+          branch-suffix: timestamp
+          delete-branch: true
+          base: main
