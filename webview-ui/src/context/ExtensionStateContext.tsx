@@ -10,7 +10,7 @@ import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
 import { TelemetrySetting } from "../../../src/shared/TelemetrySetting"
-
+import { QueueItem } from "../../../src/shared/Queue"
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
@@ -20,6 +20,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
+	queueItems: QueueItem[]
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
@@ -49,6 +50,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [theme, setTheme] = useState<any>(undefined)
 	const [filePaths, setFilePaths] = useState<string[]>([])
+	const [queueItems, setQueueItems] = useState<QueueItem[]>([])
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -137,6 +139,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				}
 				break
 			}
+			case "queueItems": {
+				setQueueItems(message.queueItems ?? [])
+				break
+			}
 		}
 	}, [])
 
@@ -156,6 +162,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpServers,
 		mcpMarketplaceCatalog,
 		filePaths,
+		queueItems,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,

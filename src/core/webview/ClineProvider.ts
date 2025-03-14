@@ -28,7 +28,7 @@ import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../sha
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
 import { searchCommits } from "../../utils/git"
-import { Cline } from "../Cline"
+import { Cline, ClineCustom } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
@@ -36,6 +36,7 @@ import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
+import { QueueItem } from "../../shared/Queue"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -115,6 +116,7 @@ export const GlobalFileNames = {
 	openRouterModels: "openrouter_models.json",
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
+	queueItems: "queue_items.json",
 }
 
 export class ClineProvider implements vscode.WebviewViewProvider {
@@ -284,7 +286,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
 			await this.getState()
-		this.cline = new Cline(
+		this.cline = new ClineCustom(
 			this,
 			apiConfiguration,
 			autoApprovalSettings,
@@ -296,11 +298,33 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		)
 	}
 
+	async initClineWithQueue(tasks: string[]) {
+		await this.clearTask()
+		if (tasks.length === 0) {
+			return
+		}
+		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
+			await this.getState()
+		const queue = tasks.map((task, index) => ({ task, order: index, isCompleted: false }))
+		this.cline = new ClineCustom(
+			this,
+			apiConfiguration,
+			autoApprovalSettings,
+			browserSettings,
+			chatSettings,
+			customInstructions,
+			undefined,
+			undefined,
+			undefined,
+			queue,
+		)
+	}
+
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
 		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
 			await this.getState()
-		this.cline = new Cline(
+		this.cline = new ClineCustom(
 			this,
 			apiConfiguration,
 			autoApprovalSettings,
@@ -533,6 +557,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							const isOptedIn = telemetrySetting === "enabled"
 							telemetryService.updateTelemetryState(isOptedIn)
 						})
+
+						// load tasks in queue
+						this.readQueueItems()
 						break
 					case "newTask":
 						// Code that should run in response to the hello message command
@@ -915,6 +942,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
+					case "showQueueView": {
+						await this.postMessageToWebview({ type: "action", action: "queueButtonClicked" })
+						break
+					}
+					case "updateQueue": {
+						await this.syncQueueItems(message.queueItems ?? [])
+						break
+					}
 				}
 			},
 			null,
@@ -1585,6 +1620,21 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			return JSON.parse(fileContents)
 		}
 		return undefined
+	}
+
+	async readQueueItems(): Promise<QueueItem[] | undefined> {
+		const queueItemsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.queueItems)
+		const fileExists = await fileExistsAtPath(queueItemsFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(queueItemsFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	}
+
+	async syncQueueItems(queueItems: QueueItem[]) {
+		const queueItemsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.queueItems)
+		await fs.writeFile(queueItemsFilePath, JSON.stringify(queueItems ?? []))
 	}
 
 	async refreshOpenRouterModels() {

@@ -9,6 +9,7 @@ type TabNavbarProps = {
 	onPlusClick: () => void
 	onHistoryClick: () => void
 	onSettingsClick: () => void
+	onQueueClick: () => void
 }
 
 type TooltipProps = {
@@ -87,7 +88,7 @@ const Tooltip: React.FC<TooltipProps> = ({ text, isVisible, position, align = "c
 	)
 }
 
-const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick }: TabNavbarProps) => {
+const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick, onQueueClick }: TabNavbarProps) => {
 	const [tooltip, setTooltip] = useState<TooltipProps>({
 		text: "",
 		isVisible: false,
@@ -148,6 +149,15 @@ const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick }: TabNavbarPr
 					onMouseLeave={hideTooltip}
 					onMouseMove={(e) => showTooltip("History", e, "center")}>
 					<span className="codicon codicon-history"></span>
+				</VSCodeButton>
+				<VSCodeButton
+					appearance="icon"
+					onClick={onQueueClick}
+					style={lastButtonStyle}
+					onMouseEnter={(e) => showTooltip("Queue", e, "center")}
+					onMouseLeave={hideTooltip}
+					onMouseMove={(e) => showTooltip("Queue", e, "center")}>
+					<span className="codicon list-ordered"></span>
 				</VSCodeButton>
 				<VSCodeButton
 					appearance="icon"

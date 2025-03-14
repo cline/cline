@@ -5,6 +5,7 @@ import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
 import { TelemetrySetting } from "./TelemetrySetting"
+import { QueueItem } from "./Queue"
 
 export interface WebviewMessage {
 	type:
@@ -61,6 +62,8 @@ export interface WebviewMessage {
 		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
+		| "showQueueView"
+		| "updateQueue"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -88,6 +91,7 @@ export interface WebviewMessage {
 	planActSeparateModelsSetting?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
+	queueItems?: QueueItem[]
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

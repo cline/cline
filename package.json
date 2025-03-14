@@ -1,8 +1,8 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline",
+	"name": "claude-dev-queue2",
+	"displayName": "Cline-queue2",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.6.10",
+	"version": "3.6.15",
 	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
 		"color": "#617A91",
@@ -94,6 +94,11 @@
 				"command": "cline.openInNewTab",
 				"title": "Open In New Tab",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.queueButtonClicked",
+				"title": "Open Tasks Queue",
+				"category": "Cline"
 			}
 		],
 		"menus": {
@@ -121,6 +126,11 @@
 				{
 					"command": "cline.settingsButtonClicked",
 					"group": "navigation@5",
+					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
+					"command": "cline.queueButtonClicked",
+					"group": "navigation@6",
 					"when": "view == claude-dev.SidebarProvider"
 				}
 			]
@@ -202,7 +212,8 @@
 						"Simplified Chinese - 简体中文",
 						"Spanish - Español",
 						"Traditional Chinese - 繁體中文",
-						"Turkish - Türkçe"
+						"Turkish - Türkçe",
+						"Vietnamese - Tiếng Việt"
 					],
 					"default": "English",
 					"description": "The language that Cline should use for communication."
@@ -297,7 +308,7 @@
 		"open-graph-scraper": "^6.9.0",
 		"openai": "^4.83.0",
 		"os-name": "^6.0.0",
-		"p-timeout": "^6.1.4",
+		"p-timeout": "6.1.2",
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
 		"posthog-node": "^4.8.1",

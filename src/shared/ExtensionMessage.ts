@@ -7,6 +7,7 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
+import { QueueItem } from "./Queue"
 import { TelemetrySetting } from "./TelemetrySetting"
 
 // webview will hold state
@@ -34,6 +35,7 @@ export interface ExtensionMessage {
 		| "openGraphData"
 		| "isImageUrlResult"
 		| "didUpdateSettings"
+		| "queueItems"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -43,6 +45,7 @@ export interface ExtensionMessage {
 		| "didBecomeVisible"
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
+		| "queueButtonClicked"
 	invoke?: Invoke
 	state?: ExtensionState
 	images?: string[]
@@ -54,6 +57,7 @@ export interface ExtensionMessage {
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
+	queueItems?: QueueItem[]
 	customToken?: string
 	mcpMarketplaceCatalog?: McpMarketplaceCatalog
 	error?: string

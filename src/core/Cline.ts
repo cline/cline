@@ -63,6 +63,7 @@ import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 import { telemetryService } from "../services/telemetry/TelemetryService"
 import pTimeout from "p-timeout"
+import { Queue, QueueItem } from "../shared/Queue"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -90,7 +91,7 @@ export class Cline {
 	private lastMessageTs?: number
 	private consecutiveAutoApprovedRequestsCount: number = 0
 	private consecutiveMistakeCount: number = 0
-	private providerRef: WeakRef<ClineProvider>
+	protected providerRef: WeakRef<ClineProvider>
 	private abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
@@ -803,7 +804,7 @@ export class Cline {
 
 	// Task lifecycle
 
-	private async startTask(task?: string, images?: string[]): Promise<void> {
+	protected async startTask(task?: string, images?: string[]): Promise<void> {
 		// conversationHistory (for API) and clineMessages (for webview) need to be in sync
 		// if the extension process were killed, then on restart the clineMessages might not be empty, so we need to set it to [] when we create a new Cline client (otherwise webview would show stale messages from previous session)
 		this.clineMessages = []
@@ -3570,5 +3571,61 @@ export class Cline {
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
+	}
+}
+
+export class ClineCustom extends Cline {
+	private queue: QueueItem[] = []
+	constructor(
+		provider: ClineProvider,
+		apiConfiguration: ApiConfiguration,
+		autoApprovalSettings: AutoApprovalSettings,
+		browserSettings: BrowserSettings,
+		chatSettings: ChatSettings,
+		customInstructions?: string,
+		task?: string,
+		images?: string[],
+		historyItem?: HistoryItem,
+		queue?: QueueItem[],
+	) {
+		super(
+			provider,
+			apiConfiguration,
+			autoApprovalSettings,
+			browserSettings,
+			chatSettings,
+			customInstructions,
+			task,
+			images,
+			historyItem,
+		)
+		if (queue) {
+			this.queue = queue
+		}
+		if (!this.isEmptyQueue()) {
+			this.startNextTask()
+		}
+	}
+
+	override shouldAutoApproveTool(toolName: string) {
+		return true
+	}
+
+	private getNextTask() {
+		return this.queue
+			?.filter((item) => !item.isCompleted)
+			.sort((a, b) => a.order - b.order)
+			.at(0)
+	}
+
+	private isEmptyQueue() {
+		return this.queue.every((item) => item.isCompleted)
+	}
+
+	async startNextTask() {
+		const task = this.getNextTask()
+		if (task) {
+			await this.startTask(task.task, task.images)
+		}
 	}
 }
