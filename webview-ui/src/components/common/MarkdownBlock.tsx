@@ -1,6 +1,8 @@
 import React, { memo, useEffect } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
+import rehypeKatex from "rehype-katex"
+import remarkMath from "remark-math"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -11,14 +13,6 @@ interface MarkdownBlockProps {
 	markdown?: string
 }
 
-/**
- * Custom remark plugin that converts plain URLs in text into clickable links
- *
- * The original bug: We were converting text nodes into paragraph nodes,
- * which broke the markdown structure because text nodes should remain as text nodes
- * within their parent elements (like paragraphs, list items, etc.).
- * This caused the entire content to disappear because the structure became invalid.
- */
 const remarkUrlToLink = () => {
 	return (tree: any) => {
 		// Visit all "text" nodes in the markdown AST (Abstract Syntax Tree)
@@ -136,6 +130,35 @@ const StyledMarkdown = styled.div`
 		overflow-wrap: anywhere;
 	}
 
+	/* KaTeX styling */
+	.katex {
+		font-size: 1.1em;
+		color: var(--vscode-editor-foreground);
+		font-family: KaTeX_Main, 'Times New Roman', serif;
+		line-height: 1.2;
+		white-space: normal;
+		text-indent: 0;
+	}
+
+	.katex-display {
+		display: block;
+		margin: 1em 0;
+		text-align: center;
+		padding: 0.5em;
+		overflow-x: auto;
+		overflow-y: hidden;
+		background-color: var(--vscode-textCodeBlock-background);
+		border-radius: 3px;
+	}
+
+	.katex-error {
+		color: var(--vscode-errorForeground);
+		background-color: var(--vscode-inputValidation-errorBackground);
+		border: 1px solid var(--vscode-inputValidation-errorBorder);
+		padding: 8px;
+		border-radius: 3px;
+	}
+
 	font-family:
 		var(--vscode-font-family),
 		system-ui,
@@ -201,6 +224,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 		remarkPlugins: [
 			remarkPreventBoldFilenames,
 			remarkUrlToLink,
+			remarkMath,
 			() => {
 				return (tree) => {
 					visit(tree, "code", (node: any) => {
@@ -214,6 +238,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 			},
 		],
 		rehypePlugins: [
+			rehypeKatex,
 			rehypeHighlight as any,
 			{
 				// languages: {},

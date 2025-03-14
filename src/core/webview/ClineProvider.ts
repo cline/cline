@@ -350,15 +350,23 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"codicon.css",
 		])
 
-		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
+		// Get KaTeX resources
+		const katexCssUri = getUri(webview, this.context.extensionUri, [
+			"node_modules",
+			"katex",
+			"dist",
+			"katex.min.css",
+		])
 
-		// const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "reset.css"))
-		// const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "vscode.css"))
+		// Add KaTeX fonts to localResourceRoots
+		webview.options = {
+			...webview.options,
+			localResourceRoots: [
+				...(webview.options?.localResourceRoots || []),
+				vscode.Uri.joinPath(this.context.extensionUri, "node_modules", "katex", "dist"),
+			],
+		}
 
-		// // Same for stylesheet
-		// const stylesheetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.css"))
-
-		// Use a nonce to only allow a specific script to be run.
 		/*
 				content security policy of your webview to only allow scripts that have a specific nonce
 				create a content security policy meta tag so that only loading scripts with a nonce is allowed
@@ -381,7 +389,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
             <meta name="theme-color" content="#000000">
             <link rel="stylesheet" type="text/css" href="${stylesUri}">
             <link href="${codiconsUri}" rel="stylesheet" />
-						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://*.posthog.com https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' 'unsafe-eval';">
+						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src https://*.posthog.com https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com; font-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' 'unsafe-eval';">
             <title>Cline</title>
           </head>
           <body>
@@ -425,6 +433,23 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			"codicon.css",
 		])
 
+		// Get KaTeX resources
+		const katexCssUri = getUri(webview, this.context.extensionUri, [
+			"node_modules",
+			"katex",
+			"dist",
+			"katex.min.css",
+		])
+
+		// Add KaTeX fonts to localResourceRoots
+		webview.options = {
+			...webview.options,
+			localResourceRoots: [
+				...(webview.options?.localResourceRoots || []),
+				vscode.Uri.joinPath(this.context.extensionUri, "node_modules", "katex", "dist"),
+			],
+		}
+
 		const scriptEntrypoint = "src/main.tsx"
 		const scriptUri = `http://${localServerUrl}/${scriptEntrypoint}`
 
@@ -454,8 +479,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					<meta charset="utf-8">
 					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
-					<link rel="stylesheet" type="text/css" href="${stylesUri}">
-					<link href="${codiconsUri}" rel="stylesheet" />
+            <link rel="stylesheet" type="text/css" href="${stylesUri}">
+            <link href="${codiconsUri}" rel="stylesheet" />
+            <link href="${katexCssUri}" rel="stylesheet" />
 					<title>Cline</title>
 				</head>
 				<body>

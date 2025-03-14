@@ -18,7 +18,16 @@ export default defineConfig({
 				inlineDynamicImports: true,
 				entryFileNames: `assets/[name].js`,
 				chunkFileNames: `assets/[name].js`,
-				assetFileNames: `assets/[name].[ext]`,
+				assetFileNames: (assetInfo) => {
+					if (assetInfo.name && (
+						assetInfo.name.endsWith('.woff2') || 
+						assetInfo.name.endsWith('.woff') || 
+						assetInfo.name.endsWith('.ttf')
+					)) {
+						return 'assets/fonts/[name][extname]'
+					}
+					return 'assets/[name][extname]'
+				},
 			},
 		},
 		chunkSizeWarningLimit: 100000,
