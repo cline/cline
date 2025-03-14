@@ -100,7 +100,7 @@ Thanks to all our contributors who have helped make Roo Code better!
 
 	// Create contributor cell HTML
 	const createCell = (contributor) => {
-		return `<a href="${contributor.html_url}"><img src="${contributor.avatar_url}" width="120" height="120" alt="${contributor.login}" style="border-radius:50%"/><br /><sub><b>${contributor.login}</b></sub></a>`
+		return `<a href="${contributor.html_url}"><img src="${contributor.avatar_url}" width="120" alt="${contributor.login}" style="border-radius:50%"/><br /><sub><b>${contributor.login}</b></sub></a>`
 	}
 
 	if (filteredContributors.length > 0) {
