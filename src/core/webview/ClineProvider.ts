@@ -1793,46 +1793,37 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	async deleteTaskWithId(id: string) {
 		console.info("deleteTaskWithId: ", id)
 
-		if (id === this.cline?.taskId) {
-			await this.clearTask()
-			console.debug("cleared task")
-		}
+		try {
+			if (id === this.cline?.taskId) {
+				await this.clearTask()
+				console.debug("cleared task")
+			}
 
-		const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
+			const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
 
-		// Delete checkpoints
-		console.info("deleting checkpoints")
-		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
-		const historyItem = taskHistory.find((item) => item.id === id)
-		//console.log("historyItem: ", historyItem)
-		// if (historyItem) {
-		// 	try {
-		// 		await CheckpointTracker.deleteCheckpoints(id, historyItem, this.context.globalStorageUri.fsPath)
-		// 	} catch (error) {
-		// 		console.error(`Failed to delete checkpoints for task ${id}:`, error)
-		// 	}
-		// }
+			const updatedTaskHistory = await this.deleteTaskFromState(id)
 
-		const updatedTaskHistory = await this.deleteTaskFromState(id)
+			// Delete the task files
+			const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
+			if (apiConversationHistoryFileExists) {
+				await fs.unlink(apiConversationHistoryFilePath)
+			}
+			const uiMessagesFileExists = await fileExistsAtPath(uiMessagesFilePath)
+			if (uiMessagesFileExists) {
+				await fs.unlink(uiMessagesFilePath)
+			}
+			const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
+			if (await fileExistsAtPath(legacyMessagesFilePath)) {
+				await fs.unlink(legacyMessagesFilePath)
+			}
 
-		// Delete the task files
-		const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
-		if (apiConversationHistoryFileExists) {
-			await fs.unlink(apiConversationHistoryFilePath)
-		}
-		const uiMessagesFileExists = await fileExistsAtPath(uiMessagesFilePath)
-		if (uiMessagesFileExists) {
-			await fs.unlink(uiMessagesFilePath)
-		}
-		const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
-		if (await fileExistsAtPath(legacyMessagesFilePath)) {
-			await fs.unlink(legacyMessagesFilePath)
-		}
+			await fs.rmdir(taskDirPath) // succeeds if the dir is empty
 
-		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
-
-		if (updatedTaskHistory.length === 0) {
-			await this.deleteAllTaskHistory()
+			if (updatedTaskHistory.length === 0) {
+				await this.deleteAllTaskHistory()
+			}
+		} catch (error) {
+			console.debug(`Error deleting task:`, error)
 		}
 
 		this.refreshTotalTasksSize()
