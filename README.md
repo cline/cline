@@ -161,12 +161,7 @@ We use [changesets](https://github.com/changesets/changesets) for versioning and
 
 ## Contributing
 
-We love community contributions! Here’s how to get involved:
-
-1. **Check Issues & Requests**: See [open issues](https://github.com/RooVetGit/Roo-Code/issues) or [feature requests](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests).
-2. **Fork & branch** off `main`.
-3. **Submit a Pull Request** once your feature or fix is ready.
-4. **Join** our [Reddit community](https://www.reddit.com/r/RooCode/) and [Discord](https://roocode.com/discord) for feedback, tips, and announcements.
+We love community contributions! Get started by reading our [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

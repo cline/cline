@@ -1,39 +1,63 @@
-# Contributing to Cline
+# Contributing to Roo Code
 
-We're thrilled you're interested in contributing to Cline. Whether you're fixing a bug, adding a feature, or improving our docs, every contribution makes Cline smarter! To keep our community vibrant and welcoming, all members must adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
+We're thrilled you're interested in contributing to Roo Code. Whether you're fixing a bug, adding a feature, or improving our docs, every contribution makes Roo Code smarter! To keep our community vibrant and welcoming, all members must adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Reporting Bugs or Issues
 
-Bug reports help make Cline better for everyone! Before creating a new issue, please [search existing ones](https://github.com/cline/cline/issues) to avoid duplicates. When you're ready to report a bug, head over to our [issues page](https://github.com/cline/cline/issues/new/choose) where you'll find a template to help you with filling out the relevant information.
+Bug reports help make Roo Code better for everyone! Before creating a new issue, please [search existing ones](https://github.com/RooVetGit/Roo-Code/issues) to avoid duplicates. When you're ready to report a bug, head over to our [issues page](https://github.com/RooVetGit/Roo-Code/issues/new/choose) where you'll find a template to help you with filling out the relevant information.
 
 <blockquote class='warning-note'>
-     🔐 <b>Important:</b> If you discover a security vulnerability, please use the <a href="https://github.com/cline/cline/security/advisories/new">Github security tool to report it privately</a>.
+     🔐 <b>Important:</b> If you discover a security vulnerability, please use the <a href="https://github.com/RooVetGit/Roo-Code/security/advisories/new">Github security tool to report it privately</a>.
 </blockquote>
 
 ## Deciding What to Work On
 
-Looking for a good first contribution? Check out issues labeled ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) or ["help wanted"](https://github.com/cline/cline/labels/help%20wanted). These are specifically curated for new contributors and areas where we'd love some help!
+Looking for a good first contribution? Check out issues in the "Issue [Unassigned]" section of our [Roo Code Issues](https://github.com/orgs/RooVetGit/projects/1) Github Project. These are specifically curated for new contributors and areas where we'd love some help!
 
-We also welcome contributions to our [documentation](https://github.com/cline/cline/tree/main/docs)! Whether it's fixing typos, improving existing guides, or creating new educational content - we'd love to build a community-driven repository of resources that helps everyone get the most out of Cline. You can start by diving into `/docs` and looking for areas that need improvement.
+We also welcome contributions to our [documentation](https://docs.roocode.com/)! Whether it's fixing typos, improving existing guides, or creating new educational content - we'd love to build a community-driven repository of resources that helps everyone get the most out of Roo Code. You can click "Edit this page" on any page to quickly get to the right spot in Github to edit the file, or you can dive directly into https://github.com/RooVetGit/Roo-Code-Docs.
 
-If you're planning to work on a bigger feature, please create a [feature request](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first so we can discuss whether it aligns with Cline's vision.
+If you're planning to work on a bigger feature, please create a [feature request](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first so we can discuss whether it aligns with Roo Code's vision.
 
 ## Development Setup
 
-1. **VS Code Extensions**
+1. **Clone** the repo:
 
-    - When opening the project, VS Code will prompt you to install recommended extensions
-    - These extensions are required for development - please accept all installation prompts
-    - If you dismissed the prompts, you can install them manually from the Extensions panel
+```sh
+git clone https://github.com/RooVetGit/Roo-Code.git
+```
 
-2. **Local Development**
-    - Run `npm run install:all` to install dependencies
-    - Run `npm run test` to run tests locally
-    - Before submitting PR, run `npm run format:fix` to format your code
+2. **Install dependencies**:
+
+```sh
+npm run install:all
+```
+
+3. **Start the webview (Vite/React app with HMR)**:
+
+```sh
+npm run dev
+```
+
+4. **Debug**:
+   Press `F5` (or **Run** → **Start Debugging**) in VSCode to open a new session with Roo Code loaded.
+
+Changes to the webview will appear immediately. Changes to the core extension will require a restart of the extension host.
+
+Alternatively you can build a .vsix and install it directly in VSCode:
+
+```sh
+npm run build
+```
+
+A `.vsix` file will appear in the `bin/` directory which can be installed with:
+
+```sh
+code --install-extension bin/roo-cline-<version>.vsix
+```
 
 ## Writing and Submitting Code
 
-Anyone can contribute code to Cline, but we ask that you follow these guidelines to ensure your contributions can be smoothly integrated:
+Anyone can contribute code to Roo Code, but we ask that you follow these guidelines to ensure your contributions can be smoothly integrated:
 
 1. **Keep Pull Requests Focused**
 
@@ -43,10 +67,9 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 
 2. **Code Quality**
 
-    - Run `npm run lint` to check code style
-    - Run `npm run format` to automatically format code
     - All PRs must pass CI checks which include both linting and formatting
     - Address any ESLint warnings or errors before submitting
+    - Respond to all feedback from Ellipsis, our automated code review tool
     - Follow TypeScript best practices and maintain type safety
 
 3. **Testing**
@@ -56,30 +79,19 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
     - Update existing tests if your changes affect them
     - Include both unit tests and integration tests where appropriate
 
-4. **Version Management with Changesets**
-
-    - Create a changeset for any user-facing changes using `npm run changeset`
-    - Choose the appropriate version bump:
-        - `major` for breaking changes (1.0.0 → 2.0.0)
-        - `minor` for new features (1.0.0 → 1.1.0)
-        - `patch` for bug fixes (1.0.0 → 1.0.1)
-    - Write clear, descriptive changeset messages that explain the impact
-    - Documentation-only changes don't require changesets
-
-5. **Commit Guidelines**
+4. **Commit Guidelines**
 
     - Write clear, descriptive commit messages
-    - Use conventional commit format (e.g., "feat:", "fix:", "docs:")
     - Reference relevant issues in commits using #issue-number
 
-6. **Before Submitting**
+5. **Before Submitting**
 
     - Rebase your branch on the latest main
     - Ensure your branch builds successfully
     - Double-check all tests are passing
     - Review your changes for any debugging code or console logs
 
-7. **Pull Request Description**
+6. **Pull Request Description**
     - Clearly describe what your changes do
     - Include steps to test the changes
     - List any breaking changes
@@ -88,5 +100,3 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
 ## Contribution Agreement
 
 By submitting a pull request, you agree that your contributions will be licensed under the same license as the project ([Apache 2.0](LICENSE)).
-
-Remember: Contributing to Cline isn't just about writing code - it's about being part of a community that's shaping the future of AI-assisted development. Let's build something amazing together! 🚀
