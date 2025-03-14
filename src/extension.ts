@@ -190,7 +190,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 
 	// Register size testing commands in development mode
-	if (IS_DEV && IS_DEV !== "false") {
+	if (IS_DEV && IS_DEV === "true") {
 		// Use dynamic import to avoid loading the module in production
 		import("./dev/commands/tasks")
 			.then((module) => {
