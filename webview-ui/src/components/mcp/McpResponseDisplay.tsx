@@ -1,180 +1,15 @@
-import React, { useEffect, useState, useCallback } from "react"
-import { vscode } from "../../utils/vscode"
+import React, { useEffect, useState, useCallback, useRef } from "react"
 import LinkPreview from "./LinkPreview"
+import ImagePreview from "./ImagePreview"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import DOMPurify from "dompurify"
-
-// We'll use the backend isImageUrl function for HEAD requests
-// This is a client-side fallback for data URLs and obvious image extensions
-const isImageUrlSync = (str: string): boolean => {
-	// Check for data URLs which are definitely images
-	if (str.startsWith("data:image/")) {
-		return true
-	}
-
-	// Check for common image file extensions
-	return str.match(/\.(jpg|jpeg|png|gif|webp)$/i) !== null
-}
-
-export const isUrl = (str: string): boolean => {
-	// Basic URL validation
-	const urlPattern = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/[^\s]*)?$/
-	return urlPattern.test(str)
-}
-
-// Function to check if a URL is an image using HEAD request
-export const checkIfImageUrl = async (url: string): Promise<boolean> => {
-	// For data URLs, we can check synchronously
-	if (url.startsWith("data:image/")) {
-		return true
-	}
-
-	// For http/https URLs, we need to send a message to the extension
-	if (url.startsWith("http")) {
-		try {
-			// Create a promise that will resolve when we get a response
-			return new Promise((resolve) => {
-				// Set up a one-time listener for the response
-				const messageListener = (event: MessageEvent) => {
-					const message = event.data
-					if (message.type === "isImageUrlResult" && message.url === url) {
-						window.removeEventListener("message", messageListener)
-						resolve(message.isImage)
-					}
-				}
-
-				window.addEventListener("message", messageListener)
-
-				// Send the request to the extension
-				vscode.postMessage({
-					type: "checkIsImageUrl",
-					text: url,
-				})
-
-				// Set a timeout to avoid hanging indefinitely
-				setTimeout(() => {
-					window.removeEventListener("message", messageListener)
-					// Fall back to extension check
-					resolve(isImageUrlSync(url))
-				}, 3000)
-			})
-		} catch (error) {
-			console.error("Error checking if URL is an image:", error)
-			return isImageUrlSync(url)
-		}
-	}
-
-	// Fall back to extension check for other URLs
-	return isImageUrlSync(url)
-}
-
-// No longer needed as our regex directly extracts the URL part
-
-// Helper to ensure URL is in a format that can be opened
-export const formatUrlForOpening = (url: string): string => {
-	// If it's a data URI, return as is
-	if (url.startsWith("data:image/")) {
-		return url
-	}
-
-	// If it's a regular URL but doesn't have a protocol, add https://
-	if (!url.startsWith("http://") && !url.startsWith("https://")) {
-		return `https://${url}`
-	}
-
-	return url
-}
-
-// Find all URLs (both image and regular) in an object
-export const findUrls = async (obj: any): Promise<{ imageUrls: string[]; regularUrls: string[] }> => {
-	const imageUrls: string[] = []
-	const regularUrls: string[] = []
-	const pendingChecks: Promise<void>[] = []
-
-	if (typeof obj === "object" && obj !== null) {
-		for (const value of Object.values(obj)) {
-			if (typeof value === "string") {
-				// First check with synchronous method
-				if (isImageUrlSync(value)) {
-					imageUrls.push(value)
-				} else if (isUrl(value)) {
-					// For URLs that don't obviously look like images, we'll check asynchronously
-					const checkPromise = checkIfImageUrl(value).then((isImage) => {
-						if (isImage) {
-							imageUrls.push(value)
-						} else {
-							regularUrls.push(value)
-						}
-					})
-					pendingChecks.push(checkPromise)
-				}
-			} else if (typeof value === "object") {
-				const nestedUrlsPromise = findUrls(value).then((nestedUrls) => {
-					imageUrls.push(...nestedUrls.imageUrls)
-					regularUrls.push(...nestedUrls.regularUrls)
-				})
-				pendingChecks.push(nestedUrlsPromise)
-			}
-		}
-	}
-
-	// Wait for all async checks to complete
-	await Promise.all(pendingChecks)
-
-	return { imageUrls, regularUrls }
-}
-
-// Extract URLs from text using regex
-export const extractUrlsFromText = async (text: string): Promise<{ imageUrls: string[]; regularUrls: string[] }> => {
-	const imageUrls: string[] = []
-	const regularUrls: string[] = []
-	const pendingChecks: Promise<void>[] = []
-
-	// Match URLs with image: prefix and extract just the URL part
-	const imageMatches = text.match(/image:\s*(https?:\/\/[^\s]+)/g)
-	if (imageMatches) {
-		// Extract just the URL part from matches with image: prefix
-		const extractedUrls = imageMatches
-			.map((match) => {
-				const urlMatch = /image:\s*(https?:\/\/[^\s]+)/.exec(match)
-				return urlMatch ? urlMatch[1] : null
-			})
-			.filter(Boolean) as string[]
-
-		imageUrls.push(...extractedUrls)
-	}
-
-	// Match all URLs (including those that might be in the middle of paragraphs)
-	const urlMatches = text.match(/https?:\/\/[^\s]+/g)
-	if (urlMatches) {
-		// Filter out URLs that are already in imageUrls
-		const filteredUrls = urlMatches.filter((url) => !imageUrls.includes(url))
-
-		// Check each URL to see if it's an image
-		for (const url of filteredUrls) {
-			// First check with synchronous method
-			if (isImageUrlSync(url)) {
-				imageUrls.push(url)
-			} else {
-				// For URLs that don't obviously look like images, we'll check asynchronously
-				const checkPromise = checkIfImageUrl(url).then((isImage) => {
-					if (isImage) {
-						imageUrls.push(url)
-					} else {
-						regularUrls.push(url)
-					}
-				})
-				pendingChecks.push(checkPromise)
-			}
-		}
-	}
-
-	// Wait for all async checks to complete
-	await Promise.all(pendingChecks)
-
-	return { imageUrls, regularUrls }
-}
+import {
+	isUrl,
+	formatUrlForOpening,
+	checkIfImageUrl,
+	MAX_URLS,
+	isLocalhostUrl
+} from "./UrlProcessingService"
 
 const ResponseHeader = styled.div`
 	display: flex;
@@ -277,64 +112,215 @@ interface UrlMatch {
 	isProcessed: boolean // Whether we've already processed this URL (to avoid duplicates)
 }
 
+// Error boundary component to prevent crashes from URL processing
+class ErrorBoundary extends React.Component<
+	{ children: React.ReactNode },
+	{ hasError: boolean; error: Error | null }
+> {
+	constructor(props: { children: React.ReactNode }) {
+		super(props);
+		this.state = { hasError: false, error: null };
+	}
+
+	static getDerivedStateFromError(error: Error) {
+		return { hasError: true, error };
+	}
+
+	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+		console.log("Error in component:", error.message);
+	}
+
+	render() {
+		if (this.state.hasError) {
+			return (
+				<div style={{ 
+					padding: "10px", 
+					color: "var(--vscode-errorForeground)",
+					height: "128px", // Fixed height
+					overflow: "auto" // Allow scrolling if content overflows
+				}}>
+					<h3>Something went wrong displaying this content</h3>
+					<p>Error: {this.state.error?.message || "Unknown error"}</p>
+					<p>Please switch to plain text mode to view the content safely.</p>
+				</div>
+			);
+		}
+
+		return this.props.children;
+	}
+}
+
 const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
 	const [isLoading, setIsLoading] = useState(true)
 	const [displayMode, setDisplayMode] = useState<"rich" | "plain">(() => {
 		// Get saved preference from localStorage, default to 'rich'
 		const savedMode = localStorage.getItem("mcpDisplayMode")
-		return (savedMode === "plain" ? "plain" : "rich") as "rich" | "plain"
+		return savedMode === "plain" ? "plain" : "rich"
 	})
 	const [urlMatches, setUrlMatches] = useState<UrlMatch[]>([])
+	const [error, setError] = useState<string | null>(null)
+	// Add a counter state for forcing re-renders
+	const [forceUpdateCounter, setForceUpdateCounter] = useState(0)
 
 	const toggleDisplayMode = useCallback(() => {
 		const newMode = displayMode === "rich" ? "plain" : "rich"
-		setDisplayMode(newMode)
-		localStorage.setItem("mcpDisplayMode", newMode)
+		
+		// Force an immediate re-render
+		setForceUpdateCounter(prev => prev + 1);
+		
+		// Update display mode and save preference
+		setDisplayMode(newMode);
+		localStorage.setItem("mcpDisplayMode", newMode);
+		
+		// If switching to plain mode, cancel any ongoing processing
+		if (newMode === "plain") {
+			console.log("Switching to plain mode - canceling URL processing");
+			setUrlMatches([]); // Clear any existing matches when switching to plain mode
+		} else {
+			// If switching to rich mode, the useEffect will re-run and fetch data
+			console.log("Switching to rich mode - will start URL processing");
+		}
 	}, [displayMode])
 
 	// Find all URLs in the text and determine if they're images
 	useEffect(() => {
+		// Skip all processing if in plain mode
+		if (displayMode === "plain") {
+			setIsLoading(false);
+			setUrlMatches([]); // Clear any existing matches when in plain mode
+			return;
+		}
+		
+		// Use a direct boolean for cancellation that's scoped to this effect run
+		let processingCanceled = false;
+		
 		const processResponse = async () => {
+			console.log("Processing MCP response for URL extraction");
 			setIsLoading(true)
+			setError(null)
 
 			try {
 				const text = responseText || ""
 				const matches: UrlMatch[] = []
 
-				const urlRegex = /https?:\/\/[^\s]+/g
+				// More robust URL regex that handles common URL formats
+				const urlRegex = /https?:\/\/[^\s<>"']+/g
 				let urlMatch: RegExpExecArray | null
+				
+				let urlCount = 0;
 
-				while ((urlMatch = urlRegex.exec(text)) !== null) {
+				// First pass: Extract all URLs and immediately make them available for rendering
+				while ((urlMatch = urlRegex.exec(text)) !== null && urlCount < MAX_URLS) {
+					// Get the original URL from the match - never modify the original URL text
 					const url = urlMatch[0]
-					const fullMatch = url
+					
+					// Skip invalid URLs
+					if (!isUrl(url)) {
+						console.log("Skipping invalid URL:", url);
+						continue;
+					}
+					
+					// Skip localhost URLs to prevent security issues
+					if (isLocalhostUrl(url)) {
+						console.log("Skipping localhost URL:", url);
+						continue;
+					}
 
 					matches.push({
 						url,
-						fullMatch,
+						fullMatch: url,
 						index: urlMatch.index,
 						isImage: false, // Will check later
 						isProcessed: false,
 					})
+					
+					urlCount++;
 				}
 
-				// Check if URLs are images
-				for (const match of matches) {
-					match.isImage = await checkIfImageUrl(match.url)
-				}
+				console.log(`Found ${matches.length} URLs in text, will check if they are images`);
 
-				// Sort by position in the text
-				matches.sort((a, b) => a.index - b.index)
-
-				setUrlMatches(matches)
+				// Set matches immediately so UI can start rendering with loading states
+				setUrlMatches(matches.sort((a, b) => a.index - b.index));
+				
+				// Mark loading as complete to show content immediately
+				setIsLoading(false)
+				
+				// Process image checks in the background - one at a time to avoid network flooding
+				const processImageChecks = async () => {
+					console.log(`Starting sequential URL processing for ${matches.length} URLs`);
+					
+					// We no longer do quick checks based on extensions alone
+					// All URLs need proper content type verification
+					console.log(`Will perform content type checks for all ${matches.length} URLs`);
+					
+					// Process remaining URLs one at a time to avoid flooding the network
+					for (let i = 0; i < matches.length; i++) {
+						// Skip already processed URLs (from extension check)
+						if (matches[i].isProcessed) continue;
+						
+						// Check if processing has been canceled (switched to plain mode)
+						if (processingCanceled) {
+							console.log("URL processing canceled - display mode changed to plain");
+							return;
+						}
+						
+						const match = matches[i];
+						console.log(`Processing URL ${i + 1} of ${matches.length}: ${match.url}`);
+						
+						try {
+							// Process each URL individually
+							const isImage = await checkIfImageUrl(match.url);
+							
+							// Skip if processing has been canceled
+							if (processingCanceled) return;
+							
+							// Update the match in place
+							match.isImage = isImage;
+							match.isProcessed = true;
+							
+							// Update state after each URL to show progress
+							// Create a new array to ensure React detects the state change
+							setUrlMatches([...matches]);
+							
+						} catch (err) {
+							console.log(`URL check error: ${match.url}`, err);
+							match.isProcessed = true;
+							
+							// Update state even on error
+							if (!processingCanceled) {
+								setUrlMatches([...matches]);
+							}
+						}
+						
+						// Delay between URL processing to avoid overwhelming the network
+						if (!processingCanceled && i < matches.length - 1) {
+							// Much longer delay between URLs to avoid network flooding
+							// This gives each URL more time to complete before starting the next one
+							await new Promise(resolve => setTimeout(resolve, 100));
+						}
+					}
+					
+					console.log(`URL processing complete. Found ${matches.filter(m => m.isImage).length} image URLs`);
+				};
+				
+				// Start the background processing
+				processImageChecks();
+				
 			} catch (error) {
-				console.error("Error processing MCP response:", error)
-			} finally {
+				console.log("Error processing MCP response - switching to plain text mode");
+				setError("Failed to process response content. Switch to plain text mode to view safely.")
 				setIsLoading(false)
 			}
 		}
 
 		processResponse()
-	}, [responseText])
+		
+		// Cleanup function to cancel processing if component unmounts or dependencies change
+		return () => {
+			processingCanceled = true;
+			console.log("Cleaning up URL processing");
+		};
+	}, [responseText, displayMode, forceUpdateCounter]) // Added forceUpdateCounter to dependencies
 
 	// Function to render content based on display mode
 	const renderContent = () => {
@@ -343,15 +329,27 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			return <UrlText>{responseText}</UrlText>
 		}
 
+		// Show error message if there was an error
+		if (error) {
+			return (
+				<>
+					<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "10px" }}>
+						{error}
+					</div>
+					<UrlText>{responseText}</UrlText>
+				</>
+			);
+		}
+
 		// For rich display mode, show the text with embedded content
-		if (displayMode === "rich" && !isLoading) {
+		if (!isLoading) { // We already know displayMode is "rich" if we get here
 			// Create an array of text segments and embedded content
 			const segments: JSX.Element[] = []
 			let lastIndex = 0
 			let segmentIndex = 0
 
-			// Reset the processed flag for all URLs
-			const processedUrls = new Set<string>()
+			// Track embed count for logging
+			let embedCount = 0;
 
 			// Add the text before the first URL
 			if (urlMatches.length === 0) {
@@ -375,38 +373,54 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					const urlEndIndex = index + fullMatch.length
 
 					// Add embedded content after the URL
+					// For images, use the ImagePreview component
 					if (match.isImage) {
 						segments.push(
-							<div key={`embed-${segmentIndex++}`} style={{ margin: "10px 0" }}>
-								<img
-									src={DOMPurify.sanitize(url)}
-									alt={`Image for ${url}`}
-									style={{
-										width: "85%",
-										height: "auto",
+							<div key={`embed-image-${url}-${segmentIndex++}`}>
+								{/* Use formatUrlForOpening for network calls but preserve original URL in display */}
+								<ImagePreview url={formatUrlForOpening(url)} />
+							</div>
+						)
+						embedCount++;
+						// console.log(`Added image embed for ${url}, embed count: ${embedCount}`);
+					} else if (match.isProcessed) {
+						// For non-image URLs or URLs we haven't processed yet, show link preview
+						try {
+							// Skip localhost URLs
+							if (!isLocalhostUrl(url)) {
+								// Use a unique key that includes the URL to ensure each preview is isolated
+								segments.push(
+									<div key={`embed-${url}-${segmentIndex++}`} style={{ margin: "10px 0" }}>
+										<ErrorBoundary>
+											{/* Already using formatUrlForOpening for link previews */}
+											<LinkPreview url={formatUrlForOpening(url)} />
+										</ErrorBoundary>
+									</div>,
+								)
+								
+								embedCount++;
+								// console.log(`Added link preview for ${url}, embed count: ${embedCount}`);
+							}
+						} catch (e) {
+							console.log("Link preview could not be created");
+							// Show error message for failed link preview
+							segments.push(
+								<div 
+									key={`embed-error-${segmentIndex++}`} 
+									style={{ 
+										margin: "10px 0",
+										padding: "8px",
+										color: "var(--vscode-errorForeground)",
+										border: "1px solid var(--vscode-editorError-foreground)",
 										borderRadius: "4px",
-										cursor: "pointer",
+										height: "128px", // Fixed height
+										overflow: "auto" // Allow scrolling if content overflows
 									}}
-									onClick={() => {
-										const formattedUrl = formatUrlForOpening(url)
-										vscode.postMessage({
-											type: "openInBrowser",
-											url: DOMPurify.sanitize(formattedUrl),
-										})
-									}}
-								/>
-							</div>,
-						)
-					} else if (!processedUrls.has(url)) {
-						// For non-image URLs, only show the preview once
-						segments.push(
-							<div key={`embed-${segmentIndex++}`} style={{ margin: "10px 0" }}>
-								<LinkPreview url={formatUrlForOpening(url)} />
-							</div>,
-						)
-
-						// Mark this URL as processed
-						processedUrls.add(url)
+								>
+									Failed to create preview for: {url}
+								</div>
+							);
+						}
 					}
 
 					// Update lastIndex for next segment
@@ -442,7 +456,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			</ResponseContainer>
 		)
 	} catch (error) {
-		console.error("Error parsing MCP response:", error)
+		console.log("Error rendering MCP response - falling back to plain text");
 		return (
 			<ResponseContainer>
 				<ResponseHeader>
@@ -457,4 +471,13 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	}
 }
 
-export default McpResponseDisplay
+// Wrap the entire McpResponseDisplay component with an error boundary
+const McpResponseDisplayWithErrorBoundary: React.FC<McpResponseDisplayProps> = (props) => {
+	return (
+		<ErrorBoundary>
+			<McpResponseDisplay {...props} />
+		</ErrorBoundary>
+	);
+};
+
+export default McpResponseDisplayWithErrorBoundary;
