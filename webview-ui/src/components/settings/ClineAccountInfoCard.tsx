@@ -21,102 +21,39 @@ export const ClineAccountInfoCard = () => {
 	}
 
 	return (
-		<div style={{ maxWidth: "600px" }}>
+		<div className="max-w-[600px]">
 			{user ? (
-				<div
-					style={{
-						padding: "8px 10px",
-						border: "1px solid var(--vscode-input-border)",
-						borderRadius: "2px",
-						backgroundColor: "var(--vscode-dropdown-background)",
-					}}>
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							gap: "8px",
-						}}>
+				<div className="p-3 py-4 rounded-[2px] bg-[var(--vscode-dropdown-background)]">
+					<div className="flex items-center gap-3">
 						{user.photoURL ? (
-							<img
-								src={user.photoURL}
-								alt="Profile"
-								style={{
-									width: 38,
-									height: 38,
-									borderRadius: "50%",
-								}}
-							/>
+							<img src={user.photoURL} alt="Profile" className="w-[38px] h-[38px] rounded-full flex-shrink-0" />
 						) : (
-							<div
-								style={{
-									width: 38,
-									height: 38,
-									borderRadius: "50%",
-									backgroundColor: "var(--vscode-button-background)",
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "center",
-									fontSize: "20px",
-									color: "var(--vscode-button-foreground)",
-								}}>
+							<div className="w-[38px] h-[38px] rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-xl text-[var(--vscode-button-foreground)] flex-shrink-0">
 								{user.displayName?.[0] || user.email?.[0] || "?"}
 							</div>
 						)}
-						<div
-							style={{
-								display: "flex",
-								flexDirection: "column",
-								gap: "4px",
-							}}>
+						<div className="flex flex-col gap-1 flex-1 overflow-hidden">
 							{user.displayName && (
-								<div
-									style={{
-										fontSize: "13px",
-										fontWeight: "bold",
-										color: "var(--vscode-foreground)",
-										wordWrap: "break-word",
-									}}>
+								<div className="text-[13px] font-bold text-[var(--vscode-foreground)] break-words">
 									{user.displayName}
 								</div>
 							)}
 							{user.email && (
-								<div
-									style={{
-										fontSize: "13px",
-										color: "var(--vscode-descriptionForeground)",
-										wordWrap: "break-word",
-										overflow: "hidden",
-										textOverflow: "ellipsis",
-										maxWidth: "100%",
-									}}>
+								<div className="text-[13px] text-[var(--vscode-descriptionForeground)] break-words overflow-hidden text-ellipsis">
 									{user.email}
 								</div>
 							)}
-							<div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+							<div className="flex gap-2 flex-wrap mt-1">
 								<VSCodeButton
 									appearance="primary"
 									onClick={handleShowAccount}
-									style={{
-										transform: "scale(0.85)",
-										transformOrigin: "left center",
-										width: "fit-content",
-										marginTop: 2,
-										marginBottom: 0,
-										marginRight: -12,
-									}}>
+									className="scale-[0.85] origin-left w-fit mt-0.5 mb-0 -mr-3">
 									Account
 								</VSCodeButton>
 								<VSCodeButton
 									appearance="secondary"
 									onClick={handleLogout}
-									style={{
-										transform: "scale(0.85)",
-										transformOrigin: "left center",
-										width: "fit-content",
-										marginTop: 2,
-										marginBottom: 0,
-										marginRight: -12,
-									}}>
+									className="scale-[0.85] origin-left w-fit mt-0.5 mb-0 -mr-3">
 									Log out
 								</VSCodeButton>
 							</div>
@@ -124,8 +61,8 @@ export const ClineAccountInfoCard = () => {
 					</div>
 				</div>
 			) : (
-				<div style={{}}>
-					<VSCodeButton onClick={handleLogin} style={{ marginTop: 0 }}>
+				<div>
+					<VSCodeButton onClick={handleLogin} className="mt-0">
 						Sign Up with Cline
 					</VSCodeButton>
 				</div>
