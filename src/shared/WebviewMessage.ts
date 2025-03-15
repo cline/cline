@@ -98,6 +98,7 @@ export interface WebviewMessage {
 		| "checkpointRestore"
 		| "deleteMcpServer"
 		| "maxOpenTabsContext"
+		| "maxWorkspaceFiles"
 		| "humanRelayResponse"
 		| "humanRelayCancel"
 		| "browserToolEnabled"

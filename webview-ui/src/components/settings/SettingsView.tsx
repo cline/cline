@@ -11,6 +11,7 @@ import {
 	AlertTriangle,
 } from "lucide-react"
 
+import { Database } from "lucide-react"
 import { ExperimentId } from "../../../../src/shared/experiments"
 import { TelemetrySetting } from "../../../../src/shared/TelemetrySetting"
 import { ApiConfiguration } from "../../../../src/shared/api"
@@ -39,6 +40,7 @@ import { AutoApproveSettings } from "./AutoApproveSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { CheckpointSettings } from "./CheckpointSettings"
 import { NotificationSettings } from "./NotificationSettings"
+import { ContextManagementSettings } from "./ContextManagementSettings"
 import { AdvancedSettings } from "./AdvancedSettings"
 import { SettingsFooter } from "./SettingsFooter"
 import { Section } from "./Section"
@@ -83,6 +85,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		experiments,
 		fuzzyMatchThreshold,
 		maxOpenTabsContext,
+		maxWorkspaceFiles,
 		mcpEnabled,
 		rateLimitSeconds,
 		requestDelaySeconds,
@@ -194,6 +197,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			vscode.postMessage({ type: "requestDelaySeconds", value: requestDelaySeconds })
 			vscode.postMessage({ type: "rateLimitSeconds", value: rateLimitSeconds })
 			vscode.postMessage({ type: "maxOpenTabsContext", value: maxOpenTabsContext })
+			vscode.postMessage({ type: "maxWorkspaceFiles", value: maxWorkspaceFiles ?? 200 })
 			vscode.postMessage({ type: "showRooIgnoredFiles", bool: showRooIgnoredFiles })
 			vscode.postMessage({ type: "currentApiConfigName", text: currentApiConfigName })
 			vscode.postMessage({ type: "updateExperimental", values: experiments })
@@ -230,6 +234,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 	const browserRef = useRef<HTMLDivElement>(null)
 	const checkpointRef = useRef<HTMLDivElement>(null)
 	const notificationsRef = useRef<HTMLDivElement>(null)
+	const contextRef = useRef<HTMLDivElement>(null)
 	const advancedRef = useRef<HTMLDivElement>(null)
 	const experimentalRef = useRef<HTMLDivElement>(null)
 
@@ -242,6 +247,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			{ id: "browser", icon: SquareMousePointer, ref: browserRef },
 			{ id: "checkpoint", icon: GitBranch, ref: checkpointRef },
 			{ id: "notifications", icon: Bell, ref: notificationsRef },
+			{ id: "context", icon: Database, ref: contextRef },
 			{ id: "advanced", icon: Cog, ref: advancedRef },
 			{ id: "experimental", icon: FlaskConical, ref: experimentalRef },
 		],
@@ -255,6 +261,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			{ ref: browserRef, id: "browser" },
 			{ ref: checkpointRef, id: "checkpoint" },
 			{ ref: notificationsRef, id: "notifications" },
+			{ ref: contextRef, id: "context" },
 			{ ref: advancedRef, id: "advanced" },
 			{ ref: experimentalRef, id: "experimental" },
 		]
@@ -401,14 +408,21 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 					/>
 				</div>
 
+				<div ref={contextRef}>
+					<ContextManagementSettings
+						terminalOutputLineLimit={terminalOutputLineLimit}
+						maxOpenTabsContext={maxOpenTabsContext}
+						maxWorkspaceFiles={maxWorkspaceFiles ?? 200}
+						showRooIgnoredFiles={showRooIgnoredFiles}
+						setCachedStateField={setCachedStateField}
+					/>
+				</div>
+
 				<div ref={advancedRef}>
 					<AdvancedSettings
 						rateLimitSeconds={rateLimitSeconds}
-						terminalOutputLineLimit={terminalOutputLineLimit}
-						maxOpenTabsContext={maxOpenTabsContext}
 						diffEnabled={diffEnabled}
 						fuzzyMatchThreshold={fuzzyMatchThreshold}
-						showRooIgnoredFiles={showRooIgnoredFiles}
 						setCachedStateField={setCachedStateField}
 						setExperimentEnabled={setExperimentEnabled}
 						experiments={experiments}

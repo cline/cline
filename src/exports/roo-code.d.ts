@@ -211,6 +211,7 @@ export type GlobalStateKey =
 	| "modelMaxTokens"
 	| "mistralCodestralUrl"
 	| "maxOpenTabsContext"
+	| "maxWorkspaceFiles"
 	| "browserToolEnabled"
 	| "lmStudioSpeculativeDecodingEnabled"
 	| "lmStudioDraftModelId"

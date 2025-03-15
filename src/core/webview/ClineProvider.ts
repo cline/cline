@@ -1540,6 +1540,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("maxOpenTabsContext", tabCount)
 						await this.postStateToWebview()
 						break
+					case "maxWorkspaceFiles":
+						const fileCount = Math.min(Math.max(0, message.value ?? 200), 500)
+						await this.updateGlobalState("maxWorkspaceFiles", fileCount)
+						await this.postStateToWebview()
+						break
 					case "browserToolEnabled":
 						await this.updateGlobalState("browserToolEnabled", message.bool ?? true)
 						await this.postStateToWebview()
@@ -2319,6 +2324,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalEnabled,
 			experiments,
 			maxOpenTabsContext,
+			maxWorkspaceFiles,
 			browserToolEnabled,
 			telemetrySetting,
 			showRooIgnoredFiles,
@@ -2381,6 +2387,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			experiments: experiments ?? experimentDefault,
 			mcpServers: this.mcpHub?.getAllServers() ?? [],
 			maxOpenTabsContext: maxOpenTabsContext ?? 20,
+			maxWorkspaceFiles: maxWorkspaceFiles ?? 200,
 			cwd,
 			browserToolEnabled: browserToolEnabled ?? true,
 			telemetrySetting,
@@ -2538,6 +2545,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalEnabled: stateValues.autoApprovalEnabled ?? false,
 			customModes,
 			maxOpenTabsContext: stateValues.maxOpenTabsContext ?? 20,
+			maxWorkspaceFiles: stateValues.maxWorkspaceFiles ?? 200,
 			openRouterUseMiddleOutTransform: stateValues.openRouterUseMiddleOutTransform ?? true,
 			browserToolEnabled: stateValues.browserToolEnabled ?? true,
 			telemetrySetting: stateValues.telemetrySetting || "unset",

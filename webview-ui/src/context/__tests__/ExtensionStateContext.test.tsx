@@ -116,6 +116,7 @@ describe("mergeExtensionState", () => {
 			experiments: {} as Record<ExperimentId, boolean>,
 			customModes: [],
 			maxOpenTabsContext: 20,
+			maxWorkspaceFiles: 100,
 			apiConfiguration: { providerId: "openrouter" } as ApiConfiguration,
 			telemetrySetting: "unset",
 			showRooIgnoredFiles: true,

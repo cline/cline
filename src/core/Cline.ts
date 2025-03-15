@@ -3501,7 +3501,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
 		let details = ""
 
-		const { terminalOutputLineLimit } = (await this.providerRef.deref()?.getState()) ?? {}
+		const { terminalOutputLineLimit, maxWorkspaceFiles } = (await this.providerRef.deref()?.getState()) ?? {}
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += "\n\n# VSCode Visible Files"
@@ -3509,6 +3509,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 			?.map((editor) => editor.document?.uri?.fsPath)
 			.filter(Boolean)
 			.map((absolutePath) => path.relative(cwd, absolutePath))
+			.slice(0, maxWorkspaceFiles ?? 200)
 
 		// Filter paths through rooIgnoreController
 		const allowedVisibleFiles = this.rooIgnoreController
@@ -3715,7 +3716,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 				// don't want to immediately access desktop since it would show permission popup
 				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
 			} else {
-				const [files, didHitLimit] = await listFiles(cwd, true, 200)
+				const maxFiles = maxWorkspaceFiles ?? 200
+				const [files, didHitLimit] = await listFiles(cwd, true, maxFiles)
 				const { showRooIgnoredFiles } = (await this.providerRef.deref()?.getState()) ?? {}
 				const result = formatResponse.formatFilesList(
 					cwd,

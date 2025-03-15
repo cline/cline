@@ -13,29 +13,16 @@ import { Section } from "./Section"
 
 type AdvancedSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	rateLimitSeconds: number
-	terminalOutputLineLimit?: number
-	maxOpenTabsContext: number
 	diffEnabled?: boolean
 	fuzzyMatchThreshold?: number
-	showRooIgnoredFiles?: boolean
-	setCachedStateField: SetCachedStateField<
-		| "rateLimitSeconds"
-		| "terminalOutputLineLimit"
-		| "maxOpenTabsContext"
-		| "diffEnabled"
-		| "fuzzyMatchThreshold"
-		| "showRooIgnoredFiles"
-	>
+	setCachedStateField: SetCachedStateField<"rateLimitSeconds" | "diffEnabled" | "fuzzyMatchThreshold">
 	experiments: Record<ExperimentId, boolean>
 	setExperimentEnabled: SetExperimentEnabled
 }
 export const AdvancedSettings = ({
 	rateLimitSeconds,
-	terminalOutputLineLimit,
-	maxOpenTabsContext,
 	diffEnabled,
 	fuzzyMatchThreshold,
-	showRooIgnoredFiles,
 	setCachedStateField,
 	experiments,
 	setExperimentEnabled,
@@ -69,52 +56,6 @@ export const AdvancedSettings = ({
 						</div>
 					</div>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">Minimum time between API requests.</p>
-				</div>
-
-				<div>
-					<div className="flex flex-col gap-2">
-						<span className="font-medium">Terminal output limit</span>
-						<div className="flex items-center gap-2">
-							<input
-								type="range"
-								min="100"
-								max="5000"
-								step="100"
-								value={terminalOutputLineLimit ?? 500}
-								onChange={(e) =>
-									setCachedStateField("terminalOutputLineLimit", parseInt(e.target.value))
-								}
-								className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
-							/>
-							<span style={{ ...sliderLabelStyle }}>{terminalOutputLineLimit ?? 500}</span>
-						</div>
-					</div>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Maximum number of lines to include in terminal output when executing commands. When exceeded
-						lines will be removed from the middle, saving tokens.
-					</p>
-				</div>
-
-				<div>
-					<div className="flex flex-col gap-2">
-						<span className="font-medium">Open tabs context limit</span>
-						<div className="flex items-center gap-2">
-							<input
-								type="range"
-								min="0"
-								max="500"
-								step="1"
-								value={maxOpenTabsContext ?? 20}
-								onChange={(e) => setCachedStateField("maxOpenTabsContext", parseInt(e.target.value))}
-								className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
-							/>
-							<span style={{ ...sliderLabelStyle }}>{maxOpenTabsContext ?? 20}</span>
-						</div>
-					</div>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Maximum number of VSCode open tabs to include in context. Higher values provide more context but
-						increase token usage.
-					</p>
 				</div>
 
 				<div>
@@ -202,20 +143,6 @@ export const AdvancedSettings = ({
 							</p>
 						</div>
 					)}
-				</div>
-
-				<div>
-					<VSCodeCheckbox
-						checked={showRooIgnoredFiles}
-						onChange={(e: any) => {
-							setCachedStateField("showRooIgnoredFiles", e.target.checked)
-						}}>
-						<span className="font-medium">Show .rooignore'd files in lists and searches</span>
-					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						When enabled, files matching patterns in .rooignore will be shown in lists with a lock symbol.
-						When disabled, these files will be completely hidden from file lists and searches.
-					</p>
 				</div>
 			</Section>
 		</div>
