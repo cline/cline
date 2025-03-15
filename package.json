@@ -167,6 +167,21 @@
 					"default": false,
 					"description": "Disables extension from spawning browser session."
 				},
+				"cline.browserToolEnableHTMLContent": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enables extension to return HTML content during browser session. This can greatly increase the amount of tokens used."
+				},
+				"cline.browserToolMaxHTMLContentLength": {
+					"type": "integer",
+					"default": 20000,
+					"description": "Maximum length of HTML content that can be returned during a browser session. This truncates the content if it exceeds the limit, so might result in buggy behavior due to partial content."
+				},
+				"cline.browserToolStripHTMLContentStyleTags": {
+					"type": "boolean",
+					"default": false,
+					"description": "Strips <style> content from returned HTML content during browser session."
+				},
 				"cline.modelSettings.o3Mini.reasoningEffort": {
 					"type": "string",
 					"enum": [
