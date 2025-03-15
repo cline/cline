@@ -158,4 +158,4 @@ Para contribuir al proyecto, comience con nuestra [guía de contribución](CONTR
 
 ## Licencia
 
-[Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)
+[Apache 2.0 © 2025 Cline Bot Inc.](./LICENSE)

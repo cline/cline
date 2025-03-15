@@ -88,6 +88,7 @@ class CheckpointTracker {
 		}
 		try {
 			console.info(`Creating new CheckpointTracker for task ${taskId}`)
+			const startTime = performance.now()
 
 			// Check if checkpoints are disabled in VS Code settings
 			const enableCheckpoints = vscode.workspace.getConfiguration("cline").get<boolean>("enableCheckpoints") ?? true
@@ -109,9 +110,10 @@ class CheckpointTracker {
 			const newTracker = new CheckpointTracker(globalStoragePath, taskId, workingDir, cwdHash)
 
 			const gitPath = await getShadowGitPath(newTracker.globalStoragePath, newTracker.taskId, newTracker.cwdHash)
-			await newTracker.gitOperations.initShadowGit(gitPath, workingDir)
+			await newTracker.gitOperations.initShadowGit(gitPath, workingDir, taskId)
 
-			telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized")
+			const durationMs = Math.round(performance.now() - startTime)
+			telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized", durationMs)
 
 			return newTracker
 		} catch (error) {
@@ -148,6 +150,8 @@ class CheckpointTracker {
 	public async commit(): Promise<string | undefined> {
 		try {
 			console.info(`Creating new checkpoint commit for task ${this.taskId}`)
+			const startTime = performance.now()
+
 			const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
 			const git = simpleGit(path.dirname(gitPath))
 
@@ -163,7 +167,10 @@ class CheckpointTracker {
 			})
 			const commitHash = result.commit || ""
 			console.warn(`Checkpoint commit created.`)
-			telemetryService.captureCheckpointUsage(this.taskId, "commit_created")
+
+			const durationMs = Math.round(performance.now() - startTime)
+			telemetryService.captureCheckpointUsage(this.taskId, "commit_created", durationMs)
+
 			return commitHash
 		} catch (error) {
 			console.error("Failed to create checkpoint:", {
@@ -229,12 +236,16 @@ class CheckpointTracker {
 	 */
 	public async resetHead(commitHash: string): Promise<void> {
 		console.info(`Resetting to checkpoint: ${commitHash}`)
+		const startTime = performance.now()
+
 		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 		console.debug(`Using shadow git at: ${gitPath}`)
 		await git.reset(["--hard", commitHash]) // Hard reset to target commit
 		console.debug(`Successfully reset to checkpoint: ${commitHash}`)
-		telemetryService.captureCheckpointUsage(this.taskId, "restored")
+
+		const durationMs = Math.round(performance.now() - startTime)
+		telemetryService.captureCheckpointUsage(this.taskId, "restored", durationMs)
 	}
 
 	/**
@@ -261,6 +272,8 @@ class CheckpointTracker {
 			after: string
 		}>
 	> {
+		const startTime = performance.now()
+
 		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 
@@ -308,7 +321,38 @@ class CheckpointTracker {
 			})
 		}
 
+		const durationMs = Math.round(performance.now() - startTime)
+		telemetryService.captureCheckpointUsage(this.taskId, "diff_generated", durationMs)
+
 		return result
+	}
+
+	/**
+	 * Returns the number of files changed between two commits.
+	 *
+	 * @param lhsHash - The commit to compare from (older commit)
+	 * @param rhsHash - The commit to compare to (newer commit).
+	 *                  If omitted, we compare to the working directory.
+	 * @returns The number of files changed between the commits
+	 */
+	public async getDiffCount(lhsHash: string, rhsHash?: string): Promise<number> {
+		const startTime = performance.now()
+
+		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const git = simpleGit(path.dirname(gitPath))
+
+		console.info(`Getting diff count between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
+
+		// Stage all changes so that untracked files appear in diff summary
+		await this.gitOperations.addCheckpointFiles(git)
+
+		const diffRange = rhsHash ? `${lhsHash}..${rhsHash}` : lhsHash
+		const diffSummary = await git.diffSummary([diffRange])
+
+		const durationMs = Math.round(performance.now() - startTime)
+		telemetryService.captureCheckpointUsage(this.taskId, "diff_generated", durationMs)
+
+		return diffSummary.files.length
 	}
 }
 

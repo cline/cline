@@ -4,6 +4,7 @@ import * as path from "path"
 import simpleGit, { SimpleGit } from "simple-git"
 import { fileExistsAtPath } from "../../utils/fs"
 import { getLfsPatterns, writeExcludesFile } from "./CheckpointExclusions"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 interface CheckpointAddResult {
 	success: boolean
@@ -53,7 +54,7 @@ export class GitOperations {
 	 * - Unable to create initial commit
 	 * - LFS pattern setup fails
 	 */
-	public async initShadowGit(gitPath: string, cwd: string): Promise<string> {
+	public async initShadowGit(gitPath: string, cwd: string, taskId: string): Promise<string> {
 		console.info(`Initializing shadow git`)
 
 		// If repo exists, just verify worktree
@@ -72,6 +73,7 @@ export class GitOperations {
 		}
 
 		// Initialize new repo
+		const startTime = performance.now()
 		const checkpointsDir = path.dirname(gitPath)
 		console.warn(`Creating new shadow git in ${checkpointsDir}`)
 
@@ -92,6 +94,9 @@ export class GitOperations {
 
 		// Initial commit only on first repo creation
 		await git.commit("initial commit", { "--allow-empty": null })
+
+		const durationMs = Math.round(performance.now() - startTime)
+		telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized", durationMs)
 
 		console.warn(`Shadow git initialization completed`)
 
@@ -179,6 +184,7 @@ export class GitOperations {
 	 *  - Nested git repo handling fails
 	 */
 	public async addCheckpointFiles(git: SimpleGit): Promise<CheckpointAddResult> {
+		const startTime = performance.now()
 		try {
 			// Update exclude patterns before each commit
 			await this.renameNestedGitRepos(true)
@@ -186,6 +192,8 @@ export class GitOperations {
 
 			try {
 				await git.add(".")
+				const durationMs = Math.round(performance.now() - startTime)
+				console.debug(`Checkpoint add operation completed in ${durationMs}ms`)
 				return { success: true }
 			} catch (error) {
 				console.error("Checkpoint add operation failed:", error)

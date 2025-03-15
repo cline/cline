@@ -2,17 +2,17 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import delay from "delay"
 import OpenAI from "openai"
-import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
-import { streamOpenRouterFormatRequest } from "../transform/openrouter-stream"
-import { ApiStream } from "../transform/stream"
-import { convertToR1Format } from "../transform/r1-format"
+import { withRetry } from "../retry"
+import { createOpenRouterStream } from "../transform/openrouter-stream"
+import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { OpenRouterErrorResponse } from "./types"
 
 export class OpenRouterHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
+	lastGenerationId?: string
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -28,23 +28,63 @@ export class OpenRouterHandler implements ApiHandler {
 
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		const model = this.getModel()
-		const genId = yield* streamOpenRouterFormatRequest(
+		this.lastGenerationId = undefined
+
+		const stream = await createOpenRouterStream(
 			this.client,
 			systemPrompt,
 			messages,
-			model,
+			this.getModel(),
 			this.options.o3MiniReasoningEffort,
 			this.options.thinkingBudgetTokens,
 		)
 
-		if (genId) {
+		for await (const chunk of stream) {
+			// openrouter returns an error object instead of the openai sdk throwing an error
+			if ("error" in chunk) {
+				const error = chunk.error as OpenRouterErrorResponse["error"]
+				console.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
+				// Include metadata in the error message if available
+				const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
+				throw new Error(`OpenRouter API Error ${error.code}: ${error.message}${metadataStr}`)
+			}
+
+			if (!this.lastGenerationId && chunk.id) {
+				this.lastGenerationId = chunk.id
+			}
+
+			const delta = chunk.choices[0]?.delta
+			if (delta?.content) {
+				yield {
+					type: "text",
+					text: delta.content,
+				}
+			}
+
+			// Reasoning tokens are returned separately from the content
+			if ("reasoning" in delta && delta.reasoning) {
+				yield {
+					type: "reasoning",
+					// @ts-ignore-next-line
+					reasoning: delta.reasoning,
+				}
+			}
+		}
+
+		const apiStreamUsage = await this.getApiStreamUsage()
+		if (apiStreamUsage) {
+			yield apiStreamUsage
+		}
+	}
+
+	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
+		if (this.lastGenerationId) {
 			await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
 			try {
-				const generationIterator = this.fetchGenerationDetails(genId)
+				const generationIterator = this.fetchGenerationDetails(this.lastGenerationId)
 				const generation = (await generationIterator.next()).value
 				// console.log("OpenRouter generation details:", generation)
-				yield {
+				return {
 					type: "usage",
 					// cacheWriteTokens: 0,
 					// cacheReadTokens: 0,
@@ -58,6 +98,7 @@ export class OpenRouterHandler implements ApiHandler {
 				console.error("Error fetching OpenRouter generation details:", error)
 			}
 		}
+		return undefined
 	}
 
 	@withRetry({ maxRetries: 4, baseDelay: 250, maxDelay: 1000, retryAllErrors: true })
@@ -68,7 +109,7 @@ export class OpenRouterHandler implements ApiHandler {
 				headers: {
 					Authorization: `Bearer ${this.options.openRouterApiKey}`,
 				},
-				timeout: 5_000, // this request hangs sometimes
+				timeout: 15_000, // this request hangs sometimes
 			})
 			yield response.data?.data
 		} catch (error) {

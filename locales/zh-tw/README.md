@@ -158,4 +158,4 @@ Cline 所做的所有更改都會記錄在你的文件時間軸中，提供了�
 
 ## 許可證
 
-[Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)
+[Apache 2.0 © 2025 Cline Bot Inc.](./LICENSE)

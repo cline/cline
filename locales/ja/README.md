@@ -158,4 +158,4 @@ Clineがタスクを進める中で、拡張機能は各ステップでワーク
 
 ## ライセンス
 
-[Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)
+[Apache 2.0 © 2025 Cline Bot Inc.](./LICENSE)
