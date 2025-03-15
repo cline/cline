@@ -574,6 +574,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
 						}
 						break
+					case "optionsResponse":
+						await this.postMessageToWebview({
+							type: "invoke",
+							invoke: "sendMessage",
+							text: message.text,
+						})
+						break
 					// case "relaunchChromeDebugMode":
 					// 	if (this.cline) {
 					// 		this.cline.browserSession.relaunchChromeDebugMode()
