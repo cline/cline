@@ -7,7 +7,7 @@ const CreditsHistoryTable = () => {
 
 	// Sample data for usage history
 	const usageData = [
-		{ timestamp: "00", model: "00", tokensUsed: "00", credit: "00" },
+		{ timestamp: "03/12/25, 6:40 PM", model: "anthropic/claude-3.7-sonnet", tokensUsed: "120739", credit: "0.3594" },
 		{ timestamp: "00", model: "00", tokensUsed: "00", credit: "00" },
 		{ timestamp: "00", model: "00", tokensUsed: "00", credit: "00" },
 		{ timestamp: "00", model: "00", tokensUsed: "00", credit: "00" },
@@ -39,7 +39,7 @@ const CreditsHistoryTable = () => {
 					<VSCodeDataGrid>
 						<VSCodeDataGridRow row-type="header">
 							<VSCodeDataGridCell cell-type="columnheader" grid-column="1">
-								Timestamp
+								Date
 							</VSCodeDataGridCell>
 							<VSCodeDataGridCell cell-type="columnheader" grid-column="2">
 								Model
@@ -67,7 +67,7 @@ const CreditsHistoryTable = () => {
 					<VSCodeDataGrid>
 						<VSCodeDataGridRow row-type="header">
 							<VSCodeDataGridCell cell-type="columnheader" grid-column="1">
-								Timestamp
+								Date
 							</VSCodeDataGridCell>
 							<VSCodeDataGridCell cell-type="columnheader" grid-column="2">
 								Total Cost

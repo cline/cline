@@ -719,6 +719,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.handleSignOut()
 						break
 					}
+					case "showAccountViewClicked": {
+						await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
+						break
+					}
 					case "showMcpView": {
 						await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked" })
 						break

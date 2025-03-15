@@ -44,7 +44,7 @@ export const ClineAccountView = () => {
 	return (
 		<div className="">
 			{user ? (
-				<div className="flex flex-col p-5">
+				<div className="flex flex-col p-4">
 					<div className="flex flex-col w-full">
 						<div className="flex items-center mb-6 flex-wrap gap-y-4">
 							{user.photoURL ? (
