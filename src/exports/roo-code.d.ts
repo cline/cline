@@ -62,6 +62,12 @@ export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	 * @returns An array of ClineMessage objects.
 	 */
 	getMessages(taskId: string): ClineMessage[]
+
+	/**
+	 * Returns the current task stack.
+	 * @returns An array of task IDs.
+	 */
+	getCurrentTaskStack(): string[]
 }
 
 export type ClineAsk =
