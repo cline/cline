@@ -1,5 +1,6 @@
 import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
+import { version as extensionVersion } from "../../../package.json"
 
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension
@@ -65,6 +66,8 @@ class PostHogClient {
 	private distinctId: string = vscode.env.machineId
 	/** Whether telemetry is currently enabled based on user and VSCode settings */
 	private telemetryEnabled: boolean = false
+	/** Current version of the extension */
+	private readonly version: string = extensionVersion
 
 	/**
 	 * Private constructor to enforce singleton pattern
@@ -120,7 +123,12 @@ class PostHogClient {
 	public capture(event: { event: string; properties?: any }): void {
 		// Only send events if telemetry is enabled
 		if (this.telemetryEnabled) {
-			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: event.properties })
+			// Include extension version in all event properties
+			const propertiesWithVersion = {
+				...event.properties,
+				extension_version: this.version,
+			}
+			this.client.capture({ distinctId: this.distinctId, event: event.event, properties: propertiesWithVersion })
 		}
 	}
 
