@@ -705,7 +705,7 @@ export class Cline {
 		this.askResponseImages = images
 	}
 
-	async say(type: ClineSay, text?: string, images?: string[], partial?: boolean): Promise<undefined> {
+	async say(type: ClineSay, text?: string, images?: string[], partial?: boolean, thinkingTokens?: number): Promise<undefined> {
 		if (this.abort) {
 			throw new Error("Cline instance aborted")
 		}
@@ -720,6 +720,10 @@ export class Cline {
 					lastMessage.text = text
 					lastMessage.images = images
 					lastMessage.partial = partial
+					// Update thinkingTokens if provided
+					if (thinkingTokens !== undefined) {
+						lastMessage.thinkingTokens = thinkingTokens
+					}
 					await this.providerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
@@ -735,6 +739,7 @@ export class Cline {
 						text,
 						images,
 						partial,
+						thinkingTokens,
 					})
 					await this.providerRef.deref()?.postStateToWebview()
 				}
@@ -747,6 +752,10 @@ export class Cline {
 					lastMessage.text = text
 					lastMessage.images = images
 					lastMessage.partial = false
+					// Update thinkingTokens if provided
+					if (thinkingTokens !== undefined) {
+						lastMessage.thinkingTokens = thinkingTokens
+					}
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					await this.saveClineMessages()
@@ -765,6 +774,7 @@ export class Cline {
 						say: type,
 						text,
 						images,
+						thinkingTokens,
 					})
 					await this.providerRef.deref()?.postStateToWebview()
 				}
@@ -779,6 +789,7 @@ export class Cline {
 				say: type,
 				text,
 				images,
+				thinkingTokens,
 			})
 			await this.providerRef.deref()?.postStateToWebview()
 		}
@@ -3259,6 +3270,7 @@ export class Cline {
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 			let assistantMessage = ""
 			let reasoningMessage = ""
+			let totalThinkingTokens = 0
 			this.isStreaming = true
 			let didReceiveUsageChunk = false
 			try {
@@ -3278,12 +3290,14 @@ export class Cline {
 						case "reasoning":
 							// reasoning will always come before assistant message
 							reasoningMessage += chunk.reasoning
-							await this.say("reasoning", reasoningMessage, undefined, true)
+							totalThinkingTokens = chunk.thinkingTokens || totalThinkingTokens || 0
+							// Pass the thinking tokens to the say method
+							await this.say("reasoning", reasoningMessage, undefined, true, totalThinkingTokens)
 							break
 						case "text":
 							if (reasoningMessage && assistantMessage.length === 0) {
 								// complete reasoning message
-								await this.say("reasoning", reasoningMessage, undefined, false)
+								await this.say("reasoning", reasoningMessage, undefined, false, totalThinkingTokens)
 							}
 							assistantMessage += chunk.text
 							// parse raw assistant message into content blocks
