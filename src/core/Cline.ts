@@ -64,6 +64,7 @@ import { ClineHandler } from "../api/providers/cline"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 import { telemetryService } from "../services/telemetry/TelemetryService"
+import { conversationTelemetryService, TelemetryChatMessage } from "../services/telemetry/ConversationTelemetryService"
 import pTimeout from "p-timeout"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1344,6 +1345,26 @@ export class Cline {
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
 			)
+		}
+
+		// Capture system prompt for telemetry,
+		// ONLY if user is opted in, in advanced settings
+		if (this.apiProvider && this.api.getModel().id) {
+			const metadata = {
+				apiProvider: this.apiProvider,
+				model: this.api.getModel().id,
+				tokensIn: 0,
+				tokensOut: 0,
+			}
+
+			const systemMessage: TelemetryChatMessage = {
+				role: "system",
+				content: systemPrompt,
+				ts: Date.now(), // we dont uniquely identify system messages, so we use the timestamp as the id
+			}
+
+			// no need for timeout here, as there's no timestamp to compare to
+			conversationTelemetryService.captureMessage(this.taskId, systemMessage, metadata)
 		}
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
@@ -3162,6 +3183,42 @@ export class Cline {
 
 		telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "user")
 
+		// Capture message data for telemetry,
+		// ONLY if user is opted in, in advanced settings
+		// This is done after a timeout to ensure the message is added to the conversation history
+		setTimeout(() => {
+			if (this.apiProvider && this.api.getModel().id) {
+				const metadata = {
+					apiProvider: this.apiProvider,
+					model: this.api.getModel().id,
+					tokensIn: 0,
+					tokensOut: 0,
+				}
+
+				// Get the last message from apiConversationHistory
+				const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+
+				// Get the corresponding timestamp from clineMessages
+				// The last message in clineMessages should be the one we just added
+
+				const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
+				const ts = lastClineMessage.ts
+
+				// Add the timestamp to the message object for telemetry
+				const messageWithTs = {
+					...lastMessage,
+					ts,
+				}
+
+				// Send individual message to telemetry
+				conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
+
+				// Send entire conversation history to cleanup endpoint
+				// This ensures deleted messages are properly handled in telemetry
+				conversationTelemetryService.cleanupTask(this.taskId, this.clineMessages)
+			}
+		}, 5)
+
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
@@ -3238,6 +3295,38 @@ export class Cline {
 				await this.saveClineMessages()
 
 				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
+
+				// Capture message data for telemetry after assistant response
+				// ONLY if user is opted in, in advanced settings
+				if (this.apiProvider && this.api.getModel().id) {
+					const metadata = {
+						apiProvider: this.apiProvider,
+						model: this.api.getModel().id,
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+					}
+
+					// Get the last message from apiConversationHistory
+					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+
+					// Find the corresponding timestamp from clineMessages
+					// For assistant messages, we need to find the most recent "text" message
+					const lastTextMessage = findLast(this.clineMessages, (m) => m.say === "text")
+
+					// Add the timestamp to the message object for telemetry
+					if (!lastTextMessage) {
+						console.error("No text message found in clineMessages")
+					} else {
+						const messageWithTs = {
+							...lastMessage,
+							ts: lastTextMessage.ts,
+						}
+
+						setTimeout(() => {
+							conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
+						}, 5)
+					}
+				}
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.didFinishAbortingStream = true
@@ -3387,6 +3476,34 @@ export class Cline {
 					role: "assistant",
 					content: [{ type: "text", text: assistantMessage }],
 				})
+
+				// Capture message data for telemetry after assistant response,
+				// ONLY if user is opted in, in advanced settings
+				if (this.apiProvider && this.api.getModel().id) {
+					const metadata = {
+						apiProvider: this.apiProvider,
+						model: this.api.getModel().id,
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+					}
+
+					// Get the last message from apiConversationHistory
+					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+
+					// Find the corresponding timestamp from clineMessages
+					const lastTextMessage = findLast(this.clineMessages, (m) => m.say === "text")
+
+					if (lastTextMessage) {
+						const messageWithTs = {
+							...lastMessage,
+							ts: lastTextMessage.ts,
+						}
+
+						setTimeout(() => {
+							conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
+						})
+					}
+				}
 
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished

@@ -31,6 +31,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		openRouterModels,
 		telemetrySetting,
 		setTelemetrySetting,
+		conversationDataSetting,
 		chatSettings,
 		planActSeparateModelsSetting,
 		setPlanActSeparateModelsSetting,
@@ -72,7 +73,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			planActSeparateModelsSetting,
 			customInstructionsSetting: customInstructions,
 			telemetrySetting,
-			apiConfiguration: apiConfigurationToSubmit,
+			apiConfiguration: apiConfiguration,
 		})
 
 		if (!withoutDone) {
