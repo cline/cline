@@ -12,7 +12,14 @@ import MermaidBlock from "./MermaidBlock"
 interface MarkdownBlockProps {
 	markdown?: string
 }
-
+/**
+ * Custom remark plugin that converts plain URLs in text into clickable links
+ *
+ * The original bug: We were converting text nodes into paragraph nodes,
+ * which broke the markdown structure because text nodes should remain as text nodes
+ * within their parent elements (like paragraphs, list items, etc.).
+ * This caused the entire content to disappear because the structure became invalid.
+ */
 const remarkUrlToLink = () => {
 	return (tree: any) => {
 		// Visit all "text" nodes in the markdown AST (Abstract Syntax Tree)
