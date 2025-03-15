@@ -8,6 +8,11 @@ import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions.mjs"
 
+export const defaultHeaders = {
+	"HTTP-Referer": "https://cline.bot",
+	"X-Title": "Cline",
+}
+
 export class OpenAiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: OpenAI
@@ -20,11 +25,13 @@ export class OpenAiHandler implements ApiHandler {
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
 				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+				defaultHeaders,
 			})
 		} else {
 			this.client = new OpenAI({
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
+				defaultHeaders,
 			})
 		}
 	}
