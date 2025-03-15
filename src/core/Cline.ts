@@ -3218,6 +3218,7 @@ export class Cline {
 			let assistantMessage = ""
 			let reasoningMessage = ""
 			this.isStreaming = true
+			let didReceiveUsageChunk = false
 			try {
 				for await (const chunk of stream) {
 					if (!chunk) {
@@ -3225,6 +3226,7 @@ export class Cline {
 					}
 					switch (chunk.type) {
 						case "usage":
+							didReceiveUsageChunk = true
 							inputTokens += chunk.inputTokens
 							outputTokens += chunk.outputTokens
 							cacheWriteTokens += chunk.cacheWriteTokens ?? 0
@@ -3292,6 +3294,23 @@ export class Cline {
 				}
 			} finally {
 				this.isStreaming = false
+			}
+
+			// OpenRouter/Cline may not return token usage as part of the stream (since it may abort early), so we fetch after the stream is finished
+			// (updateApiReq below will update the api_req_started message with the usage details. we do this async so it updates the api_req_started message in the background)
+			if (!didReceiveUsageChunk) {
+				this.api.getApiStreamUsage?.().then(async (apiStreamUsage) => {
+					if (apiStreamUsage) {
+						inputTokens += apiStreamUsage.inputTokens
+						outputTokens += apiStreamUsage.outputTokens
+						cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
+						cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
+						totalCost = apiStreamUsage.totalCost
+					}
+					updateApiReqMsg()
+					await this.saveClineMessages()
+					await this.providerRef.deref()?.postStateToWebview()
+				})
 			}
 
 			// need to call here in case the stream was aborted
