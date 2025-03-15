@@ -4,6 +4,8 @@ import { ExitCodeDetails, mergePromise, TerminalProcess, TerminalProcessResultPr
 import { truncateOutput, applyRunLengthEncoding } from "../misc/extract-text"
 
 export class Terminal {
+	private static shellIntegrationTimeout: number = 4000
+
 	public terminal: vscode.Terminal
 	public busy: boolean
 	public id: number
@@ -170,7 +172,7 @@ export class Terminal {
 			})
 
 			// Wait for shell integration before executing the command
-			pWaitFor(() => this.terminal.shellIntegration !== undefined, { timeout: 4000 })
+			pWaitFor(() => this.terminal.shellIntegration !== undefined, { timeout: Terminal.shellIntegrationTimeout })
 				.then(() => {
 					process.run(command)
 				})
@@ -178,7 +180,7 @@ export class Terminal {
 					console.log("[Terminal] Shell integration not available. Command execution aborted.")
 					process.emit(
 						"no_shell_integration",
-						"Shell integration initialization sequence '\\x1b]633;A' was not received within 4 seconds. Shell integration has been disabled for this terminal instance.",
+						"Shell integration initialization sequence '\\x1b]633;A' was not received within 4 seconds. Shell integration has been disabled for this terminal instance. Increase the timeout in the settings if necessary.",
 					)
 				})
 		})
@@ -244,6 +246,10 @@ export class Terminal {
 	 * @param input The terminal output to compress
 	 * @returns The compressed terminal output
 	 */
+	public static setShellIntegrationTimeout(timeoutMs: number): void {
+		Terminal.shellIntegrationTimeout = timeoutMs
+	}
+
 	public static compressTerminalOutput(input: string, lineLimit: number): string {
 		return truncateOutput(applyRunLengthEncoding(input), lineLimit)
 	}

@@ -14,6 +14,7 @@ import { Section } from "./Section"
 type AdvancedSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	rateLimitSeconds: number
 	terminalOutputLineLimit?: number
+	terminalShellIntegrationTimeout?: number
 	maxOpenTabsContext: number
 	diffEnabled?: boolean
 	fuzzyMatchThreshold?: number
@@ -21,6 +22,7 @@ type AdvancedSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	setCachedStateField: SetCachedStateField<
 		| "rateLimitSeconds"
 		| "terminalOutputLineLimit"
+		| "terminalShellIntegrationTimeout"
 		| "maxOpenTabsContext"
 		| "diffEnabled"
 		| "fuzzyMatchThreshold"
@@ -32,6 +34,7 @@ type AdvancedSettingsProps = HTMLAttributes<HTMLDivElement> & {
 export const AdvancedSettings = ({
 	rateLimitSeconds,
 	terminalOutputLineLimit,
+	terminalShellIntegrationTimeout,
 	maxOpenTabsContext,
 	diffEnabled,
 	fuzzyMatchThreshold,
@@ -93,6 +96,33 @@ export const AdvancedSettings = ({
 						Maximum number of lines to include in terminal output when executing commands. When exceeded
 						lines will be removed from the middle, saving tokens.
 					</p>
+				</div>
+
+				<div>
+					<div className="flex flex-col gap-2">
+						<span className="font-medium">Terminal shell integration timeout</span>
+						<div className="flex items-center gap-2">
+							<input
+								type="range"
+								min="1000"
+								max="60000"
+								step="1000"
+								value={terminalShellIntegrationTimeout}
+								onChange={(e) =>
+									setCachedStateField("terminalShellIntegrationTimeout", parseInt(e.target.value))
+								}
+								className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
+							/>
+							<span style={{ ...sliderLabelStyle }}>
+								{(terminalShellIntegrationTimeout ?? 4000) / 1000}s
+							</span>
+						</div>
+						<p className="text-vscode-descriptionForeground text-sm mt-0">
+							Maximum time to wait for shell integration to initialize before executing commands. For
+							users with long shell startup times, this value may need to be increased if you see "Shell
+							Integration Unavailable" errors in the terminal.
+						</p>
+					</div>
 				</div>
 
 				<div>

@@ -85,6 +85,7 @@ export const GLOBAL_STATE_KEYS = [
 	"fuzzyMatchThreshold",
 	"writeDelayMs",
 	"terminalOutputLineLimit",
+	"terminalShellIntegrationTimeout",
 	"mcpEnabled",
 	"enableMcpServerCreation",
 	"alwaysApproveResubmit",
@@ -116,6 +117,7 @@ export const GLOBAL_STATE_KEYS = [
 	"telemetrySetting",
 	"showRooIgnoredFiles",
 	"remoteBrowserEnabled",
+	"terminalShellIntegrationTimeout",
 ] as const
 
 type CheckGlobalStateKeysExhaustiveness =
