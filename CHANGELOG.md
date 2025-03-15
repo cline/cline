@@ -7,7 +7,7 @@
 -   Prevent Cline from reading extremely large files into context that would overload context window
 -   Improve checkpoints loading performance and display warning for large projects not suited for checkpoints
 -   Add SambaNova API provider (thanks @saad-noodleseed!)
--   Enable VPC endpoint option for AWS Bedrock profiles (thanks @minorunara!)
+-   Add VPC endpoint option for AWS Bedrock profiles (thanks @minorunara!)
 -   Add DeepSeek-R1 to AWS Bedrock (thanks @watany-dev!)
 
 ## [3.6.5]
