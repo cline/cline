@@ -1,9 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, DeepSeekModelId, ModelInfo, deepSeekDefaultModelId, deepSeekModels } from "../../shared/api"
+import { calculateApiCostOpenAI } from "../../utils/cost"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { convertToR1Format } from "../transform/r1-format"
 
 export class DeepSeekHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -17,14 +20,60 @@ export class DeepSeekHandler implements ApiHandler {
 		})
 	}
 
+	private async *yieldUsage(info: ModelInfo, usage: OpenAI.Completions.CompletionUsage | undefined): ApiStream {
+		// Deepseek reports total input AND cache reads/writes,
+		// see context caching: https://api-docs.deepseek.com/guides/kv_cache)
+		// where the input tokens is the sum of the cache hits/misses, just like OpenAI.
+		// This affects:
+		// 1) context management truncation algorithm, and
+		// 2) cost calculation
+
+		// Deepseek usage includes extra fields.
+		// Safely cast the prompt token details section to the appropriate structure.
+		interface DeepSeekUsage extends OpenAI.CompletionUsage {
+			prompt_cache_hit_tokens?: number
+			prompt_cache_miss_tokens?: number
+		}
+		const deepUsage = usage as DeepSeekUsage
+
+		const inputTokens = deepUsage?.prompt_tokens || 0
+		const outputTokens = deepUsage?.completion_tokens || 0
+		const cacheReadTokens = deepUsage?.prompt_cache_hit_tokens || 0
+		const cacheWriteTokens = deepUsage?.prompt_cache_miss_tokens || 0
+		const totalCost = calculateApiCostOpenAI(info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+		yield {
+			type: "usage",
+			inputTokens: inputTokens,
+			outputTokens: outputTokens,
+			cacheWriteTokens: cacheWriteTokens,
+			cacheReadTokens: cacheReadTokens,
+			totalCost: totalCost,
+		}
+	}
+
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const model = this.getModel()
+
+		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")
+
+		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+			{ role: "system", content: systemPrompt },
+			...convertToOpenAiMessages(messages),
+		]
+
+		if (isDeepseekReasoner) {
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		}
+
 		const stream = await this.client.chat.completions.create({
-			model: this.getModel().id,
-			max_completion_tokens: this.getModel().info.maxTokens,
-			temperature: 0,
-			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
+			model: model.id,
+			max_completion_tokens: model.info.maxTokens,
+			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
+			// Only set temperature for non-reasoner models
+			...(model.id === "deepseek-reasoner" ? {} : { temperature: 0 }),
 		})
 
 		for await (const chunk of stream) {
@@ -36,16 +85,15 @@ export class DeepSeekHandler implements ApiHandler {
 				}
 			}
 
-			if (chunk.usage) {
+			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
 				yield {
-					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0, // (deepseek reports total input AND cache reads/writes, see context caching: https://api-docs.deepseek.com/guides/kv_cache) where the input tokens is the sum of the cache hits/misses, while anthropic reports them as separate tokens. This is important to know for 1) context management truncation algorithm, and 2) cost calculation (NOTE: we report both input and cache stats but for now set input price to 0 since all the cost calculation will be done using cache hits/misses)
-					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
-					cacheReadTokens: chunk.usage.prompt_cache_hit_tokens || 0,
-					// @ts-ignore-next-line
-					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
+					type: "reasoning",
+					reasoning: (delta.reasoning_content as string | undefined) || "",
 				}
+			}
+
+			if (chunk.usage) {
+				yield* this.yieldUsage(model.info, chunk.usage)
 			}
 		}
 	}

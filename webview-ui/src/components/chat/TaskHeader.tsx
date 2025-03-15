@@ -8,6 +8,7 @@ import { formatLargeNumber } from "../../utils/format"
 import { formatSize } from "../../utils/size"
 import { vscode } from "../../utils/vscode"
 import Thumbnails from "../common/Thumbnails"
+import { normalizeApiConfiguration } from "../settings/ApiOptions"
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -17,6 +18,7 @@ interface TaskHeaderProps {
 	cacheWrites?: number
 	cacheReads?: number
 	totalCost: number
+	lastApiReqTotalTokens?: number
 	onClose: () => void
 }
 
@@ -28,14 +30,27 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	cacheWrites,
 	cacheReads,
 	totalCost,
+	lastApiReqTotalTokens,
 	onClose,
 }) => {
 	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage } = useExtensionState()
-	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
+	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
+
+	const { selectedModelInfo } = useMemo(() => normalizeApiConfiguration(apiConfiguration), [apiConfiguration])
+	const contextWindow = selectedModelInfo?.contextWindow
+
+	// Open task header when checkpoint tracker error message is set
+	const prevErrorMessageRef = useRef(checkpointTrackerErrorMessage)
+	useEffect(() => {
+		if (checkpointTrackerErrorMessage !== prevErrorMessageRef.current) {
+			setIsTaskExpanded(true)
+			prevErrorMessageRef.current = checkpointTrackerErrorMessage
+		}
+	}, [checkpointTrackerErrorMessage])
 
 	/*
 	When dealing with event listeners in React components that depend on state variables, we face a challenge. We want our listener to always use the most up-to-date version of a callback function that relies on current state, but we don't want to constantly add and remove event listeners as that function updates. This scenario often arises with resize listeners or other window events. Simply adding the listener in a useEffect with an empty dependency array risks using stale state, while including the callback in the dependencies can lead to unnecessary re-registrations of the listener. There are react hook libraries that provide a elegant solution to this problem by utilizing the useRef hook to maintain a reference to the latest callback function without triggering re-renders or effect re-runs. This approach ensures that our event listener always has access to the most current state while minimizing performance overhead and potential memory leaks from multiple listener registrations. 
@@ -94,15 +109,85 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	}, [task.text, windowWidth])
 
 	const isCostAvailable = useMemo(() => {
+		const openAiCompatHasPricing =
+			apiConfiguration?.apiProvider === "openai" &&
+			apiConfiguration?.openAiModelInfo?.inputPrice &&
+			apiConfiguration?.openAiModelInfo?.outputPrice
+		if (openAiCompatHasPricing) {
+			return true
+		}
 		return (
-			apiConfiguration?.apiProvider !== "openai" &&
+			apiConfiguration?.apiProvider !== "vscode-lm" &&
 			apiConfiguration?.apiProvider !== "ollama" &&
 			apiConfiguration?.apiProvider !== "lmstudio" &&
 			apiConfiguration?.apiProvider !== "gemini"
 		)
-	}, [apiConfiguration?.apiProvider])
+	}, [apiConfiguration?.apiProvider, apiConfiguration?.openAiModelInfo])
 
-	const shouldShowPromptCacheInfo = doesModelSupportPromptCache && apiConfiguration?.apiProvider !== "openrouter"
+	const shouldShowPromptCacheInfo =
+		doesModelSupportPromptCache && apiConfiguration?.apiProvider !== "openrouter" && apiConfiguration?.apiProvider !== "cline"
+
+	const ContextWindowComponent = (
+		<>
+			{isTaskExpanded && contextWindow && (
+				<div
+					style={{
+						display: "flex",
+						flexDirection: windowWidth < 270 ? "column" : "row",
+						gap: "4px",
+					}}>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "4px",
+							flexShrink: 0, // Prevents shrinking
+						}}>
+						<span style={{ fontWeight: "bold" }}>
+							{/* {windowWidth > 280 && windowWidth < 310 ? "Context:" : "Context Window:"} */}
+							Context Window:
+						</span>
+					</div>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "3px",
+							flex: 1,
+							whiteSpace: "nowrap",
+						}}>
+						<span>{formatLargeNumber(lastApiReqTotalTokens || 0)}</span>
+						<div
+							style={{
+								display: "flex",
+								alignItems: "center",
+								gap: "3px",
+								flex: 1,
+							}}>
+							<div
+								style={{
+									flex: 1,
+									height: "4px",
+									backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
+									borderRadius: "2px",
+									overflow: "hidden",
+								}}>
+								<div
+									style={{
+										width: `${((lastApiReqTotalTokens || 0) / contextWindow) * 100}%`,
+										height: "100%",
+										backgroundColor: "var(--vscode-badge-foreground)",
+										borderRadius: "2px",
+									}}
+								/>
+							</div>
+							<span>{formatLargeNumber(contextWindow)}</span>
+						</div>
+					</div>
+				</div>
+			)}
+		</>
+	)
 
 	return (
 		<div style={{ padding: "10px 13px 10px 13px" }}>
@@ -155,7 +240,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								flexGrow: 1,
 								minWidth: 0, // This allows the div to shrink below its content size
 							}}>
-							<span style={{ fontWeight: "bold" }}>Task{!isTaskExpanded && ":"}</span>
+							<span style={{ fontWeight: "bold" }}>
+								Task
+								{!isTaskExpanded && ":"}
+							</span>
 							{!isTaskExpanded && <span style={{ marginLeft: 4 }}>{highlightMentions(task.text, false)}</span>}
 						</div>
 					</div>
@@ -259,6 +347,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									display: "flex",
 									justifyContent: "space-between",
 									alignItems: "center",
+									height: 17,
 								}}>
 								<div
 									style={{
@@ -306,55 +395,60 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								)}
 							</div>
 
-							{shouldShowPromptCacheInfo && (cacheReads !== undefined || cacheWrites !== undefined) && (
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: "4px",
-										flexWrap: "wrap",
-									}}>
-									<span style={{ fontWeight: "bold" }}>Cache:</span>
-									<span
+							{shouldShowPromptCacheInfo &&
+								(cacheReads !== undefined ||
+									cacheWrites !== undefined ||
+									apiConfiguration?.apiProvider === "anthropic") && (
+									<div
 										style={{
 											display: "flex",
 											alignItems: "center",
-											gap: "3px",
+											gap: "4px",
+											flexWrap: "wrap",
 										}}>
-										<i
-											className="codicon codicon-database"
+										<span style={{ fontWeight: "bold" }}>Cache:</span>
+										<span
 											style={{
-												fontSize: "12px",
-												fontWeight: "bold",
-												marginBottom: "-1px",
-											}}
-										/>
-										+{formatLargeNumber(cacheWrites || 0)}
-									</span>
-									<span
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "3px",
-										}}>
-										<i
-											className="codicon codicon-arrow-right"
+												display: "flex",
+												alignItems: "center",
+												gap: "3px",
+											}}>
+											<i
+												className="codicon codicon-database"
+												style={{
+													fontSize: "12px",
+													fontWeight: "bold",
+													marginBottom: "-1px",
+												}}
+											/>
+											+{formatLargeNumber(cacheWrites || 0)}
+										</span>
+										<span
 											style={{
-												fontSize: "12px",
-												fontWeight: "bold",
-												marginBottom: 0,
-											}}
-										/>
-										{formatLargeNumber(cacheReads || 0)}
-									</span>
-								</div>
-							)}
+												display: "flex",
+												alignItems: "center",
+												gap: "3px",
+											}}>
+											<i
+												className="codicon codicon-arrow-right"
+												style={{
+													fontSize: "12px",
+													fontWeight: "bold",
+													marginBottom: 0,
+												}}
+											/>
+											{formatLargeNumber(cacheReads || 0)}
+										</span>
+									</div>
+								)}
+							{ContextWindowComponent}
 							{isCostAvailable && (
 								<div
 									style={{
 										display: "flex",
 										justifyContent: "space-between",
 										alignItems: "center",
+										height: 17,
 									}}>
 									<div
 										style={{
@@ -379,7 +473,25 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									}}>
 									<i className="codicon codicon-warning" />
 									<span>
-										{checkpointTrackerErrorMessage}
+										{checkpointTrackerErrorMessage.replace(/disabling checkpoints\.$/, "")}
+										{checkpointTrackerErrorMessage.endsWith("disabling checkpoints.") && (
+											<>
+												<a
+													onClick={() => {
+														vscode.postMessage({
+															type: "openExtensionSettings",
+															text: "enableCheckpoints",
+														})
+													}}
+													style={{
+														color: "inherit",
+														textDecoration: "underline",
+														cursor: "pointer",
+													}}>
+													disabling checkpoints.
+												</a>
+											</>
+										)}
 										{checkpointTrackerErrorMessage.includes("Git must be installed to use checkpoints.") && (
 											<>
 												{" "}

@@ -8,7 +8,11 @@
 	"compilerOptions": {
 		"module": "commonjs",
 		"moduleResolution": "node",
-		"types": ["node", "mocha", "should", "vscode"]
+		"types": ["node", "mocha", "should", "vscode", "chai"],
+		"typeRoots": ["./node_modules/@types", "./src/test/types"],
+		"outDir": "out",
+		"rootDir": "src"
 	},
-	"include": ["src/**/*.test.ts"]
+	"include": ["src/**/*.test.ts"],
+	"exclude": ["src/test/**/*.js"]
 }

@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Mistral } from "@mistralai/mistralai"
+import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import {
 	ApiHandlerOptions,
@@ -21,11 +22,11 @@ export class MistralHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new Mistral({
-			serverURL: "https://codestral.mistral.ai",
 			apiKey: this.options.mistralApiKey,
 		})
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const stream = await this.client.chat.stream({
 			model: this.getModel().id,

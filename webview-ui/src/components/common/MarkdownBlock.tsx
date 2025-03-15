@@ -1,10 +1,11 @@
-import { memo, useEffect } from "react"
+import React, { memo, useEffect } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
+import MermaidBlock from "./MermaidBlock"
 
 interface MarkdownBlockProps {
 	markdown?: string
@@ -46,6 +47,44 @@ const remarkUrlToLink = () => {
 			if (parent) {
 				parent.children.splice(index, 1, ...children)
 			}
+		})
+	}
+}
+
+/**
+ * Custom remark plugin that prevents filenames with extensions from being parsed as bold text
+ * For example: __init__.py should not be rendered as bold "init" followed by ".py"
+ * Solves https://github.com/cline/cline/issues/1028
+ */
+const remarkPreventBoldFilenames = () => {
+	return (tree: any) => {
+		visit(tree, "strong", (node: any, index: number | undefined, parent: any) => {
+			// Only process if there's a next node (potential file extension)
+			if (!parent || typeof index === "undefined" || index === parent.children.length - 1) return
+
+			const nextNode = parent.children[index + 1]
+
+			// Check if next node is text and starts with . followed by extension
+			if (nextNode.type !== "text" || !nextNode.value.match(/^\.[a-zA-Z0-9]+/)) return
+
+			// If the strong node has multiple children, something weird is happening
+			if (node.children?.length !== 1) return
+
+			// Get the text content from inside the strong node
+			const strongContent = node.children?.[0]?.value
+			if (!strongContent || typeof strongContent !== "string") return
+
+			// Validate that the strong content is a valid filename
+			if (!strongContent.match(/^[a-zA-Z0-9_-]+$/)) return
+
+			// Combine into a single text node
+			const newNode = {
+				type: "text",
+				value: `__${strongContent}__${nextNode.value}`,
+			}
+
+			// Replace both nodes with the combined text node
+			parent.children.splice(index, 2, newNode)
 		})
 	}
 }
@@ -160,6 +199,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	const { theme } = useExtensionState()
 	const [reactContent, setMarkdown] = useRemark({
 		remarkPlugins: [
+			remarkPreventBoldFilenames,
 			remarkUrlToLink,
 			() => {
 				return (tree) => {
@@ -181,7 +221,27 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 		],
 		rehypeReactOptions: {
 			components: {
-				pre: ({ node, ...preProps }: any) => <StyledPre {...preProps} theme={theme} />,
+				pre: ({ node, children, ...preProps }: any) => {
+					if (Array.isArray(children) && children.length === 1 && React.isValidElement(children[0])) {
+						const child = children[0] as React.ReactElement<{ className?: string }>
+						if (child.props?.className?.includes("language-mermaid")) {
+							return child
+						}
+					}
+					return (
+						<StyledPre {...preProps} theme={theme}>
+							{children}
+						</StyledPre>
+					)
+				},
+				code: (props: any) => {
+					const className = props.className || ""
+					if (className.includes("language-mermaid")) {
+						const codeText = String(props.children || "")
+						return <MermaidBlock code={codeText} />
+					}
+					return <code {...props} />
+				},
 			},
 		},
 	})

@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.1.11",
+	"version": "3.7.0",
 	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
 		"color": "#617A91",
@@ -73,7 +73,7 @@
 			{
 				"command": "cline.mcpButtonClicked",
 				"title": "MCP Servers",
-				"icon": "$(server)"
+				"icon": "$(extensions)"
 			},
 			{
 				"command": "cline.historyButtonClicked",
@@ -124,6 +124,95 @@
 					"when": "view == claude-dev.SidebarProvider"
 				}
 			]
+		},
+		"configuration": {
+			"title": "Cline",
+			"properties": {
+				"cline.vsCodeLmModelSelector": {
+					"type": "object",
+					"properties": {
+						"vendor": {
+							"type": "string",
+							"description": "The vendor of the language model (e.g. copilot)"
+						},
+						"family": {
+							"type": "string",
+							"description": "The family of the language model (e.g. gpt-4)"
+						}
+					},
+					"description": "Settings for VSCode Language Model API"
+				},
+				"cline.mcp.mode": {
+					"type": "string",
+					"enum": [
+						"full",
+						"server-use-only",
+						"off"
+					],
+					"enumDescriptions": [
+						"Enable all MCP functionality (server use and build instructions)",
+						"Enable MCP server use only (excludes instructions about building MCP servers)",
+						"Disable all MCP functionality"
+					],
+					"default": "full",
+					"description": "Controls MCP inclusion in prompts, reduces token usage if you only need access to certain functionality."
+				},
+				"cline.enableCheckpoints": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which may not work well with large workspaces."
+				},
+				"cline.disableBrowserTool": {
+					"type": "boolean",
+					"default": false,
+					"description": "Disables extension from spawning browser session."
+				},
+				"cline.modelSettings.o3Mini.reasoningEffort": {
+					"type": "string",
+					"enum": [
+						"low",
+						"medium",
+						"high"
+					],
+					"default": "medium",
+					"description": "Controls the reasoning effort when using the o3-mini model. Higher values may result in more thorough but slower responses."
+				},
+				"cline.chromeExecutablePath": {
+					"type": "string",
+					"default": null,
+					"description": "Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find or download it automatically."
+				},
+				"cline.preferredLanguage": {
+					"type": "string",
+					"enum": [
+						"English",
+						"Arabic - العربية",
+						"Portuguese - Português (Brasil)",
+						"Czech - Čeština",
+						"French - Français",
+						"German - Deutsch",
+						"Hindi - हिन्दी",
+						"Hungarian - Magyar",
+						"Italian - Italiano",
+						"Japanese - 日本語",
+						"Korean - 한국어",
+						"Polish - Polski",
+						"Portuguese - Português (Portugal)",
+						"Russian - Русский",
+						"Simplified Chinese - 简体中文",
+						"Spanish - Español",
+						"Traditional Chinese - 繁體中文",
+						"Turkish - Türkçe"
+					],
+					"default": "English",
+					"description": "The language that Cline should use for communication."
+				},
+				"cline.mcpMarketplace.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Controls whether the MCP Marketplace is enabled."
+				}
+			}
 		}
 	},
 	"scripts": {
@@ -137,46 +226,58 @@
 		"watch-tests": "tsc -p . -w --outDir out",
 		"pretest": "npm run compile-tests && npm run compile && npm run lint",
 		"check-types": "tsc --noEmit",
-		"lint": "eslint src --ext ts",
+		"lint": "eslint src --ext ts && eslint webview-ui/src --ext ts",
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
 		"test": "vscode-test",
 		"install:all": "npm install && cd webview-ui && npm install",
-		"start:webview": "cd webview-ui && npm run start",
+		"dev:webview": "cd webview-ui && npm run dev",
 		"build:webview": "cd webview-ui && npm run build",
 		"test:webview": "cd webview-ui && npm run test",
-		"publish:marketplace": "vsce publish && ovsx publish"
+		"publish:marketplace": "vsce publish && ovsx publish",
+		"publish:marketplace:prerelease": "vsce publish --pre-release && ovsx publish --pre-release",
+		"prepare": "husky",
+		"changeset": "changeset",
+		"version-packages": "changeset version"
 	},
 	"devDependencies": {
+		"@changesets/cli": "^2.27.12",
+		"@types/chai": "^5.0.1",
 		"@types/diff": "^5.2.1",
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
 		"@types/should": "^11.2.0",
+		"@types/sinon": "^17.0.4",
 		"@types/vscode": "^1.84.0",
 		"@typescript-eslint/eslint-plugin": "^7.14.1",
 		"@typescript-eslint/parser": "^7.11.0",
 		"@vscode/test-cli": "^0.0.9",
 		"@vscode/test-electron": "^2.4.0",
-		"esbuild": "^0.21.5",
+		"chai": "^4.3.10",
+		"esbuild": "^0.25.0",
 		"eslint": "^8.57.0",
+		"husky": "^9.1.7",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
 		"should": "^13.2.3",
+		"sinon": "^19.0.2",
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
-		"@anthropic-ai/bedrock-sdk": "^0.10.2",
-		"@anthropic-ai/sdk": "^0.26.0",
-		"@anthropic-ai/vertex-sdk": "^0.4.1",
+		"@anthropic-ai/bedrock-sdk": "^0.12.4",
+		"@anthropic-ai/sdk": "^0.37.0",
+		"@anthropic-ai/vertex-sdk": "^0.6.4",
+		"@aws-sdk/client-bedrock-runtime": "^3.758.0",
+		"@google-cloud/vertexai": "^1.9.3",
 		"@google/generative-ai": "^0.18.0",
-		"@mistralai/mistralai": "^1.3.6",
+		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.0.1",
 		"@types/clone-deep": "^4.0.4",
 		"@types/get-folder-size": "^3.0.4",
 		"@types/pdf-parse": "^1.1.4",
 		"@types/turndown": "^5.0.5",
 		"@vscode/codicons": "^0.0.36",
-		"axios": "^1.7.4",
+		"axios": "^1.8.2",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
 		"clone-deep": "^4.0.1",
@@ -185,15 +286,21 @@
 		"diff": "^5.2.0",
 		"execa": "^9.5.2",
 		"fast-deep-equal": "^3.1.3",
+		"firebase": "^11.2.0",
 		"get-folder-size": "^5.0.0",
 		"globby": "^14.0.2",
+		"ignore": "^7.0.3",
 		"isbinaryfile": "^5.0.2",
 		"mammoth": "^1.8.0",
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
-		"openai": "^4.61.0",
+		"ollama": "^0.5.13",
+		"open-graph-scraper": "^6.9.0",
+		"openai": "^4.83.0",
 		"os-name": "^6.0.0",
+		"p-timeout": "^6.1.4",
 		"p-wait-for": "^5.0.2",
 		"pdf-parse": "^1.1.1",
+		"posthog-node": "^4.8.1",
 		"puppeteer-chromium-resolver": "^23.0.0",
 		"puppeteer-core": "^23.4.0",
 		"serialize-error": "^11.0.3",
@@ -202,6 +309,6 @@
 		"tree-sitter-wasms": "^0.1.11",
 		"turndown": "^7.2.0",
 		"web-tree-sitter": "^0.22.6",
-		"zod": "^3.23.8"
+		"zod": "^3.24.2"
 	}
 }

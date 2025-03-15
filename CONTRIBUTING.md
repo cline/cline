@@ -56,20 +56,30 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
     - Update existing tests if your changes affect them
     - Include both unit tests and integration tests where appropriate
 
-4. **Commit Guidelines**
+4. **Version Management with Changesets**
+
+    - Create a changeset for any user-facing changes using `npm run changeset`
+    - Choose the appropriate version bump:
+        - `major` for breaking changes (1.0.0 → 2.0.0)
+        - `minor` for new features (1.0.0 → 1.1.0)
+        - `patch` for bug fixes (1.0.0 → 1.0.1)
+    - Write clear, descriptive changeset messages that explain the impact
+    - Documentation-only changes don't require changesets
+
+5. **Commit Guidelines**
 
     - Write clear, descriptive commit messages
     - Use conventional commit format (e.g., "feat:", "fix:", "docs:")
     - Reference relevant issues in commits using #issue-number
 
-5. **Before Submitting**
+6. **Before Submitting**
 
     - Rebase your branch on the latest main
     - Ensure your branch builds successfully
     - Double-check all tests are passing
     - Review your changes for any debugging code or console logs
 
-6. **Pull Request Description**
+7. **Pull Request Description**
     - Clearly describe what your changes do
     - Include steps to test the changes
     - List any breaking changes

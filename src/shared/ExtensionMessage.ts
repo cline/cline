@@ -1,10 +1,13 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
+import { GitCommit } from "../utils/git"
 import { ApiConfiguration, ModelInfo } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
+import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
-import { McpServer } from "./mcp"
+import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
+import { TelemetrySetting } from "./TelemetrySetting"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -19,20 +22,60 @@ export interface ExtensionMessage {
 		| "invoke"
 		| "partialMessage"
 		| "openRouterModels"
+		| "openAiModels"
 		| "mcpServers"
 		| "relinquishControl"
+		| "vsCodeLmModels"
+		| "requestVsCodeLmModels"
+		| "authCallback"
+		| "mcpMarketplaceCatalog"
+		| "mcpDownloadDetails"
+		| "commitSearchResults"
+		| "openGraphData"
+		| "isImageUrlResult"
+		| "didUpdateSettings"
 	text?: string
-	action?: "chatButtonClicked" | "mcpButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
-	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
+	action?:
+		| "chatButtonClicked"
+		| "mcpButtonClicked"
+		| "settingsButtonClicked"
+		| "historyButtonClicked"
+		| "didBecomeVisible"
+		| "accountLoginClicked"
+		| "accountLogoutClicked"
+	invoke?: Invoke
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
+	vsCodeLmModels?: { vendor?: string; family?: string; version?: string; id?: string }[]
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
+	openAiModels?: string[]
 	mcpServers?: McpServer[]
+	customToken?: string
+	mcpMarketplaceCatalog?: McpMarketplaceCatalog
+	error?: string
+	mcpDownloadDetails?: McpDownloadResponse
+	commits?: GitCommit[]
+	openGraphData?: {
+		title?: string
+		description?: string
+		image?: string
+		url?: string
+		siteName?: string
+		type?: string
+	}
+	url?: string
+	isImage?: boolean
 }
+
+export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
+
+export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
+
+export const DEFAULT_PLATFORM = "unknown"
 
 export interface ExtensionState {
 	version: string
@@ -46,6 +89,17 @@ export interface ExtensionState {
 	shouldShowAnnouncement: boolean
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
+	chatSettings: ChatSettings
+	platform: Platform
+	userInfo?: {
+		displayName: string | null
+		email: string | null
+		photoURL: string | null
+	}
+	mcpMarketplaceEnabled?: boolean
+	telemetrySetting: TelemetrySetting
+	planActSeparateModelsSetting: boolean
+	vscMachineId: string
 }
 
 export interface ClineMessage {
@@ -54,15 +108,18 @@ export interface ClineMessage {
 	ask?: ClineAsk
 	say?: ClineSay
 	text?: string
+	reasoning?: string
 	images?: string[]
 	partial?: boolean
 	lastCheckpointHash?: string
+	isCheckpointCheckedOut?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 }
 
 export type ClineAsk =
 	| "followup"
+	| "plan_mode_response"
 	| "command"
 	| "command_output"
 	| "completion_result"
@@ -81,6 +138,7 @@ export type ClineSay =
 	| "api_req_started"
 	| "api_req_finished"
 	| "text"
+	| "reasoning"
 	| "completion_result"
 	| "user_feedback"
 	| "user_feedback_diff"
@@ -97,6 +155,8 @@ export type ClineSay =
 	| "use_mcp_server"
 	| "diff_error"
 	| "deleted_api_reqs"
+	| "clineignore_error"
+	| "checkpoint_created"
 
 export interface ClineSayTool {
 	tool:
@@ -137,6 +197,18 @@ export interface ClineAskUseMcpServer {
 	toolName?: string
 	arguments?: string
 	uri?: string
+}
+
+export interface ClinePlanModeResponse {
+	response: string
+	options?: string[]
+	selected?: string
+}
+
+export interface ClineAskQuestion {
+	question: string
+	options?: string[]
+	selected?: string
 }
 
 export interface ClineApiReqInfo {
