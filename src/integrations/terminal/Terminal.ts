@@ -59,7 +59,11 @@ export class Terminal {
 		if (stream) {
 			// New stream is available
 			if (!this.process) {
-				throw new Error(`Cannot set active stream on terminal ${this.id} because process is undefined`)
+				this.running = false
+				console.warn(
+					`[Terminal ${this.id}] process is undefined, so cannot set terminal stream (probably user-initiated non-Roo command)`,
+				)
+				return
 			}
 
 			this.streamClosed = false
@@ -167,7 +171,7 @@ export class Terminal {
 			// Set up event handlers
 			process.once("continue", () => resolve())
 			process.once("error", (error) => {
-				console.error(`Error in terminal ${this.id}:`, error)
+				console.error(`[Terminal ${this.id}] error:`, error)
 				reject(error)
 			})
 
@@ -177,7 +181,7 @@ export class Terminal {
 					process.run(command)
 				})
 				.catch(() => {
-					console.log("[Terminal] Shell integration not available. Command execution aborted.")
+					console.log(`[Terminal ${this.id}] Shell integration not available. Command execution aborted.`)
 					process.emit(
 						"no_shell_integration",
 						"Shell integration initialization sequence '\\x1b]633;A' was not received within 4 seconds. Shell integration has been disabled for this terminal instance. Increase the timeout in the settings if necessary.",
