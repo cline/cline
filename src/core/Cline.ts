@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
 import delay from "delay"
 import fs from "fs/promises"
+import { checkFileEditingPrevention } from "./file-editing-prevention"
 import getFolderSize from "get-folder-size"
 import os from "os"
 import pWaitFor from "p-wait-for"
@@ -1689,6 +1690,14 @@ export class Cline {
 				switch (block.name) {
 					case "write_to_file":
 					case "replace_in_file": {
+						// Check if file editing should be prevented
+						const preventionResult = checkFileEditingPrevention(this.chatSettings)
+						if (preventionResult.isPreventingEdit) {
+							pushToolResult(preventionResult.toolError!)
+							await this.saveCheckpoint()
+							break
+						}
+
 						const relPath: string | undefined = block.params.path
 						let content: string | undefined = block.params.content // for write_to_file
 						let diff: string | undefined = block.params.diff // for replace_in_file
