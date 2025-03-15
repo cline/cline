@@ -201,37 +201,7 @@ export class VertexHandler implements ApiHandler {
 					case "content_block_start":
 						switch (chunk.content_block.type) {
 							case "thinking":
-								{
-									const currentTime = Date.now()
-									// Store the thinking start time for later calculation
-									this.thinkingStartTime = currentTime
-									// Reset total thinking tokens for this response
-									this.totalThinkingTokens = 0
-									// Initialize accumulated thinking content
-									this.accumulatedThinking = ""
 
-									// Get the thinking content
-									const thinkingContent = chunk.content_block.thinking || ""
-									// Add to accumulated thinking content
-									this.accumulatedThinking += thinkingContent
-
-									// Simple token estimation using 4:1 ratio
-									const estimatedTokens = this.estimateTokens(thinkingContent)
-
-									// Add to total thinking tokens
-									this.totalThinkingTokens += estimatedTokens
-
-									// Basic logging
-									console.log(
-										`[Vertex] Initial thinking block: ~${estimatedTokens} tokens (${thinkingContent.length} chars)`,
-									)
-
-									yield {
-										type: "reasoning",
-										reasoning: thinkingContent,
-										thinkingStartTime: currentTime,
-										thinkingTokens: estimatedTokens > 0 ? estimatedTokens : 0,
-									}
 								}
 								break
 							case "redacted_thinking":
@@ -240,9 +210,7 @@ export class VertexHandler implements ApiHandler {
 								yield {
 									type: "reasoning",
 									reasoning: "[Redacted thinking block]",
-									thinkingTokens: 1, // Placeholder token count for redacted content
-								}
-								break
+
 							case "text":
 								// Mark end of thinking when text block starts
 								const currentEndTime = Date.now()
@@ -279,29 +247,7 @@ export class VertexHandler implements ApiHandler {
 					case "content_block_delta":
 						switch (chunk.delta.type) {
 							case "thinking_delta":
-								// For thinking deltas, use the same simple estimation
-								const deltaContent = chunk.delta.thinking || ""
 
-								// Add to accumulated thinking content
-								this.accumulatedThinking += deltaContent
-
-								// Simple token estimation using 4:1 ratio
-								const estimatedTokens = this.estimateTokens(deltaContent)
-
-								// Add to total thinking tokens
-								this.totalThinkingTokens += estimatedTokens
-
-								// Basic logging for significant deltas
-								if (estimatedTokens > 20) {
-									console.log(
-										`[Vertex] Thinking delta: ~${estimatedTokens} tokens (${deltaContent.length} chars)`,
-									)
-								}
-
-								yield {
-									type: "reasoning",
-									reasoning: deltaContent,
-									thinkingTokens: this.totalThinkingTokens,
 								}
 								break
 							case "text_delta":
