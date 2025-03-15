@@ -79,4 +79,8 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	public getMessages(taskId: string) {
 		return this.history.getMessages(taskId)
 	}
+
+	public getCurrentTaskStack(): string[] {
+		return this.provider.getCurrentTaskStack()
+	}
 }
