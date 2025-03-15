@@ -12,6 +12,7 @@ import MermaidBlock from "./MermaidBlock"
 interface MarkdownBlockProps {
 	markdown?: string
 }
+
 /**
  * Custom remark plugin that converts plain URLs in text into clickable links
  *
