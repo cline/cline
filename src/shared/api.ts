@@ -40,6 +40,8 @@ export interface ApiHandlerOptions {
 	awsUseProfile?: boolean
 	awsProfile?: string
 	awsBedrockEndpoint?: string
+	awsBedrockCustomSelected?: boolean
+	awsBedrockCustomModelBaseId?: BedrockModelId
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
