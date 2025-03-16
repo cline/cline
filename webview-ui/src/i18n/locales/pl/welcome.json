@@ -2,5 +2,13 @@
 	"greeting": "Cześć, jestem Roo!",
 	"introduction": "Mogę wykonywać wszelkiego rodzaju zadania dzięki najnowszym osiągnięciom w zakresie możliwości kodowania agentowego i dostępu do narzędzi, które pozwalają mi tworzyć i edytować pliki, eksplorować złożone projekty, korzystać z przeglądarki i wykonywać polecenia terminalowe (oczywiście za Twoją zgodą). Mogę nawet używać MCP do tworzenia nowych narzędzi i rozszerzania własnych możliwości.",
 	"notice": "Aby rozpocząć, to rozszerzenie potrzebuje dostawcy API.",
-	"start": "Zaczynajmy!"
+	"start": "Zaczynajmy!",
+	"telemetry": {
+		"title": "Pomóż ulepszyć Roo Code",
+		"anonymousTelemetry": "Wyślij anonimowe dane o błędach i użyciu, aby pomóc nam w naprawianiu błędów i ulepszaniu rozszerzenia. Nigdy nie są wysyłane żadne kody, teksty ani informacje osobiste.",
+		"changeSettings": "Zawsze możesz to zmienić na dole ustawień",
+		"settings": "ustawienia",
+		"allow": "Zezwól",
+		"deny": "Odmów"
+	}
 }

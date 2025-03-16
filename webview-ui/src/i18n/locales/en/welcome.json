@@ -2,5 +2,13 @@
 	"greeting": "Hi, I'm Roo!",
 	"introduction": "I can do all kinds of tasks thanks to the latest breakthroughs in agentic coding capabilities and access to tools that let me create & edit files, explore complex projects, use the browser, and execute terminal commands (with your permission, of course). I can even use MCP to create new tools and extend my own capabilities.",
 	"notice": "To get started, this extension needs an API provider.",
-	"start": "Let's go!"
+	"start": "Let's go!",
+	"telemetry": {
+		"title": "Help Improve Roo Code",
+		"anonymousTelemetry": "Send anonymous error and usage data to help us fix bugs and improve the extension. No code, prompts, or personal information is ever sent.",
+		"changeSettings": "You can always change this at the bottom of the settings",
+		"settings": "settings",
+		"allow": "Allow",
+		"deny": "Deny"
+	}
 }

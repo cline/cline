@@ -2,5 +2,13 @@
 	"greeting": "Merhaba, ben Roo!",
 	"introduction": "Ajan tabanlı kodlama yeteneklerindeki son gelişmeler ve dosya oluşturma ve düzenleme, karmaşık projeleri keşfetme, tarayıcı kullanma ve terminal komutları çalıştırma (tabii ki sizin izninizle) gibi işlemleri yapmamı sağlayan araçlara erişim sayesinde her türlü görevi gerçekleştirebilirim. Hatta MCP'yi kullanarak yeni araçlar oluşturabilir ve kendi yeteneklerimi genişletebilirim.",
 	"notice": "Başlamak için bu eklentinin bir API sağlayıcısına ihtiyacı var.",
-	"start": "Hadi başlayalım!"
+	"start": "Hadi başlayalım!",
+	"telemetry": {
+		"title": "Roo Code'u Geliştirmeye Yardım Edin",
+		"anonymousTelemetry": "Hataları düzeltmemize ve eklentiyi geliştirmemize yardımcı olmak için anonim hata ve kullanım verileri gönderin. Hiçbir zaman kod, metin veya kişisel bilgi gönderilmez.",
+		"changeSettings": "Bunu her zaman ayarların altından değiştirebilirsiniz",
+		"settings": "ayarlar",
+		"allow": "İzin Ver",
+		"deny": "Reddet"
+	}
 }
