@@ -50,11 +50,17 @@
 	"selectMode": "Select mode for interaction",
 	"selectApiConfig": "Select API configuration",
 	"enhancePrompt": "Enhance prompt with additional context",
+	"enhancePromptDescription": "The 'Enhance Prompt' button helps improve your prompt by providing additional context, clarification, or rephrasing. Try typing a prompt in here and clicking the button again to see how it works.",
 	"addImages": "Add images to message",
 	"sendMessage": "Send message",
 	"typeMessage": "Type a message...",
 	"typeTask": "Type your task here...",
 	"addContext": "@ to add context, / to switch modes",
 	"dragFiles": "hold shift to drag in files",
-	"dragFilesImages": "hold shift to drag in files/images"
+	"dragFilesImages": "hold shift to drag in files/images",
+	"errorReadingFile": "Error reading file:",
+	"noValidImages": "No valid images were processed",
+	"separator": "Separator",
+	"edit": "Edit...",
+	"forNextMode": "for next mode"
 }

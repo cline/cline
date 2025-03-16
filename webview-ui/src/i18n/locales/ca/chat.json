@@ -56,5 +56,11 @@
 	"typeTask": "Escriu la teva tasca aquí...",
 	"addContext": "@ per afegir context, / per canviar de mode",
 	"dragFiles": "manté premut shift per arrossegar fitxers",
-	"dragFilesImages": "manté premut shift per arrossegar fitxers/imatges"
+	"dragFilesImages": "manté premut shift per arrossegar fitxers/imatges",
+	"enhancePromptDescription": "El botó 'Millora la sol·licitud' ajuda a millorar la teva sol·licitud proporcionant context addicional, aclariments o reformulacions. Prova d'escriure una sol·licitud aquí i fes clic al botó de nou per veure com funciona.",
+	"errorReadingFile": "Error en llegir el fitxer:",
+	"noValidImages": "No s'ha processat cap imatge vàlida",
+	"separator": "Separador",
+	"edit": "Edita...",
+	"forNextMode": "per al següent mode"
 }

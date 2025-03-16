@@ -56,5 +56,11 @@
 	"typeTask": "Scrivi qui la tua attività...",
 	"addContext": "@ per aggiungere contesto, / per cambiare modalità",
 	"dragFiles": "tieni premuto shift per trascinare i file",
-	"dragFilesImages": "tieni premuto shift per trascinare file/immagini"
+	"dragFilesImages": "tieni premuto shift per trascinare file/immagini",
+	"enhancePromptDescription": "Il pulsante 'Migliora il prompt' aiuta a migliorare la tua richiesta fornendo contesto aggiuntivo, chiarimenti o riformulazioni. Prova a digitare una richiesta qui e clicca nuovamente il pulsante per vedere come funziona.",
+	"errorReadingFile": "Errore durante la lettura del file:",
+	"noValidImages": "Nessuna immagine valida è stata elaborata",
+	"separator": "Separatore",
+	"edit": "Modifica...",
+	"forNextMode": "per la modalità successiva"
 }

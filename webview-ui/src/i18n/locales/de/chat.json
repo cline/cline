@@ -56,5 +56,11 @@
 	"typeTask": "Geben Sie hier Ihre Aufgabe ein...",
 	"addContext": "@ um Kontext hinzuzufügen, / um Modi zu wechseln",
 	"dragFiles": "Halten Sie die Umschalttaste gedrückt, um Dateien zu ziehen",
-	"dragFilesImages": "Halten Sie die Umschalttaste gedrückt, um Dateien/Bilder zu ziehen"
+	"dragFilesImages": "Halten Sie die Umschalttaste gedrückt, um Dateien/Bilder zu ziehen",
+	"enhancePromptDescription": "Die Schaltfläche 'Eingabeaufforderung verbessern' hilft, Ihre Anfrage durch zusätzlichen Kontext, Klarstellungen oder Umformulierungen zu verbessern. Geben Sie eine Anfrage ein und klicken Sie erneut auf die Schaltfläche, um zu sehen, wie es funktioniert.",
+	"errorReadingFile": "Fehler beim Lesen der Datei:",
+	"noValidImages": "Es wurden keine gültigen Bilder verarbeitet",
+	"separator": "Trennlinie",
+	"edit": "Bearbeiten...",
+	"forNextMode": "für nächsten Modus"
 }

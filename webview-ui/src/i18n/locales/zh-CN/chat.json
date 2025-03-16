@@ -56,5 +56,11 @@
 	"typeTask": "输入您的任务...",
 	"addContext": "@ 添加上下文, / 切换模式",
 	"dragFiles": "按住 shift 拖入文件",
-	"dragFilesImages": "按住 shift 拖入文件/图片"
+	"dragFilesImages": "按住 shift 拖入文件/图片",
+	"enhancePromptDescription": "\"增强提示\"按钮通过提供额外的上下文、解释或重新表述来帮助改进你的提示。在此处输入提示，然后再次点击按钮查看其工作方式。",
+	"errorReadingFile": "读取文件时出错：",
+	"noValidImages": "没有处理有效图片",
+	"separator": "分隔线",
+	"edit": "编辑...",
+	"forNextMode": "切换至下一模式"
 }

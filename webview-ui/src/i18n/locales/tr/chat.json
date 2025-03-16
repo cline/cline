@@ -56,5 +56,11 @@
 	"typeTask": "Görevinizi buraya yazın...",
 	"addContext": "@ bağlam eklemek için, / modları değiştirmek için",
 	"dragFiles": "dosyaları sürüklemek için shift tuşunu basılı tutun",
-	"dragFilesImages": "dosyaları/resimleri sürüklemek için shift tuşunu basılı tutun"
+	"dragFilesImages": "dosyaları/resimleri sürüklemek için shift tuşunu basılı tutun",
+	"enhancePromptDescription": "'İstemi geliştir' düğmesi, ek bağlam, açıklama veya yeniden ifade sağlayarak istemlerinizi iyileştirmenize yardımcı olur. Buraya bir istem yazın ve nasıl çalıştığını görmek için düğmeye tekrar tıklayın.",
+	"errorReadingFile": "Dosya okuma hatası:",
+	"noValidImages": "Hiçbir geçerli resim işlenmedi",
+	"separator": "Ayırıcı",
+	"edit": "Düzenle...",
+	"forNextMode": "sonraki mod için"
 }

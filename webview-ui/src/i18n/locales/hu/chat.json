@@ -56,5 +56,11 @@
 	"typeTask": "Írja ide a feladatát...",
 	"addContext": "@ kontextus hozzáadásához, / módváltáshoz",
 	"dragFiles": "tartsa lenyomva a shift billentyűt a fájlok húzásához",
-	"dragFilesImages": "tartsa lenyomva a shift billentyűt a fájlok/képek húzásához"
+	"dragFilesImages": "tartsa lenyomva a shift billentyűt a fájlok/képek húzásához",
+	"enhancePromptDescription": "A 'Kérés fokozása' gomb segít a kérése javításában azáltal, hogy további környezetet, magyarázatot vagy újrafogalmazást ad. Írjon be egy kérést ide, majd kattintson újra a gombra, hogy lássa, hogyan működik.",
+	"errorReadingFile": "Hiba a fájl olvasása közben:",
+	"noValidImages": "Nem történt érvényes kép feldolgozása",
+	"separator": "Elválasztó",
+	"edit": "Szerkesztés...",
+	"forNextMode": "a következő módhoz"
 }
