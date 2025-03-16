@@ -210,6 +210,9 @@
 			"pricingDetails": "További információkért lásd az árazási részleteket."
 		}
 	},
+	"modelPicker": {
+		"automaticFetch": "A bővítmény automatikusan letölti a <serviceLink>{{serviceName}}</serviceLink> oldalon elérhető modellek legfrissebb listáját. Ha nem biztos benne, melyik modellt válassza, a Roo Code legjobban a <defaultModelLink>{{defaultModelId}}</defaultModelLink> modellel működik. Kereshet \"free\" kifejezésre is, hogy megtalálja a jelenleg elérhető ingyenes opciókat."
+	},
 	"footer": {
 		"feedback": "Ha bármilyen kérdése vagy visszajelzése van, nyugodtan nyisson egy problémát a <githubLink>github.com/RooVetGit/Roo-Code</githubLink> oldalon, vagy csatlakozzon a <redditLink>reddit.com/r/RooCode</redditLink> vagy <discordLink>discord.gg/roocode</discordLink> oldalhoz",
 		"version": "Roo Code v{{version}}",

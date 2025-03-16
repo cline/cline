@@ -210,6 +210,9 @@
 			"pricingDetails": "有關更多資訊，請參閱定價詳情。"
 		}
 	},
+	"modelPicker": {
+		"automaticFetch": "擴充功能會自動獲取 <serviceLink>{{serviceName}}</serviceLink> 上可用的最新模型列表。如果您不確定選擇哪個模型，Roo Code 與 <defaultModelLink>{{defaultModelId}}</defaultModelLink> 配合最佳。您還可以搜尋\"free\"以尋找目前可用的免費選項。"
+	},
 	"footer": {
 		"feedback": "如果您有任何問題或反饋，請隨時在 <githubLink>github.com/RooVetGit/Roo-Code</githubLink> 上提出問題或加入 <redditLink>reddit.com/r/RooCode</redditLink> 或 <discordLink>discord.gg/roocode</discordLink>",
 		"version": "Roo Code v{{version}}",

@@ -210,6 +210,9 @@
 			"pricingDetails": "لمزيد من المعلومات، راجع تفاصيل التسعير."
 		}
 	},
+	"modelPicker": {
+		"automaticFetch": "يقوم الامتداد تلقائيًا بجلب أحدث قائمة للنماذج المتاحة على <serviceLink>{{serviceName}}</serviceLink>. إذا كنت غير متأكد من النموذج الذي يجب اختياره، فإن Roo Code يعمل بشكل أفضل مع <defaultModelLink>{{defaultModelId}}</defaultModelLink>. يمكنك أيضًا البحث عن \"free\" للخيارات المجانية المتاحة حاليًا."
+	},
 	"footer": {
 		"feedback": "إذا كان لديك أي أسئلة أو ملاحظات، فلا تتردد في فتح مشكلة في <githubLink>github.com/RooVetGit/Roo-Code</githubLink> أو الانضمام إلى <redditLink>reddit.com/r/RooCode</redditLink> أو <discordLink>discord.gg/roocode</discordLink>",
 		"version": "Roo Code v{{version}}",

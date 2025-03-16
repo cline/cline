@@ -210,6 +210,9 @@
 			"pricingDetails": "Pro více informací viz podrobnosti o cenách."
 		}
 	},
+	"modelPicker": {
+		"automaticFetch": "Rozšíření automaticky načítá nejnovější seznam modelů dostupných na <serviceLink>{{serviceName}}</serviceLink>. Pokud si nejste jisti, který model vybrat, Roo Code funguje nejlépe s <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Můžete také zkusit vyhledat \"free\" pro aktuálně dostupné bezplatné možnosti."
+	},
 	"footer": {
 		"feedback": "Pokud máte jakékoliv otázky nebo zpětnou vazbu, neváhejte otevřít problém na <githubLink>github.com/RooVetGit/Roo-Code</githubLink> nebo se připojit na <redditLink>reddit.com/r/RooCode</redditLink> nebo <discordLink>discord.gg/roocode</discordLink>",
 		"version": "Roo Code v{{version}}",
