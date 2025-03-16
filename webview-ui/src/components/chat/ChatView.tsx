@@ -945,7 +945,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		const baseText = task ? t("chat:typeMessage") : t("chat:typeTask")
 		const contextText = t("chat:addContext")
 		const imageText = shouldDisableImages ? `, ${t("chat:dragFiles")}` : `, ${t("chat:dragFilesImages")}`
-		return baseText + `\n${contextText}${imageText})`
+		return baseText + `\n(${contextText}${imageText})`
 	}, [task, shouldDisableImages, t])
 
 	const itemContent = useCallback(

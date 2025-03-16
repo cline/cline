@@ -54,7 +54,7 @@
 	"sendMessage": "Odeslat zprávu",
 	"typeMessage": "Napište zprávu...",
 	"typeTask": "Napište svůj úkol zde...",
-	"addContext": "(@ pro přidání kontextu, / pro přepnutí režimů",
+	"addContext": "@ pro přidání kontextu, / pro přepnutí režimů",
 	"dragFiles": "podržte shift pro přetažení souborů",
 	"dragFilesImages": "podržte shift pro přetažení souborů/obrázků"
 }

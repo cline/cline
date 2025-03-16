@@ -54,7 +54,7 @@
 	"sendMessage": "Üzenet küldése",
 	"typeMessage": "Írjon egy üzenetet...",
 	"typeTask": "Írja ide a feladatát...",
-	"addContext": "(@ kontextus hozzáadásához, / módváltáshoz",
+	"addContext": "@ kontextus hozzáadásához, / módváltáshoz",
 	"dragFiles": "tartsa lenyomva a shift billentyűt a fájlok húzásához",
 	"dragFilesImages": "tartsa lenyomva a shift billentyűt a fájlok/képek húzásához"
 }

@@ -54,7 +54,7 @@
 	"sendMessage": "Mesaj gönder",
 	"typeMessage": "Bir mesaj yazın...",
 	"typeTask": "Görevinizi buraya yazın...",
-	"addContext": "(@ bağlam eklemek için, / modları değiştirmek için",
+	"addContext": "@ bağlam eklemek için, / modları değiştirmek için",
 	"dragFiles": "dosyaları sürüklemek için shift tuşunu basılı tutun",
 	"dragFilesImages": "dosyaları/resimleri sürüklemek için shift tuşunu basılı tutun"
 }
