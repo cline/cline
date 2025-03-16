@@ -54,7 +54,7 @@
 	"sendMessage": "发送消息",
 	"typeMessage": "输入消息...",
 	"typeTask": "输入您的任务...",
-	"addContext": "(@ 添加上下文, / 切换模式",
+	"addContext": "@ 添加上下文, / 切换模式",
 	"dragFiles": "按住 shift 拖入文件",
 	"dragFilesImages": "按住 shift 拖入文件/图片"
 }

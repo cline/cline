@@ -54,7 +54,7 @@
 	"sendMessage": "Envia el missatge",
 	"typeMessage": "Escriu un missatge...",
 	"typeTask": "Escriu la teva tasca aquí...",
-	"addContext": "(@ per afegir context, / per canviar de mode",
+	"addContext": "@ per afegir context, / per canviar de mode",
 	"dragFiles": "manté premut shift per arrossegar fitxers",
 	"dragFilesImages": "manté premut shift per arrossegar fitxers/imatges"
 }

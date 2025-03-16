@@ -54,7 +54,7 @@
 	"sendMessage": "Envoyer le message",
 	"typeMessage": "Tapez un message...",
 	"typeTask": "Tapez votre tâche ici...",
-	"addContext": "(@ pour ajouter du contexte, / pour changer de mode",
+	"addContext": "@ pour ajouter du contexte, / pour changer de mode",
 	"dragFiles": "maintenez shift pour glisser des fichiers",
 	"dragFilesImages": "maintenez shift pour glisser des fichiers/images"
 }

@@ -54,7 +54,7 @@
 	"sendMessage": "إرسال الرسالة",
 	"typeMessage": "اكتب رسالة...",
 	"typeTask": "اكتب مهمتك هنا...",
-	"addContext": "(@ لإضافة سياق، / لتبديل الأوضاع",
+	"addContext": "@ لإضافة سياق، / لتبديل الأوضاع",
 	"dragFiles": "اضغط على shift لسحب الملفات",
 	"dragFilesImages": "اضغط على shift لسحب الملفات/الصور"
 }

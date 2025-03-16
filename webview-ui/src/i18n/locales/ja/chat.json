@@ -54,7 +54,7 @@
 	"sendMessage": "メッセージを送信",
 	"typeMessage": "メッセージを入力...",
 	"typeTask": "ここにタスクを入力...",
-	"addContext": "(@ コンテキストを追加, / モードを切り替え",
+	"addContext": "@ コンテキストを追加, / モードを切り替え",
 	"dragFiles": "ファイルをドラッグするにはshiftを押したままにします",
 	"dragFilesImages": "ファイル/画像をドラッグするにはshiftを押したままにします"
 }

@@ -54,7 +54,7 @@
 	"sendMessage": "Nachricht senden",
 	"typeMessage": "Nachricht eingeben...",
 	"typeTask": "Geben Sie hier Ihre Aufgabe ein...",
-	"addContext": "(@ um Kontext hinzuzufügen, / um Modi zu wechseln",
+	"addContext": "@ um Kontext hinzuzufügen, / um Modi zu wechseln",
 	"dragFiles": "Halten Sie die Umschalttaste gedrückt, um Dateien zu ziehen",
 	"dragFilesImages": "Halten Sie die Umschalttaste gedrückt, um Dateien/Bilder zu ziehen"
 }
