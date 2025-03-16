@@ -1980,7 +1980,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
-		await this.contextProxy.setValues(apiConfiguration)
+		await this.contextProxy.setApiConfiguration(apiConfiguration)
 
 		if (this.getCurrentCline()) {
 			this.getCurrentCline()!.api = buildApiHandler(apiConfiguration)
