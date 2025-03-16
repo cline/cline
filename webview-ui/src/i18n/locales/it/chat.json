@@ -56,5 +56,58 @@
 	"typeTask": "Scrivi qui la tua attività...",
 	"addContext": "@ per aggiungere contesto, / per cambiare modalità",
 	"dragFiles": "tieni premuto shift per trascinare i file",
-	"dragFilesImages": "tieni premuto shift per trascinare file/immagini"
+	"dragFilesImages": "tieni premuto shift per trascinare file/immagini",
+	"enhancePromptDescription": "Il pulsante 'Migliora il prompt' aiuta a migliorare la tua richiesta fornendo contesto aggiuntivo, chiarimenti o riformulazioni. Prova a digitare una richiesta qui e clicca nuovamente il pulsante per vedere come funziona.",
+	"errorReadingFile": "Errore durante la lettura del file:",
+	"noValidImages": "Nessuna immagine valida è stata elaborata",
+	"separator": "Separatore",
+	"edit": "Modifica...",
+	"forNextMode": "per la modalità successiva",
+	"autoApprove": {
+		"title": "Approvazione automatica:",
+		"none": "Nessuna",
+		"description": "L'approvazione automatica consente a Roo Code di eseguire azioni senza chiedere permesso. Abilita solo per azioni di cui ti fidi completamente.",
+		"actions": {
+			"readFiles": {
+				"label": "Leggere file e directory",
+				"shortName": "Lettura",
+				"description": "Consente l'accesso in lettura a qualsiasi file sul tuo computer."
+			},
+			"editFiles": {
+				"label": "Modificare file",
+				"shortName": "Modifica",
+				"description": "Consente la modifica di qualsiasi file sul tuo computer."
+			},
+			"executeCommands": {
+				"label": "Eseguire comandi approvati",
+				"shortName": "Comandi",
+				"description": "Consente l'esecuzione di comandi terminal approvati. Puoi configurare questo nel pannello delle impostazioni."
+			},
+			"useBrowser": {
+				"label": "Usare il browser",
+				"shortName": "Browser",
+				"description": "Consente la possibilità di avviare e interagire con qualsiasi sito web in un browser headless."
+			},
+			"useMcp": {
+				"label": "Usare server MCP",
+				"shortName": "MCP",
+				"description": "Consente l'uso di server MCP configurati che potrebbero modificare il filesystem o interagire con API."
+			},
+			"switchModes": {
+				"label": "Cambiare modalità",
+				"shortName": "Modalità",
+				"description": "Consente il passaggio automatico tra diverse modalità senza richiedere approvazione."
+			},
+			"subtasks": {
+				"label": "Creare e completare sottoattività",
+				"shortName": "Sottoattività",
+				"description": "Consente la creazione e il completamento di sottoattività senza richiedere approvazione."
+			},
+			"retryRequests": {
+				"label": "Riprovare richieste fallite",
+				"shortName": "Tentativi",
+				"description": "Riprova automaticamente le richieste API fallite quando il provider restituisce una risposta di errore."
+			}
+		}
+	}
 }

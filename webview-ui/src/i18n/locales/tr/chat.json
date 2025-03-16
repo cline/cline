@@ -56,5 +56,58 @@
 	"typeTask": "Görevinizi buraya yazın...",
 	"addContext": "@ bağlam eklemek için, / modları değiştirmek için",
 	"dragFiles": "dosyaları sürüklemek için shift tuşunu basılı tutun",
-	"dragFilesImages": "dosyaları/resimleri sürüklemek için shift tuşunu basılı tutun"
+	"dragFilesImages": "dosyaları/resimleri sürüklemek için shift tuşunu basılı tutun",
+	"enhancePromptDescription": "'İstemi geliştir' düğmesi, ek bağlam, açıklama veya yeniden ifade sağlayarak istemlerinizi iyileştirmenize yardımcı olur. Buraya bir istem yazın ve nasıl çalıştığını görmek için düğmeye tekrar tıklayın.",
+	"errorReadingFile": "Dosya okuma hatası:",
+	"noValidImages": "Hiçbir geçerli resim işlenmedi",
+	"separator": "Ayırıcı",
+	"edit": "Düzenle...",
+	"forNextMode": "sonraki mod için",
+	"autoApprove": {
+		"title": "Otomatik onaylama:",
+		"none": "Yok",
+		"description": "Otomatik onaylama, Roo Code'un izin istemeden işlemler gerçekleştirmesine olanak tanır. Sadece tamamen güvendiğiniz işlemler için etkinleştirin.",
+		"actions": {
+			"readFiles": {
+				"label": "Dosya ve dizinleri oku",
+				"shortName": "Okuma",
+				"description": "Bilgisayarınızdaki herhangi bir dosyayı okuma erişimi sağlar."
+			},
+			"editFiles": {
+				"label": "Dosyaları düzenle",
+				"shortName": "Düzenleme",
+				"description": "Bilgisayarınızdaki herhangi bir dosyanın değiştirilmesine izin verir."
+			},
+			"executeCommands": {
+				"label": "Onaylanmış komutları çalıştır",
+				"shortName": "Komutlar",
+				"description": "Onaylanmış terminal komutlarının çalıştırılmasına izin verir. Bunu ayarlar panelinden yapılandırabilirsiniz."
+			},
+			"useBrowser": {
+				"label": "Tarayıcıyı kullan",
+				"shortName": "Tarayıcı",
+				"description": "Başsız bir tarayıcıda herhangi bir web sitesini başlatma ve etkileşimde bulunma yeteneği sağlar."
+			},
+			"useMcp": {
+				"label": "MCP sunucularını kullan",
+				"shortName": "MCP",
+				"description": "Dosya sistemini değiştirebilen veya API'lerle etkileşimde bulunabilen yapılandırılmış MCP sunucularının kullanımına izin verir."
+			},
+			"switchModes": {
+				"label": "Modları değiştir",
+				"shortName": "Modlar",
+				"description": "Onay gerektirmeden farklı modlar arasında otomatik geçiş yapılmasına izin verir."
+			},
+			"subtasks": {
+				"label": "Alt görevler oluştur ve tamamla",
+				"shortName": "Alt görevler",
+				"description": "Onay gerektirmeden alt görevlerin oluşturulmasına ve tamamlanmasına izin verir."
+			},
+			"retryRequests": {
+				"label": "Başarısız istekleri yeniden dene",
+				"shortName": "Yeniden Denemeler",
+				"description": "Sağlayıcı bir hata yanıtı döndürdüğünde başarısız API isteklerini otomatik olarak yeniden dener."
+			}
+		}
+	}
 }

@@ -56,5 +56,58 @@
 	"typeTask": "Digite sua tarefa aqui...",
 	"addContext": "@ para adicionar contexto, / para mudar modos",
 	"dragFiles": "segure shift para arrastar arquivos",
-	"dragFilesImages": "segure shift para arrastar arquivos/imagens"
+	"dragFilesImages": "segure shift para arrastar arquivos/imagens",
+	"enhancePromptDescription": "O botão 'Melhorar o prompt' ajuda a aprimorar seu pedido fornecendo contexto adicional, esclarecimentos ou reformulações. Tente digitar um pedido aqui e clique no botão novamente para ver como funciona.",
+	"errorReadingFile": "Erro ao ler o arquivo:",
+	"noValidImages": "Nenhuma imagem válida foi processada",
+	"separator": "Separador",
+	"edit": "Editar...",
+	"forNextMode": "para o próximo modo",
+	"autoApprove": {
+		"title": "Aprovação automática:",
+		"none": "Nenhum",
+		"description": "A aprovação automática permite que o Roo Code execute ações sem pedir permissão. Ative apenas para ações nas quais você confia totalmente.",
+		"actions": {
+			"readFiles": {
+				"label": "Ler arquivos e diretórios",
+				"shortName": "Leitura",
+				"description": "Permite acesso para ler qualquer arquivo em seu computador."
+			},
+			"editFiles": {
+				"label": "Editar arquivos",
+				"shortName": "Edição",
+				"description": "Permite a modificação de quaisquer arquivos em seu computador."
+			},
+			"executeCommands": {
+				"label": "Executar comandos aprovados",
+				"shortName": "Comandos",
+				"description": "Permite a execução de comandos de terminal aprovados. Você pode configurar isso no painel de configurações."
+			},
+			"useBrowser": {
+				"label": "Usar o navegador",
+				"shortName": "Navegador",
+				"description": "Permite a capacidade de iniciar e interagir com qualquer site em um navegador headless."
+			},
+			"useMcp": {
+				"label": "Usar servidores MCP",
+				"shortName": "MCP",
+				"description": "Permite o uso de servidores MCP configurados que podem modificar o sistema de arquivos ou interagir com APIs."
+			},
+			"switchModes": {
+				"label": "Alternar modos",
+				"shortName": "Modos",
+				"description": "Permite a alternância automática entre diferentes modos sem exigir aprovação."
+			},
+			"subtasks": {
+				"label": "Criar e concluir subtarefas",
+				"shortName": "Subtarefas",
+				"description": "Permite a criação e conclusão de subtarefas sem exigir aprovação."
+			},
+			"retryRequests": {
+				"label": "Tentar novamente solicitações com falha",
+				"shortName": "Novas tentativas",
+				"description": "Tenta automaticamente solicitações de API com falha quando o provedor retorna uma resposta de erro."
+			}
+		}
+	}
 }

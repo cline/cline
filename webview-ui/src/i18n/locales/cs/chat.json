@@ -56,5 +56,58 @@
 	"typeTask": "Napište svůj úkol zde...",
 	"addContext": "@ pro přidání kontextu, / pro přepnutí režimů",
 	"dragFiles": "podržte shift pro přetažení souborů",
-	"dragFilesImages": "podržte shift pro přetažení souborů/obrázků"
+	"dragFilesImages": "podržte shift pro přetažení souborů/obrázků",
+	"enhancePromptDescription": "Tlačítko 'Vylepšit výzvu' pomáhá zlepšit vaši výzvu poskytnutím dalšího kontextu, objasnění nebo přeformulování. Zkuste zde napsat výzvu a znovu klikněte na tlačítko pro zobrazení, jak to funguje.",
+	"errorReadingFile": "Chyba při čtení souboru:",
+	"noValidImages": "Nebyly zpracovány žádné platné obrázky",
+	"separator": "Oddělovač",
+	"edit": "Upravit...",
+	"forNextMode": "pro další režim",
+	"autoApprove": {
+		"title": "Automatické schválení:",
+		"none": "Žádné",
+		"description": "Automatické schválení umožňuje Roo Code provádět akce bez vyžádání povolení. Povolte pouze pro akce, kterým plně důvěřujete.",
+		"actions": {
+			"readFiles": {
+				"label": "Číst soubory a adresáře",
+				"shortName": "Čtení",
+				"description": "Umožňuje přístup ke čtení jakéhokoli souboru na vašem počítači."
+			},
+			"editFiles": {
+				"label": "Upravovat soubory",
+				"shortName": "Úpravy",
+				"description": "Umožňuje úpravy jakýchkoli souborů na vašem počítači."
+			},
+			"executeCommands": {
+				"label": "Spouštět schválené příkazy",
+				"shortName": "Příkazy",
+				"description": "Umožňuje spouštění schválených terminálových příkazů. Toto můžete nakonfigurovat v panelu nastavení."
+			},
+			"useBrowser": {
+				"label": "Používat prohlížeč",
+				"shortName": "Prohlížeč",
+				"description": "Umožňuje spuštění a interakci s jakýmkoli webem v headless prohlížeči."
+			},
+			"useMcp": {
+				"label": "Používat MCP servery",
+				"shortName": "MCP",
+				"description": "Umožňuje použití nakonfigurovaných MCP serverů, které mohou upravovat souborový systém nebo komunikovat s API."
+			},
+			"switchModes": {
+				"label": "Přepínat režimy",
+				"shortName": "Režimy",
+				"description": "Umožňuje automatické přepínání mezi různými režimy bez nutnosti schválení."
+			},
+			"subtasks": {
+				"label": "Vytvářet a dokončovat dílčí úkoly",
+				"shortName": "Dílčí úkoly",
+				"description": "Umožňuje vytváření a dokončování dílčích úkolů bez nutnosti schválení."
+			},
+			"retryRequests": {
+				"label": "Opakovat neúspěšné požadavky",
+				"shortName": "Opakování",
+				"description": "Automaticky opakuje neúspěšné API požadavky, když poskytovatel vrátí chybovou odpověď."
+			}
+		}
+	}
 }

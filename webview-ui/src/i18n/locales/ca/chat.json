@@ -56,5 +56,58 @@
 	"typeTask": "Escriu la teva tasca aquí...",
 	"addContext": "@ per afegir context, / per canviar de mode",
 	"dragFiles": "manté premut shift per arrossegar fitxers",
-	"dragFilesImages": "manté premut shift per arrossegar fitxers/imatges"
+	"dragFilesImages": "manté premut shift per arrossegar fitxers/imatges",
+	"enhancePromptDescription": "El botó 'Millora la sol·licitud' ajuda a millorar la teva sol·licitud proporcionant context addicional, aclariments o reformulacions. Prova d'escriure una sol·licitud aquí i fes clic al botó de nou per veure com funciona.",
+	"errorReadingFile": "Error en llegir el fitxer:",
+	"noValidImages": "No s'ha processat cap imatge vàlida",
+	"separator": "Separador",
+	"edit": "Edita...",
+	"forNextMode": "per al següent mode",
+	"autoApprove": {
+		"title": "Aprovació automàtica:",
+		"none": "Cap",
+		"description": "L'aprovació automàtica permet a Roo Code realitzar accions sense demanar permís. Activa-la només per a accions en les que confies plenament.",
+		"actions": {
+			"readFiles": {
+				"label": "Llegir fitxers i directoris",
+				"shortName": "Lectura",
+				"description": "Permet l'accés per llegir qualsevol fitxer al teu ordinador."
+			},
+			"editFiles": {
+				"label": "Editar fitxers",
+				"shortName": "Edició",
+				"description": "Permet la modificació de qualsevol fitxer al teu ordinador."
+			},
+			"executeCommands": {
+				"label": "Executar ordres aprovades",
+				"shortName": "Ordres",
+				"description": "Permet l'execució d'ordres de terminal aprovades. Pots configurar-ho al panell de configuració."
+			},
+			"useBrowser": {
+				"label": "Utilitzar el navegador",
+				"shortName": "Navegador",
+				"description": "Permet la capacitat d'iniciar i interactuar amb qualsevol lloc web en un navegador headless."
+			},
+			"useMcp": {
+				"label": "Utilitzar servidors MCP",
+				"shortName": "MCP",
+				"description": "Permet l'ús de servidors MCP configurats que poden modificar el sistema de fitxers o interactuar amb APIs."
+			},
+			"switchModes": {
+				"label": "Canviar modes",
+				"shortName": "Modes",
+				"description": "Permet el canvi automàtic entre diferents modes sense requerir aprovació."
+			},
+			"subtasks": {
+				"label": "Crear i completar subtasques",
+				"shortName": "Subtasques",
+				"description": "Permet la creació i finalització de subtasques sense requerir aprovació."
+			},
+			"retryRequests": {
+				"label": "Reintentar sol·licituds fallides",
+				"shortName": "Reintents",
+				"description": "Reintenta automàticament les sol·licituds API fallides quan el proveïdor retorna una resposta d'error."
+			}
+		}
+	}
 }

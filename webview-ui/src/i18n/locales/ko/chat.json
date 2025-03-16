@@ -56,5 +56,58 @@
 	"typeTask": "여기에 작업을 입력하세요...",
 	"addContext": "@ 컨텍스트 추가, / 모드 전환",
 	"dragFiles": "파일을 드래그하려면 shift를 누르세요",
-	"dragFilesImages": "파일/이미지를 드래그하려면 shift를 누르세요"
+	"dragFilesImages": "파일/이미지를 드래그하려면 shift를 누르세요",
+	"enhancePromptDescription": "'프롬프트 강화' 버튼은 추가 컨텍스트, 설명 또는 재구성을 제공하여 프롬프트를 개선하는 데 도움을 줍니다. 여기에 프롬프트를 입력하고 버튼을 다시 클릭하여 작동 방식을 확인하세요.",
+	"errorReadingFile": "파일 읽기 오류:",
+	"noValidImages": "유효한 이미지가 처리되지 않았습니다",
+	"separator": "구분선",
+	"edit": "편집...",
+	"forNextMode": "다음 모드로",
+	"autoApprove": {
+		"title": "자동 승인:",
+		"none": "없음",
+		"description": "자동 승인을 사용하면 Roo Code가 권한 요청 없이 작업을 수행할 수 있습니다. 완전히 신뢰하는 작업에만 활성화하세요.",
+		"actions": {
+			"readFiles": {
+				"label": "파일 및 디렉터리 읽기",
+				"shortName": "읽기",
+				"description": "컴퓨터의 모든 파일에 대한 읽기 액세스를 허용합니다."
+			},
+			"editFiles": {
+				"label": "파일 편집",
+				"shortName": "편집",
+				"description": "컴퓨터의 모든 파일을 수정할 수 있도록 허용합니다."
+			},
+			"executeCommands": {
+				"label": "승인된 명령 실행",
+				"shortName": "명령",
+				"description": "승인된 터미널 명령의 실행을 허용합니다. 설정 패널에서 이를 구성할 수 있습니다."
+			},
+			"useBrowser": {
+				"label": "브라우저 사용",
+				"shortName": "브라우저",
+				"description": "헤드리스 브라우저에서 모든 웹사이트를 시작하고 상호 작용할 수 있는 기능을 허용합니다."
+			},
+			"useMcp": {
+				"label": "MCP 서버 사용",
+				"shortName": "MCP",
+				"description": "파일 시스템을 수정하거나 API와 상호 작용할 수 있는 구성된 MCP 서버 사용을 허용합니다."
+			},
+			"switchModes": {
+				"label": "모드 전환",
+				"shortName": "모드",
+				"description": "승인 요청 없이 다양한 모드 간의 자동 전환을 허용합니다."
+			},
+			"subtasks": {
+				"label": "하위 작업 생성 및 완료",
+				"shortName": "하위 작업",
+				"description": "승인 요청 없이 하위 작업 생성 및 완료를 허용합니다."
+			},
+			"retryRequests": {
+				"label": "실패한 요청 재시도",
+				"shortName": "재시도",
+				"description": "제공자가 오류 응답을 반환할 때 실패한 API 요청을 자동으로 재시도합니다."
+			}
+		}
+	}
 }

@@ -56,5 +56,58 @@
 	"typeTask": "Írja ide a feladatát...",
 	"addContext": "@ kontextus hozzáadásához, / módváltáshoz",
 	"dragFiles": "tartsa lenyomva a shift billentyűt a fájlok húzásához",
-	"dragFilesImages": "tartsa lenyomva a shift billentyűt a fájlok/képek húzásához"
+	"dragFilesImages": "tartsa lenyomva a shift billentyűt a fájlok/képek húzásához",
+	"enhancePromptDescription": "A 'Kérés fokozása' gomb segít a kérése javításában azáltal, hogy további környezetet, magyarázatot vagy újrafogalmazást ad. Írjon be egy kérést ide, majd kattintson újra a gombra, hogy lássa, hogyan működik.",
+	"errorReadingFile": "Hiba a fájl olvasása közben:",
+	"noValidImages": "Nem történt érvényes kép feldolgozása",
+	"separator": "Elválasztó",
+	"edit": "Szerkesztés...",
+	"forNextMode": "a következő módhoz",
+	"autoApprove": {
+		"title": "Automatikus jóváhagyás:",
+		"none": "Nincs",
+		"description": "Az automatikus jóváhagyás lehetővé teszi a Roo Code számára, hogy engedélykérés nélkül hajtson végre műveleteket. Csak olyan műveletekhez engedélyezze, amelyekben teljesen megbízik.",
+		"actions": {
+			"readFiles": {
+				"label": "Fájlok és könyvtárak olvasása",
+				"shortName": "Olvasás",
+				"description": "Hozzáférést biztosít bármely fájl olvasásához a számítógépén."
+			},
+			"editFiles": {
+				"label": "Fájlok szerkesztése",
+				"shortName": "Szerkesztés",
+				"description": "Lehetővé teszi bármely fájl módosítását a számítógépén."
+			},
+			"executeCommands": {
+				"label": "Jóváhagyott parancsok végrehajtása",
+				"shortName": "Parancsok",
+				"description": "Lehetővé teszi a jóváhagyott terminálparancsok végrehajtását. Ezt a beállítások panelen konfigurálhatja."
+			},
+			"useBrowser": {
+				"label": "Böngésző használata",
+				"shortName": "Böngésző",
+				"description": "Lehetővé teszi bármely weboldal elindítását és a vele való interakciót fejléc nélküli böngészőben."
+			},
+			"useMcp": {
+				"label": "MCP szerverek használata",
+				"shortName": "MCP",
+				"description": "Lehetővé teszi olyan konfigurált MCP szerverek használatát, amelyek módosíthatják a fájlrendszert vagy API-kkal léphetnek kapcsolatba."
+			},
+			"switchModes": {
+				"label": "Módok váltása",
+				"shortName": "Módok",
+				"description": "Lehetővé teszi a különböző módok közötti automatikus váltást jóváhagyás nélkül."
+			},
+			"subtasks": {
+				"label": "Alfeladatok létrehozása és befejezése",
+				"shortName": "Alfeladatok",
+				"description": "Lehetővé teszi alfeladatok létrehozását és befejezését jóváhagyás nélkül."
+			},
+			"retryRequests": {
+				"label": "Sikertelen kérések újrapróbálása",
+				"shortName": "Újrapróbálások",
+				"description": "Automatikusan újrapróbálja a sikertelen API kéréseket, amikor a szolgáltató hibaüzenetet ad vissza."
+			}
+		}
+	}
 }

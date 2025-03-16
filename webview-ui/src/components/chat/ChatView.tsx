@@ -42,9 +42,10 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0
-const modeShortcutText = `${isMac ? "⌘" : "Ctrl"} + . for next mode`
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
+	const { t } = useAppTranslation()
+	const modeShortcutText = `${isMac ? "⌘" : "Ctrl"} + . ${t("chat:forNextMode")}`
 	const {
 		version,
 		clineMessages: messages,
@@ -66,8 +67,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		customModes,
 		telemetrySetting,
 	} = useExtensionState()
-
-	const { t } = useAppTranslation()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -941,12 +940,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		[],
 	)
 
-	const placeholderText = useMemo(() => {
-		const baseText = task ? t("chat:typeMessage") : t("chat:typeTask")
-		const contextText = t("chat:addContext")
-		const imageText = shouldDisableImages ? `, ${t("chat:dragFiles")}` : `, ${t("chat:dragFilesImages")}`
-		return baseText + `\n(${contextText}${imageText})`
-	}, [task, shouldDisableImages, t])
+	const baseText = task ? t("chat:typeMessage") : t("chat:typeTask")
+	const placeholderText =
+		baseText +
+		`\n(${t("chat:addContext")}${shouldDisableImages ? `, ${t("chat:dragFiles")}` : `, ${t("chat:dragFilesImages")}`})`
 
 	const itemContent = useCallback(
 		(index: number, messageOrGroup: ClineMessage | ClineMessage[]) => {

@@ -56,5 +56,58 @@
 	"typeTask": "Geben Sie hier Ihre Aufgabe ein...",
 	"addContext": "@ um Kontext hinzuzufügen, / um Modi zu wechseln",
 	"dragFiles": "Halten Sie die Umschalttaste gedrückt, um Dateien zu ziehen",
-	"dragFilesImages": "Halten Sie die Umschalttaste gedrückt, um Dateien/Bilder zu ziehen"
+	"dragFilesImages": "Halten Sie die Umschalttaste gedrückt, um Dateien/Bilder zu ziehen",
+	"enhancePromptDescription": "Die Schaltfläche 'Eingabeaufforderung verbessern' hilft, Ihre Anfrage durch zusätzlichen Kontext, Klarstellungen oder Umformulierungen zu verbessern. Geben Sie eine Anfrage ein und klicken Sie erneut auf die Schaltfläche, um zu sehen, wie es funktioniert.",
+	"errorReadingFile": "Fehler beim Lesen der Datei:",
+	"noValidImages": "Es wurden keine gültigen Bilder verarbeitet",
+	"separator": "Trennlinie",
+	"edit": "Bearbeiten...",
+	"forNextMode": "für nächsten Modus",
+	"autoApprove": {
+		"title": "Auto-Genehmigung:",
+		"none": "Keine",
+		"description": "Auto-Genehmigung erlaubt Roo Code, Aktionen ohne Nachfrage auszuführen. Aktivieren Sie dies nur für Aktionen, denen Sie vollständig vertrauen.",
+		"actions": {
+			"readFiles": {
+				"label": "Dateien und Verzeichnisse lesen",
+				"shortName": "Lesen",
+				"description": "Ermöglicht den Zugriff zum Lesen jeder Datei auf Ihrem Computer."
+			},
+			"editFiles": {
+				"label": "Dateien bearbeiten",
+				"shortName": "Bearbeiten",
+				"description": "Ermöglicht die Bearbeitung beliebiger Dateien auf Ihrem Computer."
+			},
+			"executeCommands": {
+				"label": "Genehmigte Befehle ausführen",
+				"shortName": "Befehle",
+				"description": "Erlaubt die Ausführung genehmigter Terminalbefehle. Sie können dies im Einstellungsbereich konfigurieren."
+			},
+			"useBrowser": {
+				"label": "Browser verwenden",
+				"shortName": "Browser",
+				"description": "Ermöglicht das Starten und Interagieren mit jeder Website in einem Headless-Browser."
+			},
+			"useMcp": {
+				"label": "MCP-Server verwenden",
+				"shortName": "MCP",
+				"description": "Erlaubt die Verwendung konfigurierter MCP-Server, die das Dateisystem ändern oder mit APIs interagieren können."
+			},
+			"switchModes": {
+				"label": "Modi wechseln",
+				"shortName": "Modi",
+				"description": "Ermöglicht automatisches Wechseln zwischen verschiedenen Modi ohne Genehmigung."
+			},
+			"subtasks": {
+				"label": "Teilaufgaben erstellen & abschließen",
+				"shortName": "Teilaufgaben",
+				"description": "Erlaubt die Erstellung und den Abschluss von Teilaufgaben ohne Genehmigung."
+			},
+			"retryRequests": {
+				"label": "Fehlgeschlagene Anfragen wiederholen",
+				"shortName": "Wiederholungen",
+				"description": "Wiederholt automatisch fehlgeschlagene API-Anfragen, wenn der Anbieter eine Fehlermeldung zurückgibt."
+			}
+		}
+	}
 }

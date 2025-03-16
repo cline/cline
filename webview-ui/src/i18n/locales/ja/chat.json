@@ -56,5 +56,58 @@
 	"typeTask": "ここにタスクを入力...",
 	"addContext": "@ コンテキストを追加, / モードを切り替え",
 	"dragFiles": "ファイルをドラッグするにはshiftを押したままにします",
-	"dragFilesImages": "ファイル/画像をドラッグするにはshiftを押したままにします"
+	"dragFilesImages": "ファイル/画像をドラッグするにはshiftを押したままにします",
+	"enhancePromptDescription": "「プロンプト強化」ボタンは、追加のコンテキスト、説明、または言い換えを提供することで、あなたのプロンプトを改善するのに役立ちます。ここにプロンプトを入力して、もう一度ボタンをクリックするとどのように機能するかが分かります。",
+	"errorReadingFile": "ファイルの読み込み中にエラーが発生しました：",
+	"noValidImages": "有効な画像が処理されませんでした",
+	"separator": "区切り線",
+	"edit": "編集...",
+	"forNextMode": "次のモードへ",
+	"autoApprove": {
+		"title": "自動承認：",
+		"none": "なし",
+		"description": "自動承認は、Roo Codeに許可を求めずに操作を実行することを許可します。完全に信頼できる操作のみを有効にしてください。",
+		"actions": {
+			"readFiles": {
+				"label": "ファイルとディレクトリの読み取り",
+				"shortName": "読取",
+				"description": "あなたのコンピューター上の任意のファイルを読み取るアクセスを許可します。"
+			},
+			"editFiles": {
+				"label": "ファイルの編集",
+				"shortName": "編集",
+				"description": "あなたのコンピューター上の任意のファイルを変更することを許可します。"
+			},
+			"executeCommands": {
+				"label": "承認されたコマンドの実行",
+				"shortName": "コマンド",
+				"description": "承認されたターミナルコマンドの実行を許可します。設定パネルでこれを構成できます。"
+			},
+			"useBrowser": {
+				"label": "ブラウザの使用",
+				"shortName": "ブラウザ",
+				"description": "ヘッドレスブラウザで任意のウェブサイトを起動し対話する機能を許可します。"
+			},
+			"useMcp": {
+				"label": "MCPサーバーの使用",
+				"shortName": "MCP",
+				"description": "ファイルシステムを変更したりAPIと対話したりする可能性のある構成済みMCPサーバーの使用を許可します。"
+			},
+			"switchModes": {
+				"label": "モードの切り替え",
+				"shortName": "モード",
+				"description": "承認を必要とせず、異なるモード間の自動切り替えを許可します。"
+			},
+			"subtasks": {
+				"label": "サブタスクの作成と完了",
+				"shortName": "サブタスク",
+				"description": "承認を必要とせずにサブタスクの作成と完了を許可します。"
+			},
+			"retryRequests": {
+				"label": "失敗したリクエストの再試行",
+				"shortName": "再試行",
+				"description": "プロバイダーがエラー応答を返した場合に、失敗したAPIリクエストを自動的に再試行します。"
+			}
+		}
+	}
 }

@@ -20,6 +20,7 @@ import Thumbnails from "../common/Thumbnails"
 import { convertToMentionPath } from "../../utils/path-mentions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
+import { useAppTranslation } from "../../i18n/TranslationContext"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -56,6 +57,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
+		const { t } = useAppTranslation()
 		const { filePaths, openedTabs, currentApiConfigName, listApiConfigMeta, customModes, cwd } = useExtensionState()
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 		const [showDropdown, setShowDropdown] = useState(false)
@@ -133,12 +135,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 					vscode.postMessage(message)
 				} else {
-					const promptDescription =
-						"The 'Enhance Prompt' button helps improve your prompt by providing additional context, clarification, or rephrasing. Try typing a prompt in here and clicking the button again to see how it works."
+					const promptDescription = t("chat:enhancePromptDescription")
 					setInputValue(promptDescription)
 				}
 			}
-		}, [inputValue, textAreaDisabled, setInputValue])
+		}, [inputValue, textAreaDisabled, setInputValue, t])
 
 		const queryItems = useMemo(() => {
 			return [
@@ -475,7 +476,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							const reader = new FileReader()
 							reader.onloadend = () => {
 								if (reader.error) {
-									console.error("Error reading file:", reader.error)
+									console.error(t("chat:errorReadingFile"), reader.error)
 									resolve(null)
 								} else {
 									const result = reader.result
@@ -490,11 +491,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					if (dataUrls.length > 0) {
 						setSelectedImages((prevImages) => [...prevImages, ...dataUrls].slice(0, MAX_IMAGES_PER_MESSAGE))
 					} else {
-						console.warn("No valid images were processed")
+						console.warn(t("chat:noValidImages"))
 					}
 				}
 			},
-			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue],
+			[shouldDisableImages, setSelectedImages, cursorPosition, setInputValue, inputValue, t],
 		)
 
 		const handleThumbnailsHeightChange = useCallback((height: number) => {
@@ -611,7 +612,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								const reader = new FileReader()
 								reader.onloadend = () => {
 									if (reader.error) {
-										console.error("Error reading file:", reader.error)
+										console.error(t("chat:errorReadingFile"), reader.error)
 										resolve(null)
 									} else {
 										const result = reader.result
@@ -634,7 +635,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								})
 							}
 						} else {
-							console.warn("No valid images were processed")
+							console.warn(t("chat:noValidImages"))
 						}
 					}
 				}}
@@ -779,7 +780,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<SelectDropdown
 								value={mode}
 								disabled={textAreaDisabled}
-								title="Select mode for interaction"
+								title={t("chat:selectMode")}
 								options={[
 									// Add the shortcut text as a disabled option at the top
 									{
@@ -797,13 +798,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									// Add separator
 									{
 										value: "sep-1",
-										label: "Separator",
+										label: t("chat:separator"),
 										type: DropdownOptionType.SEPARATOR,
 									},
 									// Add Edit option
 									{
 										value: "promptsButtonClicked",
-										label: "Edit...",
+										label: t("chat:edit"),
 										type: DropdownOptionType.ACTION,
 									},
 								]}
@@ -829,7 +830,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<SelectDropdown
 								value={currentApiConfigName || ""}
 								disabled={textAreaDisabled}
-								title="Select API configuration"
+								title={t("chat:selectApiConfig")}
 								options={[
 									// Add all API configurations
 									...(listApiConfigMeta || []).map((config) => ({
@@ -840,13 +841,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									// Add separator
 									{
 										value: "sep-2",
-										label: "Separator",
+										label: t("chat:separator"),
 										type: DropdownOptionType.SEPARATOR,
 									},
 									// Add Edit option
 									{
 										value: "settingsButtonClicked",
-										label: "Edit...",
+										label: t("chat:edit"),
 										type: DropdownOptionType.ACTION,
 									},
 								]}
@@ -886,7 +887,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									role="button"
 									aria-label="enhance prompt"
 									data-testid="enhance-prompt-button"
-									title="Enhance prompt with additional context"
+									title={t("chat:enhancePrompt")}
 									className={`input-icon-button ${
 										textAreaDisabled ? "disabled" : ""
 									} codicon codicon-sparkle`}
@@ -899,13 +900,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							className={`input-icon-button ${
 								shouldDisableImages ? "disabled" : ""
 							} codicon codicon-device-camera`}
-							title="Add images to message"
+							title={t("chat:addImages")}
 							onClick={() => !shouldDisableImages && onSelectImages()}
 							style={{ fontSize: 16.5 }}
 						/>
 						<span
 							className={`input-icon-button ${textAreaDisabled ? "disabled" : ""} codicon codicon-send`}
-							title="Send message"
+							title={t("chat:sendMessage")}
 							onClick={() => !textAreaDisabled && onSend()}
 							style={{ fontSize: 15 }}
 						/>

@@ -56,5 +56,58 @@
 	"typeTask": "Wpisz tutaj swoje zadanie...",
 	"addContext": "@ aby dodać kontekst, / aby przełączyć tryby",
 	"dragFiles": "przytrzymaj shift, aby przeciągnąć pliki",
-	"dragFilesImages": "przytrzymaj shift, aby przeciągnąć pliki/obrazy"
+	"dragFilesImages": "przytrzymaj shift, aby przeciągnąć pliki/obrazy",
+	"enhancePromptDescription": "Przycisk 'Ulepsz monit' pomaga poprawić twój monit, dostarczając dodatkowy kontekst, wyjaśnienia lub przeformułowania. Spróbuj wpisać monit tutaj i kliknij przycisk ponownie, aby zobaczyć, jak to działa.",
+	"errorReadingFile": "Błąd odczytu pliku:",
+	"noValidImages": "Nie przetworzono żadnych prawidłowych obrazów",
+	"separator": "Separator",
+	"edit": "Edytuj...",
+	"forNextMode": "dla następnego trybu",
+	"autoApprove": {
+		"title": "Automatyczne zatwierdzanie:",
+		"none": "Brak",
+		"description": "Automatyczne zatwierdzanie pozwala Roo Code na wykonywanie działań bez proszenia o pozwolenie. Włącz tylko dla działań, którym w pełni ufasz.",
+		"actions": {
+			"readFiles": {
+				"label": "Odczyt plików i katalogów",
+				"shortName": "Odczyt",
+				"description": "Pozwala na dostęp do odczytu dowolnego pliku na twoim komputerze."
+			},
+			"editFiles": {
+				"label": "Edycja plików",
+				"shortName": "Edycja",
+				"description": "Pozwala na modyfikację dowolnych plików na twoim komputerze."
+			},
+			"executeCommands": {
+				"label": "Wykonywanie zatwierdzonych poleceń",
+				"shortName": "Polecenia",
+				"description": "Pozwala na wykonywanie zatwierdzonych poleceń terminalowych. Możesz to skonfigurować w panelu ustawień."
+			},
+			"useBrowser": {
+				"label": "Używanie przeglądarki",
+				"shortName": "Przeglądarka",
+				"description": "Pozwala na uruchamianie i interakcję z dowolną stroną internetową w przeglądarce headless."
+			},
+			"useMcp": {
+				"label": "Używanie serwerów MCP",
+				"shortName": "MCP",
+				"description": "Pozwala na używanie skonfigurowanych serwerów MCP, które mogą modyfikować system plików lub wchodzić w interakcję z API."
+			},
+			"switchModes": {
+				"label": "Przełączanie trybów",
+				"shortName": "Tryby",
+				"description": "Pozwala na automatyczne przełączanie między różnymi trybami bez konieczności zatwierdzania."
+			},
+			"subtasks": {
+				"label": "Tworzenie i kończenie podzadań",
+				"shortName": "Podzadania",
+				"description": "Pozwala na tworzenie i kończenie podzadań bez konieczności zatwierdzania."
+			},
+			"retryRequests": {
+				"label": "Ponowne próby nieudanych żądań",
+				"shortName": "Ponowne próby",
+				"description": "Automatycznie ponawia nieudane żądania API, gdy dostawca zwraca odpowiedź z błędem."
+			}
+		}
+	}
 }

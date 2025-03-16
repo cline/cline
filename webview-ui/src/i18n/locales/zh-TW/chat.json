@@ -56,5 +56,58 @@
 	"typeTask": "在此輸入您的任務...",
 	"addContext": "@ 添加上下文, / 切換模式",
 	"dragFiles": "按住 shift 拖動文件",
-	"dragFilesImages": "按住 shift 拖動文件/圖片"
+	"dragFilesImages": "按住 shift 拖動文件/圖片",
+	"enhancePromptDescription": "「增強提示」按鈕通過提供額外的上下文、解釋或重新表述來幫助改進你的提示。在此處輸入提示，然後再次點擊按鈕查看其工作方式。",
+	"errorReadingFile": "讀取檔案時出錯：",
+	"noValidImages": "沒有處理有效圖片",
+	"separator": "分隔線",
+	"edit": "編輯...",
+	"forNextMode": "切換至下一模式",
+	"autoApprove": {
+		"title": "自動批准：",
+		"none": "無",
+		"description": "自動批准允許 Roo Code 無需請求權限即可執行操作。僅對您完全信任的操作啟用此功能。",
+		"actions": {
+			"readFiles": {
+				"label": "讀取檔案和目錄",
+				"shortName": "讀取",
+				"description": "允許存取並讀取您電腦上的任何檔案。"
+			},
+			"editFiles": {
+				"label": "編輯檔案",
+				"shortName": "編輯",
+				"description": "允許修改您電腦上的任何檔案。"
+			},
+			"executeCommands": {
+				"label": "執行已批准的命令",
+				"shortName": "命令",
+				"description": "允許執行已批准的終端命令。您可以在設定面板中設定此功能。"
+			},
+			"useBrowser": {
+				"label": "使用瀏覽器",
+				"shortName": "瀏覽器",
+				"description": "允許在無頭瀏覽器中啟動並與任何網站互動。"
+			},
+			"useMcp": {
+				"label": "使用 MCP 伺服器",
+				"shortName": "MCP",
+				"description": "允許使用已設定的 MCP 伺服器，這些伺服器可能會修改檔案系統或與 API 互動。"
+			},
+			"switchModes": {
+				"label": "切換模式",
+				"shortName": "模式",
+				"description": "允許在不同模式之間自動切換，無需批准。"
+			},
+			"subtasks": {
+				"label": "建立和完成子任務",
+				"shortName": "子任務",
+				"description": "允許建立和完成子任務，無需批准。"
+			},
+			"retryRequests": {
+				"label": "重試失敗的請求",
+				"shortName": "重試",
+				"description": "當提供者返回錯誤回應時，自動重試失敗的 API 請求。"
+			}
+		}
+	}
 }
