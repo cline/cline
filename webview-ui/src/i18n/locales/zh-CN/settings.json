@@ -166,7 +166,27 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️"
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "使用实验性统一差异策略",
+			"description": "启用实验性统一差异策略。此策略可能减少由模型错误引起的重试次数，但可能导致意外行为或不正确的编辑。仅在您了解风险并愿意仔细审查所有更改时才启用。"
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "使用实验性搜索和替换工具",
+			"description": "启用实验性搜索和替换工具，允许 Roo 在一个请求中替换搜索词的多个实例。"
+		},
+		"INSERT_BLOCK": {
+			"name": "使用实验性插入内容工具",
+			"description": "启用实验性插入内容工具，允许 Roo 在特定行号插入内容，无需创建差异。"
+		},
+		"POWER_STEERING": {
+			"name": "使用实验性\"动力转向\"模式",
+			"description": "启用后，Roo 将更频繁地提醒模型关于其当前模式定义的详细信息。这将导致对角色定义和自定义指令的更强遵守，但每条消息将使用更多 token。"
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "使用实验性多块差异工具",
+			"description": "启用后，Roo 将使用多块差异工具。这将尝试在一个请求中更新文件中的多个代码块。"
+		}
 	},
 	"temperature": {
 		"useCustom": "使用自定义温度",

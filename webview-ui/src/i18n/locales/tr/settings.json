@@ -166,7 +166,27 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️"
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Deneysel birleştirilmiş diff stratejisini kullan",
+			"description": "Deneysel birleştirilmiş diff stratejisini etkinleştir. Bu strateji, model hatalarından kaynaklanan yeniden deneme sayısını azaltabilir, ancak beklenmeyen davranışlara veya hatalı düzenlemelere neden olabilir. Yalnızca riskleri anlıyorsanız ve tüm değişiklikleri dikkatlice incelemeye istekliyseniz etkinleştirin."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Deneysel arama ve değiştirme aracını kullan",
+			"description": "Deneysel arama ve değiştirme aracını etkinleştir, Roo'nun tek bir istekte bir arama teriminin birden fazla örneğini değiştirmesine olanak tanır."
+		},
+		"INSERT_BLOCK": {
+			"name": "Deneysel içerik ekleme aracını kullan",
+			"description": "Deneysel içerik ekleme aracını etkinleştir, Roo'nun bir diff oluşturma gereği duymadan belirli satır numaralarına içerik eklemesine olanak tanır."
+		},
+		"POWER_STEERING": {
+			"name": "Deneysel \"güç direksiyon\" modunu kullan",
+			"description": "Etkinleştirildiğinde, Roo modele geçerli mod tanımının ayrıntılarını daha sık hatırlatacaktır. Bu, rol tanımlarına ve özel talimatlara daha güçlü uyum sağlayacak, ancak mesaj başına daha fazla token kullanacaktır."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Deneysel çoklu blok diff aracını kullan",
+			"description": "Etkinleştirildiğinde, Roo çoklu blok diff aracını kullanacaktır. Bu, tek bir istekte dosyadaki birden fazla kod bloğunu güncellemeye çalışacaktır."
+		}
 	},
 	"temperature": {
 		"useCustom": "Özel sıcaklık kullan",

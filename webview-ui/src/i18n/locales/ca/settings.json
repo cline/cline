@@ -166,7 +166,27 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️"
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Utilitzar estratègia diff unificada experimental",
+			"description": "Activar l'estratègia diff unificada experimental. Aquesta estratègia podria reduir el nombre de reintents causats per errors del model, però pot causar comportaments inesperats o edicions incorrectes. Activeu-la només si enteneu els riscos i esteu disposats a revisar acuradament tots els canvis."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Utilitzar eina de cerca i reemplaçament experimental",
+			"description": "Activar l'eina de cerca i reemplaçament experimental, permetent a Roo reemplaçar múltiples instàncies d'un terme de cerca en una sola petició."
+		},
+		"INSERT_BLOCK": {
+			"name": "Utilitzar eina d'inserció de contingut experimental",
+			"description": "Activar l'eina d'inserció de contingut experimental, permetent a Roo inserir contingut a números de línia específics sense necessitat de crear un diff."
+		},
+		"POWER_STEERING": {
+			"name": "Utilitzar mode \"direcció assistida\" experimental",
+			"description": "Quan està activat, Roo recordarà al model els detalls de la seva definició de mode actual amb més freqüència. Això portarà a una adherència més forta a les definicions de rol i instruccions personalitzades, però utilitzarà més tokens per missatge."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Utilitzar eina diff de blocs múltiples experimental",
+			"description": "Quan està activat, Roo utilitzarà l'eina diff de blocs múltiples. Això intentarà actualitzar múltiples blocs de codi a l'arxiu en una sola petició."
+		}
 	},
 	"temperature": {
 		"useCustom": "Utilitzar temperatura personalitzada",

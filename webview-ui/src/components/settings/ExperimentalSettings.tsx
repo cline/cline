@@ -42,7 +42,7 @@ export const ExperimentalSettings = ({
 					.map((config) => (
 						<ExperimentalFeature
 							key={config[0]}
-							{...config[1]}
+							experimentKey={config[0]}
 							enabled={experiments[EXPERIMENT_IDS[config[0] as keyof typeof EXPERIMENT_IDS]] ?? false}
 							onChange={(enabled) =>
 								setExperimentEnabled(EXPERIMENT_IDS[config[0] as keyof typeof EXPERIMENT_IDS], enabled)

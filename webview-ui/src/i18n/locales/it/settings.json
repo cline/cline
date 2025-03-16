@@ -166,7 +166,27 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️"
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Usa strategia diff unificata sperimentale",
+			"description": "Abilita la strategia diff unificata sperimentale. Questa strategia potrebbe ridurre il numero di tentativi causati da errori del modello, ma può causare comportamenti imprevisti o modifiche errate. Abilitala solo se comprendi i rischi e sei disposto a rivedere attentamente tutte le modifiche."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Usa strumento di ricerca e sostituzione sperimentale",
+			"description": "Abilita lo strumento di ricerca e sostituzione sperimentale, consentendo a Roo di sostituire più istanze di un termine di ricerca in una singola richiesta."
+		},
+		"INSERT_BLOCK": {
+			"name": "Usa strumento di inserimento contenuti sperimentale",
+			"description": "Abilita lo strumento di inserimento contenuti sperimentale, consentendo a Roo di inserire contenuti a numeri di riga specifici senza dover creare un diff."
+		},
+		"POWER_STEERING": {
+			"name": "Usa modalità \"servosterzo\" sperimentale",
+			"description": "Quando abilitato, Roo ricorderà al modello i dettagli della sua definizione di modalità corrente più frequentemente. Questo porterà a una maggiore aderenza alle definizioni dei ruoli e alle istruzioni personalizzate, ma utilizzerà più token per messaggio."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Usa strumento diff multi-blocco sperimentale",
+			"description": "Quando abilitato, Roo utilizzerà lo strumento diff multi-blocco. Questo tenterà di aggiornare più blocchi di codice nel file in una singola richiesta."
+		}
 	},
 	"temperature": {
 		"useCustom": "Usa temperatura personalizzata",

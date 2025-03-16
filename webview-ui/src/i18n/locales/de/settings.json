@@ -166,7 +166,27 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️"
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Experimentelle einheitliche Diff-Strategie verwenden",
+			"description": "Aktiviert die experimentelle einheitliche Diff-Strategie. Diese Strategie könnte die Anzahl der durch Modellfehler verursachten Wiederholungen reduzieren, kann aber unerwartetes Verhalten oder falsche Bearbeitungen verursachen. Nur aktivieren, wenn Sie die Risiken verstehen und bereit sind, alle Änderungen sorgfältig zu überprüfen."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Experimentelles Such- und Ersetzungswerkzeug verwenden",
+			"description": "Aktiviert das experimentelle Such- und Ersetzungswerkzeug, das Roo ermöglicht, mehrere Instanzen eines Suchbegriffs in einer Anfrage zu ersetzen."
+		},
+		"INSERT_BLOCK": {
+			"name": "Experimentelles Inhalts-Einfüge-Werkzeug verwenden",
+			"description": "Aktiviert das experimentelle Inhalts-Einfüge-Werkzeug, das Roo ermöglicht, Inhalte an bestimmten Zeilennummern einzufügen, ohne einen Diff erstellen zu müssen."
+		},
+		"POWER_STEERING": {
+			"name": "Experimentellen \"Servolenkung\"-Modus verwenden",
+			"description": "Wenn aktiviert, wird Roo das Modell häufiger an die Details seiner aktuellen Modusdefinition erinnern. Dies führt zu einer stärkeren Einhaltung von Rollendefinitionen und benutzerdefinierten Anweisungen, verwendet aber mehr Tokens pro Nachricht."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Experimentelles Multi-Block-Diff-Werkzeug verwenden",
+			"description": "Wenn aktiviert, verwendet Roo das Multi-Block-Diff-Werkzeug. Dies versucht, mehrere Codeblöcke in der Datei in einer Anfrage zu aktualisieren."
+		}
 	},
 	"temperature": {
 		"useCustom": "Benutzerdefinierte Temperatur verwenden",

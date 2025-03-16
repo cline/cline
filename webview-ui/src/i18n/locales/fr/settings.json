@@ -166,7 +166,27 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️"
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Utiliser la stratégie diff unifiée expérimentale",
+			"description": "Activer la stratégie diff unifiée expérimentale. Cette stratégie pourrait réduire le nombre de tentatives causées par des erreurs de modèle, mais peut provoquer des comportements inattendus ou des modifications incorrectes. Activez-la uniquement si vous comprenez les risques et êtes prêt à examiner attentivement tous les changements."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Utiliser l'outil de recherche et remplacement expérimental",
+			"description": "Activer l'outil de recherche et remplacement expérimental, permettant à Roo de remplacer plusieurs occurrences d'un terme de recherche en une seule requête."
+		},
+		"INSERT_BLOCK": {
+			"name": "Utiliser l'outil d'insertion de contenu expérimental",
+			"description": "Activer l'outil d'insertion de contenu expérimental, permettant à Roo d'insérer du contenu à des numéros de ligne spécifiques sans avoir besoin de créer un diff."
+		},
+		"POWER_STEERING": {
+			"name": "Utiliser le mode \"direction assistée\" expérimental",
+			"description": "Lorsqu'il est activé, Roo rappellera plus fréquemment au modèle les détails de sa définition de mode actuelle. Cela conduira à une adhérence plus forte aux définitions de rôles et aux instructions personnalisées, mais utilisera plus de tokens par message."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Utiliser l'outil diff multi-blocs expérimental",
+			"description": "Lorsqu'il est activé, Roo utilisera l'outil diff multi-blocs. Cela tentera de mettre à jour plusieurs blocs de code dans le fichier en une seule requête."
+		}
 	},
 	"temperature": {
 		"useCustom": "Utiliser une température personnalisée",

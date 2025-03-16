@@ -166,7 +166,27 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️"
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Kísérleti egységesített diff stratégia használata",
+			"description": "Engedélyezi a kísérleti egységesített diff stratégiát. Ez a stratégia csökkentheti a modell hibái miatt szükséges újrapróbálkozások számát, de váratlan viselkedést vagy helytelen szerkesztéseket okozhat. Csak akkor engedélyezze, ha megérti a kockázatokat és hajlandó gondosan áttekinteni minden változtatást."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Kísérleti keresés és csere eszköz használata",
+			"description": "Engedélyezi a kísérleti keresés és csere eszközt, lehetővé téve a Roo számára, hogy egy keresési kifejezés több előfordulását helyettesítse egy kérésben."
+		},
+		"INSERT_BLOCK": {
+			"name": "Kísérleti tartalom beszúró eszköz használata",
+			"description": "Engedélyezi a kísérleti tartalom beszúró eszközt, lehetővé téve a Roo számára, hogy tartalmat szúrjon be meghatározott sorszámokra diff létrehozása nélkül."
+		},
+		"POWER_STEERING": {
+			"name": "Kísérleti \"szervokormány\" mód használata",
+			"description": "Ha engedélyezve van, a Roo gyakrabban fogja emlékeztetni a modellt az aktuális módja definíciójának részleteire. Ez erősebb ragaszkodást eredményez a szerepdefiníciókhoz és az egyéni utasításokhoz, de több tokent fog használni üzenetenként."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Kísérleti több blokkos diff eszköz használata",
+			"description": "Ha engedélyezve van, a Roo a több blokkos diff eszközt fogja használni. Ez megpróbál több kódblokkot frissíteni a fájlban egy kérésben."
+		}
 	},
 	"temperature": {
 		"useCustom": "Egyéni hőmérséklet használata",
