@@ -1,0 +1,60 @@
+{
+	"greeting": "Que peut faire Roo pour vous ?",
+	"retry": {
+		"title": "Réessayer",
+		"tooltip": "Réessayez l'opération"
+	},
+	"startNewTask": {
+		"title": "Démarrer une nouvelle tâche",
+		"tooltip": "Commencez une nouvelle tâche"
+	},
+	"proceedAnyways": {
+		"title": "Continuer quand même",
+		"tooltip": "Continuer pendant l'exécution de la commande"
+	},
+	"save": {
+		"title": "Enregistrer",
+		"tooltip": "Enregistrer les modifications du fichier"
+	},
+	"reject": {
+		"title": "Rejeter",
+		"tooltip": "Rejeter cette action"
+	},
+	"completeSubtaskAndReturn": "Terminer la sous-tâche et revenir",
+	"approve": {
+		"title": "Approuver",
+		"tooltip": "Approuver cette action"
+	},
+	"runCommand": {
+		"title": "Exécuter la commande",
+		"tooltip": "Exécuter cette commande"
+	},
+	"proceedWhileRunning": {
+		"title": "Continuer pendant l'exécution",
+		"tooltip": "Continuer malgré les avertissements"
+	},
+	"resumeTask": {
+		"title": "Reprendre la tâche",
+		"tooltip": "Reprendre la tâche en cours"
+	},
+	"terminate": {
+		"title": "Terminer",
+		"tooltip": "Terminer la tâche en cours"
+	},
+	"cancel": {
+		"title": "Annuler",
+		"tooltip": "Annuler l'opération en cours"
+	},
+	"scrollToBottom": "Faire défiler jusqu'en bas du chat",
+	"aboutMe": "Grâce aux dernières avancées en matière de capacités de codage agentique, je peux gérer des tâches complexes de développement de logiciels étape par étape. Avec des outils qui me permettent de créer et de modifier des fichiers, d'explorer des projets complexes, d'utiliser le navigateur et d'exécuter des commandes terminal (après votre approbation), je peux vous aider de manière qui va au-delà de la complétion de code ou du support technique. Je peux même utiliser MCP pour créer de nouveaux outils et étendre mes propres capacités.",
+	"selectMode": "Sélectionner le mode d'interaction",
+	"selectApiConfig": "Sélectionner la configuration de l'API",
+	"enhancePrompt": "Améliorer l'invite avec un contexte supplémentaire",
+	"addImages": "Ajouter des images au message",
+	"sendMessage": "Envoyer le message",
+	"typeMessage": "Tapez un message...",
+	"typeTask": "Tapez votre tâche ici...",
+	"addContext": "@ pour ajouter du contexte, / pour changer de mode",
+	"dragFiles": "maintenez shift pour glisser des fichiers",
+	"dragFilesImages": "maintenez shift pour glisser des fichiers/images"
+}

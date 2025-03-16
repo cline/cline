@@ -1,0 +1,60 @@
+{
+	"greeting": "Què pot fer Roo per tu?",
+	"retry": {
+		"title": "Tornar a intentar",
+		"tooltip": "Torna a provar l'operació"
+	},
+	"startNewTask": {
+		"title": "Començar una nova tasca",
+		"tooltip": "Comença una nova tasca"
+	},
+	"proceedAnyways": {
+		"title": "Continuar de totes maneres",
+		"tooltip": "Continua mentre s'executa l'ordre"
+	},
+	"save": {
+		"title": "Desar",
+		"tooltip": "Desa els canvis del fitxer"
+	},
+	"reject": {
+		"title": "Rebutjar",
+		"tooltip": "Rebutja aquesta acció"
+	},
+	"completeSubtaskAndReturn": "Completar la subtasca i tornar",
+	"approve": {
+		"title": "Aprovar",
+		"tooltip": "Aprova aquesta acció"
+	},
+	"runCommand": {
+		"title": "Executar ordre",
+		"tooltip": "Executa aquesta ordre"
+	},
+	"proceedWhileRunning": {
+		"title": "Continuar mentre s'executa",
+		"tooltip": "Continua malgrat els advertiments"
+	},
+	"resumeTask": {
+		"title": "Reprendre la tasca",
+		"tooltip": "Repren la tasca actual"
+	},
+	"terminate": {
+		"title": "Finalitzar",
+		"tooltip": "Finalitza la tasca actual"
+	},
+	"cancel": {
+		"title": "Cancel·lar",
+		"tooltip": "Cancel·la l'operació actual"
+	},
+	"scrollToBottom": "Desplaça't al final del xat",
+	"aboutMe": "Gràcies als últims avenços en capacitats de codificació intel·ligent, puc gestionar tasques complexes de desenvolupament de programari pas a pas. Amb eines que em permeten crear i editar fitxers, explorar projectes complexos, utilitzar el navegador i executar ordres de terminal (després que em donis permís), puc ajudar-te de maneres que van més enllà de la finalització de codi o el suport tècnic. Fins i tot puc utilitzar MCP per crear noves eines i ampliar les meves capacitats.",
+	"selectMode": "Selecciona el mode d'interacció",
+	"selectApiConfig": "Selecciona la configuració de l'API",
+	"enhancePrompt": "Millora la sol·licitud amb context addicional",
+	"addImages": "Afegeix imatges al missatge",
+	"sendMessage": "Envia el missatge",
+	"typeMessage": "Escriu un missatge...",
+	"typeTask": "Escriu la teva tasca aquí...",
+	"addContext": "@ per afegir context, / per canviar de mode",
+	"dragFiles": "manté premut shift per arrossegar fitxers",
+	"dragFilesImages": "manté premut shift per arrossegar fitxers/imatges"
+}

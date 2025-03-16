@@ -1,3 +1,60 @@
 {
-	"greeting": "What can Roo do for you?"
+	"greeting": "What can Roo do for you?",
+	"retry": {
+		"title": "Retry",
+		"tooltip": "Try the operation again"
+	},
+	"startNewTask": {
+		"title": "Start New Task",
+		"tooltip": "Begin a new task"
+	},
+	"proceedAnyways": {
+		"title": "Proceed Anyways",
+		"tooltip": "Continue while command executes"
+	},
+	"save": {
+		"title": "Save",
+		"tooltip": "Save the file changes"
+	},
+	"reject": {
+		"title": "Reject",
+		"tooltip": "Reject this action"
+	},
+	"completeSubtaskAndReturn": "Complete Subtask and Return",
+	"approve": {
+		"title": "Approve",
+		"tooltip": "Approve this action"
+	},
+	"runCommand": {
+		"title": "Run Command",
+		"tooltip": "Execute this command"
+	},
+	"proceedWhileRunning": {
+		"title": "Proceed While Running",
+		"tooltip": "Continue despite warnings"
+	},
+	"resumeTask": {
+		"title": "Resume Task",
+		"tooltip": "Continue the current task"
+	},
+	"terminate": {
+		"title": "Terminate",
+		"tooltip": "End the current task"
+	},
+	"cancel": {
+		"title": "Cancel",
+		"tooltip": "Cancel the current operation"
+	},
+	"scrollToBottom": "Scroll to bottom of chat",
+	"aboutMe": "Thanks to the latest breakthroughs in agentic coding capabilities, I can handle complex software development tasks step-by-step. With tools that let me create & edit files, explore complex projects, use the browser, and execute terminal commands (after you grant permission), I can assist you in ways that go beyond code completion or tech support. I can even use MCP to create new tools and extend my own capabilities.",
+	"selectMode": "Select mode for interaction",
+	"selectApiConfig": "Select API configuration",
+	"enhancePrompt": "Enhance prompt with additional context",
+	"addImages": "Add images to message",
+	"sendMessage": "Send message",
+	"typeMessage": "Type a message...",
+	"typeTask": "Type your task here...",
+	"addContext": "@ to add context, / to switch modes",
+	"dragFiles": "hold shift to drag in files",
+	"dragFilesImages": "hold shift to drag in files/images"
 }

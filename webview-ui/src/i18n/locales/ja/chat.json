@@ -1,0 +1,60 @@
+{
+	"greeting": "Rooはあなたのために何ができますか？",
+	"retry": {
+		"title": "再試行",
+		"tooltip": "操作を再試行してください"
+	},
+	"startNewTask": {
+		"title": "新しいタスクを開始",
+		"tooltip": "新しいタスクを開始します"
+	},
+	"proceedAnyways": {
+		"title": "とにかく続行",
+		"tooltip": "コマンドの実行中に続行します"
+	},
+	"save": {
+		"title": "保存",
+		"tooltip": "ファイルの変更を保存します"
+	},
+	"reject": {
+		"title": "拒否",
+		"tooltip": "このアクションを拒否します"
+	},
+	"completeSubtaskAndReturn": "サブタスクを完了して戻る",
+	"approve": {
+		"title": "承認",
+		"tooltip": "このアクションを承認します"
+	},
+	"runCommand": {
+		"title": "コマンドを実行",
+		"tooltip": "このコマンドを実行します"
+	},
+	"proceedWhileRunning": {
+		"title": "実行中に続行",
+		"tooltip": "警告にもかかわらず続行します"
+	},
+	"resumeTask": {
+		"title": "タスクを再開",
+		"tooltip": "現在のタスクを再開します"
+	},
+	"terminate": {
+		"title": "終了",
+		"tooltip": "現在のタスクを終了します"
+	},
+	"cancel": {
+		"title": "キャンセル",
+		"tooltip": "現在の操作をキャンセルします"
+	},
+	"scrollToBottom": "チャットの最下部にスクロール",
+	"aboutMe": "エージェント型コーディング能力の最新の進歩により、複雑なソフトウェア開発タスクを段階的に処理できます。ファイルの作成と編集、複雑なプロジェクトの探索、ブラウザの使用、ターミナルコマンドの実行（あなたの許可を得た後）を可能にするツールを使用して、コード補完やテクニカルサポートを超えた方法であなたを支援できます。MCPを使用して新しいツールを作成し、自分の能力を拡張することもできます。",
+	"selectMode": "インタラクションモードを選択",
+	"selectApiConfig": "API設定を選択",
+	"enhancePrompt": "追加のコンテキストでプロンプトを強化",
+	"addImages": "メッセージに画像を追加",
+	"sendMessage": "メッセージを送信",
+	"typeMessage": "メッセージを入力...",
+	"typeTask": "ここにタスクを入力...",
+	"addContext": "@ コンテキストを追加, / モードを切り替え",
+	"dragFiles": "ファイルをドラッグするにはshiftを押したままにします",
+	"dragFilesImages": "ファイル/画像をドラッグするにはshiftを押したままにします"
+}

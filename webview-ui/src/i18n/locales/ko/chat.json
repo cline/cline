@@ -1,0 +1,60 @@
+{
+	"greeting": "Roo가 당신을 위해 무엇을 할 수 있나요?",
+	"retry": {
+		"title": "다시 시도",
+		"tooltip": "작업을 다시 시도하세요"
+	},
+	"startNewTask": {
+		"title": "새 작업 시작",
+		"tooltip": "새 작업을 시작하세요"
+	},
+	"proceedAnyways": {
+		"title": "어쨌든 계속",
+		"tooltip": "명령이 실행되는 동안 계속하세요"
+	},
+	"save": {
+		"title": "저장",
+		"tooltip": "파일 변경 사항을 저장하세요"
+	},
+	"reject": {
+		"title": "거부",
+		"tooltip": "이 작업을 거부하세요"
+	},
+	"completeSubtaskAndReturn": "하위 작업 완료 및 돌아가기",
+	"approve": {
+		"title": "승인",
+		"tooltip": "이 작업을 승인하세요"
+	},
+	"runCommand": {
+		"title": "명령 실행",
+		"tooltip": "이 명령을 실행하세요"
+	},
+	"proceedWhileRunning": {
+		"title": "실행 중 계속",
+		"tooltip": "경고에도 불구하고 계속하세요"
+	},
+	"resumeTask": {
+		"title": "작업 재개",
+		"tooltip": "현재 작업을 재개하세요"
+	},
+	"terminate": {
+		"title": "종료",
+		"tooltip": "현재 작업을 종료하세요"
+	},
+	"cancel": {
+		"title": "취소",
+		"tooltip": "현재 작업을 취소하세요"
+	},
+	"scrollToBottom": "채팅 하단으로 스크롤",
+	"aboutMe": "에이전트 코딩 능력의 최신 혁신 덕분에 복잡한 소프트웨어 개발 작업을 단계적으로 처리할 수 있습니다. 파일 생성 및 편집, 복잡한 프로젝트 탐색, 브라우저 사용, 터미널 명령 실행(귀하의 승인 후)을 가능하게 하는 도구를 사용하여 코드 완성이나 기술 지원을 넘어서는 방식으로 도움을 드릴 수 있습니다. MCP를 사용하여 새로운 도구를 만들고 내 능력을 확장할 수도 있습니다.",
+	"selectMode": "상호 작용 모드 선택",
+	"selectApiConfig": "API 구성 선택",
+	"enhancePrompt": "추가 컨텍스트로 프롬프트 강화",
+	"addImages": "메시지에 이미지 추가",
+	"sendMessage": "메시지 보내기",
+	"typeMessage": "메시지를 입력하세요...",
+	"typeTask": "여기에 작업을 입력하세요...",
+	"addContext": "@ 컨텍스트 추가, / 모드 전환",
+	"dragFiles": "파일을 드래그하려면 shift를 누르세요",
+	"dragFilesImages": "파일/이미지를 드래그하려면 shift를 누르세요"
+}

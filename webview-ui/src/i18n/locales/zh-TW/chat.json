@@ -1,0 +1,60 @@
+{
+	"greeting": "Roo 能為您做什麼？",
+	"retry": {
+		"title": "重試",
+		"tooltip": "再次嘗試操作"
+	},
+	"startNewTask": {
+		"title": "開始新任務",
+		"tooltip": "開始一個新任務"
+	},
+	"proceedAnyways": {
+		"title": "繼續執行",
+		"tooltip": "在命令執行期間繼續"
+	},
+	"save": {
+		"title": "儲存",
+		"tooltip": "儲存檔案變更"
+	},
+	"reject": {
+		"title": "拒絕",
+		"tooltip": "拒絕此操作"
+	},
+	"completeSubtaskAndReturn": "完成子任務並返回",
+	"approve": {
+		"title": "批准",
+		"tooltip": "批准此操作"
+	},
+	"runCommand": {
+		"title": "執行命令",
+		"tooltip": "執行此命令"
+	},
+	"proceedWhileRunning": {
+		"title": "執行期間繼續",
+		"tooltip": "無視警告繼續"
+	},
+	"resumeTask": {
+		"title": "恢復任務",
+		"tooltip": "恢復當前任務"
+	},
+	"terminate": {
+		"title": "終止",
+		"tooltip": "終止當前任務"
+	},
+	"cancel": {
+		"title": "取消",
+		"tooltip": "取消當前操作"
+	},
+	"scrollToBottom": "滾動到聊天底部",
+	"aboutMe": "得益於代理編碼能力的最新突破，我可以逐步處理複雜的軟體開發任務。通過允許我創建和編輯文件、探索複雜項目、使用瀏覽器和執行終端命令（在您批准後）的工具，我可以以超越代碼完成或技術支持的方式幫助您。我甚至可以使用 MCP 創建新工具並擴展自己的能力。",
+	"selectMode": "選擇互動模式",
+	"selectApiConfig": "選擇 API 配置",
+	"enhancePrompt": "使用額外上下文增強提示",
+	"addImages": "添加圖片到消息",
+	"sendMessage": "發送消息",
+	"typeMessage": "輸入消息...",
+	"typeTask": "在此輸入您的任務...",
+	"addContext": "@ 添加上下文, / 切換模式",
+	"dragFiles": "按住 shift 拖動文件",
+	"dragFilesImages": "按住 shift 拖動文件/圖片"
+}

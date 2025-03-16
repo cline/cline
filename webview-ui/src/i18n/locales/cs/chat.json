@@ -1,0 +1,60 @@
+{
+	"greeting": "Co pro vás může Roo udělat?",
+	"retry": {
+		"title": "Zkusit znovu",
+		"tooltip": "Zkuste operaci znovu"
+	},
+	"startNewTask": {
+		"title": "Zahájit nový úkol",
+		"tooltip": "Začněte nový úkol"
+	},
+	"proceedAnyways": {
+		"title": "Pokračovat i tak",
+		"tooltip": "Pokračujte během provádění příkazu"
+	},
+	"save": {
+		"title": "Uložit",
+		"tooltip": "Uložit změny souboru"
+	},
+	"reject": {
+		"title": "Odmítnout",
+		"tooltip": "Odmítnout tuto akci"
+	},
+	"completeSubtaskAndReturn": "Dokončit dílčí úkol a vrátit se",
+	"approve": {
+		"title": "Schválit",
+		"tooltip": "Schválit tuto akci"
+	},
+	"runCommand": {
+		"title": "Spustit příkaz",
+		"tooltip": "Spustit tento příkaz"
+	},
+	"proceedWhileRunning": {
+		"title": "Pokračovat během provádění",
+		"tooltip": "Pokračujte navzdory varováním"
+	},
+	"resumeTask": {
+		"title": "Pokračovat v úkolu",
+		"tooltip": "Pokračujte v aktuálním úkolu"
+	},
+	"terminate": {
+		"title": "Ukončit",
+		"tooltip": "Ukončit aktuální úkol"
+	},
+	"cancel": {
+		"title": "Zrušit",
+		"tooltip": "Zrušit aktuální operaci"
+	},
+	"scrollToBottom": "Přejít na konec chatu",
+	"aboutMe": "Díky nejnovějším průlomům v agentních kódovacích schopnostech mohu řešit složité úkoly vývoje softwaru krok za krokem. S nástroji, které mi umožňují vytvářet a upravovat soubory, prozkoumávat složité projekty, používat prohlížeč a provádět terminálové příkazy (po vašem schválení), vám mohu pomoci způsoby, které přesahují dokončování kódu nebo technickou podporu. Mohu dokonce použít MCP k vytváření nových nástrojů a rozšiřování svých vlastních schopností.",
+	"selectMode": "Vyberte režim interakce",
+	"selectApiConfig": "Vyberte konfiguraci API",
+	"enhancePrompt": "Vylepšit výzvu o další kontext",
+	"addImages": "Přidat obrázky do zprávy",
+	"sendMessage": "Odeslat zprávu",
+	"typeMessage": "Napište zprávu...",
+	"typeTask": "Napište svůj úkol zde...",
+	"addContext": "@ pro přidání kontextu, / pro přepnutí režimů",
+	"dragFiles": "podržte shift pro přetažení souborů",
+	"dragFilesImages": "podržte shift pro přetažení souborů/obrázků"
+}

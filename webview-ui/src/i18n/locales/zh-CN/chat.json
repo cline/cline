@@ -1,0 +1,60 @@
+{
+	"greeting": "Roo能为您做什么？",
+	"retry": {
+		"title": "重试",
+		"tooltip": "重试此操作"
+	},
+	"startNewTask": {
+		"title": "开始新任务",
+		"tooltip": "开始新任务"
+	},
+	"proceedAnyways": {
+		"title": "继续执行",
+		"tooltip": "继续执行（尽管有警告）"
+	},
+	"save": {
+		"title": "保存",
+		"tooltip": "保存文件更改"
+	},
+	"reject": {
+		"title": "拒绝",
+		"tooltip": "拒绝此操作"
+	},
+	"completeSubtaskAndReturn": "完成子任务并返回",
+	"approve": {
+		"title": "批准",
+		"tooltip": "批准此操作"
+	},
+	"runCommand": {
+		"title": "运行命令",
+		"tooltip": "执行此命令"
+	},
+	"proceedWhileRunning": {
+		"title": "继续执行",
+		"tooltip": "在命令执行时继续"
+	},
+	"resumeTask": {
+		"title": "恢复任务",
+		"tooltip": "继续当前任务"
+	},
+	"terminate": {
+		"title": "终止",
+		"tooltip": "结束当前任务"
+	},
+	"cancel": {
+		"title": "取消",
+		"tooltip": "取消当前操作"
+	},
+	"scrollToBottom": "滚动到底部",
+	"aboutMe": "得益于最新的智能编码技术突破,我可以一步一步处理复杂的软件开发任务。通过允许我创建和编辑文件、探索复杂项目、使用浏览器以及执行终端命令（在您授权后）,我能够以超越代码补全或技术支持的方式协助您。我甚至可以使用MCP创建新工具并扩展自身能力。",
+	"selectMode": "选择模式",
+	"selectApiConfig": "选择大模型配置",
+	"enhancePrompt": "增强提示内容",
+	"addImages": "添加图片",
+	"sendMessage": "发送消息",
+	"typeMessage": "输入消息...",
+	"typeTask": "输入您的任务...",
+	"addContext": "@ 添加上下文, / 切换模式",
+	"dragFiles": "按住 shift 拖入文件",
+	"dragFilesImages": "按住 shift 拖入文件/图片"
+}

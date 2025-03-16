@@ -1,0 +1,60 @@
+{
+	"greeting": "O que o Roo pode fazer por você?",
+	"retry": {
+		"title": "Tentar novamente",
+		"tooltip": "Tente a operação novamente"
+	},
+	"startNewTask": {
+		"title": "Iniciar nova tarefa",
+		"tooltip": "Comece uma nova tarefa"
+	},
+	"proceedAnyways": {
+		"title": "Continuar mesmo assim",
+		"tooltip": "Continue enquanto o comando é executado"
+	},
+	"save": {
+		"title": "Salvar",
+		"tooltip": "Salvar alterações do arquivo"
+	},
+	"reject": {
+		"title": "Rejeitar",
+		"tooltip": "Rejeitar esta ação"
+	},
+	"completeSubtaskAndReturn": "Concluir subtarefa e retornar",
+	"approve": {
+		"title": "Aprovar",
+		"tooltip": "Aprovar esta ação"
+	},
+	"runCommand": {
+		"title": "Executar comando",
+		"tooltip": "Execute este comando"
+	},
+	"proceedWhileRunning": {
+		"title": "Continuar durante a execução",
+		"tooltip": "Continue apesar dos avisos"
+	},
+	"resumeTask": {
+		"title": "Retomar tarefa",
+		"tooltip": "Retome a tarefa atual"
+	},
+	"terminate": {
+		"title": "Terminar",
+		"tooltip": "Terminar a tarefa atual"
+	},
+	"cancel": {
+		"title": "Cancelar",
+		"tooltip": "Cancelar a operação atual"
+	},
+	"scrollToBottom": "Rolar até o final do chat",
+	"aboutMe": "Graças aos últimos avanços nas capacidades de codificação agentiva, posso lidar com tarefas complexas de desenvolvimento de software passo a passo. Com ferramentas que me permitem criar e editar arquivos, explorar projetos complexos, usar o navegador e executar comandos de terminal (após sua aprovação), posso ajudá-lo de maneiras que vão além da conclusão de código ou suporte técnico. Posso até usar o MCP para criar novas ferramentas e expandir minhas próprias capacidades.",
+	"selectMode": "Selecionar modo de interação",
+	"selectApiConfig": "Selecionar configuração da API",
+	"enhancePrompt": "Melhorar o prompt com contexto adicional",
+	"addImages": "Adicionar imagens à mensagem",
+	"sendMessage": "Enviar mensagem",
+	"typeMessage": "Digite uma mensagem...",
+	"typeTask": "Digite sua tarefa aqui...",
+	"addContext": "@ para adicionar contexto, / para mudar modos",
+	"dragFiles": "segure shift para arrastar arquivos",
+	"dragFilesImages": "segure shift para arrastar arquivos/imagens"
+}

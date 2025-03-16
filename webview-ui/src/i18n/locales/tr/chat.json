@@ -1,0 +1,60 @@
+{
+	"greeting": "Roo sizin için ne yapabilir?",
+	"retry": {
+		"title": "Yeniden Dene",
+		"tooltip": "İşlemi tekrar deneyin"
+	},
+	"startNewTask": {
+		"title": "Yeni Görev Başlat",
+		"tooltip": "Yeni bir görev başlatın"
+	},
+	"proceedAnyways": {
+		"title": "Yine de Devam Et",
+		"tooltip": "Komut çalışırken devam edin"
+	},
+	"save": {
+		"title": "Kaydet",
+		"tooltip": "Dosya değişikliklerini kaydedin"
+	},
+	"reject": {
+		"title": "Reddet",
+		"tooltip": "Bu eylemi reddedin"
+	},
+	"completeSubtaskAndReturn": "Alt görevi tamamla ve geri dön",
+	"approve": {
+		"title": "Onayla",
+		"tooltip": "Bu eylemi onaylayın"
+	},
+	"runCommand": {
+		"title": "Komut Çalıştır",
+		"tooltip": "Bu komutu çalıştırın"
+	},
+	"proceedWhileRunning": {
+		"title": "Çalışırken Devam Et",
+		"tooltip": "Uyarılara rağmen devam edin"
+	},
+	"resumeTask": {
+		"title": "Göreve Devam Et",
+		"tooltip": "Mevcut göreve devam edin"
+	},
+	"terminate": {
+		"title": "Sonlandır",
+		"tooltip": "Mevcut görevi sonlandırın"
+	},
+	"cancel": {
+		"title": "İptal",
+		"tooltip": "Mevcut işlemi iptal edin"
+	},
+	"scrollToBottom": "Sohbetin en altına kaydır",
+	"aboutMe": "Ajan tabanlı kodlama yeteneklerindeki son gelişmeler sayesinde, karmaşık yazılım geliştirme görevlerini adım adım ele alabiliyorum. Dosya oluşturma ve düzenleme, karmaşık projeleri keşfetme, tarayıcı kullanma ve terminal komutları çalıştırma (sizin onayınızla) gibi araçlarla, kod tamamlama veya teknik destek ötesinde size yardımcı olabilirim. Hatta MCP'yi kullanarak yeni araçlar oluşturabilir ve kendi yeteneklerimi genişletebilirim.",
+	"selectMode": "Etkileşim modunu seçin",
+	"selectApiConfig": "API yapılandırmasını seçin",
+	"enhancePrompt": "Ek bağlamla istemi geliştirin",
+	"addImages": "Mesaja resim ekle",
+	"sendMessage": "Mesaj gönder",
+	"typeMessage": "Bir mesaj yazın...",
+	"typeTask": "Görevinizi buraya yazın...",
+	"addContext": "@ bağlam eklemek için, / modları değiştirmek için",
+	"dragFiles": "dosyaları sürüklemek için shift tuşunu basılı tutun",
+	"dragFilesImages": "dosyaları/resimleri sürüklemek için shift tuşunu basılı tutun"
+}

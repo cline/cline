@@ -1,0 +1,60 @@
+{
+	"greeting": "Mit tehet Roo Önért?",
+	"retry": {
+		"title": "Újrapróbálás",
+		"tooltip": "Próbálja meg újra a műveletet"
+	},
+	"startNewTask": {
+		"title": "Új feladat indítása",
+		"tooltip": "Kezdjen egy új feladatot"
+	},
+	"proceedAnyways": {
+		"title": "Folytatás mindenképp",
+		"tooltip": "Folytatás a parancs végrehajtása közben"
+	},
+	"save": {
+		"title": "Mentés",
+		"tooltip": "Fájl változtatások mentése"
+	},
+	"reject": {
+		"title": "Elutasítás",
+		"tooltip": "Elutasítja ezt a műveletet"
+	},
+	"completeSubtaskAndReturn": "Alfeladat befejezése és visszatérés",
+	"approve": {
+		"title": "Jóváhagyás",
+		"tooltip": "Jóváhagyja ezt a műveletet"
+	},
+	"runCommand": {
+		"title": "Parancs futtatása",
+		"tooltip": "Futtassa ezt a parancsot"
+	},
+	"proceedWhileRunning": {
+		"title": "Folytatás futás közben",
+		"tooltip": "Folytatás a figyelmeztetések ellenére"
+	},
+	"resumeTask": {
+		"title": "Feladat folytatása",
+		"tooltip": "Folytassa az aktuális feladatot"
+	},
+	"terminate": {
+		"title": "Leállítás",
+		"tooltip": "Az aktuális feladat leállítása"
+	},
+	"cancel": {
+		"title": "Mégse",
+		"tooltip": "Az aktuális művelet megszakítása"
+	},
+	"scrollToBottom": "Görgessen a csevegés aljára",
+	"aboutMe": "Az ügynök-alapú kódolási képességek legújabb áttöréseinek köszönhetően képes vagyok lépésről lépésre kezelni a komplex szoftverfejlesztési feladatokat. Azokkal az eszközökkel, amelyek lehetővé teszik számomra a fájlok létrehozását és szerkesztését, a komplex projektek felfedezését, a böngésző használatát és a terminálparancsok végrehajtását (az Ön engedélye után), olyan módon segíthetek Önnek, amely túlmutat a kódkiegészítésen vagy a technikai támogatáson. Még az MCP-t is használhatom új eszközök létrehozására és saját képességeim bővítésére.",
+	"selectMode": "Válassza ki az interakció módját",
+	"selectApiConfig": "Válassza ki az API konfigurációt",
+	"enhancePrompt": "A kérés fokozása további kontextussal",
+	"addImages": "Képek hozzáadása az üzenethez",
+	"sendMessage": "Üzenet küldése",
+	"typeMessage": "Írjon egy üzenetet...",
+	"typeTask": "Írja ide a feladatát...",
+	"addContext": "@ kontextus hozzáadásához, / módváltáshoz",
+	"dragFiles": "tartsa lenyomva a shift billentyűt a fájlok húzásához",
+	"dragFilesImages": "tartsa lenyomva a shift billentyűt a fájlok/képek húzásához"
+}
