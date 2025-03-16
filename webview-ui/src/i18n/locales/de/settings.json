@@ -210,6 +210,9 @@
 			"pricingDetails": "Weitere Informationen finden Sie in den Preisdetails."
 		}
 	},
+	"modelPicker": {
+		"automaticFetch": "Die Erweiterung ruft automatisch die neueste Liste der verfügbaren Modelle von <serviceLink>{{serviceName}}</serviceLink> ab. Wenn Sie sich nicht sicher sind, welches Modell Sie wählen sollen, funktioniert Roo Code am besten mit <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Sie können auch nach \"free\" suchen, um derzeit verfügbare kostenlose Optionen zu finden."
+	},
 	"footer": {
 		"feedback": "Wenn Sie Fragen oder Feedback haben, können Sie gerne ein Issue auf <githubLink>github.com/RooVetGit/Roo-Code</githubLink> öffnen oder <redditLink>reddit.com/r/RooCode</redditLink> oder <discordLink>discord.gg/roocode</discordLink> beitreten",
 		"version": "Roo Code v{{version}}",
