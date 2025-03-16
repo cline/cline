@@ -51,6 +51,40 @@
 			"useCurrentConfig": "Şu anda seçili API yapılandırmasını kullan",
 			"testPromptPlaceholder": "Geliştirmeyi test etmek için bir prompt girin",
 			"previewButton": "Prompt geliştirmesini önizle"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "Promptu Geliştir",
+				"description": "Girdileriniz için özel öneriler veya iyileştirmeler almak için prompt geliştirmeyi kullanın. Bu, Roo'nun niyetinizi anlamasını ve mümkün olan en iyi yanıtları sağlamasını garanti eder. Sohbetteki ✨ simgesi aracılığıyla kullanılabilir."
+			},
+			"EXPLAIN": {
+				"label": "Kodu Açıkla",
+				"description": "Kod parçaları, fonksiyonlar veya tüm dosyalar hakkında ayrıntılı açıklamalar alın. Karmaşık kodu anlamak veya yeni kalıpları öğrenmek için faydalıdır. Kod eylemlerinde (editördeki ampul simgesi) ve editör bağlam menüsünde (seçili koda sağ tıklayın) kullanılabilir."
+			},
+			"FIX": {
+				"label": "Sorunları Düzelt",
+				"description": "Hataları, bugları veya kod kalitesi sorunlarını tanımlama ve çözme konusunda yardım alın. Sorunları çözmek için adım adım rehberlik sağlar. Kod eylemlerinde (editördeki ampul simgesi) ve editör bağlam menüsünde (seçili koda sağ tıklayın) kullanılabilir."
+			},
+			"IMPROVE": {
+				"label": "Kodu İyileştir",
+				"description": "İşlevselliği korurken kod optimizasyonu, daha iyi uygulamalar ve mimari iyileştirmeler için öneriler alın. Kod eylemlerinde (editördeki ampul simgesi) ve editör bağlam menüsünde (seçili koda sağ tıklayın) kullanılabilir."
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "Bağlama Ekle",
+				"description": "Mevcut görevinize veya konuşmanıza bağlam ekleyin. Ek bilgi veya açıklamalar sağlamak için faydalıdır. Kod eylemlerinde (editördeki ampul simgesi) ve editör bağlam menüsünde (seçili koda sağ tıklayın) kullanılabilir."
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "Terminal İçeriğini Bağlama Ekle",
+				"description": "Terminal çıktısını mevcut görevinize veya konuşmanıza ekleyin. Komut çıktılarını veya günlükleri sağlamak için faydalıdır. Terminal bağlam menüsünde (seçili terminal içeriğine sağ tıklayın) kullanılabilir."
+			},
+			"TERMINAL_FIX": {
+				"label": "Terminal Komutunu Düzelt",
+				"description": "Başarısız olan veya iyileştirme gerektiren terminal komutlarını düzeltme konusunda yardım alın. Terminal bağlam menüsünde (seçili terminal içeriğine sağ tıklayın) kullanılabilir."
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "Terminal Komutunu Açıkla",
+				"description": "Terminal komutları ve çıktıları hakkında ayrıntılı açıklamalar alın. Terminal bağlam menüsünde (seçili terminal içeriğine sağ tıklayın) kullanılabilir."
+			}
 		}
 	},
 	"customModeCreation": {
