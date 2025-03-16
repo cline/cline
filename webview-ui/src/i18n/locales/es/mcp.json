@@ -1,0 +1,51 @@
+{
+	"title": "Servidores MCP",
+	"done": "Listo",
+	"description": "El <0>Model Context Protocol</0> permite la comunicación con servidores MCP que se ejecutan localmente y proporcionan herramientas y recursos adicionales para extender las capacidades de Roo. Puedes usar <1>servidores creados por la comunidad</1> o pedir a Roo que cree nuevas herramientas específicas para tu flujo de trabajo (por ejemplo, \"añadir una herramienta que obtenga la documentación más reciente de npm\").",
+	"enableToggle": {
+		"title": "Habilitar servidores MCP",
+		"description": "Cuando está habilitado, Roo podrá interactuar con servidores MCP para obtener funcionalidades avanzadas. Si no usas MCP, puedes desactivarlo para reducir el uso de tokens de Roo."
+	},
+	"enableServerCreation": {
+		"title": "Habilitar creación de servidores MCP",
+		"description": "Cuando está habilitado, Roo puede ayudarte a crear nuevos servidores MCP mediante comandos como \"añadir una nueva herramienta para...\". Si no necesitas crear servidores MCP, puedes desactivar esto para reducir el uso de tokens de Roo."
+	},
+	"editSettings": "Editar configuración de MCP",
+	"tool": {
+		"alwaysAllow": "Permitir siempre",
+		"parameters": "Parámetros",
+		"noDescription": "Sin descripción"
+	},
+	"tabs": {
+		"tools": "Herramientas",
+		"resources": "Recursos"
+	},
+	"emptyState": {
+		"noTools": "No se encontraron herramientas",
+		"noResources": "No se encontraron recursos"
+	},
+	"networkTimeout": {
+		"label": "Tiempo de espera de red",
+		"description": "Tiempo máximo de espera para respuestas del servidor",
+		"options": {
+			"15seconds": "15 segundos",
+			"30seconds": "30 segundos",
+			"1minute": "1 minuto",
+			"5minutes": "5 minutos",
+			"10minutes": "10 minutos",
+			"15minutes": "15 minutos",
+			"30minutes": "30 minutos",
+			"60minutes": "60 minutos"
+		}
+	},
+	"deleteDialog": {
+		"title": "Eliminar servidor MCP",
+		"description": "¿Estás seguro de que deseas eliminar el servidor MCP \"{{serverName}}\"? Esta acción no se puede deshacer.",
+		"cancel": "Cancelar",
+		"delete": "Eliminar"
+	},
+	"serverStatus": {
+		"retrying": "Reintentando...",
+		"retryConnection": "Reintentar conexión"
+	}
+}

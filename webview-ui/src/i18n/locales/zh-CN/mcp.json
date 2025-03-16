@@ -1,0 +1,51 @@
+{
+	"title": "MCP 服务器",
+	"done": "完成",
+	"description": "<0>Model Context Protocol</0> 可以与本地运行的 MCP 服务器进行通信，提供额外的工具和资源来扩展 Roo 的功能。您可以使用<1>社区开发的服务器</1>，或者要求 Roo 创建特定于您的工作流程的新工具（例如，\"添加一个获取最新 npm 文档的工具\"）。",
+	"enableToggle": {
+		"title": "启用 MCP 服务器",
+		"description": "启用后，Roo 将能够与 MCP 服务器交互以获取高级功能。如果您不使用 MCP，可以禁用此功能以减少 Roo 的 token 使用量。"
+	},
+	"enableServerCreation": {
+		"title": "启用 MCP 服务器创建",
+		"description": "启用后，Roo 可以通过诸如\"添加新工具到...\"之类的命令帮助您创建新的 MCP 服务器。如果您不需要创建 MCP 服务器，可以禁用此功能以减少 Roo 的 token 使用量。"
+	},
+	"editSettings": "编辑 MCP 设置",
+	"tool": {
+		"alwaysAllow": "始终允许",
+		"parameters": "参数",
+		"noDescription": "无描述"
+	},
+	"tabs": {
+		"tools": "工具",
+		"resources": "资源"
+	},
+	"emptyState": {
+		"noTools": "未找到工具",
+		"noResources": "未找到资源"
+	},
+	"networkTimeout": {
+		"label": "网络超时",
+		"description": "等待服务器响应的最长时间",
+		"options": {
+			"15seconds": "15 秒",
+			"30seconds": "30 秒",
+			"1minute": "1 分钟",
+			"5minutes": "5 分钟",
+			"10minutes": "10 分钟",
+			"15minutes": "15 分钟",
+			"30minutes": "30 分钟",
+			"60minutes": "60 分钟"
+		}
+	},
+	"deleteDialog": {
+		"title": "删除 MCP 服务器",
+		"description": "您确定要删除 MCP 服务器 \"{{serverName}}\" 吗？此操作无法撤消。",
+		"cancel": "取消",
+		"delete": "删除"
+	},
+	"serverStatus": {
+		"retrying": "重试中...",
+		"retryConnection": "重试连接"
+	}
+}
