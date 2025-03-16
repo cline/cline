@@ -6,6 +6,7 @@ import {
 	VSCodeRadio,
 	VSCodeRadioGroup,
 	VSCodeTextField,
+	VSCodeButton,
 } from "@vscode/webview-ui-toolkit/react"
 import { Fragment, memo, useCallback, useEffect, useMemo, useState } from "react"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
@@ -27,6 +28,7 @@ import {
 	mistralDefaultModelId,
 	mistralModels,
 	ModelInfo,
+	OpenAiCompatibleModelInfo,
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
@@ -45,6 +47,7 @@ import {
 	xaiModels,
 	sambanovaModels,
 	sambanovaDefaultModelId,
+	openAiCompatibleDefaultConfig,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -91,10 +94,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
-	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
+	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(
+		!!(
+			apiConfiguration?.openAiConfigs &&
+			apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]?.azureApiVersion
+		),
+	)
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+	const [isAddingProfile, setIsAddingProfile] = useState(false)
+	const [newProfileName, setNewProfileName] = useState("")
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({
@@ -102,6 +112,109 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			[field]: event.target.value,
 		})
 	}
+
+	const handleOpenAiChange =
+		(field: string, isModelInfo: boolean = false) =>
+		(event: any) => {
+			// const rawValue = event.target.type === "checkbox" ? event.target.checked : event.target.value
+			const rawValue = event.target.checked !== undefined ? event.target.checked : event.target.value
+
+			const openAiConfigs = apiConfiguration?.openAiConfigs ? [...apiConfiguration.openAiConfigs] : []
+			const selectedIndex = apiConfiguration?.openAiSelectedConfigIndex ?? 0
+
+			const currentConfig =
+				openAiConfigs[selectedIndex] ||
+				(isModelInfo
+					? openAiCompatibleDefaultConfig
+					: {
+							openAiBaseUrl: "",
+							openAiApiKey: "",
+							openAiModelId: "",
+							openAiModelInfo: { ...openAiModelInfoSaneDefaults },
+							azureApiVersion: "",
+						})
+
+			if (isModelInfo) {
+				let newValue: any = rawValue
+				if (
+					typeof rawValue === "string" &&
+					["contextWindow", "maxTokens", "inputPrice", "outputPrice", "temperature"].includes(field)
+				) {
+					const key = field as keyof OpenAiCompatibleModelInfo
+					const valueStr = rawValue
+					const shouldPreserveFormat = valueStr.endsWith(".") || (valueStr.includes(".") && valueStr.endsWith("0"))
+					newValue =
+						rawValue === ""
+							? currentConfig.openAiModelInfo?.[key] || openAiModelInfoSaneDefaults[key]
+							: shouldPreserveFormat
+								? valueStr
+								: parseFloat(valueStr)
+				}
+				const updatedModelInfo: OpenAiCompatibleModelInfo = {
+					...currentConfig.openAiModelInfo,
+					[field]: newValue,
+				}
+				openAiConfigs[selectedIndex] = { ...currentConfig, openAiModelInfo: updatedModelInfo }
+			} else {
+				openAiConfigs[selectedIndex] = { ...currentConfig, [field]: rawValue }
+			}
+
+			setApiConfiguration({
+				...apiConfiguration,
+				openAiConfigs,
+			})
+		}
+
+	const selectOpenAiProfile = (index: number) => {
+		setApiConfiguration({ ...apiConfiguration, openAiSelectedConfigIndex: index } as ApiConfiguration)
+		setModelConfigurationSelected(false)
+	}
+
+	const removeOpenAiProfile = (index: number) => {
+		let currentConfigs = apiConfiguration?.openAiConfigs ? [...apiConfiguration.openAiConfigs] : []
+		if (currentConfigs.length <= 1) return
+		currentConfigs.splice(index, 1)
+		let newSelectedIndex = apiConfiguration?.openAiSelectedConfigIndex ?? 0
+		if (newSelectedIndex >= currentConfigs.length) {
+			newSelectedIndex = currentConfigs.length - 1
+		}
+		setApiConfiguration({
+			...apiConfiguration,
+			openAiConfigs: currentConfigs,
+			openAiSelectedConfigIndex: newSelectedIndex,
+		} as ApiConfiguration)
+	}
+
+	const handleAddProfile = () => {
+		if (newProfileName.trim() === "") return
+		const currentConfigs = apiConfiguration?.openAiConfigs ? [...apiConfiguration.openAiConfigs] : []
+		const newProfile = {
+			profileName: newProfileName,
+			openAiBaseUrl: "",
+			openAiApiKey: "",
+			openAiModelId: "",
+			openAiModelInfo: openAiModelInfoSaneDefaults,
+			azureApiVersion: "",
+		}
+		currentConfigs.push(newProfile)
+		const newIndex = currentConfigs.length - 1
+		setApiConfiguration({
+			...apiConfiguration,
+			openAiConfigs: currentConfigs,
+			openAiSelectedConfigIndex: newIndex,
+		} as ApiConfiguration)
+		setNewProfileName("")
+		setIsAddingProfile(false)
+	}
+
+	useEffect(() => {
+		setAzureApiVersionSelected(
+			!!(
+				apiConfiguration?.openAiConfigs &&
+				apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]?.azureApiVersion
+			),
+		)
+	}, [apiConfiguration?.openAiConfigs, apiConfiguration?.openAiSelectedConfigIndex])
 
 	const { selectedProvider, selectedModelId, selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration)
@@ -746,26 +859,106 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{selectedProvider === "openai" && (
 				<div>
+					<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 3} className="dropdown-container">
+							<label htmlFor="openai-profile">
+								<span style={{ fontWeight: 500 }}>Profile</span>
+							</label>
+							<VSCodeDropdown
+								key={`openai-dropdown-${apiConfiguration?.openAiSelectedConfigIndex}`}
+								id="openai-profile-dropdown"
+								value={(apiConfiguration?.openAiSelectedConfigIndex ?? 0).toString()}
+								onChange={(e) => {
+									const value = (e.target as HTMLSelectElement).value
+									selectOpenAiProfile(Number(value))
+								}}
+								style={{
+									minWidth: 130,
+									position: "relative",
+								}}>
+								{(
+									apiConfiguration?.openAiConfigs || [
+										{
+											profileName: "Default",
+											openAiBaseUrl: "",
+											openAiApiKey: "",
+											openAiModelId: "",
+											openAiModelInfo: openAiModelInfoSaneDefaults,
+											azureApiVersion: "",
+										},
+									]
+								).map((config, index) => (
+									<VSCodeOption key={index} value={index.toString()}>
+										{config.profileName || "Default"}
+									</VSCodeOption>
+								))}
+							</VSCodeDropdown>
+						</DropdownContainer>
+						<div style={{ display: "flex", alignItems: "flex-end", gap: "5px" }}>
+							<div
+								data-testid="add-button"
+								className="input-icon-button codicon codicon-add"
+								onClick={() => setIsAddingProfile(true)}
+								style={{ fontSize: 15, height: "16px", lineHeight: "32px", cursor: "pointer" }}></div>
+							<div
+								data-testid="delete-button"
+								className="input-icon-button codicon codicon-trash"
+								onClick={() => removeOpenAiProfile(apiConfiguration?.openAiSelectedConfigIndex ?? 0)}
+								style={{ fontSize: 15, height: "16px", lineHeight: "32px", cursor: "pointer" }}></div>
+						</div>
+					</div>
+					<div style={{ border: "1px solid var(--vscode-editorForeground)", padding: 0, marginBottom: 0 }}>
+						{isAddingProfile && (
+							<div style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 5 }}>
+								<VSCodeTextField
+									value={newProfileName}
+									onInput={(e) => setNewProfileName((e.target as HTMLInputElement).value)}
+									placeholder="Enter a new profile name"
+									style={{ width: "80%" }}
+								/>
+								<VSCodeButton onClick={handleAddProfile}>Add</VSCodeButton>
+								<VSCodeButton
+									onClick={() => {
+										setIsAddingProfile(false)
+										setNewProfileName("")
+									}}>
+									Cancel
+								</VSCodeButton>
+							</div>
+						)}
+					</div>
 					<VSCodeTextField
-						value={apiConfiguration?.openAiBaseUrl || ""}
+						value={
+							(apiConfiguration?.openAiConfigs &&
+								apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]?.openAiBaseUrl) ||
+							""
+						}
 						style={{ width: "100%" }}
 						type="url"
-						onInput={handleInputChange("openAiBaseUrl")}
+						onInput={handleOpenAiChange("openAiBaseUrl")}
 						placeholder={"Enter base URL..."}>
 						<span style={{ fontWeight: 500 }}>Base URL</span>
 					</VSCodeTextField>
 					<VSCodeTextField
-						value={apiConfiguration?.openAiApiKey || ""}
+						value={
+							(apiConfiguration?.openAiConfigs &&
+								apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]?.openAiApiKey) ||
+							""
+						}
 						style={{ width: "100%" }}
 						type="password"
-						onInput={handleInputChange("openAiApiKey")}
+						onInput={handleOpenAiChange("openAiApiKey")}
 						placeholder="Enter API Key...">
 						<span style={{ fontWeight: 500 }}>API Key</span>
 					</VSCodeTextField>
 					<VSCodeTextField
-						value={apiConfiguration?.openAiModelId || ""}
+						value={
+							(apiConfiguration?.openAiConfigs &&
+								apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]?.openAiModelId) ||
+							""
+						}
 						style={{ width: "100%" }}
-						onInput={handleInputChange("openAiModelId")}
+						onInput={handleOpenAiChange("openAiModelId")}
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
@@ -774,20 +967,19 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
 							setAzureApiVersionSelected(isChecked)
-							if (!isChecked) {
-								setApiConfiguration({
-									...apiConfiguration,
-									azureApiVersion: "",
-								})
-							}
 						}}>
 						Set Azure API version
 					</VSCodeCheckbox>
 					{azureApiVersionSelected && (
 						<VSCodeTextField
-							value={apiConfiguration?.azureApiVersion || ""}
+							value={
+								(apiConfiguration?.openAiConfigs &&
+									apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]
+										?.azureApiVersion) ||
+								""
+							}
 							style={{ width: "100%", marginTop: 3 }}
-							onInput={handleInputChange("azureApiVersion")}
+							onInput={handleOpenAiChange("azureApiVersion")}
 							placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
 						/>
 					)}
@@ -816,144 +1008,87 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					{modelConfigurationSelected && (
 						<>
 							<VSCodeCheckbox
-								checked={!!apiConfiguration?.openAiModelInfo?.supportsImages}
-								onChange={(e: any) => {
-									const isChecked = e.target.checked === true
-									let modelInfo = apiConfiguration?.openAiModelInfo
-										? apiConfiguration.openAiModelInfo
-										: { ...openAiModelInfoSaneDefaults }
-									modelInfo.supportsImages = isChecked
-									setApiConfiguration({
-										...apiConfiguration,
-										openAiModelInfo: modelInfo,
-									})
-								}}>
+								checked={
+									(apiConfiguration?.openAiConfigs &&
+										apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]
+											?.openAiModelInfo?.supportsImages) ||
+									false
+								}
+								onChange={handleOpenAiChange("supportsImages", true)}>
 								Supports Images
 							</VSCodeCheckbox>
 							<VSCodeCheckbox
-								checked={!!apiConfiguration?.openAiModelInfo?.supportsComputerUse}
-								onChange={(e: any) => {
-									const isChecked = e.target.checked === true
-									let modelInfo = apiConfiguration?.openAiModelInfo
-										? apiConfiguration.openAiModelInfo
-										: { ...openAiModelInfoSaneDefaults }
-									modelInfo = { ...modelInfo, supportsComputerUse: isChecked }
-									setApiConfiguration({
-										...apiConfiguration,
-										openAiModelInfo: modelInfo,
-									})
-								}}>
+								checked={
+									(apiConfiguration?.openAiConfigs &&
+										apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]
+											?.openAiModelInfo?.supportsComputerUse) ||
+									false
+								}
+								onChange={handleOpenAiChange("supportsComputerUse", true)}>
 								Supports Computer Use
 							</VSCodeCheckbox>
 							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 								<VSCodeTextField
 									value={
-										apiConfiguration?.openAiModelInfo?.contextWindow
-											? apiConfiguration.openAiModelInfo.contextWindow.toString()
-											: openAiModelInfoSaneDefaults.contextWindow?.toString()
+										(apiConfiguration?.openAiConfigs &&
+											apiConfiguration.openAiConfigs[
+												apiConfiguration.openAiSelectedConfigIndex ?? 0
+											]?.openAiModelInfo?.contextWindow?.toString()) ||
+										openAiModelInfoSaneDefaults.contextWindow?.toString()
 									}
 									style={{ flex: 1 }}
-									onInput={(input: any) => {
-										let modelInfo = apiConfiguration?.openAiModelInfo
-											? apiConfiguration.openAiModelInfo
-											: { ...openAiModelInfoSaneDefaults }
-										modelInfo.contextWindow = Number(input.target.value)
-										setApiConfiguration({
-											...apiConfiguration,
-											openAiModelInfo: modelInfo,
-										})
-									}}>
+									onInput={handleOpenAiChange("contextWindow", true)}>
 									<span style={{ fontWeight: 500 }}>Context Window Size</span>
 								</VSCodeTextField>
 								<VSCodeTextField
 									value={
-										apiConfiguration?.openAiModelInfo?.maxTokens
-											? apiConfiguration.openAiModelInfo.maxTokens.toString()
-											: openAiModelInfoSaneDefaults.maxTokens?.toString()
+										(apiConfiguration?.openAiConfigs &&
+											apiConfiguration.openAiConfigs[
+												apiConfiguration.openAiSelectedConfigIndex ?? 0
+											]?.openAiModelInfo?.maxTokens?.toString()) ||
+										openAiModelInfoSaneDefaults.maxTokens?.toString()
 									}
 									style={{ flex: 1 }}
-									onInput={(input: any) => {
-										let modelInfo = apiConfiguration?.openAiModelInfo
-											? apiConfiguration.openAiModelInfo
-											: { ...openAiModelInfoSaneDefaults }
-										modelInfo.maxTokens = input.target.value
-										setApiConfiguration({
-											...apiConfiguration,
-											openAiModelInfo: modelInfo,
-										})
-									}}>
+									onInput={handleOpenAiChange("maxTokens", true)}>
 									<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
 								</VSCodeTextField>
 							</div>
 							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 								<VSCodeTextField
 									value={
-										apiConfiguration?.openAiModelInfo?.inputPrice
-											? apiConfiguration.openAiModelInfo.inputPrice.toString()
-											: openAiModelInfoSaneDefaults.inputPrice?.toString()
+										(apiConfiguration?.openAiConfigs &&
+											apiConfiguration.openAiConfigs[
+												apiConfiguration.openAiSelectedConfigIndex ?? 0
+											]?.openAiModelInfo?.inputPrice?.toString()) ||
+										openAiModelInfoSaneDefaults.inputPrice?.toString()
 									}
 									style={{ flex: 1 }}
-									onInput={(input: any) => {
-										let modelInfo = apiConfiguration?.openAiModelInfo
-											? apiConfiguration.openAiModelInfo
-											: { ...openAiModelInfoSaneDefaults }
-										modelInfo.inputPrice = input.target.value
-										setApiConfiguration({
-											...apiConfiguration,
-											openAiModelInfo: modelInfo,
-										})
-									}}>
+									onInput={handleOpenAiChange("inputPrice", true)}>
 									<span style={{ fontWeight: 500 }}>Input Price / 1M tokens</span>
 								</VSCodeTextField>
 								<VSCodeTextField
 									value={
-										apiConfiguration?.openAiModelInfo?.outputPrice
-											? apiConfiguration.openAiModelInfo.outputPrice.toString()
-											: openAiModelInfoSaneDefaults.outputPrice?.toString()
+										(apiConfiguration?.openAiConfigs &&
+											apiConfiguration.openAiConfigs[
+												apiConfiguration.openAiSelectedConfigIndex ?? 0
+											]?.openAiModelInfo?.outputPrice?.toString()) ||
+										openAiModelInfoSaneDefaults.outputPrice?.toString()
 									}
 									style={{ flex: 1 }}
-									onInput={(input: any) => {
-										let modelInfo = apiConfiguration?.openAiModelInfo
-											? apiConfiguration.openAiModelInfo
-											: { ...openAiModelInfoSaneDefaults }
-										modelInfo.outputPrice = input.target.value
-										setApiConfiguration({
-											...apiConfiguration,
-											openAiModelInfo: modelInfo,
-										})
-									}}>
+									onInput={handleOpenAiChange("outputPrice", true)}>
 									<span style={{ fontWeight: 500 }}>Output Price / 1M tokens</span>
 								</VSCodeTextField>
 							</div>
 							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 								<VSCodeTextField
 									value={
-										apiConfiguration?.openAiModelInfo?.temperature
-											? apiConfiguration.openAiModelInfo.temperature.toString()
-											: openAiModelInfoSaneDefaults.temperature?.toString()
+										(apiConfiguration?.openAiConfigs &&
+											apiConfiguration.openAiConfigs[
+												apiConfiguration.openAiSelectedConfigIndex ?? 0
+											]?.openAiModelInfo?.temperature?.toString()) ||
+										openAiModelInfoSaneDefaults.temperature?.toString()
 									}
-									onInput={(input: any) => {
-										let modelInfo = apiConfiguration?.openAiModelInfo
-											? apiConfiguration.openAiModelInfo
-											: { ...openAiModelInfoSaneDefaults }
-
-										// Check if the input ends with a decimal point or has trailing zeros after decimal
-										const value = input.target.value
-										const shouldPreserveFormat =
-											value.endsWith(".") || (value.includes(".") && value.endsWith("0"))
-
-										modelInfo.temperature =
-											value === ""
-												? openAiModelInfoSaneDefaults.temperature
-												: shouldPreserveFormat
-													? value // Keep as string to preserve decimal format
-													: parseFloat(value)
-
-										setApiConfiguration({
-											...apiConfiguration,
-											openAiModelInfo: modelInfo,
-										})
-									}}>
+									onInput={handleOpenAiChange("temperature", true)}>
 									<span style={{ fontWeight: 500 }}>Temperature</span>
 								</VSCodeTextField>
 							</div>
@@ -1617,10 +1752,13 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
 			}
 		case "openai":
+			const selectedConfig =
+				apiConfiguration?.openAiConfigs?.[apiConfiguration.openAiSelectedConfigIndex ?? 0] ||
+				openAiCompatibleDefaultConfig
 			return {
 				selectedProvider: provider,
-				selectedModelId: apiConfiguration?.openAiModelId || "",
-				selectedModelInfo: apiConfiguration?.openAiModelInfo || openAiModelInfoSaneDefaults,
+				selectedModelId: selectedConfig.openAiModelId || "",
+				selectedModelInfo: selectedConfig.openAiModelInfo || openAiModelInfoSaneDefaults,
 			}
 		case "ollama":
 			return {

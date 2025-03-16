@@ -108,6 +108,10 @@ type GlobalStateKey =
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
+	| "openAiConfigs"
+	| "openAiSelectedConfigIndex"
+	| "openAiSelectedConfigIndex_act"
+	| "openAiSelectedConfigIndex_plan"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -1149,6 +1153,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			thinkingBudgetTokens,
 			clineApiKey,
 			sambanovaApiKey,
+			openAiConfigs,
 		} = apiConfiguration
 		await this.updateGlobalState("apiProvider", apiProvider)
 		await this.updateGlobalState("apiModelId", apiModelId)
@@ -1198,6 +1203,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("thinkingBudgetTokens", thinkingBudgetTokens)
 		await this.storeSecret("clineApiKey", clineApiKey)
 		await this.storeSecret("sambanovaApiKey", sambanovaApiKey)
+		await this.updateGlobalState("openAiConfigs", openAiConfigs)
+		const planActSeparate = (await this.getGlobalState("planActSeparateModelsSetting")) as boolean
+		if (planActSeparate) {
+			const chatSettings = (await this.getGlobalState("chatSettings")) as ChatSettings
+			const key = chatSettings?.mode === "act" ? "openAiSelectedConfigIndex_act" : "openAiSelectedConfigIndex_plan"
+			await this.updateGlobalState(key, apiConfiguration.openAiSelectedConfigIndex)
+		} else {
+			await this.updateGlobalState("openAiSelectedConfigIndex", apiConfiguration.openAiSelectedConfigIndex)
+		}
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
 		}
@@ -1999,6 +2013,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			thinkingBudgetTokens,
 			sambanovaApiKey,
 			planActSeparateModelsSettingRaw,
+			openAiConfigs,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -2061,6 +2076,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("thinkingBudgetTokens") as Promise<number | undefined>,
 			this.getSecret("sambanovaApiKey") as Promise<string | undefined>,
 			this.getGlobalState("planActSeparateModelsSetting") as Promise<boolean | undefined>,
+			this.getGlobalState("openAiConfigs") as Promise<any[] | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2099,6 +2115,15 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			// this is a special case where it's a new state, but we want it to default to different values for existing and new users.
 			// persist so next time state is retrieved it's set to the correct value.
 			await this.updateGlobalState("planActSeparateModelsSetting", planActSeparateModelsSetting)
+		}
+
+		let openAiSelectedConfigIndex: number | undefined
+		if (planActSeparateModelsSetting) {
+			const mode = chatSettings?.mode
+			const key = mode === "act" ? "openAiSelectedConfigIndex_act" : "openAiSelectedConfigIndex_plan"
+			openAiSelectedConfigIndex = (await this.getGlobalState(key)) as number | undefined
+		} else {
+			openAiSelectedConfigIndex = (await this.getGlobalState("openAiSelectedConfigIndex")) as number | undefined
 		}
 
 		return {
@@ -2152,6 +2177,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				asksageApiUrl,
 				xaiApiKey,
 				sambanovaApiKey,
+				openAiConfigs,
+				openAiSelectedConfigIndex,
 			},
 			lastShownAnnouncementId,
 			customInstructions,

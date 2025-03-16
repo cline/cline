@@ -69,6 +69,15 @@ export interface ApiHandlerOptions {
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
 	sambanovaApiKey?: string
+	openAiConfigs?: {
+		profileName: string
+		openAiBaseUrl: string
+		openAiApiKey: string
+		openAiModelId: string
+		openAiModelInfo: OpenAiCompatibleModelInfo
+		azureApiVersion: string
+	}[]
+	openAiSelectedConfigIndex?: number
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -412,6 +421,16 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	inputPrice: 0,
 	outputPrice: 0,
 	temperature: 0,
+}
+
+// OpenAI
+export const openAiCompatibleDefaultConfig = {
+	profileName: "Default",
+	openAiBaseUrl: "",
+	openAiApiKey: "",
+	openAiModelId: "",
+	openAiModelInfo: openAiModelInfoSaneDefaults,
+	azureApiVersion: "",
 }
 
 // Gemini
