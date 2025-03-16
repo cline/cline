@@ -191,7 +191,7 @@
 		}
 	},
 	"footer": {
-		"feedback": "質問やフィードバックがある場合は、github.com/RooVetGit/Roo-Codeで問題を開くか、reddit.com/r/RooCodeに参加してください",
+		"feedback": "質問やフィードバックがある場合は、<githubLink>github.com/RooVetGit/Roo-Code</githubLink>で問題を開くか、<redditLink>reddit.com/r/RooCode</redditLink>や<discordLink>discord.gg/roocode</discordLink>に参加してください",
 		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "匿名のエラーと使用状況レポートを許可",

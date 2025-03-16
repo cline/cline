@@ -1,7 +1,8 @@
 import { HTMLAttributes } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
+import { Trans } from "react-i18next"
 
-import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
 import { vscode } from "@/utils/vscode"
 import { cn } from "@/lib/utils"
@@ -24,7 +25,16 @@ export const SettingsFooter = ({
 
 	return (
 		<div className={cn("text-vscode-descriptionForeground p-5", className)} {...props}>
-			<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>{t("settings:footer.feedback")} </p>
+			<p style={{ wordWrap: "break-word", margin: 0, padding: 0 }}>
+				<Trans
+					i18nKey="settings:footer.feedback"
+					components={{
+						githubLink: <VSCodeLink href="https://github.com/RooVetGit/Roo-Code" />,
+						redditLink: <VSCodeLink href="https://reddit.com/r/RooCode" />,
+						discordLink: <VSCodeLink href="https://discord.gg/roocode" />,
+					}}
+				/>
+			</p>
 			<p className="italic">{t("settings:footer.version", { version })}</p>
 			<div className="mt-4 mb-4">
 				<div>

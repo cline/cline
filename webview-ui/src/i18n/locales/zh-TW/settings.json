@@ -191,7 +191,7 @@
 		}
 	},
 	"footer": {
-		"feedback": "如果您有任何問題或反饋，請隨時在 github.com/RooVetGit/Roo-Code 上提出問題或加入 reddit.com/r/RooCode",
+		"feedback": "如果您有任何問題或反饋，請隨時在 <githubLink>github.com/RooVetGit/Roo-Code</githubLink> 上提出問題或加入 <redditLink>reddit.com/r/RooCode</redditLink> 或 <discordLink>discord.gg/roocode</discordLink>",
 		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "允許匿名錯誤和使用情況報告",

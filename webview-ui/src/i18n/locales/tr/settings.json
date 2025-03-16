@@ -191,7 +191,7 @@
 		}
 	},
 	"footer": {
-		"feedback": "Herhangi bir sorunuz veya geri bildiriminiz varsa, github.com/RooVetGit/Roo-Code adresinde bir konu açmaktan veya reddit.com/r/RooCode'a katılmaktan çekinmeyin",
+		"feedback": "Herhangi bir sorunuz veya geri bildiriminiz varsa, <githubLink>github.com/RooVetGit/Roo-Code</githubLink> adresinde bir konu açmaktan veya <redditLink>reddit.com/r/RooCode</redditLink> ya da <discordLink>discord.gg/roocode</discordLink>'a katılmaktan çekinmeyin",
 		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Anonim hata ve kullanım raporlamaya izin ver",

@@ -191,7 +191,7 @@
 		}
 	},
 	"footer": {
-		"feedback": "Wenn Sie Fragen oder Feedback haben, können Sie gerne ein Issue auf github.com/RooVetGit/Roo-Code öffnen oder reddit.com/r/RooCode beitreten",
+		"feedback": "Wenn Sie Fragen oder Feedback haben, können Sie gerne ein Issue auf <githubLink>github.com/RooVetGit/Roo-Code</githubLink> öffnen oder <redditLink>reddit.com/r/RooCode</redditLink> oder <discordLink>discord.gg/roocode</discordLink> beitreten",
 		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Anonyme Fehler- und Nutzungsberichte zulassen",

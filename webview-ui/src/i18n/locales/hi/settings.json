@@ -191,7 +191,7 @@
 		}
 	},
 	"footer": {
-		"feedback": "यदि आपके कोई प्रश्न या प्रतिक्रिया है, तो github.com/RooVetGit/Roo-Code पर एक मुद्दा खोलने या reddit.com/r/RooCode में शामिल होने में संकोच न करें",
+		"feedback": "यदि आपके कोई प्रश्न या प्रतिक्रिया है, तो <githubLink>github.com/RooVetGit/Roo-Code</githubLink> पर एक मुद्दा खोलने या <redditLink>reddit.com/r/RooCode</redditLink> या <discordLink>discord.gg/roocode</discordLink> में शामिल होने में संकोच न करें",
 		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "गुमनाम त्रुटि और उपयोग रिपोर्टिंग की अनुमति दें",

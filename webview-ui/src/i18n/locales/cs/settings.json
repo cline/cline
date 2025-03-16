@@ -191,7 +191,7 @@
 		}
 	},
 	"footer": {
-		"feedback": "Pokud máte jakékoliv otázky nebo zpětnou vazbu, neváhejte otevřít problém na github.com/RooVetGit/Roo-Code nebo se připojit na reddit.com/r/RooCode",
+		"feedback": "Pokud máte jakékoliv otázky nebo zpětnou vazbu, neváhejte otevřít problém na <githubLink>github.com/RooVetGit/Roo-Code</githubLink> nebo se připojit na <redditLink>reddit.com/r/RooCode</redditLink> nebo <discordLink>discord.gg/roocode</discordLink>",
 		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Povolit anonymní hlášení chyb a používání",

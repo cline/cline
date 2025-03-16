@@ -191,7 +191,7 @@
 		}
 	},
 	"footer": {
-		"feedback": "إذا كان لديك أي أسئلة أو ملاحظات، فلا تتردد في فتح مشكلة في github.com/RooVetGit/Roo-Code أو الانضمام إلى reddit.com/r/RooCode",
+		"feedback": "إذا كان لديك أي أسئلة أو ملاحظات، فلا تتردد في فتح مشكلة في <githubLink>github.com/RooVetGit/Roo-Code</githubLink> أو الانضمام إلى <redditLink>reddit.com/r/RooCode</redditLink> أو <discordLink>discord.gg/roocode</discordLink>",
 		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "السماح بإرسال تقارير استخدام وأخطاء مجهولة",
