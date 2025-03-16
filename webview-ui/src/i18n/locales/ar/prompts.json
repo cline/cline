@@ -18,7 +18,14 @@
 		"builtInModesText": "لا يمكن تعديل أدوات الأوضاع المدمجة",
 		"editTools": "تعديل الأدوات",
 		"doneEditing": "انتهاء التعديل",
-		"allowedFiles": "الملفات المسموحة:"
+		"allowedFiles": "الملفات المسموحة:",
+		"toolNames": {
+			"read": "قراءة الملفات",
+			"edit": "تعديل الملفات",
+			"browser": "استخدام المتصفح",
+			"command": "تنفيذ الأوامر",
+			"mcp": "استخدام MCP"
+		}
 	},
 	"roleDefinition": {
 		"title": "تعريف الدور",

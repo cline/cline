@@ -18,7 +18,14 @@
 		"builtInModesText": "Werkzeuge für eingebaute Modi können nicht geändert werden",
 		"editTools": "Werkzeuge bearbeiten",
 		"doneEditing": "Bearbeitung abschließen",
-		"allowedFiles": "Erlaubte Dateien:"
+		"allowedFiles": "Erlaubte Dateien:",
+		"toolNames": {
+			"read": "Dateien lesen",
+			"edit": "Dateien bearbeiten",
+			"browser": "Browser verwenden",
+			"command": "Befehle ausführen",
+			"mcp": "MCP verwenden"
+		}
 	},
 	"roleDefinition": {
 		"title": "Rollendefinition",

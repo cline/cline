@@ -18,7 +18,14 @@
 		"builtInModesText": "Nástroje pro vestavěné režimy nelze upravovat",
 		"editTools": "Upravit nástroje",
 		"doneEditing": "Dokončit úpravy",
-		"allowedFiles": "Povolené soubory:"
+		"allowedFiles": "Povolené soubory:",
+		"toolNames": {
+			"read": "Číst soubory",
+			"edit": "Upravit soubory",
+			"browser": "Použít prohlížeč",
+			"command": "Spustit příkazy",
+			"mcp": "Použít MCP"
+		}
 	},
 	"roleDefinition": {
 		"title": "Definice role",

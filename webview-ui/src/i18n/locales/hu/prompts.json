@@ -18,7 +18,14 @@
 		"builtInModesText": "A beépített módok eszközei nem módosíthatók",
 		"editTools": "Eszközök szerkesztése",
 		"doneEditing": "Szerkesztés befejezése",
-		"allowedFiles": "Engedélyezett fájlok:"
+		"allowedFiles": "Engedélyezett fájlok:",
+		"toolNames": {
+			"read": "Fájlok olvasása",
+			"edit": "Fájlok szerkesztése",
+			"browser": "Böngésző használata",
+			"command": "Parancsok futtatása",
+			"mcp": "MCP használata"
+		}
 	},
 	"roleDefinition": {
 		"title": "Szerepkör meghatározása",

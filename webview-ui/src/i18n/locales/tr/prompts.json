@@ -18,7 +18,14 @@
 		"builtInModesText": "Yerleşik modlar için araçlar değiştirilemez",
 		"editTools": "Araçları düzenle",
 		"doneEditing": "Düzenlemeyi bitir",
-		"allowedFiles": "İzin verilen dosyalar:"
+		"allowedFiles": "İzin verilen dosyalar:",
+		"toolNames": {
+			"read": "Dosyaları Oku",
+			"edit": "Dosyaları Düzenle",
+			"browser": "Tarayıcı Kullan",
+			"command": "Komutları Çalıştır",
+			"mcp": "MCP Kullan"
+		}
 	},
 	"roleDefinition": {
 		"title": "Rol Tanımı",

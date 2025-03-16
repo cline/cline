@@ -18,7 +18,14 @@
 		"builtInModesText": "Narzędzia dla wbudowanych trybów nie mogą być modyfikowane",
 		"editTools": "Edytuj narzędzia",
 		"doneEditing": "Zakończ edycję",
-		"allowedFiles": "Dozwolone pliki:"
+		"allowedFiles": "Dozwolone pliki:",
+		"toolNames": {
+			"read": "Czytaj pliki",
+			"edit": "Edytuj pliki",
+			"browser": "Używaj przeglądarki",
+			"command": "Uruchamiaj polecenia",
+			"mcp": "Używaj MCP"
+		}
 	},
 	"roleDefinition": {
 		"title": "Definicja roli",
