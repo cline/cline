@@ -7,6 +7,7 @@ import { vscode } from "../../../utils/vscode"
 
 jest.mock("../../../context/ExtensionStateContext")
 jest.mock("../../../utils/vscode")
+jest.mock("../../../i18n/TranslationContext")
 
 jest.mock("react-virtuoso", () => ({
 	Virtuoso: ({ data, itemContent }: any) => (

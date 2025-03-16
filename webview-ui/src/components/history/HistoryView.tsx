@@ -8,6 +8,7 @@ import { vscode } from "@/utils/vscode"
 import { formatLargeNumber, formatDate } from "@/utils/format"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 
 import { Tab, TabContent, TabHeader } from "../common/Tab"
 import { useTaskSearch } from "./useTaskSearch"
@@ -22,6 +23,7 @@ type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRe
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const { tasks, searchQuery, setSearchQuery, sortOption, setSortOption, setLastNonRelevantSort } = useTaskSearch()
+	const { t } = useAppTranslation()
 
 	const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
 
@@ -29,13 +31,13 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		<Tab>
 			<TabHeader className="flex flex-col gap-2">
 				<div className="flex justify-between items-center">
-					<h3 className="text-vscode-foreground m-0">History</h3>
-					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+					<h3 className="text-vscode-foreground m-0">{t("history:history")}</h3>
+					<VSCodeButton onClick={onDone}>{t("history:done")}</VSCodeButton>
 				</div>
 				<div className="flex flex-col gap-2">
 					<VSCodeTextField
 						style={{ width: "100%" }}
-						placeholder="Fuzzy search history..."
+						placeholder={t("history:searchPlaceholder")}
 						value={searchQuery}
 						onInput={(e) => {
 							const newValue = (e.target as HTMLInputElement)?.value
@@ -70,15 +72,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						value={sortOption}
 						role="radiogroup"
 						onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}>
-						<VSCodeRadio value="newest">Newest</VSCodeRadio>
-						<VSCodeRadio value="oldest">Oldest</VSCodeRadio>
-						<VSCodeRadio value="mostExpensive">Most Expensive</VSCodeRadio>
-						<VSCodeRadio value="mostTokens">Most Tokens</VSCodeRadio>
+						<VSCodeRadio value="newest">{t("history:newest")}</VSCodeRadio>
+						<VSCodeRadio value="oldest">{t("history:oldest")}</VSCodeRadio>
+						<VSCodeRadio value="mostExpensive">{t("history:mostExpensive")}</VSCodeRadio>
+						<VSCodeRadio value="mostTokens">{t("history:mostTokens")}</VSCodeRadio>
 						<VSCodeRadio
 							value="mostRelevant"
 							disabled={!searchQuery}
 							style={{ opacity: searchQuery ? 1 : 0.5 }}>
-							Most Relevant
+							{t("history:mostRelevant")}
 						</VSCodeRadio>
 					</VSCodeRadioGroup>
 				</div>
@@ -132,7 +134,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										<Button
 											variant="ghost"
 											size="sm"
-											title="Delete Task (Shift + Click to skip confirmation)"
+											title={t("history:deleteTaskTitle")}
 											onClick={(e) => {
 												e.stopPropagation()
 
@@ -181,7 +183,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 													fontWeight: 500,
 													color: "var(--vscode-descriptionForeground)",
 												}}>
-												Tokens:
+												{t("history:tokensLabel")}
 											</span>
 											<span
 												data-testid="tokens-in"
@@ -242,7 +244,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 													fontWeight: 500,
 													color: "var(--vscode-descriptionForeground)",
 												}}>
-												Cache:
+												{t("history:cacheLabel")}
 											</span>
 											<span
 												data-testid="cache-writes"
@@ -297,7 +299,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 														fontWeight: 500,
 														color: "var(--vscode-descriptionForeground)",
 													}}>
-													API Cost:
+													{t("history:apiCostLabel")}
 												</span>
 												<span style={{ color: "var(--vscode-descriptionForeground)" }}>
 													${item.totalCost?.toFixed(4)}
