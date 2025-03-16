@@ -1,0 +1,51 @@
+{
+	"title": "MCP Sunucuları",
+	"done": "Tamam",
+	"description": "<0>Model Context Protocol</0>, Roo'nun yeteneklerini genişletmek için ek araçlar ve kaynaklar sağlayan yerel olarak çalışan MCP sunucularıyla iletişim kurmanızı sağlar. <1>Topluluk tarafından oluşturulan sunucuları</1> kullanabilir veya Roo'dan iş akışınıza özel yeni araçlar oluşturmasını isteyebilirsiniz (örneğin, \"en son npm belgelerini alan bir araç ekle\").",
+	"enableToggle": {
+		"title": "MCP Sunucularını Etkinleştir",
+		"description": "Etkinleştirildiğinde, Roo gelişmiş işlevler için MCP sunucularıyla etkileşim kurabilecektir. MCP kullanmıyorsanız, Roo'nun token kullanımını azaltmak için bunu devre dışı bırakabilirsiniz."
+	},
+	"enableServerCreation": {
+		"title": "MCP Sunucu Oluşturmayı Etkinleştir",
+		"description": "Etkinleştirildiğinde, Roo \"için yeni bir araç ekle...\" gibi komutlar aracılığıyla yeni MCP sunucuları oluşturmanıza yardımcı olabilir. MCP sunucuları oluşturmanız gerekmiyorsa, Roo'nun token kullanımını azaltmak için bunu devre dışı bırakabilirsiniz."
+	},
+	"editSettings": "MCP Ayarlarını Düzenle",
+	"tool": {
+		"alwaysAllow": "Her zaman izin ver",
+		"parameters": "Parametreler",
+		"noDescription": "Açıklama yok"
+	},
+	"tabs": {
+		"tools": "Araçlar",
+		"resources": "Kaynaklar"
+	},
+	"emptyState": {
+		"noTools": "Araç bulunamadı",
+		"noResources": "Kaynak bulunamadı"
+	},
+	"networkTimeout": {
+		"label": "Ağ Zaman Aşımı",
+		"description": "Sunucu yanıtları için beklenecek maksimum süre",
+		"options": {
+			"15seconds": "15 saniye",
+			"30seconds": "30 saniye",
+			"1minute": "1 dakika",
+			"5minutes": "5 dakika",
+			"10minutes": "10 dakika",
+			"15minutes": "15 dakika",
+			"30minutes": "30 dakika",
+			"60minutes": "60 dakika"
+		}
+	},
+	"deleteDialog": {
+		"title": "MCP Sunucusunu Sil",
+		"description": "\"{{serverName}}\" MCP sunucusunu silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.",
+		"cancel": "İptal",
+		"delete": "Sil"
+	},
+	"serverStatus": {
+		"retrying": "Yeniden deneniyor...",
+		"retryConnection": "Bağlantıyı Yeniden Dene"
+	}
+}

@@ -1,0 +1,51 @@
+{
+	"title": "MCPサーバー",
+	"done": "完了",
+	"description": "<0>Model Context Protocol</0>は、ローカルで実行されているMCPサーバーとの通信を可能にし、Rooの機能を拡張するための追加ツールやリソースを提供します。<1>コミュニティによって作成されたサーバー</1>を使用したり、Rooにワークフロー専用の新しいツールを作成するよう依頼したりできます（例：「最新のnpmドキュメントを取得するツールを追加する」）。",
+	"enableToggle": {
+		"title": "MCPサーバーを有効にする",
+		"description": "有効にすると、Rooは高度な機能のためにMCPサーバーと対話できるようになります。MCPを使用していない場合は、これを無効にしてRooのtoken使用量を減らすことができます。"
+	},
+	"enableServerCreation": {
+		"title": "MCPサーバー作成を有効にする",
+		"description": "有効にすると、Rooは「新しいツールを追加する...」などのコマンドを通じて新しいMCPサーバーの作成を支援できます。MCPサーバーを作成する必要がない場合は、これを無効にしてRooのtoken使用量を減らすことができます。"
+	},
+	"editSettings": "MCP設定を編集",
+	"tool": {
+		"alwaysAllow": "常に許可",
+		"parameters": "パラメータ",
+		"noDescription": "説明なし"
+	},
+	"tabs": {
+		"tools": "ツール",
+		"resources": "リソース"
+	},
+	"emptyState": {
+		"noTools": "ツールが見つかりません",
+		"noResources": "リソースが見つかりません"
+	},
+	"networkTimeout": {
+		"label": "ネットワークタイムアウト",
+		"description": "サーバー応答を待つ最大時間",
+		"options": {
+			"15seconds": "15秒",
+			"30seconds": "30秒",
+			"1minute": "1分",
+			"5minutes": "5分",
+			"10minutes": "10分",
+			"15minutes": "15分",
+			"30minutes": "30分",
+			"60minutes": "60分"
+		}
+	},
+	"deleteDialog": {
+		"title": "MCPサーバーを削除",
+		"description": "MCPサーバー「{{serverName}}」を削除してもよろしいですか？この操作は元に戻せません。",
+		"cancel": "キャンセル",
+		"delete": "削除"
+	},
+	"serverStatus": {
+		"retrying": "再試行中...",
+		"retryConnection": "接続を再試行"
+	}
+}
