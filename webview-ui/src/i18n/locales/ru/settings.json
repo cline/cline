@@ -191,7 +191,7 @@
 		}
 	},
 	"footer": {
-		"feedback": "Если у вас есть вопросы или отзывы, не стесняйтесь открыть issue на github.com/RooVetGit/Roo-Code или присоединиться к reddit.com/r/RooCode",
+		"feedback": "Если у вас есть вопросы или отзывы, не стесняйтесь открыть issue на <githubLink>github.com/RooVetGit/Roo-Code</githubLink> или присоединиться к <redditLink>reddit.com/r/RooCode</redditLink> или <discordLink>discord.gg/roocode</discordLink>",
 		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Разрешить анонимные отчеты об ошибках и использовании",

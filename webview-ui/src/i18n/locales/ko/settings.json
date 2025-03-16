@@ -191,7 +191,7 @@
 		}
 	},
 	"footer": {
-		"feedback": "질문이나 피드백이 있으시면 github.com/RooVetGit/Roo-Code에서 이슈를 열거나 reddit.com/r/RooCode에 가입하세요",
+		"feedback": "질문이나 피드백이 있으시면 <githubLink>github.com/RooVetGit/Roo-Code</githubLink>에서 이슈를 열거나 <redditLink>reddit.com/r/RooCode</redditLink> 또는 <discordLink>discord.gg/roocode</discordLink>에 가입하세요",
 		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "익명 오류 및 사용 보고 허용",

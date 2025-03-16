@@ -191,7 +191,7 @@
 		}
 	},
 	"footer": {
-		"feedback": "Ha bármilyen kérdése vagy visszajelzése van, nyugodtan nyisson egy problémát a github.com/RooVetGit/Roo-Code oldalon, vagy csatlakozzon a reddit.com/r/RooCode oldalhoz",
+		"feedback": "Ha bármilyen kérdése vagy visszajelzése van, nyugodtan nyisson egy problémát a <githubLink>github.com/RooVetGit/Roo-Code</githubLink> oldalon, vagy csatlakozzon a <redditLink>reddit.com/r/RooCode</redditLink> vagy <discordLink>discord.gg/roocode</discordLink> oldalhoz",
 		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Névtelen hiba- és használati jelentések engedélyezése",
