@@ -2619,7 +2619,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	 * like the current mode, API provider, etc.
 	 */
 	public async getTelemetryProperties(): Promise<Record<string, any>> {
-		const { mode, apiConfiguration } = await this.getState()
+		const { mode, apiConfiguration, language } = await this.getState()
 		const appVersion = this.context.extension?.packageJSON?.version
 		const vscodeVersion = vscode.version
 		const platform = process.platform
@@ -2632,6 +2632,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		// Add extension version
 		if (appVersion) {
 			properties.appVersion = appVersion
+		}
+
+		// Add language
+		if (language) {
+			properties.language = language
 		}
 
 		// Add current mode
