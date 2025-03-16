@@ -1,4 +1,5 @@
 import { HTMLAttributes, useState } from "react"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { CheckCheck } from "lucide-react"
 
@@ -40,6 +41,7 @@ export const AutoApproveSettings = ({
 	className,
 	...props
 }: AutoApproveSettingsProps) => {
+	const { t } = useAppTranslation()
 	const [commandInput, setCommandInput] = useState("")
 
 	const handleAddCommand = () => {
@@ -54,10 +56,10 @@ export const AutoApproveSettings = ({
 
 	return (
 		<div {...props}>
-			<SectionHeader description="Allow Roo to automatically perform operations without requiring approval. Enable these settings only if you fully trust the AI and understand the associated security risks.">
+			<SectionHeader description={t("settings:autoApprove.description")}>
 				<div className="flex items-center gap-2">
 					<CheckCheck className="w-4" />
-					<div>Auto-Approve</div>
+					<div>{t("settings:sections.autoApprove")}</div>
 				</div>
 			</SectionHeader>
 
@@ -65,23 +67,24 @@ export const AutoApproveSettings = ({
 				<div>
 					<VSCodeCheckbox
 						checked={alwaysAllowReadOnly}
-						onChange={(e: any) => setCachedStateField("alwaysAllowReadOnly", e.target.checked)}>
-						<span className="font-medium">Always approve read-only operations</span>
+						onChange={(e: any) => setCachedStateField("alwaysAllowReadOnly", e.target.checked)}
+						data-testid="always-allow-readonly-checkbox">
+						<span className="font-medium">{t("settings:autoApprove.readOnly.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						When enabled, Roo will automatically view directory contents and read files without requiring
-						you to click the Approve button.
+						{t("settings:autoApprove.readOnly.description")}
 					</p>
 				</div>
 
 				<div>
 					<VSCodeCheckbox
 						checked={alwaysAllowWrite}
-						onChange={(e: any) => setCachedStateField("alwaysAllowWrite", e.target.checked)}>
-						<span className="font-medium">Always approve write operations</span>
+						onChange={(e: any) => setCachedStateField("alwaysAllowWrite", e.target.checked)}
+						data-testid="always-allow-write-checkbox">
+						<span className="font-medium">{t("settings:autoApprove.write.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Automatically create and edit files without requiring approval
+						{t("settings:autoApprove.write.description")}
 					</p>
 					{alwaysAllowWrite && (
 						<div
@@ -98,12 +101,13 @@ export const AutoApproveSettings = ({
 									step="100"
 									value={writeDelayMs}
 									onChange={(e) => setCachedStateField("writeDelayMs", parseInt(e.target.value))}
+									data-testid="write-delay-slider"
 									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 								/>
 								<span style={{ minWidth: "45px", textAlign: "left" }}>{writeDelayMs}ms</span>
 							</div>
 							<p className="text-vscode-descriptionForeground text-sm mt-1">
-								Delay after writes to allow diagnostics to detect potential problems
+								{t("settings:autoApprove.write.delayLabel")}
 							</p>
 						</div>
 					)}
@@ -112,24 +116,26 @@ export const AutoApproveSettings = ({
 				<div>
 					<VSCodeCheckbox
 						checked={alwaysAllowBrowser}
-						onChange={(e: any) => setCachedStateField("alwaysAllowBrowser", e.target.checked)}>
-						<span className="font-medium">Always approve browser actions</span>
+						onChange={(e: any) => setCachedStateField("alwaysAllowBrowser", e.target.checked)}
+						data-testid="always-allow-browser-checkbox">
+						<span className="font-medium">{t("settings:autoApprove.browser.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Automatically perform browser actions without requiring approval
+						{t("settings:autoApprove.browser.description")}
 						<br />
-						Note: Only applies when the model supports computer use
+						{t("settings:autoApprove.browser.note")}
 					</p>
 				</div>
 
 				<div>
 					<VSCodeCheckbox
 						checked={alwaysApproveResubmit}
-						onChange={(e: any) => setCachedStateField("alwaysApproveResubmit", e.target.checked)}>
-						<span className="font-medium">Always retry failed API requests</span>
+						onChange={(e: any) => setCachedStateField("alwaysApproveResubmit", e.target.checked)}
+						data-testid="always-approve-resubmit-checkbox">
+						<span className="font-medium">{t("settings:autoApprove.retry.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Automatically retry failed API requests when server returns an error response
+						{t("settings:autoApprove.retry.description")}
 					</p>
 					{alwaysApproveResubmit && (
 						<div
@@ -148,12 +154,13 @@ export const AutoApproveSettings = ({
 									onChange={(e) =>
 										setCachedStateField("requestDelaySeconds", parseInt(e.target.value))
 									}
+									data-testid="request-delay-slider"
 									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 								/>
 								<span style={{ minWidth: "45px", textAlign: "left" }}>{requestDelaySeconds}s</span>
 							</div>
 							<p className="text-vscode-descriptionForeground text-sm mt-0">
-								Delay before retrying the request
+								{t("settings:autoApprove.retry.delayLabel")}
 							</p>
 						</div>
 					)}
@@ -162,45 +169,48 @@ export const AutoApproveSettings = ({
 				<div>
 					<VSCodeCheckbox
 						checked={alwaysAllowMcp}
-						onChange={(e: any) => setCachedStateField("alwaysAllowMcp", e.target.checked)}>
-						<span className="font-medium">Always approve MCP tools</span>
+						onChange={(e: any) => setCachedStateField("alwaysAllowMcp", e.target.checked)}
+						data-testid="always-allow-mcp-checkbox">
+						<span className="font-medium">{t("settings:autoApprove.mcp.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Enable auto-approval of individual MCP tools in the MCP Servers view (requires both this setting
-						and the tool's individual "Always allow" checkbox)
+						{t("settings:autoApprove.mcp.description")}
 					</p>
 				</div>
 
 				<div>
 					<VSCodeCheckbox
 						checked={alwaysAllowModeSwitch}
-						onChange={(e: any) => setCachedStateField("alwaysAllowModeSwitch", e.target.checked)}>
-						<span className="font-medium">Always approve mode switching</span>
+						onChange={(e: any) => setCachedStateField("alwaysAllowModeSwitch", e.target.checked)}
+						data-testid="always-allow-mode-switch-checkbox">
+						<span className="font-medium">{t("settings:autoApprove.modeSwitch.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Automatically switch between different modes without requiring approval
+						{t("settings:autoApprove.modeSwitch.description")}
 					</p>
 				</div>
 
 				<div>
 					<VSCodeCheckbox
 						checked={alwaysAllowSubtasks}
-						onChange={(e: any) => setCachedStateField("alwaysAllowSubtasks", e.target.checked)}>
-						<span className="font-medium">Always approve creation & completion of subtasks</span>
+						onChange={(e: any) => setCachedStateField("alwaysAllowSubtasks", e.target.checked)}
+						data-testid="always-allow-subtasks-checkbox">
+						<span className="font-medium">{t("settings:autoApprove.subtasks.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Allow creation and completion of subtasks without requiring approval
+						{t("settings:autoApprove.subtasks.description")}
 					</p>
 				</div>
 
 				<div>
 					<VSCodeCheckbox
 						checked={alwaysAllowExecute}
-						onChange={(e: any) => setCachedStateField("alwaysAllowExecute", e.target.checked)}>
-						<span className="font-medium">Always approve allowed execute operations</span>
+						onChange={(e: any) => setCachedStateField("alwaysAllowExecute", e.target.checked)}
+						data-testid="always-allow-execute-checkbox">
+						<span className="font-medium">{t("settings:autoApprove.execute.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Automatically execute allowed terminal commands without requiring approval
+						{t("settings:autoApprove.execute.description")}
 					</p>
 					{alwaysAllowExecute && (
 						<div
@@ -209,10 +219,11 @@ export const AutoApproveSettings = ({
 								paddingLeft: 10,
 								borderLeft: "2px solid var(--vscode-button-background)",
 							}}>
-							<span className="font-medium">Allowed Auto-Execute Commands</span>
+							<span className="font-medium" data-testid="allowed-commands-heading">
+								{t("settings:autoApprove.execute.allowedCommands")}
+							</span>
 							<p className="text-vscode-descriptionForeground text-sm mt-0">
-								Command prefixes that can be auto-executed when "Always approve execute operations" is
-								enabled. Add * to allow all commands (use with caution).
+								{t("settings:autoApprove.execute.allowedCommandsDescription")}
 							</p>
 							<div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
 								<VSCodeTextField
@@ -224,10 +235,13 @@ export const AutoApproveSettings = ({
 											handleAddCommand()
 										}
 									}}
-									placeholder="Enter command prefix (e.g., 'git ')"
+									placeholder={t("settings:autoApprove.execute.commandPlaceholder")}
+									data-testid="command-input"
 									style={{ flexGrow: 1 }}
 								/>
-								<VSCodeButton onClick={handleAddCommand}>Add</VSCodeButton>
+								<VSCodeButton onClick={handleAddCommand} data-testid="add-command-button">
+									{t("settings:autoApprove.execute.addButton")}
+								</VSCodeButton>
 							</div>
 							<div
 								style={{
@@ -244,6 +258,7 @@ export const AutoApproveSettings = ({
 										<VSCodeButton
 											appearance="icon"
 											className="text-primary-foreground"
+											data-testid={`remove-command-${index}`}
 											onClick={() => {
 												const newCommands = (allowedCommands ?? []).filter(
 													(_, i) => i !== index,

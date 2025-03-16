@@ -1,4 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { useAppTranslation } from "@/i18n/TranslationContext"
+import { Trans } from "react-i18next"
 import { useDebounce, useEvent } from "react-use"
 import { Checkbox, Dropdown, type DropdownOption } from "vscrui"
 import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -91,6 +93,7 @@ const ApiOptions = ({
 	errorMessage,
 	setErrorMessage,
 }: ApiOptionsProps) => {
+	const { t } = useAppTranslation()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
@@ -259,7 +262,7 @@ const ApiOptions = ({
 		<div className="flex flex-col gap-3">
 			<div className="dropdown-container">
 				<label htmlFor="api-provider" className="font-medium">
-					API Provider
+					{t("settings:providers.apiProvider")}
 				</label>
 				<Select
 					value={selectedProvider}
@@ -289,14 +292,14 @@ const ApiOptions = ({
 						onInput={handleInputChange("openRouterApiKey")}
 						placeholder="Enter API Key..."
 						className="w-full">
-						<span className="font-medium">OpenRouter API Key</span>
+						<span className="font-medium">{t("settings:providers.openRouterApiKey")}</span>
 					</VSCodeTextField>
 					<div className="text-sm text-vscode-descriptionForeground -mt-2">
-						This key is stored locally and only used to make API requests from this extension.
+						{t("settings:providers.apiKeyStorageNotice")}
 					</div>
 					{!apiConfiguration?.openRouterApiKey && (
 						<VSCodeButtonLink href={getOpenRouterAuthUrl(uriScheme)} appearance="secondary">
-							Get OpenRouter API Key
+							{t("settings:providers.getOpenRouterApiKey")}
 						</VSCodeButtonLink>
 					)}
 					{!fromWelcomeView && (
@@ -311,7 +314,7 @@ const ApiOptions = ({
 											setApiConfigurationField("openRouterBaseUrl", "")
 										}
 									}}>
-									Use custom base URL
+									{t("settings:providers.useCustomBaseUrl")}
 								</Checkbox>
 								{openRouterBaseUrlSelected && (
 									<VSCodeTextField
@@ -326,8 +329,13 @@ const ApiOptions = ({
 							<Checkbox
 								checked={apiConfiguration?.openRouterUseMiddleOutTransform ?? true}
 								onChange={handleInputChange("openRouterUseMiddleOutTransform", noTransform)}>
-								Compress prompts and message chains to the context size (
-								<a href="https://openrouter.ai/docs/transforms">OpenRouter Transforms</a>)
+								<Trans
+									i18nKey="settings:providers.openRouterTransformsText"
+									components={{
+										// eslint-disable-next-line jsx-a11y/anchor-has-content
+										a: <a href="https://openrouter.ai/docs/transforms" />,
+									}}
+								/>
 							</Checkbox>
 						</>
 					)}
@@ -342,14 +350,14 @@ const ApiOptions = ({
 						onInput={handleInputChange("apiKey")}
 						placeholder="Enter API Key..."
 						className="w-full">
-						<div className="font-medium">Anthropic API Key</div>
+						<div className="font-medium">{t("settings:providers.anthropicApiKey")}</div>
 					</VSCodeTextField>
 					<div className="text-sm text-vscode-descriptionForeground -mt-2">
-						This key is stored locally and only used to make API requests from this extension.
+						{t("settings:providers.apiKeyStorageNotice")}
 					</div>
 					{!apiConfiguration?.apiKey && (
 						<VSCodeButtonLink href="https://console.anthropic.com/settings/keys" appearance="secondary">
-							Get Anthropic API Key
+							{t("settings:providers.getAnthropicApiKey")}
 						</VSCodeButtonLink>
 					)}
 					<div>
@@ -362,7 +370,7 @@ const ApiOptions = ({
 									setApiConfigurationField("anthropicBaseUrl", "")
 								}
 							}}>
-							Use custom base URL
+							{t("settings:providers.useCustomBaseUrl")}
 						</Checkbox>
 						{anthropicBaseUrlSelected && (
 							<VSCodeTextField
@@ -385,14 +393,14 @@ const ApiOptions = ({
 						onInput={handleInputChange("glamaApiKey")}
 						placeholder="Enter API Key..."
 						className="w-full">
-						<span className="font-medium">Glama API Key</span>
+						<span className="font-medium">{t("settings:providers.glamaApiKey")}</span>
 					</VSCodeTextField>
 					<div className="text-sm text-vscode-descriptionForeground -mt-2">
-						This key is stored locally and only used to make API requests from this extension.
+						{t("settings:providers.apiKeyStorageNotice")}
 					</div>
 					{!apiConfiguration?.glamaApiKey && (
 						<VSCodeButtonLink href={getGlamaAuthUrl(uriScheme)} appearance="secondary">
-							Get Glama API Key
+							{t("settings:providers.getGlamaApiKey")}
 						</VSCodeButtonLink>
 					)}
 				</>
