@@ -18,7 +18,14 @@
 		"builtInModesText": "內建模式的工具不能被修改",
 		"editTools": "編輯工具",
 		"doneEditing": "完成編輯",
-		"allowedFiles": "允許的檔案："
+		"allowedFiles": "允許的檔案：",
+		"toolNames": {
+			"read": "讀取檔案",
+			"edit": "編輯檔案",
+			"browser": "使用瀏覽器",
+			"command": "執行命令",
+			"mcp": "使用 MCP"
+		}
 	},
 	"roleDefinition": {
 		"title": "角色定義",

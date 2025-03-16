@@ -22,7 +22,7 @@ import {
 import { CustomModeSchema } from "../../../../src/core/config/CustomModesSchema"
 import { supportPrompt, SupportPromptType } from "../../../../src/shared/support-prompt"
 
-import { TOOL_GROUPS, GROUP_DISPLAY_NAMES, ToolGroup } from "../../../../src/shared/tool-groups"
+import { TOOL_GROUPS, ToolGroup } from "../../../../src/shared/tool-groups"
 import { vscode } from "../../utils/vscode"
 import { Tab, TabContent, TabHeader } from "../common/Tab"
 import i18next from "i18next"
@@ -657,7 +657,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 												checked={isGroupEnabled}
 												onChange={handleGroupChange(group, Boolean(isCustomMode), customMode)}
 												disabled={!isCustomMode}>
-												{GROUP_DISPLAY_NAMES[group]}
+												{t(`prompts:tools.toolNames.${group}`)}
 												{group === "edit" && (
 													<div className="text-xs text-vscode-descriptionForeground mt-0.5">
 														{t("prompts:tools.allowedFiles")}{" "}
@@ -689,7 +689,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 										return enabledGroups
 											.map((group) => {
 												const groupName = getGroupName(group)
-												const displayName = GROUP_DISPLAY_NAMES[groupName]
+												const displayName = t(`prompts:tools.toolNames.${groupName}`)
 												if (Array.isArray(group) && group[1]?.fileRegex) {
 													const description =
 														group[1].description || `/${group[1].fileRegex}/`
@@ -1247,7 +1247,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 													)
 												}
 											}}>
-											{GROUP_DISPLAY_NAMES[group]}
+											{t(`prompts:tools.toolNames.${group}`)}
 										</VSCodeCheckbox>
 									))}
 								</div>

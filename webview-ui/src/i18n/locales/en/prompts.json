@@ -18,7 +18,14 @@
 		"builtInModesText": "Tools for built-in modes cannot be modified",
 		"editTools": "Edit tools",
 		"doneEditing": "Done editing",
-		"allowedFiles": "Allowed files:"
+		"allowedFiles": "Allowed files:",
+		"toolNames": {
+			"read": "Read Files",
+			"edit": "Edit Files",
+			"browser": "Use Browser",
+			"command": "Run Commands",
+			"mcp": "Use MCP"
+		}
 	},
 	"roleDefinition": {
 		"title": "Role Definition",
