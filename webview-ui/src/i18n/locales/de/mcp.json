@@ -1,0 +1,51 @@
+{
+	"title": "MCP-Server",
+	"done": "Fertig",
+	"description": "Das <0>Model Context Protocol</0> ermöglicht die Kommunikation mit lokal laufenden MCP-Servern, die zusätzliche Tools und Ressourcen zur Erweiterung der Fähigkeiten von Roo bereitstellen. Sie können <1>von der Community erstellte Server</1> verwenden oder Roo bitten, neue Tools speziell für Ihren Workflow zu erstellen (z.B. \"ein Tool hinzufügen, das die neueste npm-Dokumentation abruft\").",
+	"enableToggle": {
+		"title": "MCP-Server aktivieren",
+		"description": "Wenn aktiviert, kann Roo mit MCP-Servern für erweiterte Funktionen interagieren. Wenn Sie MCP nicht verwenden, können Sie dies deaktivieren, um den Token-Verbrauch von Roo zu reduzieren."
+	},
+	"enableServerCreation": {
+		"title": "MCP-Server-Erstellung aktivieren",
+		"description": "Wenn aktiviert, kann Roo Ihnen helfen, neue MCP-Server über Befehle wie \"neues Tool hinzufügen zu...\" zu erstellen. Wenn Sie keine MCP-Server erstellen müssen, können Sie dies deaktivieren, um den Token-Verbrauch von Roo zu reduzieren."
+	},
+	"editSettings": "MCP-Einstellungen bearbeiten",
+	"tool": {
+		"alwaysAllow": "Immer erlauben",
+		"parameters": "Parameter",
+		"noDescription": "Keine Beschreibung"
+	},
+	"tabs": {
+		"tools": "Tools",
+		"resources": "Ressourcen"
+	},
+	"emptyState": {
+		"noTools": "Keine Tools gefunden",
+		"noResources": "Keine Ressourcen gefunden"
+	},
+	"networkTimeout": {
+		"label": "Netzwerk-Timeout",
+		"description": "Maximale Wartezeit für Serverantworten",
+		"options": {
+			"15seconds": "15 Sekunden",
+			"30seconds": "30 Sekunden",
+			"1minute": "1 Minute",
+			"5minutes": "5 Minuten",
+			"10minutes": "10 Minuten",
+			"15minutes": "15 Minuten",
+			"30minutes": "30 Minuten",
+			"60minutes": "60 Minuten"
+		}
+	},
+	"deleteDialog": {
+		"title": "MCP-Server löschen",
+		"description": "Sind Sie sicher, dass Sie den MCP-Server \"{{serverName}}\" löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
+		"cancel": "Abbrechen",
+		"delete": "Löschen"
+	},
+	"serverStatus": {
+		"retrying": "Wiederhole...",
+		"retryConnection": "Verbindung wiederherstellen"
+	}
+}

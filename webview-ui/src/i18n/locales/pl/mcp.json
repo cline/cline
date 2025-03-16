@@ -1,0 +1,51 @@
+{
+	"title": "Serwery MCP",
+	"done": "Gotowe",
+	"description": "<0>Model Context Protocol</0> umożliwia komunikację z lokalnie uruchomionymi serwerami MCP, które zapewniają dodatkowe narzędzia i zasoby rozszerzające możliwości Roo. Możesz korzystać z <1>serwerów stworzonych przez społeczność</1> lub poprosić Roo o utworzenie nowych narzędzi specyficznych dla twojego przepływu pracy (np. \"dodaj narzędzie, które pobiera najnowszą dokumentację npm\").",
+	"enableToggle": {
+		"title": "Włącz serwery MCP",
+		"description": "Po włączeniu, Roo będzie mógł komunikować się z serwerami MCP w celu uzyskania zaawansowanych funkcji. Jeśli nie korzystasz z MCP, możesz to wyłączyć, aby zmniejszyć zużycie tokenów przez Roo."
+	},
+	"enableServerCreation": {
+		"title": "Włącz tworzenie serwerów MCP",
+		"description": "Po włączeniu, Roo może pomóc w tworzeniu nowych serwerów MCP za pomocą poleceń takich jak \"dodaj nowe narzędzie do...\". Jeśli nie potrzebujesz tworzyć serwerów MCP, możesz to wyłączyć, aby zmniejszyć zużycie tokenów przez Roo."
+	},
+	"editSettings": "Edytuj ustawienia MCP",
+	"tool": {
+		"alwaysAllow": "Zawsze zezwalaj",
+		"parameters": "Parametry",
+		"noDescription": "Brak opisu"
+	},
+	"tabs": {
+		"tools": "Narzędzia",
+		"resources": "Zasoby"
+	},
+	"emptyState": {
+		"noTools": "Nie znaleziono narzędzi",
+		"noResources": "Nie znaleziono zasobów"
+	},
+	"networkTimeout": {
+		"label": "Limit czasu sieci",
+		"description": "Maksymalny czas oczekiwania na odpowiedzi serwera",
+		"options": {
+			"15seconds": "15 sekund",
+			"30seconds": "30 sekund",
+			"1minute": "1 minuta",
+			"5minutes": "5 minut",
+			"10minutes": "10 minut",
+			"15minutes": "15 minut",
+			"30minutes": "30 minut",
+			"60minutes": "60 minut"
+		}
+	},
+	"deleteDialog": {
+		"title": "Usuń serwer MCP",
+		"description": "Czy na pewno chcesz usunąć serwer MCP \"{{serverName}}\"? Tej operacji nie można cofnąć.",
+		"cancel": "Anuluj",
+		"delete": "Usuń"
+	},
+	"serverStatus": {
+		"retrying": "Ponowna próba...",
+		"retryConnection": "Ponów połączenie"
+	}
+}

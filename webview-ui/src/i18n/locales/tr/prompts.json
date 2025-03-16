@@ -1,0 +1,106 @@
+{
+	"title": "Promptlar",
+	"done": "Tamamlandı",
+	"modes": {
+		"title": "Modlar",
+		"createNewMode": "Yeni mod oluştur",
+		"editModesConfig": "Mod yapılandırmasını düzenle",
+		"editGlobalModes": "Global modları düzenle",
+		"editProjectModes": "Proje modlarını düzenle (.roomodes)",
+		"createModeHelpText": "Yeni bir özel mod oluşturmak için + düğmesine tıklayın veya sohbette Roo'dan sizin için bir tane oluşturmasını isteyin!"
+	},
+	"apiConfiguration": {
+		"title": "API Yapılandırması",
+		"select": "Bu mod için hangi API yapılandırmasının kullanılacağını seçin"
+	},
+	"tools": {
+		"title": "Kullanılabilir Araçlar",
+		"builtInModesText": "Yerleşik modlar için araçlar değiştirilemez",
+		"editTools": "Araçları düzenle",
+		"doneEditing": "Düzenlemeyi bitir",
+		"allowedFiles": "İzin verilen dosyalar:"
+	},
+	"roleDefinition": {
+		"title": "Rol Tanımı",
+		"resetToDefault": "Varsayılana sıfırla",
+		"description": "Bu mod için Roo'nun uzmanlığını ve kişiliğini tanımlayın. Bu açıklama, Roo'nun kendini nasıl sunduğunu ve görevlere nasıl yaklaştığını şekillendirir."
+	},
+	"customInstructions": {
+		"title": "Moda özgü özel talimatlar (isteğe bağlı)",
+		"resetToDefault": "Varsayılana sıfırla",
+		"description": "{{modeName}} modu için özel davranış yönergeleri ekleyin.",
+		"loadFromFile": "{{modeName}} moduna özgü özel talimatlar, çalışma alanınızdaki .clinerules-{{modeSlug}} dosyasından da yüklenebilir."
+	},
+	"globalCustomInstructions": {
+		"title": "Tüm Modlar için Özel Talimatlar",
+		"description": "Bu talimatlar tüm modlara uygulanır. Aşağıdaki moda özgü talimatlarla geliştirilebilen temel davranış seti sağlarlar.\nRoo'nun editörünüzün görüntüleme dilinden ({{language}}) farklı bir dilde düşünmesini ve konuşmasını istiyorsanız, burada belirtebilirsiniz.",
+		"loadFromFile": "Talimatlar, çalışma alanınızdaki .clinerules dosyasından da yüklenebilir."
+	},
+	"systemPrompt": {
+		"preview": "Sistem promptunu önizle",
+		"copy": "Sistem promptunu panoya kopyala",
+		"title": "Sistem promptu ({{modeName}} modu)"
+	},
+	"supportPrompts": {
+		"title": "Destek Promptları",
+		"resetPrompt": "{{promptType}} promptunu varsayılana sıfırla",
+		"prompt": "Prompt",
+		"enhance": {
+			"apiConfiguration": "API Yapılandırması",
+			"apiConfigDescription": "Promptları geliştirmek için her zaman kullanılacak bir API yapılandırması seçebilir veya şu anda seçili olanı kullanabilirsiniz",
+			"useCurrentConfig": "Şu anda seçili API yapılandırmasını kullan",
+			"testPromptPlaceholder": "Geliştirmeyi test etmek için bir prompt girin",
+			"previewButton": "Prompt geliştirmesini önizle"
+		}
+	},
+	"customModeCreation": {
+		"enableTitle": "Promptlar aracılığıyla özel mod oluşturmayı etkinleştir",
+		"description": "Etkinleştirildiğinde, Roo 'Bana ... yapabilen özel bir mod oluştur' gibi promptlar kullanarak özel modlar oluşturmanıza olanak tanır. Bu özelliğe ihtiyaç duyulmadığında devre dışı bırakmak, sistem promptunuzu yaklaşık 700 token azaltır. Devre dışı bırakıldığında, yukarıdaki + düğmesini kullanarak veya ilgili yapılandırma JSON'ını düzenleyerek manuel olarak özel modlar oluşturabilirsiniz."
+	},
+	"advancedSystemPrompt": {
+		"title": "Gelişmiş: Sistem Promptunu Geçersiz Kıl",
+		"description": "Çalışma alanınızda .roo/system-prompt-{{modeSlug}} konumunda bir dosya oluşturarak bu mod için sistem promptunu (rol tanımı ve özel talimatlar dışında) tamamen değiştirebilirsiniz. Bu, yerleşik güvenceleri ve tutarlılık kontrollerini (özellikle araç kullanımı etrafında) atlayan çok gelişmiş bir özelliktir, bu yüzden dikkatli olun!"
+	},
+	"createModeDialog": {
+		"title": "Yeni Mod Oluştur",
+		"close": "Kapat",
+		"name": {
+			"label": "İsim",
+			"placeholder": "Mod adını girin"
+		},
+		"slug": {
+			"label": "Slug",
+			"description": "Slug, URL'lerde ve dosya adlarında kullanılır. Küçük harflerle yazılmalı ve yalnızca harfler, sayılar ve kısa çizgiler içermelidir."
+		},
+		"saveLocation": {
+			"label": "Kaydetme Konumu",
+			"description": "Bu modu nereye kaydedeceğinizi seçin. Projeye özgü modlar, global modlara göre önceliklidir.",
+			"global": {
+				"label": "Global",
+				"description": "Tüm çalışma alanlarında kullanılabilir"
+			},
+			"project": {
+				"label": "Projeye özgü (.roomodes)",
+				"description": "Yalnızca bu çalışma alanında kullanılabilir, globale göre önceliklidir"
+			}
+		},
+		"roleDefinition": {
+			"label": "Rol Tanımı",
+			"description": "Bu mod için Roo'nun uzmanlığını ve kişiliğini tanımlayın."
+		},
+		"tools": {
+			"label": "Kullanılabilir Araçlar",
+			"description": "Bu modun hangi araçları kullanabileceğini seçin."
+		},
+		"customInstructions": {
+			"label": "Özel Talimatlar (isteğe bağlı)",
+			"description": "Bu mod için özel davranış yönergeleri ekleyin."
+		},
+		"buttons": {
+			"cancel": "İptal",
+			"create": "Mod Oluştur"
+		},
+		"deleteMode": "Modu sil"
+	},
+	"allFiles": "tüm dosyalar"
+}

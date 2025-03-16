@@ -1,0 +1,140 @@
+{
+	"title": "Prompts",
+	"done": "Fertig",
+	"modes": {
+		"title": "Modi",
+		"createNewMode": "Neuen Modus erstellen",
+		"editModesConfig": "Moduskonfiguration bearbeiten",
+		"editGlobalModes": "Globale Modi bearbeiten",
+		"editProjectModes": "Projektmodi bearbeiten (.roomodes)",
+		"createModeHelpText": "Klicken Sie auf +, um einen neuen benutzerdefinierten Modus zu erstellen, oder bitten Sie Roo einfach im Chat, einen für Sie zu erstellen!"
+	},
+	"apiConfiguration": {
+		"title": "API-Konfiguration",
+		"select": "Wählen Sie, welche API-Konfiguration für diesen Modus verwendet werden soll"
+	},
+	"tools": {
+		"title": "Verfügbare Werkzeuge",
+		"builtInModesText": "Werkzeuge für eingebaute Modi können nicht geändert werden",
+		"editTools": "Werkzeuge bearbeiten",
+		"doneEditing": "Bearbeitung abschließen",
+		"allowedFiles": "Erlaubte Dateien:"
+	},
+	"roleDefinition": {
+		"title": "Rollendefinition",
+		"resetToDefault": "Auf Standardwerte zurücksetzen",
+		"description": "Definieren Sie Roos Expertise und Persönlichkeit für diesen Modus. Diese Beschreibung prägt, wie Roo sich präsentiert und an Aufgaben herangeht."
+	},
+	"customInstructions": {
+		"title": "Modusspezifische benutzerdefinierte Anweisungen (optional)",
+		"resetToDefault": "Auf Standardwerte zurücksetzen",
+		"description": "Fügen Sie verhaltensspezifische Richtlinien für den Modus {{modeName}} hinzu.",
+		"loadFromFile": "Benutzerdefinierte Anweisungen für den Modus {{modeName}} können auch aus .clinerules-{{modeSlug}} in Ihrem Arbeitsbereich geladen werden."
+	},
+	"globalCustomInstructions": {
+		"title": "Benutzerdefinierte Anweisungen für alle Modi",
+		"description": "Diese Anweisungen gelten für alle Modi. Sie bieten einen grundlegenden Satz von Verhaltensweisen, die durch modusspezifische Anweisungen unten erweitert werden können.\nWenn Sie möchten, dass Roo in einer anderen Sprache als Ihrer Editor-Anzeigesprache ({{language}}) denkt und spricht, können Sie das hier angeben.",
+		"loadFromFile": "Anweisungen können auch aus .clinerules in Ihrem Arbeitsbereich geladen werden."
+	},
+	"systemPrompt": {
+		"preview": "System-Prompt Vorschau",
+		"copy": "System-Prompt in Zwischenablage kopieren",
+		"title": "System-Prompt (Modus {{modeName}})"
+	},
+	"supportPrompts": {
+		"title": "Support-Prompts",
+		"resetPrompt": "{{promptType}}-Prompt auf Standardwerte zurücksetzen",
+		"prompt": "Prompt",
+		"enhance": {
+			"apiConfiguration": "API-Konfiguration",
+			"apiConfigDescription": "Sie können eine API-Konfiguration auswählen, die immer zur Verbesserung von Prompts verwendet wird, oder einfach die aktuell ausgewählte verwenden",
+			"useCurrentConfig": "Aktuell ausgewählte API-Konfiguration verwenden",
+			"testPromptPlaceholder": "Geben Sie einen Prompt ein, um die Verbesserung zu testen",
+			"previewButton": "Vorschau der Prompt-Verbesserung"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "Prompt verbessern",
+				"description": "Verwenden Sie die Prompt-Verbesserung, um maßgeschneiderte Vorschläge oder Verbesserungen für Ihre Eingaben zu erhalten. Dies stellt sicher, dass Roo Ihre Absicht versteht und die bestmöglichen Antworten liefert. Verfügbar über das ✨-Symbol im Chat."
+			},
+			"EXPLAIN": {
+				"label": "Code erklären",
+				"description": "Erhalten Sie detaillierte Erklärungen zu Code-Schnipseln, Funktionen oder ganzen Dateien. Nützlich zum Verständnis komplexen Codes oder zum Erlernen neuer Muster. Verfügbar in Code-Aktionen (Glühbirnen-Symbol im Editor) und im Kontextmenü des Editors (Rechtsklick auf ausgewählten Code)."
+			},
+			"FIX": {
+				"label": "Probleme beheben",
+				"description": "Erhalten Sie Hilfe beim Identifizieren und Lösen von Bugs, Fehlern oder Problemen mit der Code-Qualität. Bietet Schritt-für-Schritt-Anleitungen zur Problemlösung. Verfügbar in Code-Aktionen (Glühbirnen-Symbol im Editor) und im Kontextmenü des Editors (Rechtsklick auf ausgewählten Code)."
+			},
+			"IMPROVE": {
+				"label": "Code verbessern",
+				"description": "Erhalten Sie Vorschläge zur Code-Optimierung, bessere Praktiken und architektonische Verbesserungen bei gleichzeitiger Beibehaltung der Funktionalität. Verfügbar in Code-Aktionen (Glühbirnen-Symbol im Editor) und im Kontextmenü des Editors (Rechtsklick auf ausgewählten Code)."
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "Zum Kontext hinzufügen",
+				"description": "Fügen Sie Kontext zu Ihrer aktuellen Aufgabe oder Konversation hinzu. Nützlich für die Bereitstellung zusätzlicher Informationen oder Klarstellungen. Verfügbar in Code-Aktionen (Glühbirnen-Symbol im Editor) und im Kontextmenü des Editors (Rechtsklick auf ausgewählten Code)."
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "Terminal-Inhalt zum Kontext hinzufügen",
+				"description": "Fügen Sie Terminal-Ausgaben zu Ihrer aktuellen Aufgabe oder Konversation hinzu. Nützlich für die Bereitstellung von Befehlsausgaben oder Protokollen. Verfügbar im Kontextmenü des Terminals (Rechtsklick auf ausgewählten Terminal-Inhalt)."
+			},
+			"TERMINAL_FIX": {
+				"label": "Terminal-Befehl korrigieren",
+				"description": "Erhalten Sie Hilfe bei der Korrektur fehlgeschlagener Terminal-Befehle oder solcher, die Verbesserungen benötigen. Verfügbar im Kontextmenü des Terminals (Rechtsklick auf ausgewählten Terminal-Inhalt)."
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "Terminal-Befehl erklären",
+				"description": "Erhalten Sie detaillierte Erklärungen zu Terminal-Befehlen und deren Ausgaben. Verfügbar im Kontextmenü des Terminals (Rechtsklick auf ausgewählten Terminal-Inhalt)."
+			}
+		}
+	},
+	"customModeCreation": {
+		"enableTitle": "Erstellung benutzerdefinierter Modi über Prompts aktivieren",
+		"description": "Wenn aktiviert, ermöglicht Roo Ihnen, benutzerdefinierte Modi mit Prompts wie 'Erstelle mir einen benutzerdefinierten Modus, der...' zu erstellen. Die Deaktivierung reduziert Ihren System-Prompt um etwa 700 Tokens, wenn diese Funktion nicht benötigt wird. Bei Deaktivierung können Sie immer noch manuell benutzerdefinierte Modi mit der +-Schaltfläche oben erstellen oder durch Bearbeiten der zugehörigen Konfigurations-JSON."
+	},
+	"advancedSystemPrompt": {
+		"title": "Erweitert: System-Prompt überschreiben",
+		"description": "Sie können den System-Prompt für diesen Modus vollständig ersetzen (abgesehen von der Rollendefinition und benutzerdefinierten Anweisungen), indem Sie eine Datei unter .roo/system-prompt-{{modeSlug}} in Ihrem Arbeitsbereich erstellen. Dies ist eine sehr fortgeschrittene Funktion, die eingebaute Schutzmaßnahmen und Konsistenzprüfungen umgeht (besonders bei der Werkzeugnutzung), also seien Sie vorsichtig!"
+	},
+	"createModeDialog": {
+		"title": "Neuen Modus erstellen",
+		"close": "Schließen",
+		"name": {
+			"label": "Name",
+			"placeholder": "Modusnamen eingeben"
+		},
+		"slug": {
+			"label": "Slug",
+			"description": "Der Slug wird in URLs und Dateinamen verwendet. Er sollte in Kleinbuchstaben sein und nur Buchstaben, Zahlen und Bindestriche enthalten."
+		},
+		"saveLocation": {
+			"label": "Speicherort",
+			"description": "Wählen Sie, wo dieser Modus gespeichert werden soll. Projektspezifische Modi haben Vorrang vor globalen Modi.",
+			"global": {
+				"label": "Global",
+				"description": "Verfügbar in allen Arbeitsbereichen"
+			},
+			"project": {
+				"label": "Projektspezifisch (.roomodes)",
+				"description": "Nur in diesem Arbeitsbereich verfügbar, hat Vorrang vor global"
+			}
+		},
+		"roleDefinition": {
+			"label": "Rollendefinition",
+			"description": "Definieren Sie Roos Expertise und Persönlichkeit für diesen Modus."
+		},
+		"tools": {
+			"label": "Verfügbare Werkzeuge",
+			"description": "Wählen Sie, welche Werkzeuge dieser Modus verwenden kann."
+		},
+		"customInstructions": {
+			"label": "Benutzerdefinierte Anweisungen (optional)",
+			"description": "Fügen Sie verhaltensspezifische Richtlinien für diesen Modus hinzu."
+		},
+		"buttons": {
+			"cancel": "Abbrechen",
+			"create": "Modus erstellen"
+		},
+		"deleteMode": "Modus löschen"
+	},
+	"allFiles": "alle Dateien"
+}
