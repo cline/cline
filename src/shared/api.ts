@@ -18,6 +18,7 @@ export type ApiProvider =
 	| "litellm"
 	| "asksage"
 	| "xai"
+	| "bitdeerai"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -66,6 +67,7 @@ export interface ApiHandlerOptions {
 	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
+	bitdeeraiApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -1028,3 +1030,66 @@ export const xaiModels = {
 		description: "X AI's Grok Beta model (legacy) with 131K context window",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// BitdeerAI Models
+// https://www.bitdeer.ai/en/docs/center/
+export type bitdeeraiModelId = keyof typeof bitdeeraiModels
+export const bitdeeraiDefaultModelId: bitdeeraiModelId = "deepseek-ai/DeepSeek-V3"
+export const bitdeeraiModels = {
+	"deepseek-ai/DeepSeek-R1": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"deepseek-ai/DeepSeek-V3": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Qwen/QwQ-32B": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Qwen/Qwen2.5-VL-72B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Qwen/Qwen2.5-Coder-32B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"OpenGVLab/InternVL2_5-78B-MPO": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"meta-llama/Llama-3.3-70B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+}

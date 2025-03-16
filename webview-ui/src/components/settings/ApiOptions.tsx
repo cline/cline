@@ -42,6 +42,8 @@ import {
 	askSageDefaultURL,
 	xaiDefaultModelId,
 	xaiModels,
+	bitdeeraiModels,
+	bitdeeraiDefaultModelId,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -206,6 +208,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">X AI</VSCodeOption>
+					<VSCodeOption value="bitdeerai">Bitdeer AI</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -1233,6 +1236,45 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
+			{selectedProvider === "bitdeerai" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.bitdeeraiApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("bitdeeraiApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Bitdeer AI API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.bitdeeraiApiKey && (
+							<VSCodeLink
+								href="https://www.bitdeer.ai"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a Bitdeer AI API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+					{/*<VSCodeTextField
+                        value={apiConfiguration?.bitdeeraiBaseUrl || bitdeeraiDefaultURL}
+                        style={{ width: "100%" }}
+                        type="url"
+                        onInput={handleInputChange("bitdeeraiBaseUrl")}
+                        placeholder="Enter Bitdeer AI Base URL...">
+                        <span style={{ fontWeight: 500 }}>Bitdeer AI BASE URL</span>
+                    </VSCodeTextField>*/}
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -1268,6 +1310,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
+							{selectedProvider === "bitdeerai" && createDropdown(bitdeeraiModels)}
 						</DropdownContainer>
 
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
@@ -1537,6 +1580,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
+		case "bitdeerai":
+			return getProviderData(bitdeeraiModels, bitdeeraiDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
