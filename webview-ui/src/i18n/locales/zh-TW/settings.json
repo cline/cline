@@ -166,7 +166,27 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️"
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "使用實驗性統一差異策略",
+			"description": "啟用實驗性統一差異策略。此策略可能減少由模型錯誤引起的重試次數，但可能導致意外行為或不正確的編輯。僅在您了解風險並願意仔細審查所有更改時才啟用。"
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "使用實驗性搜索和替換工具",
+			"description": "啟用實驗性搜索和替換工具，允許 Roo 在一個請求中替換搜索詞的多個實例。"
+		},
+		"INSERT_BLOCK": {
+			"name": "使用實驗性插入內容工具",
+			"description": "啟用實驗性插入內容工具，允許 Roo 在特定行號插入內容，無需創建差異。"
+		},
+		"POWER_STEERING": {
+			"name": "使用實驗性\"動力轉向\"模式",
+			"description": "啟用後，Roo 將更頻繁地提醒模型關於其當前模式定義的詳細信息。這將導致對角色定義和自定義指令的更強遵守，但每條消息將使用更多 token。"
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "使用實驗性多塊差異工具",
+			"description": "啟用後，Roo 將使用多塊差異工具。這將嘗試在一個請求中更新文件中的多個代碼塊。"
+		}
 	},
 	"temperature": {
 		"useCustom": "使用自訂溫度",

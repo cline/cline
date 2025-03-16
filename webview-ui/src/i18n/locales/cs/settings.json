@@ -166,7 +166,27 @@
 		}
 	},
 	"experimental": {
-		"warning": "⚠️"
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Použít experimentální sjednocenou strategii diff",
+			"description": "Povolit experimentální sjednocenou strategii diff. Tato strategie může snížit počet opakování způsobených chybami modelu, ale může způsobit neočekávané chování nebo nesprávné úpravy. Povolte pouze pokud rozumíte rizikům a jste ochotni pečlivě zkontrolovat všechny změny."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Použít experimentální nástroj pro vyhledávání a nahrazování",
+			"description": "Povolit experimentální nástroj pro vyhledávání a nahrazování, umožňující Roo nahradit více výskytů hledaného výrazu v jednom požadavku."
+		},
+		"INSERT_BLOCK": {
+			"name": "Použít experimentální nástroj pro vkládání obsahu",
+			"description": "Povolit experimentální nástroj pro vkládání obsahu, umožňující Roo vkládat obsah na konkrétní čísla řádků bez nutnosti vytvářet diff."
+		},
+		"POWER_STEERING": {
+			"name": "Použít experimentální režim \"posilovače řízení\"",
+			"description": "Když je povoleno, Roo bude častěji připomínat modelu podrobnosti o definici jeho aktuálního režimu. To povede k silnějšímu dodržování definic rolí a vlastních instrukcí, ale bude používat více tokenů na zprávu."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Použít experimentální nástroj pro více bloků diff",
+			"description": "Když je povoleno, Roo použije nástroj pro více bloků diff. Tím se pokusí aktualizovat více bloků kódu v souboru v jednom požadavku."
+		}
 	},
 	"temperature": {
 		"useCustom": "Použít vlastní teplotu",
