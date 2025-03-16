@@ -104,7 +104,7 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 			}
 		} else if (mention === "problems") {
 			try {
-				const problems = getWorkspaceProblems(cwd)
+				const problems = await getWorkspaceProblems(cwd)
 				parsedText += `\n\n<workspace_diagnostics>\n${problems}\n</workspace_diagnostics>`
 			} catch (error) {
 				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
