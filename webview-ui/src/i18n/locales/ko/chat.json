@@ -56,5 +56,11 @@
 	"typeTask": "여기에 작업을 입력하세요...",
 	"addContext": "@ 컨텍스트 추가, / 모드 전환",
 	"dragFiles": "파일을 드래그하려면 shift를 누르세요",
-	"dragFilesImages": "파일/이미지를 드래그하려면 shift를 누르세요"
+	"dragFilesImages": "파일/이미지를 드래그하려면 shift를 누르세요",
+	"enhancePromptDescription": "'프롬프트 강화' 버튼은 추가 컨텍스트, 설명 또는 재구성을 제공하여 프롬프트를 개선하는 데 도움을 줍니다. 여기에 프롬프트를 입력하고 버튼을 다시 클릭하여 작동 방식을 확인하세요.",
+	"errorReadingFile": "파일 읽기 오류:",
+	"noValidImages": "유효한 이미지가 처리되지 않았습니다",
+	"separator": "구분선",
+	"edit": "편집...",
+	"forNextMode": "다음 모드로"
 }

@@ -56,5 +56,11 @@
 	"typeTask": "Napište svůj úkol zde...",
 	"addContext": "@ pro přidání kontextu, / pro přepnutí režimů",
 	"dragFiles": "podržte shift pro přetažení souborů",
-	"dragFilesImages": "podržte shift pro přetažení souborů/obrázků"
+	"dragFilesImages": "podržte shift pro přetažení souborů/obrázků",
+	"enhancePromptDescription": "Tlačítko 'Vylepšit výzvu' pomáhá zlepšit vaši výzvu poskytnutím dalšího kontextu, objasnění nebo přeformulování. Zkuste zde napsat výzvu a znovu klikněte na tlačítko pro zobrazení, jak to funguje.",
+	"errorReadingFile": "Chyba při čtení souboru:",
+	"noValidImages": "Nebyly zpracovány žádné platné obrázky",
+	"separator": "Oddělovač",
+	"edit": "Upravit...",
+	"forNextMode": "pro další režim"
 }

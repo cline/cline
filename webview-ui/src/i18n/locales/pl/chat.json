@@ -56,5 +56,11 @@
 	"typeTask": "Wpisz tutaj swoje zadanie...",
 	"addContext": "@ aby dodać kontekst, / aby przełączyć tryby",
 	"dragFiles": "przytrzymaj shift, aby przeciągnąć pliki",
-	"dragFilesImages": "przytrzymaj shift, aby przeciągnąć pliki/obrazy"
+	"dragFilesImages": "przytrzymaj shift, aby przeciągnąć pliki/obrazy",
+	"enhancePromptDescription": "Przycisk 'Ulepsz monit' pomaga poprawić twój monit, dostarczając dodatkowy kontekst, wyjaśnienia lub przeformułowania. Spróbuj wpisać monit tutaj i kliknij przycisk ponownie, aby zobaczyć, jak to działa.",
+	"errorReadingFile": "Błąd odczytu pliku:",
+	"noValidImages": "Nie przetworzono żadnych prawidłowych obrazów",
+	"separator": "Separator",
+	"edit": "Edytuj...",
+	"forNextMode": "dla następnego trybu"
 }

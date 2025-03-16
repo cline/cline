@@ -56,5 +56,11 @@
 	"typeTask": "Tapez votre tâche ici...",
 	"addContext": "@ pour ajouter du contexte, / pour changer de mode",
 	"dragFiles": "maintenez shift pour glisser des fichiers",
-	"dragFilesImages": "maintenez shift pour glisser des fichiers/images"
+	"dragFilesImages": "maintenez shift pour glisser des fichiers/images",
+	"enhancePromptDescription": "Le bouton 'Améliorer l'invite' aide à améliorer votre demande en fournissant un contexte supplémentaire, des clarifications ou des reformulations. Essayez de taper une demande ici et cliquez à nouveau sur le bouton pour voir comment cela fonctionne.",
+	"errorReadingFile": "Erreur lors de la lecture du fichier :",
+	"noValidImages": "Aucune image valide n'a été traitée",
+	"separator": "Séparateur",
+	"edit": "Modifier...",
+	"forNextMode": "pour le mode suivant"
 }

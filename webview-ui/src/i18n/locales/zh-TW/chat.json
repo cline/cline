@@ -56,5 +56,11 @@
 	"typeTask": "在此輸入您的任務...",
 	"addContext": "@ 添加上下文, / 切換模式",
 	"dragFiles": "按住 shift 拖動文件",
-	"dragFilesImages": "按住 shift 拖動文件/圖片"
+	"dragFilesImages": "按住 shift 拖動文件/圖片",
+	"enhancePromptDescription": "「增強提示」按鈕通過提供額外的上下文、解釋或重新表述來幫助改進你的提示。在此處輸入提示，然後再次點擊按鈕查看其工作方式。",
+	"errorReadingFile": "讀取檔案時出錯：",
+	"noValidImages": "沒有處理有效圖片",
+	"separator": "分隔線",
+	"edit": "編輯...",
+	"forNextMode": "切換至下一模式"
 }
