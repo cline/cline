@@ -1,23 +1,52 @@
 import { HTMLAttributes } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { Trans } from "react-i18next"
+import { Globe } from "lucide-react"
 
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 
 import { vscode } from "@/utils/vscode"
 import { cn } from "@/lib/utils"
 import { TelemetrySetting } from "../../../../src/shared/TelemetrySetting"
+import { SetCachedStateField } from "./types"
+
+// Map of language codes to their display names
+const LANGUAGES: Record<string, string> = {
+	ar: "العربية",
+	ca: "Català",
+	cs: "Čeština",
+	de: "Deutsch",
+	en: "English",
+	es: "Español",
+	fr: "Français",
+	hi: "हिन्दी",
+	hu: "Magyar",
+	it: "Italiano",
+	ja: "日本語",
+	ko: "한국어",
+	pl: "Polski",
+	pt: "Português",
+	"pt-BR": "Português do Brasil",
+	ru: "Русский",
+	tr: "Türkçe",
+	"zh-CN": "简体中文",
+	"zh-TW": "繁體中文",
+}
 
 type SettingsFooterProps = HTMLAttributes<HTMLDivElement> & {
 	version: string
 	telemetrySetting: TelemetrySetting
 	setTelemetrySetting: (setting: TelemetrySetting) => void
+	language: string
+	setCachedStateField: SetCachedStateField<"language">
 }
 
 export const SettingsFooter = ({
 	version,
 	telemetrySetting,
 	setTelemetrySetting,
+	language,
+	setCachedStateField,
 	className,
 	...props
 }: SettingsFooterProps) => {
@@ -35,7 +64,26 @@ export const SettingsFooter = ({
 					}}
 				/>
 			</p>
-			<p className="italic">{t("settings:footer.version", { version })}</p>
+			<div className="flex items-center gap-4">
+				<div className="flex items-center text-nowrap">
+					<p>Roo Code</p>
+					<p className="italic ml-1">v{version}</p>
+				</div>
+				<div className="relative flex items-center">
+					<Globe className="w-4 h-4 text-vscode-descriptionForeground absolute left-2 pointer-events-none" />
+					<select
+						value={language}
+						onChange={(e) => setCachedStateField("language", e.target.value)}
+						className="appearance-none bg-transparent text-vscode-foreground border border-transparent hover:border-vscode-input-border focus:border-vscode-focusBorder rounded px-2 py-1 pl-7 text-xs min-w-[70px]"
+						title={LANGUAGES[language]}>
+						{Object.entries(LANGUAGES).map(([code, name]) => (
+							<option key={code} value={code}>
+								{name}
+							</option>
+						))}
+					</select>
+				</div>
+			</div>
 			<div className="mt-4 mb-4">
 				<div>
 					<VSCodeCheckbox
