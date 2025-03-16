@@ -39,6 +39,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						style={{ width: "100%" }}
 						placeholder={t("history:searchPlaceholder")}
 						value={searchQuery}
+						data-testid="history-search-input"
 						onInput={(e) => {
 							const newValue = (e.target as HTMLInputElement)?.value
 							setSearchQuery(newValue)
@@ -72,13 +73,22 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						value={sortOption}
 						role="radiogroup"
 						onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}>
-						<VSCodeRadio value="newest">{t("history:newest")}</VSCodeRadio>
-						<VSCodeRadio value="oldest">{t("history:oldest")}</VSCodeRadio>
-						<VSCodeRadio value="mostExpensive">{t("history:mostExpensive")}</VSCodeRadio>
-						<VSCodeRadio value="mostTokens">{t("history:mostTokens")}</VSCodeRadio>
+						<VSCodeRadio value="newest" data-testid="radio-newest">
+							{t("history:newest")}
+						</VSCodeRadio>
+						<VSCodeRadio value="oldest" data-testid="radio-oldest">
+							{t("history:oldest")}
+						</VSCodeRadio>
+						<VSCodeRadio value="mostExpensive" data-testid="radio-most-expensive">
+							{t("history:mostExpensive")}
+						</VSCodeRadio>
+						<VSCodeRadio value="mostTokens" data-testid="radio-most-tokens">
+							{t("history:mostTokens")}
+						</VSCodeRadio>
 						<VSCodeRadio
 							value="mostRelevant"
 							disabled={!searchQuery}
+							data-testid="radio-most-relevant"
 							style={{ opacity: searchQuery ? 1 : 0.5 }}>
 							{t("history:mostRelevant")}
 						</VSCodeRadio>
@@ -135,6 +145,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											variant="ghost"
 											size="sm"
 											title={t("history:deleteTaskTitle")}
+											data-testid="delete-task-button"
 											onClick={(e) => {
 												e.stopPropagation()
 

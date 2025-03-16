@@ -1,4 +1,5 @@
 import { HTMLAttributes } from "react"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { Database } from "lucide-react"
 
@@ -28,19 +29,20 @@ export const ContextManagementSettings = ({
 	className,
 	...props
 }: ContextManagementSettingsProps) => {
+	const { t } = useAppTranslation()
 	return (
 		<div className={cn("flex flex-col gap-2", className)} {...props}>
-			<SectionHeader description="Control what information is included in the AI's context window, affecting token usage and response quality">
+			<SectionHeader description={t("settings:contextManagement.description")}>
 				<div className="flex items-center gap-2">
 					<Database className="w-4" />
-					<div>Context Management</div>
+					<div>{t("settings:sections.contextManagement")}</div>
 				</div>
 			</SectionHeader>
 
 			<Section>
 				<div>
 					<div className="flex flex-col gap-2">
-						<span className="font-medium">Terminal output limit</span>
+						<span className="font-medium">{t("settings:contextManagement.terminal.label")}</span>
 						<div className="flex items-center gap-2">
 							<input
 								type="range"
@@ -58,14 +60,13 @@ export const ContextManagementSettings = ({
 						</div>
 					</div>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Maximum number of lines to include in terminal output when executing commands. When exceeded
-						lines will be removed from the middle, saving tokens.
+						{t("settings:contextManagement.terminal.description")}
 					</p>
 				</div>
 
 				<div>
 					<div className="flex flex-col gap-2">
-						<span className="font-medium">Open tabs context limit</span>
+						<span className="font-medium">{t("settings:contextManagement.openTabs.label")}</span>
 						<div className="flex items-center gap-2">
 							<input
 								type="range"
@@ -81,14 +82,13 @@ export const ContextManagementSettings = ({
 						</div>
 					</div>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Maximum number of VSCode open tabs to include in context. Higher values provide more context but
-						increase token usage.
+						{t("settings:contextManagement.openTabs.description")}
 					</p>
 				</div>
 
 				<div>
 					<div className="flex flex-col gap-2">
-						<span className="font-medium">Workspace files context limit</span>
+						<span className="font-medium">{t("settings:contextManagement.workspaceFiles.label")}</span>
 						<div className="flex items-center gap-2">
 							<input
 								type="range"
@@ -104,8 +104,7 @@ export const ContextManagementSettings = ({
 						</div>
 					</div>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						Maximum number of files to include in current working directory details. Higher values provide
-						more context but increase token usage.
+						{t("settings:contextManagement.workspaceFiles.description")}
 					</p>
 				</div>
 
@@ -116,11 +115,10 @@ export const ContextManagementSettings = ({
 							setCachedStateField("showRooIgnoredFiles", e.target.checked)
 						}}
 						data-testid="show-rooignored-files-checkbox">
-						<span className="font-medium">Show .rooignore'd files in lists and searches</span>
+						<span className="font-medium">{t("settings:contextManagement.rooignore.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						When enabled, files matching patterns in .rooignore will be shown in lists with a lock symbol.
-						When disabled, these files will be completely hidden from file lists and searches.
+						{t("settings:contextManagement.rooignore.description")}
 					</p>
 				</div>
 			</Section>

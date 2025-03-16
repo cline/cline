@@ -1,0 +1,205 @@
+{
+	"common": {
+		"save": "Mentés",
+		"done": "Kész",
+		"cancel": "Mégse",
+		"reset": "Visszaállítás"
+	},
+	"header": {
+		"title": "Beállítások",
+		"saveButtonTooltip": "Változtatások mentése",
+		"nothingChangedTooltip": "Semmi nem változott",
+		"doneButtonTooltip": "Nem mentett változtatások elvetése és a beállítások panel bezárása"
+	},
+	"unsavedChangesDialog": {
+		"title": "Nem mentett változtatások",
+		"description": "Szeretné elvetni a változtatásokat és folytatni?",
+		"cancelButton": "Mégse",
+		"discardButton": "Változtatások elvetése"
+	},
+	"sections": {
+		"providers": "Szolgáltatók",
+		"autoApprove": "Automatikus jóváhagyás",
+		"browser": "Böngésző / Számítógép használat",
+		"checkpoints": "Ellenőrzőpontok",
+		"notifications": "Értesítések",
+		"contextManagement": "Kontextus kezelés",
+		"advanced": "Speciális",
+		"experimental": "Kísérleti funkciók"
+	},
+	"autoApprove": {
+		"description": "Engedélyezze a Roo számára a műveletek automatikus végrehajtását jóváhagyás nélkül. Csak akkor engedélyezze ezeket a beállításokat, ha teljesen megbízik a mesterséges intelligenciában és megérti a kapcsolódó biztonsági kockázatokat.",
+		"readOnly": {
+			"label": "Mindig hagyja jóvá a csak olvasási műveleteket",
+			"description": "Ha engedélyezve van, a Roo automatikusan megjeleníti a könyvtár tartalmát és olvassa a fájlokat anélkül, hogy a Jóváhagyás gombra kellene kattintania."
+		},
+		"write": {
+			"label": "Mindig hagyja jóvá az írási műveleteket",
+			"description": "Automatikusan létrehoz és szerkeszt fájlokat jóváhagyás nélkül",
+			"delayLabel": "Késleltetés az írási műveletek után, hogy a diagnosztika érzékelhesse a potenciális problémákat"
+		},
+		"browser": {
+			"label": "Mindig hagyja jóvá a böngésző műveleteket",
+			"description": "Automatikusan végrehajtja a böngésző műveleteket jóváhagyás nélkül",
+			"note": "Megjegyzés: Csak akkor alkalmazható, ha a modell támogatja a számítógép használatát"
+		},
+		"retry": {
+			"label": "Mindig próbálja újra a sikertelen API kéréseket",
+			"description": "Automatikusan újrapróbálja a sikertelen API kéréseket, amikor a szerver hibaüzenetet küld",
+			"delayLabel": "Késleltetés a kérés újrapróbálása előtt"
+		},
+		"mcp": {
+			"label": "Mindig hagyja jóvá az MCP eszközöket",
+			"description": "Engedélyezze az egyéni MCP eszközök automatikus jóváhagyását az MCP szerverek nézetben (ehhez a beállításhoz és az eszköz \"Mindig engedélyezve\" jelölőnégyzetéhez is szükség van)"
+		},
+		"modeSwitch": {
+			"label": "Mindig hagyja jóvá a módváltást",
+			"description": "Automatikusan váltson a különböző módok között jóváhagyás nélkül"
+		},
+		"subtasks": {
+			"label": "Mindig hagyja jóvá a részfeladatok létrehozását és befejezését",
+			"description": "Lehetővé teszi a részfeladatok létrehozását és befejezését jóváhagyás nélkül"
+		},
+		"execute": {
+			"label": "Mindig hagyja jóvá az engedélyezett végrehajtási műveleteket",
+			"description": "Automatikusan végrehajtja az engedélyezett terminál parancsokat jóváhagyás nélkül",
+			"allowedCommands": "Engedélyezett automatikus végrehajtású parancsok",
+			"allowedCommandsDescription": "Parancs előtagok, amelyek automatikusan végrehajthatók, ha a \"Mindig hagyja jóvá a végrehajtási műveleteket\" engedélyezve van. Adjon hozzá * jelet az összes parancs engedélyezéséhez (óvatosan használja).",
+			"commandPlaceholder": "Adja meg a parancs előtagot (pl. 'git ')",
+			"addButton": "Hozzáadás"
+		}
+	},
+	"providers": {
+		"configProfile": "Konfigurációs profil",
+		"description": "Leírás",
+		"apiProvider": "API szolgáltató",
+		"openRouterApiKey": "OpenRouter API kulcs",
+		"apiKeyStorageNotice": "Az API kulcsok biztonságosan tárolódnak a VSCode titkos tárolójában",
+		"useCustomBaseUrl": "Egyéni alap URL használata",
+		"openRouterTransformsText": "Promptok és üzenetláncok tömörítése a kontextus méretére (<a>OpenRouter átalakítások</a>)"
+	},
+	"browser": {
+		"enable": {
+			"label": "Böngésző eszköz engedélyezése",
+			"description": "Ha engedélyezve van, a Roo böngészőt használhat weboldalakkal való interakcióhoz olyan modellek használatakor, amelyek támogatják a számítógép használatát."
+		},
+		"viewport": {
+			"label": "Viewport méret",
+			"description": "Válassza ki a viewport méretet a böngésző interakciókhoz. Ez befolyásolja, hogyan jelennek meg és hogyan működnek a weboldalak.",
+			"options": {
+				"largeDesktop": "Nagy asztali (1280x800)",
+				"smallDesktop": "Kis asztali (900x600)",
+				"tablet": "Tablet (768x1024)",
+				"mobile": "Mobil (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "Képernyőkép minőség",
+			"description": "Állítsa be a böngésző képernyőképek WebP minőségét. A magasabb értékek tisztább képernyőképeket biztosítanak, de növelik a token felhasználást."
+		},
+		"remote": {
+			"label": "Távoli böngésző kapcsolat használata",
+			"description": "Csatlakozás egy Chrome böngészőhöz, amely távoli hibakeresés engedélyezésével fut (--remote-debugging-port=9222).",
+			"urlPlaceholder": "Egyéni URL (pl. http://localhost:9222)",
+			"testButton": "Kapcsolat tesztelése",
+			"testingButton": "Tesztelés...",
+			"instructions": "Adja meg a DevTools protokoll gazdagép címét, vagy hagyja üresen a Chrome helyi példányok automatikus felderítéséhez. A Kapcsolat tesztelése gomb megpróbálja használni az egyéni URL-t, ha meg van adva, vagy automatikusan felderíti, ha a mező üres."
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "Automatikus ellenőrzőpontok engedélyezése",
+			"description": "Ha engedélyezve van, a Roo automatikusan létrehoz ellenőrzőpontokat a feladat végrehajtása során, megkönnyítve a változtatások áttekintését vagy a korábbi állapotokra való visszatérést."
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "Hangeffektusok engedélyezése",
+			"description": "Ha engedélyezve van, a Roo hangeffektusokat játszik le az értesítésekhez és eseményekhez.",
+			"volumeLabel": "Hangerő"
+		}
+	},
+	"contextManagement": {
+		"description": "Szabályozza, hogy milyen információk szerepelnek az AI kontextus ablakában, ami befolyásolja a token felhasználást és a válasz minőségét",
+		"terminal": {
+			"label": "Terminál kimenet korlát",
+			"description": "A parancsok végrehajtásakor a terminál kimenetben szereplő sorok maximális száma. Túllépéskor a középső sorok eltávolításra kerülnek, tokeneket megtakarítva."
+		},
+		"openTabs": {
+			"label": "Nyitott lapok kontextus korlát",
+			"description": "A kontextusba belefoglalható VSCode nyitott lapok maximális száma. A magasabb értékek több kontextust biztosítanak, de növelik a token felhasználást."
+		},
+		"workspaceFiles": {
+			"label": "Munkaterület fájlok kontextus korlát",
+			"description": "Az aktuális munkakönyvtár részleteiben szerepeltethető fájlok maximális száma. A magasabb értékek több kontextust biztosítanak, de növelik a token felhasználást."
+		},
+		"rooignore": {
+			"label": ".rooignore fájlok megjelenítése a listákban és keresésekben",
+			"description": "Ha engedélyezve van, a .rooignore mintáival egyező fájlok zár szimbólummal jelennek meg a listákban. Ha le van tiltva, ezek a fájlok teljesen el lesznek rejtve a fájllistákból és keresésekből."
+		}
+	},
+	"advanced": {
+		"rateLimit": {
+			"label": "Rátakorlátozás",
+			"description": "Minimális idő az API kérések között."
+		},
+		"diff": {
+			"label": "Szerkesztés engedélyezése diff-eken keresztül",
+			"description": "Ha engedélyezve van, a Roo gyorsabban tud fájlokat szerkeszteni, és automatikusan elutasítja a csonkított teljes fájl írásokat. A legjobban a legújabb Claude 3.7 Sonnet modellel működik.",
+			"strategy": {
+				"label": "Diff stratégia",
+				"options": {
+					"standard": "Normál (Egy blokk)",
+					"multiBlock": "Kísérleti: Több blokkos diff",
+					"unified": "Kísérleti: Egyesített diff"
+				},
+				"descriptions": {
+					"standard": "A normál diff stratégia egyszerre egy kódblokkra alkalmazza a változtatásokat.",
+					"unified": "Az egyesített diff stratégia többféle megközelítést alkalmaz a diff-ek alkalmazására, és kiválasztja a legjobb megközelítést.",
+					"multiBlock": "A több blokkos diff stratégia lehetővé teszi több kódblokk frissítését egy fájlban egy kérésben."
+				}
+			},
+			"matchPrecision": {
+				"label": "Egyezési pontosság",
+				"description": "Ez a csúszka szabályozza, mennyire pontosan kell egyeznie a kódszakaszoknak a diff-ek alkalmazásakor. Az alacsonyabb értékek rugalmasabb egyezést tesznek lehetővé, de növelik a hibás helyettesítések kockázatát. A 100% alatti értékeket rendkívüli óvatossággal használja."
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️"
+	},
+	"temperature": {
+		"useCustom": "Egyéni hőmérséklet használata",
+		"description": "Szabályozza a véletlenszerűséget a modell válaszaiban.",
+		"rangeDescription": "A magasabb értékek véletlenszerűbbé teszik a kimenetet, az alacsonyabb értékek determinisztikusabbá teszik."
+	},
+	"modelInfo": {
+		"supportsImages": "Támogatja a képeket",
+		"noImages": "Nem támogatja a képeket",
+		"supportsComputerUse": "Támogatja a számítógép használatát",
+		"noComputerUse": "Nem támogatja a számítógép használatát",
+		"supportsPromptCache": "Támogatja a prompt gyorsítótárazást",
+		"noPromptCache": "Nem támogatja a prompt gyorsítótárazást",
+		"maxOutput": "Maximális kimenet",
+		"inputPrice": "Bemeneti ár",
+		"outputPrice": "Kimeneti ár",
+		"cacheReadsPrice": "Gyorsítótár olvasások ára",
+		"cacheWritesPrice": "Gyorsítótár írások ára",
+		"gemini": {
+			"freeRequests": "* Ingyenes {{count}} kérésig percenként. Ezután a számlázás a prompt méretétől függ.",
+			"pricingDetails": "További információkért lásd az árazási részleteket."
+		}
+	},
+	"footer": {
+		"feedback": "Ha bármilyen kérdése vagy visszajelzése van, nyugodtan nyisson egy problémát a github.com/RooVetGit/Roo-Code oldalon, vagy csatlakozzon a reddit.com/r/RooCode oldalhoz",
+		"version": "Roo Code v{{version}}",
+		"telemetry": {
+			"label": "Névtelen hiba- és használati jelentések engedélyezése",
+			"description": "Segítsen a Roo Code fejlesztésében névtelen használati adatok és hibajelentések küldésével. Soha nem küldünk kódot, promptokat vagy személyes információkat. További részletekért lásd adatvédelmi irányelveinket."
+		},
+		"reset": {
+			"description": "A kiterjesztés összes globális állapotának és titkos tárolójának visszaállítása.",
+			"button": "Visszaállítás"
+		}
+	}
+}
