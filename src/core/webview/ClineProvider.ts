@@ -1527,6 +1527,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("browserToolEnabled", message.bool ?? true)
 						await this.postStateToWebview()
 						break
+					case "language":
+						await this.updateGlobalState("language", message.text)
+						await this.postStateToWebview()
+						break
 					case "showRooIgnoredFiles":
 						await this.updateGlobalState("showRooIgnoredFiles", message.bool ?? true)
 						await this.postStateToWebview()
@@ -2506,8 +2510,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			writeDelayMs: stateValues.writeDelayMs ?? 1000,
 			terminalOutputLineLimit: stateValues.terminalOutputLineLimit ?? 500,
 			mode: stateValues.mode ?? defaultModeSlug,
-			// Pass the VSCode language code directly
-			language: formatLanguage(vscode.env.language),
+			language: stateValues.language || formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,
 			enableMcpServerCreation: stateValues.enableMcpServerCreation ?? true,
 			alwaysApproveResubmit: stateValues.alwaysApproveResubmit ?? false,

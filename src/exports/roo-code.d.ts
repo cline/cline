@@ -218,6 +218,7 @@ export type GlobalStateKey =
 	| "telemetrySetting"
 	| "showRooIgnoredFiles"
 	| "remoteBrowserEnabled"
+	| "language"
 
 export type ConfigurationKey = GlobalStateKey | SecretKey
 
