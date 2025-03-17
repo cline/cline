@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../src/shared/AutoApprovalSettings"
+import { DEFAULT_AUTO_RUN_SETTINGS } from "../../../src/shared/AutoRunSettings"
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "../../../src/shared/ExtensionMessage"
 import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
@@ -25,6 +26,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
+	setAutoRunSettings: (value: typeof DEFAULT_AUTO_RUN_SETTINGS) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -38,6 +40,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		taskHistory: [],
 		shouldShowAnnouncement: false,
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
+		autoRunSettings: DEFAULT_AUTO_RUN_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
 		platform: DEFAULT_PLATFORM,
@@ -180,6 +183,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				shouldShowAnnouncement: value,
+			})),
+		setAutoRunSettings: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				autoRunSettings: value,
 			})),
 	}
 

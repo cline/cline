@@ -9,6 +9,7 @@ interface CodeAccordianProps {
 	path?: string
 	isFeedback?: boolean
 	isConsoleLogs?: boolean
+	isAutoRunOutput?: boolean
 	isExpanded: boolean
 	onToggleExpand: () => void
 	isLoading?: boolean
@@ -29,6 +30,7 @@ const CodeAccordian = ({
 	path,
 	isFeedback,
 	isConsoleLogs,
+	isAutoRunOutput,
 	isExpanded,
 	onToggleExpand,
 	isLoading,
@@ -46,7 +48,7 @@ const CodeAccordian = ({
 				overflow: "hidden", // This ensures the inner scrollable area doesn't overflow the rounded corners
 				border: "1px solid var(--vscode-editorGroup-border)",
 			}}>
-			{(path || isFeedback || isConsoleLogs) && (
+			{(path || isFeedback || isConsoleLogs || isAutoRunOutput) && (
 				<div
 					style={{
 						color: "var(--vscode-descriptionForeground)",
@@ -62,10 +64,10 @@ const CodeAccordian = ({
 						msUserSelect: "none",
 					}}
 					onClick={isLoading ? undefined : onToggleExpand}>
-					{isFeedback || isConsoleLogs ? (
+					{isFeedback || isConsoleLogs || isAutoRunOutput ? (
 						<div style={{ display: "flex", alignItems: "center" }}>
 							<span
-								className={`codicon codicon-${isFeedback ? "feedback" : "output"}`}
+								className={`codicon codicon-${isFeedback ? "feedback" : isAutoRunOutput ? "run" : "output"}`}
 								style={{ marginRight: "6px" }}></span>
 							<span
 								style={{
@@ -74,7 +76,7 @@ const CodeAccordian = ({
 									textOverflow: "ellipsis",
 									marginRight: "8px",
 								}}>
-								{isFeedback ? "User Edits" : "Console Logs"}
+								{isFeedback ? "User Edits" : isAutoRunOutput ? "Auto-Run Output" : "Console Logs"}
 							</span>
 						</div>
 					) : (
@@ -98,7 +100,7 @@ const CodeAccordian = ({
 					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}></span>
 				</div>
 			)}
-			{(!(path || isFeedback || isConsoleLogs) || isExpanded) && (
+			{(!(path || isFeedback || isConsoleLogs || isAutoRunOutput) || isExpanded) && (
 				<div
 					//className="code-block-scrollable" this doesn't seem to be necessary anymore, on silicon macs it shows the native mac scrollbar instead of the vscode styled one
 					style={{

@@ -22,6 +22,7 @@ import HistoryPreview from "../history/HistoryPreview"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
 import Announcement from "./Announcement"
 import AutoApproveMenu from "./AutoApproveMenu"
+import AutoRunMenu from "./AutoRunMenu"
 import BrowserSessionRow from "./BrowserSessionRow"
 import ChatRow from "./ChatRow"
 import ChatTextArea from "./ChatTextArea"
@@ -827,13 +828,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			//    but becomes scrollable when the viewport is too small
 			*/}
 			{!task && (
-				<AutoApproveMenu
-					style={{
-						marginBottom: -2,
-						flex: "0 1 auto", // flex-grow: 0, flex-shrink: 1, flex-basis: auto
-						minHeight: 0,
-					}}
-				/>
+				<>
+					<AutoRunMenu />
+					<AutoApproveMenu
+						style={{
+							marginBottom: -2,
+							flex: "0 1 auto", // flex-grow: 0, flex-shrink: 1, flex-basis: auto
+							minHeight: 0,
+						}}
+					/>
+				</>
 			)}
 
 			{task && (
@@ -868,6 +872,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							initialTopMostItemIndex={groupedMessages.length - 1}
 						/>
 					</div>
+					<AutoRunMenu />
 					<AutoApproveMenu />
 					{showScrollToBottom ? (
 						<div

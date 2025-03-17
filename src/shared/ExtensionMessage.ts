@@ -3,11 +3,14 @@
 import { GitCommit } from "../utils/git"
 import { ApiConfiguration, ModelInfo } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
+import { AutoRunSettings } from "./AutoRunSettings"
 import { BrowserSettings } from "./BrowserSettings"
+import { ChatContent } from "./ChatContent"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
 import { TelemetrySetting } from "./TelemetrySetting"
+import { UserInfo } from "./UserInfo"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -88,6 +91,7 @@ export interface ExtensionState {
 	taskHistory: HistoryItem[]
 	shouldShowAnnouncement: boolean
 	autoApprovalSettings: AutoApprovalSettings
+	autoRunSettings: AutoRunSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
 	platform: Platform
@@ -157,6 +161,7 @@ export type ClineSay =
 	| "deleted_api_reqs"
 	| "clineignore_error"
 	| "checkpoint_created"
+	| "auto_run_output"
 
 export interface ClineSayTool {
 	tool:
@@ -225,3 +230,7 @@ export interface ClineApiReqInfo {
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
 
 export const COMPLETION_RESULT_CHANGES_FLAG = "HAS_CHANGES"
+
+export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
+
+export type ClineCheckpointRestore = "task" | "workspace" | "taskAndWorkspace"

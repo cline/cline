@@ -19,6 +19,7 @@ import { UserInfo } from "../../shared/UserInfo"
 import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../shared/AutoApprovalSettings"
+import { AutoRunSettings, DEFAULT_AUTO_RUN_SETTINGS } from "../../shared/AutoRunSettings"
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "../../shared/BrowserSettings"
 import { ChatContent } from "../../shared/ChatContent"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
@@ -90,6 +91,7 @@ type GlobalStateKey =
 	| "openRouterModelId"
 	| "openRouterModelInfo"
 	| "autoApprovalSettings"
+	| "autoRunSettings"
 	| "browserSettings"
 	| "chatSettings"
 	| "vsCodeLmModelSelector"
@@ -127,6 +129,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	private latestAnnouncementId = "feb-19-2025" // update to some unique identifier when we add a new announcement
+	private isAutoRunning: boolean = false
+
+	private async setupAutoRunWatcher() {
+		// Get auto-run settings
+		const { autoRunSettings } = await this.getState()
+		if (autoRunSettings.enabled && autoRunSettings.command) {
+			this.outputChannel.appendLine("Auto-run is enabled with command: " + autoRunSettings.command)
+		}
+	}
+
+	async updateAutoRunSettings(autoRunSettings: AutoRunSettings) {
+		await this.updateGlobalState("autoRunSettings", autoRunSettings)
+		await this.postStateToWebview()
+	}
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -141,6 +157,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+		
+		// Setup auto-run file watcher
+		this.setupAutoRunWatcher()
 	}
 
 	/*
@@ -567,6 +586,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								this.cline.updateBrowserSettings(message.browserSettings)
 							}
 							await this.postStateToWebview()
+						}
+						break
+					case "autoRunSettings":
+						if (message.autoRunSettings) {
+							await this.updateAutoRunSettings(message.autoRunSettings)
 						}
 						break
 					case "togglePlanActMode":
@@ -1852,6 +1876,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			customInstructions,
 			taskHistory,
 			autoApprovalSettings,
+			autoRunSettings,
 			browserSettings,
 			chatSettings,
 			userInfo,
@@ -1875,6 +1900,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			shouldShowAnnouncement: lastShownAnnouncementId !== this.latestAnnouncementId,
 			platform: process.platform as Platform,
 			autoApprovalSettings,
+			autoRunSettings,
 			browserSettings,
 			chatSettings,
 			userInfo,
@@ -1980,6 +2006,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			customInstructions,
 			taskHistory,
 			autoApprovalSettings,
+			autoRunSettings,
 			browserSettings,
 			chatSettings,
 			vsCodeLmModelSelector,
@@ -2042,6 +2069,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
+			this.getGlobalState("autoRunSettings") as Promise<AutoRunSettings | undefined>,
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
 			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
@@ -2157,6 +2185,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			customInstructions,
 			taskHistory,
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
+			autoRunSettings: autoRunSettings || DEFAULT_AUTO_RUN_SETTINGS,
 			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
 			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 			userInfo,

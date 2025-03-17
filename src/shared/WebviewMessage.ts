@@ -1,5 +1,6 @@
 import { ApiConfiguration } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
+import { AutoRunSettings } from "./AutoRunSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
@@ -33,6 +34,7 @@ export interface WebviewMessage {
 		| "restartMcpServer"
 		| "deleteMcpServer"
 		| "autoApprovalSettings"
+		| "autoRunSettings"
 		| "browserSettings"
 		| "togglePlanActMode"
 		| "checkpointDiff"
@@ -71,6 +73,7 @@ export interface WebviewMessage {
 	bool?: boolean
 	number?: number
 	autoApprovalSettings?: AutoApprovalSettings
+	autoRunSettings?: AutoRunSettings
 	browserSettings?: BrowserSettings
 	chatSettings?: ChatSettings
 	chatContent?: ChatContent

@@ -1898,8 +1898,13 @@ export class Cline {
 									}
 								}
 
-								const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
-									await this.diffViewProvider.saveChanges()
+								const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent, autoRunOutput } =
+									await this.diffViewProvider.saveChanges(this.providerRef.deref())
+								
+								// If auto-run output is available, send it to the AI
+								if (autoRunOutput) {
+									await this.say("auto_run_output", autoRunOutput);
+								}
 								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 								if (userEdits) {
 									await this.say(
@@ -3437,6 +3442,9 @@ export class Cline {
 	}
 
 	async loadContext(userContent: UserContent, includeFileDetails: boolean = false) {
+		// Check for auto-run output in the clineMessages
+		const autoRunOutput = findLast(this.clineMessages, (m) => m.say === "auto_run_output")?.text;
+		
 		return await Promise.all([
 			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
 			// (Note: this caused the @/ import alias bug where file contents were being parsed as well, since v2 converted tool results to text blocks)
@@ -3460,11 +3468,11 @@ export class Cline {
 					return block
 				}),
 			),
-			this.getEnvironmentDetails(includeFileDetails),
+			this.getEnvironmentDetails(includeFileDetails, autoRunOutput),
 		])
 	}
 
-	async getEnvironmentDetails(includeFileDetails: boolean = false) {
+	async getEnvironmentDetails(includeFileDetails: boolean = false, autoRunOutput?: string) {
 		let details = ""
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
@@ -3628,6 +3636,13 @@ export class Cline {
 				'\n(Remember: If it seems the user wants you to use tools only available in Act Mode, you should ask the user to "toggle to Act mode" (use those words) - they will have to manually do this themselves with the Plan/Act toggle button below. You do not have the ability to switch to Act Mode yourself, and must wait for the user to do it themselves once they are satisfied with the plan. You also cannot present an option to toggle to Act mode, as this will be something you need to direct the user to do manually themselves.)'
 		} else {
 			details += "\nACT MODE"
+		}
+
+		// Add auto-run output if available.
+		// This is what is being sent to cline
+		// autoRunOutput = `# Auto-Run Command\nThe following command was automatically executed after your last file edit:\n$ ${autoRunResult.command}\n\nOutput:\n${autoRunResult.output}`;
+		if (autoRunOutput) {
+			details += autoRunOutput;
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
