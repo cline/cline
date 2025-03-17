@@ -206,6 +206,8 @@ function findMissingTranslations() {
 			console.log("1. Add the missing keys to the corresponding locale files")
 			console.log("2. Translate the English values to the appropriate language")
 			console.log("3. Run this script again to verify all translations are complete")
+			// Exit with error code to fail CI checks
+			process.exit(1)
 		}
 	} catch (error) {
 		console.error("Error:", error.message)

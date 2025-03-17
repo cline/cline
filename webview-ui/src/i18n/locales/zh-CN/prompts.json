@@ -36,12 +36,12 @@
 		"title": "模式特定的自定义指令（可选）",
 		"resetToDefault": "重置为默认值",
 		"description": "为{{modeName}}模式添加特定行为指南。",
-		"loadFromFile": "{{modeName}}模式的自定义指令也可以从工作区的.clinerules-{{modeSlug}}加载。"
+		"loadFromFile": "特定于 {{mode}} 模式的自定义指令也可以从工作区中的 <span>.clinerules-{{slug}}</span> 加载。"
 	},
 	"globalCustomInstructions": {
 		"title": "所有模式的自定义指令",
 		"description": "这些指令适用于所有模式。它们提供了一套基本行为，可以通过下面的模式特定指令来增强。\n如果您希望Roo使用不同于编辑器显示语言({{language}})的语言进行思考和对话，您可以在这里指定。",
-		"loadFromFile": "指令也可以从工作区的.clinerules加载。"
+		"loadFromFile": "指令也可以从工作区中的 <span>.clinerules</span> 加载。"
 	},
 	"systemPrompt": {
 		"preview": "预览系统提示词",
@@ -100,7 +100,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "高级：覆盖系统提示词",
-		"description": "您可以通过在工作区创建文件.roo/system-prompt-{{modeSlug}}来完全替换此模式的系统提示词（角色定义和自定义指令除外）。这是一个非常高级的功能，会绕过内置的安全措施和一致性检查（尤其是围绕工具使用的检查），请谨慎使用！"
+		"description": "您可以通过在工作区创建文件 <span>.roo/system-prompt-{{slug}}</span>，完全替换此模式的系统提示（角色定义和自定义指令除外）。这是一个非常高级的功能，会绕过内置的安全措施和一致性检查（尤其是与工具使用相关的部分），请谨慎操作！"
 	},
 	"createModeDialog": {
 		"title": "创建新模式",

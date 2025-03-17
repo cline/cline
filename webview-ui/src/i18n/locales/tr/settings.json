@@ -73,10 +73,111 @@
 		"configProfile": "Yapılandırma Profili",
 		"description": "Açıklama",
 		"apiProvider": "API Sağlayıcı",
+		"model": "Model",
 		"openRouterApiKey": "OpenRouter API Anahtarı",
+		"getOpenRouterApiKey": "OpenRouter API Anahtarı Al",
 		"apiKeyStorageNotice": "API anahtarları VSCode'un Gizli Depolamasında güvenli bir şekilde saklanır",
+		"glamaApiKey": "Glama API Anahtarı",
+		"getGlamaApiKey": "Glama API Anahtarı Al",
 		"useCustomBaseUrl": "Özel temel URL kullan",
-		"openRouterTransformsText": "İstem ve mesaj zincirlerini bağlam boyutuna sıkıştır (<a>OpenRouter Dönüşümleri</a>)"
+		"requestyApiKey": "Requesty API Anahtarı",
+		"getRequestyApiKey": "Requesty API Anahtarı Al",
+		"openRouterTransformsText": "İstem ve mesaj zincirlerini bağlam boyutuna sıkıştır (<a>OpenRouter Dönüşümleri</a>)",
+		"anthropicApiKey": "Anthropic API Anahtarı",
+		"getAnthropicApiKey": "Anthropic API Anahtarı Al",
+		"deepSeekApiKey": "DeepSeek API Anahtarı",
+		"getDeepSeekApiKey": "DeepSeek API Anahtarı Al",
+		"geminiApiKey": "Gemini API Anahtarı",
+		"getGeminiApiKey": "Gemini API Anahtarı Al",
+		"openAiApiKey": "OpenAI API Anahtarı",
+		"openAiBaseUrl": "Temel URL",
+		"getOpenAiApiKey": "OpenAI API Anahtarı Al",
+		"mistralApiKey": "Mistral API Anahtarı",
+		"getMistralApiKey": "Mistral / Codestral API Anahtarı Al",
+		"codestralBaseUrl": "Codestral Temel URL (İsteğe bağlı)",
+		"codestralBaseUrlDesc": "Codestral modeli için alternatif URL ayarlayın.",
+		"awsCredentials": "AWS Kimlik Bilgileri",
+		"awsProfile": "AWS Profili",
+		"awsProfileName": "AWS Profil Adı",
+		"awsAccessKey": "AWS Erişim Anahtarı",
+		"awsSecretKey": "AWS Gizli Anahtarı",
+		"awsSessionToken": "AWS Oturum Belirteci",
+		"awsRegion": "AWS Bölgesi",
+		"awsCrossRegion": "Bölgeler arası çıkarım kullan",
+		"googleCloudSetup": {
+			"title": "Google Cloud Vertex AI'yi kullanmak için şunları yapmanız gerekir:",
+			"step1": "1. Google Cloud hesabı oluşturun, Vertex AI API'sini etkinleştirin ve istediğiniz Claude modellerini etkinleştirin.",
+			"step2": "2. Google Cloud CLI'yi yükleyin ve uygulama varsayılan kimlik bilgilerini yapılandırın.",
+			"step3": "3. Veya kimlik bilgileriyle bir hizmet hesabı oluşturun."
+		},
+		"googleCloudCredentials": "Google Cloud Kimlik Bilgileri",
+		"googleCloudKeyFile": "Google Cloud Anahtar Dosyası Yolu",
+		"googleCloudProjectId": "Google Cloud Proje Kimliği",
+		"googleCloudRegion": "Google Cloud Bölgesi",
+		"lmStudio": {
+			"baseUrl": "Temel URL (İsteğe bağlı)",
+			"modelId": "Model Kimliği",
+			"speculativeDecoding": "Spekülatif Kod Çözmeyi Etkinleştir",
+			"draftModelId": "Taslak Model Kimliği",
+			"draftModelDesc": "Spekülatif kod çözmenin doğru çalışması için taslak model aynı model ailesinden olmalıdır.",
+			"selectDraftModel": "Taslak Model Seç",
+			"noModelsFound": "Taslak model bulunamadı. Lütfen LM Studio'nun Sunucu Modu etkinken çalıştığından emin olun.",
+			"description": "LM Studio, modelleri bilgisayarınızda yerel olarak çalıştırmanıza olanak tanır. Başlamak için <a>hızlı başlangıç kılavuzlarına</a> bakın. Bu uzantıyla kullanmak için LM Studio'nun <b>yerel sunucu</b> özelliğini de başlatmanız gerekecektir. <span>Not:</span> Roo Code karmaşık istemler kullanır ve Claude modelleriyle en iyi şekilde çalışır. Daha az yetenekli modeller beklendiği gibi çalışmayabilir."
+		},
+		"ollama": {
+			"baseUrl": "Temel URL (İsteğe bağlı)",
+			"modelId": "Model Kimliği",
+			"description": "Ollama, modelleri bilgisayarınızda yerel olarak çalıştırmanıza olanak tanır. Başlamak için hızlı başlangıç kılavuzlarına bakın.",
+			"warning": "Not: Roo Code karmaşık istemler kullanır ve Claude modelleriyle en iyi şekilde çalışır. Daha az yetenekli modeller beklendiği gibi çalışmayabilir."
+		},
+		"unboundApiKey": "Unbound API Anahtarı",
+		"getUnboundApiKey": "Unbound API Anahtarı Al",
+		"humanRelay": {
+			"description": "API anahtarı gerekmez, ancak kullanıcının bilgileri web sohbet yapay zekasına kopyalayıp yapıştırması gerekir.",
+			"instructions": "Kullanım sırasında bir iletişim kutusu açılacak ve mevcut mesaj otomatik olarak panoya kopyalanacaktır. Bunları web yapay zekalarına (ChatGPT veya Claude gibi) yapıştırmanız, ardından yapay zekanın yanıtını iletişim kutusuna kopyalayıp onay düğmesine tıklamanız gerekir."
+		},
+		"customModel": {
+			"capabilities": "Özel OpenAI uyumlu modelinizin yeteneklerini ve fiyatlandırmasını yapılandırın. Model yeteneklerini belirtirken dikkatli olun, çünkü bunlar Roo Code'un performansını etkileyebilir.",
+			"maxTokens": {
+				"label": "Maksimum Çıktı Token'ları",
+				"description": "Modelin bir yanıtta üretebileceği maksimum token sayısı. (Sunucunun maksimum token'ları ayarlamasına izin vermek için -1 belirtin.)"
+			},
+			"contextWindow": {
+				"label": "Bağlam Penceresi Boyutu",
+				"description": "Modelin işleyebileceği toplam token sayısı (giriş + çıkış)."
+			},
+			"imageSupport": {
+				"label": "Görüntü Desteği",
+				"description": "Bu model görüntüleri işleyip anlayabilir mi?"
+			},
+			"computerUse": {
+				"label": "Bilgisayar Kullanımı",
+				"description": "Bu model bir tarayıcıyla etkileşim kurabilir mi? (örn. Claude 3.7 Sonnet)"
+			},
+			"promptCache": {
+				"label": "İstem Önbelleği",
+				"description": "Bu model istemleri önbelleğe alabilir mi?"
+			},
+			"pricing": {
+				"input": {
+					"label": "Giriş Fiyatı",
+					"description": "Giriş/istem başına milyon token maliyeti. Bu, modele bağlam ve talimatlar gönderme maliyetini etkiler."
+				},
+				"output": {
+					"label": "Çıkış Fiyatı",
+					"description": "Model yanıtı başına milyon token maliyeti. Bu, oluşturulan içerik ve tamamlamaların maliyetini etkiler."
+				},
+				"cacheReads": {
+					"label": "Önbellek Okuma Fiyatı",
+					"description": "Önbellekten okuma başına milyon token maliyeti. Bu, önbelleğe alınmış bir yanıt alındığında uygulanan fiyattır."
+				},
+				"cacheWrites": {
+					"label": "Önbellek Yazma Fiyatı",
+					"description": "Önbelleğe yazma başına milyon token maliyeti. Bu, bir istem ilk kez önbelleğe alındığında uygulanan fiyattır."
+				}
+			},
+			"resetDefaults": "Varsayılanlara Sıfırla"
+		}
 	},
 	"browser": {
 		"enable": {
@@ -205,6 +306,9 @@
 		"outputPrice": "Çıkış fiyatı",
 		"cacheReadsPrice": "Önbellek okuma fiyatı",
 		"cacheWritesPrice": "Önbellek yazma fiyatı",
+		"enableStreaming": "Akışı etkinleştir",
+		"useAzure": "Azure kullan",
+		"azureApiVersion": "Azure API sürümünü ayarla",
 		"gemini": {
 			"freeRequests": "* Dakikada {{count}} isteğe kadar ücretsiz. Bundan sonra, ücretlendirme istem boyutuna bağlıdır.",
 			"pricingDetails": "Daha fazla bilgi için fiyatlandırma ayrıntılarına bakın."

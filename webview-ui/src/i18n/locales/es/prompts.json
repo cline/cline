@@ -36,12 +36,12 @@
 		"title": "Instrucciones personalizadas para el modo (opcional)",
 		"resetToDefault": "Restablecer a valores predeterminados",
 		"description": "Agrega directrices de comportamiento específicas para el modo {{modeName}}.",
-		"loadFromFile": "Las instrucciones personalizadas para el modo {{modeName}} también se pueden cargar desde .clinerules-{{modeSlug}} en tu espacio de trabajo."
+		"loadFromFile": "Las instrucciones personalizadas para el modo {{mode}} también se pueden cargar desde <span>.clinerules-{{slug}}</span> en tu espacio de trabajo."
 	},
 	"globalCustomInstructions": {
 		"title": "Instrucciones personalizadas para todos los modos",
 		"description": "Estas instrucciones se aplican a todos los modos. Proporcionan un conjunto base de comportamientos que pueden ser mejorados por instrucciones específicas de cada modo.\nSi quieres que Roo piense y hable en un idioma diferente al idioma de visualización de tu editor ({{language}}), puedes especificarlo aquí.",
-		"loadFromFile": "Las instrucciones también se pueden cargar desde .clinerules en tu espacio de trabajo."
+		"loadFromFile": "Las instrucciones también se pueden cargar desde <span>.clinerules</span> en tu espacio de trabajo."
 	},
 	"systemPrompt": {
 		"preview": "Vista previa de la solicitud del sistema",
@@ -100,7 +100,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Avanzado: Anular solicitud del sistema",
-		"description": "Puedes reemplazar completamente la solicitud del sistema para este modo (aparte de la definición de rol e instrucciones personalizadas) creando un archivo en .roo/system-prompt-{{modeSlug}} en tu espacio de trabajo. ¡Esta es una función muy avanzada que omite las salvaguardas integradas y las verificaciones de consistencia (especialmente en torno al uso de herramientas), así que ten cuidado!"
+		"description": "Puedes reemplazar completamente la solicitud del sistema para este modo (aparte de la definición de rol e instrucciones personalizadas) creando un archivo en <span>.roo/system-prompt-{{slug}}</span> en tu espacio de trabajo. ¡Esta es una función muy avanzada que omite las salvaguardas integradas y las verificaciones de consistencia (especialmente en torno al uso de herramientas), así que ten cuidado!"
 	},
 	"createModeDialog": {
 		"title": "Crear nuevo modo",

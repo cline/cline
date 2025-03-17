@@ -73,10 +73,111 @@
 		"configProfile": "設定プロファイル",
 		"description": "説明",
 		"apiProvider": "APIプロバイダー",
+		"model": "モデル",
 		"openRouterApiKey": "OpenRouter APIキー",
+		"getOpenRouterApiKey": "OpenRouter APIキーを取得",
 		"apiKeyStorageNotice": "APIキーはVSCodeのシークレットストレージに安全に保存されます",
+		"glamaApiKey": "Glama APIキー",
+		"getGlamaApiKey": "Glama APIキーを取得",
 		"useCustomBaseUrl": "カスタムベースURLを使用",
-		"openRouterTransformsText": "プロンプトとメッセージチェーンをコンテキストサイズに圧縮（<a>OpenRouter変換</a>）"
+		"requestyApiKey": "Requesty APIキー",
+		"getRequestyApiKey": "Requesty APIキーを取得",
+		"openRouterTransformsText": "プロンプトとメッセージチェーンをコンテキストサイズに圧縮 (<a>OpenRouter Transforms</a>)",
+		"anthropicApiKey": "Anthropic APIキー",
+		"getAnthropicApiKey": "Anthropic APIキーを取得",
+		"deepSeekApiKey": "DeepSeek APIキー",
+		"getDeepSeekApiKey": "DeepSeek APIキーを取得",
+		"geminiApiKey": "Gemini APIキー",
+		"getGeminiApiKey": "Gemini APIキーを取得",
+		"openAiApiKey": "OpenAI APIキー",
+		"openAiBaseUrl": "ベースURL",
+		"getOpenAiApiKey": "OpenAI APIキーを取得",
+		"mistralApiKey": "Mistral APIキー",
+		"getMistralApiKey": "Mistral / Codestral APIキーを取得",
+		"codestralBaseUrl": "Codestral ベースURL（オプション）",
+		"codestralBaseUrlDesc": "Codestralモデルの代替URLを設定します。",
+		"awsCredentials": "AWS認証情報",
+		"awsProfile": "AWSプロファイル",
+		"awsProfileName": "AWSプロファイル名",
+		"awsAccessKey": "AWSアクセスキー",
+		"awsSecretKey": "AWSシークレットキー",
+		"awsSessionToken": "AWSセッショントークン",
+		"awsRegion": "AWSリージョン",
+		"awsCrossRegion": "クロスリージョン推論を使用",
+		"googleCloudSetup": {
+			"title": "Google Cloud Vertex AIを使用するには：",
+			"step1": "1. Google Cloudアカウントを作成し、Vertex AI APIを有効にして、希望するClaudeモデルを有効にします。",
+			"step2": "2. Google Cloud CLIをインストールし、アプリケーションのデフォルト認証情報を設定します。",
+			"step3": "3. または、認証情報付きのサービスアカウントを作成します。"
+		},
+		"googleCloudCredentials": "Google Cloud認証情報",
+		"googleCloudKeyFile": "Google Cloudキーファイルパス",
+		"googleCloudProjectId": "Google Cloudプロジェクトid",
+		"googleCloudRegion": "Google Cloudリージョン",
+		"lmStudio": {
+			"baseUrl": "ベースURL（オプション）",
+			"modelId": "モデルID",
+			"speculativeDecoding": "推論デコーディングを有効化",
+			"draftModelId": "ドラフトモデルID",
+			"draftModelDesc": "推論デコーディングが正しく機能するには、ドラフトモデルは同じモデルファミリーから選択する必要があります。",
+			"selectDraftModel": "ドラフトモデルを選択",
+			"noModelsFound": "ドラフトモデルが見つかりません。LM Studioがサーバーモードで実行されていることを確認してください。",
+			"description": "LM Studioを使用すると、ローカルコンピューターでモデルを実行できます。始め方については、<a>クイックスタートガイド</a>をご覧ください。また、この拡張機能で使用するには、LM Studioの<b>ローカルサーバー</b>機能を起動する必要があります。<span>注意：</span>Roo Codeは複雑なプロンプトを使用し、Claudeモデルで最適に動作します。能力の低いモデルは期待通りに動作しない場合があります。"
+		},
+		"ollama": {
+			"baseUrl": "ベースURL（オプション）",
+			"modelId": "モデルID",
+			"description": "Ollamaを使用すると、ローカルコンピューターでモデルを実行できます。始め方については、クイックスタートガイドをご覧ください。",
+			"warning": "注意：Roo Codeは複雑なプロンプトを使用し、Claudeモデルで最適に動作します。能力の低いモデルは期待通りに動作しない場合があります。"
+		},
+		"unboundApiKey": "Unbound APIキー",
+		"getUnboundApiKey": "Unbound APIキーを取得",
+		"humanRelay": {
+			"description": "APIキーは不要ですが、ユーザーはウェブチャットAIに情報をコピー＆ペーストする必要があります。",
+			"instructions": "使用中にダイアログボックスが表示され、現在のメッセージが自動的にクリップボードにコピーされます。これらをウェブ版のAI（ChatGPTやClaudeなど）に貼り付け、AIの返答をダイアログボックスにコピーして確認ボタンをクリックする必要があります。"
+		},
+		"customModel": {
+			"capabilities": "カスタムOpenAI互換モデルの機能と価格を設定します。モデルの機能はRoo Codeのパフォーマンスに影響を与える可能性があるため、慎重に指定してください。",
+			"maxTokens": {
+				"label": "最大出力トークン",
+				"description": "モデルが生成できる応答の最大トークン数。（サーバーが最大トークンを設定できるようにするには-1を指定します。）"
+			},
+			"contextWindow": {
+				"label": "コンテキストウィンドウサイズ",
+				"description": "モデルが処理できる総トークン数（入力＋出力）。"
+			},
+			"imageSupport": {
+				"label": "画像サポート",
+				"description": "このモデルは画像の処理と理解が可能ですか？"
+			},
+			"computerUse": {
+				"label": "コンピューター使用",
+				"description": "このモデルはブラウザとの対話が可能ですか？（例：Claude 3.7 Sonnet）"
+			},
+			"promptCache": {
+				"label": "プロンプトキャッシュ",
+				"description": "このモデルはプロンプトのキャッシュが可能ですか？"
+			},
+			"pricing": {
+				"input": {
+					"label": "入力価格",
+					"description": "入力/プロンプトの100万トークンあたりのコスト。これはモデルにコンテキストと指示を送信するコストに影響します。"
+				},
+				"output": {
+					"label": "出力価格",
+					"description": "モデルの応答の100万トークンあたりのコスト。これは生成されたコンテンツと補完のコストに影響します。"
+				},
+				"cacheReads": {
+					"label": "キャッシュ読み取り価格",
+					"description": "キャッシュからの読み取りの100万トークンあたりのコスト。これはキャッシュされた応答を取得する際に課金される価格です。"
+				},
+				"cacheWrites": {
+					"label": "キャッシュ書き込み価格",
+					"description": "キャッシュへの書き込みの100万トークンあたりのコスト。これはプロンプトが初めてキャッシュされる際に課金される価格です。"
+				}
+			},
+			"resetDefaults": "デフォルトにリセット"
+		}
 	},
 	"browser": {
 		"enable": {
@@ -196,8 +297,8 @@
 	"modelInfo": {
 		"supportsImages": "画像をサポート",
 		"noImages": "画像をサポートしていません",
-		"supportsComputerUse": "コンピューター使用をサポート",
-		"noComputerUse": "コンピューター使用をサポートしていません",
+		"supportsComputerUse": "コンピュータ使用をサポート",
+		"noComputerUse": "コンピュータ使用をサポートしていません",
 		"supportsPromptCache": "プロンプトキャッシュをサポート",
 		"noPromptCache": "プロンプトキャッシュをサポートしていません",
 		"maxOutput": "最大出力",
@@ -205,9 +306,12 @@
 		"outputPrice": "出力価格",
 		"cacheReadsPrice": "キャッシュ読み取り価格",
 		"cacheWritesPrice": "キャッシュ書き込み価格",
+		"enableStreaming": "ストリーミングを有効化",
+		"useAzure": "Azureを使用",
+		"azureApiVersion": "Azure APIバージョンを設定",
 		"gemini": {
-			"freeRequests": "* 毎分{{count}}リクエストまで無料。それ以降は、プロンプトサイズに応じて課金されます。",
-			"pricingDetails": "詳細については、価格詳細をご覧ください。"
+			"freeRequests": "* 1分間あたり{{count}}リクエストまで無料。それ以降は、プロンプトサイズに応じて課金されます。",
+			"pricingDetails": "詳細は価格情報をご覧ください。"
 		}
 	},
 	"modelPicker": {

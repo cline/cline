@@ -73,10 +73,111 @@
 		"configProfile": "Perfil de configuração",
 		"description": "Descrição",
 		"apiProvider": "Provedor de API",
+		"model": "Modelo",
 		"openRouterApiKey": "Chave de API OpenRouter",
+		"getOpenRouterApiKey": "Obter chave de API OpenRouter",
 		"apiKeyStorageNotice": "As chaves de API são armazenadas com segurança no Armazenamento Secreto do VSCode",
+		"glamaApiKey": "Chave de API Glama",
+		"getGlamaApiKey": "Obter chave de API Glama",
 		"useCustomBaseUrl": "Usar URL base personalizado",
-		"openRouterTransformsText": "Comprimir prompts e cadeias de mensagens para o tamanho do contexto (<a>Transformações OpenRouter</a>)"
+		"requestyApiKey": "Chave de API Requesty",
+		"getRequestyApiKey": "Obter chave de API Requesty",
+		"openRouterTransformsText": "Comprimir prompts e cadeias de mensagens para o tamanho do contexto (<a>Transformações OpenRouter</a>)",
+		"anthropicApiKey": "Chave de API Anthropic",
+		"getAnthropicApiKey": "Obter chave de API Anthropic",
+		"deepSeekApiKey": "Chave de API DeepSeek",
+		"getDeepSeekApiKey": "Obter chave de API DeepSeek",
+		"geminiApiKey": "Chave de API Gemini",
+		"getGeminiApiKey": "Obter chave de API Gemini",
+		"openAiApiKey": "Chave de API OpenAI",
+		"openAiBaseUrl": "URL Base",
+		"getOpenAiApiKey": "Obter chave de API OpenAI",
+		"mistralApiKey": "Chave de API Mistral",
+		"getMistralApiKey": "Obter chave de API Mistral / Codestral",
+		"codestralBaseUrl": "URL Base Codestral (Opcional)",
+		"codestralBaseUrlDesc": "Defina uma URL alternativa para o modelo Codestral.",
+		"awsCredentials": "Credenciais AWS",
+		"awsProfile": "Perfil AWS",
+		"awsProfileName": "Nome do Perfil AWS",
+		"awsAccessKey": "Chave de Acesso AWS",
+		"awsSecretKey": "Chave Secreta AWS",
+		"awsSessionToken": "Token de Sessão AWS",
+		"awsRegion": "Região AWS",
+		"awsCrossRegion": "Usar inferência entre regiões",
+		"googleCloudSetup": {
+			"title": "Para usar o Google Cloud Vertex AI, você precisa:",
+			"step1": "1. Criar uma conta Google Cloud, ativar a API Vertex AI e ativar os modelos Claude desejados.",
+			"step2": "2. Instalar o CLI do Google Cloud e configurar as credenciais padrão do aplicativo.",
+			"step3": "3. Ou criar uma conta de serviço com credenciais."
+		},
+		"googleCloudCredentials": "Credenciais Google Cloud",
+		"googleCloudKeyFile": "Caminho do Arquivo de Chave Google Cloud",
+		"googleCloudProjectId": "ID do Projeto Google Cloud",
+		"googleCloudRegion": "Região Google Cloud",
+		"lmStudio": {
+			"baseUrl": "URL Base (opcional)",
+			"modelId": "ID do Modelo",
+			"speculativeDecoding": "Ativar Decodificação Especulativa",
+			"draftModelId": "ID do Modelo de Rascunho",
+			"draftModelDesc": "O modelo de rascunho deve ser da mesma família de modelos para que a decodificação especulativa funcione corretamente.",
+			"selectDraftModel": "Selecionar Modelo de Rascunho",
+			"noModelsFound": "Nenhum modelo de rascunho encontrado. Certifique-se de que o LM Studio esteja em execução com o Modo Servidor ativado.",
+			"description": "O LM Studio permite que você execute modelos localmente em seu computador. Para instruções sobre como começar, veja o <a>guia de início rápido</a> deles. Você também precisará iniciar o recurso de <b>servidor local</b> do LM Studio para usá-lo com esta extensão. <span>Nota:</span> O Roo Code usa prompts complexos e funciona melhor com modelos Claude. Modelos menos capazes podem não funcionar como esperado."
+		},
+		"ollama": {
+			"baseUrl": "URL Base (opcional)",
+			"modelId": "ID do Modelo",
+			"description": "O Ollama permite que você execute modelos localmente em seu computador. Para instruções sobre como começar, veja o guia de início rápido deles.",
+			"warning": "Nota: O Roo Code usa prompts complexos e funciona melhor com modelos Claude. Modelos menos capazes podem não funcionar como esperado."
+		},
+		"unboundApiKey": "Chave de API Unbound",
+		"getUnboundApiKey": "Obter chave de API Unbound",
+		"humanRelay": {
+			"description": "Não é necessária chave de API, mas o usuário precisa ajudar a copiar e colar as informações para a IA do chat web.",
+			"instructions": "Durante o uso, uma caixa de diálogo será exibida e a mensagem atual será copiada para a área de transferência automaticamente. Você precisa colar isso nas versões web de IA (como ChatGPT ou Claude), depois copiar a resposta da IA de volta para a caixa de diálogo e clicar no botão confirmar."
+		},
+		"customModel": {
+			"capabilities": "Configure as capacidades e preços para seu modelo personalizado compatível com OpenAI. Tenha cuidado ao especificar as capacidades do modelo, pois elas podem afetar como o Roo Code funciona.",
+			"maxTokens": {
+				"label": "Máximo de Tokens de Saída",
+				"description": "Número máximo de tokens que o modelo pode gerar em uma resposta. (Especifique -1 para permitir que o servidor defina o máximo de tokens.)"
+			},
+			"contextWindow": {
+				"label": "Tamanho da Janela de Contexto",
+				"description": "Total de tokens (entrada + saída) que o modelo pode processar."
+			},
+			"imageSupport": {
+				"label": "Suporte a Imagens",
+				"description": "Este modelo é capaz de processar e entender imagens?"
+			},
+			"computerUse": {
+				"label": "Uso do Computador",
+				"description": "Este modelo é capaz de interagir com um navegador? (ex. Claude 3.7 Sonnet)."
+			},
+			"promptCache": {
+				"label": "Cache de Prompts",
+				"description": "Este modelo é capaz de fazer cache de prompts?"
+			},
+			"pricing": {
+				"input": {
+					"label": "Preço de Entrada",
+					"description": "Custo por milhão de tokens na entrada/prompt. Isso afeta o custo de enviar contexto e instruções para o modelo."
+				},
+				"output": {
+					"label": "Preço de Saída",
+					"description": "Custo por milhão de tokens na resposta do modelo. Isso afeta o custo do conteúdo gerado e das conclusões."
+				},
+				"cacheReads": {
+					"label": "Preço de Leituras de Cache",
+					"description": "Custo por milhão de tokens para leitura do cache. Este é o preço cobrado quando uma resposta em cache é recuperada."
+				},
+				"cacheWrites": {
+					"label": "Preço de Escritas de Cache",
+					"description": "Custo por milhão de tokens para escrita no cache. Este é o preço cobrado quando um prompt é armazenado em cache pela primeira vez."
+				}
+			},
+			"resetDefaults": "Restaurar Padrões"
+		}
 	},
 	"browser": {
 		"enable": {
@@ -205,6 +306,9 @@
 		"outputPrice": "Preço de saída",
 		"cacheReadsPrice": "Preço de leituras de cache",
 		"cacheWritesPrice": "Preço de escritas de cache",
+		"enableStreaming": "Ativar streaming",
+		"useAzure": "Usar Azure",
+		"azureApiVersion": "Definir versão da API Azure",
 		"gemini": {
 			"freeRequests": "* Gratuito até {{count}} requisições por minuto. Depois disso, a cobrança depende do tamanho do prompt.",
 			"pricingDetails": "Para mais informações, consulte os detalhes de preços."
