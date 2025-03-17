@@ -34,7 +34,7 @@ jobs:
         run: |
           npm run update-contributors
           npx prettier --write README.md
-          if git diff --quiet README.md; then echo "changes=false" >> $GITHUB_OUTPUT; else echo "changes=true" >> $GITHUB_OUTPUT; fi
+          if git diff --quiet; then echo "changes=false" >> $GITHUB_OUTPUT; else echo "changes=true" >> $GITHUB_OUTPUT; fi
         id: check-changes
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -44,15 +44,13 @@ jobs:
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          add-paths: |
-            README.md
           commit-message: "docs: update contributors list [skip ci]"
           committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
           branch: update-contributors
           delete-branch: true
           title: "Update contributors list"
           body: |
-            Automated update of contributors list in README.md
+            Automated update of contributors list and related files
             
-            This PR was created automatically by a GitHub Action workflow.
+            This PR was created automatically by a GitHub Action workflow and includes all changed files.
           base: main
