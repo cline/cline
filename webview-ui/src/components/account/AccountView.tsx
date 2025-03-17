@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeDivider, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { memo } from "react"
+import { memo, useEffect, useState } from "react"
 import { useFirebaseAuth } from "../../context/FirebaseAuthContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
@@ -29,7 +29,31 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 
 export const ClineAccountView = () => {
 	const { user, handleSignOut } = useFirebaseAuth()
-	const amount = 38.06
+	const [balance, setBalance] = useState<number>(0)
+	const [isLoading, setIsLoading] = useState<boolean>(true)
+
+	// Listen for balance updates from the extension
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			const message = event.data
+			if (message.type === "userCreditsBalance" && message.userCreditsBalance) {
+				setBalance(message.userCreditsBalance.balance)
+				setIsLoading(false)
+			}
+		}
+
+		window.addEventListener("message", handleMessage)
+
+		// Fetch balance data when component mounts
+		if (user) {
+			setIsLoading(true)
+			vscode.postMessage({ type: "fetchUserCreditsData" })
+		}
+
+		return () => {
+			window.removeEventListener("message", handleMessage)
+		}
+	}, [user])
 
 	const handleLogin = () => {
 		vscode.postMessage({ type: "accountLoginClicked" })
@@ -87,8 +111,14 @@ export const ClineAccountView = () => {
 						<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3">CURRENT BALANCE</div>
 
 						<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6">
-							<span>$</span>
-							<CountUp end={amount} duration={0.66} decimals={2} />
+							{isLoading ? (
+								<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
+							) : (
+								<>
+									<span>$</span>
+									<CountUp end={balance} duration={0.66} decimals={2} />
+								</>
+							)}
 						</div>
 
 						<div className="w-full max-w-3xs">

@@ -8,6 +8,7 @@ import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
 import { TelemetrySetting } from "./TelemetrySetting"
+import type { BalanceResponse, UsageTransaction, PaymentTransaction } from "../services/account/ClineAccountService"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -34,6 +35,9 @@ export interface ExtensionMessage {
 		| "openGraphData"
 		| "isImageUrlResult"
 		| "didUpdateSettings"
+		| "userCreditsBalance"
+		| "userCreditsUsage"
+		| "userCreditsPayments"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -70,6 +74,9 @@ export interface ExtensionMessage {
 	}
 	url?: string
 	isImage?: boolean
+	userCreditsBalance?: BalanceResponse
+	userCreditsUsage?: UsageTransaction[]
+	userCreditsPayments?: PaymentTransaction[]
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
