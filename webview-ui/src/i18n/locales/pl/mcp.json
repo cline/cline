@@ -10,7 +10,8 @@
 		"title": "Włącz tworzenie serwerów MCP",
 		"description": "Po włączeniu, Roo może pomóc w tworzeniu nowych serwerów MCP za pomocą poleceń takich jak \"dodaj nowe narzędzie do...\". Jeśli nie potrzebujesz tworzyć serwerów MCP, możesz to wyłączyć, aby zmniejszyć zużycie tokenów przez Roo."
 	},
-	"editSettings": "Edytuj ustawienia MCP",
+	"editGlobalMCP": "Edytuj globalne MCP",
+	"editProjectMCP": "Edytuj projektowe MCP",
 	"tool": {
 		"alwaysAllow": "Zawsze zezwalaj",
 		"parameters": "Parametry",

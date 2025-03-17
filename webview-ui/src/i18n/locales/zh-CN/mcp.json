@@ -10,6 +10,8 @@
 		"title": "启用 MCP 服务器创建",
 		"description": "启用后，Roo 可以通过诸如\"添加新工具到...\"之类的命令帮助您创建新的 MCP 服务器。如果您不需要创建 MCP 服务器，可以禁用此功能以减少 Roo 的 token 使用量。"
 	},
+	"editGlobalMCP": "编辑全局 MCP",
+	"editProjectMCP": "编辑项目 MCP",
 	"editSettings": "编辑 MCP 设置",
 	"tool": {
 		"alwaysAllow": "始终允许",

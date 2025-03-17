@@ -1118,6 +1118,28 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "openProjectMcpSettings": {
+						if (!vscode.workspace.workspaceFolders?.length) {
+							vscode.window.showErrorMessage("Please open a project folder first")
+							return
+						}
+
+						const workspaceFolder = vscode.workspace.workspaceFolders[0]
+						const rooDir = path.join(workspaceFolder.uri.fsPath, ".roo")
+						const mcpPath = path.join(rooDir, "mcp.json")
+
+						try {
+							await fs.mkdir(rooDir, { recursive: true })
+							const exists = await fileExistsAtPath(mcpPath)
+							if (!exists) {
+								await fs.writeFile(mcpPath, JSON.stringify({ mcpServers: {} }, null, 2))
+							}
+							await openFile(mcpPath)
+						} catch (error) {
+							vscode.window.showErrorMessage(`Failed to create or open .roo/mcp.json: ${error}`)
+						}
+						break
+					}
 					case "openCustomModesSettings": {
 						const customModesFilePath = await this.customModesManager.getCustomModesFilePath()
 						if (customModesFilePath) {

@@ -10,6 +10,8 @@
 		"title": "Bật tạo máy chủ MCP",
 		"description": "Khi được bật, Roo có thể giúp bạn tạo máy chủ MCP mới thông qua các lệnh như \"thêm công cụ mới để...\". Nếu bạn không cần tạo máy chủ MCP, bạn có thể tắt tính năng này để giảm lượng token mà Roo sử dụng."
 	},
+	"editGlobalMCP": "Chỉnh sửa MCP toàn cục",
+	"editProjectMCP": "Chỉnh sửa MCP dự án",
 	"editSettings": "Chỉnh sửa cài đặt MCP",
 	"tool": {
 		"alwaysAllow": "Luôn cho phép",

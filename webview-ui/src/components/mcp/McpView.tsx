@@ -94,16 +94,25 @@ const McpView = ({ onDone }: McpViewProps) => {
 							</div>
 						)}
 
-						{/* Edit Settings Button */}
-						<div style={{ marginTop: "10px", width: "100%" }}>
+						{/* Edit Settings Buttons */}
+						<div style={{ marginTop: "10px", width: "100%", display: "flex", gap: "10px" }}>
 							<VSCodeButton
 								appearance="secondary"
-								style={{ width: "100%" }}
+								style={{ flex: 1 }}
 								onClick={() => {
 									vscode.postMessage({ type: "openMcpSettings" })
 								}}>
 								<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
-								{t("mcp:editSettings")}
+								{t("mcp:editGlobalMCP")}
+							</VSCodeButton>
+							<VSCodeButton
+								appearance="secondary"
+								style={{ flex: 1 }}
+								onClick={() => {
+									vscode.postMessage({ type: "openProjectMcpSettings" })
+								}}>
+								<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
+								{t("mcp:editProjectMCP")}
 							</VSCodeButton>
 						</div>
 					</>
@@ -194,7 +203,22 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 						style={{ marginRight: "8px" }}
 					/>
 				)}
-				<span style={{ flex: 1 }}>{server.name}</span>
+				<span style={{ flex: 1 }}>
+					{server.name}
+					{server.source && (
+						<span
+							style={{
+								marginLeft: "8px",
+								padding: "1px 6px",
+								fontSize: "11px",
+								borderRadius: "4px",
+								background: "var(--vscode-badge-background)",
+								color: "var(--vscode-badge-foreground)",
+							}}>
+							{server.source}
+						</span>
+					)}
+				</span>
 				<div
 					style={{ display: "flex", alignItems: "center", marginRight: "8px" }}
 					onClick={(e) => e.stopPropagation()}>

@@ -10,7 +10,8 @@
 		"title": "MCP Sunucu Oluşturmayı Etkinleştir",
 		"description": "Etkinleştirildiğinde, Roo \"için yeni bir araç ekle...\" gibi komutlar aracılığıyla yeni MCP sunucuları oluşturmanıza yardımcı olabilir. MCP sunucuları oluşturmanız gerekmiyorsa, Roo'nun token kullanımını azaltmak için bunu devre dışı bırakabilirsiniz."
 	},
-	"editSettings": "MCP Ayarlarını Düzenle",
+	"editGlobalMCP": "Global MCP'yi Düzenle",
+	"editProjectMCP": "Proje MCP'yi Düzenle",
 	"tool": {
 		"alwaysAllow": "Her zaman izin ver",
 		"parameters": "Parametreler",
