@@ -21,7 +21,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
 	totalTasksSize: number | null
-	requestTotalTasksSize: () => void
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
@@ -152,10 +151,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		vscode.postMessage({ type: "webviewDidLaunch" })
 	}, [])
 
-	const requestTotalTasksSize = useCallback(() => {
-		vscode.postMessage({ type: "requestTotalTasksSize" })
-	}, [])
-
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
@@ -167,7 +162,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpMarketplaceCatalog,
 		filePaths,
 		totalTasksSize,
-		requestTotalTasksSize,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,
