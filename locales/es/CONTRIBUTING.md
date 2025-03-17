@@ -22,7 +22,7 @@ Estamos encantados de que estés interesado en contribuir a Roo Code. Ya sea que
 
 ## Decidir en qué trabajar
 
-¿Buscas una buena primera contribución? Revisa los issues en la sección "Issue [Unassigned]" de nuestro [Proyecto Github de Roo Code](https://github.com/orgs/RooVetGit/projects/1). ¡Estos están específicamente seleccionados para nuevos colaboradores y áreas donde nos encantaría recibir ayuda!
+¿Buscas una buena primera contribución? Revisa los issues en la sección "Issue [Unassigned]" de nuestro [Proyecto GitHub de Roo Code](https://github.com/orgs/RooVetGit/projects/1). ¡Estos están específicamente seleccionados para nuevos colaboradores y áreas donde nos encantaría recibir ayuda!
 
 ¡También damos la bienvenida a contribuciones a nuestra [documentación](https://docs.roocode.com/)! Ya sea arreglando errores tipográficos, mejorando guías existentes o creando nuevo contenido educativo - nos encantaría construir un repositorio de recursos impulsado por la comunidad que ayude a todos a sacar el máximo provecho de Roo Code. Puedes hacer clic en "Edit this page" en cualquier página para llegar rápidamente al lugar correcto en Github para editar el archivo, o puedes ir directamente a https://github.com/RooVetGit/Roo-Code-Docs.
 
