@@ -445,10 +445,12 @@ const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: Cont
 	return (
 		<>
 			<div className="flex items-center gap-1 flex-shrink-0">
-				<span className="font-bold">{t("chat:task.contextWindow")}</span>
+				<span className="font-bold" data-testid="context-window-label">
+					{t("chat:task.contextWindow")}
+				</span>
 			</div>
 			<div className="flex items-center gap-2 flex-1 whitespace-nowrap px-2">
-				<div>{formatLargeNumber(safeContextTokens)}</div>
+				<div data-testid="context-tokens-count">{formatLargeNumber(safeContextTokens)}</div>
 				<div className="flex-1 relative">
 					{/* Invisible overlay for hover area */}
 					<div
@@ -459,6 +461,7 @@ const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: Cont
 							zIndex: 5,
 						}}
 						title={t("chat:tokenProgress.availableSpace", { amount: formatLargeNumber(availableSize) })}
+						data-testid="context-available-space"
 					/>
 
 					{/* Main progress bar container */}
@@ -478,6 +481,7 @@ const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: Cont
 									used: formatLargeNumber(safeContextTokens),
 									total: formatLargeNumber(safeContextWindow),
 								})}
+								data-testid="context-tokens-used"
 							/>
 							{/* Current tokens used - darkest */}
 							<div
@@ -502,6 +506,7 @@ const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: Cont
 								title={t("chat:tokenProgress.reservedForResponse", {
 									amount: formatLargeNumber(reservedForOutput),
 								})}
+								data-testid="context-reserved-tokens"
 							/>
 							{/* Reserved for output section - medium gray */}
 							<div
@@ -527,12 +532,13 @@ const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: Cont
 									title={t("chat:tokenProgress.availableSpace", {
 										amount: formatLargeNumber(availableSize),
 									})}
+									data-testid="context-available-space-section"
 								/>
 							</div>
 						)}
 					</div>
 				</div>
-				<div>{formatLargeNumber(safeContextWindow)}</div>
+				<div data-testid="context-window-size">{formatLargeNumber(safeContextWindow)}</div>
 			</div>
 		</>
 	)

@@ -68,11 +68,11 @@ describe("ContextWindowProgress", () => {
 		})
 
 		// Check for basic elements
-		expect(screen.getByText("Context Window:")).toBeInTheDocument()
-		expect(screen.getByText("1000")).toBeInTheDocument() // contextTokens
+		expect(screen.getByTestId("context-window-label")).toBeInTheDocument()
+		expect(screen.getByTestId("context-tokens-count")).toHaveTextContent("1000") // contextTokens
 		// The actual context window might be different than what we pass in
 		// due to the mock returning a default value from the API config
-		expect(screen.getByText(/(4000|128000)/)).toBeInTheDocument() // contextWindow
+		expect(screen.getByTestId("context-window-size")).toHaveTextContent(/(4000|128000)/) // contextWindow
 	})
 
 	test("handles zero context window gracefully", () => {
@@ -83,8 +83,8 @@ describe("ContextWindowProgress", () => {
 
 		// In the current implementation, the component is still displayed with zero values
 		// rather than being hidden completely
-		expect(screen.getByText("Context Window:")).toBeInTheDocument()
-		expect(screen.getByText("0")).toBeInTheDocument()
+		expect(screen.getByTestId("context-window-label")).toBeInTheDocument()
+		expect(screen.getByTestId("context-tokens-count")).toHaveTextContent("0")
 	})
 
 	test("handles edge cases with negative values", () => {
@@ -94,9 +94,9 @@ describe("ContextWindowProgress", () => {
 		})
 
 		// Should show 0 instead of -100
-		expect(screen.getByText("0")).toBeInTheDocument()
+		expect(screen.getByTestId("context-tokens-count")).toHaveTextContent("0")
 		// The actual context window might be different than what we pass in
-		expect(screen.getByText(/(4000|128000)/)).toBeInTheDocument()
+		expect(screen.getByTestId("context-window-size")).toHaveTextContent(/(4000|128000)/)
 	})
 
 	test("calculates percentages correctly", () => {
@@ -107,15 +107,18 @@ describe("ContextWindowProgress", () => {
 			contextTokens,
 			contextWindow,
 		})
-
-		// Instead of checking the exact style, verify the title attribute
-		// which contains information about the percentage of tokens used
-		const tokenUsageDiv = screen.getByTitle(/Tokens used:/, { exact: false })
+		// Instead of checking the title attribute, verify the data-test-id
+		// which identifies the element containing info about the percentage of tokens used
+		const tokenUsageDiv = screen.getByTestId("context-tokens-used")
 		expect(tokenUsageDiv).toBeInTheDocument()
+
+		// Just verify that the element has a title attribute (the actual text is translated and may vary)
+		expect(tokenUsageDiv).toHaveAttribute("title")
 
 		// We can't reliably test computed styles in JSDOM, so we'll just check
 		// that the component appears to be working correctly by checking for expected elements
-		expect(screen.getByText("Context Window:")).toBeInTheDocument()
+		expect(screen.getByTestId("context-window-label")).toBeInTheDocument()
+		expect(screen.getByTestId("context-tokens-count")).toHaveTextContent("1000")
 		expect(screen.getByText("1000")).toBeInTheDocument()
 	})
 })
