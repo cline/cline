@@ -18,6 +18,15 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		this.provider = provider
 		this.history = new MessageHistory()
 
+		this.provider.on("clineAdded", (cline) => {
+			cline.on("message", (message) => this.emit("message", { taskId: cline.taskId, ...message }))
+			cline.on("taskStarted", () => this.emit("taskStarted", cline.taskId))
+			cline.on("taskPaused", () => this.emit("taskPaused", cline.taskId))
+			cline.on("taskUnpaused", () => this.emit("taskUnpaused", cline.taskId))
+			cline.on("taskAborted", () => this.emit("taskAborted", cline.taskId))
+			cline.on("taskSpawned", (taskId) => this.emit("taskSpawned", cline.taskId, taskId))
+		})
+
 		this.on("message", ({ taskId, action, message }) => {
 			// if (message.type === "say") {
 			// 	console.log("message", { taskId, action, message })
@@ -38,14 +47,6 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		await this.provider.postMessageToWebview({ type: "invoke", invoke: "newChat", text, images })
 
 		const cline = await this.provider.initClineWithTask(text, images)
-		cline.on("message", (message) => this.emit("message", { taskId: cline.taskId, ...message }))
-		cline.on("taskStarted", () => this.emit("taskStarted", cline.taskId))
-		cline.on("taskPaused", () => this.emit("taskPaused", cline.taskId))
-		cline.on("taskUnpaused", () => this.emit("taskUnpaused", cline.taskId))
-		cline.on("taskAskResponded", () => this.emit("taskAskResponded", cline.taskId))
-		cline.on("taskAborted", () => this.emit("taskAborted", cline.taskId))
-		cline.on("taskSpawned", (taskId) => this.emit("taskSpawned", cline.taskId, taskId))
-
 		return cline.taskId
 	}
 

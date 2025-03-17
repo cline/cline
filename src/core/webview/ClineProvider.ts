@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import delay from "delay"
 import axios from "axios"
+import EventEmitter from "events"
 import fs from "fs/promises"
 import os from "os"
 import pWaitFor from "p-wait-for"
@@ -67,7 +68,11 @@ import { TelemetrySetting } from "../../shared/TelemetrySetting"
  * https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
  */
 
-export class ClineProvider implements vscode.WebviewViewProvider {
+export type ClineProviderEvents = {
+	clineAdded: [cline: Cline]
+}
+
+export class ClineProvider extends EventEmitter<ClineProviderEvents> implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "roo-cline.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "roo-cline.TabPanelProvider"
 	private static activeInstances: Set<ClineProvider> = new Set()
@@ -86,6 +91,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
+		super()
+
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		this.contextProxy = new ContextProxy(context)
 		ClineProvider.activeInstances.add(this)
@@ -117,6 +124,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 		// Add this cline instance into the stack that represents the order of all the called tasks.
 		this.clineStack.push(cline)
+
+		this.emit("clineAdded", cline)
 
 		// Ensure getState() resolves correctly.
 		const state = await this.getState()
