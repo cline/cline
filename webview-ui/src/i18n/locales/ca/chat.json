@@ -147,7 +147,7 @@
 		"troubleshooting": "Encara tens problemes?"
 	},
 	"powershell": {
-		"issues": "Sembla que estàs tenint problemes amb Windows PowerShell, si us plau consulta aquesta"
+		"issues": "Sembla que estàs tenint problemes amb Windows PowerShell, si us plau consulta aquesta documentació per a més informació."
 	},
 	"autoApprove": {
 		"title": "Aprovació automàtica:",
