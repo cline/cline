@@ -21,6 +21,8 @@ interface ExtensionStateContextType extends ExtensionState {
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
 	queueItems: QueueItem[]
+	nextQueueItem?: QueueItem | undefined
+	autoRunQueue: boolean
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
@@ -51,6 +53,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [theme, setTheme] = useState<any>(undefined)
 	const [filePaths, setFilePaths] = useState<string[]>([])
 	const [queueItems, setQueueItems] = useState<QueueItem[]>([])
+	const [nextQueueItem, setNextQueueItem] = useState<QueueItem | undefined>(undefined)
+	const [autoRunQueue, setAutoRunQueue] = useState(false)
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
@@ -142,6 +146,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			case "queueItems": {
 				const queueItems = message.queueItems ?? []
 				setQueueItems(queueItems)
+				setNextQueueItem(queueItems.find((item) => item.isCompleted === false))
+				break
+			}
+			case "setAutoRunQueue": {
+				setAutoRunQueue(message.autoRunQueue ?? false)
 				break
 			}
 		}
@@ -164,6 +173,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpMarketplaceCatalog,
 		filePaths,
 		queueItems,
+		autoRunQueue,
+		nextQueueItem,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,

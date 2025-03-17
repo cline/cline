@@ -36,6 +36,7 @@ export interface ExtensionMessage {
 		| "isImageUrlResult"
 		| "didUpdateSettings"
 		| "queueItems"
+		| "setAutoRunQueue"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -58,6 +59,7 @@ export interface ExtensionMessage {
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
 	queueItems?: QueueItem[]
+	autoRunQueue?: boolean
 	customToken?: string
 	mcpMarketplaceCatalog?: McpMarketplaceCatalog
 	error?: string

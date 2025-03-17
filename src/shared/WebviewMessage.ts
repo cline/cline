@@ -64,6 +64,7 @@ export interface WebviewMessage {
 		| "clearAllTaskHistory"
 		| "showQueueView"
 		| "updateQueue"
+		| "setAutoRunQueue"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -92,6 +93,7 @@ export interface WebviewMessage {
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
 	queueItems?: QueueItem[]
+	autoRunQueue?: boolean
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

@@ -960,6 +960,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.syncQueueItems(message.queueItems ?? [])
 						break
 					}
+					case "setAutoRunQueue": {
+						await this.postMessageToWebview({
+							type: "setAutoRunQueue",
+							autoRunQueue: message.autoRunQueue,
+						})
+					}
 				}
 			},
 			null,

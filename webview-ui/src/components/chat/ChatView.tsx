@@ -27,6 +27,8 @@ import ChatRow from "./ChatRow"
 import ChatTextArea from "./ChatTextArea"
 import TaskHeader from "./TaskHeader"
 import TelemetryBanner from "../common/TelemetryBanner"
+import { QueueItem } from "../../../../src/shared/Queue"
+import { sleep } from "../../utils/sleep"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -38,7 +40,16 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
-	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting } = useExtensionState()
+	const {
+		version,
+		clineMessages: messages,
+		taskHistory,
+		apiConfiguration,
+		telemetrySetting,
+		queueItems,
+		autoRunQueue,
+		nextQueueItem,
+	} = useExtensionState()
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
@@ -178,6 +189,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setEnableButtons(!isPartial)
 							setPrimaryButtonText("Start New Task")
 							setSecondaryButtonText(undefined)
+							console.log("completion_result", nextQueueItem)
+							autoRunNextQueueItem()
 							break
 						case "resume_task":
 							setTextAreaDisabled(false)
@@ -418,6 +431,36 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		},
 		[clineAsk, startNewTask, isStreaming],
 	)
+
+	const handleNextQueueItemButtonClick = useCallback(async () => {
+		if (!nextQueueItem) return
+		vscode.postMessage({
+			type: "askResponse",
+			askResponse: "messageResponse",
+			text: nextQueueItem.task,
+		})
+		const newQueueItems = queueItems?.map((item) =>
+			item.order === nextQueueItem?.order ? { ...item, isCompleted: true } : item,
+		)
+		console.log(newQueueItems, "newQueueItems")
+		console.log("old", nextQueueItem)
+		console.log(
+			"new",
+			newQueueItems.find((item) => item.isCompleted === false),
+		)
+		vscode.postMessage({
+			type: "updateQueue",
+			queueItems: newQueueItems,
+		})
+		await sleep(3000)
+	}, [queueItems, nextQueueItem])
+
+	const autoRunNextQueueItem = async () => {
+		console.log("autoRunNextQueueItem")
+		if (autoRunQueue && nextQueueItem) {
+			await handleNextQueueItemButtonClick()
+		}
+	}
 
 	const handleTaskCloseButtonClick = useCallback(() => {
 		startNewTask()
@@ -919,6 +962,25 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 									{isStreaming ? "Cancel" : secondaryButtonText}
 								</VSCodeButton>
 							)}
+							<div
+								style={{
+									opacity: primaryButtonText && nextQueueItem ? 1 : 0,
+									display: "flex",
+									padding: `0px 0px 0px ${primaryButtonText && nextQueueItem ? "15" : "0"}px`,
+								}}>
+								{primaryButtonText && !isStreaming && nextQueueItem && (
+									<VSCodeButton
+										appearance="primary"
+										disabled={!enableButtons}
+										style={{
+											flex: secondaryButtonText ? 1 : 2,
+											marginRight: secondaryButtonText ? "6px" : "0",
+										}}
+										onClick={() => handleNextQueueItemButtonClick()}>
+										{`Process: ${nextQueueItem?.task}`}
+									</VSCodeButton>
+								)}
+							</div>
 						</div>
 					)}
 				</>

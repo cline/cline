@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
@@ -11,6 +11,7 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
+import { sleep } from "../../utils/sleep"
 
 type QueueViewProps = {
 	onDone: () => void
@@ -29,10 +30,11 @@ interface SortableItemProps {
 	item: QueueItem
 	index: number
 	onDelete: (index: number) => void
-	onToggleComplete: (index: number) => void
+	onStart: (text: string, order: number, preTaskId?: string) => Promise<void>
+	onClose: () => void
 }
 
-const SortableItem = ({ id, item, index, onDelete, onToggleComplete }: SortableItemProps) => {
+const SortableItem = ({ id, item, index, onDelete, onStart, onClose }: SortableItemProps) => {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
 
 	const style = {
@@ -50,14 +52,17 @@ const SortableItem = ({ id, item, index, onDelete, onToggleComplete }: SortableI
 		cursor: isDragging ? "grabbing" : "grab",
 	}
 
+	const handleStartAndClose = async (task: string, order: number, preTaskId?: string) => {
+		await onStart(task, order, preTaskId)
+		onClose()
+	}
+
 	return (
 		<div ref={setNodeRef} style={style} {...attributes} {...listeners}>
 			<div style={{ display: "flex", alignItems: "center", gap: "8px", flexGrow: 1 }}>
-				<VSCodeCheckbox
-					checked={item.isCompleted}
-					onChange={() => onToggleComplete(index)}
-					onClick={(e) => e.stopPropagation()} // Prevent drag when clicking checkbox
-				/>
+				<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+					<b>{item.order}.</b>
+				</div>
 				<div
 					style={{
 						flexGrow: 1,
@@ -101,13 +106,25 @@ const SortableItem = ({ id, item, index, onDelete, onToggleComplete }: SortableI
 						/>
 					</svg>
 				</VSCodeButton>
+				{!item.isCompleted && (
+					<VSCodeButton
+						appearance="icon"
+						onClick={(e) => {
+							e.stopPropagation()
+							handleStartAndClose(item.task, item.order)
+						}}>
+						<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+							<path d="M4 3L12 8L4 13V3Z" fill="currentColor" />
+						</svg>
+					</VSCodeButton>
+				)}
 			</div>
 		</div>
 	)
 }
 
 const QueueView = ({ onDone }: QueueViewProps) => {
-	const { queueItems } = useExtensionState()
+	const { queueItems, autoRunQueue } = useExtensionState()
 	const [newTask, setNewTask] = useState("")
 
 	// Set up sensors for drag and drop
@@ -149,17 +166,24 @@ const QueueView = ({ onDone }: QueueViewProps) => {
 		})
 	}
 
-	const handleToggleComplete = (index: number) => {
-		// Create a new array with the updated item
-		const updatedQueueItems = queueItems.map((item, itemIndex) =>
-			itemIndex === index ? { ...item, isCompleted: !item.isCompleted } : item,
-		)
-
-		// Send message to extension to update queue items
+	const handleStartTask = async (text: string, order: number) => {
+		if (order === 1) {
+			vscode.postMessage({
+				type: "newTask",
+				text,
+			})
+		} else {
+			vscode.postMessage({
+				type: "askResponse",
+				askResponse: "messageResponse",
+				text,
+			})
+		}
 		vscode.postMessage({
 			type: "updateQueue",
-			queueItems: updatedQueueItems,
+			queueItems: queueItems.map((item) => (item.order === order ? { ...item, isCompleted: true } : item)),
 		})
+		await sleep(150)
 	}
 
 	const handleClear = () => {
@@ -170,13 +194,27 @@ const QueueView = ({ onDone }: QueueViewProps) => {
 		setNewTask("")
 	}
 
-	const handleStart = () => {
+	const handleStart = async () => {
 		const nextTask = queueItems.find((item) => !item.isCompleted)
 		if (nextTask) {
+			if (nextTask?.order === 1) {
+				vscode.postMessage({
+					type: "newTask",
+					text: nextTask.task,
+				})
+			} else {
+				vscode.postMessage({
+					type: "askResponse",
+					askResponse: "messageResponse",
+					text: nextTask.task,
+				})
+			}
 			vscode.postMessage({
-				type: "newTask",
-				text: nextTask.task,
+				type: "updateQueue",
+				queueItems: queueItems.map((item) => (item.order === nextTask.order ? { ...item, isCompleted: true } : item)),
 			})
+			await sleep(150)
+			onDone()
 		}
 	}
 
@@ -246,6 +284,14 @@ const QueueView = ({ onDone }: QueueViewProps) => {
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Cline Queue</h3>
 
+				{/* Add toggle for auto run queue */}
+				<div style={{ marginTop: "20px", marginBottom: "20px", display: "flex", gap: "10px" }}>
+					<VSCodeCheckbox
+						checked={autoRunQueue}
+						onChange={() => vscode.postMessage({ type: "setAutoRunQueue", autoRunQueue: !autoRunQueue })}>
+						Auto run next item
+					</VSCodeCheckbox>
+				</div>
 				{/* Add new task form */}
 				<div style={{ marginTop: "20px", marginBottom: "20px", display: "flex", gap: "10px" }}>
 					<VSCodeTextField
@@ -273,7 +319,8 @@ const QueueView = ({ onDone }: QueueViewProps) => {
 											item={item}
 											index={index}
 											onDelete={handleDeleteTask}
-											onToggleComplete={handleToggleComplete}
+											onStart={handleStartTask}
+											onClose={onDone}
 										/>
 									))}
 								</div>
