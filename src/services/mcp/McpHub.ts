@@ -177,7 +177,9 @@ export class McpHub {
 	private showErrorMessage(message: string, error: unknown): void {
 		const errorMessage = error instanceof Error ? error.message : `${error}`
 		console.error(`${message}:`, error)
-		vscode.window.showErrorMessage(`${message}: ${errorMessage}`)
+		// if (vscode.window && typeof vscode.window.showErrorMessage === 'function') {
+		// 	vscode.window.showErrorMessage(`${message}: ${errorMessage}`)
+		// }
 	}
 
 	getServers(): McpServer[] {
