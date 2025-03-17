@@ -1,15 +1,22 @@
-import React, { useEffect, useState, useCallback, useRef } from "react"
+import React, { useEffect, useState, useCallback } from "react"
 import LinkPreview from "./LinkPreview"
 import ImagePreview from "./ImagePreview"
+import { vscode } from "../../utils/vscode"
+import DOMPurify from "dompurify"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import {
-	isUrl,
-	formatUrlForOpening,
-	checkIfImageUrl,
-	MAX_URLS,
-	isLocalhostUrl
-} from "./UrlProcessingService"
+import { 
+	safeCreateUrl, 
+	isUrl, 
+	getSafeHostname, 
+	isLocalhostUrl, 
+	normalizeRelativeUrl, 
+	formatUrlForOpening, 
+	checkIfImageUrl 
+} from "./McpRichUtil"
+
+// Maximum number of URLs to process in total, per response
+export const MAX_URLS = 50
 
 const ResponseHeader = styled.div`
 	display: flex;
@@ -106,47 +113,45 @@ interface McpResponseDisplayProps {
 // Represents a URL found in the text with its position and metadata
 interface UrlMatch {
 	url: string // The actual URL
-	fullMatch: string // The full matched text (including any prefix like "image:")
+	fullMatch: string // The full matched text
 	index: number // Position in the text
 	isImage: boolean // Whether this URL is an image
 	isProcessed: boolean // Whether we've already processed this URL (to avoid duplicates)
 }
 
 // Error boundary component to prevent crashes from URL processing
-class ErrorBoundary extends React.Component<
-	{ children: React.ReactNode },
-	{ hasError: boolean; error: Error | null }
-> {
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
 	constructor(props: { children: React.ReactNode }) {
-		super(props);
-		this.state = { hasError: false, error: null };
+		super(props)
+		this.state = { hasError: false, error: null }
 	}
 
 	static getDerivedStateFromError(error: Error) {
-		return { hasError: true, error };
+		return { hasError: true, error }
 	}
 
 	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-		console.log("Error in component:", error.message);
+		console.log("Error in component:", error.message)
 	}
 
 	render() {
 		if (this.state.hasError) {
 			return (
-				<div style={{ 
-					padding: "10px", 
-					color: "var(--vscode-errorForeground)",
-					height: "128px", // Fixed height
-					overflow: "auto" // Allow scrolling if content overflows
-				}}>
+				<div
+					style={{
+						padding: "10px",
+						color: "var(--vscode-errorForeground)",
+						height: "128px", // Fixed height
+						overflow: "auto", // Allow scrolling if content overflows
+					}}>
 					<h3>Something went wrong displaying this content</h3>
 					<p>Error: {this.state.error?.message || "Unknown error"}</p>
 					<p>Please switch to plain text mode to view the content safely.</p>
 				</div>
-			);
+			)
 		}
 
-		return this.props.children;
+		return this.props.children
 	}
 }
 
@@ -159,26 +164,26 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	})
 	const [urlMatches, setUrlMatches] = useState<UrlMatch[]>([])
 	const [error, setError] = useState<string | null>(null)
-	// Add a counter state for forcing re-renders
+	// Add a counter state for forcing re-renders to make toggling run smoother
 	const [forceUpdateCounter, setForceUpdateCounter] = useState(0)
 
 	const toggleDisplayMode = useCallback(() => {
 		const newMode = displayMode === "rich" ? "plain" : "rich"
-		
+
 		// Force an immediate re-render
-		setForceUpdateCounter(prev => prev + 1);
-		
+		setForceUpdateCounter((prev) => prev + 1)
+
 		// Update display mode and save preference
-		setDisplayMode(newMode);
-		localStorage.setItem("mcpDisplayMode", newMode);
-		
+		setDisplayMode(newMode)
+		localStorage.setItem("mcpDisplayMode", newMode)
+
 		// If switching to plain mode, cancel any ongoing processing
 		if (newMode === "plain") {
-			console.log("Switching to plain mode - canceling URL processing");
-			setUrlMatches([]); // Clear any existing matches when switching to plain mode
+			console.log("Switching to plain mode - cancelling URL processing")
+			setUrlMatches([]) // Clear any existing matches when switching to plain mode
 		} else {
 			// If switching to rich mode, the useEffect will re-run and fetch data
-			console.log("Switching to rich mode - will start URL processing");
+			console.log("Switching to rich mode - will start URL processing")
 		}
 	}, [displayMode])
 
@@ -186,44 +191,41 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 	useEffect(() => {
 		// Skip all processing if in plain mode
 		if (displayMode === "plain") {
-			setIsLoading(false);
-			setUrlMatches([]); // Clear any existing matches when in plain mode
-			return;
+			setIsLoading(false)
+			setUrlMatches([]) // Clear any existing matches when in plain mode
+			return
 		}
-		
+
 		// Use a direct boolean for cancellation that's scoped to this effect run
-		let processingCanceled = false;
-		
+		let processingCanceled = false
+
 		const processResponse = async () => {
-			console.log("Processing MCP response for URL extraction");
+			console.log("Processing MCP response for URL extraction")
 			setIsLoading(true)
 			setError(null)
 
 			try {
 				const text = responseText || ""
 				const matches: UrlMatch[] = []
-
-				// More robust URL regex that handles common URL formats
 				const urlRegex = /https?:\/\/[^\s<>"']+/g
 				let urlMatch: RegExpExecArray | null
-				
-				let urlCount = 0;
+				let urlCount = 0
 
 				// First pass: Extract all URLs and immediately make them available for rendering
 				while ((urlMatch = urlRegex.exec(text)) !== null && urlCount < MAX_URLS) {
 					// Get the original URL from the match - never modify the original URL text
 					const url = urlMatch[0]
-					
+
 					// Skip invalid URLs
 					if (!isUrl(url)) {
-						console.log("Skipping invalid URL:", url);
-						continue;
+						console.log("Skipping invalid URL:", url)
+						continue
 					}
-					
+
 					// Skip localhost URLs to prevent security issues
 					if (isLocalhostUrl(url)) {
-						console.log("Skipping localhost URL:", url);
-						continue;
+						console.log("Skipping localhost URL:", url)
+						continue
 					}
 
 					matches.push({
@@ -233,94 +235,84 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						isImage: false, // Will check later
 						isProcessed: false,
 					})
-					
-					urlCount++;
+
+					urlCount++
 				}
 
-				console.log(`Found ${matches.length} URLs in text, will check if they are images`);
+				console.log(`Found ${matches.length} URLs in text, will check if they are images`)
 
 				// Set matches immediately so UI can start rendering with loading states
-				setUrlMatches(matches.sort((a, b) => a.index - b.index));
-				
+				setUrlMatches(matches.sort((a, b) => a.index - b.index))
+
 				// Mark loading as complete to show content immediately
 				setIsLoading(false)
-				
+
 				// Process image checks in the background - one at a time to avoid network flooding
 				const processImageChecks = async () => {
-					console.log(`Starting sequential URL processing for ${matches.length} URLs`);
-					
-					// We no longer do quick checks based on extensions alone
-					// All URLs need proper content type verification
-					console.log(`Will perform content type checks for all ${matches.length} URLs`);
-					
-					// Process remaining URLs one at a time to avoid flooding the network
+					console.log(`Starting sequential URL processing for ${matches.length} URLs`)
+
 					for (let i = 0; i < matches.length; i++) {
 						// Skip already processed URLs (from extension check)
-						if (matches[i].isProcessed) continue;
-						
+						if (matches[i].isProcessed) continue
+
 						// Check if processing has been canceled (switched to plain mode)
 						if (processingCanceled) {
-							console.log("URL processing canceled - display mode changed to plain");
-							return;
+							console.log("URL processing canceled - display mode changed to plain")
+							return
 						}
-						
-						const match = matches[i];
-						console.log(`Processing URL ${i + 1} of ${matches.length}: ${match.url}`);
-						
+
+						const match = matches[i]
+						console.log(`Processing URL ${i + 1} of ${matches.length}: ${match.url}`)
+
 						try {
 							// Process each URL individually
-							const isImage = await checkIfImageUrl(match.url);
-							
+							const isImage = await checkIfImageUrl(match.url)
+
 							// Skip if processing has been canceled
-							if (processingCanceled) return;
-							
+							if (processingCanceled) return
+
 							// Update the match in place
-							match.isImage = isImage;
-							match.isProcessed = true;
-							
+							match.isImage = isImage
+							match.isProcessed = true
+
 							// Update state after each URL to show progress
 							// Create a new array to ensure React detects the state change
-							setUrlMatches([...matches]);
-							
+							setUrlMatches([...matches])
 						} catch (err) {
-							console.log(`URL check error: ${match.url}`, err);
-							match.isProcessed = true;
-							
+							console.log(`URL check error: ${match.url}`, err)
+							match.isProcessed = true
+
 							// Update state even on error
 							if (!processingCanceled) {
-								setUrlMatches([...matches]);
+								setUrlMatches([...matches])
 							}
 						}
-						
+
 						// Delay between URL processing to avoid overwhelming the network
 						if (!processingCanceled && i < matches.length - 1) {
-							// Much longer delay between URLs to avoid network flooding
-							// This gives each URL more time to complete before starting the next one
-							await new Promise(resolve => setTimeout(resolve, 100));
+							await new Promise((resolve) => setTimeout(resolve, 100))
 						}
 					}
-					
-					console.log(`URL processing complete. Found ${matches.filter(m => m.isImage).length} image URLs`);
-				};
-				
+
+					console.log(`URL processing complete. Found ${matches.filter((m) => m.isImage).length} image URLs`)
+				}
+
 				// Start the background processing
-				processImageChecks();
-				
+				processImageChecks()
 			} catch (error) {
-				console.log("Error processing MCP response - switching to plain text mode");
 				setError("Failed to process response content. Switch to plain text mode to view safely.")
 				setIsLoading(false)
 			}
 		}
 
 		processResponse()
-		
+
 		// Cleanup function to cancel processing if component unmounts or dependencies change
 		return () => {
-			processingCanceled = true;
-			console.log("Cleaning up URL processing");
-		};
-	}, [responseText, displayMode, forceUpdateCounter]) // Added forceUpdateCounter to dependencies
+			processingCanceled = true
+			console.log("Cleaning up URL processing")
+		}
+	}, [responseText, displayMode, forceUpdateCounter])
 
 	// Function to render content based on display mode
 	const renderContent = () => {
@@ -333,23 +325,22 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 		if (error) {
 			return (
 				<>
-					<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "10px" }}>
-						{error}
-					</div>
+					<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "10px" }}>{error}</div>
 					<UrlText>{responseText}</UrlText>
 				</>
-			);
+			)
 		}
 
 		// For rich display mode, show the text with embedded content
-		if (!isLoading) { // We already know displayMode is "rich" if we get here
+		if (!isLoading) {
+			// We already know displayMode is "rich" if we get here
 			// Create an array of text segments and embedded content
 			const segments: JSX.Element[] = []
 			let lastIndex = 0
 			let segmentIndex = 0
 
 			// Track embed count for logging
-			let embedCount = 0;
+			let embedCount = 0
 
 			// Add the text before the first URL
 			if (urlMatches.length === 0) {
@@ -362,7 +353,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					// Add text segment before this URL
 					if (index > lastIndex) {
 						segments.push(
-							<UrlText key={`segment-${segmentIndex++}`}>{responseText.substring(lastIndex, index)}</UrlText>,
+							<UrlText key={`segment-${segmentIndex++}`}>{responseText.substring(lastIndex, index)}</UrlText>
 						)
 					}
 
@@ -381,7 +372,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 								<ImagePreview url={formatUrlForOpening(url)} />
 							</div>
 						)
-						embedCount++;
+						embedCount++
 						// console.log(`Added image embed for ${url}, embed count: ${embedCount}`);
 					} else if (match.isProcessed) {
 						// For non-image URLs or URLs we haven't processed yet, show link preview
@@ -395,31 +386,30 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 											{/* Already using formatUrlForOpening for link previews */}
 											<LinkPreview url={formatUrlForOpening(url)} />
 										</ErrorBoundary>
-									</div>,
+									</div>
 								)
-								
-								embedCount++;
+
+								embedCount++
 								// console.log(`Added link preview for ${url}, embed count: ${embedCount}`);
 							}
 						} catch (e) {
-							console.log("Link preview could not be created");
+							console.log("Link preview could not be created")
 							// Show error message for failed link preview
 							segments.push(
-								<div 
-									key={`embed-error-${segmentIndex++}`} 
-									style={{ 
+								<div
+									key={`embed-error-${segmentIndex++}`}
+									style={{
 										margin: "10px 0",
 										padding: "8px",
 										color: "var(--vscode-errorForeground)",
 										border: "1px solid var(--vscode-editorError-foreground)",
 										borderRadius: "4px",
 										height: "128px", // Fixed height
-										overflow: "auto" // Allow scrolling if content overflows
-									}}
-								>
+										overflow: "auto", // Allow scrolling if content overflows
+									}}>
 									Failed to create preview for: {url}
 								</div>
-							);
+							)
 						}
 					}
 
@@ -456,7 +446,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			</ResponseContainer>
 		)
 	} catch (error) {
-		console.log("Error rendering MCP response - falling back to plain text");
+		console.log("Error rendering MCP response - falling back to plain text")
 		return (
 			<ResponseContainer>
 				<ResponseHeader>
@@ -477,7 +467,7 @@ const McpResponseDisplayWithErrorBoundary: React.FC<McpResponseDisplayProps> = (
 		<ErrorBoundary>
 			<McpResponseDisplay {...props} />
 		</ErrorBoundary>
-	);
-};
+	)
+}
 
-export default McpResponseDisplayWithErrorBoundary;
+export default McpResponseDisplayWithErrorBoundary

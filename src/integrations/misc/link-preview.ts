@@ -100,6 +100,6 @@ export async function isImageUrl(url: string): Promise<boolean> {
 		return contentType && contentType.startsWith("image/")
 	} catch (error) {
 		// If we can't determine, fall back to checking the file extension
-		return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(url)
+		return /\.(jpg|jpeg|png|gif|webp|bmp|svg|tiff|tif|avif)$/i.test(url)
 	}
 }

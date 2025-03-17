@@ -1,42 +1,41 @@
 import React, { useEffect, useState } from "react"
 import { vscode } from "../../utils/vscode"
 import DOMPurify from "dompurify"
-import { getSafeHostname, normalizeRelativeUrl } from "./UrlProcessingService"
+import { getSafeHostname, normalizeRelativeUrl } from "./McpRichUtil"
 
 // Error boundary component to prevent crashes
-class ErrorBoundary extends React.Component<
-	{ children: React.ReactNode },
-	{ hasError: boolean; error: Error | null }
-> {
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
 	constructor(props: { children: React.ReactNode }) {
-		super(props);
-		this.state = { hasError: false, error: null };
+		super(props)
+		this.state = { hasError: false, error: null }
 	}
 
 	static getDerivedStateFromError(error: Error) {
-		return { hasError: true, error };
+		return { hasError: true, error }
 	}
 
 	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-		console.log("Error in LinkPreview component:", error.message);
+		console.log("Error in LinkPreview component:", error.message)
 	}
 
 	render() {
 		if (this.state.hasError) {
 			return (
-				<div style={{ 
-					padding: "10px", 
-					color: "var(--vscode-errorForeground)",
-					height: "128px", // Fixed height
-					overflow: "auto" // Allow scrolling if content overflows
-				}}>
+				<div
+					style={{
+						padding: "12px",
+						color: "var(--vscode-errorForeground)",
+						height: "128px",
+						maxWidth: "512px",
+						overflow: "auto",
+					}}>
 					<h3>Something went wrong displaying this link preview</h3>
 					<p>Error: {this.state.error?.message || "Unknown error"}</p>
 				</div>
-			);
+			)
 		}
 
-		return this.props.children;
+		return this.props.children
 	}
 }
 
@@ -54,157 +53,162 @@ interface LinkPreviewProps {
 }
 
 // Error types for better UI feedback
-type ErrorType = 'timeout' | 'network' | 'general' | null;
+type ErrorType = "timeout" | "network" | "general" | null
 
 // Use a class component to ensure complete isolation between instances
-class LinkPreview extends React.Component<LinkPreviewProps, {
-	loading: boolean;
-	error: ErrorType;
-	errorMessage: string | null;
-	ogData: OpenGraphData | null;
-	hasCompletedFetch: boolean; // Track if fetch has completed (success or error)
-	fetchStartTime: number; // Track when the fetch started
-}> {
-	private messageListener: ((event: MessageEvent) => void) | null = null;
-	private timeoutId: NodeJS.Timeout | null = null;
-	private heartbeatId: NodeJS.Timeout | null = null;
-	
+class LinkPreview extends React.Component<
+	LinkPreviewProps,
+	{
+		loading: boolean
+		error: ErrorType
+		errorMessage: string | null
+		ogData: OpenGraphData | null
+		hasCompletedFetch: boolean // Track if fetch has completed (success or error)
+		fetchStartTime: number // Track when the fetch started
+	}
+> {
+	private messageListener: ((event: MessageEvent) => void) | null = null
+	private timeoutId: NodeJS.Timeout | null = null
+	private heartbeatId: NodeJS.Timeout | null = null
+
 	constructor(props: LinkPreviewProps) {
-		super(props);
+		super(props)
 		this.state = {
 			loading: true,
 			error: null,
 			errorMessage: null,
 			ogData: null,
 			hasCompletedFetch: false,
-			fetchStartTime: 0
-		};
+			fetchStartTime: 0,
+		}
 	}
-	
+
 	componentDidMount() {
 		// Only fetch if we haven't completed a fetch yet
 		if (!this.state.hasCompletedFetch) {
-			this.fetchOpenGraphData();
+			this.fetchOpenGraphData()
 		}
 	}
-	
+
 	componentWillUnmount() {
-		this.cleanup();
+		this.cleanup()
 	}
-	
+
 	// Prevent updates if fetch has completed
 	shouldComponentUpdate(nextProps: LinkPreviewProps, nextState: any) {
 		// If URL changes, allow update
 		if (nextProps.url !== this.props.url) {
-			return true;
+			return true
 		}
-		
+
 		// If we've completed a fetch and state hasn't changed, prevent update
-		if (this.state.hasCompletedFetch && 
-			this.state.loading === nextState.loading && 
-			this.state.error === nextState.error && 
-			this.state.ogData === nextState.ogData) {
-			return false;
+		if (
+			this.state.hasCompletedFetch &&
+			this.state.loading === nextState.loading &&
+			this.state.error === nextState.error &&
+			this.state.ogData === nextState.ogData
+		) {
+			return false
 		}
-		
-		return true;
+
+		return true
 	}
-	
+
 	private cleanup() {
 		// Clean up event listeners and timeouts
 		if (this.messageListener) {
-			window.removeEventListener("message", this.messageListener);
-			this.messageListener = null;
+			window.removeEventListener("message", this.messageListener)
+			this.messageListener = null
 		}
-		
+
 		if (this.timeoutId) {
-			clearTimeout(this.timeoutId);
-			this.timeoutId = null;
+			clearTimeout(this.timeoutId)
+			this.timeoutId = null
 		}
-		
+
 		if (this.heartbeatId) {
-			clearInterval(this.heartbeatId);
-			this.heartbeatId = null;
+			clearInterval(this.heartbeatId)
+			this.heartbeatId = null
 		}
 	}
-	
+
 	private fetchOpenGraphData() {
 		try {
 			// Record fetch start time
-			const startTime = Date.now();
-			this.setState({ fetchStartTime: startTime });
-			
+			const startTime = Date.now()
+			this.setState({ fetchStartTime: startTime })
+
 			// Send a message to the extension to fetch Open Graph data
 			vscode.postMessage({
 				type: "fetchOpenGraphData",
 				text: this.props.url,
-			});
-			
+			})
+
 			// Set up a listener for the response
 			this.messageListener = (event: MessageEvent) => {
-				const message = event.data;
+				const message = event.data
 				if (message.type === "openGraphData" && message.url === this.props.url) {
 					// Check if there was an error in the response
 					if (message.error) {
 						this.setState({
-							error: 'network',
+							error: "network",
 							errorMessage: message.error,
 							loading: false,
-							hasCompletedFetch: true
-						});
+							hasCompletedFetch: true,
+						})
 					} else {
 						this.setState({
 							ogData: message.openGraphData,
 							loading: false,
-							hasCompletedFetch: true // Mark as completed
-						});
+							hasCompletedFetch: true, // Mark as completed
+						})
 					}
-					this.cleanup();
+					this.cleanup()
 				}
-			};
-			
-			window.addEventListener("message", this.messageListener);
-			
+			}
+
+			window.addEventListener("message", this.messageListener)
+
 			// Instead of a fixed timeout, use a heartbeat to update the loading message
 			// with the elapsed time, but don't actually timeout
 			this.heartbeatId = setInterval(() => {
-				const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
-				if (elapsedSeconds > 0 && elapsedSeconds % 5 === 0) { // Update every 5 seconds
-					this.forceUpdate(); // Just update the component to show new elapsed time
+				const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000)
+				if (elapsedSeconds > 0) {
+					this.forceUpdate() // Just update the component to show new elapsed time
 				}
-			}, 1000);
+			}, 1000)
 		} catch (err) {
 			this.setState({
-				error: 'general',
+				error: "general",
 				errorMessage: err instanceof Error ? err.message : "Unknown error occurred",
 				loading: false,
-				hasCompletedFetch: true // Mark as completed on error
-			});
-			this.cleanup();
+				hasCompletedFetch: true, // Mark as completed on error
+			})
+			this.cleanup()
 		}
 	}
-	
+
 	render() {
-		const { url } = this.props;
-		const { loading, error, errorMessage, ogData, fetchStartTime } = this.state;
-		
+		const { url } = this.props
+		const { loading, error, errorMessage, ogData, fetchStartTime } = this.state
+
 		// Calculate elapsed time for loading state
-		const elapsedSeconds = loading ? Math.floor((Date.now() - fetchStartTime) / 1000) : 0;
-		
+		const elapsedSeconds = loading ? Math.floor((Date.now() - fetchStartTime) / 1000) : 0
+
 		// Fallback display while loading
 		if (loading) {
 			return (
 				<div
 					className="link-preview-loading"
 					style={{
-						padding: "12px",
 						display: "flex",
 						flexDirection: "column",
 						alignItems: "center",
 						justifyContent: "center",
 						border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
 						borderRadius: "4px",
-						height: "128px", // Fixed height
+						height: "128px",
+						maxWidth: "512px",
 					}}>
 					<div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
 						<div
@@ -230,25 +234,25 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 					</div>
 					{elapsedSeconds > 5 && (
 						<div style={{ fontSize: "11px", color: "var(--vscode-descriptionForeground)" }}>
-							{elapsedSeconds > 60 
-								? `Waiting for ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s...` 
+							{elapsedSeconds > 60
+								? `Waiting for ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s...`
 								: `Waiting for ${elapsedSeconds}s...`}
 						</div>
 					)}
 				</div>
-			);
+			)
 		}
-		
+
 		// Handle different error states with specific messages
 		if (error) {
-			let errorDisplay = "Unable to load preview";
-			
-			if (error === 'timeout') {
-				errorDisplay = "Preview request timed out";
-			} else if (error === 'network') {
-				errorDisplay = "Network error loading preview";
+			let errorDisplay = "Unable to load preview"
+
+			if (error === "timeout") {
+				errorDisplay = "Preview request timed out"
+			} else if (error === "network") {
+				errorDisplay = "Network error loading preview"
 			}
-			
+
 			return (
 				<div
 					className="link-preview-error"
@@ -257,37 +261,34 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 						border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
 						borderRadius: "4px",
 						color: "var(--vscode-errorForeground)",
-						height: "128px", // Fixed height
-						overflow: "auto", // Allow scrolling if content overflows
+						height: "128px",
+						maxWidth: "512px",
+						overflow: "auto",
 					}}
 					onClick={() => {
 						vscode.postMessage({
 							type: "openInBrowser",
 							url: DOMPurify.sanitize(url),
-						});
+						})
 					}}>
 					<div style={{ fontWeight: "bold" }}>{errorDisplay}</div>
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
-					{errorMessage && (
-						<div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.8 }}>
-							{errorMessage}
-						</div>
-					)}
+					{errorMessage && <div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.8 }}>{errorMessage}</div>}
 					<div style={{ fontSize: "11px", marginTop: "8px", color: "var(--vscode-textLink-foreground)" }}>
 						Click to open in browser
 					</div>
 				</div>
-			);
+			)
 		}
-		
+
 		// Create a fallback object if ogData is null
 		const data = ogData || {
 			title: getSafeHostname(url),
 			description: "No description available",
 			siteName: getSafeHostname(url),
 			url: url,
-		};
-		
+		}
+
 		// Render the Open Graph preview
 		return (
 			<div
@@ -298,13 +299,14 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 					borderRadius: "4px",
 					overflow: "hidden",
 					cursor: "pointer",
-					height: "128px", // Fixed height for all link previews
+					height: "128px",
+					maxWidth: "512px",
 				}}
 				onClick={() => {
 					vscode.postMessage({
 						type: "openInBrowser",
 						url: DOMPurify.sanitize(url),
-					});
+					})
 				}}>
 				{data.image && (
 					<div className="link-preview-image" style={{ width: "128px", height: "128px", flexShrink: 0 }}>
@@ -320,23 +322,22 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 								}}
 								onLoad={(e) => {
 									// Check aspect ratio to determine if we should use contain or cover
-									const img = e.currentTarget;
+									const img = e.currentTarget
 									if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-										const aspectRatio = img.naturalWidth / img.naturalHeight;
-										console.log(`Link preview image aspect ratio: ${aspectRatio}`);
-										
+										const aspectRatio = img.naturalWidth / img.naturalHeight
+
 										// Use contain for extreme aspect ratios (logos), cover for photos
 										if (aspectRatio > 2.5 || aspectRatio < 0.4) {
-											img.style.objectFit = "contain";
+											img.style.objectFit = "contain"
 										} else {
-											img.style.objectFit = "cover";
+											img.style.objectFit = "cover"
 										}
 									}
 								}}
 								onError={(e) => {
-									console.log(`Image could not be loaded: ${data.image}`);
+									console.log(`Image could not be loaded: ${data.image}`)
 									// Hide the broken image
-									(e.target as HTMLImageElement).style.display = 'none';
+									;(e.target as HTMLImageElement).style.display = "none"
 								}}
 							/>
 						</ErrorBoundary>
@@ -406,7 +407,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 					</div>
 				</div>
 			</div>
-		);
+		)
 	}
 }
 
@@ -414,7 +415,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, {
 const MemoizedLinkPreview = React.memo(
 	(props: LinkPreviewProps) => <LinkPreview {...props} />,
 	(prevProps, nextProps) => prevProps.url === nextProps.url // Only re-render if URL changes
-);
+)
 
 // Wrap the LinkPreview component with an error boundary
 const LinkPreviewWithErrorBoundary: React.FC<LinkPreviewProps> = (props) => {
@@ -422,7 +423,7 @@ const LinkPreviewWithErrorBoundary: React.FC<LinkPreviewProps> = (props) => {
 		<ErrorBoundary>
 			<MemoizedLinkPreview {...props} />
 		</ErrorBoundary>
-	);
-};
+	)
+}
 
-export default LinkPreviewWithErrorBoundary;
+export default LinkPreviewWithErrorBoundary
