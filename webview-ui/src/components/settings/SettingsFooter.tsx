@@ -12,22 +12,17 @@ import { SetCachedStateField } from "./types"
 
 // Map of language codes to their display names
 const LANGUAGES: Record<string, string> = {
-	ar: "العربية",
 	ca: "Català",
-	cs: "Čeština",
 	de: "Deutsch",
 	en: "English",
 	es: "Español",
 	fr: "Français",
 	hi: "हिन्दी",
-	hu: "Magyar",
 	it: "Italiano",
 	ja: "日本語",
 	ko: "한국어",
 	pl: "Polski",
-	pt: "Português",
-	"pt-BR": "Português do Brasil",
-	ru: "Русский",
+	"pt-BR": "Português",
 	tr: "Türkçe",
 	vi: "Tiếng Việt",
 	"zh-CN": "简体中文",
