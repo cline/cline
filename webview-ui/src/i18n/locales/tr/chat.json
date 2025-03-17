@@ -1,77 +1,163 @@
 {
 	"greeting": "Roo sizin için ne yapabilir?",
+	"task": {
+		"title": "Görev",
+		"seeMore": "Daha fazla gör",
+		"seeLess": "Daha az gör",
+		"tokens": "Tokenlar:",
+		"cache": "Önbellek:",
+		"apiCost": "API Maliyeti:",
+		"contextWindow": "Bağlam Penceresi:",
+		"closeAndStart": "Görevi kapat ve yeni bir görev başlat",
+		"export": "Görev geçmişini dışa aktar",
+		"delete": "Görevi sil (Onayı atlamak için Shift + Tıkla)"
+	},
+	"tokenProgress": {
+		"availableSpace": "Kullanılabilir alan: {{amount}} token",
+		"tokensUsed": "Kullanılan tokenlar: {{used}} / {{total}}",
+		"reservedForResponse": "Model yanıtı için ayrılan: {{amount}} token"
+	},
 	"retry": {
 		"title": "Yeniden Dene",
-		"tooltip": "İşlemi tekrar deneyin"
+		"tooltip": "İşlemi tekrar dene"
 	},
 	"startNewTask": {
 		"title": "Yeni Görev Başlat",
-		"tooltip": "Yeni bir görev başlatın"
+		"tooltip": "Yeni bir görev başlat"
 	},
 	"proceedAnyways": {
 		"title": "Yine de Devam Et",
-		"tooltip": "Komut çalışırken devam edin"
+		"tooltip": "Komut çalışırken devam et"
 	},
 	"save": {
 		"title": "Kaydet",
-		"tooltip": "Dosya değişikliklerini kaydedin"
+		"tooltip": "Dosya değişikliklerini kaydet"
 	},
 	"reject": {
 		"title": "Reddet",
-		"tooltip": "Bu eylemi reddedin"
+		"tooltip": "Bu eylemi reddet"
 	},
 	"completeSubtaskAndReturn": "Alt görevi tamamla ve geri dön",
 	"approve": {
 		"title": "Onayla",
-		"tooltip": "Bu eylemi onaylayın"
+		"tooltip": "Bu eylemi onayla"
 	},
 	"runCommand": {
-		"title": "Komut Çalıştır",
-		"tooltip": "Bu komutu çalıştırın"
+		"title": "Komutu Çalıştır",
+		"tooltip": "Bu komutu çalıştır"
 	},
 	"proceedWhileRunning": {
 		"title": "Çalışırken Devam Et",
-		"tooltip": "Uyarılara rağmen devam edin"
+		"tooltip": "Uyarılara rağmen devam et"
 	},
 	"resumeTask": {
 		"title": "Göreve Devam Et",
-		"tooltip": "Mevcut göreve devam edin"
+		"tooltip": "Mevcut göreve devam et"
 	},
 	"terminate": {
 		"title": "Sonlandır",
-		"tooltip": "Mevcut görevi sonlandırın"
+		"tooltip": "Mevcut görevi sonlandır"
 	},
 	"cancel": {
 		"title": "İptal",
-		"tooltip": "Mevcut işlemi iptal edin"
+		"tooltip": "Mevcut işlemi iptal et"
 	},
-	"scrollToBottom": "Sohbetin en altına kaydır",
-	"aboutMe": "Ajan tabanlı kodlama yeteneklerindeki son gelişmeler sayesinde, karmaşık yazılım geliştirme görevlerini adım adım ele alabiliyorum. Dosya oluşturma ve düzenleme, karmaşık projeleri keşfetme, tarayıcı kullanma ve terminal komutları çalıştırma (sizin onayınızla) gibi araçlarla, kod tamamlama veya teknik destek ötesinde size yardımcı olabilirim. Hatta MCP'yi kullanarak yeni araçlar oluşturabilir ve kendi yeteneklerimi genişletebilirim.",
+	"scrollToBottom": "Sohbetin altına kaydır",
+	"aboutMe": "Ajansal kodlama yeteneklerindeki son atılımlar sayesinde, karmaşık yazılım geliştirme görevlerini adım adım ele alabilirim. Dosya oluşturma ve düzenleme, karmaşık projeleri keşfetme, tarayıcıyı kullanma ve terminal komutlarını çalıştırma (izin verdikten sonra) olanağı sağlayan araçlarla, kod tamamlama veya teknik desteğin ötesinde size yardımcı olabilirim. Hatta yeni araçlar oluşturmak ve kendi yeteneklerimi genişletmek için MCP'yi bile kullanabilirim.",
 	"selectMode": "Etkileşim modunu seçin",
 	"selectApiConfig": "API yapılandırmasını seçin",
-	"enhancePrompt": "Ek bağlamla istemi geliştirin",
+	"enhancePrompt": "Ek bağlamla istemi geliştir",
 	"addImages": "Mesaja resim ekle",
 	"sendMessage": "Mesaj gönder",
 	"typeMessage": "Bir mesaj yazın...",
 	"typeTask": "Görevinizi buraya yazın...",
-	"addContext": "@ bağlam eklemek için, / modları değiştirmek için",
-	"dragFiles": "dosyaları sürüklemek için shift tuşunu basılı tutun",
-	"dragFilesImages": "dosyaları/resimleri sürüklemek için shift tuşunu basılı tutun",
-	"enhancePromptDescription": "'İstemi geliştir' düğmesi, ek bağlam, açıklama veya yeniden ifade sağlayarak istemlerinizi iyileştirmenize yardımcı olur. Buraya bir istem yazın ve nasıl çalıştığını görmek için düğmeye tekrar tıklayın.",
+	"addContext": "Bağlam eklemek için @, mod değiştirmek için /",
+	"dragFiles": "dosyaları sürüklemek için shift tuşuna basılı tutun",
+	"dragFilesImages": "dosyaları/resimleri sürüklemek için shift tuşuna basılı tutun",
+	"enhancePromptDescription": "'İstemi geliştir' düğmesi, ek bağlam, açıklama veya yeniden ifade sağlayarak isteğinizi iyileştirmeye yardımcı olur. Buraya bir istek yazıp düğmeye tekrar tıklayarak nasıl çalıştığını görebilirsiniz.",
 	"errorReadingFile": "Dosya okuma hatası:",
 	"noValidImages": "Hiçbir geçerli resim işlenmedi",
 	"separator": "Ayırıcı",
 	"edit": "Düzenle...",
 	"forNextMode": "sonraki mod için",
+	"error": "Hata",
+	"troubleMessage": "Roo sorun yaşıyor...",
+	"apiRequest": {
+		"title": "API İsteği",
+		"failed": "API İsteği Başarısız",
+		"streaming": "API İsteği...",
+		"cancelled": "API İsteği İptal Edildi",
+		"streamingFailed": "API Akışı Başarısız"
+	},
+	"checkpoint": {
+		"initial": "İlk Kontrol Noktası",
+		"regular": "Kontrol Noktası",
+		"menu": {
+			"viewDiff": "Farkları Görüntüle",
+			"restore": "Kontrol Noktasını Geri Yükle",
+			"restoreFiles": "Dosyaları Geri Yükle",
+			"restoreFilesDescription": "Projenizin dosyalarını bu noktada alınan bir anlık görüntüye geri yükler.",
+			"restoreFilesAndTask": "Dosyaları ve Görevi Geri Yükle",
+			"confirm": "Onayla",
+			"cancel": "İptal",
+			"cannotUndo": "Bu işlem geri alınamaz.",
+			"restoreFilesAndTaskDescription": "Projenizin dosyalarını bu noktada alınan bir anlık görüntüye geri yükler ve bu noktadan sonraki tüm mesajları siler."
+		},
+		"current": "Mevcut"
+	},
+	"fileOperations": {
+		"wantsToRead": "Roo bu dosyayı okumak istiyor:",
+		"didRead": "Roo bu dosyayı okudu:",
+		"wantsToEdit": "Roo bu dosyayı düzenlemek istiyor:",
+		"wantsToCreate": "Roo yeni bir dosya oluşturmak istiyor:"
+	},
+	"directoryOperations": {
+		"wantsToViewTopLevel": "Roo bu dizindeki üst düzey dosyaları görüntülemek istiyor:",
+		"didViewTopLevel": "Roo bu dizindeki üst düzey dosyaları görüntüledi:",
+		"wantsToViewRecursive": "Roo bu dizindeki tüm dosyaları özyinelemeli olarak görüntülemek istiyor:",
+		"didViewRecursive": "Roo bu dizindeki tüm dosyaları özyinelemeli olarak görüntüledi:",
+		"wantsToViewDefinitions": "Roo bu dizinde kullanılan kaynak kod tanımlama isimlerini görüntülemek istiyor:",
+		"didViewDefinitions": "Roo bu dizinde kullanılan kaynak kod tanımlama isimlerini görüntüledi:",
+		"wantsToSearch": "Roo bu dizinde <code>{{regex}}</code> için arama yapmak istiyor:",
+		"didSearch": "Roo bu dizinde <code>{{regex}}</code> için arama yaptı:"
+	},
+	"commandOutput": "Komut Çıktısı",
+	"response": "Yanıt",
+	"arguments": "Argümanlar",
+	"mcp": {
+		"wantsToUseTool": "Roo {{serverName}} MCP sunucusunda bir araç kullanmak istiyor:",
+		"wantsToAccessResource": "Roo {{serverName}} MCP sunucusundaki bir kaynağa erişmek istiyor:"
+	},
+	"modes": {
+		"wantsToSwitch": "Roo <code>{{mode}}</code> moduna geçmek istiyor",
+		"wantsToSwitchWithReason": "Roo <code>{{mode}}</code> moduna geçmek istiyor çünkü: {{reason}}",
+		"didSwitch": "Roo <code>{{mode}}</code> moduna geçti",
+		"didSwitchWithReason": "Roo <code>{{mode}}</code> moduna geçti çünkü: {{reason}}"
+	},
+	"subtasks": {
+		"wantsToCreate": "Roo <code>{{mode}}</code> modunda yeni bir alt görev oluşturmak istiyor:",
+		"wantsToFinish": "Roo bu alt görevi bitirmek istiyor"
+	},
+	"questions": {
+		"hasQuestion": "Roo'nun bir sorusu var:"
+	},
+	"taskCompleted": "Görev Tamamlandı",
+	"shellIntegration": {
+		"unavailable": "Kabuk Entegrasyonu Kullanılamıyor",
+		"troubleshooting": "Hala sorun mu yaşıyorsunuz?"
+	},
+	"powershell": {
+		"issues": "Windows PowerShell ile ilgili sorunlar yaşıyor gibi görünüyorsunuz, lütfen şu konuya bakın"
+	},
 	"autoApprove": {
-		"title": "Otomatik onaylama:",
-		"none": "Yok",
-		"description": "Otomatik onaylama, Roo Code'un izin istemeden işlemler gerçekleştirmesine olanak tanır. Sadece tamamen güvendiğiniz işlemler için etkinleştirin.",
+		"title": "Otomatik-onay:",
+		"none": "Hiçbiri",
+		"description": "Otomatik onay, Roo Code'un izin istemeden işlemler gerçekleştirmesine olanak tanır. Yalnızca tamamen güvendiğiniz eylemler için etkinleştirin.",
 		"actions": {
 			"readFiles": {
-				"label": "Dosya ve dizinleri oku",
+				"label": "Dosyaları ve dizinleri oku",
 				"shortName": "Okuma",
-				"description": "Bilgisayarınızdaki herhangi bir dosyayı okuma erişimi sağlar."
+				"description": "Bilgisayarınızdaki herhangi bir dosyayı okuma erişimine izin verir."
 			},
 			"editFiles": {
 				"label": "Dosyaları düzenle",
@@ -81,22 +167,22 @@
 			"executeCommands": {
 				"label": "Onaylanmış komutları çalıştır",
 				"shortName": "Komutlar",
-				"description": "Onaylanmış terminal komutlarının çalıştırılmasına izin verir. Bunu ayarlar panelinden yapılandırabilirsiniz."
+				"description": "Onaylanmış terminal komutlarının çalıştırılmasına izin verir. Bunu ayarlar panelinde yapılandırabilirsiniz."
 			},
 			"useBrowser": {
 				"label": "Tarayıcıyı kullan",
 				"shortName": "Tarayıcı",
-				"description": "Başsız bir tarayıcıda herhangi bir web sitesini başlatma ve etkileşimde bulunma yeteneği sağlar."
+				"description": "Grafiksel arayüz olmayan bir tarayıcıda herhangi bir web sitesini başlatma ve etkileşim kurma yeteneğine izin verir."
 			},
 			"useMcp": {
 				"label": "MCP sunucularını kullan",
 				"shortName": "MCP",
-				"description": "Dosya sistemini değiştirebilen veya API'lerle etkileşimde bulunabilen yapılandırılmış MCP sunucularının kullanımına izin verir."
+				"description": "Dosya sistemini değiştirebilen veya API'lerle etkileşime girebilen yapılandırılmış MCP sunucularının kullanımına izin verir."
 			},
 			"switchModes": {
 				"label": "Modları değiştir",
 				"shortName": "Modlar",
-				"description": "Onay gerektirmeden farklı modlar arasında otomatik geçiş yapılmasına izin verir."
+				"description": "Onay gerektirmeden farklı modlar arasında otomatik geçişe izin verir."
 			},
 			"subtasks": {
 				"label": "Alt görevler oluştur ve tamamla",
@@ -109,5 +195,9 @@
 				"description": "Sağlayıcı bir hata yanıtı döndürdüğünde başarısız API isteklerini otomatik olarak yeniden dener."
 			}
 		}
+	},
+	"reasoning": {
+		"thinking": "Düşünüyor",
+		"seconds": "{{count}}sn"
 	}
 }

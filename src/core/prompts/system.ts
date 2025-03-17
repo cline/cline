@@ -41,6 +41,7 @@ async function generatePrompt(
 	diffEnabled?: boolean,
 	experiments?: Record<string, boolean>,
 	enableMcpServerCreation?: boolean,
+	language?: string,
 	rooIgnoreInstructions?: string,
 ): Promise<string> {
 	if (!context) {
@@ -90,7 +91,7 @@ ${getSystemInfoSection(cwd, mode, customModeConfigs)}
 
 ${getObjectiveSection()}
 
-${await addCustomInstructions(promptComponent?.customInstructions || modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, { language: formatLanguage(vscode.env.language), rooIgnoreInstructions })}`
+${await addCustomInstructions(promptComponent?.customInstructions || modeConfig.customInstructions || "", globalCustomInstructions || "", cwd, mode, { language: language ?? formatLanguage(vscode.env.language), rooIgnoreInstructions })}`
 
 	return basePrompt
 }
@@ -109,6 +110,7 @@ export const SYSTEM_PROMPT = async (
 	diffEnabled?: boolean,
 	experiments?: Record<string, boolean>,
 	enableMcpServerCreation?: boolean,
+	language?: string,
 	rooIgnoreInstructions?: string,
 ): Promise<string> => {
 	if (!context) {
@@ -139,7 +141,7 @@ export const SYSTEM_PROMPT = async (
 			globalCustomInstructions || "",
 			cwd,
 			mode,
-			{ language: formatLanguage(vscode.env.language), rooIgnoreInstructions },
+			{ language: language ?? formatLanguage(vscode.env.language), rooIgnoreInstructions },
 		)
 		// For file-based prompts, don't include the tool sections
 		return `${roleDefinition}
@@ -166,6 +168,7 @@ ${customInstructions}`
 		diffEnabled,
 		experiments,
 		enableMcpServerCreation,
+		language,
 		rooIgnoreInstructions,
 	)
 }

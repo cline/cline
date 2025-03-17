@@ -1,71 +1,157 @@
 {
 	"greeting": "O que o Roo pode fazer por você?",
+	"task": {
+		"title": "Tarefa",
+		"seeMore": "Ver mais",
+		"seeLess": "Ver menos",
+		"tokens": "Tokens:",
+		"cache": "Cache:",
+		"apiCost": "Custo da API:",
+		"contextWindow": "Janela de contexto:",
+		"closeAndStart": "Fechar tarefa e iniciar nova",
+		"export": "Exportar histórico de tarefas",
+		"delete": "Excluir tarefa (Shift + Clique para pular confirmação)"
+	},
+	"tokenProgress": {
+		"availableSpace": "Espaço disponível: {{amount}} tokens",
+		"tokensUsed": "Tokens usados: {{used}} de {{total}}",
+		"reservedForResponse": "Reservado para resposta do modelo: {{amount}} tokens"
+	},
 	"retry": {
 		"title": "Tentar novamente",
-		"tooltip": "Tente a operação novamente"
+		"tooltip": "Tentar a operação novamente"
 	},
 	"startNewTask": {
 		"title": "Iniciar nova tarefa",
-		"tooltip": "Comece uma nova tarefa"
+		"tooltip": "Começar uma nova tarefa"
 	},
 	"proceedAnyways": {
-		"title": "Continuar mesmo assim",
-		"tooltip": "Continue enquanto o comando é executado"
+		"title": "Prosseguir mesmo assim",
+		"tooltip": "Continuar enquanto o comando executa"
 	},
 	"save": {
 		"title": "Salvar",
-		"tooltip": "Salvar alterações do arquivo"
+		"tooltip": "Salvar as alterações do arquivo"
 	},
 	"reject": {
 		"title": "Rejeitar",
 		"tooltip": "Rejeitar esta ação"
 	},
-	"completeSubtaskAndReturn": "Concluir subtarefa e retornar",
+	"completeSubtaskAndReturn": "Completar subtarefa e retornar",
 	"approve": {
 		"title": "Aprovar",
 		"tooltip": "Aprovar esta ação"
 	},
 	"runCommand": {
 		"title": "Executar comando",
-		"tooltip": "Execute este comando"
+		"tooltip": "Executar este comando"
 	},
 	"proceedWhileRunning": {
-		"title": "Continuar durante a execução",
-		"tooltip": "Continue apesar dos avisos"
+		"title": "Prosseguir durante execução",
+		"tooltip": "Continuar apesar dos avisos"
 	},
 	"resumeTask": {
 		"title": "Retomar tarefa",
-		"tooltip": "Retome a tarefa atual"
+		"tooltip": "Continuar a tarefa atual"
 	},
 	"terminate": {
 		"title": "Terminar",
-		"tooltip": "Terminar a tarefa atual"
+		"tooltip": "Encerrar a tarefa atual"
 	},
 	"cancel": {
 		"title": "Cancelar",
 		"tooltip": "Cancelar a operação atual"
 	},
-	"scrollToBottom": "Rolar até o final do chat",
-	"aboutMe": "Graças aos últimos avanços nas capacidades de codificação agentiva, posso lidar com tarefas complexas de desenvolvimento de software passo a passo. Com ferramentas que me permitem criar e editar arquivos, explorar projetos complexos, usar o navegador e executar comandos de terminal (após sua aprovação), posso ajudá-lo de maneiras que vão além da conclusão de código ou suporte técnico. Posso até usar o MCP para criar novas ferramentas e expandir minhas próprias capacidades.",
+	"scrollToBottom": "Rolar para o final do chat",
+	"aboutMe": "Graças aos mais recentes avanços em capacidades de codificação agentiva, posso lidar com tarefas complexas de desenvolvimento de software passo a passo. Com ferramentas que me permitem criar e editar arquivos, explorar projetos complexos, usar o navegador e executar comandos de terminal (após sua permissão), posso ajudar de maneiras que vão além da conclusão de código ou suporte técnico. Posso até usar o MCP para criar novas ferramentas e expandir minhas próprias capacidades.",
 	"selectMode": "Selecionar modo de interação",
-	"selectApiConfig": "Selecionar configuração da API",
-	"enhancePrompt": "Melhorar o prompt com contexto adicional",
+	"selectApiConfig": "Selecionar configuração de API",
+	"enhancePrompt": "Aprimorar prompt com contexto adicional",
 	"addImages": "Adicionar imagens à mensagem",
 	"sendMessage": "Enviar mensagem",
 	"typeMessage": "Digite uma mensagem...",
 	"typeTask": "Digite sua tarefa aqui...",
-	"addContext": "@ para adicionar contexto, / para mudar modos",
+	"addContext": "@ para adicionar contexto, / para alternar modos",
 	"dragFiles": "segure shift para arrastar arquivos",
 	"dragFilesImages": "segure shift para arrastar arquivos/imagens",
-	"enhancePromptDescription": "O botão 'Melhorar o prompt' ajuda a aprimorar seu pedido fornecendo contexto adicional, esclarecimentos ou reformulações. Tente digitar um pedido aqui e clique no botão novamente para ver como funciona.",
-	"errorReadingFile": "Erro ao ler o arquivo:",
+	"enhancePromptDescription": "O botão 'Aprimorar prompt' ajuda a melhorar seu pedido fornecendo contexto adicional, esclarecimentos ou reformulações. Tente digitar um pedido aqui e clique no botão novamente para ver como funciona.",
+	"errorReadingFile": "Erro ao ler arquivo:",
 	"noValidImages": "Nenhuma imagem válida foi processada",
 	"separator": "Separador",
 	"edit": "Editar...",
 	"forNextMode": "para o próximo modo",
+	"error": "Erro",
+	"troubleMessage": "Roo está tendo problemas...",
+	"apiRequest": {
+		"title": "Requisição API",
+		"failed": "Requisição API falhou",
+		"streaming": "Requisição API...",
+		"cancelled": "Requisição API cancelada",
+		"streamingFailed": "Streaming API falhou"
+	},
+	"checkpoint": {
+		"initial": "Ponto de verificação inicial",
+		"regular": "Ponto de verificação",
+		"menu": {
+			"viewDiff": "Ver diferenças",
+			"restore": "Restaurar ponto de verificação",
+			"restoreFiles": "Restaurar arquivos",
+			"restoreFilesDescription": "Restaura os arquivos do seu projeto para um snapshot feito neste ponto.",
+			"restoreFilesAndTask": "Restaurar arquivos e tarefa",
+			"confirm": "Confirmar",
+			"cancel": "Cancelar",
+			"cannotUndo": "Esta ação não pode ser desfeita.",
+			"restoreFilesAndTaskDescription": "Restaura os arquivos do seu projeto para um snapshot feito neste ponto e exclui todas as mensagens após este ponto."
+		},
+		"current": "Atual"
+	},
+	"fileOperations": {
+		"wantsToRead": "Roo quer ler este arquivo:",
+		"didRead": "Roo leu este arquivo:",
+		"wantsToEdit": "Roo quer editar este arquivo:",
+		"wantsToCreate": "Roo quer criar um novo arquivo:"
+	},
+	"directoryOperations": {
+		"wantsToViewTopLevel": "Roo quer visualizar os arquivos de nível superior neste diretório:",
+		"didViewTopLevel": "Roo visualizou os arquivos de nível superior neste diretório:",
+		"wantsToViewRecursive": "Roo quer visualizar recursivamente todos os arquivos neste diretório:",
+		"didViewRecursive": "Roo visualizou recursivamente todos os arquivos neste diretório:",
+		"wantsToViewDefinitions": "Roo quer visualizar nomes de definição de código-fonte usados neste diretório:",
+		"didViewDefinitions": "Roo visualizou nomes de definição de código-fonte usados neste diretório:",
+		"wantsToSearch": "Roo quer pesquisar neste diretório por <code>{{regex}}</code>:",
+		"didSearch": "Roo pesquisou neste diretório por <code>{{regex}}</code>:"
+	},
+	"commandOutput": "Saída do comando",
+	"response": "Resposta",
+	"arguments": "Argumentos",
+	"mcp": {
+		"wantsToUseTool": "Roo quer usar uma ferramenta no servidor MCP {{serverName}}:",
+		"wantsToAccessResource": "Roo quer acessar um recurso no servidor MCP {{serverName}}:"
+	},
+	"modes": {
+		"wantsToSwitch": "Roo quer mudar para o modo <code>{{mode}}</code>",
+		"wantsToSwitchWithReason": "Roo quer mudar para o modo <code>{{mode}}</code> porque: {{reason}}",
+		"didSwitch": "Roo mudou para o modo <code>{{mode}}</code>",
+		"didSwitchWithReason": "Roo mudou para o modo <code>{{mode}}</code> porque: {{reason}}"
+	},
+	"subtasks": {
+		"wantsToCreate": "Roo quer criar uma nova subtarefa no modo <code>{{mode}}</code>:",
+		"wantsToFinish": "Roo quer finalizar esta subtarefa"
+	},
+	"questions": {
+		"hasQuestion": "Roo tem uma pergunta:"
+	},
+	"taskCompleted": "Tarefa concluída",
+	"shellIntegration": {
+		"unavailable": "Integração de shell indisponível",
+		"troubleshooting": "Ainda com problemas?"
+	},
+	"powershell": {
+		"issues": "Parece que você está tendo problemas com o Windows PowerShell, por favor veja este"
+	},
 	"autoApprove": {
 		"title": "Aprovação automática:",
-		"none": "Nenhum",
+		"none": "Nenhuma",
 		"description": "A aprovação automática permite que o Roo Code execute ações sem pedir permissão. Ative apenas para ações nas quais você confia totalmente.",
 		"actions": {
 			"readFiles": {
@@ -99,15 +185,19 @@
 				"description": "Permite a alternância automática entre diferentes modos sem exigir aprovação."
 			},
 			"subtasks": {
-				"label": "Criar e concluir subtarefas",
+				"label": "Criar e completar subtarefas",
 				"shortName": "Subtarefas",
 				"description": "Permite a criação e conclusão de subtarefas sem exigir aprovação."
 			},
 			"retryRequests": {
-				"label": "Tentar novamente solicitações com falha",
-				"shortName": "Novas tentativas",
-				"description": "Tenta automaticamente solicitações de API com falha quando o provedor retorna uma resposta de erro."
+				"label": "Retentar requisições falhas",
+				"shortName": "Retentativas",
+				"description": "Retenta automaticamente requisições de API falhas quando o provedor retorna uma resposta de erro."
 			}
 		}
+	},
+	"reasoning": {
+		"thinking": "Pensando",
+		"seconds": "{{count}}s"
 	}
 }

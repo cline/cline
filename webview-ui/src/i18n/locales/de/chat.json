@@ -1,16 +1,33 @@
 {
-	"greeting": "Was kann Roo für Sie tun?",
+	"greeting": "Was kann Roo für dich tun?",
+	"task": {
+		"title": "Aufgabe",
+		"seeMore": "Mehr anzeigen",
+		"seeLess": "Weniger anzeigen",
+		"tokens": "Tokens:",
+		"cache": "Cache:",
+		"apiCost": "API-Kosten:",
+		"contextWindow": "Kontextfenster:",
+		"closeAndStart": "Aufgabe schließen und neue starten",
+		"export": "Aufgabenverlauf exportieren",
+		"delete": "Aufgabe löschen (Shift + Klick zum Überspringen der Bestätigung)"
+	},
+	"tokenProgress": {
+		"availableSpace": "Verfügbarer Speicher: {{amount}} Tokens",
+		"tokensUsed": "Verwendete Tokens: {{used}} von {{total}}",
+		"reservedForResponse": "Reserviert für Modellantwort: {{amount}} Tokens"
+	},
 	"retry": {
 		"title": "Wiederholen",
-		"tooltip": "Versuchen Sie den Vorgang erneut"
+		"tooltip": "Versuch erneut starten"
 	},
 	"startNewTask": {
 		"title": "Neue Aufgabe starten",
-		"tooltip": "Beginnen Sie eine neue Aufgabe"
+		"tooltip": "Beginne eine neue Aufgabe"
 	},
 	"proceedAnyways": {
 		"title": "Trotzdem fortfahren",
-		"tooltip": "Fortfahren, während der Befehl ausgeführt wird"
+		"tooltip": "Während der Befehlsausführung fortfahren"
 	},
 	"save": {
 		"title": "Speichern",
@@ -30,7 +47,7 @@
 		"tooltip": "Diesen Befehl ausführen"
 	},
 	"proceedWhileRunning": {
-		"title": "Während der Ausführung fortfahren",
+		"title": "Während Ausführung fortfahren",
 		"tooltip": "Trotz Warnungen fortfahren"
 	},
 	"resumeTask": {
@@ -43,50 +60,119 @@
 	},
 	"cancel": {
 		"title": "Abbrechen",
-		"tooltip": "Aktuellen Vorgang abbrechen"
+		"tooltip": "Aktuelle Operation abbrechen"
 	},
-	"scrollToBottom": "Zum Ende des Chats scrollen",
-	"aboutMe": "Dank der neuesten Durchbrüche in der agentenbasierten Codierung kann ich komplexe Softwareentwicklungsaufgaben Schritt für Schritt bearbeiten. Mit Tools, die es mir ermöglichen, Dateien zu erstellen und zu bearbeiten, komplexe Projekte zu erkunden, den Browser zu verwenden und Terminalbefehle auszuführen (nach Ihrer Genehmigung), kann ich Ihnen auf eine Weise helfen, die über Code-Vervollständigung oder technischen Support hinausgeht. Ich kann sogar MCP verwenden, um neue Tools zu erstellen und meine eigenen Fähigkeiten zu erweitern.",
+	"scrollToBottom": "Zum Chat-Ende scrollen",
+	"aboutMe": "Dank neuester Durchbrüche in agentischen Coding-Fähigkeiten kann ich komplexe Softwareentwicklungsaufgaben schrittweise bearbeiten. Mit Werkzeugen, die mir erlauben, Dateien zu erstellen und zu bearbeiten, komplexe Projekte zu erkunden, den Browser zu nutzen und Terminalbefehle auszuführen (nachdem du die Erlaubnis erteilt hast), kann ich dir auf Weisen helfen, die über Code-Vervollständigung oder technischen Support hinausgehen. Ich kann sogar MCP nutzen, um neue Werkzeuge zu erstellen und meine eigenen Fähigkeiten zu erweitern.",
 	"selectMode": "Interaktionsmodus auswählen",
 	"selectApiConfig": "API-Konfiguration auswählen",
-	"enhancePrompt": "Eingabeaufforderung mit zusätzlichem Kontext verbessern",
+	"enhancePrompt": "Prompt mit zusätzlichem Kontext verbessern",
 	"addImages": "Bilder zur Nachricht hinzufügen",
 	"sendMessage": "Nachricht senden",
 	"typeMessage": "Nachricht eingeben...",
-	"typeTask": "Geben Sie hier Ihre Aufgabe ein...",
-	"addContext": "@ um Kontext hinzuzufügen, / um Modi zu wechseln",
-	"dragFiles": "Halten Sie die Umschalttaste gedrückt, um Dateien zu ziehen",
-	"dragFilesImages": "Halten Sie die Umschalttaste gedrückt, um Dateien/Bilder zu ziehen",
-	"enhancePromptDescription": "Die Schaltfläche 'Eingabeaufforderung verbessern' hilft, Ihre Anfrage durch zusätzlichen Kontext, Klarstellungen oder Umformulierungen zu verbessern. Geben Sie eine Anfrage ein und klicken Sie erneut auf die Schaltfläche, um zu sehen, wie es funktioniert.",
+	"typeTask": "Gib deine Aufgabe hier ein...",
+	"addContext": "@ für Kontext, / zum Moduswechsel",
+	"dragFiles": "Shift halten, um Dateien einzufügen",
+	"dragFilesImages": "Shift halten, um Dateien/Bilder einzufügen",
+	"enhancePromptDescription": "Die Schaltfläche 'Prompt verbessern' hilft, deine Anfrage durch zusätzlichen Kontext, Klarstellungen oder Umformulierungen zu verbessern. Versuche, hier eine Anfrage einzugeben und klicke erneut auf die Schaltfläche, um zu sehen, wie es funktioniert.",
 	"errorReadingFile": "Fehler beim Lesen der Datei:",
-	"noValidImages": "Es wurden keine gültigen Bilder verarbeitet",
+	"noValidImages": "Keine gültigen Bilder wurden verarbeitet",
 	"separator": "Trennlinie",
 	"edit": "Bearbeiten...",
 	"forNextMode": "für nächsten Modus",
+	"error": "Fehler",
+	"troubleMessage": "Roo hat Probleme...",
+	"apiRequest": {
+		"title": "API-Anfrage",
+		"failed": "API-Anfrage fehlgeschlagen",
+		"streaming": "API-Anfrage...",
+		"cancelled": "API-Anfrage abgebrochen",
+		"streamingFailed": "API-Streaming fehlgeschlagen"
+	},
+	"checkpoint": {
+		"initial": "Initialer Checkpoint",
+		"regular": "Checkpoint",
+		"menu": {
+			"viewDiff": "Unterschiede anzeigen",
+			"restore": "Checkpoint wiederherstellen",
+			"restoreFiles": "Dateien wiederherstellen",
+			"restoreFilesDescription": "Stellt die Dateien deines Projekts auf einen Snapshot zurück, der an diesem Punkt erstellt wurde.",
+			"restoreFilesAndTask": "Dateien & Aufgabe wiederherstellen",
+			"confirm": "Bestätigen",
+			"cancel": "Abbrechen",
+			"cannotUndo": "Diese Aktion kann nicht rückgängig gemacht werden.",
+			"restoreFilesAndTaskDescription": "Stellt die Dateien deines Projekts auf einen Snapshot zurück, der an diesem Punkt erstellt wurde, und löscht alle Nachrichten nach diesem Punkt."
+		},
+		"current": "Aktuell"
+	},
+	"fileOperations": {
+		"wantsToRead": "Roo möchte diese Datei lesen:",
+		"didRead": "Roo hat diese Datei gelesen:",
+		"wantsToEdit": "Roo möchte diese Datei bearbeiten:",
+		"wantsToCreate": "Roo möchte eine neue Datei erstellen:"
+	},
+	"directoryOperations": {
+		"wantsToViewTopLevel": "Roo möchte die Dateien auf oberster Ebene in diesem Verzeichnis anzeigen:",
+		"didViewTopLevel": "Roo hat die Dateien auf oberster Ebene in diesem Verzeichnis angezeigt:",
+		"wantsToViewRecursive": "Roo möchte rekursiv alle Dateien in diesem Verzeichnis anzeigen:",
+		"didViewRecursive": "Roo hat rekursiv alle Dateien in diesem Verzeichnis angezeigt:",
+		"wantsToViewDefinitions": "Roo möchte Quellcode-Definitionsnamen in diesem Verzeichnis anzeigen:",
+		"didViewDefinitions": "Roo hat Quellcode-Definitionsnamen in diesem Verzeichnis angezeigt:",
+		"wantsToSearch": "Roo möchte dieses Verzeichnis nach <code>{{regex}}</code> durchsuchen:",
+		"didSearch": "Roo hat dieses Verzeichnis nach <code>{{regex}}</code> durchsucht:"
+	},
+	"commandOutput": "Befehlsausgabe",
+	"response": "Antwort",
+	"arguments": "Argumente",
+	"mcp": {
+		"wantsToUseTool": "Roo möchte ein Tool auf dem {{serverName}} MCP-Server verwenden:",
+		"wantsToAccessResource": "Roo möchte auf eine Ressource auf dem {{serverName}} MCP-Server zugreifen:"
+	},
+	"modes": {
+		"wantsToSwitch": "Roo möchte zum <code>{{mode}}</code>-Modus wechseln",
+		"wantsToSwitchWithReason": "Roo möchte zum <code>{{mode}}</code>-Modus wechseln, weil: {{reason}}",
+		"didSwitch": "Roo hat zum <code>{{mode}}</code>-Modus gewechselt",
+		"didSwitchWithReason": "Roo hat zum <code>{{mode}}</code>-Modus gewechselt, weil: {{reason}}"
+	},
+	"subtasks": {
+		"wantsToCreate": "Roo möchte eine neue Teilaufgabe im <code>{{mode}}</code>-Modus erstellen:",
+		"wantsToFinish": "Roo möchte diese Teilaufgabe abschließen"
+	},
+	"questions": {
+		"hasQuestion": "Roo hat eine Frage:"
+	},
+	"taskCompleted": "Aufgabe abgeschlossen",
+	"shellIntegration": {
+		"unavailable": "Shell-Integration nicht verfügbar",
+		"troubleshooting": "Immer noch Probleme?"
+	},
+	"powershell": {
+		"issues": "Es scheint, dass du Probleme mit Windows PowerShell hast, bitte sieh dir diesen"
+	},
 	"autoApprove": {
-		"title": "Auto-Genehmigung:",
+		"title": "Automatische Genehmigung:",
 		"none": "Keine",
-		"description": "Auto-Genehmigung erlaubt Roo Code, Aktionen ohne Nachfrage auszuführen. Aktivieren Sie dies nur für Aktionen, denen Sie vollständig vertrauen.",
+		"description": "Automatische Genehmigung erlaubt Roo Code, Aktionen ohne Nachfrage auszuführen. Aktiviere dies nur für Aktionen, denen du vollständig vertraust.",
 		"actions": {
 			"readFiles": {
 				"label": "Dateien und Verzeichnisse lesen",
 				"shortName": "Lesen",
-				"description": "Ermöglicht den Zugriff zum Lesen jeder Datei auf Ihrem Computer."
+				"description": "Erlaubt Zugriff zum Lesen jeder Datei auf deinem Computer."
 			},
 			"editFiles": {
 				"label": "Dateien bearbeiten",
 				"shortName": "Bearbeiten",
-				"description": "Ermöglicht die Bearbeitung beliebiger Dateien auf Ihrem Computer."
+				"description": "Erlaubt die Änderung jeder Datei auf deinem Computer."
 			},
 			"executeCommands": {
 				"label": "Genehmigte Befehle ausführen",
 				"shortName": "Befehle",
-				"description": "Erlaubt die Ausführung genehmigter Terminalbefehle. Sie können dies im Einstellungsbereich konfigurieren."
+				"description": "Erlaubt die Ausführung genehmigter Terminal-Befehle. Du kannst dies im Einstellungsfenster konfigurieren."
 			},
 			"useBrowser": {
 				"label": "Browser verwenden",
 				"shortName": "Browser",
-				"description": "Ermöglicht das Starten und Interagieren mit jeder Website in einem Headless-Browser."
+				"description": "Erlaubt die Fähigkeit, jede Website in einem Headless-Browser zu starten und mit ihr zu interagieren."
 			},
 			"useMcp": {
 				"label": "MCP-Server verwenden",
@@ -96,12 +182,12 @@
 			"switchModes": {
 				"label": "Modi wechseln",
 				"shortName": "Modi",
-				"description": "Ermöglicht automatisches Wechseln zwischen verschiedenen Modi ohne Genehmigung."
+				"description": "Erlaubt automatischen Wechsel zwischen verschiedenen Modi ohne erforderliche Genehmigung."
 			},
 			"subtasks": {
 				"label": "Teilaufgaben erstellen & abschließen",
 				"shortName": "Teilaufgaben",
-				"description": "Erlaubt die Erstellung und den Abschluss von Teilaufgaben ohne Genehmigung."
+				"description": "Erlaubt die Erstellung und den Abschluss von Teilaufgaben ohne erforderliche Genehmigung."
 			},
 			"retryRequests": {
 				"label": "Fehlgeschlagene Anfragen wiederholen",
@@ -109,5 +195,9 @@
 				"description": "Wiederholt automatisch fehlgeschlagene API-Anfragen, wenn der Anbieter eine Fehlermeldung zurückgibt."
 			}
 		}
+	},
+	"reasoning": {
+		"thinking": "Denke nach",
+		"seconds": "{{count}}s"
 	}
 }

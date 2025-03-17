@@ -1,16 +1,33 @@
 {
 	"greeting": "Cosa può fare Roo per te?",
+	"task": {
+		"title": "Attività",
+		"seeMore": "Vedi altro",
+		"seeLess": "Vedi meno",
+		"tokens": "Tokens:",
+		"cache": "Cache:",
+		"apiCost": "Costo API:",
+		"contextWindow": "Finestra di contesto:",
+		"closeAndStart": "Chiudi attività e iniziane una nuova",
+		"export": "Esporta cronologia attività",
+		"delete": "Elimina attività (Shift + Clic per saltare la conferma)"
+	},
+	"tokenProgress": {
+		"availableSpace": "Spazio disponibile: {{amount}} tokens",
+		"tokensUsed": "Tokens utilizzati: {{used}} di {{total}}",
+		"reservedForResponse": "Riservato per risposta del modello: {{amount}} tokens"
+	},
 	"retry": {
 		"title": "Riprova",
-		"tooltip": "Riprova l'operazione"
+		"tooltip": "Prova di nuovo l'operazione"
 	},
 	"startNewTask": {
 		"title": "Inizia nuova attività",
 		"tooltip": "Inizia una nuova attività"
 	},
 	"proceedAnyways": {
-		"title": "Prosegui comunque",
-		"tooltip": "Continua durante l'esecuzione del comando"
+		"title": "Procedi comunque",
+		"tooltip": "Continua mentre il comando è in esecuzione"
 	},
 	"save": {
 		"title": "Salva",
@@ -20,7 +37,7 @@
 		"title": "Rifiuta",
 		"tooltip": "Rifiuta questa azione"
 	},
-	"completeSubtaskAndReturn": "Completa sottoattività e ritorna",
+	"completeSubtaskAndReturn": "Completa sottoattività e torna indietro",
 	"approve": {
 		"title": "Approva",
 		"tooltip": "Approva questa azione"
@@ -30,12 +47,12 @@
 		"tooltip": "Esegui questo comando"
 	},
 	"proceedWhileRunning": {
-		"title": "Prosegui durante l'esecuzione",
+		"title": "Procedi durante l'esecuzione",
 		"tooltip": "Continua nonostante gli avvisi"
 	},
 	"resumeTask": {
 		"title": "Riprendi attività",
-		"tooltip": "Riprendi l'attività corrente"
+		"tooltip": "Continua l'attività corrente"
 	},
 	"terminate": {
 		"title": "Termina",
@@ -45,69 +62,142 @@
 		"title": "Annulla",
 		"tooltip": "Annulla l'operazione corrente"
 	},
-	"scrollToBottom": "Scorri in fondo alla chat",
-	"aboutMe": "Grazie alle ultime innovazioni nelle capacità di codifica agentica, posso gestire complesse attività di sviluppo software passo dopo passo. Con strumenti che mi permettono di creare e modificare file, esplorare progetti complessi, utilizzare il browser ed eseguire comandi terminal (dopo la tua approvazione), posso aiutarti in modi che vanno oltre il completamento del codice o il supporto tecnico. Posso persino usare MCP per creare nuovi strumenti ed estendere le mie capacità.",
+	"scrollToBottom": "Scorri fino alla fine della chat",
+	"aboutMe": "Grazie alle più recenti innovazioni nelle capacità di codifica agentica, posso gestire complesse attività di sviluppo software passo dopo passo. Con strumenti che mi permettono di creare e modificare file, esplorare progetti complessi, utilizzare il browser ed eseguire comandi da terminale (dopo la tua autorizzazione), posso aiutarti in modi che vanno oltre il completamento del codice o il supporto tecnico. Posso persino usare MCP per creare nuovi strumenti ed estendere le mie capacità.",
 	"selectMode": "Seleziona modalità di interazione",
 	"selectApiConfig": "Seleziona configurazione API",
-	"enhancePrompt": "Migliora il prompt con ulteriore contesto",
+	"enhancePrompt": "Migliora prompt con contesto aggiuntivo",
 	"addImages": "Aggiungi immagini al messaggio",
 	"sendMessage": "Invia messaggio",
 	"typeMessage": "Scrivi un messaggio...",
-	"typeTask": "Scrivi qui la tua attività...",
+	"typeTask": "Scrivi la tua attività qui...",
 	"addContext": "@ per aggiungere contesto, / per cambiare modalità",
-	"dragFiles": "tieni premuto shift per trascinare i file",
+	"dragFiles": "tieni premuto shift per trascinare file",
 	"dragFilesImages": "tieni premuto shift per trascinare file/immagini",
-	"enhancePromptDescription": "Il pulsante 'Migliora il prompt' aiuta a migliorare la tua richiesta fornendo contesto aggiuntivo, chiarimenti o riformulazioni. Prova a digitare una richiesta qui e clicca nuovamente il pulsante per vedere come funziona.",
-	"errorReadingFile": "Errore durante la lettura del file:",
+	"enhancePromptDescription": "Il pulsante 'Migliora prompt' aiuta a migliorare la tua richiesta fornendo contesto aggiuntivo, chiarimenti o riformulazioni. Prova a digitare una richiesta qui e fai di nuovo clic sul pulsante per vedere come funziona.",
+	"errorReadingFile": "Errore nella lettura del file:",
 	"noValidImages": "Nessuna immagine valida è stata elaborata",
 	"separator": "Separatore",
 	"edit": "Modifica...",
-	"forNextMode": "per la modalità successiva",
+	"forNextMode": "per la prossima modalità",
+	"error": "Errore",
+	"troubleMessage": "Roo sta avendo problemi...",
+	"apiRequest": {
+		"title": "Richiesta API",
+		"failed": "Richiesta API fallita",
+		"streaming": "Richiesta API...",
+		"cancelled": "Richiesta API annullata",
+		"streamingFailed": "Streaming API fallito"
+	},
+	"checkpoint": {
+		"initial": "Checkpoint iniziale",
+		"regular": "Checkpoint",
+		"menu": {
+			"viewDiff": "Visualizza differenze",
+			"restore": "Ripristina checkpoint",
+			"restoreFiles": "Ripristina file",
+			"restoreFilesDescription": "Ripristina i file del tuo progetto a uno snapshot catturato in questo punto.",
+			"restoreFilesAndTask": "Ripristina file e attività",
+			"confirm": "Conferma",
+			"cancel": "Annulla",
+			"cannotUndo": "Questa azione non può essere annullata.",
+			"restoreFilesAndTaskDescription": "Ripristina i file del tuo progetto a uno snapshot catturato in questo punto ed elimina tutti i messaggi successivi a questo punto."
+		},
+		"current": "Corrente"
+	},
+	"fileOperations": {
+		"wantsToRead": "Roo vuole leggere questo file:",
+		"didRead": "Roo ha letto questo file:",
+		"wantsToEdit": "Roo vuole modificare questo file:",
+		"wantsToCreate": "Roo vuole creare un nuovo file:"
+	},
+	"directoryOperations": {
+		"wantsToViewTopLevel": "Roo vuole visualizzare i file di primo livello in questa directory:",
+		"didViewTopLevel": "Roo ha visualizzato i file di primo livello in questa directory:",
+		"wantsToViewRecursive": "Roo vuole visualizzare ricorsivamente tutti i file in questa directory:",
+		"didViewRecursive": "Roo ha visualizzato ricorsivamente tutti i file in questa directory:",
+		"wantsToViewDefinitions": "Roo vuole visualizzare i nomi delle definizioni di codice sorgente utilizzate in questa directory:",
+		"didViewDefinitions": "Roo ha visualizzato i nomi delle definizioni di codice sorgente utilizzate in questa directory:",
+		"wantsToSearch": "Roo vuole cercare in questa directory <code>{{regex}}</code>:",
+		"didSearch": "Roo ha cercato in questa directory <code>{{regex}}</code>:"
+	},
+	"commandOutput": "Output del comando",
+	"response": "Risposta",
+	"arguments": "Argomenti",
+	"mcp": {
+		"wantsToUseTool": "Roo vuole utilizzare uno strumento sul server MCP {{serverName}}:",
+		"wantsToAccessResource": "Roo vuole accedere a una risorsa sul server MCP {{serverName}}:"
+	},
+	"modes": {
+		"wantsToSwitch": "Roo vuole passare alla modalità <code>{{mode}}</code>",
+		"wantsToSwitchWithReason": "Roo vuole passare alla modalità <code>{{mode}}</code> perché: {{reason}}",
+		"didSwitch": "Roo è passato alla modalità <code>{{mode}}</code>",
+		"didSwitchWithReason": "Roo è passato alla modalità <code>{{mode}}</code> perché: {{reason}}"
+	},
+	"subtasks": {
+		"wantsToCreate": "Roo vuole creare una nuova sottoattività in modalità <code>{{mode}}</code>:",
+		"wantsToFinish": "Roo vuole completare questa sottoattività"
+	},
+	"questions": {
+		"hasQuestion": "Roo ha una domanda:"
+	},
+	"taskCompleted": "Attività completata",
+	"shellIntegration": {
+		"unavailable": "Integrazione shell non disponibile",
+		"troubleshooting": "Ancora problemi?"
+	},
+	"powershell": {
+		"issues": "Sembra che tu stia avendo problemi con Windows PowerShell, consulta questa"
+	},
 	"autoApprove": {
-		"title": "Approvazione automatica:",
+		"title": "Auto-approvazione:",
 		"none": "Nessuna",
-		"description": "L'approvazione automatica consente a Roo Code di eseguire azioni senza chiedere permesso. Abilita solo per azioni di cui ti fidi completamente.",
+		"description": "L'auto-approvazione permette a Roo Code di eseguire azioni senza chiedere permesso. Abilita solo per azioni di cui ti fidi completamente.",
 		"actions": {
 			"readFiles": {
-				"label": "Leggere file e directory",
+				"label": "Leggi file e directory",
 				"shortName": "Lettura",
-				"description": "Consente l'accesso in lettura a qualsiasi file sul tuo computer."
+				"description": "Consente l'accesso per leggere qualsiasi file sul tuo computer."
 			},
 			"editFiles": {
-				"label": "Modificare file",
+				"label": "Modifica file",
 				"shortName": "Modifica",
 				"description": "Consente la modifica di qualsiasi file sul tuo computer."
 			},
 			"executeCommands": {
-				"label": "Eseguire comandi approvati",
+				"label": "Esegui comandi approvati",
 				"shortName": "Comandi",
-				"description": "Consente l'esecuzione di comandi terminal approvati. Puoi configurare questo nel pannello delle impostazioni."
+				"description": "Consente l'esecuzione di comandi da terminale approvati. Puoi configurare questo nel pannello delle impostazioni."
 			},
 			"useBrowser": {
-				"label": "Usare il browser",
+				"label": "Usa il browser",
 				"shortName": "Browser",
-				"description": "Consente la possibilità di avviare e interagire con qualsiasi sito web in un browser headless."
+				"description": "Consente la capacità di avviare e interagire con qualsiasi sito web in un browser headless."
 			},
 			"useMcp": {
-				"label": "Usare server MCP",
+				"label": "Usa server MCP",
 				"shortName": "MCP",
-				"description": "Consente l'uso di server MCP configurati che potrebbero modificare il filesystem o interagire con API."
+				"description": "Consente l'uso di server MCP configurati che possono modificare il filesystem o interagire con API."
 			},
 			"switchModes": {
-				"label": "Cambiare modalità",
+				"label": "Cambia modalità",
 				"shortName": "Modalità",
 				"description": "Consente il passaggio automatico tra diverse modalità senza richiedere approvazione."
 			},
 			"subtasks": {
-				"label": "Creare e completare sottoattività",
+				"label": "Crea e completa sottoattività",
 				"shortName": "Sottoattività",
 				"description": "Consente la creazione e il completamento di sottoattività senza richiedere approvazione."
 			},
 			"retryRequests": {
-				"label": "Riprovare richieste fallite",
-				"shortName": "Tentativi",
+				"label": "Riprova richieste fallite",
+				"shortName": "Ripetizioni",
 				"description": "Riprova automaticamente le richieste API fallite quando il provider restituisce una risposta di errore."
 			}
 		}
+	},
+	"reasoning": {
+		"thinking": "Sto pensando",
+		"seconds": "{{count}}s"
 	}
 }

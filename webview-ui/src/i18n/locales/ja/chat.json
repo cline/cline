@@ -1,97 +1,183 @@
 {
-	"greeting": "Rooはあなたのために何ができますか？",
+	"greeting": "Rooにお手伝いできることはありますか？",
+	"task": {
+		"title": "タスク",
+		"seeMore": "もっと見る",
+		"seeLess": "表示を減らす",
+		"tokens": "トークン:",
+		"cache": "キャッシュ:",
+		"apiCost": "APIコスト:",
+		"contextWindow": "コンテキストウィンドウ:",
+		"closeAndStart": "タスクを閉じて新しいタスクを開始",
+		"export": "タスク履歴をエクスポート",
+		"delete": "タスクを削除（Shift + クリックで確認をスキップ）"
+	},
+	"tokenProgress": {
+		"availableSpace": "利用可能な空き容量: {{amount}} トークン",
+		"tokensUsed": "使用トークン: {{used}} / {{total}}",
+		"reservedForResponse": "モデル応答用に予約: {{amount}} トークン"
+	},
 	"retry": {
 		"title": "再試行",
-		"tooltip": "操作を再試行してください"
+		"tooltip": "操作を再試行"
 	},
 	"startNewTask": {
 		"title": "新しいタスクを開始",
-		"tooltip": "新しいタスクを開始します"
+		"tooltip": "新しいタスクを開始"
 	},
 	"proceedAnyways": {
-		"title": "とにかく続行",
-		"tooltip": "コマンドの実行中に続行します"
+		"title": "それでも続行",
+		"tooltip": "コマンド実行中でも続行"
 	},
 	"save": {
 		"title": "保存",
-		"tooltip": "ファイルの変更を保存します"
+		"tooltip": "ファイル変更を保存"
 	},
 	"reject": {
 		"title": "拒否",
-		"tooltip": "このアクションを拒否します"
+		"tooltip": "このアクションを拒否"
 	},
 	"completeSubtaskAndReturn": "サブタスクを完了して戻る",
 	"approve": {
 		"title": "承認",
-		"tooltip": "このアクションを承認します"
+		"tooltip": "このアクションを承認"
 	},
 	"runCommand": {
-		"title": "コマンドを実行",
-		"tooltip": "このコマンドを実行します"
+		"title": "コマンド実行",
+		"tooltip": "このコマンドを実行"
 	},
 	"proceedWhileRunning": {
-		"title": "実行中に続行",
-		"tooltip": "警告にもかかわらず続行します"
+		"title": "実行中も続行",
+		"tooltip": "警告にもかかわらず続行"
 	},
 	"resumeTask": {
 		"title": "タスクを再開",
-		"tooltip": "現在のタスクを再開します"
+		"tooltip": "現在のタスクを続行"
 	},
 	"terminate": {
 		"title": "終了",
-		"tooltip": "現在のタスクを終了します"
+		"tooltip": "現在のタスクを終了"
 	},
 	"cancel": {
 		"title": "キャンセル",
-		"tooltip": "現在の操作をキャンセルします"
+		"tooltip": "現在の操作をキャンセル"
 	},
 	"scrollToBottom": "チャットの最下部にスクロール",
-	"aboutMe": "エージェント型コーディング能力の最新の進歩により、複雑なソフトウェア開発タスクを段階的に処理できます。ファイルの作成と編集、複雑なプロジェクトの探索、ブラウザの使用、ターミナルコマンドの実行（あなたの許可を得た後）を可能にするツールを使用して、コード補完やテクニカルサポートを超えた方法であなたを支援できます。MCPを使用して新しいツールを作成し、自分の能力を拡張することもできます。",
-	"selectMode": "インタラクションモードを選択",
+	"aboutMe": "最新のエージェント型コーディング能力の進歩により、複雑なソフトウェア開発タスクをステップバイステップで処理できます。ファイルの作成や編集、複雑なプロジェクトの探索、ブラウザの使用、ターミナルコマンドの実行（許可後）を可能にするツールにより、コード補完や技術サポート以上の方法であなたをサポートできます。MCPを使用して新しいツールを作成し、自分の能力を拡張することもできます。",
+	"selectMode": "対話モードを選択",
 	"selectApiConfig": "API設定を選択",
-	"enhancePrompt": "追加のコンテキストでプロンプトを強化",
+	"enhancePrompt": "追加コンテキストでプロンプトを強化",
 	"addImages": "メッセージに画像を追加",
 	"sendMessage": "メッセージを送信",
 	"typeMessage": "メッセージを入力...",
 	"typeTask": "ここにタスクを入力...",
-	"addContext": "@ コンテキストを追加, / モードを切り替え",
-	"dragFiles": "ファイルをドラッグするにはshiftを押したままにします",
-	"dragFilesImages": "ファイル/画像をドラッグするにはshiftを押したままにします",
-	"enhancePromptDescription": "「プロンプト強化」ボタンは、追加のコンテキスト、説明、または言い換えを提供することで、あなたのプロンプトを改善するのに役立ちます。ここにプロンプトを入力して、もう一度ボタンをクリックするとどのように機能するかが分かります。",
-	"errorReadingFile": "ファイルの読み込み中にエラーが発生しました：",
+	"addContext": "コンテキスト追加は@、モード切替は/",
+	"dragFiles": "ファイルをドラッグするにはShiftキーを押したまま",
+	"dragFilesImages": "ファイル/画像をドラッグするにはShiftキーを押したまま",
+	"enhancePromptDescription": "「プロンプトを強化」ボタンは、追加コンテキスト、説明、または言い換えを提供することで、リクエストを改善します。ここにリクエストを入力し、ボタンを再度クリックして動作を確認してください。",
+	"errorReadingFile": "ファイル読み込みエラー:",
 	"noValidImages": "有効な画像が処理されませんでした",
-	"separator": "区切り線",
+	"separator": "区切り",
 	"edit": "編集...",
-	"forNextMode": "次のモードへ",
+	"forNextMode": "次のモード用",
+	"error": "エラー",
+	"troubleMessage": "Rooに問題が発生しています...",
+	"apiRequest": {
+		"title": "APIリクエスト",
+		"failed": "APIリクエスト失敗",
+		"streaming": "APIリクエスト...",
+		"cancelled": "APIリクエストキャンセル",
+		"streamingFailed": "APIストリーミング失敗"
+	},
+	"checkpoint": {
+		"initial": "初期チェックポイント",
+		"regular": "チェックポイント",
+		"menu": {
+			"viewDiff": "差分を表示",
+			"restore": "チェックポイントを復元",
+			"restoreFiles": "ファイルを復元",
+			"restoreFilesDescription": "この時点で撮影されたスナップショットにプロジェクトのファイルを復元します。",
+			"restoreFilesAndTask": "ファイルとタスクを復元",
+			"confirm": "確認",
+			"cancel": "キャンセル",
+			"cannotUndo": "このアクションは元に戻せません。",
+			"restoreFilesAndTaskDescription": "この時点で撮影されたスナップショットにプロジェクトのファイルを復元し、この時点以降のすべてのメッセージを削除します。"
+		},
+		"current": "現在"
+	},
+	"fileOperations": {
+		"wantsToRead": "Rooはこのファイルを読みたい:",
+		"didRead": "Rooはこのファイルを読みました:",
+		"wantsToEdit": "Rooはこのファイルを編集したい:",
+		"wantsToCreate": "Rooは新しいファイルを作成したい:"
+	},
+	"directoryOperations": {
+		"wantsToViewTopLevel": "Rooはこのディレクトリのトップレベルファイルを表示したい:",
+		"didViewTopLevel": "Rooはこのディレクトリのトップレベルファイルを表示しました:",
+		"wantsToViewRecursive": "Rooはこのディレクトリのすべてのファイルを再帰的に表示したい:",
+		"didViewRecursive": "Rooはこのディレクトリのすべてのファイルを再帰的に表示しました:",
+		"wantsToViewDefinitions": "Rooはこのディレクトリで使用されているソースコード定義名を表示したい:",
+		"didViewDefinitions": "Rooはこのディレクトリで使用されているソースコード定義名を表示しました:",
+		"wantsToSearch": "Rooはこのディレクトリで <code>{{regex}}</code> を検索したい:",
+		"didSearch": "Rooはこのディレクトリで <code>{{regex}}</code> を検索しました:"
+	},
+	"commandOutput": "コマンド出力",
+	"response": "応答",
+	"arguments": "引数",
+	"mcp": {
+		"wantsToUseTool": "RooはMCPサーバー{{serverName}}でツールを使用したい:",
+		"wantsToAccessResource": "RooはMCPサーバー{{serverName}}のリソースにアクセスしたい:"
+	},
+	"modes": {
+		"wantsToSwitch": "Rooは<code>{{mode}}</code>モードに切り替えたい",
+		"wantsToSwitchWithReason": "Rooは次の理由で<code>{{mode}}</code>モードに切り替えたい: {{reason}}",
+		"didSwitch": "Rooは<code>{{mode}}</code>モードに切り替えました",
+		"didSwitchWithReason": "Rooは次の理由で<code>{{mode}}</code>モードに切り替えました: {{reason}}"
+	},
+	"subtasks": {
+		"wantsToCreate": "Rooは<code>{{mode}}</code>モードで新しいサブタスクを作成したい:",
+		"wantsToFinish": "Rooはこのサブタスクを終了したい"
+	},
+	"questions": {
+		"hasQuestion": "Rooは質問があります:"
+	},
+	"taskCompleted": "タスク完了",
+	"shellIntegration": {
+		"unavailable": "シェル統合が利用できません",
+		"troubleshooting": "まだ問題がありますか？"
+	},
+	"powershell": {
+		"issues": "Windows PowerShellに問題があるようです。こちらを参照してください"
+	},
 	"autoApprove": {
-		"title": "自動承認：",
+		"title": "自動承認:",
 		"none": "なし",
-		"description": "自動承認は、Roo Codeに許可を求めずに操作を実行することを許可します。完全に信頼できる操作のみを有効にしてください。",
+		"description": "自動承認はRoo Codeに許可を求めずに操作を実行する権限を与えます。完全に信頼できる操作のみ有効にしてください。",
 		"actions": {
 			"readFiles": {
 				"label": "ファイルとディレクトリの読み取り",
-				"shortName": "読取",
-				"description": "あなたのコンピューター上の任意のファイルを読み取るアクセスを許可します。"
+				"shortName": "読み取り",
+				"description": "コンピュータ上の任意のファイルを読み取るアクセスを許可します。"
 			},
 			"editFiles": {
 				"label": "ファイルの編集",
 				"shortName": "編集",
-				"description": "あなたのコンピューター上の任意のファイルを変更することを許可します。"
+				"description": "コンピュータ上の任意のファイルを変更することを許可します。"
 			},
 			"executeCommands": {
 				"label": "承認されたコマンドの実行",
 				"shortName": "コマンド",
-				"description": "承認されたターミナルコマンドの実行を許可します。設定パネルでこれを構成できます。"
+				"description": "承認されたターミナルコマンドの実行を許可します。設定パネルで構成できます。"
 			},
 			"useBrowser": {
 				"label": "ブラウザの使用",
 				"shortName": "ブラウザ",
-				"description": "ヘッドレスブラウザで任意のウェブサイトを起動し対話する機能を許可します。"
+				"description": "ヘッドレスブラウザで任意のウェブサイトを起動して操作する能力を許可します。"
 			},
 			"useMcp": {
 				"label": "MCPサーバーの使用",
 				"shortName": "MCP",
-				"description": "ファイルシステムを変更したりAPIと対話したりする可能性のある構成済みMCPサーバーの使用を許可します。"
+				"description": "ファイルシステムを変更したりAPIと対話したりできる構成済みMCPサーバーの使用を許可します。"
 			},
 			"switchModes": {
 				"label": "モードの切り替え",
@@ -106,8 +192,12 @@
 			"retryRequests": {
 				"label": "失敗したリクエストの再試行",
 				"shortName": "再試行",
-				"description": "プロバイダーがエラー応答を返した場合に、失敗したAPIリクエストを自動的に再試行します。"
+				"description": "プロバイダーがエラー応答を返した場合、失敗したAPIリクエストを自動的に再試行します。"
 			}
 		}
+	},
+	"reasoning": {
+		"thinking": "考え中",
+		"seconds": "{{count}}秒"
 	}
 }

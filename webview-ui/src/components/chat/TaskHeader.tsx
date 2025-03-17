@@ -2,6 +2,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import prettyBytes from "pretty-bytes"
+import { useTranslation } from "react-i18next"
 
 import { vscode } from "@/utils/vscode"
 import { formatLargeNumber } from "@/utils/format"
@@ -40,6 +41,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	contextTokens,
 	onClose,
 }) => {
+	const { t } = useTranslation()
 	const { apiConfiguration, currentTaskItem } = useExtensionState()
 	const { selectedModelInfo } = useMemo(() => normalizeApiConfiguration(apiConfiguration), [apiConfiguration])
 	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
@@ -176,7 +178,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								flexGrow: 1,
 								minWidth: 0, // This allows the div to shrink below its content size
 							}}>
-							<span style={{ fontWeight: "bold" }}>Task{!isTaskExpanded && ":"}</span>
+							<span style={{ fontWeight: "bold" }}>
+								{t("chat:task.title")}
+								{!isTaskExpanded && ":"}
+							</span>
 							{!isTaskExpanded && (
 								<span style={{ marginLeft: 4 }}>{highlightMentions(task.text, false)}</span>
 							)}
@@ -202,7 +207,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						appearance="icon"
 						onClick={onClose}
 						style={{ marginLeft: 6, flexShrink: 0, color: "var(--vscode-badge-foreground)" }}
-						title="Close task and start a new one">
+						title={t("chat:task.closeAndStart")}>
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
 				</div>
@@ -258,7 +263,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 											backgroundColor: "var(--vscode-badge-background)",
 										}}
 										onClick={() => setIsTextExpanded(!isTextExpanded)}>
-										See more
+										{t("chat:task.seeMore")}
 									</div>
 								</div>
 							)}
@@ -274,7 +279,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									paddingRight: 8,
 								}}
 								onClick={() => setIsTextExpanded(!isTextExpanded)}>
-								See less
+								{t("chat:task.seeLess")}
 							</div>
 						)}
 
@@ -283,7 +288,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
 							<div className="flex justify-between items-center h-[20px]">
 								<div style={{ display: "flex", alignItems: "center", gap: "4px", flexWrap: "wrap" }}>
-									<span style={{ fontWeight: "bold" }}>Tokens:</span>
+									<span style={{ fontWeight: "bold" }}>{t("chat:task.tokens")}</span>
 									<span style={{ display: "flex", alignItems: "center", gap: "3px" }}>
 										<i
 											className="codicon codicon-arrow-up"
@@ -315,7 +320,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 							{shouldShowPromptCacheInfo && (cacheReads !== undefined || cacheWrites !== undefined) && (
 								<div className="flex items-center gap-1 flex-wrap h-[20px]">
-									<span style={{ fontWeight: "bold" }}>Cache:</span>
+									<span style={{ fontWeight: "bold" }}>{t("chat:task.cache")}</span>
 									<span className="flex items-center gap-1">
 										<i
 											className="codicon codicon-database"
@@ -336,7 +341,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							{isCostAvailable && (
 								<div className="flex justify-between items-center h-[20px]">
 									<div className="flex items-center gap-1">
-										<span className="font-bold">API Cost:</span>
+										<span className="font-bold">{t("chat:task.apiCost")}</span>
 										<span>${totalCost?.toFixed(4)}</span>
 									</div>
 									<TaskActions item={currentTaskItem} />
@@ -374,13 +379,14 @@ export const highlightMentions = (text?: string, withShadow = true) => {
 
 const TaskActions = ({ item }: { item: HistoryItem | undefined }) => {
 	const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null)
+	const { t } = useTranslation()
 
 	return (
 		<div className="flex flex-row gap-1">
 			<Button
 				variant="ghost"
 				size="sm"
-				title="Export task history"
+				title={t("chat:task.export")}
 				onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}>
 				<span className="codicon codicon-cloud-download" />
 			</Button>
@@ -389,7 +395,7 @@ const TaskActions = ({ item }: { item: HistoryItem | undefined }) => {
 					<Button
 						variant="ghost"
 						size="sm"
-						title="Delete Task (Shift + Click to skip confirmation)"
+						title={t("chat:task.delete")}
 						onClick={(e) => {
 							e.stopPropagation()
 
@@ -422,6 +428,7 @@ interface ContextWindowProgressProps {
 }
 
 const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: ContextWindowProgressProps) => {
+	const { t } = useTranslation()
 	// Use the shared utility function to calculate all token distribution values
 	const tokenDistribution = useMemo(
 		() => calculateTokenDistribution(contextWindow, contextTokens, maxTokens),
@@ -438,10 +445,12 @@ const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: Cont
 	return (
 		<>
 			<div className="flex items-center gap-1 flex-shrink-0">
-				<span className="font-bold">Context Window:</span>
+				<span className="font-bold" data-testid="context-window-label">
+					{t("chat:task.contextWindow")}
+				</span>
 			</div>
 			<div className="flex items-center gap-2 flex-1 whitespace-nowrap px-2">
-				<div>{formatLargeNumber(safeContextTokens)}</div>
+				<div data-testid="context-tokens-count">{formatLargeNumber(safeContextTokens)}</div>
 				<div className="flex-1 relative">
 					{/* Invisible overlay for hover area */}
 					<div
@@ -451,7 +460,8 @@ const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: Cont
 							top: "-7px",
 							zIndex: 5,
 						}}
-						title={`Available space: ${formatLargeNumber(availableSize)} tokens`}
+						title={t("chat:tokenProgress.availableSpace", { amount: formatLargeNumber(availableSize) })}
+						data-testid="context-available-space"
 					/>
 
 					{/* Main progress bar container */}
@@ -467,7 +477,11 @@ const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: Cont
 									width: "100%",
 									zIndex: 6,
 								}}
-								title={`Tokens used: ${formatLargeNumber(safeContextTokens)} of ${formatLargeNumber(safeContextWindow)}`}
+								title={t("chat:tokenProgress.tokensUsed", {
+									used: formatLargeNumber(safeContextTokens),
+									total: formatLargeNumber(safeContextWindow),
+								})}
+								data-testid="context-tokens-used"
 							/>
 							{/* Current tokens used - darkest */}
 							<div
@@ -489,7 +503,10 @@ const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: Cont
 									width: "100%",
 									zIndex: 6,
 								}}
-								title={`Reserved for model response: ${formatLargeNumber(reservedForOutput)} tokens`}
+								title={t("chat:tokenProgress.reservedForResponse", {
+									amount: formatLargeNumber(reservedForOutput),
+								})}
+								data-testid="context-reserved-tokens"
 							/>
 							{/* Reserved for output section - medium gray */}
 							<div
@@ -512,13 +529,16 @@ const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens }: Cont
 										width: "100%",
 										zIndex: 6,
 									}}
-									title={`Available space: ${formatLargeNumber(availableSize)} tokens`}
+									title={t("chat:tokenProgress.availableSpace", {
+										amount: formatLargeNumber(availableSize),
+									})}
+									data-testid="context-available-space-section"
 								/>
 							</div>
 						)}
 					</div>
 				</div>
-				<div>{formatLargeNumber(safeContextWindow)}</div>
+				<div data-testid="context-window-size">{formatLargeNumber(safeContextWindow)}</div>
 			</div>
 		</>
 	)

@@ -1,5 +1,22 @@
 {
 	"greeting": "Què pot fer Roo per tu?",
+	"task": {
+		"title": "Tasca",
+		"seeMore": "Veure més",
+		"seeLess": "Veure menys",
+		"tokens": "Tokens:",
+		"cache": "Caché:",
+		"apiCost": "Cost d'API:",
+		"contextWindow": "Finestra de context:",
+		"closeAndStart": "Tancar tasca i iniciar-ne una de nova",
+		"export": "Exportar historial de tasques",
+		"delete": "Eliminar tasca (Shift + Clic per ometre confirmació)"
+	},
+	"tokenProgress": {
+		"availableSpace": "Espai disponible: {{amount}} tokens",
+		"tokensUsed": "Tokens utilitzats: {{used}} de {{total}}",
+		"reservedForResponse": "Reservat per a resposta del model: {{amount}} tokens"
+	},
 	"retry": {
 		"title": "Tornar a intentar",
 		"tooltip": "Torna a provar l'operació"
@@ -63,6 +80,75 @@
 	"separator": "Separador",
 	"edit": "Edita...",
 	"forNextMode": "per al següent mode",
+	"error": "Error",
+	"troubleMessage": "Roo està tenint problemes...",
+	"apiRequest": {
+		"title": "Sol·licitud API",
+		"failed": "Sol·licitud API ha fallat",
+		"streaming": "Sol·licitud API...",
+		"cancelled": "Sol·licitud API cancel·lada",
+		"streamingFailed": "Transmissió API ha fallat"
+	},
+	"checkpoint": {
+		"initial": "Punt de control inicial",
+		"regular": "Punt de control",
+		"menu": {
+			"viewDiff": "Veure diferències",
+			"restore": "Restaurar punt de control",
+			"restoreFiles": "Restaurar arxius",
+			"restoreFilesDescription": "Restaura els arxius del teu projecte a una instantània presa en aquest punt.",
+			"restoreFilesAndTask": "Restaurar arxius i tasca",
+			"confirm": "Confirmar",
+			"cancel": "Cancel·lar",
+			"cannotUndo": "Aquesta acció no es pot desfer.",
+			"restoreFilesAndTaskDescription": "Restaura els arxius del teu projecte a una instantània presa en aquest punt i elimina tots els missatges posteriors a aquest punt."
+		},
+		"current": "Actual"
+	},
+	"fileOperations": {
+		"wantsToRead": "Roo vol llegir aquest fitxer:",
+		"didRead": "Roo ha llegit aquest fitxer:",
+		"wantsToEdit": "Roo vol editar aquest fitxer:",
+		"wantsToCreate": "Roo vol crear un nou fitxer:"
+	},
+	"directoryOperations": {
+		"wantsToViewTopLevel": "Roo vol veure els fitxers de nivell superior en aquest directori:",
+		"didViewTopLevel": "Roo ha vist els fitxers de nivell superior en aquest directori:",
+		"wantsToViewRecursive": "Roo vol veure recursivament tots els fitxers en aquest directori:",
+		"didViewRecursive": "Roo ha vist recursivament tots els fitxers en aquest directori:",
+		"wantsToViewDefinitions": "Roo vol veure noms de definicions de codi font utilitzats en aquest directori:",
+		"didViewDefinitions": "Roo ha vist noms de definicions de codi font utilitzats en aquest directori:",
+		"wantsToSearch": "Roo vol cercar en aquest directori <code>{{regex}}</code>:",
+		"didSearch": "Roo ha cercat en aquest directori <code>{{regex}}</code>:"
+	},
+	"commandOutput": "Sortida de l'ordre",
+	"response": "Resposta",
+	"arguments": "Arguments",
+	"mcp": {
+		"wantsToUseTool": "Roo vol utilitzar una eina al servidor MCP {{serverName}}:",
+		"wantsToAccessResource": "Roo vol accedir a un recurs al servidor MCP {{serverName}}:"
+	},
+	"modes": {
+		"wantsToSwitch": "Roo vol canviar a mode <code>{{mode}}</code>",
+		"wantsToSwitchWithReason": "Roo vol canviar a mode <code>{{mode}}</code> perquè: {{reason}}",
+		"didSwitch": "Roo ha canviat a mode <code>{{mode}}</code>",
+		"didSwitchWithReason": "Roo ha canviat a mode <code>{{mode}}</code> perquè: {{reason}}"
+	},
+	"subtasks": {
+		"wantsToCreate": "Roo vol crear una nova subtasca en mode <code>{{mode}}</code>:",
+		"wantsToFinish": "Roo vol finalitzar aquesta subtasca"
+	},
+	"questions": {
+		"hasQuestion": "Roo té una pregunta:"
+	},
+	"taskCompleted": "Tasca completada",
+	"shellIntegration": {
+		"unavailable": "Integració de shell no disponible",
+		"troubleshooting": "Encara tens problemes?"
+	},
+	"powershell": {
+		"issues": "Sembla que estàs tenint problemes amb Windows PowerShell, si us plau consulta aquesta documentació per a més informació."
+	},
 	"autoApprove": {
 		"title": "Aprovació automàtica:",
 		"none": "Cap",
@@ -109,5 +195,9 @@
 				"description": "Reintenta automàticament les sol·licituds API fallides quan el proveïdor retorna una resposta d'error."
 			}
 		}
+	},
+	"reasoning": {
+		"thinking": "Pensant",
+		"seconds": "{{count}}s"
 	}
 }

@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react"
 import { CheckIcon, Cross2Icon } from "@radix-ui/react-icons"
+import { useTranslation } from "react-i18next"
 
 import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui"
 import { useRooPortal } from "@/components/ui/hooks"
@@ -15,6 +16,7 @@ type CheckpointMenuProps = {
 }
 
 export const CheckpointMenu = ({ ts, commitHash, currentHash, checkpoint }: CheckpointMenuProps) => {
+	const { t } = useTranslation()
 	const [isOpen, setIsOpen] = useState(false)
 	const [isConfirming, setIsConfirming] = useState(false)
 	const portalContainer = useRooPortal("roo-portal")
@@ -46,7 +48,11 @@ export const CheckpointMenu = ({ ts, commitHash, currentHash, checkpoint }: Chec
 	return (
 		<div className="flex flex-row gap-1">
 			{isDiffAvailable && (
-				<Button variant="ghost" size="icon" onClick={onCheckpointDiff} title="View Diff">
+				<Button
+					variant="ghost"
+					size="icon"
+					onClick={onCheckpointDiff}
+					title={t("chat:checkpoint.menu.viewDiff")}>
 					<span className="codicon codicon-diff-single" />
 				</Button>
 			)}
@@ -58,7 +64,7 @@ export const CheckpointMenu = ({ ts, commitHash, currentHash, checkpoint }: Chec
 						setIsConfirming(false)
 					}}>
 					<PopoverTrigger asChild>
-						<Button variant="ghost" size="icon" title="Restore Checkpoint">
+						<Button variant="ghost" size="icon" title={t("chat:checkpoint.menu.restore")}>
 							<span className="codicon codicon-history" />
 						</Button>
 					</PopoverTrigger>
@@ -67,10 +73,10 @@ export const CheckpointMenu = ({ ts, commitHash, currentHash, checkpoint }: Chec
 							{!isCurrent && (
 								<div className="flex flex-col gap-1 group hover:text-foreground">
 									<Button variant="secondary" onClick={onPreview}>
-										Restore Files
+										{t("chat:checkpoint.menu.restoreFiles")}
 									</Button>
 									<div className="text-muted transition-colors group-hover:text-foreground">
-										Restores your project's files back to a snapshot taken at this point.
+										{t("chat:checkpoint.menu.restoreFilesDescription")}
 									</div>
 								</div>
 							)}
@@ -79,32 +85,31 @@ export const CheckpointMenu = ({ ts, commitHash, currentHash, checkpoint }: Chec
 									<div className="flex flex-col gap-1 group hover:text-foreground">
 										{!isConfirming ? (
 											<Button variant="secondary" onClick={() => setIsConfirming(true)}>
-												Restore Files & Task
+												{t("chat:checkpoint.menu.restoreFilesAndTask")}
 											</Button>
 										) : (
 											<>
 												<Button variant="default" onClick={onRestore} className="grow">
 													<div className="flex flex-row gap-1">
 														<CheckIcon />
-														<div>Confirm</div>
+														<div>{t("chat:checkpoint.menu.confirm")}</div>
 													</div>
 												</Button>
 												<Button variant="secondary" onClick={() => setIsConfirming(false)}>
 													<div className="flex flex-row gap-1">
 														<Cross2Icon />
-														<div>Cancel</div>
+														<div>{t("chat:checkpoint.menu.cancel")}</div>
 													</div>
 												</Button>
 											</>
 										)}
 										{isConfirming ? (
 											<div className="text-destructive font-bold">
-												This action cannot be undone.
+												{t("chat:checkpoint.menu.cannotUndo")}
 											</div>
 										) : (
 											<div className="text-muted transition-colors group-hover:text-foreground">
-												Restores your project's files back to a snapshot taken at this point and
-												deletes all messages after this point.
+												{t("chat:checkpoint.menu.restoreFilesAndTaskDescription")}
 											</div>
 										)}
 									</div>

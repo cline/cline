@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { CaretDownIcon, CaretUpIcon, CounterClockwiseClockIcon } from "@radix-ui/react-icons"
+import { useTranslation } from "react-i18next"
 
 import MarkdownBlock from "../common/MarkdownBlock"
 import { useMount } from "react-use"
@@ -14,8 +15,9 @@ interface ReasoningBlockProps {
 export const ReasoningBlock = ({ content, elapsed, isCollapsed = false, onToggleCollapse }: ReasoningBlockProps) => {
 	const contentRef = useRef<HTMLDivElement>(null)
 	const elapsedRef = useRef<number>(0)
+	const { t } = useTranslation("chat")
 	const [thought, setThought] = useState<string>()
-	const [prevThought, setPrevThought] = useState<string>("Thinking")
+	const [prevThought, setPrevThought] = useState<string>(t("chat:reasoning.thinking"))
 	const [isTransitioning, setIsTransitioning] = useState<boolean>(false)
 	const cursorRef = useRef<number>(0)
 	const queueRef = useRef<string[]>([])
@@ -81,7 +83,7 @@ export const ReasoningBlock = ({ content, elapsed, isCollapsed = false, onToggle
 					{elapsedRef.current > 1000 && (
 						<>
 							<CounterClockwiseClockIcon className="scale-80" />
-							<div>{Math.round(elapsedRef.current / 1000)}s</div>
+							<div>{t("reasoning.seconds", { count: Math.round(elapsedRef.current / 1000) })}</div>
 						</>
 					)}
 					{isCollapsed ? <CaretDownIcon /> : <CaretUpIcon />}

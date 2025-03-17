@@ -1,5 +1,17 @@
 {
 	"greeting": "What can Roo do for you?",
+	"task": {
+		"title": "Task",
+		"seeMore": "See more",
+		"seeLess": "See less",
+		"tokens": "Tokens:",
+		"cache": "Cache:",
+		"apiCost": "API Cost:",
+		"contextWindow": "Context Window:",
+		"closeAndStart": "Close task and start a new one",
+		"export": "Export task history",
+		"delete": "Delete Task (Shift + Click to skip confirmation)"
+	},
 	"retry": {
 		"title": "Retry",
 		"tooltip": "Try the operation again"
@@ -15,6 +27,11 @@
 	"save": {
 		"title": "Save",
 		"tooltip": "Save the file changes"
+	},
+	"tokenProgress": {
+		"availableSpace": "Available space: {{amount}} tokens",
+		"tokensUsed": "Tokens used: {{used}} of {{total}}",
+		"reservedForResponse": "Reserved for model response: {{amount}} tokens"
 	},
 	"reject": {
 		"title": "Reject",
@@ -63,6 +80,75 @@
 	"separator": "Separator",
 	"edit": "Edit...",
 	"forNextMode": "for next mode",
+	"apiRequest": {
+		"title": "API Request",
+		"failed": "API Request Failed",
+		"streaming": "API Request...",
+		"cancelled": "API Request Cancelled",
+		"streamingFailed": "API Streaming Failed"
+	},
+	"checkpoint": {
+		"initial": "Initial Checkpoint",
+		"regular": "Checkpoint",
+		"menu": {
+			"viewDiff": "View Diff",
+			"restore": "Restore Checkpoint",
+			"restoreFiles": "Restore Files",
+			"restoreFilesDescription": "Restores your project's files back to a snapshot taken at this point.",
+			"restoreFilesAndTask": "Restore Files & Task",
+			"confirm": "Confirm",
+			"cancel": "Cancel",
+			"cannotUndo": "This action cannot be undone.",
+			"restoreFilesAndTaskDescription": "Restores your project's files back to a snapshot taken at this point and deletes all messages after this point."
+		},
+		"current": "Current"
+	},
+	"fileOperations": {
+		"wantsToRead": "Roo wants to read this file:",
+		"didRead": "Roo read this file:",
+		"wantsToEdit": "Roo wants to edit this file:",
+		"wantsToCreate": "Roo wants to create a new file:"
+	},
+	"directoryOperations": {
+		"wantsToViewTopLevel": "Roo wants to view the top level files in this directory:",
+		"didViewTopLevel": "Roo viewed the top level files in this directory:",
+		"wantsToViewRecursive": "Roo wants to recursively view all files in this directory:",
+		"didViewRecursive": "Roo recursively viewed all files in this directory:",
+		"wantsToViewDefinitions": "Roo wants to view source code definition names used in this directory:",
+		"didViewDefinitions": "Roo viewed source code definition names used in this directory:",
+		"wantsToSearch": "Roo wants to search this directory for <code>{{regex}}</code>:",
+		"didSearch": "Roo searched this directory for <code>{{regex}}</code>:"
+	},
+	"commandOutput": "Command Output",
+	"response": "Response",
+	"arguments": "Arguments",
+	"mcp": {
+		"wantsToUseTool": "Roo wants to use a tool on the {{serverName}} MCP server:",
+		"wantsToAccessResource": "Roo wants to access a resource on the {{serverName}} MCP server:"
+	},
+	"modes": {
+		"wantsToSwitch": "Roo wants to switch to {{mode}} mode",
+		"wantsToSwitchWithReason": "Roo wants to switch to {{mode}} mode because: {{reason}}",
+		"didSwitch": "Roo switched to {{mode}} mode",
+		"didSwitchWithReason": "Roo switched to {{mode}} mode because: {{reason}}"
+	},
+	"subtasks": {
+		"wantsToCreate": "Roo wants to create a new subtask in {{mode}} mode:",
+		"wantsToFinish": "Roo wants to finish this subtask"
+	},
+	"questions": {
+		"hasQuestion": "Roo has a question:"
+	},
+	"taskCompleted": "Task Completed",
+	"error": "Error",
+	"troubleMessage": "Roo is having trouble...",
+	"shellIntegration": {
+		"unavailable": "Shell Integration Unavailable",
+		"troubleshooting": "Still having trouble?"
+	},
+	"powershell": {
+		"issues": "It seems like you're having Windows PowerShell issues, please see this"
+	},
 	"autoApprove": {
 		"title": "Auto-approve:",
 		"none": "None",
@@ -109,5 +195,9 @@
 				"description": "Automatically retry failed API requests when the provider returns an error response."
 			}
 		}
+	},
+	"reasoning": {
+		"thinking": "Thinking",
+		"seconds": "{{count}}s"
 	}
 }

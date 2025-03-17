@@ -1,5 +1,17 @@
 {
 	"greeting": "¿Qué puede hacer Roo por ti?",
+	"task": {
+		"title": "Tarea",
+		"seeMore": "Ver más",
+		"seeLess": "Ver menos",
+		"tokens": "Tokens:",
+		"cache": "Caché:",
+		"apiCost": "Costo de API:",
+		"contextWindow": "Ventana de contexto:",
+		"closeAndStart": "Cerrar tarea e iniciar una nueva",
+		"export": "Exportar historial de tareas",
+		"delete": "Eliminar tarea (Shift + Clic para omitir confirmación)"
+	},
 	"retry": {
 		"title": "Reintentar",
 		"tooltip": "Intenta la operación de nuevo"
@@ -15,6 +27,11 @@
 	"save": {
 		"title": "Guardar",
 		"tooltip": "Guardar los cambios del archivo"
+	},
+	"tokenProgress": {
+		"availableSpace": "Espacio disponible: {{amount}} tokens",
+		"tokensUsed": "Tokens utilizados: {{used}} de {{total}}",
+		"reservedForResponse": "Reservado para respuesta del modelo: {{amount}} tokens"
 	},
 	"reject": {
 		"title": "Rechazar",
@@ -63,6 +80,75 @@
 	"separator": "Separador",
 	"edit": "Editar...",
 	"forNextMode": "para el siguiente modo",
+	"error": "Error",
+	"troubleMessage": "Roo está teniendo problemas...",
+	"apiRequest": {
+		"title": "Solicitud API",
+		"failed": "Solicitud API falló",
+		"streaming": "Solicitud API...",
+		"cancelled": "Solicitud API cancelada",
+		"streamingFailed": "Transmisión API falló"
+	},
+	"checkpoint": {
+		"initial": "Punto de control inicial",
+		"regular": "Punto de control",
+		"menu": {
+			"viewDiff": "Ver diferencias",
+			"restore": "Restaurar punto de control",
+			"restoreFiles": "Restaurar archivos",
+			"restoreFilesDescription": "Restaura los archivos de tu proyecto a una instantánea tomada en este punto.",
+			"restoreFilesAndTask": "Restaurar archivos y tarea",
+			"confirm": "Confirmar",
+			"cancel": "Cancelar",
+			"cannotUndo": "Esta acción no se puede deshacer.",
+			"restoreFilesAndTaskDescription": "Restaura los archivos de tu proyecto a una instantánea tomada en este punto y elimina todos los mensajes posteriores a este punto."
+		},
+		"current": "Actual"
+	},
+	"fileOperations": {
+		"wantsToRead": "Roo quiere leer este archivo:",
+		"didRead": "Roo leyó este archivo:",
+		"wantsToEdit": "Roo quiere editar este archivo:",
+		"wantsToCreate": "Roo quiere crear un nuevo archivo:"
+	},
+	"directoryOperations": {
+		"wantsToViewTopLevel": "Roo quiere ver los archivos de nivel superior en este directorio:",
+		"didViewTopLevel": "Roo vio los archivos de nivel superior en este directorio:",
+		"wantsToViewRecursive": "Roo quiere ver recursivamente todos los archivos en este directorio:",
+		"didViewRecursive": "Roo vio recursivamente todos los archivos en este directorio:",
+		"wantsToViewDefinitions": "Roo quiere ver nombres de definiciones de código fuente utilizados en este directorio:",
+		"didViewDefinitions": "Roo vio nombres de definiciones de código fuente utilizados en este directorio:",
+		"wantsToSearch": "Roo quiere buscar en este directorio <code>{{regex}}</code>:",
+		"didSearch": "Roo buscó en este directorio <code>{{regex}}</code>:"
+	},
+	"commandOutput": "Salida del comando",
+	"response": "Respuesta",
+	"arguments": "Argumentos",
+	"mcp": {
+		"wantsToUseTool": "Roo quiere usar una herramienta en el servidor MCP {{serverName}}:",
+		"wantsToAccessResource": "Roo quiere acceder a un recurso en el servidor MCP {{serverName}}:"
+	},
+	"modes": {
+		"wantsToSwitch": "Roo quiere cambiar a modo <code>{{mode}}</code>",
+		"wantsToSwitchWithReason": "Roo quiere cambiar a modo <code>{{mode}}</code> porque: {{reason}}",
+		"didSwitch": "Roo cambió a modo <code>{{mode}}</code>",
+		"didSwitchWithReason": "Roo cambió a modo <code>{{mode}}</code> porque: {{reason}}"
+	},
+	"subtasks": {
+		"wantsToCreate": "Roo quiere crear una nueva subtarea en modo <code>{{mode}}</code>:",
+		"wantsToFinish": "Roo quiere finalizar esta subtarea"
+	},
+	"questions": {
+		"hasQuestion": "Roo tiene una pregunta:"
+	},
+	"taskCompleted": "Tarea completada",
+	"shellIntegration": {
+		"unavailable": "Integración de shell no disponible",
+		"troubleshooting": "¿Sigues teniendo problemas?"
+	},
+	"powershell": {
+		"issues": "Parece que estás teniendo problemas con Windows PowerShell, por favor consulta esta"
+	},
 	"autoApprove": {
 		"title": "Auto-aprobar:",
 		"none": "Ninguno",
@@ -109,5 +195,9 @@
 				"description": "Reintenta automáticamente las solicitudes API fallidas cuando el proveedor devuelve una respuesta de error."
 			}
 		}
+	},
+	"reasoning": {
+		"thinking": "Pensando",
+		"seconds": "{{count}}s"
 	}
 }
