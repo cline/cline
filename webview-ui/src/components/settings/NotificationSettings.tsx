@@ -1,4 +1,5 @@
 import { HTMLAttributes } from "react"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { Bell } from "lucide-react"
 
@@ -18,12 +19,13 @@ export const NotificationSettings = ({
 	setCachedStateField,
 	...props
 }: NotificationSettingsProps) => {
+	const { t } = useAppTranslation()
 	return (
 		<div {...props}>
 			<SectionHeader>
 				<div className="flex items-center gap-2">
 					<Bell className="w-4" />
-					<div>Notifications</div>
+					<div>{t("settings:sections.notifications")}</div>
 				</div>
 			</SectionHeader>
 
@@ -31,11 +33,12 @@ export const NotificationSettings = ({
 				<div>
 					<VSCodeCheckbox
 						checked={soundEnabled}
-						onChange={(e: any) => setCachedStateField("soundEnabled", e.target.checked)}>
-						<span className="font-medium">Enable sound effects</span>
+						onChange={(e: any) => setCachedStateField("soundEnabled", e.target.checked)}
+						data-testid="sound-enabled-checkbox">
+						<span className="font-medium">{t("settings:notifications.sound.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						When enabled, Roo will play sound effects for notifications and events.
+						{t("settings:notifications.sound.description")}
 					</p>
 					{soundEnabled && (
 						<div
@@ -54,12 +57,15 @@ export const NotificationSettings = ({
 									onChange={(e) => setCachedStateField("soundVolume", parseFloat(e.target.value))}
 									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
 									aria-label="Volume"
+									data-testid="sound-volume-slider"
 								/>
 								<span style={{ minWidth: "35px", textAlign: "left" }}>
 									{((soundVolume ?? 0.5) * 100).toFixed(0)}%
 								</span>
 							</div>
-							<p className="text-vscode-descriptionForeground text-sm mt-1">Volume</p>
+							<p className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:notifications.sound.volumeLabel")}
+							</p>
 						</div>
 					)}
 				</div>

@@ -1,0 +1,147 @@
+{
+	"title": "프롬프트",
+	"done": "완료",
+	"modes": {
+		"title": "모드",
+		"createNewMode": "새 모드 만들기",
+		"editModesConfig": "모드 구성 편집",
+		"editGlobalModes": "전역 모드 편집",
+		"editProjectModes": "프로젝트 모드 편집 (.roomodes)",
+		"createModeHelpText": "새 커스텀 모드를 만들려면 + 버튼을 클릭하거나, 채팅에서 Roo에게 만들어달라고 요청하세요!"
+	},
+	"apiConfiguration": {
+		"title": "API 구성",
+		"select": "이 모드에 사용할 API 구성 선택"
+	},
+	"tools": {
+		"title": "사용 가능한 도구",
+		"builtInModesText": "내장 모드용 도구는 수정할 수 없습니다",
+		"editTools": "도구 편집",
+		"doneEditing": "편집 완료",
+		"allowedFiles": "허용된 파일:",
+		"toolNames": {
+			"read": "파일 읽기",
+			"edit": "파일 편집",
+			"browser": "브라우저 사용",
+			"command": "명령 실행",
+			"mcp": "MCP 사용"
+		}
+	},
+	"roleDefinition": {
+		"title": "역할 정의",
+		"resetToDefault": "기본값으로 재설정",
+		"description": "이 모드에 대한 Roo의 전문성과 성격을 정의하세요. 이 설명은 Roo가 자신을 어떻게 표현하고 작업에 접근하는지 형성합니다."
+	},
+	"customInstructions": {
+		"title": "모드별 사용자 지정 지침 (선택 사항)",
+		"resetToDefault": "기본값으로 재설정",
+		"description": "{{modeName}} 모드에 대한 특정 행동 지침을 추가하세요.",
+		"loadFromFile": "{{mode}} 모드에 대한 사용자 지정 지침은 작업 공간의 <span>.clinerules-{{slug}}</span>에서도 로드할 수 있습니다."
+	},
+	"globalCustomInstructions": {
+		"title": "모든 모드에 대한 사용자 지정 지침",
+		"description": "이 지침은 모든 모드에 적용됩니다. 아래의 모드별 지침으로 향상될 수 있는 기본 동작 세트를 제공합니다.\nRoo가 에디터 표시 언어({{language}})와 다른 언어로 생각하고 말하기를 원하시면, 여기에 지정할 수 있습니다.",
+		"loadFromFile": "지침은 작업 공간의 <span>.clinerules</span>에서도 로드할 수 있습니다."
+	},
+	"systemPrompt": {
+		"preview": "시스템 프롬프트 미리보기",
+		"copy": "시스템 프롬프트를 클립보드에 복사",
+		"title": "시스템 프롬프트 ({{modeName}} 모드)"
+	},
+	"supportPrompts": {
+		"title": "지원 프롬프트",
+		"resetPrompt": "{{promptType}} 프롬프트를 기본값으로 재설정",
+		"prompt": "프롬프트",
+		"enhance": {
+			"apiConfiguration": "API 구성",
+			"apiConfigDescription": "프롬프트 향상에 항상 사용할 API 구성을 선택하거나, 현재 선택된 구성을 사용할 수 있습니다",
+			"useCurrentConfig": "현재 선택된 API 구성 사용",
+			"testPromptPlaceholder": "향상을 테스트할 프롬프트 입력",
+			"previewButton": "프롬프트 향상 미리보기"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "프롬프트 향상",
+				"description": "입력에 맞춤화된 제안이나 개선을 얻기 위해 프롬프트 향상을 사용하세요. 이를 통해 Roo가 의도를 이해하고 최상의 응답을 제공할 수 있습니다. 채팅에서 ✨ 아이콘을 통해 이용 가능합니다."
+			},
+			"EXPLAIN": {
+				"label": "코드 설명",
+				"description": "코드 스니펫, 함수 또는 전체 파일에 대한 상세한 설명을 얻을 수 있습니다. 복잡한 코드를 이해하거나 새로운 패턴을 배우는 데 유용합니다. 코드 액션(에디터의 전구 아이콘)과 에디터 컨텍스트 메뉴(선택한 코드에서 우클릭)에서 이용 가능합니다."
+			},
+			"FIX": {
+				"label": "문제 해결",
+				"description": "버그, 오류 또는 코드 품질 문제를 식별하고 해결하는 데 도움을 받을 수 있습니다. 문제 해결을 위한 단계별 안내를 제공합니다. 코드 액션(에디터의 전구 아이콘)과 에디터 컨텍스트 메뉴(선택한 코드에서 우클릭)에서 이용 가능합니다."
+			},
+			"IMPROVE": {
+				"label": "코드 개선",
+				"description": "기능을 유지하면서 코드 최적화, 더 나은 관행 및 아키텍처 개선에 대한 제안을 받을 수 있습니다. 코드 액션(에디터의 전구 아이콘)과 에디터 컨텍스트 메뉴(선택한 코드에서 우클릭)에서 이용 가능합니다."
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "컨텍스트에 추가",
+				"description": "현재 작업이나 대화에 컨텍스트를 추가합니다. 추가 정보나 명확한 설명을 제공하는 데 유용합니다. 코드 액션(에디터의 전구 아이콘)과 에디터 컨텍스트 메뉴(선택한 코드에서 우클릭)에서 이용 가능합니다."
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "터미널 콘텐츠를 컨텍스트에 추가",
+				"description": "현재 작업이나 대화에 터미널 출력을 추가합니다. 명령 출력이나 로그를 제공하는 데 유용합니다. 터미널 컨텍스트 메뉴(선택한 터미널 콘텐츠에서 우클릭)에서 이용 가능합니다."
+			},
+			"TERMINAL_FIX": {
+				"label": "터미널 명령 수정",
+				"description": "실패했거나 개선이 필요한 터미널 명령을 수정하는 데 도움을 받을 수 있습니다. 터미널 컨텍스트 메뉴(선택한 터미널 콘텐츠에서 우클릭)에서 이용 가능합니다."
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "터미널 명령 설명",
+				"description": "터미널 명령과 그 출력에 대한 상세한 설명을 얻을 수 있습니다. 터미널 컨텍스트 메뉴(선택한 터미널 콘텐츠에서 우클릭)에서 이용 가능합니다."
+			}
+		}
+	},
+	"customModeCreation": {
+		"enableTitle": "프롬프트를 통한 커스텀 모드 생성 활성화",
+		"description": "활성화하면 Roo를 통해 '...하는 커스텀 모드를 만들어줘'와 같은 프롬프트를 사용하여 커스텀 모드를 생성할 수 있습니다. 이 기능이 필요하지 않을 때 비활성화하면 시스템 프롬프트가 약 700 token 감소합니다. 비활성화해도 위의 + 버튼을 사용하거나 관련 구성 JSON을 편집하여 수동으로 커스텀 모드를 생성할 수 있습니다."
+	},
+	"advancedSystemPrompt": {
+		"title": "고급: 시스템 프롬프트 재정의",
+		"description": "작업 공간의 <span>.roo/system-prompt-{{slug}}</span>에 파일을 생성하여 이 모드의 시스템 프롬프트(역할 정의 및 사용자 지정 지침 제외)를 완전히 대체할 수 있습니다. 이는 내장된 안전 장치와 일관성 검사(특히 도구 사용 관련)를 우회하는 매우 고급 기능이므로 주의하세요!"
+	},
+	"createModeDialog": {
+		"title": "새 모드 만들기",
+		"close": "닫기",
+		"name": {
+			"label": "이름",
+			"placeholder": "모드 이름 입력"
+		},
+		"slug": {
+			"label": "슬러그",
+			"description": "슬러그는 URL 및 파일 이름에 사용됩니다. 소문자여야 하며 문자, 숫자 및 하이픈만 포함해야 합니다."
+		},
+		"saveLocation": {
+			"label": "저장 위치",
+			"description": "이 모드를 저장할 위치를 선택하세요. 프로젝트별 모드는 전역 모드보다 우선합니다.",
+			"global": {
+				"label": "전역",
+				"description": "모든 작업 공간에서 사용 가능"
+			},
+			"project": {
+				"label": "프로젝트별 (.roomodes)",
+				"description": "이 작업 공간에서만 사용 가능, 전역보다 우선"
+			}
+		},
+		"roleDefinition": {
+			"label": "역할 정의",
+			"description": "이 모드에 대한 Roo의 전문성과 성격을 정의하세요."
+		},
+		"tools": {
+			"label": "사용 가능한 도구",
+			"description": "이 모드가 사용할 수 있는 도구를 선택하세요."
+		},
+		"customInstructions": {
+			"label": "사용자 지정 지침 (선택 사항)",
+			"description": "이 모드에 대한 특정 행동 지침을 추가하세요."
+		},
+		"buttons": {
+			"cancel": "취소",
+			"create": "모드 만들기"
+		},
+		"deleteMode": "모드 삭제"
+	},
+	"allFiles": "모든 파일"
+}

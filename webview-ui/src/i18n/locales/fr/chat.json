@@ -1,0 +1,113 @@
+{
+	"greeting": "Que peut faire Roo pour vous ?",
+	"retry": {
+		"title": "Réessayer",
+		"tooltip": "Réessayez l'opération"
+	},
+	"startNewTask": {
+		"title": "Démarrer une nouvelle tâche",
+		"tooltip": "Commencez une nouvelle tâche"
+	},
+	"proceedAnyways": {
+		"title": "Continuer quand même",
+		"tooltip": "Continuer pendant l'exécution de la commande"
+	},
+	"save": {
+		"title": "Enregistrer",
+		"tooltip": "Enregistrer les modifications du fichier"
+	},
+	"reject": {
+		"title": "Rejeter",
+		"tooltip": "Rejeter cette action"
+	},
+	"completeSubtaskAndReturn": "Terminer la sous-tâche et revenir",
+	"approve": {
+		"title": "Approuver",
+		"tooltip": "Approuver cette action"
+	},
+	"runCommand": {
+		"title": "Exécuter la commande",
+		"tooltip": "Exécuter cette commande"
+	},
+	"proceedWhileRunning": {
+		"title": "Continuer pendant l'exécution",
+		"tooltip": "Continuer malgré les avertissements"
+	},
+	"resumeTask": {
+		"title": "Reprendre la tâche",
+		"tooltip": "Reprendre la tâche en cours"
+	},
+	"terminate": {
+		"title": "Terminer",
+		"tooltip": "Terminer la tâche en cours"
+	},
+	"cancel": {
+		"title": "Annuler",
+		"tooltip": "Annuler l'opération en cours"
+	},
+	"scrollToBottom": "Faire défiler jusqu'en bas du chat",
+	"aboutMe": "Grâce aux dernières avancées en matière de capacités de codage agentique, je peux gérer des tâches complexes de développement de logiciels étape par étape. Avec des outils qui me permettent de créer et de modifier des fichiers, d'explorer des projets complexes, d'utiliser le navigateur et d'exécuter des commandes terminal (après votre approbation), je peux vous aider de manière qui va au-delà de la complétion de code ou du support technique. Je peux même utiliser MCP pour créer de nouveaux outils et étendre mes propres capacités.",
+	"selectMode": "Sélectionner le mode d'interaction",
+	"selectApiConfig": "Sélectionner la configuration de l'API",
+	"enhancePrompt": "Améliorer l'invite avec un contexte supplémentaire",
+	"addImages": "Ajouter des images au message",
+	"sendMessage": "Envoyer le message",
+	"typeMessage": "Tapez un message...",
+	"typeTask": "Tapez votre tâche ici...",
+	"addContext": "@ pour ajouter du contexte, / pour changer de mode",
+	"dragFiles": "maintenez shift pour glisser des fichiers",
+	"dragFilesImages": "maintenez shift pour glisser des fichiers/images",
+	"enhancePromptDescription": "Le bouton 'Améliorer l'invite' aide à améliorer votre demande en fournissant un contexte supplémentaire, des clarifications ou des reformulations. Essayez de taper une demande ici et cliquez à nouveau sur le bouton pour voir comment cela fonctionne.",
+	"errorReadingFile": "Erreur lors de la lecture du fichier :",
+	"noValidImages": "Aucune image valide n'a été traitée",
+	"separator": "Séparateur",
+	"edit": "Modifier...",
+	"forNextMode": "pour le mode suivant",
+	"autoApprove": {
+		"title": "Auto-approbation :",
+		"none": "Aucune",
+		"description": "L'auto-approbation permet à Roo Code d'effectuer des actions sans demander d'autorisation. Activez uniquement pour les actions auxquelles vous faites entièrement confiance.",
+		"actions": {
+			"readFiles": {
+				"label": "Lire les fichiers et répertoires",
+				"shortName": "Lecture",
+				"description": "Permet d'accéder en lecture à n'importe quel fichier sur votre ordinateur."
+			},
+			"editFiles": {
+				"label": "Modifier les fichiers",
+				"shortName": "Édition",
+				"description": "Permet la modification de n'importe quel fichier sur votre ordinateur."
+			},
+			"executeCommands": {
+				"label": "Exécuter des commandes approuvées",
+				"shortName": "Commandes",
+				"description": "Permet l'exécution de commandes terminal approuvées. Vous pouvez configurer cela dans le panneau des paramètres."
+			},
+			"useBrowser": {
+				"label": "Utiliser le navigateur",
+				"shortName": "Navigateur",
+				"description": "Permet de lancer et d'interagir avec n'importe quel site web dans un navigateur headless."
+			},
+			"useMcp": {
+				"label": "Utiliser les serveurs MCP",
+				"shortName": "MCP",
+				"description": "Permet l'utilisation de serveurs MCP configurés qui peuvent modifier le système de fichiers ou interagir avec des API."
+			},
+			"switchModes": {
+				"label": "Changer de modes",
+				"shortName": "Modes",
+				"description": "Permet le passage automatique entre différents modes sans nécessiter d'approbation."
+			},
+			"subtasks": {
+				"label": "Créer et compléter des sous-tâches",
+				"shortName": "Sous-tâches",
+				"description": "Permet la création et l'achèvement de sous-tâches sans nécessiter d'approbation."
+			},
+			"retryRequests": {
+				"label": "Réessayer les requêtes échouées",
+				"shortName": "Réessais",
+				"description": "Réessaie automatiquement les requêtes API échouées lorsque le fournisseur renvoie une réponse d'erreur."
+			}
+		}
+	}
+}

@@ -1,0 +1,147 @@
+{
+	"title": "Prompts",
+	"done": "Fet",
+	"modes": {
+		"title": "Modes",
+		"createNewMode": "Crear nou mode",
+		"editModesConfig": "Editar configuració de modes",
+		"editGlobalModes": "Editar modes globals",
+		"editProjectModes": "Editar modes de projecte (.roomodes)",
+		"createModeHelpText": "Feu clic a + per crear un nou mode personalitzat, o simplement demaneu a Roo al xat que en creï un per a vostè!"
+	},
+	"apiConfiguration": {
+		"title": "Configuració d'API",
+		"select": "Seleccioneu quina configuració d'API utilitzar per a aquest mode"
+	},
+	"tools": {
+		"title": "Eines disponibles",
+		"builtInModesText": "Les eines per a modes integrats no es poden modificar",
+		"editTools": "Editar eines",
+		"doneEditing": "Finalitzar edició",
+		"allowedFiles": "Fitxers permesos:",
+		"toolNames": {
+			"read": "Llegir fitxers",
+			"edit": "Editar fitxers",
+			"browser": "Utilitzar navegador",
+			"command": "Executar comandes",
+			"mcp": "Utilitzar MCP"
+		}
+	},
+	"roleDefinition": {
+		"title": "Definició de rol",
+		"resetToDefault": "Restablir a valors predeterminats",
+		"description": "Definiu l'experiència i personalitat de Roo per a aquest mode. Aquesta descripció determina com Roo es presenta i aborda les tasques."
+	},
+	"customInstructions": {
+		"title": "Instruccions personalitzades específiques del mode (opcional)",
+		"resetToDefault": "Restablir a valors predeterminats",
+		"description": "Afegiu directrius de comportament específiques per al mode {{modeName}}.",
+		"loadFromFile": "Les instruccions personalitzades específiques per al mode {{mode}} també es poden carregar des de <span>.clinerules-{{slug}}</span> al vostre espai de treball."
+	},
+	"globalCustomInstructions": {
+		"title": "Instruccions personalitzades per a tots els modes",
+		"description": "Aquestes instruccions s'apliquen a tots els modes. Proporcionen un conjunt bàsic de comportaments que es poden millorar amb instruccions específiques de cada mode a continuació.\nSi voleu que Roo pensi i parli en un idioma diferent al de la visualització del vostre editor ({{language}}), podeu especificar-ho aquí.",
+		"loadFromFile": "Les instruccions també es poden carregar des de <span>.clinerules</span> al vostre espai de treball."
+	},
+	"systemPrompt": {
+		"preview": "Previsualització del prompt del sistema",
+		"copy": "Copiar prompt del sistema al portapapers",
+		"title": "Prompt del sistema (mode {{modeName}})"
+	},
+	"supportPrompts": {
+		"title": "Prompts de suport",
+		"resetPrompt": "Restablir el prompt {{promptType}} a valors predeterminats",
+		"prompt": "Prompt",
+		"enhance": {
+			"apiConfiguration": "Configuració d'API",
+			"apiConfigDescription": "Podeu seleccionar una configuració d'API per utilitzar sempre per millorar els prompts, o simplement utilitzar la que està seleccionada actualment",
+			"useCurrentConfig": "Utilitzar la configuració d'API seleccionada actualment",
+			"testPromptPlaceholder": "Introduïu un prompt per provar la millora",
+			"previewButton": "Previsualització de la millora del prompt"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "Millorar prompt",
+				"description": "Utilitzeu la millora de prompts per obtenir suggeriments o millores personalitzades per a les vostres entrades. Això assegura que Roo entengui la vostra intenció i proporcioni les millors respostes possibles. Disponible a través de la icona ✨ al xat."
+			},
+			"EXPLAIN": {
+				"label": "Explicar codi",
+				"description": "Obtingueu explicacions detallades de fragments de codi, funcions o fitxers sencers. Útil per entendre codi complex o aprendre nous patrons. Disponible a les accions de codi (icona de bombeta a l'editor) i al menú contextual de l'editor (clic dret al codi seleccionat)."
+			},
+			"FIX": {
+				"label": "Corregir problemes",
+				"description": "Obtingueu ajuda per identificar i resoldre errors, fallades o problemes de qualitat del codi. Proporciona una guia pas a pas per solucionar problemes. Disponible a les accions de codi (icona de bombeta a l'editor) i al menú contextual de l'editor (clic dret al codi seleccionat)."
+			},
+			"IMPROVE": {
+				"label": "Millorar codi",
+				"description": "Rebeu suggeriments per optimitzar el codi, millors pràctiques i millores arquitectòniques mentre es manté la funcionalitat. Disponible a les accions de codi (icona de bombeta a l'editor) i al menú contextual de l'editor (clic dret al codi seleccionat)."
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "Afegir al context",
+				"description": "Afegiu context a la vostra tasca o conversa actual. Útil per proporcionar informació addicional o aclariments. Disponible a les accions de codi (icona de bombeta a l'editor) i al menú contextual de l'editor (clic dret al codi seleccionat)."
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "Afegir contingut del terminal al context",
+				"description": "Afegiu la sortida del terminal a la vostra tasca o conversa actual. Útil per proporcionar sortides de comandes o registres. Disponible al menú contextual del terminal (clic dret al contingut seleccionat del terminal)."
+			},
+			"TERMINAL_FIX": {
+				"label": "Corregir comanda del terminal",
+				"description": "Obtingueu ajuda per corregir comandes del terminal que han fallat o necessiten millores. Disponible al menú contextual del terminal (clic dret al contingut seleccionat del terminal)."
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "Explicar comanda del terminal",
+				"description": "Obtingueu explicacions detallades de les comandes del terminal i les seves sortides. Disponible al menú contextual del terminal (clic dret al contingut seleccionat del terminal)."
+			}
+		}
+	},
+	"customModeCreation": {
+		"enableTitle": "Habilitar la creació de modes personalitzats a través de prompts",
+		"description": "Quan està habilitat, Roo us permet crear modes personalitzats utilitzant prompts com 'Crea'm un mode personalitzat que...'. Desactivar-ho redueix el vostre prompt del sistema en aproximadament 700 tokens quan aquesta funcionalitat no és necessària. Quan està desactivat, encara podeu crear modes personalitzats manualment utilitzant el botó + de dalt o editant el JSON de configuració relacionat."
+	},
+	"advancedSystemPrompt": {
+		"title": "Avançat: Sobreescriure prompt del sistema",
+		"description": "Podeu reemplaçar completament el prompt del sistema per a aquest mode (a part de la definició de rol i instruccions personalitzades) creant un fitxer a <span>.roo/system-prompt-{{slug}}</span> al vostre espai de treball. Aquesta és una funcionalitat molt avançada que eludeix les salvaguardes integrades i les comprovacions de consistència (especialment al voltant de l'ús d'eines), així que aneu amb compte!"
+	},
+	"createModeDialog": {
+		"title": "Crear nou mode",
+		"close": "Tancar",
+		"name": {
+			"label": "Nom",
+			"placeholder": "Introduïu nom del mode"
+		},
+		"slug": {
+			"label": "Slug",
+			"description": "El slug s'utilitza en URLs i noms de fitxers. Ha d'estar en minúscules i contenir només lletres, números i guions."
+		},
+		"saveLocation": {
+			"label": "Ubicació per desar",
+			"description": "Trieu on desar aquest mode. Els modes específics del projecte tenen prioritat sobre els modes globals.",
+			"global": {
+				"label": "Global",
+				"description": "Disponible a tots els espais de treball"
+			},
+			"project": {
+				"label": "Específic del projecte (.roomodes)",
+				"description": "Només disponible en aquest espai de treball, té prioritat sobre el global"
+			}
+		},
+		"roleDefinition": {
+			"label": "Definició de rol",
+			"description": "Definiu l'experiència i personalitat de Roo per a aquest mode."
+		},
+		"tools": {
+			"label": "Eines disponibles",
+			"description": "Seleccioneu quines eines pot utilitzar aquest mode."
+		},
+		"customInstructions": {
+			"label": "Instruccions personalitzades (opcional)",
+			"description": "Afegiu directrius de comportament específiques per a aquest mode."
+		},
+		"buttons": {
+			"cancel": "Cancel·lar",
+			"create": "Crear mode"
+		},
+		"deleteMode": "Eliminar mode"
+	},
+	"allFiles": "tots els fitxers"
+}

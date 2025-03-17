@@ -1,0 +1,52 @@
+{
+	"title": "MCP Servers",
+	"done": "Done",
+	"description": "The <0>Model Context Protocol</0> enables communication with locally running MCP servers that provide additional tools and resources to extend Roo's capabilities. You can use <1>community-made servers</1> or ask Roo to create new tools specific to your workflow (e.g., \"add a tool that gets the latest npm docs\").",
+	"enableToggle": {
+		"title": "Enable MCP Servers",
+		"description": "When enabled, Roo will be able to interact with MCP servers for advanced functionality. If you're not using MCP, you can disable this to reduce Roo's token usage."
+	},
+	"enableServerCreation": {
+		"title": "Enable MCP Server Creation",
+		"description": "When enabled, Roo can help you create new MCP servers via commands like \"add a new tool to...\". If you don't need to create MCP servers you can disable this to reduce Roo's token usage."
+	},
+	"editGlobalMCP": "Edit Global MCP",
+	"editProjectMCP": "Edit Project MCP",
+	"tool": {
+		"alwaysAllow": "Always allow",
+		"parameters": "Parameters",
+		"noDescription": "No description"
+	},
+	"tabs": {
+		"tools": "Tools",
+		"resources": "Resources"
+	},
+	"emptyState": {
+		"noTools": "No tools found",
+		"noResources": "No resources found"
+	},
+	"networkTimeout": {
+		"label": "Network Timeout",
+		"description": "Maximum time to wait for server responses",
+		"options": {
+			"15seconds": "15 seconds",
+			"30seconds": "30 seconds",
+			"1minute": "1 minute",
+			"5minutes": "5 minutes",
+			"10minutes": "10 minutes",
+			"15minutes": "15 minutes",
+			"30minutes": "30 minutes",
+			"60minutes": "60 minutes"
+		}
+	},
+	"deleteDialog": {
+		"title": "Delete MCP Server",
+		"description": "Are you sure you want to delete the MCP server \"{{serverName}}\"? This action cannot be undone.",
+		"cancel": "Cancel",
+		"delete": "Delete"
+	},
+	"serverStatus": {
+		"retrying": "Retrying...",
+		"retryConnection": "Retry Connection"
+	}
+}

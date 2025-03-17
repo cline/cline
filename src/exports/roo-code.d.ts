@@ -5,6 +5,7 @@ export interface RooCodeEvents {
 	taskStarted: [taskId: string]
 	taskPaused: [taskId: string]
 	taskUnpaused: [taskId: string]
+	taskAskResponded: [taskId: string]
 	taskAborted: [taskId: string]
 	taskSpawned: [taskId: string, childTaskId: string]
 }
@@ -62,6 +63,12 @@ export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	 * @returns An array of ClineMessage objects.
 	 */
 	getMessages(taskId: string): ClineMessage[]
+
+	/**
+	 * Returns the current task stack.
+	 * @returns An array of task IDs.
+	 */
+	getCurrentTaskStack(): string[]
 }
 
 export type ClineAsk =
@@ -218,6 +225,7 @@ export type GlobalStateKey =
 	| "telemetrySetting"
 	| "showRooIgnoredFiles"
 	| "remoteBrowserEnabled"
+	| "language"
 
 export type ConfigurationKey = GlobalStateKey | SecretKey
 

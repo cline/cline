@@ -1,0 +1,147 @@
+{
+	"title": "Prompts",
+	"done": "Done",
+	"modes": {
+		"title": "Modes",
+		"createNewMode": "Create new mode",
+		"editModesConfig": "Edit modes configuration",
+		"editGlobalModes": "Edit Global Modes",
+		"editProjectModes": "Edit Project Modes (.roomodes)",
+		"createModeHelpText": "Hit the + to create a new custom mode, or just ask Roo in chat to create one for you!"
+	},
+	"apiConfiguration": {
+		"title": "API Configuration",
+		"select": "Select which API configuration to use for this mode"
+	},
+	"tools": {
+		"title": "Available Tools",
+		"builtInModesText": "Tools for built-in modes cannot be modified",
+		"editTools": "Edit tools",
+		"doneEditing": "Done editing",
+		"allowedFiles": "Allowed files:",
+		"toolNames": {
+			"read": "Read Files",
+			"edit": "Edit Files",
+			"browser": "Use Browser",
+			"command": "Run Commands",
+			"mcp": "Use MCP"
+		}
+	},
+	"roleDefinition": {
+		"title": "Role Definition",
+		"resetToDefault": "Reset to default",
+		"description": "Define Roo's expertise and personality for this mode. This description shapes how Roo presents itself and approaches tasks."
+	},
+	"customInstructions": {
+		"title": "Mode-specific Custom Instructions (optional)",
+		"resetToDefault": "Reset to default",
+		"description": "Add behavioral guidelines specific to {{modeName}} mode.",
+		"loadFromFile": "Custom instructions specific to {{mode}} mode can also be loaded from <span>.clinerules-{{slug}}</span> in your workspace."
+	},
+	"globalCustomInstructions": {
+		"title": "Custom Instructions for All Modes",
+		"description": "These instructions apply to all modes. They provide a base set of behaviors that can be enhanced by mode-specific instructions below.\nIf you would like Roo to think and speak in a different language than your editor display language ({{language}}), you can specify it here.",
+		"loadFromFile": "Instructions can also be loaded from <span>.clinerules</span> in your workspace."
+	},
+	"systemPrompt": {
+		"preview": "Preview System Prompt",
+		"copy": "Copy system prompt to clipboard",
+		"title": "System Prompt ({{modeName}} mode)"
+	},
+	"supportPrompts": {
+		"title": "Support Prompts",
+		"resetPrompt": "Reset {{promptType}} prompt to default",
+		"prompt": "Prompt",
+		"enhance": {
+			"apiConfiguration": "API Configuration",
+			"apiConfigDescription": "You can select an API configuration to always use for enhancing prompts, or just use whatever is currently selected",
+			"useCurrentConfig": "Use currently selected API configuration",
+			"testPromptPlaceholder": "Enter a prompt to test the enhancement",
+			"previewButton": "Preview Prompt Enhancement"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "Enhance Prompt",
+				"description": "Use prompt enhancement to get tailored suggestions or improvements for your inputs. This ensures Roo understands your intent and provides the best possible responses. Available via the ✨ icon in chat."
+			},
+			"EXPLAIN": {
+				"label": "Explain Code",
+				"description": "Get detailed explanations of code snippets, functions, or entire files. Useful for understanding complex code or learning new patterns. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
+			},
+			"FIX": {
+				"label": "Fix Issues",
+				"description": "Get help identifying and resolving bugs, errors, or code quality issues. Provides step-by-step guidance for fixing problems. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
+			},
+			"IMPROVE": {
+				"label": "Improve Code",
+				"description": "Receive suggestions for code optimization, better practices, and architectural improvements while maintaining functionality. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "Add to Context",
+				"description": "Add context to your current task or conversation. Useful for providing additional information or clarifications. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "Add Terminal Content to Context",
+				"description": "Add terminal output to your current task or conversation. Useful for providing command outputs or logs. Available in the terminal context menu (right-click on selected terminal content)."
+			},
+			"TERMINAL_FIX": {
+				"label": "Fix Terminal Command",
+				"description": "Get help fixing terminal commands that failed or need improvement. Available in the terminal context menu (right-click on selected terminal content)."
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "Explain Terminal Command",
+				"description": "Get detailed explanations of terminal commands and their outputs. Available in the terminal context menu (right-click on selected terminal content)."
+			}
+		}
+	},
+	"customModeCreation": {
+		"enableTitle": "Enable Custom Mode Creation Through Prompts",
+		"description": "When enabled, Roo allows you to create custom modes using prompts like 'Make me a custom mode that…'. Disabling this reduces your system prompt by about 700 tokens when this feature isn't needed. When disabled you can still manually create custom modes using the + button above or by editing the related config JSON."
+	},
+	"advancedSystemPrompt": {
+		"title": "Advanced: Override System Prompt",
+		"description": "You can completely replace the system prompt for this mode (aside from the role definition and custom instructions) by creating a file at <span>.roo/system-prompt-{{slug}}</span> in your workspace. This is a very advanced feature that bypasses built-in safeguards and consistency checks (especially around tool usage), so be careful!"
+	},
+	"createModeDialog": {
+		"title": "Create New Mode",
+		"close": "Close",
+		"name": {
+			"label": "Name",
+			"placeholder": "Enter mode name"
+		},
+		"slug": {
+			"label": "Slug",
+			"description": "The slug is used in URLs and file names. It should be lowercase and contain only letters, numbers, and hyphens."
+		},
+		"saveLocation": {
+			"label": "Save Location",
+			"description": "Choose where to save this mode. Project-specific modes take precedence over global modes.",
+			"global": {
+				"label": "Global",
+				"description": "Available in all workspaces"
+			},
+			"project": {
+				"label": "Project-specific (.roomodes)",
+				"description": "Only available in this workspace, takes precedence over global"
+			}
+		},
+		"roleDefinition": {
+			"label": "Role Definition",
+			"description": "Define Roo's expertise and personality for this mode."
+		},
+		"tools": {
+			"label": "Available Tools",
+			"description": "Select which tools this mode can use."
+		},
+		"customInstructions": {
+			"label": "Custom Instructions (optional)",
+			"description": "Add behavioral guidelines specific to this mode."
+		},
+		"buttons": {
+			"cancel": "Cancel",
+			"create": "Create Mode"
+		},
+		"deleteMode": "Delete mode"
+	},
+	"allFiles": "all files"
+}

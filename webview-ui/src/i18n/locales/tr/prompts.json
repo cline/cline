@@ -1,0 +1,147 @@
+{
+	"title": "Promptlar",
+	"done": "Tamamlandı",
+	"modes": {
+		"title": "Modlar",
+		"createNewMode": "Yeni mod oluştur",
+		"editModesConfig": "Mod yapılandırmasını düzenle",
+		"editGlobalModes": "Global modları düzenle",
+		"editProjectModes": "Proje modlarını düzenle (.roomodes)",
+		"createModeHelpText": "Yeni bir özel mod oluşturmak için + düğmesine tıklayın veya sohbette Roo'dan sizin için bir tane oluşturmasını isteyin!"
+	},
+	"apiConfiguration": {
+		"title": "API Yapılandırması",
+		"select": "Bu mod için hangi API yapılandırmasının kullanılacağını seçin"
+	},
+	"tools": {
+		"title": "Kullanılabilir Araçlar",
+		"builtInModesText": "Yerleşik modlar için araçlar değiştirilemez",
+		"editTools": "Araçları düzenle",
+		"doneEditing": "Düzenlemeyi bitir",
+		"allowedFiles": "İzin verilen dosyalar:",
+		"toolNames": {
+			"read": "Dosyaları Oku",
+			"edit": "Dosyaları Düzenle",
+			"browser": "Tarayıcı Kullan",
+			"command": "Komutları Çalıştır",
+			"mcp": "MCP Kullan"
+		}
+	},
+	"roleDefinition": {
+		"title": "Rol Tanımı",
+		"resetToDefault": "Varsayılana sıfırla",
+		"description": "Bu mod için Roo'nun uzmanlığını ve kişiliğini tanımlayın. Bu açıklama, Roo'nun kendini nasıl sunduğunu ve görevlere nasıl yaklaştığını şekillendirir."
+	},
+	"customInstructions": {
+		"title": "Moda özgü özel talimatlar (isteğe bağlı)",
+		"resetToDefault": "Varsayılana sıfırla",
+		"description": "{{modeName}} modu için özel davranış yönergeleri ekleyin.",
+		"loadFromFile": "{{mode}} moduna özgü özel talimatlar ayrıca çalışma alanınızdaki <span>.clinerules-{{slug}}</span> adresinden yüklenebilir."
+	},
+	"globalCustomInstructions": {
+		"title": "Tüm Modlar için Özel Talimatlar",
+		"description": "Bu talimatlar tüm modlara uygulanır. Aşağıdaki moda özgü talimatlarla geliştirilebilen temel davranış seti sağlarlar.\nRoo'nun editörünüzün görüntüleme dilinden ({{language}}) farklı bir dilde düşünmesini ve konuşmasını istiyorsanız, burada belirtebilirsiniz.",
+		"loadFromFile": "Talimatlar ayrıca çalışma alanınızdaki <span>.clinerules</span> adresinden de yüklenebilir."
+	},
+	"systemPrompt": {
+		"preview": "Sistem promptunu önizle",
+		"copy": "Sistem promptunu panoya kopyala",
+		"title": "Sistem promptu ({{modeName}} modu)"
+	},
+	"supportPrompts": {
+		"title": "Destek Promptları",
+		"resetPrompt": "{{promptType}} promptunu varsayılana sıfırla",
+		"prompt": "Prompt",
+		"enhance": {
+			"apiConfiguration": "API Yapılandırması",
+			"apiConfigDescription": "Promptları geliştirmek için her zaman kullanılacak bir API yapılandırması seçebilir veya şu anda seçili olanı kullanabilirsiniz",
+			"useCurrentConfig": "Şu anda seçili API yapılandırmasını kullan",
+			"testPromptPlaceholder": "Geliştirmeyi test etmek için bir prompt girin",
+			"previewButton": "Prompt geliştirmesini önizle"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "Promptu Geliştir",
+				"description": "Girdileriniz için özel öneriler veya iyileştirmeler almak için prompt geliştirmeyi kullanın. Bu, Roo'nun niyetinizi anlamasını ve mümkün olan en iyi yanıtları sağlamasını garanti eder. Sohbetteki ✨ simgesi aracılığıyla kullanılabilir."
+			},
+			"EXPLAIN": {
+				"label": "Kodu Açıkla",
+				"description": "Kod parçaları, fonksiyonlar veya tüm dosyalar hakkında ayrıntılı açıklamalar alın. Karmaşık kodu anlamak veya yeni kalıpları öğrenmek için faydalıdır. Kod eylemlerinde (editördeki ampul simgesi) ve editör bağlam menüsünde (seçili koda sağ tıklayın) kullanılabilir."
+			},
+			"FIX": {
+				"label": "Sorunları Düzelt",
+				"description": "Hataları, bugları veya kod kalitesi sorunlarını tanımlama ve çözme konusunda yardım alın. Sorunları çözmek için adım adım rehberlik sağlar. Kod eylemlerinde (editördeki ampul simgesi) ve editör bağlam menüsünde (seçili koda sağ tıklayın) kullanılabilir."
+			},
+			"IMPROVE": {
+				"label": "Kodu İyileştir",
+				"description": "İşlevselliği korurken kod optimizasyonu, daha iyi uygulamalar ve mimari iyileştirmeler için öneriler alın. Kod eylemlerinde (editördeki ampul simgesi) ve editör bağlam menüsünde (seçili koda sağ tıklayın) kullanılabilir."
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "Bağlama Ekle",
+				"description": "Mevcut görevinize veya konuşmanıza bağlam ekleyin. Ek bilgi veya açıklamalar sağlamak için faydalıdır. Kod eylemlerinde (editördeki ampul simgesi) ve editör bağlam menüsünde (seçili koda sağ tıklayın) kullanılabilir."
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "Terminal İçeriğini Bağlama Ekle",
+				"description": "Terminal çıktısını mevcut görevinize veya konuşmanıza ekleyin. Komut çıktılarını veya günlükleri sağlamak için faydalıdır. Terminal bağlam menüsünde (seçili terminal içeriğine sağ tıklayın) kullanılabilir."
+			},
+			"TERMINAL_FIX": {
+				"label": "Terminal Komutunu Düzelt",
+				"description": "Başarısız olan veya iyileştirme gerektiren terminal komutlarını düzeltme konusunda yardım alın. Terminal bağlam menüsünde (seçili terminal içeriğine sağ tıklayın) kullanılabilir."
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "Terminal Komutunu Açıkla",
+				"description": "Terminal komutları ve çıktıları hakkında ayrıntılı açıklamalar alın. Terminal bağlam menüsünde (seçili terminal içeriğine sağ tıklayın) kullanılabilir."
+			}
+		}
+	},
+	"customModeCreation": {
+		"enableTitle": "Promptlar aracılığıyla özel mod oluşturmayı etkinleştir",
+		"description": "Etkinleştirildiğinde, Roo 'Bana ... yapabilen özel bir mod oluştur' gibi promptlar kullanarak özel modlar oluşturmanıza olanak tanır. Bu özelliğe ihtiyaç duyulmadığında devre dışı bırakmak, sistem promptunuzu yaklaşık 700 token azaltır. Devre dışı bırakıldığında, yukarıdaki + düğmesini kullanarak veya ilgili yapılandırma JSON'ını düzenleyerek manuel olarak özel modlar oluşturabilirsiniz."
+	},
+	"advancedSystemPrompt": {
+		"title": "Gelişmiş: Sistem Promptunu Geçersiz Kıl",
+		"description": "Çalışma alanınızda <span>.roo/system-prompt-{{slug}}</span> adresinde bir dosya oluşturarak bu mod için sistem istemini tamamen değiştirebilirsiniz (rol tanımı ve özel talimatlar hariç). Bu, yerleşik güvenlik önlemlerini ve tutarlılık kontrollerini (özellikle araç kullanımıyla ilgili) aşan çok gelişmiş bir özelliktir, bu yüzden dikkatli olun!"
+	},
+	"createModeDialog": {
+		"title": "Yeni Mod Oluştur",
+		"close": "Kapat",
+		"name": {
+			"label": "İsim",
+			"placeholder": "Mod adını girin"
+		},
+		"slug": {
+			"label": "Slug",
+			"description": "Slug, URL'lerde ve dosya adlarında kullanılır. Küçük harflerle yazılmalı ve yalnızca harfler, sayılar ve kısa çizgiler içermelidir."
+		},
+		"saveLocation": {
+			"label": "Kaydetme Konumu",
+			"description": "Bu modu nereye kaydedeceğinizi seçin. Projeye özgü modlar, global modlara göre önceliklidir.",
+			"global": {
+				"label": "Global",
+				"description": "Tüm çalışma alanlarında kullanılabilir"
+			},
+			"project": {
+				"label": "Projeye özgü (.roomodes)",
+				"description": "Yalnızca bu çalışma alanında kullanılabilir, globale göre önceliklidir"
+			}
+		},
+		"roleDefinition": {
+			"label": "Rol Tanımı",
+			"description": "Bu mod için Roo'nun uzmanlığını ve kişiliğini tanımlayın."
+		},
+		"tools": {
+			"label": "Kullanılabilir Araçlar",
+			"description": "Bu modun hangi araçları kullanabileceğini seçin."
+		},
+		"customInstructions": {
+			"label": "Özel Talimatlar (isteğe bağlı)",
+			"description": "Bu mod için özel davranış yönergeleri ekleyin."
+		},
+		"buttons": {
+			"cancel": "İptal",
+			"create": "Mod Oluştur"
+		},
+		"deleteMode": "Modu sil"
+	},
+	"allFiles": "tüm dosyalar"
+}

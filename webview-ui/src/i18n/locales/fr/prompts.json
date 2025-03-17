@@ -1,0 +1,147 @@
+{
+	"title": "Prompts",
+	"done": "Terminé",
+	"modes": {
+		"title": "Modes",
+		"createNewMode": "Créer un nouveau mode",
+		"editModesConfig": "Modifier la configuration des modes",
+		"editGlobalModes": "Modifier les modes globaux",
+		"editProjectModes": "Modifier les modes du projet (.roomodes)",
+		"createModeHelpText": "Cliquez sur + pour créer un nouveau mode personnalisé, ou demandez simplement à Roo dans le chat de vous en créer un !"
+	},
+	"apiConfiguration": {
+		"title": "Configuration API",
+		"select": "Sélectionnez la configuration API à utiliser pour ce mode"
+	},
+	"tools": {
+		"title": "Outils disponibles",
+		"builtInModesText": "Les outils pour les modes intégrés ne peuvent pas être modifiés",
+		"editTools": "Modifier les outils",
+		"doneEditing": "Terminer la modification",
+		"allowedFiles": "Fichiers autorisés :",
+		"toolNames": {
+			"read": "Lire les fichiers",
+			"edit": "Modifier les fichiers",
+			"browser": "Utiliser le navigateur",
+			"command": "Exécuter des commandes",
+			"mcp": "Utiliser MCP"
+		}
+	},
+	"roleDefinition": {
+		"title": "Définition du rôle",
+		"resetToDefault": "Réinitialiser aux valeurs par défaut",
+		"description": "Définissez l'expertise et la personnalité de Roo pour ce mode. Cette description façonne la manière dont Roo se présente et aborde les tâches."
+	},
+	"customInstructions": {
+		"title": "Instructions personnalisées spécifiques au mode (optionnel)",
+		"resetToDefault": "Réinitialiser aux valeurs par défaut",
+		"description": "Ajoutez des directives comportementales spécifiques au mode {{modeName}}.",
+		"loadFromFile": "Les instructions personnalisées spécifiques au mode {{mode}} peuvent également être chargées depuis <span>.clinerules-{{slug}}</span> dans votre espace de travail."
+	},
+	"globalCustomInstructions": {
+		"title": "Instructions personnalisées pour tous les modes",
+		"description": "Ces instructions s'appliquent à tous les modes. Elles fournissent un ensemble de comportements de base qui peuvent être améliorés par des instructions spécifiques au mode ci-dessous.\nSi vous souhaitez que Roo pense et parle dans une langue différente de celle de votre éditeur ({{language}}), vous pouvez le spécifier ici.",
+		"loadFromFile": "Les instructions peuvent également être chargées depuis <span>.clinerules</span> dans votre espace de travail."
+	},
+	"systemPrompt": {
+		"preview": "Aperçu du prompt système",
+		"copy": "Copier le prompt système dans le presse-papiers",
+		"title": "Prompt système (mode {{modeName}})"
+	},
+	"supportPrompts": {
+		"title": "Prompts de support",
+		"resetPrompt": "Réinitialiser le prompt {{promptType}} aux valeurs par défaut",
+		"prompt": "Prompt",
+		"enhance": {
+			"apiConfiguration": "Configuration API",
+			"apiConfigDescription": "Vous pouvez sélectionner une configuration API à toujours utiliser pour améliorer les prompts, ou simplement utiliser celle qui est actuellement sélectionnée",
+			"useCurrentConfig": "Utiliser la configuration API actuellement sélectionnée",
+			"testPromptPlaceholder": "Entrez un prompt pour tester l'amélioration",
+			"previewButton": "Aperçu de l'amélioration du prompt"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "Améliorer le prompt",
+				"description": "Utilisez l'amélioration de prompt pour obtenir des suggestions ou des améliorations personnalisées pour vos entrées. Cela garantit que Roo comprend votre intention et fournit les meilleures réponses possibles. Disponible via l'icône ✨ dans le chat."
+			},
+			"EXPLAIN": {
+				"label": "Expliquer le code",
+				"description": "Obtenez des explications détaillées sur des extraits de code, des fonctions ou des fichiers entiers. Utile pour comprendre un code complexe ou apprendre de nouveaux modèles. Disponible dans les actions de code (icône d'ampoule dans l'éditeur) et dans le menu contextuel de l'éditeur (clic droit sur le code sélectionné)."
+			},
+			"FIX": {
+				"label": "Corriger les problèmes",
+				"description": "Obtenez de l'aide pour identifier et résoudre les bugs, les erreurs ou les problèmes de qualité du code. Fournit des conseils étape par étape pour résoudre les problèmes. Disponible dans les actions de code (icône d'ampoule dans l'éditeur) et dans le menu contextuel de l'éditeur (clic droit sur le code sélectionné)."
+			},
+			"IMPROVE": {
+				"label": "Améliorer le code",
+				"description": "Recevez des suggestions pour l'optimisation du code, de meilleures pratiques et des améliorations architecturales tout en maintenant la fonctionnalité. Disponible dans les actions de code (icône d'ampoule dans l'éditeur) et dans le menu contextuel de l'éditeur (clic droit sur le code sélectionné)."
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "Ajouter au contexte",
+				"description": "Ajoutez du contexte à votre tâche ou conversation actuelle. Utile pour fournir des informations supplémentaires ou des clarifications. Disponible dans les actions de code (icône d'ampoule dans l'éditeur) et dans le menu contextuel de l'éditeur (clic droit sur le code sélectionné)."
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "Ajouter le contenu du terminal au contexte",
+				"description": "Ajoutez la sortie du terminal à votre tâche ou conversation actuelle. Utile pour fournir des sorties de commandes ou des journaux. Disponible dans le menu contextuel du terminal (clic droit sur le contenu sélectionné du terminal)."
+			},
+			"TERMINAL_FIX": {
+				"label": "Corriger la commande du terminal",
+				"description": "Obtenez de l'aide pour corriger les commandes du terminal qui ont échoué ou qui nécessitent des améliorations. Disponible dans le menu contextuel du terminal (clic droit sur le contenu sélectionné du terminal)."
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "Expliquer la commande du terminal",
+				"description": "Obtenez des explications détaillées sur les commandes du terminal et leurs sorties. Disponible dans le menu contextuel du terminal (clic droit sur le contenu sélectionné du terminal)."
+			}
+		}
+	},
+	"customModeCreation": {
+		"enableTitle": "Activer la création de modes personnalisés via les prompts",
+		"description": "Lorsque cette option est activée, Roo vous permet de créer des modes personnalisés en utilisant des prompts comme 'Crée-moi un mode personnalisé qui...'. La désactivation réduit votre prompt système d'environ 700 tokens lorsque cette fonctionnalité n'est pas nécessaire. Lorsqu'elle est désactivée, vous pouvez toujours créer manuellement des modes personnalisés en utilisant le bouton + ci-dessus ou en modifiant le JSON de configuration associé."
+	},
+	"advancedSystemPrompt": {
+		"title": "Avancé : Remplacer le prompt système",
+		"description": "Vous pouvez complètement remplacer le prompt système pour ce mode (en dehors de la définition du rôle et des instructions personnalisées) en créant un fichier à <span>.roo/system-prompt-{{slug}}</span> dans votre espace de travail. Il s'agit d'une fonctionnalité très avancée qui contourne les garanties intégrées et les vérifications de cohérence (notamment concernant l'utilisation des outils), alors soyez prudent !"
+	},
+	"createModeDialog": {
+		"title": "Créer un nouveau mode",
+		"close": "Fermer",
+		"name": {
+			"label": "Nom",
+			"placeholder": "Entrez le nom du mode"
+		},
+		"slug": {
+			"label": "Slug",
+			"description": "Le slug est utilisé dans les URL et les noms de fichiers. Il doit être en minuscules et ne contenir que des lettres, des chiffres et des tirets."
+		},
+		"saveLocation": {
+			"label": "Emplacement d'enregistrement",
+			"description": "Choisissez où enregistrer ce mode. Les modes spécifiques au projet ont priorité sur les modes globaux.",
+			"global": {
+				"label": "Global",
+				"description": "Disponible dans tous les espaces de travail"
+			},
+			"project": {
+				"label": "Spécifique au projet (.roomodes)",
+				"description": "Disponible uniquement dans cet espace de travail, a priorité sur le global"
+			}
+		},
+		"roleDefinition": {
+			"label": "Définition du rôle",
+			"description": "Définissez l'expertise et la personnalité de Roo pour ce mode."
+		},
+		"tools": {
+			"label": "Outils disponibles",
+			"description": "Sélectionnez quels outils ce mode peut utiliser."
+		},
+		"customInstructions": {
+			"label": "Instructions personnalisées (optionnel)",
+			"description": "Ajoutez des directives comportementales spécifiques à ce mode."
+		},
+		"buttons": {
+			"cancel": "Annuler",
+			"create": "Créer le mode"
+		},
+		"deleteMode": "Supprimer le mode"
+	},
+	"allFiles": "tous les fichiers"
+}

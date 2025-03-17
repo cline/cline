@@ -1,4 +1,5 @@
 import { HTMLAttributes } from "react"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { GitBranch } from "lucide-react"
 
@@ -20,12 +21,13 @@ export const CheckpointSettings = ({
 	setCachedStateField,
 	...props
 }: CheckpointSettingsProps) => {
+	const { t } = useAppTranslation()
 	return (
 		<div {...props}>
 			<SectionHeader>
 				<div className="flex items-center gap-2">
 					<GitBranch className="w-4" />
-					<div>Checkpoints</div>
+					<div>{t("settings:sections.checkpoints")}</div>
 				</div>
 			</SectionHeader>
 
@@ -36,11 +38,10 @@ export const CheckpointSettings = ({
 						onChange={(e: any) => {
 							setCachedStateField("enableCheckpoints", e.target.checked)
 						}}>
-						<span className="font-medium">Enable automatic checkpoints</span>
+						<span className="font-medium">{t("settings:checkpoints.enable.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						When enabled, Roo will automatically create checkpoints during task execution, making it easy to
-						review changes or revert to earlier states.
+						{t("settings:checkpoints.enable.description")}
 					</p>
 				</div>
 			</Section>

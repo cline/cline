@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { Trans } from "react-i18next"
 
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem } from "@/components/ui/combobox"
 
@@ -100,15 +101,17 @@ export const ModelPicker = ({
 				modelInfo={selectedModelInfo}
 			/>
 			<div className="text-sm text-vscode-descriptionForeground">
-				The extension automatically fetches the latest list of models available on{" "}
-				<VSCodeLink href={serviceUrl} className="text-sm">
-					{serviceName}
-				</VSCodeLink>
-				. If you're unsure which model to choose, Roo Code works best with{" "}
-				<VSCodeLink onClick={() => onSelect(defaultModelId)} className="text-sm">
-					{defaultModelId}.
-				</VSCodeLink>
-				You can also try searching "free" for no-cost options currently available.
+				<Trans
+					i18nKey="settings:modelPicker.automaticFetch"
+					components={{
+						serviceLink: <VSCodeLink href={serviceUrl} className="text-sm" />,
+						defaultModelLink: <VSCodeLink onClick={() => onSelect(defaultModelId)} className="text-sm" />,
+					}}
+					values={{
+						serviceName,
+						defaultModelId,
+					}}
+				/>
 			</div>
 		</>
 	)

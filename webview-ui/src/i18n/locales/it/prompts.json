@@ -1,0 +1,147 @@
+{
+	"title": "Prompt",
+	"done": "Fatto",
+	"modes": {
+		"title": "Modalità",
+		"createNewMode": "Crea nuova modalità",
+		"editModesConfig": "Modifica configurazione modalità",
+		"editGlobalModes": "Modifica modalità globali",
+		"editProjectModes": "Modifica modalità di progetto (.roomodes)",
+		"createModeHelpText": "Clicca sul + per creare una nuova modalità personalizzata, o chiedi semplicemente a Roo nella chat di crearne una per te!"
+	},
+	"apiConfiguration": {
+		"title": "Configurazione API",
+		"select": "Seleziona quale configurazione API utilizzare per questa modalità"
+	},
+	"tools": {
+		"title": "Strumenti disponibili",
+		"builtInModesText": "Gli strumenti per le modalità integrate non possono essere modificati",
+		"editTools": "Modifica strumenti",
+		"doneEditing": "Modifica completata",
+		"allowedFiles": "File consentiti:",
+		"toolNames": {
+			"read": "Leggi file",
+			"edit": "Modifica file",
+			"browser": "Usa browser",
+			"command": "Esegui comandi",
+			"mcp": "Usa MCP"
+		}
+	},
+	"roleDefinition": {
+		"title": "Definizione del ruolo",
+		"resetToDefault": "Ripristina predefiniti",
+		"description": "Definisci l'esperienza e la personalità di Roo per questa modalità. Questa descrizione modella come Roo si presenta e affronta i compiti."
+	},
+	"customInstructions": {
+		"title": "Istruzioni personalizzate specifiche per la modalità (opzionale)",
+		"resetToDefault": "Ripristina predefiniti",
+		"description": "Aggiungi linee guida comportamentali specifiche per la modalità {{modeName}}.",
+		"loadFromFile": "Le istruzioni personalizzate specifiche per la modalità {{mode}} possono essere caricate anche da <span>.clinerules-{{slug}}</span> nel tuo spazio di lavoro."
+	},
+	"globalCustomInstructions": {
+		"title": "Istruzioni personalizzate per tutte le modalità",
+		"description": "Queste istruzioni si applicano a tutte le modalità. Forniscono un insieme base di comportamenti che possono essere migliorati dalle istruzioni specifiche per modalità qui sotto.\nSe desideri che Roo pensi e parli in una lingua diversa dalla lingua di visualizzazione del tuo editor ({{language}}), puoi specificarlo qui.",
+		"loadFromFile": "Le istruzioni possono essere caricate anche da <span>.clinerules</span> nel tuo spazio di lavoro."
+	},
+	"systemPrompt": {
+		"preview": "Anteprima prompt di sistema",
+		"copy": "Copia prompt di sistema negli appunti",
+		"title": "Prompt di sistema (modalità {{modeName}})"
+	},
+	"supportPrompts": {
+		"title": "Prompt di supporto",
+		"resetPrompt": "Ripristina il prompt {{promptType}} ai valori predefiniti",
+		"prompt": "Prompt",
+		"enhance": {
+			"apiConfiguration": "Configurazione API",
+			"apiConfigDescription": "Puoi selezionare una configurazione API da usare sempre per migliorare i prompt, o semplicemente usare quella attualmente selezionata",
+			"useCurrentConfig": "Usa la configurazione API attualmente selezionata",
+			"testPromptPlaceholder": "Inserisci un prompt per testare il miglioramento",
+			"previewButton": "Anteprima miglioramento prompt"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "Migliora prompt",
+				"description": "Utilizza il miglioramento dei prompt per ottenere suggerimenti o miglioramenti personalizzati per i tuoi input. Questo assicura che Roo comprenda la tua intenzione e fornisca le migliori risposte possibili. Disponibile tramite l'icona ✨ nella chat."
+			},
+			"EXPLAIN": {
+				"label": "Spiega codice",
+				"description": "Ottieni spiegazioni dettagliate di frammenti di codice, funzioni o file interi. Utile per comprendere codice complesso o imparare nuovi pattern. Disponibile nelle azioni di codice (icona della lampadina nell'editor) e nel menu contestuale dell'editor (clic destro sul codice selezionato)."
+			},
+			"FIX": {
+				"label": "Risolvi problemi",
+				"description": "Ottieni aiuto per identificare e risolvere bug, errori o problemi di qualità del codice. Fornisce una guida passo-passo per risolvere i problemi. Disponibile nelle azioni di codice (icona della lampadina nell'editor) e nel menu contestuale dell'editor (clic destro sul codice selezionato)."
+			},
+			"IMPROVE": {
+				"label": "Migliora codice",
+				"description": "Ricevi suggerimenti per l'ottimizzazione del codice, migliori pratiche e miglioramenti architetturali mantenendo la funzionalità. Disponibile nelle azioni di codice (icona della lampadina nell'editor) e nel menu contestuale dell'editor (clic destro sul codice selezionato)."
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "Aggiungi al contesto",
+				"description": "Aggiungi contesto al tuo compito o conversazione attuale. Utile per fornire informazioni aggiuntive o chiarimenti. Disponibile nelle azioni di codice (icona della lampadina nell'editor) e nel menu contestuale dell'editor (clic destro sul codice selezionato)."
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "Aggiungi contenuto del terminale al contesto",
+				"description": "Aggiungi l'output del terminale al tuo compito o conversazione attuale. Utile per fornire output di comandi o log. Disponibile nel menu contestuale del terminale (clic destro sul contenuto selezionato del terminale)."
+			},
+			"TERMINAL_FIX": {
+				"label": "Correggi comando del terminale",
+				"description": "Ottieni aiuto per correggere i comandi del terminale che hanno fallito o necessitano di miglioramenti. Disponibile nel menu contestuale del terminale (clic destro sul contenuto selezionato del terminale)."
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "Spiega comando del terminale",
+				"description": "Ottieni spiegazioni dettagliate sui comandi del terminale e sui loro output. Disponibile nel menu contestuale del terminale (clic destro sul contenuto selezionato del terminale)."
+			}
+		}
+	},
+	"customModeCreation": {
+		"enableTitle": "Abilita creazione di modalità personalizzate tramite prompt",
+		"description": "Quando abilitato, Roo ti permette di creare modalità personalizzate usando prompt come 'Crea una modalità personalizzata che...'. Disabilitarlo riduce il tuo prompt di sistema di circa 700 token quando questa funzionalità non è necessaria. Quando disabilitato, puoi comunque creare manualmente modalità personalizzate usando il pulsante + sopra o modificando il JSON di configurazione correlato."
+	},
+	"advancedSystemPrompt": {
+		"title": "Avanzato: Sovrascrivi prompt di sistema",
+		"description": "Puoi sostituire completamente il prompt di sistema per questa modalità (a parte la definizione del ruolo e le istruzioni personalizzate) creando un file in <span>.roo/system-prompt-{{slug}}</span> nel tuo spazio di lavoro. Questa è una funzionalità molto avanzata che bypassa le protezioni integrate e i controlli di coerenza (specialmente riguardo all'uso degli strumenti), quindi fai attenzione!"
+	},
+	"createModeDialog": {
+		"title": "Crea nuova modalità",
+		"close": "Chiudi",
+		"name": {
+			"label": "Nome",
+			"placeholder": "Inserisci nome modalità"
+		},
+		"slug": {
+			"label": "Slug",
+			"description": "Lo slug viene utilizzato negli URL e nei nomi dei file. Deve essere in minuscolo e contenere solo lettere, numeri e trattini."
+		},
+		"saveLocation": {
+			"label": "Posizione di salvataggio",
+			"description": "Scegli dove salvare questa modalità. Le modalità specifiche del progetto hanno la precedenza sulle modalità globali.",
+			"global": {
+				"label": "Globale",
+				"description": "Disponibile in tutti gli spazi di lavoro"
+			},
+			"project": {
+				"label": "Specifico del progetto (.roomodes)",
+				"description": "Disponibile solo in questo spazio di lavoro, ha la precedenza sul globale"
+			}
+		},
+		"roleDefinition": {
+			"label": "Definizione del ruolo",
+			"description": "Definisci l'esperienza e la personalità di Roo per questa modalità."
+		},
+		"tools": {
+			"label": "Strumenti disponibili",
+			"description": "Seleziona quali strumenti questa modalità può utilizzare."
+		},
+		"customInstructions": {
+			"label": "Istruzioni personalizzate (opzionale)",
+			"description": "Aggiungi linee guida comportamentali specifiche per questa modalità."
+		},
+		"buttons": {
+			"cancel": "Annulla",
+			"create": "Crea modalità"
+		},
+		"deleteMode": "Elimina modalità"
+	},
+	"allFiles": "tutti i file"
+}

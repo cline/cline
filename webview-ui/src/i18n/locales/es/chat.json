@@ -1,0 +1,113 @@
+{
+	"greeting": "¿Qué puede hacer Roo por ti?",
+	"retry": {
+		"title": "Reintentar",
+		"tooltip": "Intenta la operación de nuevo"
+	},
+	"startNewTask": {
+		"title": "Iniciar nueva tarea",
+		"tooltip": "Comienza una nueva tarea"
+	},
+	"proceedAnyways": {
+		"title": "Continuar de todos modos",
+		"tooltip": "Continuar mientras se ejecuta el comando"
+	},
+	"save": {
+		"title": "Guardar",
+		"tooltip": "Guardar los cambios del archivo"
+	},
+	"reject": {
+		"title": "Rechazar",
+		"tooltip": "Rechazar esta acción"
+	},
+	"completeSubtaskAndReturn": "Completar subtarea y regresar",
+	"approve": {
+		"title": "Aprobar",
+		"tooltip": "Aprobar esta acción"
+	},
+	"runCommand": {
+		"title": "Ejecutar comando",
+		"tooltip": "Ejecutar este comando"
+	},
+	"proceedWhileRunning": {
+		"title": "Continuar mientras se ejecuta",
+		"tooltip": "Continuar a pesar de las advertencias"
+	},
+	"resumeTask": {
+		"title": "Reanudar tarea",
+		"tooltip": "Reanudar la tarea actual"
+	},
+	"terminate": {
+		"title": "Terminar",
+		"tooltip": "Terminar la tarea actual"
+	},
+	"cancel": {
+		"title": "Cancelar",
+		"tooltip": "Cancelar la operación actual"
+	},
+	"scrollToBottom": "Desplazarse al final del chat",
+	"aboutMe": "Gracias a los últimos avances en capacidades de codificación agentiva, puedo manejar tareas complejas de desarrollo de software paso a paso. Con herramientas que me permiten crear y editar archivos, explorar proyectos complejos, usar el navegador y ejecutar comandos de terminal (después de tu aprobación), puedo ayudarte de maneras que van más allá de la finalización de código o el soporte técnico. Incluso puedo usar MCP para crear nuevas herramientas y ampliar mis propias capacidades.",
+	"selectMode": "Seleccionar modo de interacción",
+	"selectApiConfig": "Seleccionar configuración de API",
+	"enhancePrompt": "Mejorar el mensaje con contexto adicional",
+	"addImages": "Agregar imágenes al mensaje",
+	"sendMessage": "Enviar mensaje",
+	"typeMessage": "Escribe un mensaje...",
+	"typeTask": "Escribe tu tarea aquí...",
+	"addContext": "@ para agregar contexto, / para cambiar modos",
+	"dragFiles": "mantén shift para arrastrar archivos",
+	"dragFilesImages": "mantén shift para arrastrar archivos/imágenes",
+	"enhancePromptDescription": "El botón 'Mejorar el mensaje' ayuda a mejorar tu petición proporcionando contexto adicional, aclaraciones o reformulaciones. Intenta escribir una petición aquí y haz clic en el botón nuevamente para ver cómo funciona.",
+	"errorReadingFile": "Error al leer el archivo:",
+	"noValidImages": "No se procesaron imágenes válidas",
+	"separator": "Separador",
+	"edit": "Editar...",
+	"forNextMode": "para el siguiente modo",
+	"autoApprove": {
+		"title": "Auto-aprobar:",
+		"none": "Ninguno",
+		"description": "Auto-aprobar permite a Roo Code realizar acciones sin pedir permiso. Habilita solo para acciones en las que confíes plenamente.",
+		"actions": {
+			"readFiles": {
+				"label": "Leer archivos y directorios",
+				"shortName": "Leer",
+				"description": "Permite acceso para leer cualquier archivo en tu computadora."
+			},
+			"editFiles": {
+				"label": "Editar archivos",
+				"shortName": "Editar",
+				"description": "Permite la modificación de cualquier archivo en tu computadora."
+			},
+			"executeCommands": {
+				"label": "Ejecutar comandos aprobados",
+				"shortName": "Comandos",
+				"description": "Permite la ejecución de comandos de terminal aprobados. Puedes configurar esto en el panel de configuración."
+			},
+			"useBrowser": {
+				"label": "Usar el navegador",
+				"shortName": "Navegador",
+				"description": "Permite la capacidad de iniciar e interactuar con cualquier sitio web en un navegador sin interfaz."
+			},
+			"useMcp": {
+				"label": "Usar servidores MCP",
+				"shortName": "MCP",
+				"description": "Permite el uso de servidores MCP configurados que pueden modificar el sistema de archivos o interactuar con APIs."
+			},
+			"switchModes": {
+				"label": "Cambiar modos",
+				"shortName": "Modos",
+				"description": "Permite el cambio automático entre diferentes modos sin requerir aprobación."
+			},
+			"subtasks": {
+				"label": "Crear y completar subtareas",
+				"shortName": "Subtareas",
+				"description": "Permite la creación y finalización de subtareas sin requerir aprobación."
+			},
+			"retryRequests": {
+				"label": "Reintentar solicitudes fallidas",
+				"shortName": "Reintentos",
+				"description": "Reintenta automáticamente las solicitudes API fallidas cuando el proveedor devuelve una respuesta de error."
+			}
+		}
+	}
+}

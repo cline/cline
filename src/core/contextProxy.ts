@@ -11,6 +11,7 @@ import {
 	isSecretKey,
 	isGlobalStateKey,
 } from "../shared/globalState"
+import { API_CONFIG_KEYS, ApiConfiguration } from "../shared/api"
 
 export class ContextProxy {
 	private readonly originalContext: vscode.ExtensionContext
@@ -101,6 +102,7 @@ export class ContextProxy {
 			? this.originalContext.secrets.delete(key)
 			: this.originalContext.secrets.store(key, value)
 	}
+
 	/**
 	 * Set a value in either secrets or global state based on key type.
 	 * If the key is in SECRET_KEYS, it will be stored as a secret.
@@ -134,6 +136,21 @@ export class ContextProxy {
 		}
 
 		await Promise.all(promises)
+	}
+
+	async setApiConfiguration(apiConfiguration: ApiConfiguration) {
+		// Explicitly clear out any old API configuration values before that
+		// might not be present in the new configuration.
+		// If a value is not present in the new configuration, then it is assumed
+		// that the setting's value should be `undefined` and therefore we
+		// need to remove it from the state cache if it exists.
+		await this.setValues({
+			...API_CONFIG_KEYS.filter((key) => !!this.stateCache.get(key)).reduce(
+				(acc, key) => ({ ...acc, [key]: undefined }),
+				{} as Partial<ConfigurationValues>,
+			),
+			...apiConfiguration,
+		})
 	}
 
 	/**

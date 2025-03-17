@@ -81,7 +81,6 @@ export const ExtensionStateContext = createContext<ExtensionStateContextType | u
 
 export const mergeExtensionState = (prevState: ExtensionState, newState: ExtensionState) => {
 	const {
-		apiConfiguration: prevApiConfiguration,
 		customModePrompts: prevCustomModePrompts,
 		customSupportPrompts: prevCustomSupportPrompts,
 		experiments: prevExperiments,
@@ -89,19 +88,21 @@ export const mergeExtensionState = (prevState: ExtensionState, newState: Extensi
 	} = prevState
 
 	const {
-		apiConfiguration: newApiConfiguration,
+		apiConfiguration,
 		customModePrompts: newCustomModePrompts,
 		customSupportPrompts: newCustomSupportPrompts,
 		experiments: newExperiments,
 		...newRest
 	} = newState
 
-	const apiConfiguration = { ...prevApiConfiguration, ...newApiConfiguration }
 	const customModePrompts = { ...prevCustomModePrompts, ...newCustomModePrompts }
 	const customSupportPrompts = { ...prevCustomSupportPrompts, ...newCustomSupportPrompts }
 	const experiments = { ...prevExperiments, ...newExperiments }
 	const rest = { ...prevRest, ...newRest }
 
+	// Note that we completely replace the previous apiConfiguration object with
+	// a new one since the state that is broadcast is the entire apiConfiguration
+	// and therefore merging is not necessary.
 	return { ...rest, apiConfiguration, customModePrompts, customSupportPrompts, experiments }
 }
 

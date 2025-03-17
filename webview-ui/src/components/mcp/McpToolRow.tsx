@@ -1,5 +1,6 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { McpTool } from "../../../../src/shared/mcp"
+import { useAppTranslation } from "../../i18n/TranslationContext"
 import { vscode } from "../../utils/vscode"
 
 type McpToolRowProps = {
@@ -9,6 +10,7 @@ type McpToolRowProps = {
 }
 
 const McpToolRow = ({ tool, serverName, alwaysAllowMcp }: McpToolRowProps) => {
+	const { t } = useAppTranslation()
 	const handleAlwaysAllowChange = () => {
 		if (!serverName) return
 
@@ -36,7 +38,7 @@ const McpToolRow = ({ tool, serverName, alwaysAllowMcp }: McpToolRowProps) => {
 				</div>
 				{serverName && alwaysAllowMcp && (
 					<VSCodeCheckbox checked={tool.alwaysAllow} onChange={handleAlwaysAllowChange} data-tool={tool.name}>
-						Always allow
+						{t("mcp:tool.alwaysAllow")}
 					</VSCodeCheckbox>
 				)}
 			</div>
@@ -64,7 +66,7 @@ const McpToolRow = ({ tool, serverName, alwaysAllowMcp }: McpToolRowProps) => {
 						}}>
 						<div
 							style={{ marginBottom: "4px", opacity: 0.8, fontSize: "11px", textTransform: "uppercase" }}>
-							Parameters
+							{t("mcp:tool.parameters")}
 						</div>
 						{Object.entries(tool.inputSchema.properties as Record<string, any>).map(
 							([paramName, schema]) => {
@@ -98,7 +100,7 @@ const McpToolRow = ({ tool, serverName, alwaysAllowMcp }: McpToolRowProps) => {
 												overflowWrap: "break-word",
 												wordBreak: "break-word",
 											}}>
-											{schema.description || "No description"}
+											{schema.description || t("mcp:tool.noDescription")}
 										</span>
 									</div>
 								)

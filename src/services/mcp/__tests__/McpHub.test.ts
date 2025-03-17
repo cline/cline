@@ -2,12 +2,32 @@ import type { McpHub as McpHubType } from "../McpHub"
 import type { ClineProvider } from "../../../core/webview/ClineProvider"
 import type { ExtensionContext, Uri } from "vscode"
 import type { McpConnection } from "../McpHub"
-import { StdioConfigSchema } from "../McpHub"
+import { ServerConfigSchema } from "../McpHub"
 
 const fs = require("fs/promises")
 const { McpHub } = require("../McpHub")
 
-jest.mock("vscode")
+jest.mock("vscode", () => ({
+	workspace: {
+		createFileSystemWatcher: jest.fn().mockReturnValue({
+			onDidChange: jest.fn(),
+			onDidCreate: jest.fn(),
+			onDidDelete: jest.fn(),
+			dispose: jest.fn(),
+		}),
+		onDidSaveTextDocument: jest.fn(),
+		onDidChangeWorkspaceFolders: jest.fn(),
+		workspaceFolders: [],
+	},
+	window: {
+		showErrorMessage: jest.fn(),
+		showInformationMessage: jest.fn(),
+		showWarningMessage: jest.fn(),
+	},
+	Disposable: {
+		from: jest.fn(),
+	},
+}))
 jest.mock("fs/promises")
 jest.mock("../../../core/webview/ClineProvider")
 
@@ -71,6 +91,7 @@ describe("McpHub", () => {
 			JSON.stringify({
 				mcpServers: {
 					"test-server": {
+						type: "stdio",
 						command: "node",
 						args: ["test.js"],
 						alwaysAllow: ["allowed-tool"],
@@ -87,6 +108,7 @@ describe("McpHub", () => {
 			const mockConfig = {
 				mcpServers: {
 					"test-server": {
+						type: "stdio",
 						command: "node",
 						args: ["test.js"],
 						alwaysAllow: [],
@@ -109,6 +131,7 @@ describe("McpHub", () => {
 			const mockConfig = {
 				mcpServers: {
 					"test-server": {
+						type: "stdio",
 						command: "node",
 						args: ["test.js"],
 						alwaysAllow: ["existing-tool"],
@@ -131,6 +154,7 @@ describe("McpHub", () => {
 			const mockConfig = {
 				mcpServers: {
 					"test-server": {
+						type: "stdio",
 						command: "node",
 						args: ["test.js"],
 					},
@@ -155,6 +179,7 @@ describe("McpHub", () => {
 			const mockConfig = {
 				mcpServers: {
 					"test-server": {
+						type: "stdio",
 						command: "node",
 						args: ["test.js"],
 						disabled: false,
@@ -294,20 +319,21 @@ describe("McpHub", () => {
 			it("should validate timeout values", () => {
 				// Test valid timeout values
 				const validConfig = {
+					type: "stdio",
 					command: "test",
 					timeout: 60,
 				}
-				expect(() => StdioConfigSchema.parse(validConfig)).not.toThrow()
+				expect(() => ServerConfigSchema.parse(validConfig)).not.toThrow()
 
 				// Test invalid timeout values
 				const invalidConfigs = [
-					{ command: "test", timeout: 0 }, // Too low
-					{ command: "test", timeout: 3601 }, // Too high
-					{ command: "test", timeout: -1 }, // Negative
+					{ type: "stdio", command: "test", timeout: 0 }, // Too low
+					{ type: "stdio", command: "test", timeout: 3601 }, // Too high
+					{ type: "stdio", command: "test", timeout: -1 }, // Negative
 				]
 
 				invalidConfigs.forEach((config) => {
-					expect(() => StdioConfigSchema.parse(config)).toThrow()
+					expect(() => ServerConfigSchema.parse(config)).toThrow()
 				})
 			})
 
@@ -315,7 +341,7 @@ describe("McpHub", () => {
 				const mockConnection: McpConnection = {
 					server: {
 						name: "test-server",
-						config: JSON.stringify({ command: "test" }), // No timeout specified
+						config: JSON.stringify({ type: "stdio", command: "test" }), // No timeout specified
 						status: "connected",
 					},
 					client: {
@@ -338,7 +364,7 @@ describe("McpHub", () => {
 				const mockConnection: McpConnection = {
 					server: {
 						name: "test-server",
-						config: JSON.stringify({ command: "test", timeout: 120 }), // 2 minutes
+						config: JSON.stringify({ type: "stdio", command: "test", timeout: 120 }), // 2 minutes
 						status: "connected",
 					},
 					client: {
@@ -363,6 +389,7 @@ describe("McpHub", () => {
 				const mockConfig = {
 					mcpServers: {
 						"test-server": {
+							type: "stdio",
 							command: "node",
 							args: ["test.js"],
 							timeout: 60,
@@ -385,6 +412,7 @@ describe("McpHub", () => {
 				const mockConfig = {
 					mcpServers: {
 						"test-server": {
+							type: "stdio",
 							command: "node",
 							args: ["test.js"],
 							timeout: 60,
@@ -406,6 +434,7 @@ describe("McpHub", () => {
 					server: {
 						name: "test-server",
 						config: JSON.stringify({
+							type: "stdio",
 							command: "node",
 							args: ["test.js"],
 							timeout: 3601, // Invalid timeout
@@ -435,6 +464,7 @@ describe("McpHub", () => {
 				const mockConfig = {
 					mcpServers: {
 						"test-server": {
+							type: "stdio",
 							command: "node",
 							args: ["test.js"],
 							timeout: 60,
@@ -458,6 +488,7 @@ describe("McpHub", () => {
 				const mockConfig = {
 					mcpServers: {
 						"test-server": {
+							type: "stdio",
 							command: "node",
 							args: ["test.js"],
 							timeout: 60,

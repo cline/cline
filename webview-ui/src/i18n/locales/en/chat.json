@@ -1,3 +1,113 @@
 {
-	"greeting": "What can Roo do for you?"
+	"greeting": "What can Roo do for you?",
+	"retry": {
+		"title": "Retry",
+		"tooltip": "Try the operation again"
+	},
+	"startNewTask": {
+		"title": "Start New Task",
+		"tooltip": "Begin a new task"
+	},
+	"proceedAnyways": {
+		"title": "Proceed Anyways",
+		"tooltip": "Continue while command executes"
+	},
+	"save": {
+		"title": "Save",
+		"tooltip": "Save the file changes"
+	},
+	"reject": {
+		"title": "Reject",
+		"tooltip": "Reject this action"
+	},
+	"completeSubtaskAndReturn": "Complete Subtask and Return",
+	"approve": {
+		"title": "Approve",
+		"tooltip": "Approve this action"
+	},
+	"runCommand": {
+		"title": "Run Command",
+		"tooltip": "Execute this command"
+	},
+	"proceedWhileRunning": {
+		"title": "Proceed While Running",
+		"tooltip": "Continue despite warnings"
+	},
+	"resumeTask": {
+		"title": "Resume Task",
+		"tooltip": "Continue the current task"
+	},
+	"terminate": {
+		"title": "Terminate",
+		"tooltip": "End the current task"
+	},
+	"cancel": {
+		"title": "Cancel",
+		"tooltip": "Cancel the current operation"
+	},
+	"scrollToBottom": "Scroll to bottom of chat",
+	"aboutMe": "Thanks to the latest breakthroughs in agentic coding capabilities, I can handle complex software development tasks step-by-step. With tools that let me create & edit files, explore complex projects, use the browser, and execute terminal commands (after you grant permission), I can assist you in ways that go beyond code completion or tech support. I can even use MCP to create new tools and extend my own capabilities.",
+	"selectMode": "Select mode for interaction",
+	"selectApiConfig": "Select API configuration",
+	"enhancePrompt": "Enhance prompt with additional context",
+	"enhancePromptDescription": "The 'Enhance Prompt' button helps improve your prompt by providing additional context, clarification, or rephrasing. Try typing a prompt in here and clicking the button again to see how it works.",
+	"addImages": "Add images to message",
+	"sendMessage": "Send message",
+	"typeMessage": "Type a message...",
+	"typeTask": "Type your task here...",
+	"addContext": "@ to add context, / to switch modes",
+	"dragFiles": "hold shift to drag in files",
+	"dragFilesImages": "hold shift to drag in files/images",
+	"errorReadingFile": "Error reading file:",
+	"noValidImages": "No valid images were processed",
+	"separator": "Separator",
+	"edit": "Edit...",
+	"forNextMode": "for next mode",
+	"autoApprove": {
+		"title": "Auto-approve:",
+		"none": "None",
+		"description": "Auto-approve allows Roo Code to perform actions without asking for permission. Only enable for actions you fully trust.",
+		"actions": {
+			"readFiles": {
+				"label": "Read files and directories",
+				"shortName": "Read",
+				"description": "Allows access to read any file on your computer."
+			},
+			"editFiles": {
+				"label": "Edit files",
+				"shortName": "Edit",
+				"description": "Allows modification of any files on your computer."
+			},
+			"executeCommands": {
+				"label": "Execute approved commands",
+				"shortName": "Commands",
+				"description": "Allows execution of approved terminal commands. You can configure this in the settings panel."
+			},
+			"useBrowser": {
+				"label": "Use the browser",
+				"shortName": "Browser",
+				"description": "Allows ability to launch and interact with any website in a headless browser."
+			},
+			"useMcp": {
+				"label": "Use MCP servers",
+				"shortName": "MCP",
+				"description": "Allows use of configured MCP servers which may modify filesystem or interact with APIs."
+			},
+			"switchModes": {
+				"label": "Switch modes",
+				"shortName": "Modes",
+				"description": "Allows automatic switching between different modes without requiring approval."
+			},
+			"subtasks": {
+				"label": "Create & complete subtasks",
+				"shortName": "Subtasks",
+				"description": "Allow creation and completion of subtasks without requiring approval."
+			},
+			"retryRequests": {
+				"label": "Retry failed requests",
+				"shortName": "Retries",
+				"description": "Automatically retry failed API requests when the provider returns an error response."
+			}
+		}
+	}
 }

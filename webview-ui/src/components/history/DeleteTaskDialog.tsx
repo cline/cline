@@ -13,6 +13,7 @@ import {
 	AlertDialogTitle,
 	Button,
 } from "@/components/ui"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 
 import { vscode } from "@/utils/vscode"
 
@@ -21,6 +22,7 @@ interface DeleteTaskDialogProps extends AlertDialogProps {
 }
 
 export const DeleteTaskDialog = ({ taskId, ...props }: DeleteTaskDialogProps) => {
+	const { t } = useAppTranslation()
 	const [isEnterPressed] = useKeyPress("Enter")
 
 	const { onOpenChange } = props
@@ -42,18 +44,16 @@ export const DeleteTaskDialog = ({ taskId, ...props }: DeleteTaskDialogProps) =>
 		<AlertDialog {...props}>
 			<AlertDialogContent onEscapeKeyDown={() => onOpenChange?.(false)}>
 				<AlertDialogHeader>
-					<AlertDialogTitle>Delete Task</AlertDialogTitle>
-					<AlertDialogDescription>
-						Are you sure you want to delete this task? This action cannot be undone.
-					</AlertDialogDescription>
+					<AlertDialogTitle>{t("history:deleteTask")}</AlertDialogTitle>
+					<AlertDialogDescription>{t("history:deleteTaskMessage")}</AlertDialogDescription>
 				</AlertDialogHeader>
 				<AlertDialogFooter>
 					<AlertDialogCancel asChild>
-						<Button variant="secondary">Cancel</Button>
+						<Button variant="secondary">{t("history:cancel")}</Button>
 					</AlertDialogCancel>
 					<AlertDialogAction asChild>
 						<Button variant="destructive" onClick={onDelete}>
-							Delete
+							{t("history:delete")}
 						</Button>
 					</AlertDialogAction>
 				</AlertDialogFooter>

@@ -59,6 +59,7 @@ export interface WebviewMessage {
 		| "screenshotQuality"
 		| "remoteBrowserHost"
 		| "openMcpSettings"
+		| "openProjectMcpSettings"
 		| "restartMcpServer"
 		| "toggleToolAlwaysAllow"
 		| "toggleMcpServer"
@@ -107,6 +108,7 @@ export interface WebviewMessage {
 		| "discoverBrowser"
 		| "browserConnectionResult"
 		| "remoteBrowserEnabled"
+		| "language"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

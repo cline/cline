@@ -18,19 +18,23 @@ describe("ContextManagementSettings", () => {
 		render(<ContextManagementSettings {...defaultProps} />)
 
 		// Terminal output limit
-		expect(screen.getByText("Terminal output limit")).toBeInTheDocument()
-		expect(screen.getByTestId("terminal-output-limit-slider")).toHaveValue("500")
+		const terminalSlider = screen.getByTestId("terminal-output-limit-slider")
+		expect(terminalSlider).toBeInTheDocument()
+		expect(terminalSlider).toHaveValue("500")
 
 		// Open tabs context limit
-		expect(screen.getByText("Open tabs context limit")).toBeInTheDocument()
-		expect(screen.getByTestId("open-tabs-limit-slider")).toHaveValue("20")
+		const openTabsSlider = screen.getByTestId("open-tabs-limit-slider")
+		expect(openTabsSlider).toBeInTheDocument()
+		expect(openTabsSlider).toHaveValue("20")
 
 		// Workspace files limit
-		expect(screen.getByText("Workspace files context limit")).toBeInTheDocument()
-		expect(screen.getByTestId("workspace-files-limit-slider")).toHaveValue("200")
+		const workspaceFilesSlider = screen.getByTestId("workspace-files-limit-slider")
+		expect(workspaceFilesSlider).toBeInTheDocument()
+		expect(workspaceFilesSlider).toHaveValue("200")
 
 		// Show .rooignore'd files
-		expect(screen.getByText("Show .rooignore'd files in lists and searches")).toBeInTheDocument()
+		const showRooIgnoredFilesCheckbox = screen.getByTestId("show-rooignored-files-checkbox")
+		expect(showRooIgnoredFilesCheckbox).toBeInTheDocument()
 		expect(screen.getByTestId("show-rooignored-files-checkbox")).not.toBeChecked()
 	})
 

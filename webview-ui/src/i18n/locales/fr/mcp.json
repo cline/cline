@@ -1,0 +1,52 @@
+{
+	"title": "Serveurs MCP",
+	"done": "Terminé",
+	"description": "Le <0>Model Context Protocol</0> permet la communication avec des serveurs MCP exécutés localement qui fournissent des outils et des ressources supplémentaires pour étendre les capacités de Roo. Vous pouvez utiliser <1>des serveurs créés par la communauté</1> ou demander à Roo de créer de nouveaux outils spécifiques à votre flux de travail (par exemple, \"ajouter un outil qui récupère la dernière documentation npm\").",
+	"enableToggle": {
+		"title": "Activer les serveurs MCP",
+		"description": "Lorsqu'activé, Roo pourra interagir avec les serveurs MCP pour des fonctionnalités avancées. Si vous n'utilisez pas MCP, vous pouvez désactiver cette option pour réduire l'utilisation de tokens par Roo."
+	},
+	"enableServerCreation": {
+		"title": "Activer la création de serveurs MCP",
+		"description": "Lorsqu'activé, Roo peut vous aider à créer de nouveaux serveurs MCP via des commandes comme \"ajouter un nouvel outil pour...\". Si vous n'avez pas besoin de créer des serveurs MCP, vous pouvez désactiver cette option pour réduire l'utilisation de tokens par Roo."
+	},
+	"editGlobalMCP": "Modifier MCP Global",
+	"editProjectMCP": "Modifier MCP du Projet",
+	"tool": {
+		"alwaysAllow": "Toujours autoriser",
+		"parameters": "Paramètres",
+		"noDescription": "Aucune description"
+	},
+	"tabs": {
+		"tools": "Outils",
+		"resources": "Ressources"
+	},
+	"emptyState": {
+		"noTools": "Aucun outil trouvé",
+		"noResources": "Aucune ressource trouvée"
+	},
+	"networkTimeout": {
+		"label": "Délai d'attente réseau",
+		"description": "Temps maximal d'attente pour les réponses du serveur",
+		"options": {
+			"15seconds": "15 secondes",
+			"30seconds": "30 secondes",
+			"1minute": "1 minute",
+			"5minutes": "5 minutes",
+			"10minutes": "10 minutes",
+			"15minutes": "15 minutes",
+			"30minutes": "30 minutes",
+			"60minutes": "60 minutes"
+		}
+	},
+	"deleteDialog": {
+		"title": "Supprimer le serveur MCP",
+		"description": "Êtes-vous sûr de vouloir supprimer le serveur MCP \"{{serverName}}\" ? Cette action ne peut pas être annulée.",
+		"cancel": "Annuler",
+		"delete": "Supprimer"
+	},
+	"serverStatus": {
+		"retrying": "Nouvelle tentative...",
+		"retryConnection": "Réessayer la connexion"
+	}
+}

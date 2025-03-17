@@ -1,0 +1,147 @@
+{
+	"title": "提示词",
+	"done": "完成",
+	"modes": {
+		"title": "模式",
+		"createNewMode": "创建新模式",
+		"editModesConfig": "编辑模式配置",
+		"editGlobalModes": "编辑全局模式",
+		"editProjectModes": "编辑项目模式 (.roomodes)",
+		"createModeHelpText": "点击 + 创建新的自定义模式，或者在聊天中直接要求 Roo 为您创建一个！"
+	},
+	"apiConfiguration": {
+		"title": "API配置",
+		"select": "选择要用于此模式的API配置"
+	},
+	"tools": {
+		"title": "可用工具",
+		"builtInModesText": "内置模式的工具不能被修改",
+		"editTools": "编辑工具",
+		"doneEditing": "完成编辑",
+		"allowedFiles": "允许的文件：",
+		"toolNames": {
+			"read": "读取文件",
+			"edit": "编辑文件",
+			"browser": "使用浏览器",
+			"command": "运行命令",
+			"mcp": "使用 MCP"
+		}
+	},
+	"roleDefinition": {
+		"title": "角色定义",
+		"resetToDefault": "重置为默认值",
+		"description": "为此模式定义Roo的专业知识和个性。此描述塑造了Roo如何展示自己并处理任务。"
+	},
+	"customInstructions": {
+		"title": "模式特定的自定义指令（可选）",
+		"resetToDefault": "重置为默认值",
+		"description": "为{{modeName}}模式添加特定行为指南。",
+		"loadFromFile": "特定于 {{mode}} 模式的自定义指令也可以从工作区中的 <span>.clinerules-{{slug}}</span> 加载。"
+	},
+	"globalCustomInstructions": {
+		"title": "所有模式的自定义指令",
+		"description": "这些指令适用于所有模式。它们提供了一套基本行为，可以通过下面的模式特定指令来增强。\n如果您希望Roo使用不同于编辑器显示语言({{language}})的语言进行思考和对话，您可以在这里指定。",
+		"loadFromFile": "指令也可以从工作区中的 <span>.clinerules</span> 加载。"
+	},
+	"systemPrompt": {
+		"preview": "预览系统提示词",
+		"copy": "复制系统提示词到剪贴板",
+		"title": "系统提示词（{{modeName}}模式）"
+	},
+	"supportPrompts": {
+		"title": "支持提示词",
+		"resetPrompt": "将{{promptType}}提示词重置为默认值",
+		"prompt": "提示词",
+		"enhance": {
+			"apiConfiguration": "API配置",
+			"apiConfigDescription": "您可以选择一个固定的API配置用于增强提示词，或者使用当前选择的配置",
+			"useCurrentConfig": "使用当前选择的API配置",
+			"testPromptPlaceholder": "输入提示词以测试增强效果",
+			"previewButton": "预览提示词增强"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "增强提示词",
+				"description": "使用提示词增强功能获取针对您输入的定制建议或改进。这确保Roo理解您的意图并提供最佳的回应。可通过聊天中的✨图标使用。"
+			},
+			"EXPLAIN": {
+				"label": "解释代码",
+				"description": "获取对代码片段、函数或整个文件的详细解释。有助于理解复杂代码或学习新模式。可在代码操作（编辑器中的灯泡图标）和编辑器上下文菜单（右键点击选中的代码）中使用。"
+			},
+			"FIX": {
+				"label": "修复问题",
+				"description": "获取帮助以识别和解决bug、错误或代码质量问题。提供逐步修复问题的指导。可在代码操作（编辑器中的灯泡图标）和编辑器上下文菜单（右键点击选中的代码）中使用。"
+			},
+			"IMPROVE": {
+				"label": "改进代码",
+				"description": "在保持功能的同时，接收代码优化、更好实践和架构改进的建议。可在代码操作（编辑器中的灯泡图标）和编辑器上下文菜单（右键点击选中的代码）中使用。"
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "添加到上下文",
+				"description": "为当前任务或对话添加上下文。用于提供额外信息或说明。可在代码操作（编辑器中的灯泡图标）和编辑器上下文菜单（右键点击选中的代码）中使用。"
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "添加终端内容到上下文",
+				"description": "将终端输出添加到当前任务或对话中。用于提供命令输出或日志。可在终端上下文菜单（右键点击选中的终端内容）中使用。"
+			},
+			"TERMINAL_FIX": {
+				"label": "修复终端命令",
+				"description": "获取帮助以修复失败或需要改进的终端命令。可在终端上下文菜单（右键点击选中的终端内容）中使用。"
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "解释终端命令",
+				"description": "获取对终端命令及其输出的详细解释。可在终端上下文菜单（右键点击选中的终端内容）中使用。"
+			}
+		}
+	},
+	"customModeCreation": {
+		"enableTitle": "通过提示词启用自定义模式创建",
+		"description": "启用后，Roo允许您使用类似\"为我创建一个自定义模式，它可以...\"的提示词来创建自定义模式。禁用此功能可以在不需要时减少系统提示词约700个token。禁用后您仍然可以通过上方的+按钮或编辑相关配置JSON手动创建自定义模式。"
+	},
+	"advancedSystemPrompt": {
+		"title": "高级：覆盖系统提示词",
+		"description": "您可以通过在工作区创建文件 <span>.roo/system-prompt-{{slug}}</span>，完全替换此模式的系统提示（角色定义和自定义指令除外）。这是一个非常高级的功能，会绕过内置的安全措施和一致性检查（尤其是与工具使用相关的部分），请谨慎操作！"
+	},
+	"createModeDialog": {
+		"title": "创建新模式",
+		"close": "关闭",
+		"name": {
+			"label": "名称",
+			"placeholder": "输入模式名称"
+		},
+		"slug": {
+			"label": "标识符",
+			"description": "标识符用于URL和文件名。它应该是小写的，只包含字母、数字和连字符。"
+		},
+		"saveLocation": {
+			"label": "保存位置",
+			"description": "选择保存此模式的位置。项目特定模式优先于全局模式。",
+			"global": {
+				"label": "全局",
+				"description": "在所有工作区可用"
+			},
+			"project": {
+				"label": "项目特定 (.roomodes)",
+				"description": "仅在此工作区可用，优先于全局模式"
+			}
+		},
+		"roleDefinition": {
+			"label": "角色定义",
+			"description": "为此模式定义Roo的专业知识和个性。"
+		},
+		"tools": {
+			"label": "可用工具",
+			"description": "选择此模式可以使用哪些工具。"
+		},
+		"customInstructions": {
+			"label": "自定义指令（可选）",
+			"description": "为此模式添加特定行为指南。"
+		},
+		"buttons": {
+			"cancel": "取消",
+			"create": "创建模式"
+		},
+		"deleteMode": "删除模式"
+	},
+	"allFiles": "所有文件"
+}

@@ -1,0 +1,147 @@
+{
+	"title": "提示詞",
+	"done": "完成",
+	"modes": {
+		"title": "模式",
+		"createNewMode": "建立新模式",
+		"editModesConfig": "編輯模式設定",
+		"editGlobalModes": "編輯全域模式",
+		"editProjectModes": "編輯專案模式 (.roomodes)",
+		"createModeHelpText": "點擊 + 建立新的自訂模式，或者在聊天中直接要求 Roo 為您建立一個！"
+	},
+	"apiConfiguration": {
+		"title": "API設定",
+		"select": "選擇要用於此模式的API設定"
+	},
+	"tools": {
+		"title": "可用工具",
+		"builtInModesText": "內建模式的工具不能被修改",
+		"editTools": "編輯工具",
+		"doneEditing": "完成編輯",
+		"allowedFiles": "允許的檔案：",
+		"toolNames": {
+			"read": "讀取檔案",
+			"edit": "編輯檔案",
+			"browser": "使用瀏覽器",
+			"command": "執行命令",
+			"mcp": "使用 MCP"
+		}
+	},
+	"roleDefinition": {
+		"title": "角色定義",
+		"resetToDefault": "重設為預設值",
+		"description": "為此模式定義Roo的專業知識和個性。此描述塑造了Roo如何展示自己並處理任務。"
+	},
+	"customInstructions": {
+		"title": "模式特定的自訂指令（選用）",
+		"resetToDefault": "重設為預設值",
+		"description": "為{{modeName}}模式添加特定行為指南。",
+		"loadFromFile": "{{mode}}模式的自訂指令也可以從工作區的<span>.clinerules-{{slug}}</span>載入。"
+	},
+	"globalCustomInstructions": {
+		"title": "所有模式的自訂指令",
+		"description": "這些指令適用於所有模式。它們提供了一套基本行為，可以透過下面的模式特定指令來增強。\n如果您希望Roo使用不同於編輯器顯示語言({{language}})的語言進行思考和對話，您可以在這裡指定。",
+		"loadFromFile": "指令也可以從工作區的<span>.clinerules</span>載入。"
+	},
+	"systemPrompt": {
+		"preview": "預覽系統提示詞",
+		"copy": "複製系統提示詞到剪貼簿",
+		"title": "系統提示詞（{{modeName}}模式）"
+	},
+	"supportPrompts": {
+		"title": "支援提示詞",
+		"resetPrompt": "將{{promptType}}提示詞重設為預設值",
+		"prompt": "提示詞",
+		"enhance": {
+			"apiConfiguration": "API設定",
+			"apiConfigDescription": "您可以選擇一個固定的API設定用於增強提示詞，或者使用當前選擇的設定",
+			"useCurrentConfig": "使用當前選擇的API設定",
+			"testPromptPlaceholder": "輸入提示詞以測試增強效果",
+			"previewButton": "預覽提示詞增強"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "增強提示詞",
+				"description": "使用提示詞增強功能獲取針對您輸入的客製化建議或改進。這確保Roo理解您的意圖並提供最佳的回應。可透過聊天中的✨圖示使用。"
+			},
+			"EXPLAIN": {
+				"label": "解釋程式碼",
+				"description": "獲取對程式碼片段、函式或整個檔案的詳細解釋。有助於理解複雜程式碼或學習新模式。可在程式碼操作（編輯器中的燈泡圖示）和編輯器右鍵選單（右鍵點擊選中的程式碼）中使用。"
+			},
+			"FIX": {
+				"label": "修復問題",
+				"description": "獲取幫助以識別和解決錯誤、bug或程式碼品質問題。提供逐步修復問題的指導。可在程式碼操作（編輯器中的燈泡圖示）和編輯器右鍵選單（右鍵點擊選中的程式碼）中使用。"
+			},
+			"IMPROVE": {
+				"label": "改進程式碼",
+				"description": "在保持功能的同時，接收程式碼優化、更好實踐和架構改進的建議。可在程式碼操作（編輯器中的燈泡圖示）和編輯器右鍵選單（右鍵點擊選中的程式碼）中使用。"
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "添加到上下文",
+				"description": "為當前任務或對話添加上下文。用於提供額外資訊或說明。可在程式碼操作（編輯器中的燈泡圖示）和編輯器右鍵選單（右鍵點擊選中的程式碼）中使用。"
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "添加終端內容到上下文",
+				"description": "將終端輸出添加到當前任務或對話中。用於提供命令輸出或日誌。可在終端右鍵選單（右鍵點擊選中的終端內容）中使用。"
+			},
+			"TERMINAL_FIX": {
+				"label": "修復終端命令",
+				"description": "獲取幫助以修復失敗或需要改進的終端命令。可在終端右鍵選單（右鍵點擊選中的終端內容）中使用。"
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "解釋終端命令",
+				"description": "獲取對終端命令及其輸出的詳細解釋。可在終端右鍵選單（右鍵點擊選中的終端內容）中使用。"
+			}
+		}
+	},
+	"customModeCreation": {
+		"enableTitle": "透過提示詞啟用自訂模式建立",
+		"description": "啟用後，Roo允許您使用類似\"為我建立一個自訂模式，它可以...\"的提示詞來建立自訂模式。禁用此功能可以在不需要時減少系統提示詞約700個token。禁用後您仍然可以透過上方的+按鈕或編輯相關設定JSON手動建立自訂模式。"
+	},
+	"advancedSystemPrompt": {
+		"title": "進階：覆寫系統提示詞",
+		"description": "您可以透過在工作區建立檔案<span>.roo/system-prompt-{{slug}}</span>來完全替換此模式的系統提示詞（角色定義和自訂指令除外）。這是一個非常進階的功能，會繞過內建的安全措施和一致性檢查（尤其是圍繞工具使用的檢查），請謹慎使用！"
+	},
+	"createModeDialog": {
+		"title": "建立新模式",
+		"close": "關閉",
+		"name": {
+			"label": "名稱",
+			"placeholder": "輸入模式名稱"
+		},
+		"slug": {
+			"label": "標識符",
+			"description": "標識符用於URL和檔案名稱。它應該是小寫的，只包含字母、數字和連字符。"
+		},
+		"saveLocation": {
+			"label": "儲存位置",
+			"description": "選擇儲存此模式的位置。專案特定模式優先於全域模式。",
+			"global": {
+				"label": "全域",
+				"description": "在所有工作區可用"
+			},
+			"project": {
+				"label": "專案特定 (.roomodes)",
+				"description": "僅在此工作區可用，優先於全域模式"
+			}
+		},
+		"roleDefinition": {
+			"label": "角色定義",
+			"description": "為此模式定義Roo的專業知識和個性。"
+		},
+		"tools": {
+			"label": "可用工具",
+			"description": "選擇此模式可以使用哪些工具。"
+		},
+		"customInstructions": {
+			"label": "自訂指令（選用）",
+			"description": "為此模式添加特定行為指南。"
+		},
+		"buttons": {
+			"cancel": "取消",
+			"create": "建立模式"
+		},
+		"deleteMode": "刪除模式"
+	},
+	"allFiles": "所有檔案"
+}

@@ -1,0 +1,113 @@
+{
+	"greeting": "Co Roo może dla Ciebie zrobić?",
+	"retry": {
+		"title": "Ponów próbę",
+		"tooltip": "Spróbuj ponownie wykonać operację"
+	},
+	"startNewTask": {
+		"title": "Rozpocznij nowe zadanie",
+		"tooltip": "Rozpocznij nowe zadanie"
+	},
+	"proceedAnyways": {
+		"title": "Kontynuuj mimo to",
+		"tooltip": "Kontynuuj podczas wykonywania polecenia"
+	},
+	"save": {
+		"title": "Zapisz",
+		"tooltip": "Zapisz zmiany w pliku"
+	},
+	"reject": {
+		"title": "Odrzuć",
+		"tooltip": "Odrzuć tę akcję"
+	},
+	"completeSubtaskAndReturn": "Zakończ podzadanie i wróć",
+	"approve": {
+		"title": "Zatwierdź",
+		"tooltip": "Zatwierdź tę akcję"
+	},
+	"runCommand": {
+		"title": "Wykonaj polecenie",
+		"tooltip": "Wykonaj to polecenie"
+	},
+	"proceedWhileRunning": {
+		"title": "Kontynuuj podczas wykonywania",
+		"tooltip": "Kontynuuj pomimo ostrzeżeń"
+	},
+	"resumeTask": {
+		"title": "Wznów zadanie",
+		"tooltip": "Wznów bieżące zadanie"
+	},
+	"terminate": {
+		"title": "Zakończ",
+		"tooltip": "Zakończ bieżące zadanie"
+	},
+	"cancel": {
+		"title": "Anuluj",
+		"tooltip": "Anuluj bieżącą operację"
+	},
+	"scrollToBottom": "Przewiń na dół czatu",
+	"aboutMe": "Dzięki najnowszym przełomom w zakresie możliwości kodowania agentowego mogę krok po kroku obsługiwać złożone zadania związane z rozwojem oprogramowania. Dzięki narzędziom, które pozwalają mi tworzyć i edytować pliki, eksplorować złożone projekty, korzystać z przeglądarki i wykonywać polecenia terminalowe (po Twojej aprobacie), mogę pomóc Ci w sposób wykraczający poza uzupełnianie kodu lub wsparcie techniczne. Mogę nawet używać MCP do tworzenia nowych narzędzi i rozszerzania moich własnych możliwości.",
+	"selectMode": "Wybierz tryb interakcji",
+	"selectApiConfig": "Wybierz konfigurację API",
+	"enhancePrompt": "Ulepsz monit o dodatkowy kontekst",
+	"addImages": "Dodaj obrazy do wiadomości",
+	"sendMessage": "Wyślij wiadomość",
+	"typeMessage": "Wpisz wiadomość...",
+	"typeTask": "Wpisz tutaj swoje zadanie...",
+	"addContext": "@ aby dodać kontekst, / aby przełączyć tryby",
+	"dragFiles": "przytrzymaj shift, aby przeciągnąć pliki",
+	"dragFilesImages": "przytrzymaj shift, aby przeciągnąć pliki/obrazy",
+	"enhancePromptDescription": "Przycisk 'Ulepsz monit' pomaga poprawić twój monit, dostarczając dodatkowy kontekst, wyjaśnienia lub przeformułowania. Spróbuj wpisać monit tutaj i kliknij przycisk ponownie, aby zobaczyć, jak to działa.",
+	"errorReadingFile": "Błąd odczytu pliku:",
+	"noValidImages": "Nie przetworzono żadnych prawidłowych obrazów",
+	"separator": "Separator",
+	"edit": "Edytuj...",
+	"forNextMode": "dla następnego trybu",
+	"autoApprove": {
+		"title": "Automatyczne zatwierdzanie:",
+		"none": "Brak",
+		"description": "Automatyczne zatwierdzanie pozwala Roo Code na wykonywanie działań bez proszenia o pozwolenie. Włącz tylko dla działań, którym w pełni ufasz.",
+		"actions": {
+			"readFiles": {
+				"label": "Odczyt plików i katalogów",
+				"shortName": "Odczyt",
+				"description": "Pozwala na dostęp do odczytu dowolnego pliku na twoim komputerze."
+			},
+			"editFiles": {
+				"label": "Edycja plików",
+				"shortName": "Edycja",
+				"description": "Pozwala na modyfikację dowolnych plików na twoim komputerze."
+			},
+			"executeCommands": {
+				"label": "Wykonywanie zatwierdzonych poleceń",
+				"shortName": "Polecenia",
+				"description": "Pozwala na wykonywanie zatwierdzonych poleceń terminalowych. Możesz to skonfigurować w panelu ustawień."
+			},
+			"useBrowser": {
+				"label": "Używanie przeglądarki",
+				"shortName": "Przeglądarka",
+				"description": "Pozwala na uruchamianie i interakcję z dowolną stroną internetową w przeglądarce headless."
+			},
+			"useMcp": {
+				"label": "Używanie serwerów MCP",
+				"shortName": "MCP",
+				"description": "Pozwala na używanie skonfigurowanych serwerów MCP, które mogą modyfikować system plików lub wchodzić w interakcję z API."
+			},
+			"switchModes": {
+				"label": "Przełączanie trybów",
+				"shortName": "Tryby",
+				"description": "Pozwala na automatyczne przełączanie między różnymi trybami bez konieczności zatwierdzania."
+			},
+			"subtasks": {
+				"label": "Tworzenie i kończenie podzadań",
+				"shortName": "Podzadania",
+				"description": "Pozwala na tworzenie i kończenie podzadań bez konieczności zatwierdzania."
+			},
+			"retryRequests": {
+				"label": "Ponowne próby nieudanych żądań",
+				"shortName": "Ponowne próby",
+				"description": "Automatycznie ponawia nieudane żądania API, gdy dostawca zwraca odpowiedź z błędem."
+			}
+		}
+	}
+}

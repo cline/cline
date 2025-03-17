@@ -1,0 +1,147 @@
+{
+	"title": "Podpowiedzi",
+	"done": "Gotowe",
+	"modes": {
+		"title": "Tryby",
+		"createNewMode": "Utwórz nowy tryb",
+		"editModesConfig": "Edytuj konfigurację trybów",
+		"editGlobalModes": "Edytuj tryby globalne",
+		"editProjectModes": "Edytuj tryby projektu (.roomodes)",
+		"createModeHelpText": "Kliknij +, aby utworzyć nowy niestandardowy tryb, lub po prostu poproś Roo w czacie, aby utworzył go dla Ciebie!"
+	},
+	"apiConfiguration": {
+		"title": "Konfiguracja API",
+		"select": "Wybierz, której konfiguracji API użyć dla tego trybu"
+	},
+	"tools": {
+		"title": "Dostępne narzędzia",
+		"builtInModesText": "Narzędzia dla wbudowanych trybów nie mogą być modyfikowane",
+		"editTools": "Edytuj narzędzia",
+		"doneEditing": "Zakończ edycję",
+		"allowedFiles": "Dozwolone pliki:",
+		"toolNames": {
+			"read": "Czytaj pliki",
+			"edit": "Edytuj pliki",
+			"browser": "Używaj przeglądarki",
+			"command": "Uruchamiaj polecenia",
+			"mcp": "Używaj MCP"
+		}
+	},
+	"roleDefinition": {
+		"title": "Definicja roli",
+		"resetToDefault": "Przywróć domyślne",
+		"description": "Zdefiniuj wiedzę specjalistyczną i osobowość Roo dla tego trybu. Ten opis kształtuje, jak Roo prezentuje się i podchodzi do zadań."
+	},
+	"customInstructions": {
+		"title": "Niestandardowe instrukcje dla trybu (opcjonalne)",
+		"resetToDefault": "Przywróć domyślne",
+		"description": "Dodaj wytyczne dotyczące zachowania specyficzne dla trybu {{modeName}}.",
+		"loadFromFile": "Niestandardowe instrukcje dla trybu {{modeName}} mogą być również ładowane z .clinerules-{{modeSlug}} w Twoim obszarze roboczym."
+	},
+	"globalCustomInstructions": {
+		"title": "Niestandardowe instrukcje dla wszystkich trybów",
+		"description": "Te instrukcje dotyczą wszystkich trybów. Zapewniają podstawowy zestaw zachowań, które mogą być rozszerzone przez instrukcje specyficzne dla trybów poniżej.\nJeśli chcesz, aby Roo myślał i mówił w języku innym niż język wyświetlania Twojego edytora ({{language}}), możesz to określić tutaj.",
+		"loadFromFile": "Instrukcje mogą być również ładowane z .clinerules w Twoim obszarze roboczym."
+	},
+	"systemPrompt": {
+		"preview": "Podgląd podpowiedzi systemowej",
+		"copy": "Kopiuj podpowiedź systemową do schowka",
+		"title": "Podpowiedź systemowa (tryb {{modeName}})"
+	},
+	"supportPrompts": {
+		"title": "Podpowiedzi pomocnicze",
+		"resetPrompt": "Zresetuj podpowiedź {{promptType}} do domyślnej",
+		"prompt": "Podpowiedź",
+		"enhance": {
+			"apiConfiguration": "Konfiguracja API",
+			"apiConfigDescription": "Możesz wybrać konfigurację API, która będzie zawsze używana do ulepszania podpowiedzi, lub po prostu użyć aktualnie wybranej",
+			"useCurrentConfig": "Użyj aktualnie wybranej konfiguracji API",
+			"testPromptPlaceholder": "Wprowadź podpowiedź, aby przetestować ulepszenie",
+			"previewButton": "Podgląd ulepszenia podpowiedzi"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "Ulepsz podpowiedź",
+				"description": "Użyj ulepszenia podpowiedzi, aby uzyskać dostosowane sugestie lub ulepszenia dla swoich danych wejściowych. Zapewnia to, że Roo rozumie Twoje intencje i dostarcza najlepsze możliwe odpowiedzi. Dostępne za pośrednictwem ikony ✨ w czacie."
+			},
+			"EXPLAIN": {
+				"label": "Wyjaśnij kod",
+				"description": "Uzyskaj szczegółowe wyjaśnienia fragmentów kodu, funkcji lub całych plików. Przydatne do zrozumienia złożonego kodu lub nauki nowych wzorców. Dostępne w akcjach kodu (ikona żarówki w edytorze) i w menu kontekstowym edytor (prawy przycisk myszy na wybranym kodzie)."
+			},
+			"FIX": {
+				"label": "Napraw problemy",
+				"description": "Uzyskaj pomoc w identyfikowaniu i rozwiązywaniu błędów, usterek lub problemów z jakością kodu. Zapewnia krok po kroku wskazówki do naprawy problemów. Dostępne w akcjach kodu (ikona żarówki w edytorze) i w menu kontekstowym edytor (prawy przycisk myszy na wybranym kodzie)."
+			},
+			"IMPROVE": {
+				"label": "Ulepsz kod",
+				"description": "Otrzymuj sugestie dotyczące optymalizacji kodu, lepszych praktyk i ulepszeń architektonicznych przy zachowaniu funkcjonalności. Dostępne w akcjach kodu (ikona żarówki w edytorze) i w menu kontekstowym edytor (prawy przycisk myszy na wybranym kodzie)."
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "Dodaj do kontekstu",
+				"description": "Dodaj kontekst do bieżącego zadania lub rozmowy. Przydatne do dostarczania dodatkowych informacji lub wyjaśnień. Dostępne w akcjach kodu (ikona żarówki w edytorze) i w menu kontekstowym edytor (prawy przycisk myszy na wybranym kodzie)."
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "Dodaj zawartość terminala do kontekstu",
+				"description": "Dodaj wyjście terminala do bieżącego zadania lub rozmowy. Przydatne do dostarczania wyników poleceń lub logów. Dostępne w menu kontekstowym terminala (prawy przycisk myszy na wybranej zawartości terminala)."
+			},
+			"TERMINAL_FIX": {
+				"label": "Napraw polecenie terminala",
+				"description": "Uzyskaj pomoc w naprawianiu poleceń terminala, które zawiodły lub wymagają ulepszeń. Dostępne w menu kontekstowym terminala (prawy przycisk myszy na wybranej zawartości terminala)."
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "Wyjaśnij polecenie terminala",
+				"description": "Uzyskaj szczegółowe wyjaśnienia poleceń terminala i ich wyników. Dostępne w menu kontekstowym terminala (prawy przycisk myszy na wybranej zawartości terminala)."
+			}
+		}
+	},
+	"customModeCreation": {
+		"enableTitle": "Włącz tworzenie niestandardowych trybów przez podpowiedzi",
+		"description": "Gdy włączone, Roo pozwala na tworzenie niestandardowych trybów za pomocą podpowiedzi takich jak 'Stwórz dla mnie niestandardowy tryb, który...'. Wyłączenie tej opcji zmniejsza podpowiedź systemową o około 700 tokenów, gdy ta funkcja nie jest potrzebna. Po wyłączeniu nadal możesz ręcznie tworzyć niestandardowe tryby za pomocą przycisku + powyżej lub edytując powiązany plik konfiguracyjny JSON."
+	},
+	"advancedSystemPrompt": {
+		"title": "Zaawansowane: Zastąp podpowiedź systemową",
+		"description": "Możesz całkowicie zastąpić podpowiedź systemową dla tego trybu (oprócz definicji roli i niestandardowych instrukcji) poprzez utworzenie pliku w .roo/system-prompt-{{modeSlug}} w swoim obszarze roboczym. Jest to bardzo zaawansowana funkcja, która omija wbudowane zabezpieczenia i kontrole spójności (szczególnie wokół używania narzędzi), więc bądź ostrożny!"
+	},
+	"createModeDialog": {
+		"title": "Utwórz nowy tryb",
+		"close": "Zamknij",
+		"name": {
+			"label": "Nazwa",
+			"placeholder": "Wprowadź nazwę trybu"
+		},
+		"slug": {
+			"label": "Slug",
+			"description": "Slug jest używany w adresach URL i nazwach plików. Powinien być małymi literami i zawierać tylko litery, liczby i myślniki."
+		},
+		"saveLocation": {
+			"label": "Lokalizacja zapisu",
+			"description": "Wybierz, gdzie zapisać ten tryb. Tryby specyficzne dla projektu mają pierwszeństwo przed trybami globalnymi.",
+			"global": {
+				"label": "Globalny",
+				"description": "Dostępny we wszystkich obszarach roboczych"
+			},
+			"project": {
+				"label": "Specyficzny dla projektu (.roomodes)",
+				"description": "Dostępny tylko w tym obszarze roboczym, ma pierwszeństwo przed globalnym"
+			}
+		},
+		"roleDefinition": {
+			"label": "Definicja roli",
+			"description": "Zdefiniuj wiedzę specjalistyczną i osobowość Roo dla tego trybu."
+		},
+		"tools": {
+			"label": "Dostępne narzędzia",
+			"description": "Wybierz, których narzędzi może używać ten tryb."
+		},
+		"customInstructions": {
+			"label": "Niestandardowe instrukcje (opcjonalne)",
+			"description": "Dodaj wytyczne dotyczące zachowania specyficzne dla tego trybu."
+		},
+		"buttons": {
+			"cancel": "Anuluj",
+			"create": "Utwórz tryb"
+		},
+		"deleteMode": "Usuń tryb"
+	},
+	"allFiles": "wszystkie pliki"
+}

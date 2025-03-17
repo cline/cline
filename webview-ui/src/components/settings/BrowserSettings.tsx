@@ -1,4 +1,5 @@
 import React, { HTMLAttributes, useState, useEffect } from "react"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { Dropdown, type DropdownOption } from "vscrui"
 import { SquareMousePointer } from "lucide-react"
@@ -33,6 +34,7 @@ export const BrowserSettings = ({
 	setCachedStateField,
 	...props
 }: BrowserSettingsProps) => {
+	const { t } = useAppTranslation()
 	const [testingConnection, setTestingConnection] = useState(false)
 	const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
 	const [discovering, setDiscovering] = useState(false)
@@ -102,7 +104,7 @@ export const BrowserSettings = ({
 			<SectionHeader>
 				<div className="flex items-center gap-2">
 					<SquareMousePointer className="w-4" />
-					<div>Browser / Computer Use</div>
+					<div>{t("settings:sections.browser")}</div>
 				</div>
 			</SectionHeader>
 
@@ -111,11 +113,10 @@ export const BrowserSettings = ({
 					<VSCodeCheckbox
 						checked={browserToolEnabled}
 						onChange={(e: any) => setCachedStateField("browserToolEnabled", e.target.checked)}>
-						<span className="font-medium">Enable browser tool</span>
+						<span className="font-medium">{t("settings:browser.enable.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						When enabled, Roo can use a browser to interact with websites when using models that support
-						computer use.
+						{t("settings:browser.enable.description")}
 					</p>
 					{browserToolEnabled && (
 						<div
@@ -126,7 +127,7 @@ export const BrowserSettings = ({
 							}}>
 							<div>
 								<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
-									Viewport size
+									{t("settings:browser.viewport.label")}
 								</label>
 								<div className="dropdown-container">
 									<Dropdown
@@ -136,21 +137,26 @@ export const BrowserSettings = ({
 										}}
 										style={{ width: "100%" }}
 										options={[
-											{ value: "1280x800", label: "Large Desktop (1280x800)" },
-											{ value: "900x600", label: "Small Desktop (900x600)" },
-											{ value: "768x1024", label: "Tablet (768x1024)" },
-											{ value: "360x640", label: "Mobile (360x640)" },
+											{
+												value: "1280x800",
+												label: t("settings:browser.viewport.options.largeDesktop"),
+											},
+											{
+												value: "900x600",
+												label: t("settings:browser.viewport.options.smallDesktop"),
+											},
+											{ value: "768x1024", label: t("settings:browser.viewport.options.tablet") },
+											{ value: "360x640", label: t("settings:browser.viewport.options.mobile") },
 										]}
 									/>
 								</div>
 								<p className="text-vscode-descriptionForeground text-sm mt-0">
-									Select the viewport size for browser interactions. This affects how websites are
-									displayed and interacted with.
+									{t("settings:browser.viewport.description")}
 								</p>
 							</div>
 							<div>
 								<div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-									<span className="font-medium">Screenshot quality</span>
+									<span className="font-medium">{t("settings:browser.screenshotQuality.label")}</span>
 									<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
 										<input
 											type="range"
@@ -167,8 +173,7 @@ export const BrowserSettings = ({
 									</div>
 								</div>
 								<p className="text-vscode-descriptionForeground text-sm mt-0">
-									Adjust the WebP quality of browser screenshots. Higher values provide clearer
-									screenshots but increase token usage.
+									{t("settings:browser.screenshotQuality.description")}
 								</p>
 							</div>
 							<div className="mt-4">
@@ -183,11 +188,10 @@ export const BrowserSettings = ({
 												setCachedStateField("remoteBrowserHost", undefined)
 											}
 										}}>
-										<span className="font-medium">Use remote browser connection</span>
+										<span className="font-medium">{t("settings:browser.remote.label")}</span>
 									</VSCodeCheckbox>
 									<p className="text-vscode-descriptionForeground text-sm mt-0 ml-6">
-										Connect to a Chrome browser running with remote debugging enabled
-										(--remote-debugging-port=9222).
+										{t("settings:browser.remote.description")}
 									</p>
 								</div>
 								{remoteBrowserEnabled && (
@@ -201,13 +205,15 @@ export const BrowserSettings = ({
 														e.target.value || undefined,
 													)
 												}
-												placeholder="Custom URL (e.g., http://localhost:9222)"
+												placeholder={t("settings:browser.remote.urlPlaceholder")}
 												style={{ flexGrow: 1 }}
 											/>
 											<VSCodeButton
 												disabled={testingConnection}
 												onClick={remoteBrowserHost ? testConnection : discoverBrowser}>
-												{testingConnection || discovering ? "Testing..." : "Test Connection"}
+												{testingConnection || discovering
+													? t("settings:browser.remote.testingButton")
+													: t("settings:browser.remote.testButton")}
 											</VSCodeButton>
 										</div>
 										{testResult && (
@@ -221,10 +227,7 @@ export const BrowserSettings = ({
 											</div>
 										)}
 										<p className="text-vscode-descriptionForeground text-sm mt-2">
-											Enter the DevTools Protocol host address or
-											<strong> leave empty to auto-discover Chrome local instances.</strong>
-											The Test Connection button will try the custom URL if provided, or
-											auto-discover if the field is empty.
+											{t("settings:browser.remote.instructions")}
 										</p>
 									</>
 								)}

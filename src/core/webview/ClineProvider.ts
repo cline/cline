@@ -178,6 +178,10 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		return this.clineStack.length
 	}
 
+	public getCurrentTaskStack(): string[] {
+		return this.clineStack.map((cline) => cline.taskId)
+	}
+
 	// remove the current task/cline instance (at the top of the stack), ao this task is finished
 	// and resume the previous task/cline instance (if it exists)
 	// this is used when a sub task is finished and the parent task needs to be resumed
@@ -1123,6 +1127,28 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 						}
 						break
 					}
+					case "openProjectMcpSettings": {
+						if (!vscode.workspace.workspaceFolders?.length) {
+							vscode.window.showErrorMessage("Please open a project folder first")
+							return
+						}
+
+						const workspaceFolder = vscode.workspace.workspaceFolders[0]
+						const rooDir = path.join(workspaceFolder.uri.fsPath, ".roo")
+						const mcpPath = path.join(rooDir, "mcp.json")
+
+						try {
+							await fs.mkdir(rooDir, { recursive: true })
+							const exists = await fileExistsAtPath(mcpPath)
+							if (!exists) {
+								await fs.writeFile(mcpPath, JSON.stringify({ mcpServers: {} }, null, 2))
+							}
+							await openFile(mcpPath)
+						} catch (error) {
+							vscode.window.showErrorMessage(`Failed to create or open .roo/mcp.json: ${error}`)
+						}
+						break
+					}
 					case "openCustomModesSettings": {
 						const customModesFilePath = await this.customModesManager.getCustomModesFilePath()
 						if (customModesFilePath) {
@@ -1534,6 +1560,10 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 						break
 					case "browserToolEnabled":
 						await this.updateGlobalState("browserToolEnabled", message.bool ?? true)
+						await this.postStateToWebview()
+						break
+					case "language":
+						await this.updateGlobalState("language", message.text)
 						await this.postStateToWebview()
 						break
 					case "showRooIgnoredFiles":
@@ -1989,7 +2019,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			}
 		}
 
-		await this.contextProxy.setValues(apiConfiguration)
+		await this.contextProxy.setApiConfiguration(apiConfiguration)
 
 		if (this.getCurrentCline()) {
 			this.getCurrentCline()!.api = buildApiHandler(apiConfiguration)
@@ -2515,8 +2545,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			writeDelayMs: stateValues.writeDelayMs ?? 1000,
 			terminalOutputLineLimit: stateValues.terminalOutputLineLimit ?? 500,
 			mode: stateValues.mode ?? defaultModeSlug,
-			// Pass the VSCode language code directly
-			language: formatLanguage(vscode.env.language),
+			language: stateValues.language || formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,
 			enableMcpServerCreation: stateValues.enableMcpServerCreation ?? true,
 			alwaysApproveResubmit: stateValues.alwaysApproveResubmit ?? false,
@@ -2628,7 +2657,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	 * like the current mode, API provider, etc.
 	 */
 	public async getTelemetryProperties(): Promise<Record<string, any>> {
-		const { mode, apiConfiguration } = await this.getState()
+		const { mode, apiConfiguration, language } = await this.getState()
 		const appVersion = this.context.extension?.packageJSON?.version
 		const vscodeVersion = vscode.version
 		const platform = process.platform
@@ -2641,6 +2670,11 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		// Add extension version
 		if (appVersion) {
 			properties.appVersion = appVersion
+		}
+
+		// Add language
+		if (language) {
+			properties.language = language
 		}
 
 		// Add current mode

@@ -2,5 +2,13 @@
 	"greeting": "Salut, je suis Roo !",
 	"introduction": "Je peux effectuer toutes sortes de tâches grâce aux dernières avancées en matière de capacités de codage agentique et à l'accès à des outils qui me permettent de créer et de modifier des fichiers, d'explorer des projets complexes, d'utiliser le navigateur et d'exécuter des commandes terminal (avec votre permission, bien sûr). Je peux même utiliser MCP pour créer de nouveaux outils et étendre mes propres capacités.",
 	"notice": "Pour commencer, cette extension a besoin d'un fournisseur d'API.",
-	"start": "C'est parti !"
+	"start": "C'est parti !",
+	"telemetry": {
+		"title": "Aidez à améliorer Roo Code",
+		"anonymousTelemetry": "Envoyez des données d'utilisation et d'erreurs anonymes pour nous aider à corriger les bugs et améliorer l'extension. Aucun code, texte ou information personnelle n'est jamais envoyé.",
+		"changeSettings": "Vous pouvez toujours modifier cela en bas des paramètres",
+		"settings": "paramètres",
+		"allow": "Autoriser",
+		"deny": "Refuser"
+	}
 }

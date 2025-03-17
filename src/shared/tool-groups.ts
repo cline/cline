@@ -66,12 +66,3 @@ export function getToolName(toolConfig: string | readonly [ToolName, ...any[]]):
 export function getToolOptions(toolConfig: string | readonly [ToolName, ...any[]]): any {
 	return typeof toolConfig === "string" ? undefined : toolConfig[1]
 }
-
-// Display names for groups in UI
-export const GROUP_DISPLAY_NAMES: Record<ToolGroup, string> = {
-	read: "Read Files",
-	edit: "Edit Files",
-	browser: "Use Browser",
-	command: "Run Commands",
-	mcp: "Use MCP",
-}

@@ -1,0 +1,147 @@
+{
+	"title": "Prompts",
+	"done": "Concluído",
+	"modes": {
+		"title": "Modos",
+		"createNewMode": "Criar novo modo",
+		"editModesConfig": "Editar configuração de modos",
+		"editGlobalModes": "Editar modos globais",
+		"editProjectModes": "Editar modos do projeto (.roomodes)",
+		"createModeHelpText": "Clique em + para criar um novo modo personalizado, ou simplesmente peça ao Roo no chat para criar um para você!"
+	},
+	"apiConfiguration": {
+		"title": "Configuração de API",
+		"select": "Selecione qual configuração de API usar para este modo"
+	},
+	"tools": {
+		"title": "Ferramentas disponíveis",
+		"builtInModesText": "Ferramentas para modos integrados não podem ser modificadas",
+		"editTools": "Editar ferramentas",
+		"doneEditing": "Concluir edição",
+		"allowedFiles": "Arquivos permitidos:",
+		"toolNames": {
+			"read": "Ler arquivos",
+			"edit": "Editar arquivos",
+			"browser": "Usar navegador",
+			"command": "Executar comandos",
+			"mcp": "Usar MCP"
+		}
+	},
+	"roleDefinition": {
+		"title": "Definição de função",
+		"resetToDefault": "Restaurar para padrão",
+		"description": "Defina a expertise e personalidade do Roo para este modo. Esta descrição molda como o Roo se apresenta e aborda tarefas."
+	},
+	"customInstructions": {
+		"title": "Instruções personalizadas específicas do modo (opcional)",
+		"resetToDefault": "Restaurar para padrão",
+		"description": "Adicione diretrizes comportamentais específicas para o modo {{modeName}}.",
+		"loadFromFile": "Instruções personalizadas específicas para o modo {{modeName}} também podem ser carregadas de .clinerules-{{modeSlug}} no seu espaço de trabalho."
+	},
+	"globalCustomInstructions": {
+		"title": "Instruções personalizadas para todos os modos",
+		"description": "Estas instruções se aplicam a todos os modos. Elas fornecem um conjunto base de comportamentos que podem ser aprimorados por instruções específicas do modo abaixo.\nSe você desejar que o Roo pense e fale em um idioma diferente do idioma de exibição do seu editor ({{language}}), você pode especificá-lo aqui.",
+		"loadFromFile": "As instruções também podem ser carregadas de .clinerules no seu espaço de trabalho."
+	},
+	"systemPrompt": {
+		"preview": "Visualizar prompt do sistema",
+		"copy": "Copiar prompt do sistema para a área de transferência",
+		"title": "Prompt do sistema (modo {{modeName}})"
+	},
+	"supportPrompts": {
+		"title": "Prompts de suporte",
+		"resetPrompt": "Restaurar prompt {{promptType}} para padrão",
+		"prompt": "Prompt",
+		"enhance": {
+			"apiConfiguration": "Configuração de API",
+			"apiConfigDescription": "Você pode selecionar uma configuração de API para usar sempre para aprimorar prompts, ou simplesmente use o que está atualmente selecionado",
+			"useCurrentConfig": "Usar configuração de API atualmente selecionada",
+			"testPromptPlaceholder": "Digite um prompt para testar o aprimoramento",
+			"previewButton": "Visualizar aprimoramento do prompt"
+		},
+		"types": {
+			"ENHANCE": {
+				"label": "Aprimorar Prompt",
+				"description": "Use prompt enhancement to get tailored suggestions or improvements for your inputs. This ensures Roo understands your intent and provides the best possible responses. Available via the ✨ icon in chat."
+			},
+			"EXPLAIN": {
+				"label": "Explicar Código",
+				"description": "Obtenha explicações detalhadas de trechos de código, funções ou arquivos inteiros. Useful for understanding complex code or learning new patterns. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
+			},
+			"FIX": {
+				"label": "Corrigir Problemas",
+				"description": "Obtenha ajuda para identificar e resolver bugs, erros ou code quality issues. Provides step-by-step guidance for fixing problems. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
+			},
+			"IMPROVE": {
+				"label": "Melhorar Código",
+				"description": "Receba sugestões para code optimization, better practices e architectural improvements while maintaining functionality. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
+			},
+			"ADD_TO_CONTEXT": {
+				"label": "Adicionar ao Contexto",
+				"description": "Adicione contexto à sua tarefa ou conversa atual. Useful for providing additional information or clarifications. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
+			},
+			"TERMINAL_ADD_TO_CONTEXT": {
+				"label": "Adicionar Conteúdo do Terminal ao Contexto",
+				"description": "Adicione a saída do terminal à sua tarefa ou conversa atual. Useful for providing command outputs or logs. Available in the terminal context menu (right-click on selected terminal content)."
+			},
+			"TERMINAL_FIX": {
+				"label": "Corrigir Comando do Terminal",
+				"description": "Obtenha ajuda para corrigir comandos de terminal que falharam ou precisam de melhorias. Available in the terminal context menu (right-click on selected terminal content)."
+			},
+			"TERMINAL_EXPLAIN": {
+				"label": "Explicar Comando do Terminal",
+				"description": "Obtenha explicações detalhadas de comandos de terminal e suas saídas. Available in the terminal context menu (right-click on selected terminal content)."
+			}
+		}
+	},
+	"customModeCreation": {
+		"enableTitle": "Ativar criação de modo personalizado através de prompts",
+		"description": "Quando ativado, o Roo permite que você crie modos personalizados usando prompts como 'Crie para mim um modo personalizado que...'. Desativar isto reduz seu prompt de sistema em cerca de 700 tokens quando esta funcionalidade não é necessária. Quando desativado, você ainda pode criar modos personalizados manualmente usando o botão + acima ou editando o JSON de configuração relacionado."
+	},
+	"advancedSystemPrompt": {
+		"title": "Avançado: Substituir prompt do sistema",
+		"description": "Você pode substituir completamente o prompt do sistema para este modo (além da definição de função e instruções personalizadas) criando um arquivo em .roo/system-prompt-{{modeSlug}} no seu espaço de trabalho. Esta é uma funcionalidade muito avançada que contorna as salvaguardas integradas e verificações de consistência (especialmente em torno do uso de ferramentas), então tenha cuidado!"
+	},
+	"createModeDialog": {
+		"title": "Criar novo modo",
+		"close": "Fechar",
+		"name": {
+			"label": "Nome",
+			"placeholder": "Digite o nome do modo"
+		},
+		"slug": {
+			"label": "Slug",
+			"description": "O slug é usado em URLs e nomes de arquivos. Deve estar em minúsculas e conter apenas letras, números e hífens."
+		},
+		"saveLocation": {
+			"label": "Local de salvamento",
+			"description": "Escolha onde salvar este modo. Os modos específicos do projeto têm precedência sobre os modos globais.",
+			"global": {
+				"label": "Global",
+				"description": "Disponível em todos os espaços de trabalho"
+			},
+			"project": {
+				"label": "Específico do projeto (.roomodes)",
+				"description": "Disponível apenas neste espaço de trabalho, tem precedência sobre o global"
+			}
+		},
+		"roleDefinition": {
+			"label": "Definição de função",
+			"description": "Defina a expertise e personalidade do Roo para este modo."
+		},
+		"tools": {
+			"label": "Ferramentas disponíveis",
+			"description": "Selecione quais ferramentas este modo pode usar."
+		},
+		"customInstructions": {
+			"label": "Instruções personalizadas (opcional)",
+			"description": "Adicione diretrizes comportamentais específicas para este modo."
+		},
+		"buttons": {
+			"cancel": "Cancelar",
+			"create": "Criar Modo"
+		},
+		"deleteMode": "Excluir modo"
+	},
+	"allFiles": "todos os arquivos"
+}

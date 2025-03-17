@@ -1,4 +1,5 @@
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 import { Button as VSCodeButton } from "vscrui"
 import {
 	CheckCheck,
@@ -55,6 +56,7 @@ type SettingsViewProps = {
 }
 
 const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone }, ref) => {
+	const { t } = useAppTranslation()
 	const extensionState = useExtensionState()
 	const { currentApiConfigName, listApiConfigMeta, uriScheme, version } = extensionState
 
@@ -70,6 +72,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 	const {
 		alwaysAllowReadOnly,
 		allowedCommands,
+		language,
 		alwaysAllowBrowser,
 		alwaysAllowExecute,
 		alwaysAllowMcp,
@@ -173,6 +176,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 
 	const handleSubmit = () => {
 		if (isSettingValid) {
+			vscode.postMessage({ type: "language", text: language })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
 			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
 			vscode.postMessage({ type: "alwaysAllowExecute", bool: alwaysAllowExecute })
@@ -251,7 +255,16 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			{ id: "advanced", icon: Cog, ref: advancedRef },
 			{ id: "experimental", icon: FlaskConical, ref: experimentalRef },
 		],
-		[providersRef, autoApproveRef, browserRef, checkpointRef, notificationsRef, advancedRef, experimentalRef],
+		[
+			providersRef,
+			autoApproveRef,
+			browserRef,
+			checkpointRef,
+			notificationsRef,
+			contextRef,
+			advancedRef,
+			experimentalRef,
+		],
 	)
 
 	const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -286,7 +299,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		<Tab>
 			<TabHeader className="flex justify-between items-center gap-2">
 				<div className="flex items-center gap-2">
-					<h3 className="text-vscode-foreground m-0">Settings</h3>
+					<h3 className="text-vscode-foreground m-0">{t("settings:header.title")}</h3>
 					<div className="hidden [@media(min-width:400px)]:flex items-center">
 						{sections.map(({ id, icon: Icon, ref }) => (
 							<Button
@@ -303,16 +316,23 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 					<VSCodeButton
 						appearance={isSettingValid ? "primary" : "secondary"}
 						className={!isSettingValid ? "!border-vscode-errorForeground" : ""}
-						title={!isSettingValid ? errorMessage : isChangeDetected ? "Save changes" : "Nothing changed"}
+						title={
+							!isSettingValid
+								? errorMessage
+								: isChangeDetected
+									? t("settings:header.saveButtonTooltip")
+									: t("settings:header.nothingChangedTooltip")
+						}
 						onClick={handleSubmit}
-						disabled={!isChangeDetected || !isSettingValid}>
-						Save
+						disabled={!isChangeDetected || !isSettingValid}
+						data-testid="save-button">
+						{t("settings:common.save")}
 					</VSCodeButton>
 					<VSCodeButton
 						appearance="secondary"
-						title="Discard unsaved changes and close settings panel"
+						title={t("settings:header.doneButtonTooltip")}
 						onClick={() => checkUnsaveChanges(onDone)}>
-						Done
+						{t("settings:common.done")}
 					</VSCodeButton>
 				</div>
 			</TabHeader>
@@ -322,7 +342,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 					<SectionHeader>
 						<div className="flex items-center gap-2">
 							<Webhook className="w-4" />
-							<div>Providers</div>
+							<div>{t("settings:sections.providers")}</div>
 						</div>
 					</SectionHeader>
 
@@ -441,6 +461,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 					version={version}
 					telemetrySetting={telemetrySetting}
 					setTelemetrySetting={setTelemetrySetting}
+					language={language || "en"}
+					setCachedStateField={setCachedStateField}
 				/>
 			</TabContent>
 
@@ -449,14 +471,18 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 					<AlertDialogHeader>
 						<AlertDialogTitle>
 							<AlertTriangle className="w-5 h-5 text-yellow-500" />
-							Unsaved Changes
+							{t("settings:unsavedChangesDialog.title")}
 						</AlertDialogTitle>
-						<AlertDialogDescription>Do you want to discard changes and continue?</AlertDialogDescription>
+						<AlertDialogDescription>
+							{t("settings:unsavedChangesDialog.description")}
+						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel onClick={() => onConfirmDialogResult(false)}>Cancel</AlertDialogCancel>
+						<AlertDialogCancel onClick={() => onConfirmDialogResult(false)}>
+							{t("settings:unsavedChangesDialog.cancelButton")}
+						</AlertDialogCancel>
 						<AlertDialogAction onClick={() => onConfirmDialogResult(true)}>
-							Discard changes
+							{t("settings:unsavedChangesDialog.discardButton")}
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

@@ -1,0 +1,52 @@
+{
+	"title": "Server MCP",
+	"done": "Fatto",
+	"description": "Il <0>Model Context Protocol</0> permette la comunicazione con server MCP in esecuzione locale che forniscono strumenti e risorse aggiuntive per estendere le capacità di Roo. Puoi utilizzare <1>server creati dalla comunità</1> o chiedere a Roo di creare nuovi strumenti specifici per il tuo flusso di lavoro (ad esempio, \"aggiungi uno strumento che ottiene la documentazione npm più recente\").",
+	"enableToggle": {
+		"title": "Abilita server MCP",
+		"description": "Quando abilitato, Roo sarà in grado di interagire con i server MCP per funzionalità avanzate. Se non stai utilizzando MCP, puoi disabilitare questa opzione per ridurre l'utilizzo di token da parte di Roo."
+	},
+	"enableServerCreation": {
+		"title": "Abilita creazione server MCP",
+		"description": "Quando abilitato, Roo può aiutarti a creare nuovi server MCP tramite comandi come \"aggiungi un nuovo strumento per...\". Se non hai bisogno di creare server MCP, puoi disabilitare questa opzione per ridurre l'utilizzo di token da parte di Roo."
+	},
+	"editGlobalMCP": "Modifica MCP Globale",
+	"editProjectMCP": "Modifica MCP del Progetto",
+	"tool": {
+		"alwaysAllow": "Consenti sempre",
+		"parameters": "Parametri",
+		"noDescription": "Nessuna descrizione"
+	},
+	"tabs": {
+		"tools": "Strumenti",
+		"resources": "Risorse"
+	},
+	"emptyState": {
+		"noTools": "Nessuno strumento trovato",
+		"noResources": "Nessuna risorsa trovata"
+	},
+	"networkTimeout": {
+		"label": "Timeout di rete",
+		"description": "Tempo massimo di attesa per le risposte del server",
+		"options": {
+			"15seconds": "15 secondi",
+			"30seconds": "30 secondi",
+			"1minute": "1 minuto",
+			"5minutes": "5 minuti",
+			"10minutes": "10 minuti",
+			"15minutes": "15 minuti",
+			"30minutes": "30 minuti",
+			"60minutes": "60 minuti"
+		}
+	},
+	"deleteDialog": {
+		"title": "Elimina server MCP",
+		"description": "Sei sicuro di voler eliminare il server MCP \"{{serverName}}\"? Questa azione non può essere annullata.",
+		"cancel": "Annulla",
+		"delete": "Elimina"
+	},
+	"serverStatus": {
+		"retrying": "Nuovo tentativo...",
+		"retryConnection": "Riprova connessione"
+	}
+}
