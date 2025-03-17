@@ -1,11 +1,4 @@
-import {
-	VSCodeButton,
-	VSCodeTextField,
-	VSCodeProgressRing,
-	VSCodeDropdown,
-	VSCodeOption,
-	VSCodeCheckbox,
-} from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
@@ -30,13 +23,100 @@ interface QueueItem {
 	isCompleted: boolean
 }
 
+// SortableItem component for drag and drop functionality
+interface SortableItemProps {
+	id: string
+	item: QueueItem
+	index: number
+	onDelete: (index: number) => void
+	onToggleComplete: (index: number) => void
+}
+
+const SortableItem = ({ id, item, index, onDelete, onToggleComplete }: SortableItemProps) => {
+	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+		opacity: isDragging ? 0.5 : 1,
+		backgroundColor: "var(--vscode-editor-background)",
+		border: "1px solid var(--vscode-widget-border)",
+		borderRadius: "4px",
+		padding: "10px",
+		marginBottom: "5px",
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "space-between",
+		cursor: isDragging ? "grabbing" : "grab",
+	}
+
+	return (
+		<div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+			<div style={{ display: "flex", alignItems: "center", gap: "8px", flexGrow: 1 }}>
+				<VSCodeCheckbox
+					checked={item.isCompleted}
+					onChange={() => onToggleComplete(index)}
+					onClick={(e) => e.stopPropagation()} // Prevent drag when clicking checkbox
+				/>
+				<div
+					style={{
+						flexGrow: 1,
+						textDecoration: item.isCompleted ? "line-through" : "none",
+						color: item.isCompleted ? "var(--vscode-disabledForeground)" : "var(--vscode-foreground)",
+					}}>
+					{item.task}
+				</div>
+			</div>
+			<div style={{ display: "flex", gap: "5px" }}>
+				<div
+					style={{
+						fontSize: "12px",
+						color: "var(--vscode-descriptionForeground)",
+						display: "flex",
+						alignItems: "center",
+						marginRight: "10px",
+					}}>
+					<svg
+						width="16"
+						height="16"
+						viewBox="0 0 16 16"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+						style={{ marginRight: "4px" }}>
+						<path d="M7 2H9V14H7V2Z" fill="currentColor" />
+						<path d="M2 7H14V9H2V7Z" fill="currentColor" />
+					</svg>
+					<span>Drag to reorder</span>
+				</div>
+				<VSCodeButton
+					appearance="icon"
+					onClick={(e) => {
+						e.stopPropagation()
+						onDelete(index)
+					}}>
+					<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+						<path
+							d="M8 8.7L11.5 12.2L12.2 11.5L8.7 8L12.2 4.5L11.5 3.8L8 7.3L4.5 3.8L3.8 4.5L7.3 8L3.8 11.5L4.5 12.2L8 8.7Z"
+							fill="currentColor"
+						/>
+					</svg>
+				</VSCodeButton>
+			</div>
+		</div>
+	)
+}
+
 const QueueView = ({ onDone }: QueueViewProps) => {
 	const { queueItems } = useExtensionState()
 	const [newTask, setNewTask] = useState("")
 
 	// Set up sensors for drag and drop
 	const sensors = useSensors(
-		useSensor(PointerSensor),
+		useSensor(PointerSensor, {
+			activationConstraint: {
+				distance: 5, // Minimum distance before drag starts
+			},
+		}),
 		useSensor(KeyboardSensor, {
 			coordinateGetter: sortableKeyboardCoordinates,
 		}),
@@ -58,10 +138,9 @@ const QueueView = ({ onDone }: QueueViewProps) => {
 		}
 	}
 
-	// Handle delete task
-	const handleDeleteTask = (orderToDelete: number) => {
-		// Filter out the item with the specified order
-		const updatedQueueItems = queueItems.filter((item) => item.order !== orderToDelete)
+	const handleDeleteTask = (index: number) => {
+		// Filter out the item at the specified index
+		const updatedQueueItems = queueItems.filter((_, itemIndex) => itemIndex !== index)
 
 		// Send message to extension to update queue items
 		vscode.postMessage({
@@ -70,85 +149,81 @@ const QueueView = ({ onDone }: QueueViewProps) => {
 		})
 	}
 
-	// Handle drag end for reordering items
-	const handleDragEnd = (event: DragEndEvent) => {
-		const { active, over } = event
+	const handleToggleComplete = (index: number) => {
+		// Create a new array with the updated item
+		const updatedQueueItems = queueItems.map((item, itemIndex) =>
+			itemIndex === index ? { ...item, isCompleted: !item.isCompleted } : item,
+		)
 
-		// If no destination or the same position, do nothing
-		if (!over || active.id === over.id) {
-			return
-		}
-
-		// Find the indexes in the array
-		const oldIndex = queueItems.findIndex((item) => item.order.toString() === active.id)
-		const newIndex = queueItems.findIndex((item) => item.order.toString() === over.id)
-
-		// Create a new array with the moved item
-		const newItems = arrayMove(queueItems, oldIndex, newIndex)
-
-		// Update orders to match the new position
-		const updatedItems = newItems.map((item, index) => ({
-			...item,
-			order: index + 1,
-		}))
-
-		// Send updated queue to the extension
+		// Send message to extension to update queue items
 		vscode.postMessage({
 			type: "updateQueue",
-			queueItems: updatedItems,
+			queueItems: updatedQueueItems,
 		})
 	}
 
-	// Sortable item component
-	const SortableItem = ({ item, index }: { item: QueueItem; index: number }) => {
-		const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
-			id: item.order.toString(),
+	const handleClear = () => {
+		vscode.postMessage({
+			type: "updateQueue",
+			queueItems: [],
 		})
+		setNewTask("")
+	}
 
-		const style = {
-			transform: CSS.Transform.toString(transform),
-			transition,
-			padding: "10px",
-			border: "1px solid var(--vscode-editor-lineHighlightBorder)",
-			borderRadius: "4px",
-			display: "flex",
-			justifyContent: "space-between",
-			alignItems: "center",
-			background: "var(--vscode-editor-background)",
+	const handleStart = () => {
+		const nextTask = queueItems.find((item) => !item.isCompleted)
+		if (nextTask) {
+			vscode.postMessage({
+				type: "newTask",
+				text: nextTask.task,
+			})
 		}
+	}
 
-		return (
-			<div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-				<div
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "8px",
-						flexGrow: 1,
-					}}>
-					<span title="Drag to reorder" style={{ cursor: "grab", fontSize: "16px" }}>
-						⋮⋮
-					</span>
-					<span
-						style={{
-							textDecoration: item.isCompleted ? "line-through" : "none",
-							opacity: item.isCompleted ? 0.7 : 1,
-						}}>
-						{item.task}
-					</span>
-				</div>
-				<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-					<span style={{ fontSize: "12px", opacity: 0.7 }}>#{item.order}</span>
-					<VSCodeButton
-						appearance="icon"
-						onClick={() => handleDeleteTask(item.order)}
-						title="Delete task"
-						aria-label="Delete task">
-						<span style={{ fontSize: "16px" }}>❌</span>
-					</VSCodeButton>
-				</div>
-			</div>
-		)
+	// Handle drag end for reordering items
+	const handleDragEnd = (event: DragEndEvent) => {
+		try {
+			const { active, over } = event
+
+			// If no destination or the same position, do nothing
+			if (!over || active.id === over.id) {
+				return
+			}
+
+			// Find the indexes in the array
+			const oldIndex = queueItems.findIndex((item) => item.order.toString() === active.id)
+			const newIndex = queueItems.findIndex((item) => item.order.toString() === over.id)
+
+			// Validate indexes
+			if (oldIndex === -1 || newIndex === -1) {
+				console.error("Invalid indexes in drag operation", { oldIndex, newIndex, active, over })
+				return
+			}
+
+			// Create a new array with the moved item
+			const newItems = arrayMove(queueItems, oldIndex, newIndex)
+
+			// Update orders to match the new position
+			const updatedItems = newItems.map((item, index) => ({
+				...item,
+				order: index + 1,
+			}))
+
+			// Send updated queue to the extension
+			vscode.postMessage({
+				type: "updateQueue",
+				queueItems: updatedItems,
+			})
+		} catch (error) {
+			console.error("Error in drag end handler:", error)
+		}
+	}
+
+	// Handle key press for adding tasks
+	const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+		if (e.key === "Enter") {
+			handleAddTask()
+		}
 	}
 
 	return (
@@ -177,6 +252,7 @@ const QueueView = ({ onDone }: QueueViewProps) => {
 						placeholder="Enter new task..."
 						value={newTask}
 						onInput={(e) => setNewTask((e.target as HTMLInputElement).value)}
+						onKeyPress={handleKeyPress}
 						style={{ flexGrow: 1 }}
 					/>
 					<VSCodeButton onClick={handleAddTask}>Add</VSCodeButton>
@@ -189,19 +265,38 @@ const QueueView = ({ onDone }: QueueViewProps) => {
 							<SortableContext
 								items={queueItems.map((item) => item.order.toString())}
 								strategy={verticalListSortingStrategy}>
-								<div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+								<div style={{ display: "flex", flexDirection: "column" }}>
 									{queueItems.map((item, index) => (
-										<SortableItem key={item.order.toString()} item={item} index={index} />
+										<SortableItem
+											key={item.order.toString()}
+											id={item.order.toString()}
+											item={item}
+											index={index}
+											onDelete={handleDeleteTask}
+											onToggleComplete={handleToggleComplete}
+										/>
 									))}
 								</div>
 							</SortableContext>
 						</DndContext>
 					) : (
-						<p>No tasks in queue. Add a new task above.</p>
+						<p style={{ color: "var(--vscode-descriptionForeground)", fontStyle: "italic" }}>
+							No tasks in queue. Add a new task above.
+						</p>
 					)}
 				</div>
 
-				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+				<div style={{ display: "flex", gap: "10px", marginBottom: "20px", justifyContent: "space-between" }}>
+					<VSCodeButton onClick={handleStart} appearance="primary">
+						Start
+					</VSCodeButton>
+					<div style={{ display: "flex", gap: "10px" }}>
+						<VSCodeButton onClick={handleClear} appearance="secondary">
+							Clear All
+						</VSCodeButton>
+						<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+					</div>
+				</div>
 			</div>
 		</div>
 	)
