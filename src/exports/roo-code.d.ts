@@ -1,5 +1,14 @@
 import { EventEmitter } from "events"
 
+export interface TokenUsage {
+	totalTokensIn: number
+	totalTokensOut: number
+	totalCacheWrites?: number
+	totalCacheReads?: number
+	totalCost: number
+	contextTokens: number
+}
+
 export interface RooCodeEvents {
 	message: [{ taskId: string; action: "created" | "updated"; message: ClineMessage }]
 	taskStarted: [taskId: string]
@@ -8,6 +17,8 @@ export interface RooCodeEvents {
 	taskAskResponded: [taskId: string]
 	taskAborted: [taskId: string]
 	taskSpawned: [taskId: string, childTaskId: string]
+	taskCompleted: [taskId: string, usage: TokenUsage]
+	taskTokenUsageUpdated: [taskId: string, usage: TokenUsage]
 }
 
 export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
@@ -18,6 +29,12 @@ export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	 * @returns The ID of the new task.
 	 */
 	startNewTask(task?: string, images?: string[]): Promise<string>
+
+	/**
+	 * Returns the current task stack.
+	 * @returns An array of task IDs.
+	 */
+	getCurrentTaskStack(): string[]
 
 	/**
 	 * Clears the current task.
@@ -65,10 +82,17 @@ export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	getMessages(taskId: string): ClineMessage[]
 
 	/**
-	 * Returns the current task stack.
-	 * @returns An array of task IDs.
+	 * Returns the token usage for a given task.
+	 * @param taskId The ID of the task.
+	 * @returns A TokenUsage object.
 	 */
-	getCurrentTaskStack(): string[]
+	getTokenUsage(taskId: string): TokenUsage
+
+	/**
+	 * Logs a message to the output channel.
+	 * @param message The message to log.
+	 */
+	log(message: string): void
 }
 
 export type ClineAsk =

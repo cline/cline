@@ -177,7 +177,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 
 		if (lastError) {
 			console.error(
-				`Failed to fetch OpenRouter generation details after ${Date.now() - startTime}ms (${genId})`,
+				`Failed to fetch OpenRouter generation details after attempt #${attempt} (${Date.now() - startTime}ms) [${genId}]`,
 				lastError,
 			)
 		}

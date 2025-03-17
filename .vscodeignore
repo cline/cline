@@ -5,6 +5,7 @@
 .vscode-test/**
 out/**
 out-integration/**
+benchmark/**
 e2e/**
 node_modules/**
 src/**

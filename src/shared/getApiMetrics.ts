@@ -1,13 +1,6 @@
-import { ClineMessage } from "./ExtensionMessage"
+import { TokenUsage } from "../exports/roo-code"
 
-interface ApiMetrics {
-	totalTokensIn: number
-	totalTokensOut: number
-	totalCacheWrites?: number
-	totalCacheReads?: number
-	totalCost: number
-	contextTokens: number // Total tokens in conversation (last message's tokensIn + tokensOut + cacheWrites + cacheReads)
-}
+import { ClineMessage } from "./ExtensionMessage"
 
 /**
  * Calculates API metrics from an array of ClineMessages.
@@ -26,8 +19,8 @@ interface ApiMetrics {
  * const { totalTokensIn, totalTokensOut, totalCost } = getApiMetrics(messages);
  * // Result: { totalTokensIn: 10, totalTokensOut: 20, totalCost: 0.005 }
  */
-export function getApiMetrics(messages: ClineMessage[]): ApiMetrics {
-	const result: ApiMetrics = {
+export function getApiMetrics(messages: ClineMessage[]) {
+	const result: TokenUsage = {
 		totalTokensIn: 0,
 		totalTokensOut: 0,
 		totalCacheWrites: undefined,
