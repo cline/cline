@@ -338,24 +338,13 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			</TabHeader>
 
 			<TabContent
-				className="p-0 divide-y divide-vscode-sideBar-background"
+				className="p-0 divide-y divide-vscode-sideBar-background will-change-scroll"
 				style={{
-					maxHeight: "calc(100vh - 6rem)",
-					height: "calc(100vh - 6rem)",
-					overflowY: "scroll",
-					overflowX: "hidden",
 					WebkitOverflowScrolling: "touch",
-					position: "relative",
-					display: "block",
 					msOverflowStyle: "-ms-autohiding-scrollbar",
-					scrollbarWidth: "auto",
 					scrollbarGutter: "stable",
-					willChange: "scroll-position",
 				}}
-				onWheel={(e) => {
-					const container = e.currentTarget
-					container.scrollTop += e.deltaY
-				}}
+				onWheel={(e) => (e.currentTarget.scrollTop += e.deltaY)}
 				onScroll={handleScroll}>
 				<div ref={providersRef}>
 					<SectionHeader>
