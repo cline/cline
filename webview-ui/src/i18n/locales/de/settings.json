@@ -152,6 +152,13 @@
 			"description": "Es ist kein API-Schlüssel erforderlich, aber der Benutzer muss beim Kopieren und Einfügen der Informationen in den Web-Chat-KI helfen.",
 			"instructions": "Während der Verwendung wird ein Dialogfeld angezeigt und die aktuelle Nachricht wird automatisch in die Zwischenablage kopiert. Sie müssen diese in Web-Versionen von KI (wie ChatGPT oder Claude) einfügen, dann die Antwort der KI zurück in das Dialogfeld kopieren und auf die Bestätigungsschaltfläche klicken."
 		},
+		"openRouter": {
+			"providerRouting": {
+				"title": "OpenRouter Anbieter-Routing",
+				"description": "OpenRouter leitet Anfragen an die besten verfügbaren Anbieter für Ihr Modell weiter. Standardmäßig werden Anfragen über die Top-Anbieter lastverteilt, um maximale Verfügbarkeit zu gewährleisten. Sie können jedoch einen bestimmten Anbieter für dieses Modell auswählen.",
+				"learnMore": "Mehr über Anbieter-Routing erfahren"
+			}
+		},
 		"customModel": {
 			"capabilities": "Konfigurieren Sie die Fähigkeiten und Preise für Ihr benutzerdefiniertes OpenAI-kompatibles Modell. Seien Sie vorsichtig bei der Angabe der Modellfähigkeiten, da diese beeinflussen können, wie Roo Code funktioniert.",
 			"maxTokens": {

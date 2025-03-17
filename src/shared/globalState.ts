@@ -71,6 +71,7 @@ export const GLOBAL_STATE_KEYS = [
 	"openRouterModelId",
 	"openRouterModelInfo",
 	"openRouterBaseUrl",
+	"openRouterSpecificProvider",
 	"openRouterUseMiddleOutTransform",
 	"googleGeminiBaseUrl",
 	"allowedCommands",

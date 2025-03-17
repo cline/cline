@@ -5,6 +5,7 @@ import { useDebounce, useEvent } from "react-use"
 import { Checkbox, Dropdown, type DropdownOption } from "vscrui"
 import { VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import * as vscodemodels from "vscode"
+import { ExternalLinkIcon } from "@radix-ui/react-icons"
 
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue, Button } from "@/components/ui"
 
@@ -38,7 +39,12 @@ import {
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 
-import { vscode } from "../../utils/vscode"
+import { vscode } from "@/utils/vscode"
+import {
+	useOpenRouterModelProviders,
+	OPENROUTER_DEFAULT_PROVIDER_NAME,
+} from "@/components/ui/hooks/useOpenRouterModelProviders"
+
 import { VSCodeButtonLink } from "../common/VSCodeButtonLink"
 import { ModelInfoView } from "./ModelInfoView"
 import { ModelPicker } from "./ModelPicker"
@@ -94,6 +100,7 @@ const ApiOptions = ({
 	setErrorMessage,
 }: ApiOptionsProps) => {
 	const { t } = useAppTranslation()
+
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
@@ -191,6 +198,13 @@ const ApiOptions = ({
 
 		setErrorMessage(apiValidationResult)
 	}, [apiConfiguration, glamaModels, openRouterModels, setErrorMessage, unboundModels, requestyModels])
+
+	const { data: openRouterModelProviders } = useOpenRouterModelProviders(apiConfiguration?.openRouterModelId, {
+		enabled:
+			selectedProvider === "openrouter" &&
+			!!apiConfiguration?.openRouterModelId &&
+			apiConfiguration.openRouterModelId in openRouterModels,
+	})
 
 	const onMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
@@ -1363,6 +1377,52 @@ const ApiOptions = ({
 					serviceName="OpenRouter"
 					serviceUrl="https://openrouter.ai/models"
 				/>
+			)}
+
+			{openRouterModelProviders && (
+				<>
+					<div className="dropdown-container" style={{ marginTop: 3 }}>
+						<div className="flex items-center gap-1">
+							<label htmlFor="provider-routing" className="font-medium">
+								{t("settings:providers.openRouter.providerRouting.title")}
+							</label>
+							<a href={`https://openrouter.ai/${selectedModelId}/providers`}>
+								<ExternalLinkIcon className="w-4 h-4" />
+							</a>
+						</div>
+						<Dropdown
+							id="provider-routing"
+							value={apiConfiguration?.openRouterSpecificProvider || ""}
+							onChange={(event) => {
+								const provider = typeof event == "string" ? event : event?.value
+								const providerModelInfo = provider ? openRouterModelProviders[provider] : undefined
+
+								if (providerModelInfo) {
+									setApiConfigurationField("openRouterModelInfo", {
+										...apiConfiguration.openRouterModelInfo,
+										...providerModelInfo,
+									})
+								}
+
+								setApiConfigurationField("openRouterSpecificProvider", provider)
+							}}
+							options={[
+								{ value: OPENROUTER_DEFAULT_PROVIDER_NAME, label: OPENROUTER_DEFAULT_PROVIDER_NAME },
+								...Object.entries(openRouterModelProviders).map(([value, { label }]) => ({
+									value,
+									label,
+								})),
+							]}
+							className="w-full"
+						/>
+					</div>
+					<div className="text-sm text-vscode-descriptionForeground">
+						{t("settings:providers.openRouter.providerRouting.description")}{" "}
+						<a href="https://openrouter.ai/docs/features/provider-routing">
+							{t("settings:providers.openRouter.providerRouting.learnMore")}.
+						</a>
+					</div>
+				</>
 			)}
 
 			{selectedProvider === "glama" && (

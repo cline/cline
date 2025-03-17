@@ -1,8 +1,10 @@
 // npx jest src/components/settings/__tests__/ApiOptions.test.ts
 
 import { render, screen } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
-import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext"
+import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
+
 import ApiOptions from "../ApiOptions"
 
 // Mock VSCode components
@@ -85,10 +87,12 @@ jest.mock("../ThinkingBudget", () => ({
 		) : null,
 }))
 
-describe("ApiOptions", () => {
-	const renderApiOptions = (props = {}) => {
-		render(
-			<ExtensionStateContextProvider>
+const renderApiOptions = (props = {}) => {
+	const queryClient = new QueryClient()
+
+	render(
+		<ExtensionStateContextProvider>
+			<QueryClientProvider client={queryClient}>
 				<ApiOptions
 					errorMessage={undefined}
 					setErrorMessage={() => {}}
@@ -97,10 +101,12 @@ describe("ApiOptions", () => {
 					setApiConfigurationField={() => {}}
 					{...props}
 				/>
-			</ExtensionStateContextProvider>,
-		)
-	}
+			</QueryClientProvider>
+		</ExtensionStateContextProvider>,
+	)
+}
 
+describe("ApiOptions", () => {
 	it("shows temperature control by default", () => {
 		renderApiOptions()
 		expect(screen.getByTestId("temperature-control")).toBeInTheDocument()

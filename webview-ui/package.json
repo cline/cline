@@ -29,6 +29,7 @@
 		"@radix-ui/react-slot": "^1.1.2",
 		"@radix-ui/react-tooltip": "^1.1.8",
 		"@tailwindcss/vite": "^4.0.0",
+		"@tanstack/react-query": "^5.68.0",
 		"@vscode/webview-ui-toolkit": "^1.4.0",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
@@ -56,7 +57,8 @@
 		"tailwind-merge": "^2.6.0",
 		"tailwindcss": "^4.0.0",
 		"tailwindcss-animate": "^1.0.7",
-		"vscrui": "^0.2.2"
+		"vscrui": "^0.2.2",
+		"zod": "^3.24.2"
 	},
 	"devDependencies": {
 		"@storybook/addon-essentials": "^8.5.6",

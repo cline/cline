@@ -152,6 +152,13 @@
 			"description": "API 키가 필요하지 않지만, 사용자가 웹 채팅 AI에 정보를 복사하여 붙여넣어야 합니다.",
 			"instructions": "사용 중에 대화 상자가 나타나고 현재 메시지가 자동으로 클립보드에 복사됩니다. 이를 웹 버전 AI(예: ChatGPT 또는 Claude)에 붙여넣은 다음, AI의 응답을 대화 상자에 복사하고 확인 버튼을 클릭해야 합니다."
 		},
+		"openRouter": {
+			"providerRouting": {
+				"title": "OpenRouter 제공자 라우팅",
+				"description": "OpenRouter는 귀하의 모델에 가장 적합한 사용 가능한 제공자에게 요청을 전달합니다. 기본적으로 요청은 가동 시간을 최대화하기 위해 상위 제공자 간에 부하 분산됩니다. 그러나 이 모델에 사용할 특정 제공자를 선택할 수 있습니다.",
+				"learnMore": "제공자 라우팅에 대해 자세히 알아보기"
+			}
+		},
 		"customModel": {
 			"capabilities": "사용자 정의 OpenAI 호환 모델의 기능과 가격을 구성하세요. 모델 기능이 Roo Code의 성능에 영향을 미칠 수 있으므로 신중하게 지정하세요.",
 			"maxTokens": {

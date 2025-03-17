@@ -203,6 +203,7 @@ export type GlobalStateKey =
 	| "openRouterModelId"
 	| "openRouterModelInfo"
 	| "openRouterBaseUrl"
+	| "openRouterSpecificProvider"
 	| "openRouterUseMiddleOutTransform"
 	| "googleGeminiBaseUrl"
 	| "allowedCommands"

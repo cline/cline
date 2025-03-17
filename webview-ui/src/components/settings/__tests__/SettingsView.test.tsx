@@ -1,9 +1,12 @@
 // npx jest src/components/settings/__tests__/SettingsView.test.ts
 
 import { render, screen, fireEvent } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+
+import { vscode } from "@/utils/vscode"
+import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
+
 import SettingsView from "../SettingsView"
-import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext"
-import { vscode } from "../../../utils/vscode"
 
 // Mock vscode API
 jest.mock("../../../utils/vscode", () => ({
@@ -124,13 +127,19 @@ const mockPostMessage = (state: any) => {
 
 const renderSettingsView = () => {
 	const onDone = jest.fn()
+	const queryClient = new QueryClient()
+
 	render(
 		<ExtensionStateContextProvider>
-			<SettingsView onDone={onDone} />
+			<QueryClientProvider client={queryClient}>
+				<SettingsView onDone={onDone} />
+			</QueryClientProvider>
 		</ExtensionStateContextProvider>,
 	)
-	// Hydrate initial state
+
+	// Hydrate initial state.
 	mockPostMessage({})
+
 	return { onDone }
 }
 

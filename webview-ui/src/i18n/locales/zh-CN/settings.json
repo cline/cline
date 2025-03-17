@@ -152,6 +152,13 @@
 			"description": "不需要 API 密钥，但用户需要帮助将信息复制并粘贴到网页聊天 AI。",
 			"instructions": "使用期间，将弹出对话框并自动将当前消息复制到剪贴板。您需要将这些内容粘贴到 AI 的网页版本（如 ChatGPT 或 Claude），然后将 AI 的回复复制回对话框并点击确认按钮。"
 		},
+		"openRouter": {
+			"providerRouting": {
+				"title": "OpenRouter 提供商路由",
+				"description": "OpenRouter 将请求路由到适合您模型的最佳可用提供商。默认情况下，请求会在顶级提供商之间进行负载均衡以最大化正常运行时间。但是，您可以为此模型选择特定的提供商。",
+				"learnMore": "了解更多关于提供商路由的信息"
+			}
+		},
 		"customModel": {
 			"capabilities": "配置您的自定义 OpenAI 兼容模型的功能和定价。在指定模型功能时要小心，因为它们会影响 Roo Code 的性能。",
 			"maxTokens": {
