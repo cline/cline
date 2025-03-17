@@ -16,7 +16,10 @@ export const CopyButton = ({ itemTask }: CopyButtonProps) => {
 	const onCopy = useCallback(
 		(e: React.MouseEvent) => {
 			e.stopPropagation()
-			!isCopied && copy(itemTask)
+			const tempDiv = document.createElement('div');
+			tempDiv.innerHTML = itemTask;
+			const text = tempDiv.textContent || tempDiv.innerText || "";
+			!isCopied && copy(text)
 		},
 		[isCopied, copy, itemTask],
 	)

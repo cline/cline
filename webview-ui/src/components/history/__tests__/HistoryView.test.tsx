@@ -8,7 +8,6 @@ import { vscode } from "../../../utils/vscode"
 jest.mock("../../../context/ExtensionStateContext")
 jest.mock("../../../utils/vscode")
 jest.mock("../../../i18n/TranslationContext")
-
 jest.mock("react-virtuoso", () => ({
 	Virtuoso: ({ data, itemContent }: any) => (
 		<div data-testid="virtuoso-container">
@@ -71,6 +70,12 @@ describe("HistoryView", () => {
 	})
 
 	it("handles search functionality", () => {
+		// Setup clipboard mock that resolves immediately
+		const mockClipboard = {
+			writeText: jest.fn().mockResolvedValue(undefined),
+		}
+		Object.assign(navigator, { clipboard: mockClipboard })
+
 		const onDone = jest.fn()
 		render(<HistoryView onDone={onDone} />)
 
@@ -97,6 +102,14 @@ describe("HistoryView", () => {
 		// Verify radio button is checked
 		const updatedRadio = within(radioGroup).getByTestId("radio-most-relevant")
 		expect(updatedRadio).toBeInTheDocument()
+
+		// Verify copy the plain text content of the task when the copy button is clicked
+		const taskContainer = screen.getByTestId("virtuoso-item-1")
+		fireEvent.mouseEnter(taskContainer)
+		const copyButton = within(taskContainer).getByTestId("copy-prompt-button")
+		fireEvent.click(copyButton)
+		const taskContent = within(taskContainer).getByTestId("task-content")
+		expect(navigator.clipboard.writeText).toHaveBeenCalledWith(taskContent.textContent)
 	})
 
 	it("handles sort options correctly", async () => {
