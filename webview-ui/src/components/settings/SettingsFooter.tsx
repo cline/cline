@@ -78,7 +78,7 @@ export const SettingsFooter = ({
 						title={LANGUAGES[language]}>
 						{Object.entries(LANGUAGES).map(([code, name]) => (
 							<option key={code} value={code}>
-								{name}
+								{name} ({code})
 							</option>
 						))}
 					</select>
