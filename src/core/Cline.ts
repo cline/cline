@@ -22,7 +22,7 @@ import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
 import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
 import { ApiConfiguration } from "../shared/api"
-import { findLast, findLastIndex } from "../shared/array"
+import { findLast, findLastIndex, parsePartialArrayString } from "../shared/array"
 import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
 import { BrowserSettings } from "../shared/BrowserSettings"
 import { ChatSettings } from "../shared/ChatSettings"
@@ -35,8 +35,10 @@ import {
 	ClineApiReqCancelReason,
 	ClineApiReqInfo,
 	ClineAsk,
+	ClineAskQuestion,
 	ClineAskUseMcpServer,
 	ClineMessage,
+	ClinePlanModeResponse,
 	ClineSay,
 	ClineSayBrowserAction,
 	ClineSayTool,
@@ -2718,9 +2720,14 @@ export class Cline {
 					}
 					case "ask_followup_question": {
 						const question: string | undefined = block.params.question
+						const optionsRaw: string | undefined = block.params.options
+						const sharedMessage = {
+							question: removeClosingTag("question", question),
+							options: parsePartialArrayString(removeClosingTag("options", optionsRaw)),
+						} satisfies ClineAskQuestion
 						try {
 							if (block.partial) {
-								await this.ask("followup", removeClosingTag("question", question), block.partial).catch(() => {})
+								await this.ask("followup", JSON.stringify(sharedMessage), block.partial).catch(() => {})
 								break
 							} else {
 								if (!question) {
@@ -2738,8 +2745,25 @@ export class Cline {
 									})
 								}
 
-								const { text, images } = await this.ask("followup", question, false)
-								await this.say("user_feedback", text ?? "", images)
+								const { text, images } = await this.ask("followup", JSON.stringify(sharedMessage), false)
+
+								// Check if options contains the text response
+								if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
+									// Valid option selected, don't show user message in UI
+									// Update last followup message with selected option
+									const lastFollowupMessage = findLast(this.clineMessages, (m) => m.ask === "followup")
+									if (lastFollowupMessage) {
+										lastFollowupMessage.text = JSON.stringify({
+											...sharedMessage,
+											selected: text,
+										} satisfies ClineAskQuestion)
+										await this.saveClineMessages()
+									}
+								} else {
+									// Option not selected, send user feedback
+									await this.say("user_feedback", text ?? "", images)
+								}
+
 								pushToolResult(formatResponse.toolResult(`<answer>\n${text}\n</answer>`, images))
 
 								break
@@ -2752,11 +2776,14 @@ export class Cline {
 					}
 					case "plan_mode_response": {
 						const response: string | undefined = block.params.response
+						const optionsRaw: string | undefined = block.params.options
+						const sharedMessage = {
+							response: removeClosingTag("response", response),
+							options: parsePartialArrayString(removeClosingTag("options", optionsRaw)),
+						} satisfies ClinePlanModeResponse
 						try {
 							if (block.partial) {
-								await this.ask("plan_mode_response", removeClosingTag("response", response), block.partial).catch(
-									() => {},
-								)
+								await this.ask("plan_mode_response", JSON.stringify(sharedMessage), block.partial).catch(() => {})
 								break
 							} else {
 								if (!response) {
@@ -2775,12 +2802,31 @@ export class Cline {
 								// }
 
 								this.isAwaitingPlanResponse = true
-								let { text, images } = await this.ask("plan_mode_response", response, false)
+								let { text, images } = await this.ask("plan_mode_response", JSON.stringify(sharedMessage), false)
 								this.isAwaitingPlanResponse = false
 
 								// webview invoke sendMessage will send this marker in order to put webview into the proper state (responding to an ask) and as a flag to extension that the user switched to ACT mode.
 								if (text === "PLAN_MODE_TOGGLE_RESPONSE") {
 									text = ""
+								}
+
+								// Check if options contains the text response
+								if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
+									// Valid option selected, don't show user message in UI
+									// Update last followup message with selected option
+									const lastPlanMessage = findLast(this.clineMessages, (m) => m.ask === "plan_mode_response")
+									if (lastPlanMessage) {
+										lastPlanMessage.text = JSON.stringify({
+											...sharedMessage,
+											selected: text,
+										} satisfies ClinePlanModeResponse)
+										await this.saveClineMessages()
+									}
+								} else {
+									// Option not selected, send user feedback
+									if (text || images?.length) {
+										await this.say("user_feedback", text ?? "", images)
+									}
 								}
 
 								if (this.didRespondToPlanAskBySwitchingMode) {
@@ -2796,10 +2842,6 @@ export class Cline {
 								} else {
 									// if we didn't switch to ACT MODE, then we can just send the user_feedback message
 									pushToolResult(formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images))
-								}
-
-								if (text || images?.length) {
-									await this.say("user_feedback", text ?? "", images)
 								}
 
 								//
@@ -3218,6 +3260,7 @@ export class Cline {
 			let assistantMessage = ""
 			let reasoningMessage = ""
 			this.isStreaming = true
+			let didReceiveUsageChunk = false
 			try {
 				for await (const chunk of stream) {
 					if (!chunk) {
@@ -3225,6 +3268,7 @@ export class Cline {
 					}
 					switch (chunk.type) {
 						case "usage":
+							didReceiveUsageChunk = true
 							inputTokens += chunk.inputTokens
 							outputTokens += chunk.outputTokens
 							cacheWriteTokens += chunk.cacheWriteTokens ?? 0
@@ -3292,6 +3336,23 @@ export class Cline {
 				}
 			} finally {
 				this.isStreaming = false
+			}
+
+			// OpenRouter/Cline may not return token usage as part of the stream (since it may abort early), so we fetch after the stream is finished
+			// (updateApiReq below will update the api_req_started message with the usage details. we do this async so it updates the api_req_started message in the background)
+			if (!didReceiveUsageChunk) {
+				this.api.getApiStreamUsage?.().then(async (apiStreamUsage) => {
+					if (apiStreamUsage) {
+						inputTokens += apiStreamUsage.inputTokens
+						outputTokens += apiStreamUsage.outputTokens
+						cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
+						cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
+						totalCost = apiStreamUsage.totalCost
+					}
+					updateApiReqMsg()
+					await this.saveClineMessages()
+					await this.providerRef.deref()?.postStateToWebview()
+				})
 			}
 
 			// need to call here in case the stream was aborted
@@ -3564,7 +3625,7 @@ export class Cline {
 			details +=
 				"\nIn this mode you should focus on information gathering, asking questions, and architecting a solution. Once you have a plan, use the plan_mode_response tool to engage in a conversational back and forth with the user. Do not use the plan_mode_response tool until you've gathered all the information you need e.g. with read_file or ask_followup_question."
 			details +=
-				'\n(Remember: If it seems the user wants you to use tools only available in Act Mode, you should ask the user to "toggle to Act mode" (use those words) - they will have to manually do this themselves with the Plan/Act toggle button below. You do not have the ability to switch to Act Mode yourself, and must wait for the user to do it themselves once they are satisfied with the plan.)'
+				'\n(Remember: If it seems the user wants you to use tools only available in Act Mode, you should ask the user to "toggle to Act mode" (use those words) - they will have to manually do this themselves with the Plan/Act toggle button below. You do not have the ability to switch to Act Mode yourself, and must wait for the user to do it themselves once they are satisfied with the plan. You also cannot present an option to toggle to Act mode, as this will be something you need to direct the user to do manually themselves.)'
 		} else {
 			details += "\nACT MODE"
 		}

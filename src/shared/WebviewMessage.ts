@@ -63,6 +63,7 @@ export interface WebviewMessage {
 		| "updateSettings"
 		| "clearAllTaskHistory"
 		| "fetchUserCreditsData"
+		| "optionsResponse"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean

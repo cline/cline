@@ -34,7 +34,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	onClose,
 }) => {
 	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage } = useExtensionState()
-	const [isTaskExpanded, setIsTaskExpanded] = useState(true)
+	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
 	const textContainerRef = useRef<HTMLDivElement>(null)
@@ -395,49 +395,52 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 								)}
 							</div>
 
-							{shouldShowPromptCacheInfo && (cacheReads !== undefined || cacheWrites !== undefined) && (
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: "4px",
-										flexWrap: "wrap",
-									}}>
-									<span style={{ fontWeight: "bold" }}>Cache:</span>
-									<span
+							{shouldShowPromptCacheInfo &&
+								(cacheReads !== undefined ||
+									cacheWrites !== undefined ||
+									apiConfiguration?.apiProvider === "anthropic") && (
+									<div
 										style={{
 											display: "flex",
 											alignItems: "center",
-											gap: "3px",
+											gap: "4px",
+											flexWrap: "wrap",
 										}}>
-										<i
-											className="codicon codicon-database"
+										<span style={{ fontWeight: "bold" }}>Cache:</span>
+										<span
 											style={{
-												fontSize: "12px",
-												fontWeight: "bold",
-												marginBottom: "-1px",
-											}}
-										/>
-										+{formatLargeNumber(cacheWrites || 0)}
-									</span>
-									<span
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: "3px",
-										}}>
-										<i
-											className="codicon codicon-arrow-right"
+												display: "flex",
+												alignItems: "center",
+												gap: "3px",
+											}}>
+											<i
+												className="codicon codicon-database"
+												style={{
+													fontSize: "12px",
+													fontWeight: "bold",
+													marginBottom: "-1px",
+												}}
+											/>
+											+{formatLargeNumber(cacheWrites || 0)}
+										</span>
+										<span
 											style={{
-												fontSize: "12px",
-												fontWeight: "bold",
-												marginBottom: 0,
-											}}
-										/>
-										{formatLargeNumber(cacheReads || 0)}
-									</span>
-								</div>
-							)}
+												display: "flex",
+												alignItems: "center",
+												gap: "3px",
+											}}>
+											<i
+												className="codicon codicon-arrow-right"
+												style={{
+													fontSize: "12px",
+													fontWeight: "bold",
+													marginBottom: 0,
+												}}
+											/>
+											{formatLargeNumber(cacheReads || 0)}
+										</span>
+									</div>
+								)}
 							{ContextWindowComponent}
 							{isCostAvailable && (
 								<div

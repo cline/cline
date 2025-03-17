@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.7.0]
+
+-   Cline now displays selectable options when asking questions or presenting a plan, saving you from having to type out responses!
+-   Add support for a `.clinerules/` directory to load multiple files at once (thanks @ryo-ma!)
+-   Prevent Cline from reading extremely large files into context that would overload context window
+-   Improve checkpoints loading performance and display warning for large projects not suited for checkpoints
+-   Add SambaNova API provider (thanks @saad-noodleseed!)
+-   Add VPC endpoint option for AWS Bedrock profiles (thanks @minorunara!)
+-   Add DeepSeek-R1 to AWS Bedrock (thanks @watany-dev!)
+
 ## [3.6.5]
 
 -   Add 'Delete all Task History' button to History view
