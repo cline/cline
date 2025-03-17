@@ -66,19 +66,19 @@
 			},
 			"EXPLAIN": {
 				"label": "Wyjaśnij kod",
-				"description": "Uzyskaj szczegółowe wyjaśnienia fragmentów kodu, funkcji lub całych plików. Przydatne do zrozumienia złożonego kodu lub nauki nowych wzorców. Dostępne w akcjach kodu (ikona żarówki w edytorze) i w menu kontekstowym edytora (prawy przycisk myszy na wybranym kodzie)."
+				"description": "Uzyskaj szczegółowe wyjaśnienia fragmentów kodu, funkcji lub całych plików. Przydatne do zrozumienia złożonego kodu lub nauki nowych wzorców. Dostępne w akcjach kodu (ikona żarówki w edytorze) i w menu kontekstowym edytor (prawy przycisk myszy na wybranym kodzie)."
 			},
 			"FIX": {
 				"label": "Napraw problemy",
-				"description": "Uzyskaj pomoc w identyfikowaniu i rozwiązywaniu błędów, usterek lub problemów z jakością kodu. Zapewnia krok po kroku wskazówki do naprawy problemów. Dostępne w akcjach kodu (ikona żarówki w edytorze) i w menu kontekstowym edytora (prawy przycisk myszy na wybranym kodzie)."
+				"description": "Uzyskaj pomoc w identyfikowaniu i rozwiązywaniu błędów, usterek lub problemów z jakością kodu. Zapewnia krok po kroku wskazówki do naprawy problemów. Dostępne w akcjach kodu (ikona żarówki w edytorze) i w menu kontekstowym edytor (prawy przycisk myszy na wybranym kodzie)."
 			},
 			"IMPROVE": {
 				"label": "Ulepsz kod",
-				"description": "Otrzymuj sugestie dotyczące optymalizacji kodu, lepszych praktyk i ulepszeń architektonicznych przy zachowaniu funkcjonalności. Dostępne w akcjach kodu (ikona żarówki w edytorze) i w menu kontekstowym edytora (prawy przycisk myszy na wybranym kodzie)."
+				"description": "Otrzymuj sugestie dotyczące optymalizacji kodu, lepszych praktyk i ulepszeń architektonicznych przy zachowaniu funkcjonalności. Dostępne w akcjach kodu (ikona żarówki w edytorze) i w menu kontekstowym edytor (prawy przycisk myszy na wybranym kodzie)."
 			},
 			"ADD_TO_CONTEXT": {
 				"label": "Dodaj do kontekstu",
-				"description": "Dodaj kontekst do bieżącego zadania lub rozmowy. Przydatne do dostarczania dodatkowych informacji lub wyjaśnień. Dostępne w akcjach kodu (ikona żarówki w edytorze) i w menu kontekstowym edytora (prawy przycisk myszy na wybranym kodzie)."
+				"description": "Dodaj kontekst do bieżącego zadania lub rozmowy. Przydatne do dostarczania dodatkowych informacji lub wyjaśnień. Dostępne w akcjach kodu (ikona żarówki w edytorze) i w menu kontekstowym edytor (prawy przycisk myszy na wybranym kodzie)."
 			},
 			"TERMINAL_ADD_TO_CONTEXT": {
 				"label": "Dodaj zawartość terminala do kontekstu",
@@ -111,7 +111,7 @@
 		},
 		"slug": {
 			"label": "Slug",
-			"description": "Slug jest używany w adresach URL i nazwach plików. Powinien być małymi literami i zawierać tylko litery, cyfry i myślniki."
+			"description": "Slug jest używany w adresach URL i nazwach plików. Powinien być małymi literami i zawierać tylko litery, liczby i myślniki."
 		},
 		"saveLocation": {
 			"label": "Lokalizacja zapisu",

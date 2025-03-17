@@ -36,12 +36,12 @@
 		"title": "Instructions personnalisées spécifiques au mode (optionnel)",
 		"resetToDefault": "Réinitialiser aux valeurs par défaut",
 		"description": "Ajoutez des directives comportementales spécifiques au mode {{modeName}}.",
-		"loadFromFile": "Les instructions personnalisées spécifiques au mode {{modeName}} peuvent également être chargées depuis .clinerules-{{modeSlug}} dans votre espace de travail."
+		"loadFromFile": "Les instructions personnalisées spécifiques au mode {{mode}} peuvent également être chargées depuis <span>.clinerules-{{slug}}</span> dans votre espace de travail."
 	},
 	"globalCustomInstructions": {
 		"title": "Instructions personnalisées pour tous les modes",
 		"description": "Ces instructions s'appliquent à tous les modes. Elles fournissent un ensemble de comportements de base qui peuvent être améliorés par des instructions spécifiques au mode ci-dessous.\nSi vous souhaitez que Roo pense et parle dans une langue différente de celle de votre éditeur ({{language}}), vous pouvez le spécifier ici.",
-		"loadFromFile": "Les instructions peuvent également être chargées depuis .clinerules dans votre espace de travail."
+		"loadFromFile": "Les instructions peuvent également être chargées depuis <span>.clinerules</span> dans votre espace de travail."
 	},
 	"systemPrompt": {
 		"preview": "Aperçu du prompt système",
@@ -100,7 +100,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Avancé : Remplacer le prompt système",
-		"description": "Vous pouvez complètement remplacer le prompt système pour ce mode (en dehors de la définition du rôle et des instructions personnalisées) en créant un fichier à .roo/system-prompt-{{modeSlug}} dans votre espace de travail. Il s'agit d'une fonctionnalité très avancée qui contourne les garanties intégrées et les vérifications de cohérence (notamment concernant l'utilisation des outils), alors soyez prudent !"
+		"description": "Vous pouvez complètement remplacer le prompt système pour ce mode (en dehors de la définition du rôle et des instructions personnalisées) en créant un fichier à <span>.roo/system-prompt-{{slug}}</span> dans votre espace de travail. Il s'agit d'une fonctionnalité très avancée qui contourne les garanties intégrées et les vérifications de cohérence (notamment concernant l'utilisation des outils), alors soyez prudent !"
 	},
 	"createModeDialog": {
 		"title": "Créer un nouveau mode",

@@ -36,12 +36,12 @@
 		"title": "モード固有のカスタム指示（オプション）",
 		"resetToDefault": "デフォルトにリセット",
 		"description": "{{modeName}}モードに特化した行動ガイドラインを追加します。",
-		"loadFromFile": "{{modeName}}モード固有のカスタム指示は、ワークスペースの.clinerules-{{modeSlug}}からも読み込めます。"
+		"loadFromFile": "{{mode}}モード固有のカスタム指示は、ワークスペースの<span>.clinerules-{{slug}}</span>からも読み込めます。"
 	},
 	"globalCustomInstructions": {
 		"title": "すべてのモードのカスタム指示",
 		"description": "これらの指示はすべてのモードに適用されます。モード固有の指示で強化できる基本的な動作セットを提供します。\nRooにエディタの表示言語({{language}})とは異なる言語で考えたり話したりさせたい場合は、ここで指定できます。",
-		"loadFromFile": "指示はワークスペースの.clinerulesからも読み込めます。"
+		"loadFromFile": "指示はワークスペースの<span>.clinerules</span>からも読み込めます。"
 	},
 	"systemPrompt": {
 		"preview": "システムプロンプトのプレビュー",
@@ -100,7 +100,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "詳細設定：システムプロンプトの上書き",
-		"description": "ワークスペースの.roo/system-prompt-{{modeSlug}}にファイルを作成することで、このモードのシステムプロンプト（役割定義とカスタム指示以外）を完全に置き換えることができます。これは組み込みの安全対策と一貫性チェック（特にツールの使用に関して）をバイパスする非常に高度な機能なので、注意して使用してください！"
+		"description": "ワークスペースの<span>.roo/system-prompt-{{slug}}</span>にファイルを作成することで、このモードのシステムプロンプト（役割定義とカスタム指示以外）を完全に置き換えることができます。これは組み込みの安全対策と一貫性チェック（特にツールの使用に関して）をバイパスする非常に高度な機能なので、注意して使用してください！"
 	},
 	"createModeDialog": {
 		"title": "新しいモードを作成",

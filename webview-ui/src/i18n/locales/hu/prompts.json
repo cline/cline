@@ -36,12 +36,12 @@
 		"title": "Módspecifikus egyéni utasítások (opcionális)",
 		"resetToDefault": "Alapértelmezetthez visszaállítás",
 		"description": "Adjon hozzá viselkedési irányelveket a(z) {{modeName}} módhoz.",
-		"loadFromFile": "A(z) {{modeName}} módra vonatkozó egyéni utasítások a munkaterületen lévő .clinerules-{{modeSlug}} fájlból is betölthetők."
+		"loadFromFile": "A {{mode}} módra vonatkozó egyéni utasítások a munkaterület <span>.clinerules-{{slug}}</span> oldaláról is betölthetők."
 	},
 	"globalCustomInstructions": {
 		"title": "Egyéni utasítások minden módhoz",
 		"description": "Ezek az utasítások minden módra vonatkoznak. Alapvető viselkedéskészletet biztosítanak, amelyet a lenti módspecifikus utasítások kiegészíthetnek.\nHa azt szeretné, hogy a Roo az Ön szerkesztőjének megjelenítési nyelvétől ({{language}}) eltérő nyelven gondolkodjon és beszéljen, itt megadhatja.",
-		"loadFromFile": "Az utasítások a munkaterületen lévő .clinerules fájlból is betölthetők."
+		"loadFromFile": "Az utasítások a munkaterületen lévő <span>.clinerules</span> oldalról is betölthetők."
 	},
 	"systemPrompt": {
 		"preview": "Rendszer prompt előnézete",
@@ -100,7 +100,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Speciális: Rendszer prompt felülírása",
-		"description": "Teljesen lecserélheti a rendszer promptot ehhez a módhoz (a szerepkör meghatározásán és az egyéni utasításokon kívül) egy fájl létrehozásával a .roo/system-prompt-{{modeSlug}} helyen a munkaterületén. Ez egy nagyon fejlett funkció, amely megkerüli a beépített biztonsági intézkedéseket és a konzisztencia ellenőrzéseket (különösen az eszközhasználatot illetően), ezért legyen óvatos!"
+		"description": "Teljesen lecserélheti ehhez a módhoz a rendszerpromptot (a szerepmeghatározáson és az egyéni utasításokon kívül), ha létrehoz egy fájlt a <span>.roo/system-prompt-{{slug}}</span> címen a munkaterületén. Ez egy nagyon fejlett funkció, amely megkerüli a beépített biztosítékokat és a konzisztencia-ellenőrzéseket (különösen a szerszámhasználat körül), ezért legyen óvatos!"
 	},
 	"createModeDialog": {
 		"title": "Új mód létrehozása",

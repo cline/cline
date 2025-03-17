@@ -76,7 +76,108 @@
 		"openRouterApiKey": "Clau API d'OpenRouter",
 		"apiKeyStorageNotice": "Les claus API s'emmagatzemen de forma segura a l'Emmagatzematge Secret de VSCode",
 		"useCustomBaseUrl": "Utilitzar URL base personalitzada",
-		"openRouterTransformsText": "Comprimir prompts i cadenes de missatges a la mida del context (<a>Transformacions d'OpenRouter</a>)"
+		"openRouterTransformsText": "Comprimir prompts i cadenes de missatges a la mida del context (<a>Transformacions d'OpenRouter</a>)",
+		"model": "Model",
+		"getOpenRouterApiKey": "Obtenir clau API d'OpenRouter",
+		"glamaApiKey": "Clau API de Glama",
+		"getGlamaApiKey": "Obtenir clau API de Glama",
+		"requestyApiKey": "Clau API de Requesty",
+		"getRequestyApiKey": "Obtenir clau API de Requesty",
+		"anthropicApiKey": "Clau API d'Anthropic",
+		"getAnthropicApiKey": "Obtenir clau API d'Anthropic",
+		"deepSeekApiKey": "Clau API de DeepSeek",
+		"getDeepSeekApiKey": "Obtenir clau API de DeepSeek",
+		"geminiApiKey": "Clau API de Gemini",
+		"getGeminiApiKey": "Obtenir clau API de Gemini",
+		"openAiApiKey": "Clau API d'OpenAI",
+		"openAiBaseUrl": "URL base",
+		"getOpenAiApiKey": "Obtenir clau API d'OpenAI",
+		"mistralApiKey": "Clau API de Mistral",
+		"getMistralApiKey": "Obtenir clau API de Mistral / Codestral",
+		"codestralBaseUrl": "URL base de Codestral (opcional)",
+		"codestralBaseUrlDesc": "Establir una URL alternativa per al model Codestral.",
+		"awsCredentials": "Credencials d'AWS",
+		"awsProfile": "Perfil d'AWS",
+		"awsProfileName": "Nom del perfil d'AWS",
+		"awsAccessKey": "Clau d'accés d'AWS",
+		"awsSecretKey": "Clau secreta d'AWS",
+		"awsSessionToken": "Token de sessió d'AWS",
+		"awsRegion": "Regió d'AWS",
+		"awsCrossRegion": "Utilitzar inferència entre regions",
+		"googleCloudSetup": {
+			"title": "Per utilitzar Google Cloud Vertex AI, necessiteu:",
+			"step1": "1. Crear un compte de Google Cloud, habilitar l'API de Vertex AI i habilitar els models Claude necessaris.",
+			"step2": "2. Instal·lar Google Cloud CLI i configurar les credencials d'aplicació per defecte.",
+			"step3": "3. O crear un compte de servei amb credencials."
+		},
+		"googleCloudCredentials": "Credencials de Google Cloud",
+		"googleCloudKeyFile": "Ruta del fitxer de clau de Google Cloud",
+		"googleCloudProjectId": "ID del projecte de Google Cloud",
+		"googleCloudRegion": "Regió de Google Cloud",
+		"lmStudio": {
+			"baseUrl": "URL base (opcional)",
+			"modelId": "ID del model",
+			"speculativeDecoding": "Habilitar descodificació especulativa",
+			"draftModelId": "ID del model d'esborrany",
+			"draftModelDesc": "El model d'esborrany ha de ser de la mateixa família de models perquè la descodificació especulativa funcioni correctament.",
+			"selectDraftModel": "Seleccionar model d'esborrany",
+			"noModelsFound": "No s'han trobat models d'esborrany. Assegureu-vos que LM Studio s'està executant amb el mode servidor habilitat.",
+			"description": "LM Studio permet executar models localment al vostre ordinador. Per a instruccions sobre com començar, consulteu la seva <a>Guia d'inici ràpid</a>. També necessitareu iniciar la funció de <b>Servidor Local</b> de LM Studio per utilitzar-la amb aquesta extensió. <span>Nota:</span> Roo Code utilitza prompts complexos i funciona millor amb models Claude. Els models menys capaços poden no funcionar com s'espera."
+		},
+		"ollama": {
+			"baseUrl": "URL base (opcional)",
+			"modelId": "ID del model",
+			"description": "Ollama permet executar models localment al vostre ordinador. Per a instruccions sobre com començar, consulteu la Guia d'inici ràpid.",
+			"warning": "Nota: Roo Code utilitza prompts complexos i funciona millor amb models Claude. Els models menys capaços poden no funcionar com s'espera."
+		},
+		"unboundApiKey": "Clau API d'Unbound",
+		"getUnboundApiKey": "Obtenir clau API d'Unbound",
+		"humanRelay": {
+			"description": "No es requereix clau API, però l'usuari necessita ajuda per copiar i enganxar informació al xat d'IA web.",
+			"instructions": "Durant l'ús, apareixerà un diàleg i el missatge actual es copiarà automàticament al porta-retalls. Necessiteu enganxar-lo a les versions web d'IA (com ChatGPT o Claude), després copiar la resposta de l'IA de nou al diàleg i fer clic al botó de confirmació."
+		},
+		"customModel": {
+			"capabilities": "Configureu les capacitats i preus per al vostre model personalitzat compatible amb OpenAI. Tingueu cura en especificar les capacitats del model, ja que poden afectar com funciona Roo Code.",
+			"maxTokens": {
+				"label": "Màxim de tokens de sortida",
+				"description": "El nombre màxim de tokens que el model pot generar en una resposta. (Establiu -1 per permetre que el servidor estableixi el màxim de tokens.)"
+			},
+			"contextWindow": {
+				"label": "Mida de la finestra de context",
+				"description": "Total de tokens (entrada + sortida) que el model pot processar."
+			},
+			"imageSupport": {
+				"label": "Suport d'imatges",
+				"description": "Aquest model és capaç de processar i entendre imatges?"
+			},
+			"computerUse": {
+				"label": "Ús de l'ordinador",
+				"description": "Aquest model és capaç d'interactuar amb un navegador? (com Claude 3.7 Sonnet)"
+			},
+			"promptCache": {
+				"label": "Emmagatzematge en caché de prompts",
+				"description": "Aquest model és capaç d'emmagatzemar prompts en caché?"
+			},
+			"pricing": {
+				"input": {
+					"label": "Preu d'entrada",
+					"description": "Cost per milió de tokens en l'entrada/prompt. Això afecta el cost d'enviar context i instruccions al model."
+				},
+				"output": {
+					"label": "Preu de sortida",
+					"description": "Cost per milió de tokens en la resposta del model. Això afecta el cost del contingut generat i les completions."
+				},
+				"cacheReads": {
+					"label": "Preu de lectures de caché",
+					"description": "Cost per milió de tokens per llegir de la caché. Aquest és el preu cobrat quan es recupera una resposta emmagatzemada en caché."
+				},
+				"cacheWrites": {
+					"label": "Preu d'escriptures de caché",
+					"description": "Cost per milió de tokens per escriure a la caché. Aquest és el preu cobrat quan s'emmagatzema un prompt per primera vegada."
+				}
+			},
+			"resetDefaults": "Restablir als valors per defecte"
+		}
 	},
 	"browser": {
 		"enable": {
@@ -208,7 +309,10 @@
 		"gemini": {
 			"freeRequests": "* Gratuït fins a {{count}} sol·licituds per minut. Després d'això, la facturació depèn de la mida del prompt.",
 			"pricingDetails": "Per a més informació, consulteu els detalls de preus."
-		}
+		},
+		"enableStreaming": "Habilitar streaming",
+		"useAzure": "Utilitzar Azure",
+		"azureApiVersion": "Establir versió de l'API d'Azure"
 	},
 	"modelPicker": {
 		"automaticFetch": "L'extensió obté automàticament la llista més recent de models disponibles a <serviceLink>{{serviceName}}</serviceLink>. Si no esteu segur de quin model triar, Roo Code funciona millor amb <defaultModelLink>{{defaultModelId}}</defaultModelLink>. També podeu cercar \"free\" per a opcions gratuïtes actualment disponibles."

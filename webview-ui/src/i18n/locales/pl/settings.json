@@ -73,10 +73,111 @@
 		"configProfile": "Profil konfiguracji",
 		"description": "Opis",
 		"apiProvider": "Dostawca API",
+		"model": "Model",
 		"openRouterApiKey": "Klucz API OpenRouter",
+		"getOpenRouterApiKey": "Uzyskaj klucz API OpenRouter",
 		"apiKeyStorageNotice": "Klucze API są bezpiecznie przechowywane w Tajnym Magazynie VSCode",
+		"glamaApiKey": "Klucz API Glama",
+		"getGlamaApiKey": "Uzyskaj klucz API Glama",
 		"useCustomBaseUrl": "Użyj niestandardowego URL bazowego",
-		"openRouterTransformsText": "Kompresuj podpowiedzi i łańcuchy wiadomości do rozmiaru kontekstu (<a>Transformacje OpenRouter</a>)"
+		"requestyApiKey": "Klucz API Requesty",
+		"getRequestyApiKey": "Uzyskaj klucz API Requesty",
+		"openRouterTransformsText": "Kompresuj podpowiedzi i łańcuchy wiadomości do rozmiaru kontekstu (<a>Transformacje OpenRouter</a>)",
+		"anthropicApiKey": "Klucz API Anthropic",
+		"getAnthropicApiKey": "Uzyskaj klucz API Anthropic",
+		"deepSeekApiKey": "Klucz API DeepSeek",
+		"getDeepSeekApiKey": "Uzyskaj klucz API DeepSeek",
+		"geminiApiKey": "Klucz API Gemini",
+		"getGeminiApiKey": "Uzyskaj klucz API Gemini",
+		"openAiApiKey": "Klucz API OpenAI",
+		"openAiBaseUrl": "URL bazowy",
+		"getOpenAiApiKey": "Uzyskaj klucz API OpenAI",
+		"mistralApiKey": "Klucz API Mistral",
+		"getMistralApiKey": "Uzyskaj klucz API Mistral / Codestral",
+		"codestralBaseUrl": "URL bazowy Codestral (opcjonalnie)",
+		"codestralBaseUrlDesc": "Ustaw opcjonalny URL dla modeli Codestral.",
+		"awsCredentials": "Poświadczenia AWS",
+		"awsProfile": "Profil AWS",
+		"awsProfileName": "Nazwa profilu AWS",
+		"awsAccessKey": "Klucz dostępu AWS",
+		"awsSecretKey": "Klucz tajny AWS",
+		"awsSessionToken": "Token sesji AWS",
+		"awsRegion": "Region AWS",
+		"awsCrossRegion": "Użyj wnioskowania międzyregionalnego",
+		"googleCloudSetup": {
+			"title": "Aby korzystać z Google Cloud Vertex AI, potrzebujesz:",
+			"step1": "1. Utworzyć konto Google Cloud, włączyć API Vertex AI i włączyć żądane modele Claude.",
+			"step2": "2. Zainstalować Google Cloud CLI i skonfigurować domyślne poświadczenia aplikacji.",
+			"step3": "3. Lub utworzyć konto usługi z poświadczeniami."
+		},
+		"googleCloudCredentials": "Poświadczenia Google Cloud",
+		"googleCloudKeyFile": "Ścieżka pliku klucza Google Cloud",
+		"googleCloudProjectId": "ID projektu Google Cloud",
+		"googleCloudRegion": "Region Google Cloud",
+		"lmStudio": {
+			"baseUrl": "URL bazowy (opcjonalnie)",
+			"modelId": "ID modelu",
+			"speculativeDecoding": "Włącz dekodowanie spekulacyjne",
+			"draftModelId": "ID modelu szkicu",
+			"draftModelDesc": "Aby dekodowanie spekulacyjne działało poprawnie, model szkicu musi pochodzić z tej samej rodziny modeli.",
+			"selectDraftModel": "Wybierz model szkicu",
+			"noModelsFound": "Nie znaleziono modeli szkicu. Upewnij się, że LM Studio jest uruchomione z włączonym trybem serwera.",
+			"description": "LM Studio pozwala na lokalne uruchamianie modeli na twoim komputerze. Aby rozpocząć, zapoznaj się z ich <a>przewodnikiem szybkiego startu</a>. Będziesz również musiał uruchomić funkcję <b>serwera lokalnego</b> LM Studio, aby używać go z tym rozszerzeniem. <span>Uwaga:</span> Roo Code używa złożonych podpowiedzi i działa najlepiej z modelami Claude. Modele o niższych możliwościach mogą nie działać zgodnie z oczekiwaniami."
+		},
+		"ollama": {
+			"baseUrl": "URL bazowy (opcjonalnie)",
+			"modelId": "ID modelu",
+			"description": "Ollama pozwala na lokalne uruchamianie modeli na twoim komputerze. Aby rozpocząć, zapoznaj się z przewodnikiem szybkiego startu.",
+			"warning": "Uwaga: Roo Code używa złożonych podpowiedzi i działa najlepiej z modelami Claude. Modele o niższych możliwościach mogą nie działać zgodnie z oczekiwaniami."
+		},
+		"unboundApiKey": "Klucz API Unbound",
+		"getUnboundApiKey": "Uzyskaj klucz API Unbound",
+		"humanRelay": {
+			"description": "Nie jest wymagany klucz API, ale użytkownik będzie musiał pomóc w kopiowaniu i wklejaniu informacji do czatu internetowego AI.",
+			"instructions": "Podczas użytkowania pojawi się okno dialogowe, a bieżąca wiadomość zostanie automatycznie skopiowana do schowka. Będziesz musiał wkleić ją do internetowych wersji AI (takich jak ChatGPT lub Claude), a następnie skopiować odpowiedź AI z powrotem do okna dialogowego i kliknąć przycisk potwierdzenia."
+		},
+		"customModel": {
+			"capabilities": "Skonfiguruj możliwości i ceny swojego niestandardowego modelu zgodnego z OpenAI. Zachowaj ostrożność podczas określania możliwości modelu, ponieważ mogą one wpływać na wydajność Roo Code.",
+			"maxTokens": {
+				"label": "Maksymalna liczba tokenów wyjściowych",
+				"description": "Maksymalna liczba tokenów, które model może wygenerować w odpowiedzi. (Określ -1, aby pozwolić serwerowi ustawić maksymalną liczbę tokenów.)"
+			},
+			"contextWindow": {
+				"label": "Rozmiar okna kontekstu",
+				"description": "Całkowita liczba tokenów (wejście + wyjście), które model może przetworzyć."
+			},
+			"imageSupport": {
+				"label": "Obsługa obrazów",
+				"description": "Czy model jest w stanie przetwarzać i rozumieć obrazy?"
+			},
+			"computerUse": {
+				"label": "Użycie komputera",
+				"description": "Czy model jest w stanie wchodzić w interakcję z przeglądarką? (np. Claude 3.7 Sonnet)."
+			},
+			"promptCache": {
+				"label": "Buforowanie podpowiedzi",
+				"description": "Czy model jest w stanie buforować podpowiedzi?"
+			},
+			"pricing": {
+				"input": {
+					"label": "Cena wejścia",
+					"description": "Koszt za milion tokenów wejściowych/podpowiedzi. Wpływa to na koszt wysyłania kontekstu i instrukcji do modelu."
+				},
+				"output": {
+					"label": "Cena wyjścia",
+					"description": "Koszt za milion tokenów odpowiedzi modelu. Wpływa to na koszt generowanej treści i uzupełnień."
+				},
+				"cacheReads": {
+					"label": "Cena odczytów bufora",
+					"description": "Koszt za milion tokenów za odczyt z bufora. Ta cena jest naliczana przy otrzymywaniu zbuforowanej odpowiedzi."
+				},
+				"cacheWrites": {
+					"label": "Cena zapisów bufora",
+					"description": "Koszt za milion tokenów za zapis do bufora. Ta cena jest naliczana przy pierwszym buforowaniu podpowiedzi."
+				}
+			},
+			"resetDefaults": "Przywróć domyślne"
+		}
 	},
 	"browser": {
 		"enable": {
@@ -205,6 +306,9 @@
 		"outputPrice": "Cena wyjścia",
 		"cacheReadsPrice": "Cena odczytów bufora",
 		"cacheWritesPrice": "Cena zapisów bufora",
+		"enableStreaming": "Włącz strumieniowanie",
+		"useAzure": "Użyj Azure",
+		"azureApiVersion": "Ustaw wersję API Azure",
 		"gemini": {
 			"freeRequests": "* Darmowe do {{count}} zapytań na minutę. Po tym, rozliczanie zależy od rozmiaru podpowiedzi.",
 			"pricingDetails": "Więcej informacji znajdziesz w szczegółach cennika."

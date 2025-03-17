@@ -73,10 +73,111 @@
 		"configProfile": "ملف تعريف التكوين",
 		"description": "الوصف",
 		"apiProvider": "مزود API",
+		"model": "النموذج",
 		"openRouterApiKey": "مفتاح API لـ OpenRouter",
+		"getOpenRouterApiKey": "الحصول على مفتاح API لـ OpenRouter",
 		"apiKeyStorageNotice": "يتم تخزين مفاتيح API بشكل آمن في التخزين السري لـ VSCode",
+		"glamaApiKey": "مفتاح API لـ Glama",
+		"getGlamaApiKey": "الحصول على مفتاح API لـ Glama",
 		"useCustomBaseUrl": "استخدام عنوان URL أساسي مخصص",
-		"openRouterTransformsText": "ضغط الموجهات وسلاسل الرسائل إلى حجم السياق (<a>تحويلات OpenRouter</a>)"
+		"requestyApiKey": "مفتاح API لـ Requesty",
+		"getRequestyApiKey": "الحصول على مفتاح API لـ Requesty",
+		"openRouterTransformsText": "ضغط الموجهات وسلاسل الرسائل إلى حجم السياق (<a>تحويلات OpenRouter</a>)",
+		"anthropicApiKey": "مفتاح API لـ Anthropic",
+		"getAnthropicApiKey": "الحصول على مفتاح API لـ Anthropic",
+		"deepSeekApiKey": "مفتاح API لـ DeepSeek",
+		"getDeepSeekApiKey": "الحصول على مفتاح API لـ DeepSeek",
+		"geminiApiKey": "مفتاح API لـ Gemini",
+		"getGeminiApiKey": "الحصول على مفتاح API لـ Gemini",
+		"openAiApiKey": "مفتاح API لـ OpenAI",
+		"openAiBaseUrl": "عنوان URL الأساسي",
+		"getOpenAiApiKey": "الحصول على مفتاح API لـ OpenAI",
+		"mistralApiKey": "مفتاح API لـ Mistral",
+		"getMistralApiKey": "الحصول على مفتاح API لـ Mistral / Codestral",
+		"codestralBaseUrl": "عنوان URL الأساسي لـ Codestral (اختياري)",
+		"codestralBaseUrlDesc": "تعيين عنوان URL بديل لنموذج Codestral.",
+		"awsCredentials": "بيانات اعتماد AWS",
+		"awsProfile": "ملف تعريف AWS",
+		"awsProfileName": "اسم ملف تعريف AWS",
+		"awsAccessKey": "مفتاح الوصول AWS",
+		"awsSecretKey": "المفتاح السري AWS",
+		"awsSessionToken": "رمز جلسة AWS",
+		"awsRegion": "منطقة AWS",
+		"awsCrossRegion": "استخدام الاستدلال عبر المناطق",
+		"googleCloudSetup": {
+			"title": "لاستخدام Google Cloud Vertex AI، تحتاج إلى:",
+			"step1": "1. إنشاء حساب Google Cloud، وتمكين واجهة برمجة تطبيقات Vertex AI وتمكين نماذج Claude المطلوبة.",
+			"step2": "2. تثبيت Google Cloud CLI وتكوين بيانات اعتماد التطبيق الافتراضية.",
+			"step3": "3. أو إنشاء حساب خدمة مع بيانات الاعتماد."
+		},
+		"googleCloudCredentials": "بيانات اعتماد Google Cloud",
+		"googleCloudKeyFile": "مسار ملف مفتاح Google Cloud",
+		"googleCloudProjectId": "معرف مشروع Google Cloud",
+		"googleCloudRegion": "منطقة Google Cloud",
+		"lmStudio": {
+			"baseUrl": "عنوان URL الأساسي (اختياري)",
+			"modelId": "معرف النموذج",
+			"speculativeDecoding": "تمكين فك الترميز التخميني",
+			"draftModelId": "معرف نموذج المسودة",
+			"draftModelDesc": "يجب أن يكون نموذج المسودة من نفس عائلة النموذج لكي يعمل فك الترميز التخميني بشكل صحيح.",
+			"selectDraftModel": "اختيار نموذج المسودة",
+			"noModelsFound": "لم يتم العثور على نماذج مسودة. يرجى التأكد من تشغيل LM Studio مع تمكين وضع الخادم.",
+			"description": "يتيح LM Studio تشغيل النماذج محليًا على جهاز الكمبيوتر الخاص بك. للحصول على إرشادات حول كيفية البدء، راجع <a>دليل البدء السريع</a> الخاص بهم. ستحتاج أيضًا إلى بدء ميزة <b>الخادم المحلي</b> الخاصة بـ LM Studio لاستخدامها مع هذا الامتداد. <span>ملاحظة:</span> يستخدم Roo Code موجهات معقدة ويعمل بشكل أفضل مع نماذج Claude. قد لا تعمل النماذج الأقل قدرة كما هو متوقع."
+		},
+		"ollama": {
+			"baseUrl": "عنوان URL الأساسي (اختياري)",
+			"modelId": "معرف النموذج",
+			"description": "يتيح Ollama تشغيل النماذج محليًا على جهاز الكمبيوتر الخاص بك. للحصول على إرشادات حول كيفية البدء، راجع دليل البدء السريع.",
+			"warning": "ملاحظة: يستخدم Roo Code موجهات معقدة ويعمل بشكل أفضل مع نماذج Claude. قد لا تعمل النماذج الأقل قدرة كما هو متوقع."
+		},
+		"unboundApiKey": "مفتاح API لـ Unbound",
+		"getUnboundApiKey": "الحصول على مفتاح API لـ Unbound",
+		"humanRelay": {
+			"description": "لا يلزم وجود مفتاح API، ولكن يحتاج المستخدم إلى المساعدة في نسخ ولصق المعلومات إلى الذكاء الاصطناعي للدردشة على الويب.",
+			"instructions": "أثناء الاستخدام، سيظهر مربع حوار وسيتم نسخ الرسالة الحالية تلقائيًا إلى الحافظة. تحتاج إلى لصق هذه في إصدارات الويب من الذكاء الاصطناعي (مثل ChatGPT أو Claude)، ثم نسخ رد الذكاء الاصطناعي مرة أخرى إلى مربع الحوار والنقر على زر التأكيد."
+		},
+		"customModel": {
+			"capabilities": "تكوين القدرات والتسعير لنموذج OpenAI المتوافق المخصص الخاص بك. كن حذرًا عند تحديد قدرات النموذج، حيث يمكن أن تؤثر على كيفية أداء Roo Code.",
+			"maxTokens": {
+				"label": "الحد الأقصى لرموز الإخراج",
+				"description": "الحد الأقصى لعدد الرموز التي يمكن للنموذج إنشاؤها في استجابة. (حدد -1 للسماح للخادم بتعيين الحد الأقصى للرموز.)"
+			},
+			"contextWindow": {
+				"label": "حجم نافذة السياق",
+				"description": "إجمالي الرموز (الإدخال + الإخراج) التي يمكن للنموذج معالجتها."
+			},
+			"imageSupport": {
+				"label": "دعم الصور",
+				"description": "هل هذا النموذج قادر على معالجة وفهم الصور؟"
+			},
+			"computerUse": {
+				"label": "استخدام الكمبيوتر",
+				"description": "هل هذا النموذج قادر على التفاعل مع متصفح؟ (مثل Claude 3.7 Sonnet)"
+			},
+			"promptCache": {
+				"label": "تخزين الموجهات مؤقتًا",
+				"description": "هل هذا النموذج قادر على تخزين الموجهات مؤقتًا؟"
+			},
+			"pricing": {
+				"input": {
+					"label": "سعر الإدخال",
+					"description": "التكلفة لكل مليون رمز في الإدخال/الموجه. هذا يؤثر على تكلفة إرسال السياق والتعليمات إلى النموذج."
+				},
+				"output": {
+					"label": "سعر الإخراج",
+					"description": "التكلفة لكل مليون رمز في استجابة النموذج. هذا يؤثر على تكلفة المحتوى المنشأ والإكمالات."
+				},
+				"cacheReads": {
+					"label": "سعر قراءات التخزين المؤقت",
+					"description": "التكلفة لكل مليون رمز للقراءة من التخزين المؤقت. هذا هو السعر المفروض عند استرداد استجابة مخزنة مؤقتًا."
+				},
+				"cacheWrites": {
+					"label": "سعر كتابات التخزين المؤقت",
+					"description": "التكلفة لكل مليون رمز للكتابة في التخزين المؤقت. هذا هو السعر المفروض عند تخزين موجه لأول مرة."
+				}
+			},
+			"resetDefaults": "إعادة تعيين إلى الافتراضيات"
+		}
 	},
 	"browser": {
 		"enable": {
@@ -205,6 +306,9 @@
 		"outputPrice": "سعر الإخراج",
 		"cacheReadsPrice": "سعر قراءات التخزين المؤقت",
 		"cacheWritesPrice": "سعر كتابات التخزين المؤقت",
+		"enableStreaming": "تمكين التدفق",
+		"useAzure": "استخدام Azure",
+		"azureApiVersion": "تعيين إصدار API لـ Azure",
 		"gemini": {
 			"freeRequests": "* مجاني حتى {{count}} طلب في الدقيقة. بعد ذلك، يعتمد الفوترة على حجم الموجه.",
 			"pricingDetails": "لمزيد من المعلومات، راجع تفاصيل التسعير."

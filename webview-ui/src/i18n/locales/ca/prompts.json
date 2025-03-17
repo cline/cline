@@ -36,12 +36,12 @@
 		"title": "Instruccions personalitzades específiques del mode (opcional)",
 		"resetToDefault": "Restablir a valors predeterminats",
 		"description": "Afegiu directrius de comportament específiques per al mode {{modeName}}.",
-		"loadFromFile": "Les instruccions personalitzades específiques per al mode {{modeName}} també es poden carregar des de .clinerules-{{modeSlug}} al vostre espai de treball."
+		"loadFromFile": "Les instruccions personalitzades específiques per al mode {{mode}} també es poden carregar des de <span>.clinerules-{{slug}}</span> al vostre espai de treball."
 	},
 	"globalCustomInstructions": {
 		"title": "Instruccions personalitzades per a tots els modes",
 		"description": "Aquestes instruccions s'apliquen a tots els modes. Proporcionen un conjunt bàsic de comportaments que es poden millorar amb instruccions específiques de cada mode a continuació.\nSi voleu que Roo pensi i parli en un idioma diferent al de la visualització del vostre editor ({{language}}), podeu especificar-ho aquí.",
-		"loadFromFile": "Les instruccions també es poden carregar des de .clinerules al vostre espai de treball."
+		"loadFromFile": "Les instruccions també es poden carregar des de <span>.clinerules</span> al vostre espai de treball."
 	},
 	"systemPrompt": {
 		"preview": "Previsualització del prompt del sistema",
@@ -100,7 +100,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Avançat: Sobreescriure prompt del sistema",
-		"description": "Podeu reemplaçar completament el prompt del sistema per a aquest mode (a part de la definició de rol i instruccions personalitzades) creant un fitxer a .roo/system-prompt-{{modeSlug}} al vostre espai de treball. Aquesta és una funcionalitat molt avançada que eludeix les salvaguardes integrades i les comprovacions de consistència (especialment al voltant de l'ús d'eines), així que aneu amb compte!"
+		"description": "Podeu reemplaçar completament el prompt del sistema per a aquest mode (a part de la definició de rol i instruccions personalitzades) creant un fitxer a <span>.roo/system-prompt-{{slug}}</span> al vostre espai de treball. Aquesta és una funcionalitat molt avançada que eludeix les salvaguardes integrades i les comprovacions de consistència (especialment al voltant de l'ús d'eines), així que aneu amb compte!"
 	},
 	"createModeDialog": {
 		"title": "Crear nou mode",

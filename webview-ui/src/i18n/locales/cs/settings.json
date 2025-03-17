@@ -76,7 +76,108 @@
 		"openRouterApiKey": "OpenRouter API klíč",
 		"apiKeyStorageNotice": "API klíče jsou bezpečně uloženy v zabezpečeném úložišti VSCode",
 		"useCustomBaseUrl": "Použít vlastní základní URL",
-		"openRouterTransformsText": "Komprimovat výzvy a řetězce zpráv na velikost kontextu (<a>OpenRouter transformace</a>)"
+		"openRouterTransformsText": "Komprimovat výzvy a řetězce zpráv na velikost kontextu (<a>OpenRouter transformace</a>)",
+		"model": "Model",
+		"getOpenRouterApiKey": "Získat OpenRouter API klíč",
+		"glamaApiKey": "Glama API klíč",
+		"getGlamaApiKey": "Získat Glama API klíč",
+		"requestyApiKey": "Requesty API klíč",
+		"getRequestyApiKey": "Získat Requesty API klíč",
+		"anthropicApiKey": "Anthropic API klíč",
+		"getAnthropicApiKey": "Získat Anthropic API klíč",
+		"deepSeekApiKey": "DeepSeek API klíč",
+		"getDeepSeekApiKey": "Získat DeepSeek API klíč",
+		"geminiApiKey": "Gemini API klíč",
+		"getGeminiApiKey": "Získat Gemini API klíč",
+		"openAiApiKey": "OpenAI API klíč",
+		"openAiBaseUrl": "Základní URL",
+		"getOpenAiApiKey": "Získat OpenAI API klíč",
+		"mistralApiKey": "Mistral API klíč",
+		"getMistralApiKey": "Získat Mistral / Codestral API klíč",
+		"codestralBaseUrl": "Základní URL Codestral (volitelné)",
+		"codestralBaseUrlDesc": "Nastavit alternativní URL pro model Codestral.",
+		"awsCredentials": "AWS přihlašovací údaje",
+		"awsProfile": "AWS profil",
+		"awsProfileName": "Název AWS profilu",
+		"awsAccessKey": "AWS přístupový klíč",
+		"awsSecretKey": "AWS tajný klíč",
+		"awsSessionToken": "AWS token relace",
+		"awsRegion": "AWS region",
+		"awsCrossRegion": "Použít mezi-regionální odvozování",
+		"googleCloudSetup": {
+			"title": "Pro použití Google Cloud Vertex AI potřebujete:",
+			"step1": "1. Vytvořit účet Google Cloud, povolit Vertex AI API a povolit požadované modely Claude.",
+			"step2": "2. Nainstalovat Google Cloud CLI a nakonfigurovat výchozí přihlašovací údaje aplikace.",
+			"step3": "3. Nebo vytvořit servisní účet s přihlašovacími údaji."
+		},
+		"googleCloudCredentials": "Google Cloud přihlašovací údaje",
+		"googleCloudKeyFile": "Cesta k souboru klíče Google Cloud",
+		"googleCloudProjectId": "ID projektu Google Cloud",
+		"googleCloudRegion": "Region Google Cloud",
+		"lmStudio": {
+			"baseUrl": "Základní URL (volitelné)",
+			"modelId": "ID modelu",
+			"speculativeDecoding": "Povolit spekulativní dekódování",
+			"draftModelId": "ID konceptového modelu",
+			"draftModelDesc": "Konceptový model musí být ze stejné rodiny modelů, aby spekulativní dekódování fungovalo správně.",
+			"selectDraftModel": "Vybrat konceptový model",
+			"noModelsFound": "Nebyly nalezeny žádné konceptové modely. Ujistěte se, že LM Studio běží s povoleným serverovým režimem.",
+			"description": "LM Studio umožňuje spouštět modely lokálně na vašem počítači. Pro pokyny, jak začít, viz jejich <a>rychlý průvodce</a>. Budete také potřebovat spustit funkci <b>lokálního serveru</b> LM Studia pro použití s tímto rozšířením. <span>Poznámka:</span> Roo Code používá komplexní prompty a funguje nejlépe s modely Claude. Méně schopné modely nemusí fungovat podle očekávání."
+		},
+		"ollama": {
+			"baseUrl": "Základní URL (volitelné)",
+			"modelId": "ID modelu",
+			"description": "Ollama umožňuje spouštět modely lokálně na vašem počítači. Pro pokyny, jak začít, viz rychlý průvodce.",
+			"warning": "Poznámka: Roo Code používá komplexní prompty a funguje nejlépe s modely Claude. Méně schopné modely nemusí fungovat podle očekávání."
+		},
+		"unboundApiKey": "Unbound API klíč",
+		"getUnboundApiKey": "Získat Unbound API klíč",
+		"humanRelay": {
+			"description": "Není vyžadován žádný API klíč, ale uživatel potřebuje pomoc s kopírováním a vkládáním informací do webového AI chatu.",
+			"instructions": "Během používání se zobrazí dialogové okno a aktuální zpráva bude automaticky zkopírována do schránky. Musíte ji vložit do webových verzí AI (jako ChatGPT nebo Claude), pak zkopírovat odpověď AI zpět do dialogového okna a kliknout na tlačítko potvrzení."
+		},
+		"customModel": {
+			"capabilities": "Nakonfigurujte schopnosti a ceny pro váš vlastní OpenAI-kompatibilní model. Buďte opatrní při specifikaci schopností modelu, protože mohou ovlivnit, jak Roo Code funguje.",
+			"maxTokens": {
+				"label": "Maximální výstupní tokeny",
+				"description": "Maximální počet tokenů, které model může vygenerovat v odpovědi. (Zadejte -1, aby server nastavil maximální tokeny.)"
+			},
+			"contextWindow": {
+				"label": "Velikost kontextového okna",
+				"description": "Celkové tokeny (vstup + výstup), které model může zpracovat."
+			},
+			"imageSupport": {
+				"label": "Podpora obrázků",
+				"description": "Je tento model schopen zpracovávat a rozumět obrázkům?"
+			},
+			"computerUse": {
+				"label": "Použití počítače",
+				"description": "Je tento model schopen interagovat s prohlížečem? (např. Claude 3.7 Sonnet)"
+			},
+			"promptCache": {
+				"label": "Ukládání promptů do mezipaměti",
+				"description": "Je tento model schopen ukládat prompty do mezipaměti?"
+			},
+			"pricing": {
+				"input": {
+					"label": "Cena vstupu",
+					"description": "Cena za milion tokenů ve vstupu/promptu. Toto ovlivňuje náklady na odesílání kontextu a instrukcí modelu."
+				},
+				"output": {
+					"label": "Cena výstupu",
+					"description": "Cena za milion tokenů v odpovědi modelu. Toto ovlivňuje náklady na generovaný obsah a dokončení."
+				},
+				"cacheReads": {
+					"label": "Cena čtení z mezipaměti",
+					"description": "Cena za milion tokenů pro čtení z mezipaměti. Toto je cena účtovaná při načítání uložené odpovědi."
+				},
+				"cacheWrites": {
+					"label": "Cena zápisů do mezipaměti",
+					"description": "Cena za milion tokenů pro zápis do mezipaměti. Toto je cena účtovaná při prvním ukládání promptu."
+				}
+			},
+			"resetDefaults": "Obnovit výchozí hodnoty"
+		}
 	},
 	"browser": {
 		"enable": {
@@ -208,7 +309,10 @@
 		"gemini": {
 			"freeRequests": "* Zdarma až do {{count}} požadavků za minutu. Po tom závisí účtování na velikosti promptu.",
 			"pricingDetails": "Pro více informací viz podrobnosti o cenách."
-		}
+		},
+		"enableStreaming": "Povolit streamování",
+		"useAzure": "Použít Azure",
+		"azureApiVersion": "Nastavit verzi Azure API"
 	},
 	"modelPicker": {
 		"automaticFetch": "Rozšíření automaticky načítá nejnovější seznam modelů dostupných na <serviceLink>{{serviceName}}</serviceLink>. Pokud si nejste jisti, který model vybrat, Roo Code funguje nejlépe s <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Můžete také zkusit vyhledat \"free\" pro aktuálně dostupné bezplatné možnosti."

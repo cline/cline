@@ -73,10 +73,111 @@
 		"configProfile": "Профиль конфигурации",
 		"description": "Описание",
 		"apiProvider": "Провайдер API",
+		"model": "Модель",
 		"openRouterApiKey": "Ключ API OpenRouter",
+		"getOpenRouterApiKey": "Получить ключ API OpenRouter",
 		"apiKeyStorageNotice": "Ключи API хранятся безопасно в Secret Storage VSCode",
+		"glamaApiKey": "Ключ API Glama",
+		"getGlamaApiKey": "Получить ключ API Glama",
 		"useCustomBaseUrl": "Использовать собственный базовый URL",
-		"openRouterTransformsText": "Сжимать подсказки и цепочки сообщений до размера контекста (<a>Преобразования OpenRouter</a>)"
+		"requestyApiKey": "Ключ API Requesty",
+		"getRequestyApiKey": "Получить ключ API Requesty",
+		"openRouterTransformsText": "Сжимать подсказки и цепочки сообщений до размера контекста (<a>Преобразования OpenRouter</a>)",
+		"anthropicApiKey": "Ключ API Anthropic",
+		"getAnthropicApiKey": "Получить ключ API Anthropic",
+		"deepSeekApiKey": "Ключ API DeepSeek",
+		"getDeepSeekApiKey": "Получить ключ API DeepSeek",
+		"geminiApiKey": "Ключ API Gemini",
+		"getGeminiApiKey": "Получить ключ API Gemini",
+		"openAiApiKey": "Ключ API OpenAI",
+		"openAiBaseUrl": "Базовый URL",
+		"getOpenAiApiKey": "Получить ключ API OpenAI",
+		"mistralApiKey": "Ключ API Mistral",
+		"getMistralApiKey": "Получить ключ API Mistral / Codestral",
+		"codestralBaseUrl": "Базовый URL Codestral (Опционально)",
+		"codestralBaseUrlDesc": "Установить альтернативный URL для модели Codestral.",
+		"awsCredentials": "Учетные данные AWS",
+		"awsProfile": "Профиль AWS",
+		"awsProfileName": "Имя профиля AWS",
+		"awsAccessKey": "Ключ доступа AWS",
+		"awsSecretKey": "Секретный ключ AWS",
+		"awsSessionToken": "Токен сессии AWS",
+		"awsRegion": "Регион AWS",
+		"awsCrossRegion": "Использовать межрегиональный вывод",
+		"googleCloudSetup": {
+			"title": "Для использования Google Cloud Vertex AI вам нужно:",
+			"step1": "1. Создать аккаунт Google Cloud, включить API Vertex AI и активировать нужные модели Claude.",
+			"step2": "2. Установить CLI Google Cloud и настроить учетные данные приложения по умолчанию.",
+			"step3": "3. Или создать сервисный аккаунт с учетными данными."
+		},
+		"googleCloudCredentials": "Учетные данные Google Cloud",
+		"googleCloudKeyFile": "Путь к файлу ключа Google Cloud",
+		"googleCloudProjectId": "ID проекта Google Cloud",
+		"googleCloudRegion": "Регион Google Cloud",
+		"lmStudio": {
+			"baseUrl": "Базовый URL (опционально)",
+			"modelId": "ID модели",
+			"speculativeDecoding": "Включить спекулятивное декодирование",
+			"draftModelId": "ID черновой модели",
+			"draftModelDesc": "Черновая модель должна быть из того же семейства моделей для правильной работы спекулятивного декодирования.",
+			"selectDraftModel": "Выбрать черновую модель",
+			"noModelsFound": "Черновые модели не найдены. Убедитесь, что LM Studio запущена с включенным режимом сервера.",
+			"description": "LM Studio позволяет запускать модели локально на вашем компьютере. Для инструкций по началу работы см. их <a>краткое руководство</a>. Вам также нужно будет запустить функцию <b>локального сервера</b> LM Studio для использования с этим расширением. <span>Примечание:</span> Roo Code использует сложные промпты и лучше всего работает с моделями Claude. Менее способные модели могут работать не так, как ожидается."
+		},
+		"ollama": {
+			"baseUrl": "Базовый URL (опционально)",
+			"modelId": "ID модели",
+			"description": "Ollama позволяет запускать модели локально на вашем компьютере. Для инструкций по началу работы см. их краткое руководство.",
+			"warning": "Примечание: Roo Code использует сложные промпты и лучше всего работает с моделями Claude. Менее способные модели могут работать не так, как ожидается."
+		},
+		"unboundApiKey": "Ключ API Unbound",
+		"getUnboundApiKey": "Получить ключ API Unbound",
+		"humanRelay": {
+			"description": "Ключ API не требуется, но пользователю нужно помочь скопировать и вставить информацию в веб-чат ИИ.",
+			"instructions": "Во время использования появится диалоговое окно, и текущее сообщение будет автоматически скопировано в буфер обмена. Вам нужно вставить это в веб-версии ИИ (такие как ChatGPT или Claude), затем скопировать ответ ИИ обратно в диалоговое окно и нажать кнопку подтверждения."
+		},
+		"customModel": {
+			"capabilities": "Настройте возможности и цены для вашей пользовательской модели, совместимой с OpenAI. Будьте осторожны при указании возможностей модели, так как они могут повлиять на работу Roo Code.",
+			"maxTokens": {
+				"label": "Максимальное количество выходных токенов",
+				"description": "Максимальное количество токенов, которое модель может сгенерировать в ответе. (Укажите -1, чтобы позволить серверу установить максимальное количество токенов.)"
+			},
+			"contextWindow": {
+				"label": "Размер окна контекста",
+				"description": "Общее количество токенов (ввод + вывод), которое модель может обработать."
+			},
+			"imageSupport": {
+				"label": "Поддержка изображений",
+				"description": "Способна ли эта модель обрабатывать и понимать изображения?"
+			},
+			"computerUse": {
+				"label": "Использование компьютера",
+				"description": "Способна ли эта модель взаимодействовать с браузером? (например, Claude 3.7 Sonnet)."
+			},
+			"promptCache": {
+				"label": "Кэширование промптов",
+				"description": "Способна ли эта модель кэшировать промпты?"
+			},
+			"pricing": {
+				"input": {
+					"label": "Цена ввода",
+					"description": "Стоимость за миллион токенов во входном промпте. Это влияет на стоимость отправки контекста и инструкций модели."
+				},
+				"output": {
+					"label": "Цена вывода",
+					"description": "Стоимость за миллион токенов в ответе модели. Это влияет на стоимость генерируемого контента и завершений."
+				},
+				"cacheReads": {
+					"label": "Цена чтения кэша",
+					"description": "Стоимость за миллион токенов для чтения из кэша. Это цена, взимаемая при получении кэшированного ответа."
+				},
+				"cacheWrites": {
+					"label": "Цена записи кэша",
+					"description": "Стоимость за миллион токенов для записи в кэш. Это цена, взимаемая при первом кэшировании промпта."
+				}
+			},
+			"resetDefaults": "Сбросить настройки по умолчанию"
+		}
 	},
 	"browser": {
 		"enable": {
@@ -205,6 +306,9 @@
 		"outputPrice": "Цена вывода",
 		"cacheReadsPrice": "Цена чтения кэша",
 		"cacheWritesPrice": "Цена записи кэша",
+		"enableStreaming": "Включить потоковую передачу",
+		"useAzure": "Использовать Azure",
+		"azureApiVersion": "Установить версию API Azure",
 		"gemini": {
 			"freeRequests": "* Бесплатно до {{count}} запросов в минуту. После этого, оплата зависит от размера промпта.",
 			"pricingDetails": "Для получения дополнительной информации см. детали ценообразования."

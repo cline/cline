@@ -73,10 +73,111 @@
 		"configProfile": "Konfigurációs profil",
 		"description": "Leírás",
 		"apiProvider": "API szolgáltató",
+		"model": "Modell",
 		"openRouterApiKey": "OpenRouter API kulcs",
+		"getOpenRouterApiKey": "OpenRouter API kulcs beszerzése",
 		"apiKeyStorageNotice": "Az API kulcsok biztonságosan tárolódnak a VSCode titkos tárolójában",
+		"glamaApiKey": "Glama API kulcs",
+		"getGlamaApiKey": "Glama API kulcs beszerzése",
 		"useCustomBaseUrl": "Egyéni alap URL használata",
-		"openRouterTransformsText": "Promptok és üzenetláncok tömörítése a kontextus méretére (<a>OpenRouter átalakítások</a>)"
+		"requestyApiKey": "Requesty API kulcs",
+		"getRequestyApiKey": "Requesty API kulcs beszerzése",
+		"openRouterTransformsText": "Promptok és üzenetláncok tömörítése a kontextus méretére (<a>OpenRouter átalakítások</a>)",
+		"anthropicApiKey": "Anthropic API kulcs",
+		"getAnthropicApiKey": "Anthropic API kulcs beszerzése",
+		"deepSeekApiKey": "DeepSeek API kulcs",
+		"getDeepSeekApiKey": "DeepSeek API kulcs beszerzése",
+		"geminiApiKey": "Gemini API kulcs",
+		"getGeminiApiKey": "Gemini API kulcs beszerzése",
+		"openAiApiKey": "OpenAI API kulcs",
+		"openAiBaseUrl": "Alap URL",
+		"getOpenAiApiKey": "OpenAI API kulcs beszerzése",
+		"mistralApiKey": "Mistral API kulcs",
+		"getMistralApiKey": "Mistral / Codestral API kulcs beszerzése",
+		"codestralBaseUrl": "Codestral alap URL (opcionális)",
+		"codestralBaseUrlDesc": "Opcionális URL beállítása a Codestral modellekhez.",
+		"awsCredentials": "AWS hitelesítő adatok",
+		"awsProfile": "AWS profil",
+		"awsProfileName": "AWS profil név",
+		"awsAccessKey": "AWS hozzáférési kulcs",
+		"awsSecretKey": "AWS titkos kulcs",
+		"awsSessionToken": "AWS munkamenet token",
+		"awsRegion": "AWS régió",
+		"awsCrossRegion": "Régióközi következtetés használata",
+		"googleCloudSetup": {
+			"title": "A Google Cloud Vertex AI használatához szükséges:",
+			"step1": "1. Google Cloud fiók létrehozása, Vertex AI API engedélyezése és a kívánt Claude modellek engedélyezése.",
+			"step2": "2. Google Cloud CLI telepítése és az alkalmazás alapértelmezett hitelesítő adatainak konfigurálása.",
+			"step3": "3. Vagy szolgáltatási fiók létrehozása hitelesítő adatokkal."
+		},
+		"googleCloudCredentials": "Google Cloud hitelesítő adatok",
+		"googleCloudKeyFile": "Google Cloud kulcsfájl útvonala",
+		"googleCloudProjectId": "Google Cloud projekt azonosító",
+		"googleCloudRegion": "Google Cloud régió",
+		"lmStudio": {
+			"baseUrl": "Alap URL (opcionális)",
+			"modelId": "Modell azonosító",
+			"speculativeDecoding": "Spekulatív dekódolás engedélyezése",
+			"draftModelId": "Vázlat modell azonosító",
+			"draftModelDesc": "A spekulatív dekódolás megfelelő működéséhez a vázlat modellnek ugyanabból a modellcsaládból kell származnia.",
+			"selectDraftModel": "Vázlat modell kiválasztása",
+			"noModelsFound": "Nem található vázlat modell. Kérjük, ellenőrizze, hogy az LM Studio szerver mód engedélyezve van-e.",
+			"description": "Az LM Studio lehetővé teszi a modellek helyi futtatását a számítógépén. A kezdéshez lásd a <a>gyors kezdési útmutatót</a>. A bővítménnyel való használathoz el kell indítania az LM Studio <b>helyi szerver</b> funkcióját is. <span>Megjegyzés:</span> A Roo Code összetett promptokat használ és a Claude modellekkel működik a legjobban. Az alacsonyabb képességű modellek nem feltétlenül működnek a várt módon."
+		},
+		"ollama": {
+			"baseUrl": "Alap URL (opcionális)",
+			"modelId": "Modell azonosító",
+			"description": "Az Ollama lehetővé teszi a modellek helyi futtatását a számítógépén. A kezdéshez lásd a gyors kezdési útmutatót.",
+			"warning": "Megjegyzés: A Roo Code összetett promptokat használ és a Claude modellekkel működik a legjobban. Az alacsonyabb képességű modellek nem feltétlenül működnek a várt módon."
+		},
+		"unboundApiKey": "Unbound API kulcs",
+		"getUnboundApiKey": "Unbound API kulcs beszerzése",
+		"humanRelay": {
+			"description": "Nem szükséges API kulcs, de a felhasználónak segítenie kell az információk másolásában és beillesztésében a webes csevegő AI-ba.",
+			"instructions": "Használat közben egy párbeszédablak jelenik meg, és az aktuális üzenet automatikusan a vágólapra másolódik. Be kell illesztenie ezeket az AI webes verzióiba (mint a ChatGPT vagy Claude), majd az AI válaszát vissza kell másolnia a párbeszédablakba és a megerősítés gombra kell kattintania."
+		},
+		"customModel": {
+			"capabilities": "Konfigurálja az egyéni OpenAI-kompatibilis modellje képességeit és árazását. Legyen óvatos a modell képességeinek meghatározásakor, mivel ezek befolyásolhatják a Roo Code teljesítményét.",
+			"maxTokens": {
+				"label": "Maximális kimeneti tokenek",
+				"description": "A modell által egy válaszban generálható maximális tokenek száma. (Adjon meg -1-et, hogy a szerver állítsa be a maximális tokeneket.)"
+			},
+			"contextWindow": {
+				"label": "Kontextus ablak mérete",
+				"description": "Az összes token (bemenet + kimenet) száma, amit a modell feldolgozhat."
+			},
+			"imageSupport": {
+				"label": "Kép támogatás",
+				"description": "Képes-e a modell képek feldolgozására és megértésére?"
+			},
+			"computerUse": {
+				"label": "Számítógép használat",
+				"description": "Képes-e a modell a böngészővel való interakcióra? (pl. Claude 3.7 Sonnet)."
+			},
+			"promptCache": {
+				"label": "Prompt gyorsítótárazás",
+				"description": "Képes-e a modell a promptok gyorsítótárazására?"
+			},
+			"pricing": {
+				"input": {
+					"label": "Bemeneti ár",
+					"description": "A bemenet/prompt költsége millió tokenenként. Ez befolyásolja a kontextus és utasítások modellnek való küldésének költségét."
+				},
+				"output": {
+					"label": "Kimeneti ár",
+					"description": "A modell válaszának költsége millió tokenenként. Ez befolyásolja a generált tartalom és befejezések költségét."
+				},
+				"cacheReads": {
+					"label": "Gyorsítótár olvasások ára",
+					"description": "A gyorsítótárból való olvasás költsége millió tokenenként. Ez az ár akkor kerül felszámításra, amikor gyorsítótárazott választ kap."
+				},
+				"cacheWrites": {
+					"label": "Gyorsítótár írások ára",
+					"description": "A gyorsítótárba való írás költsége millió tokenenként. Ez az ár akkor kerül felszámításra, amikor először gyorsítótárazza a promptot."
+				}
+			},
+			"resetDefaults": "Alapértékek visszaállítása"
+		}
 	},
 	"browser": {
 		"enable": {
@@ -205,6 +306,9 @@
 		"outputPrice": "Kimeneti ár",
 		"cacheReadsPrice": "Gyorsítótár olvasások ára",
 		"cacheWritesPrice": "Gyorsítótár írások ára",
+		"enableStreaming": "Streaming engedélyezése",
+		"useAzure": "Azure használata",
+		"azureApiVersion": "Azure API verzió beállítása",
 		"gemini": {
 			"freeRequests": "* Ingyenes {{count}} kérésig percenként. Ezután a számlázás a prompt méretétől függ.",
 			"pricingDetails": "További információkért lásd az árazási részleteket."

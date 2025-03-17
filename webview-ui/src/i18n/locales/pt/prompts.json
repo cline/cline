@@ -36,12 +36,12 @@
 		"title": "Instruções personalizadas específicas do modo (opcional)",
 		"resetToDefault": "Restaurar para padrão",
 		"description": "Adicione diretrizes comportamentais específicas para o modo {{modeName}}.",
-		"loadFromFile": "Instruções personalizadas específicas para o modo {{modeName}} também podem ser carregadas de .clinerules-{{modeSlug}} no seu espaço de trabalho."
+		"loadFromFile": "Instruções personalizadas específicas para o modo {{mode}} também podem ser carregadas de <span>.clinerules-{{slug}}</span> no seu espaço de trabalho."
 	},
 	"globalCustomInstructions": {
 		"title": "Instruções personalizadas para todos os modos",
 		"description": "Estas instruções se aplicam a todos os modos. Elas fornecem um conjunto base de comportamentos que podem ser aprimorados por instruções específicas do modo abaixo.\nSe você desejar que o Roo pense e fale em um idioma diferente do idioma de exibição do seu editor ({{language}}), você pode especificá-lo aqui.",
-		"loadFromFile": "As instruções também podem ser carregadas de .clinerules no seu espaço de trabalho."
+		"loadFromFile": "As instruções também podem ser carregadas de <span>.clinerules</span> no seu espaço de trabalho."
 	},
 	"systemPrompt": {
 		"preview": "Visualizar prompt do sistema",
@@ -100,7 +100,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Avançado: Substituir prompt do sistema",
-		"description": "Você pode substituir completamente o prompt do sistema para este modo (além da definição de função e instruções personalizadas) criando um arquivo em .roo/system-prompt-{{modeSlug}} no seu espaço de trabalho. Esta é uma funcionalidade muito avançada que contorna as salvaguardas integradas e verificações de consistência (especialmente em torno do uso de ferramentas), então tenha cuidado!"
+		"description": "Você pode substituir completamente o prompt do sistema para este modo (além da definição de função e instruções personalizadas) criando um arquivo em <span>.roo/system-prompt-{{slug}}</span> no seu espaço de trabalho. Esta é uma funcionalidade muito avançada que contorna as salvaguardas integradas e verificações de consistência (especialmente em torno do uso de ferramentas), então tenha cuidado!"
 	},
 	"createModeDialog": {
 		"title": "Criar novo modo",

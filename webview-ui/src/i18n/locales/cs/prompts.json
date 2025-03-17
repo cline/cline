@@ -36,12 +36,12 @@
 		"title": "Vlastní instrukce specifické pro režim (volitelné)",
 		"resetToDefault": "Obnovit výchozí",
 		"description": "Přidejte pokyny specifické pro chování v režimu {{modeName}}.",
-		"loadFromFile": "Vlastní instrukce specifické pro režim {{modeName}} mohou být také načteny ze souboru .clinerules-{{modeSlug}} ve vašem pracovním prostoru."
+		"loadFromFile": "Vlastní instrukce specifické pro režim {{mode}} mohou být také načteny ze souboru <span>.clinerules-{{slug}}</span> ve vašem pracovním prostoru."
 	},
 	"globalCustomInstructions": {
 		"title": "Vlastní instrukce pro všechny režimy",
 		"description": "Tyto instrukce se vztahují na všechny režimy. Poskytují základní sadu chování, které mohou být vylepšeny specifickými instrukcemi pro režimy níže.\nPokud chcete, aby Roo přemýšlel a mluvil v jiném jazyce, než je jazyk zobrazení vašeho editoru ({{language}}), můžete to zde specifikovat.",
-		"loadFromFile": "Instrukce mohou být také načteny ze souboru .clinerules ve vašem pracovním prostoru."
+		"loadFromFile": "Instrukce mohou být také načteny ze souboru <span>.clinerules</span> ve vašem pracovním prostoru."
 	},
 	"systemPrompt": {
 		"preview": "Náhled systémového promptu",
@@ -100,7 +100,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Pokročilé: Přepsat systémový prompt",
-		"description": "Můžete zcela nahradit systémový prompt pro tento režim (kromě definice role a vlastních instrukcí) vytvořením souboru v .roo/system-prompt-{{modeSlug}} ve vašem pracovním prostoru. Toto je velmi pokročilá funkce, která obchází vestavěné ochrany a kontroly konzistence (zejména kolem používání nástrojů), takže buďte opatrní!"
+		"description": "Můžete zcela nahradit systémový prompt pro tento režim (kromě definice role a vlastních instrukcí) vytvořením souboru v <span>.roo/system-prompt-{{slug}}</span> ve vašem pracovním prostoru. Toto je velmi pokročilá funkce, která obchází vestavěné ochrany a kontroly konzistence (zejména kolem používání nástrojů), takže buďte opatrní!"
 	},
 	"createModeDialog": {
 		"title": "Vytvořit nový režim",
