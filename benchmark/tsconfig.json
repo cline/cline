@@ -1,0 +1,16 @@
+{
+	"compilerOptions": {
+		"module": "CommonJS",
+		"moduleResolution": "Node",
+		"esModuleInterop": true,
+		"target": "ES2022",
+		"lib": ["ES2022", "ESNext.Disposable", "DOM"],
+		"sourceMap": true,
+		"strict": true,
+		"skipLibCheck": true,
+		"useUnknownInCatchVariables": false,
+		"outDir": "out"
+	},
+	"include": ["src", "../src/exports/roo-code.d.ts"],
+	"exclude": ["**/node_modules/**", "out"]
+}

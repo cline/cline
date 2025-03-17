@@ -6,13 +6,14 @@
 	"scripts": {
 		"lint": "eslint src --ext ts,tsx",
 		"lint-fix": "eslint src --ext ts,tsx --fix",
-		"check-types": "tsc --noEmit",
+		"check-types": "tsc",
 		"test": "jest",
 		"dev": "vite",
 		"build": "tsc -b && vite build",
 		"preview": "vite preview",
 		"storybook": "storybook dev -p 6006",
-		"build-storybook": "storybook build"
+		"build-storybook": "storybook build",
+		"clean": "rimraf build"
 	},
 	"dependencies": {
 		"@radix-ui/react-alert-dialog": "^1.1.6",

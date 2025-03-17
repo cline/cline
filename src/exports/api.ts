@@ -3,13 +3,14 @@ import * as vscode from "vscode"
 
 import { ClineProvider } from "../core/webview/ClineProvider"
 
-import { RooCodeAPI, RooCodeEvents, ConfigurationValues } from "./roo-code"
+import { RooCodeAPI, RooCodeEvents, ConfigurationValues, TokenUsage } from "./roo-code"
 import { MessageHistory } from "./message-history"
 
 export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	private readonly outputChannel: vscode.OutputChannel
 	private readonly provider: ClineProvider
 	private readonly history: MessageHistory
+	private readonly tokenUsage: Record<string, TokenUsage>
 
 	constructor(outputChannel: vscode.OutputChannel, provider: ClineProvider) {
 		super()
@@ -17,6 +18,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		this.outputChannel = outputChannel
 		this.provider = provider
 		this.history = new MessageHistory()
+		this.tokenUsage = {}
 
 		this.provider.on("clineAdded", (cline) => {
 			cline.on("message", (message) => this.emit("message", { taskId: cline.taskId, ...message }))
@@ -39,6 +41,8 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 				this.history.update(taskId, message)
 			}
 		})
+
+		this.on("taskTokenUsageUpdated", (taskId, usage) => (this.tokenUsage[taskId] = usage))
 	}
 
 	public async startNewTask(text?: string, images?: string[]) {
@@ -49,6 +53,10 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 
 		const cline = await this.provider.initClineWithTask(text, images)
 		return cline.taskId
+	}
+
+	public getCurrentTaskStack() {
+		return this.provider.getCurrentTaskStack()
 	}
 
 	public async clearCurrentTask(lastMessage?: string) {
@@ -84,7 +92,11 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		return this.history.getMessages(taskId)
 	}
 
-	public getCurrentTaskStack(): string[] {
-		return this.provider.getCurrentTaskStack()
+	public getTokenUsage(taskId: string) {
+		return this.tokenUsage[taskId]
+	}
+
+	public log(message: string) {
+		this.outputChannel.appendLine(message)
 	}
 }

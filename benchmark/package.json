@@ -1,0 +1,30 @@
+{
+	"name": "benchmark",
+	"version": "0.1.0",
+	"private": true,
+	"main": "out/run.js",
+	"scripts": {
+		"build": "npm run compile && cd .. && npm run compile && npm run build:webview",
+		"lint": "eslint src --ext ts",
+		"check-types": "tsc --noEmit",
+		"compile": "rm -rf out && tsc -p tsconfig.json",
+		"cli": "npm run compile && npx dotenvx run -f .env.local -- tsx src/cli.ts",
+		"clean": "rimraf out",
+		"clean:exercises": "cd exercises && git checkout -f && git clean -fd",
+		"docker:build": "docker build -f Dockerfile -t roo-code-benchmark ..",
+		"docker:run": "touch /tmp/benchmarks.db && docker run -d -it -p 3000:3000 -v /tmp/benchmarks.db:/tmp/benchmarks.db roo-code-benchmark",
+		"docker:start": "npm run docker:build && npm run docker:run",
+		"docker:shell": "docker exec -it $(docker ps --filter \"ancestor=roo-code-benchmark\" -q) /bin/bash",
+		"docker:cli": "docker exec -it -w /home/vscode/repo/benchmark $(docker ps --filter \"ancestor=roo-code-benchmark\" -q) xvfb-run npm run cli --",
+		"docker:stop": "docker stop $(docker ps --filter \"ancestor=roo-code-benchmark\" -q)",
+		"docker:rm": "docker rm $(docker ps -a --filter \"ancestor=roo-code-benchmark\" -q)",
+		"docker:clean": "npm run docker:stop && npm run docker:rm"
+	},
+	"devDependencies": {
+		"@vscode/test-electron": "^2.4.0",
+		"gluegun": "^5.1.2",
+		"tsx": "^4.19.3",
+		"typescript": "^5.4.5",
+		"yargs": "^17.7.2"
+	}
+}
