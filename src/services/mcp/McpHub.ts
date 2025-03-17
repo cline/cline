@@ -161,7 +161,16 @@ export class McpHub {
 			const settingsPath = await this.getMcpSettingsFilePath()
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
-			await this.updateServerConnections(config.mcpServers || {})
+
+			// Validate the config using McpSettingsSchema
+			const result = McpSettingsSchema.safeParse(config)
+			if (result.success) {
+				await this.updateServerConnections(result.data.mcpServers || {})
+			} else {
+				console.error("Invalid MCP settings format:", result.error)
+				// Still try to connect with the raw config
+				await this.updateServerConnections(config.mcpServers || {})
+			}
 		} catch (error) {
 			console.error("Failed to initialize MCP servers:", error)
 		}
@@ -384,20 +393,37 @@ export class McpHub {
 		for (const [name, config] of Object.entries(newServers)) {
 			const currentConnection = this.connections.find((conn) => conn.server.name === name)
 
+			// Validate and transform the config
+			let validatedConfig: z.infer<typeof ServerConfigSchema>
+			try {
+				// Check if it's a stdio or SSE config and add type if missing
+				if (!config.type) {
+					if (config.command) {
+						config.type = "stdio"
+					} else if (config.url) {
+						config.type = "sse"
+					}
+				}
+				validatedConfig = ServerConfigSchema.parse(config)
+			} catch (error) {
+				console.error(`Invalid configuration for MCP server ${name}:`, error)
+				continue
+			}
+
 			if (!currentConnection) {
 				// New server
 				try {
-					this.setupFileWatcher(name, config)
-					await this.connectToServer(name, config)
+					this.setupFileWatcher(name, validatedConfig)
+					await this.connectToServer(name, validatedConfig)
 				} catch (error) {
 					console.error(`Failed to connect to new MCP server ${name}:`, error)
 				}
 			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
 				// Existing server with changed config
 				try {
-					this.setupFileWatcher(name, config)
+					this.setupFileWatcher(name, validatedConfig)
 					await this.deleteConnection(name)
-					await this.connectToServer(name, config)
+					await this.connectToServer(name, validatedConfig)
 					console.log(`Reconnected MCP server with updated config: ${name}`)
 				} catch (error) {
 					console.error(`Failed to reconnect MCP server ${name}:`, error)
@@ -409,22 +435,25 @@ export class McpHub {
 		this.isConnecting = false
 	}
 
-	private setupFileWatcher(name: string, config: any) {
-		const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
-		if (filePath) {
-			// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or Cline (and we want to detect save events, not every file change)
-			const watcher = chokidar.watch(filePath, {
-				// persistent: true,
-				// ignoreInitial: true,
-				// awaitWriteFinish: true, // This helps with atomic writes
-			})
+	private setupFileWatcher(name: string, config: z.infer<typeof ServerConfigSchema>) {
+		// Only stdio type has args
+		if (config.type === "stdio") {
+			const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
+			if (filePath) {
+				// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or Cline (and we want to detect save events, not every file change)
+				const watcher = chokidar.watch(filePath, {
+					// persistent: true,
+					// ignoreInitial: true,
+					// awaitWriteFinish: true, // This helps with atomic writes
+				})
 
-			watcher.on("change", () => {
-				console.log(`Detected change in ${filePath}. Restarting server ${name}...`)
-				this.restartConnection(name)
-			})
+				watcher.on("change", () => {
+					console.log(`Detected change in ${filePath}. Restarting server ${name}...`)
+					this.restartConnection(name)
+				})
 
-			this.fileWatchers.set(name, watcher)
+				this.fileWatchers.set(name, watcher)
+			}
 		}
 	}
 
