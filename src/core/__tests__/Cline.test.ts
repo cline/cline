@@ -148,6 +148,7 @@ jest.mock("vscode", () => {
 				all: [mockTabGroup],
 				onDidChangeTabs: jest.fn(() => ({ dispose: jest.fn() })),
 			},
+			showErrorMessage: jest.fn(),
 		},
 		workspace: {
 			workspaceFolders: [

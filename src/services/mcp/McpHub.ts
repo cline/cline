@@ -1,5 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport, StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js"
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+import ReconnectingEventSource from "reconnecting-eventsource"
 import {
 	CallToolResultSchema,
 	ListResourcesResultSchema,
@@ -31,23 +33,68 @@ import { arePathsEqual } from "../../utils/path"
 export type McpConnection = {
 	server: McpServer
 	client: Client
-	transport: StdioClientTransport
+	transport: StdioClientTransport | SSEClientTransport
 }
 
-// StdioServerParameters
-const AlwaysAllowSchema = z.array(z.string()).default([])
-
-export const StdioConfigSchema = z.object({
-	command: z.string(),
-	args: z.array(z.string()).optional(),
-	env: z.record(z.string()).optional(),
-	alwaysAllow: AlwaysAllowSchema.optional(),
+// Base configuration schema for common settings
+const BaseConfigSchema = z.object({
 	disabled: z.boolean().optional(),
 	timeout: z.number().min(1).max(3600).optional().default(60),
+	alwaysAllow: z.array(z.string()).default([]),
 })
 
+// Custom error messages for better user feedback
+const typeErrorMessage = "Server type must be either 'stdio' or 'sse'"
+const stdioFieldsErrorMessage =
+	"For 'stdio' type servers, you must provide a 'command' field and can optionally include 'args' and 'env'"
+const sseFieldsErrorMessage =
+	"For 'sse' type servers, you must provide a 'url' field and can optionally include 'headers'"
+const mixedFieldsErrorMessage =
+	"Cannot mix 'stdio' and 'sse' fields. For 'stdio' use 'command', 'args', and 'env'. For 'sse' use 'url' and 'headers'"
+const missingFieldsErrorMessage = "Server configuration must include either 'command' (for stdio) or 'url' (for sse)"
+
+// Helper function to create a refined schema with better error messages
+const createServerTypeSchema = () => {
+	return z.union([
+		// Stdio config (has command field)
+		BaseConfigSchema.extend({
+			type: z.enum(["stdio"]).optional(),
+			command: z.string().min(1, "Command cannot be empty"),
+			args: z.array(z.string()).optional(),
+			env: z.record(z.string()).optional(),
+			// Ensure no SSE fields are present
+			url: z.undefined().optional(),
+			headers: z.undefined().optional(),
+		})
+			.transform((data) => ({
+				...data,
+				type: "stdio" as const,
+			}))
+			.refine((data) => data.type === undefined || data.type === "stdio", { message: typeErrorMessage }),
+		// SSE config (has url field)
+		BaseConfigSchema.extend({
+			type: z.enum(["sse"]).optional(),
+			url: z.string().url("URL must be a valid URL format"),
+			headers: z.record(z.string()).optional(),
+			// Ensure no stdio fields are present
+			command: z.undefined().optional(),
+			args: z.undefined().optional(),
+			env: z.undefined().optional(),
+		})
+			.transform((data) => ({
+				...data,
+				type: "sse" as const,
+			}))
+			.refine((data) => data.type === undefined || data.type === "sse", { message: typeErrorMessage }),
+	])
+}
+
+// Server configuration schema with automatic type inference and validation
+export const ServerConfigSchema = createServerTypeSchema()
+
+// Settings schema
 const McpSettingsSchema = z.object({
-	mcpServers: z.record(StdioConfigSchema),
+	mcpServers: z.record(ServerConfigSchema),
 })
 
 export class McpHub {
@@ -55,6 +102,7 @@ export class McpHub {
 	private disposables: vscode.Disposable[] = []
 	private settingsWatcher?: vscode.FileSystemWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
+	private isDisposed: boolean = false
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
 
@@ -62,6 +110,76 @@ export class McpHub {
 		this.providerRef = new WeakRef(provider)
 		this.watchMcpSettingsFile()
 		this.initializeMcpServers()
+	}
+
+	/**
+	 * Validates and normalizes server configuration
+	 * @param config The server configuration to validate
+	 * @param serverName Optional server name for error messages
+	 * @returns The validated configuration
+	 * @throws Error if the configuration is invalid
+	 */
+	private validateServerConfig(config: any, serverName?: string): z.infer<typeof ServerConfigSchema> {
+		// Detect configuration issues before validation
+		const hasStdioFields = config.command !== undefined
+		const hasSseFields = config.url !== undefined
+
+		// Check for mixed fields
+		if (hasStdioFields && hasSseFields) {
+			throw new Error(mixedFieldsErrorMessage)
+		}
+
+		// Check if it's a stdio or SSE config and add type if missing
+		if (!config.type) {
+			if (hasStdioFields) {
+				config.type = "stdio"
+			} else if (hasSseFields) {
+				config.type = "sse"
+			} else {
+				throw new Error(missingFieldsErrorMessage)
+			}
+		} else if (config.type !== "stdio" && config.type !== "sse") {
+			throw new Error(typeErrorMessage)
+		}
+
+		// Check for type/field mismatch
+		if (config.type === "stdio" && !hasStdioFields) {
+			throw new Error(stdioFieldsErrorMessage)
+		}
+		if (config.type === "sse" && !hasSseFields) {
+			throw new Error(sseFieldsErrorMessage)
+		}
+
+		// Validate the config against the schema
+		try {
+			return ServerConfigSchema.parse(config)
+		} catch (validationError) {
+			if (validationError instanceof z.ZodError) {
+				// Extract and format validation errors
+				const errorMessages = validationError.errors
+					.map((err) => `${err.path.join(".")}: ${err.message}`)
+					.join("; ")
+				throw new Error(
+					serverName
+						? `Invalid configuration for server "${serverName}": ${errorMessages}`
+						: `Invalid server configuration: ${errorMessages}`,
+				)
+			}
+			throw validationError
+		}
+	}
+
+	/**
+	 * Formats and displays error messages to the user
+	 * @param message The error message prefix
+	 * @param error The error object
+	 */
+	private showErrorMessage(message: string, error: unknown): void {
+		const errorMessage = error instanceof Error ? error.message : `${error}`
+		console.error(`${message}:`, error)
+		// if (vscode.window && typeof vscode.window.showErrorMessage === 'function') {
+		// 	vscode.window.showErrorMessage(`${message}: ${errorMessage}`)
+		// }
 	}
 
 	getServers(): McpServer[] {
@@ -113,7 +231,7 @@ export class McpHub {
 				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
 					const content = await fs.readFile(settingsPath, "utf-8")
 					const errorMessage =
-						"Invalid MCP settings format. Please ensure your settings follow the correct JSON format."
+						"Invalid MCP settings JSON format. Please ensure your settings follow the correct JSON format."
 					let config: any
 					try {
 						config = JSON.parse(content)
@@ -123,13 +241,16 @@ export class McpHub {
 					}
 					const result = McpSettingsSchema.safeParse(config)
 					if (!result.success) {
-						vscode.window.showErrorMessage(errorMessage)
+						const errorMessages = result.error.errors
+							.map((err) => `${err.path.join(".")}: ${err.message}`)
+							.join("\n")
+						vscode.window.showErrorMessage(`Invalid MCP settings format: ${errorMessages}`)
 						return
 					}
 					try {
 						await this.updateServerConnections(result.data.mcpServers || {})
 					} catch (error) {
-						console.error("Failed to process MCP settings change:", error)
+						this.showErrorMessage("Failed to process MCP settings change", error)
 					}
 				}
 			}),
@@ -140,19 +261,47 @@ export class McpHub {
 		try {
 			const settingsPath = await this.getMcpSettingsFilePath()
 			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
-			await this.updateServerConnections(config.mcpServers || {})
+			let config: any
+
+			try {
+				config = JSON.parse(content)
+			} catch (parseError) {
+				const errorMessage =
+					"Invalid MCP settings JSON format. Please check your settings file for syntax errors."
+				console.error(errorMessage, parseError)
+				vscode.window.showErrorMessage(errorMessage)
+				return
+			}
+
+			// Validate the config using McpSettingsSchema
+			const result = McpSettingsSchema.safeParse(config)
+			if (result.success) {
+				await this.updateServerConnections(result.data.mcpServers || {})
+			} else {
+				// Format validation errors for better user feedback
+				const errorMessages = result.error.errors
+					.map((err) => `${err.path.join(".")}: ${err.message}`)
+					.join("\n")
+				console.error("Invalid MCP settings format:", errorMessages)
+				vscode.window.showErrorMessage(`Invalid MCP settings format: ${errorMessages}`)
+
+				// Still try to connect with the raw config, but show warnings
+				try {
+					await this.updateServerConnections(config.mcpServers || {})
+				} catch (error) {
+					this.showErrorMessage("Failed to initialize MCP servers with raw config", error)
+				}
+			}
 		} catch (error) {
-			console.error("Failed to initialize MCP servers:", error)
+			this.showErrorMessage("Failed to initialize MCP servers", error)
 		}
 	}
 
-	private async connectToServer(name: string, config: StdioServerParameters): Promise<void> {
-		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
-		this.connections = this.connections.filter((conn) => conn.server.name !== name)
+	private async connectToServer(name: string, config: z.infer<typeof ServerConfigSchema>): Promise<void> {
+		// Remove existing connection if it exists
+		await this.deleteConnection(name)
 
 		try {
-			// Each MCP server requires its own transport connection and has unique capabilities, configurations, and error handling. Having separate clients also allows proper scoping of resources/tools and independent server management like reconnection.
 			const client = new Client(
 				{
 					name: "Roo Code",
@@ -163,90 +312,103 @@ export class McpHub {
 				},
 			)
 
-			const transport = new StdioClientTransport({
-				command: config.command,
-				args: config.args,
-				env: {
-					...config.env,
-					...(process.env.PATH ? { PATH: process.env.PATH } : {}),
-					// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
-				},
-				stderr: "pipe", // necessary for stderr to be available
-			})
+			let transport: StdioClientTransport | SSEClientTransport
 
-			transport.onerror = async (error) => {
-				console.error(`Transport error for "${name}":`, error)
-				const connection = this.connections.find((conn) => conn.server.name === name)
-				if (connection) {
-					connection.server.status = "disconnected"
-					this.appendErrorMessage(connection, error.message)
-				}
-				await this.notifyWebviewOfServerChanges()
-			}
-
-			transport.onclose = async () => {
-				const connection = this.connections.find((conn) => conn.server.name === name)
-				if (connection) {
-					connection.server.status = "disconnected"
-				}
-				await this.notifyWebviewOfServerChanges()
-			}
-
-			// If the config is invalid, show an error
-			if (!StdioConfigSchema.safeParse(config).success) {
-				console.error(`Invalid config for "${name}": missing or invalid parameters`)
-				const connection: McpConnection = {
-					server: {
-						name,
-						config: JSON.stringify(config),
-						status: "disconnected",
-						error: "Invalid config: missing or invalid parameters",
+			if (config.type === "stdio") {
+				transport = new StdioClientTransport({
+					command: config.command,
+					args: config.args,
+					env: {
+						...config.env,
+						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
 					},
-					client,
-					transport,
+					stderr: "pipe",
+				})
+
+				// Set up stdio specific error handling
+				transport.onerror = async (error) => {
+					console.error(`Transport error for "${name}":`, error)
+					const connection = this.connections.find((conn) => conn.server.name === name)
+					if (connection) {
+						connection.server.status = "disconnected"
+						this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
+					}
+					await this.notifyWebviewOfServerChanges()
 				}
-				this.connections.push(connection)
-				return
+
+				transport.onclose = async () => {
+					const connection = this.connections.find((conn) => conn.server.name === name)
+					if (connection) {
+						connection.server.status = "disconnected"
+					}
+					await this.notifyWebviewOfServerChanges()
+				}
+
+				// transport.stderr is only available after the process has been started. However we can't start it separately from the .connect() call because it also starts the transport. And we can't place this after the connect call since we need to capture the stderr stream before the connection is established, in order to capture errors during the connection process.
+				// As a workaround, we start the transport ourselves, and then monkey-patch the start method to no-op so that .connect() doesn't try to start it again.
+				await transport.start()
+				const stderrStream = transport.stderr
+				if (stderrStream) {
+					stderrStream.on("data", async (data: Buffer) => {
+						const errorOutput = data.toString()
+						console.error(`Server "${name}" stderr:`, errorOutput)
+						const connection = this.connections.find((conn) => conn.server.name === name)
+						if (connection) {
+							// NOTE: we do not set server status to "disconnected" because stderr logs do not necessarily mean the server crashed or disconnected, it could just be informational. In fact when the server first starts up, it immediately logs "<name> server running on stdio" to stderr.
+							this.appendErrorMessage(connection, errorOutput)
+							// Only need to update webview right away if it's already disconnected
+							if (connection.server.status === "disconnected") {
+								await this.notifyWebviewOfServerChanges()
+							}
+						}
+					})
+				} else {
+					console.error(`No stderr stream for ${name}`)
+				}
+				transport.start = async () => {} // No-op now, .connect() won't fail
+			} else {
+				// SSE connection
+				const sseOptions = {
+					requestInit: {
+						headers: config.headers,
+					},
+				}
+				// Configure ReconnectingEventSource options
+				const reconnectingEventSourceOptions = {
+					max_retry_time: 5000, // Maximum retry time in milliseconds
+					withCredentials: config.headers?.["Authorization"] ? true : false, // Enable credentials if Authorization header exists
+				}
+				global.EventSource = ReconnectingEventSource
+				transport = new SSEClientTransport(new URL(config.url), {
+					...sseOptions,
+					eventSourceInit: reconnectingEventSourceOptions,
+				})
+
+				// Set up SSE specific error handling
+				transport.onerror = async (error) => {
+					console.error(`Transport error for "${name}":`, error)
+					const connection = this.connections.find((conn) => conn.server.name === name)
+					if (connection) {
+						connection.server.status = "disconnected"
+						this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
+					}
+					await this.notifyWebviewOfServerChanges()
+				}
 			}
 
-			// valid schema
-			const parsedConfig = StdioConfigSchema.parse(config)
 			const connection: McpConnection = {
 				server: {
 					name,
 					config: JSON.stringify(config),
 					status: "connecting",
-					disabled: parsedConfig.disabled,
+					disabled: config.disabled,
 				},
 				client,
 				transport,
 			}
 			this.connections.push(connection)
 
-			// transport.stderr is only available after the process has been started. However we can't start it separately from the .connect() call because it also starts the transport. And we can't place this after the connect call since we need to capture the stderr stream before the connection is established, in order to capture errors during the connection process.
-			// As a workaround, we start the transport ourselves, and then monkey-patch the start method to no-op so that .connect() doesn't try to start it again.
-			await transport.start()
-			const stderrStream = transport.stderr
-			if (stderrStream) {
-				stderrStream.on("data", async (data: Buffer) => {
-					const errorOutput = data.toString()
-					console.error(`Server "${name}" stderr:`, errorOutput)
-					const connection = this.connections.find((conn) => conn.server.name === name)
-					if (connection) {
-						// NOTE: we do not set server status to "disconnected" because stderr logs do not necessarily mean the server crashed or disconnected, it could just be informational. In fact when the server first starts up, it immediately logs "<name> server running on stdio" to stderr.
-						this.appendErrorMessage(connection, errorOutput)
-						// Only need to update webview right away if it's already disconnected
-						if (connection.server.status === "disconnected") {
-							await this.notifyWebviewOfServerChanges()
-						}
-					}
-				})
-			} else {
-				console.error(`No stderr stream for ${name}`)
-			}
-			transport.start = async () => {} // No-op now, .connect() won't fail
-
-			// Connect
+			// Connect (this will automatically start the transport)
 			await client.connect(transport)
 			connection.server.status = "connected"
 			connection.server.error = ""
@@ -260,15 +422,20 @@ export class McpHub {
 			const connection = this.connections.find((conn) => conn.server.name === name)
 			if (connection) {
 				connection.server.status = "disconnected"
-				this.appendErrorMessage(connection, error instanceof Error ? error.message : String(error))
+				this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
 			}
 			throw error
 		}
 	}
 
 	private appendErrorMessage(connection: McpConnection, error: string) {
+		// Limit error message length to prevent excessive length
+		const maxErrorLength = 1000
 		const newError = connection.server.error ? `${connection.server.error}\n${error}` : error
-		connection.server.error = newError //.slice(0, 800)
+		connection.server.error =
+			newError.length > maxErrorLength
+				? newError.substring(0, maxErrorLength) + "...(error message truncated)"
+				: newError
 	}
 
 	private async fetchToolsList(serverName: string): Promise<McpTool[]> {
@@ -352,23 +519,32 @@ export class McpHub {
 		for (const [name, config] of Object.entries(newServers)) {
 			const currentConnection = this.connections.find((conn) => conn.server.name === name)
 
+			// Validate and transform the config
+			let validatedConfig: z.infer<typeof ServerConfigSchema>
+			try {
+				validatedConfig = this.validateServerConfig(config, name)
+			} catch (error) {
+				this.showErrorMessage(`Invalid configuration for MCP server "${name}"`, error)
+				continue
+			}
+
 			if (!currentConnection) {
 				// New server
 				try {
-					this.setupFileWatcher(name, config)
-					await this.connectToServer(name, config)
+					this.setupFileWatcher(name, validatedConfig)
+					await this.connectToServer(name, validatedConfig)
 				} catch (error) {
-					console.error(`Failed to connect to new MCP server ${name}:`, error)
+					this.showErrorMessage(`Failed to connect to new MCP server ${name}`, error)
 				}
 			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
 				// Existing server with changed config
 				try {
-					this.setupFileWatcher(name, config)
+					this.setupFileWatcher(name, validatedConfig)
 					await this.deleteConnection(name)
-					await this.connectToServer(name, config)
+					await this.connectToServer(name, validatedConfig)
 					console.log(`Reconnected MCP server with updated config: ${name}`)
 				} catch (error) {
-					console.error(`Failed to reconnect MCP server ${name}:`, error)
+					this.showErrorMessage(`Failed to reconnect MCP server ${name}`, error)
 				}
 			}
 			// If server exists with same config, do nothing
@@ -377,22 +553,25 @@ export class McpHub {
 		this.isConnecting = false
 	}
 
-	private setupFileWatcher(name: string, config: any) {
-		const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
-		if (filePath) {
-			// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or Cline (and we want to detect save events, not every file change)
-			const watcher = chokidar.watch(filePath, {
-				// persistent: true,
-				// ignoreInitial: true,
-				// awaitWriteFinish: true, // This helps with atomic writes
-			})
+	private setupFileWatcher(name: string, config: z.infer<typeof ServerConfigSchema>) {
+		// Only stdio type has args
+		if (config.type === "stdio") {
+			const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
+			if (filePath) {
+				// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or Cline (and we want to detect save events, not every file change)
+				const watcher = chokidar.watch(filePath, {
+					// persistent: true,
+					// ignoreInitial: true,
+					// awaitWriteFinish: true, // This helps with atomic writes
+				})
 
-			watcher.on("change", () => {
-				console.log(`Detected change in ${filePath}. Restarting server ${name}...`)
-				this.restartConnection(name)
-			})
+				watcher.on("change", () => {
+					console.log(`Detected change in ${filePath}. Restarting server ${name}...`)
+					this.restartConnection(name)
+				})
 
-			this.fileWatchers.set(name, watcher)
+				this.fileWatchers.set(name, watcher)
+			}
 		}
 	}
 
@@ -419,12 +598,20 @@ export class McpHub {
 			await delay(500) // artificial delay to show user that server is restarting
 			try {
 				await this.deleteConnection(serverName)
-				// Try to connect again using existing config
-				await this.connectToServer(serverName, JSON.parse(config))
-				vscode.window.showInformationMessage(`${serverName} MCP server connected`)
+				// Parse the config to validate it
+				const parsedConfig = JSON.parse(config)
+				try {
+					// Validate the config
+					const validatedConfig = this.validateServerConfig(parsedConfig, serverName)
+
+					// Try to connect again using validated config
+					await this.connectToServer(serverName, validatedConfig)
+					vscode.window.showInformationMessage(`${serverName} MCP server connected`)
+				} catch (validationError) {
+					this.showErrorMessage(`Invalid configuration for MCP server "${serverName}"`, validationError)
+				}
 			} catch (error) {
-				console.error(`Failed to restart connection for ${serverName}:`, error)
-				vscode.window.showErrorMessage(`Failed to connect to ${serverName} MCP server`)
+				this.showErrorMessage(`Failed to restart ${serverName} MCP server connection`, error)
 			}
 		}
 
@@ -514,13 +701,7 @@ export class McpHub {
 				await this.notifyWebviewOfServerChanges()
 			}
 		} catch (error) {
-			console.error("Failed to update server disabled state:", error)
-			if (error instanceof Error) {
-				console.error("Error details:", error.message, error.stack)
-			}
-			vscode.window.showErrorMessage(
-				`Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
-			)
+			this.showErrorMessage(`Failed to update server ${serverName} state`, error)
 			throw error
 		}
 	}
@@ -567,13 +748,7 @@ export class McpHub {
 				await this.notifyWebviewOfServerChanges()
 			}
 		} catch (error) {
-			console.error("Failed to update server timeout:", error)
-			if (error instanceof Error) {
-				console.error("Error details:", error.message, error.stack)
-			}
-			vscode.window.showErrorMessage(
-				`Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
-			)
+			this.showErrorMessage(`Failed to update server ${serverName} timeout settings`, error)
 			throw error
 		}
 	}
@@ -620,13 +795,7 @@ export class McpHub {
 				vscode.window.showWarningMessage(`Server "${serverName}" not found in configuration`)
 			}
 		} catch (error) {
-			console.error("Failed to delete MCP server:", error)
-			if (error instanceof Error) {
-				console.error("Error details:", error.message, error.stack)
-			}
-			vscode.window.showErrorMessage(
-				`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`,
-			)
+			this.showErrorMessage(`Failed to delete MCP server ${serverName}`, error)
 			throw error
 		}
 	}
@@ -667,7 +836,7 @@ export class McpHub {
 
 		let timeout: number
 		try {
-			const parsedConfig = StdioConfigSchema.parse(JSON.parse(connection.server.config))
+			const parsedConfig = ServerConfigSchema.parse(JSON.parse(connection.server.config))
 			timeout = (parsedConfig.timeout ?? 60) * 1000
 		} catch (error) {
 			console.error("Failed to parse server config for timeout:", error)
@@ -722,13 +891,13 @@ export class McpHub {
 				await this.notifyWebviewOfServerChanges()
 			}
 		} catch (error) {
-			console.error("Failed to update always allow settings:", error)
-			vscode.window.showErrorMessage("Failed to update always allow settings")
+			this.showErrorMessage(`Failed to update always allow settings for tool ${toolName}`, error)
 			throw error // Re-throw to ensure the error is properly handled
 		}
 	}
 
 	async dispose(): Promise<void> {
+		this.isDisposed = true
 		this.removeAllFileWatchers()
 		for (const connection of this.connections) {
 			try {
