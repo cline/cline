@@ -1,182 +1,181 @@
 <div align="center">
 <sub>
 
-English • [Català](locales/ca/README.md) • [Deutsch](locales/de/README.md) • [Español](locales/es/README.md) • [Français](locales/fr/README.md) • [हिन्दी](locales/hi/README.md) • [Italiano](locales/it/README.md) • [日本語](locales/ja/README.md) • [한국어](locales/ko/README.md) • [Polski](locales/pl/README.md) • [Português (BR)](locales/pt-BR/README.md) • [Türkçe](locales/tr/README.md) • [Tiếng Việt](locales/vi/README.md) • [简体中文](locales/zh-CN/README.md) • [繁體中文](locales/zh-TW/README.md)
+[English](../../README.md) • [Català](../../locales/ca/README.md) • [Deutsch](../../locales/de/README.md) • [Español](../../locales/es/README.md) • [Français](../../locales/fr/README.md) • [हिन्दी](../../locales/hi/README.md) • [Italiano](../../locales/it/README.md) • [日本語](../../locales/ja/README.md) • [한국어](../../locales/ko/README.md) • [Polski](../../locales/pl/README.md) • Português (BR) • [Türkçe](../../locales/tr/README.md) • [Tiếng Việt](../../locales/vi/README.md) • [简体中文](../../locales/zh-CN/README.md) • [繁體中文](../../locales/zh-TW/README.md)
 
 </sub>
 </div>
 <br>
-
 <div align="center">
-  <h2>Join the Roo Code Community</h2>
-  <p>Connect with developers, contribute ideas, and stay ahead with the latest AI-powered coding tools.</p>
+  <h2>Junte-se à Comunidade Roo Code</h2>
+  <p>Conecte-se com desenvolvedores, contribua com ideias e mantenha-se atualizado com as ferramentas de codificação mais recentes com IA.</p>
   
-  <a href="https://discord.gg/roocode" target="_blank"><img src="https://img.shields.io/badge/Join%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"></a>
-  <a href="https://www.reddit.com/r/RooCode/" target="_blank"><img src="https://img.shields.io/badge/Join%20Reddit-FF4500?style=for-the-badge&logo=reddit&logoColor=white" alt="Join Reddit"></a>
+  <a href="https://discord.gg/roocode" target="_blank"><img src="https://img.shields.io/badge/Entrar%20no%20Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Entrar no Discord"></a>
+  <a href="https://www.reddit.com/r/RooCode/" target="_blank"><img src="https://img.shields.io/badge/Entrar%20no%20Reddit-FF4500?style=for-the-badge&logo=reddit&logoColor=white" alt="Entrar no Reddit"></a>
   
 </div>
 <br>
 <br>
 
 <div align="center">
-<h1>Roo Code (prev. Roo Cline)</h1>
+<h1>Roo Code (anteriormente Roo Cline)</h1>
 
-<a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><img src="https://img.shields.io/badge/Download%20on%20VS%20Marketplace-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="Download on VS Marketplace"></a>
-<a href="https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Feature%20Requests-yellow?style=for-the-badge" alt="Feature Requests"></a>
-<a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details" target="_blank"><img src="https://img.shields.io/badge/Rate%20%26%20Review-green?style=for-the-badge" alt="Rate & Review"></a>
-<a href="https://docs.roocode.com" target="_blank"><img src="https://img.shields.io/badge/Documentation-6B46C1?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"></a>
+<a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline" target="_blank"><img src="https://img.shields.io/badge/Baixar%20no%20VS%20Marketplace-blue?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="Baixar no VS Marketplace"></a>
+<a href="https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><img src="https://img.shields.io/badge/Solicitar%20Recursos-yellow?style=for-the-badge" alt="Solicitar Recursos"></a>
+<a href="https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline&ssr=false#review-details" target="_blank"><img src="https://img.shields.io/badge/Avaliar%20%26%20Comentar-green?style=for-the-badge" alt="Avaliar & Comentar"></a>
+<a href="https://docs.roocode.com" target="_blank"><img src="https://img.shields.io/badge/Documentação-6B46C1?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentação"></a>
 
 </div>
 
-**Roo Code** is an AI-powered **autonomous coding agent** that lives in your editor. It can:
+**Roo Code** é um **agente de codificação autônomo** movido a IA que reside no seu editor. Ele pode:
 
-- Communicate in natural language
-- Read and write files directly in your workspace
-- Run terminal commands
-- Automate browser actions
-- Integrate with any OpenAI-compatible or custom API/model
-- Adapt its “personality” and capabilities through **Custom Modes**
+- Comunicar-se em linguagem natural
+- Ler e escrever arquivos diretamente no seu espaço de trabalho
+- Executar comandos do terminal
+- Automatizar ações do navegador
+- Integrar com qualquer API/modelo compatível com OpenAI ou personalizado
+- Adaptar sua "personalidade" e capacidades através de **Modos Personalizados**
 
-Whether you’re seeking a flexible coding partner, a system architect, or specialized roles like a QA engineer or product manager, Roo Code can help you build software more efficiently.
+Seja você esteja buscando um parceiro de codificação flexível, um arquiteto de sistema ou funções especializadas como engenheiro de QA ou gerente de produto, o Roo Code pode ajudá-lo a construir software com mais eficiência.
 
-Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
-
----
-
-## 🎉 Roo Code 3.8 Released
-
-Roo Code 3.8 is out with performance boosts, new features, and bug fixes.
-
-- Faster asynchronous checkpoints
-- Support for .rooignore files
-- Fixed terminal & gray screen issues
-- Roo Code can run in multiple windows
-- Experimental multi-diff editing strategy
-- Subtask to parent task communication
-- Updated DeepSeek provider
-- New "Human Relay" provider
+Confira o [CHANGELOG](../CHANGELOG.md) para atualizações e correções detalhadas.
 
 ---
 
-## What Can Roo Code Do?
+## 🎉 Roo Code 3.8 Lançado
 
-- 🚀 **Generate Code** from natural language descriptions
-- 🔧 **Refactor & Debug** existing code
-- 📝 **Write & Update** documentation
-- 🤔 **Answer Questions** about your codebase
-- 🔄 **Automate** repetitive tasks
-- 🏗️ **Create** new files and projects
+O Roo Code 3.8 está disponível com melhorias de desempenho, novos recursos e correções de bugs.
 
-## Quick Start
-
-1. [Install Roo Code](https://docs.roocode.com/getting-started/installing)
-2. [Connect Your AI Provider](https://docs.roocode.com/getting-started/connecting-api-provider)
-3. [Try Your First Task](https://docs.roocode.com/getting-started/your-first-task)
-
-## Key Features
-
-### Multiple Modes
-
-Roo Code adapts to your needs with specialized [modes](https://docs.roocode.com/basic-usage/modes):
-
-- **Code Mode:** For general-purpose coding tasks
-- **Architect Mode:** For planning and technical leadership
-- **Ask Mode:** For answering questions and providing information
-- **Debug Mode:** For systematic problem diagnosis
-- **[Custom Modes](https://docs.roocode.com/advanced-usage/custom-modes):** Create unlimited specialized personas for security auditing, performance optimization, documentation, or any other task
-
-### Smart Tools
-
-Roo Code comes with powerful [tools](https://docs.roocode.com/basic-usage/using-tools) that can:
-
-- Read and write files in your project
-- Execute commands in your VS Code terminal
-- Control a web browser
-- Use external tools via [MCP (Model Context Protocol)](https://docs.roocode.com/advanced-usage/mcp)
-
-MCP extends Roo Code's capabilities by allowing you to add unlimited custom tools. Integrate with external APIs, connect to databases, or create specialized development tools - MCP provides the framework to expand Roo Code's functionality to meet your specific needs.
-
-### Customization
-
-Make Roo Code work your way with:
-
-- [Custom Instructions](https://docs.roocode.com/advanced-usage/custom-instructions) for personalized behavior
-- [Custom Modes](https://docs.roocode.com/advanced-usage/custom-modes) for specialized tasks
-- [Local Models](https://docs.roocode.com/advanced-usage/local-models) for offline use
-- [Auto-Approval Settings](https://docs.roocode.com/advanced-usage/auto-approving-actions) for faster workflows
-
-## Resources
-
-### Documentation
-
-- [Basic Usage Guide](https://docs.roocode.com/basic-usage/the-chat-interface)
-- [Advanced Features](https://docs.roocode.com/advanced-usage/auto-approving-actions)
-- [Frequently Asked Questions](https://docs.roocode.com/faq)
-
-### Community
-
-- **Discord:** [Join our Discord server](https://discord.gg/roocode) for real-time help and discussions
-- **Reddit:** [Visit our subreddit](https://www.reddit.com/r/RooCode) to share experiences and tips
-- **GitHub:** Report [issues](https://github.com/RooVetGit/Roo-Code/issues) or request [features](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
+- Checkpoints assíncronos mais rápidos
+- Suporte para arquivos .rooignore
+- Problemas de terminal e tela cinza corrigidos
+- Roo Code pode ser executado em várias janelas
+- Estratégia experimental de edição multi-diff
+- Comunicação de subtarefa para tarefa principal
+- Provedor DeepSeek atualizado
+- Novo provedor "Human Relay"
 
 ---
 
-## Local Setup & Development
+## O que o Roo Code pode fazer?
 
-1. **Clone** the repo:
+- 🚀 **Gerar código** a partir de descrições em linguagem natural
+- 🔧 **Refatorar e depurar** código existente
+- 📝 **Escrever e atualizar** documentação
+- 🤔 **Responder perguntas** sobre sua base de código
+- 🔄 **Automatizar** tarefas repetitivas
+- 🏗️ **Criar** novos arquivos e projetos
+
+## Início Rápido
+
+1. [Instale o Roo Code](https://docs.roocode.com/getting-started/installing)
+2. [Conecte seu provedor de IA](https://docs.roocode.com/getting-started/connecting-api-provider)
+3. [Experimente sua primeira tarefa](https://docs.roocode.com/getting-started/your-first-task)
+
+## Principais Recursos
+
+### Múltiplos Modos
+
+O Roo Code se adapta às suas necessidades com [modos](https://docs.roocode.com/basic-usage/modes) especializados:
+
+- **Modo Code:** Para tarefas gerais de codificação
+- **Modo Architect:** Para planejamento e liderança técnica
+- **Modo Ask:** Para responder perguntas e fornecer informações
+- **Modo Debug:** Para diagnóstico sistemático de problemas
+- **[Modos Personalizados](https://docs.roocode.com/advanced-usage/custom-modes):** Crie personas especializadas ilimitadas para auditoria de segurança, otimização de desempenho, documentação ou qualquer outra tarefa
+
+### Ferramentas Inteligentes
+
+O Roo Code vem com poderosas [ferramentas](https://docs.roocode.com/basic-usage/using-tools) que podem:
+
+- Ler e escrever arquivos em seu projeto
+- Executar comandos no seu terminal VS Code
+- Controlar um navegador web
+- Usar ferramentas externas via [MCP (Model Context Protocol)](https://docs.roocode.com/advanced-usage/mcp)
+
+O MCP amplia as capacidades do Roo Code permitindo que você adicione ferramentas personalizadas ilimitadas. Integre com APIs externas, conecte-se a bancos de dados ou crie ferramentas de desenvolvimento especializadas - o MCP fornece o framework para expandir a funcionalidade do Roo Code para atender às suas necessidades específicas.
+
+### Personalização
+
+Faça o Roo Code funcionar do seu jeito com:
+
+- [Instruções Personalizadas](https://docs.roocode.com/advanced-usage/custom-instructions) para comportamento personalizado
+- [Modos Personalizados](https://docs.roocode.com/advanced-usage/custom-modes) para tarefas especializadas
+- [Modelos Locais](https://docs.roocode.com/advanced-usage/local-models) para uso offline
+- [Configurações de Auto-Aprovação](https://docs.roocode.com/advanced-usage/auto-approving-actions) para fluxos de trabalho mais rápidos
+
+## Recursos
+
+### Documentação
+
+- [Guia de Uso Básico](https://docs.roocode.com/basic-usage/the-chat-interface)
+- [Recursos Avançados](https://docs.roocode.com/advanced-usage/auto-approving-actions)
+- [Perguntas Frequentes](https://docs.roocode.com/faq)
+
+### Comunidade
+
+- **Discord:** [Participe do nosso servidor Discord](https://discord.gg/roocode) para ajuda em tempo real e discussões
+- **Reddit:** [Visite nosso subreddit](https://www.reddit.com/r/RooCode) para compartilhar experiências e dicas
+- **GitHub:** [Reportar problemas](https://github.com/RooVetGit/Roo-Code/issues) ou [solicitar recursos](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)
+
+---
+
+## Configuração e Desenvolvimento Local
+
+1. **Clone** o repositório:
 
 ```sh
 git clone https://github.com/RooVetGit/Roo-Code.git
 ```
 
-2. **Install dependencies**:
+2. **Instale as dependências**:
 
 ```sh
 npm run install:all
 ```
 
-3. **Start the webview (Vite/React app with HMR)**:
+3. **Inicie o webview (aplicativo Vite/React com HMR)**:
 
 ```sh
 npm run dev
 ```
 
-4. **Debug**:
-   Press `F5` (or **Run** → **Start Debugging**) in VSCode to open a new session with Roo Code loaded.
+4. **Depuração**:
+   Pressione `F5` (ou **Executar** → **Iniciar Depuração**) no VSCode para abrir uma nova sessão com o Roo Code carregado.
 
-Changes to the webview will appear immediately. Changes to the core extension will require a restart of the extension host.
+Alterações no webview aparecerão imediatamente. Alterações na extensão principal exigirão a reinicialização do host da extensão.
 
-Alternatively you can build a .vsix and install it directly in VSCode:
+Alternativamente, você pode construir um .vsix e instalá-lo diretamente no VSCode:
 
 ```sh
 npm run build
 ```
 
-A `.vsix` file will appear in the `bin/` directory which can be installed with:
+Um arquivo `.vsix` aparecerá no diretório `bin/` que pode ser instalado com:
 
 ```sh
 code --install-extension bin/roo-cline-<version>.vsix
 ```
 
-We use [changesets](https://github.com/changesets/changesets) for versioning and publishing. Check our `CHANGELOG.md` for release notes.
+Usamos [changesets](https://github.com/changesets/changesets) para versionamento e publicação. Verifique nosso `CHANGELOG.md` para notas de lançamento.
 
 ---
 
-## Disclaimer
+## Aviso Legal
 
-**Please note** that Roo Veterinary, Inc does **not** make any representations or warranties regarding any code, models, or other tools provided or made available in connection with Roo Code, any associated third-party tools, or any resulting outputs. You assume **all risks** associated with the use of any such tools or outputs; such tools are provided on an **"AS IS"** and **"AS AVAILABLE"** basis. Such risks may include, without limitation, intellectual property infringement, cyber vulnerabilities or attacks, bias, inaccuracies, errors, defects, viruses, downtime, property loss or damage, and/or personal injury. You are solely responsible for your use of any such tools or outputs (including, without limitation, the legality, appropriateness, and results thereof).
-
----
-
-## Contributing
-
-We love community contributions! Get started by reading our [CONTRIBUTING.md](CONTRIBUTING.md).
+**Por favor, note** que a Roo Veterinary, Inc **não** faz nenhuma representação ou garantia em relação a qualquer código, modelos ou outras ferramentas fornecidas ou disponibilizadas em conexão com o Roo Code, quaisquer ferramentas de terceiros associadas, ou quaisquer saídas resultantes. Você assume **todos os riscos** associados ao uso de tais ferramentas ou saídas; tais ferramentas são fornecidas em uma base **"COMO ESTÁ"** e **"COMO DISPONÍVEL"**. Tais riscos podem incluir, sem limitação, violação de propriedade intelectual, vulnerabilidades cibernéticas ou ataques, viés, imprecisões, erros, defeitos, vírus, tempo de inatividade, perda ou dano de propriedade e/ou lesões pessoais. Você é o único responsável pelo seu uso de tais ferramentas ou saídas (incluindo, sem limitação, a legalidade, adequação e resultados das mesmas).
 
 ---
 
-## Contributors
+## Contribuindo
 
-Thanks to all our contributors who have helped make Roo Code better!
+Adoramos contribuições da comunidade! Comece lendo nosso [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+## Contribuidores
+
+Obrigado a todos os nossos contribuidores que ajudaram a tornar o Roo Code melhor!
 
 <!-- START CONTRIBUTORS SECTION - AUTO-GENERATED, DO NOT EDIT MANUALLY -->
 
@@ -198,10 +197,10 @@ Thanks to all our contributors who have helped make Roo Code better!
 
 <!-- END CONTRIBUTORS SECTION -->
 
-## License
+## Licença
 
-[Apache 2.0 © 2025 Roo Veterinary, Inc.](./LICENSE)
+[Apache 2.0 © 2025 Roo Veterinary, Inc.](../LICENSE)
 
 ---
 
-**Enjoy Roo Code!** Whether you keep it on a short leash or let it roam autonomously, we can’t wait to see what you build. If you have questions or feature ideas, drop by our [Reddit community](https://www.reddit.com/r/RooCode/) or [Discord](https://discord.gg/roocode). Happy coding!
+**Aproveite o Roo Code!** Seja você o mantenha em uma coleira curta ou deixe-o vagar autonomamente, mal podemos esperar para ver o que você construirá. Se você tiver dúvidas ou ideias de recursos, passe por nossa [comunidade Reddit](https://www.reddit.com/r/RooCode/) ou [Discord](https://discord.gg/roocode). Feliz codificação!
