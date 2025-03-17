@@ -1,0 +1,228 @@
+{
+	"common": {
+		"save": "Desar",
+		"done": "Fet",
+		"cancel": "Cancel·lar",
+		"reset": "Restablir"
+	},
+	"header": {
+		"title": "Configuració",
+		"saveButtonTooltip": "Desar canvis",
+		"nothingChangedTooltip": "No s'ha canviat res",
+		"doneButtonTooltip": "Descartar els canvis no desats i tancar el panell de configuració"
+	},
+	"unsavedChangesDialog": {
+		"title": "Canvis no desats",
+		"description": "Voleu descartar els canvis i continuar?",
+		"cancelButton": "Cancel·lar",
+		"discardButton": "Descartar canvis"
+	},
+	"sections": {
+		"providers": "Proveïdors",
+		"autoApprove": "Aprovació automàtica",
+		"browser": "Navegador / Ús de l'ordinador",
+		"checkpoints": "Punts de control",
+		"notifications": "Notificacions",
+		"contextManagement": "Gestió de context",
+		"advanced": "Avançat",
+		"experimental": "Funcions experimentals"
+	},
+	"autoApprove": {
+		"description": "Permet que Roo realitzi operacions automàticament sense requerir aprovació. Activeu aquesta configuració només si confieu plenament en la IA i enteneu els riscos de seguretat associats.",
+		"readOnly": {
+			"label": "Aprovar sempre operacions de només lectura",
+			"description": "Quan està activat, Roo veurà automàticament el contingut del directori i llegirà fitxers sense que calgui fer clic al botó Aprovar."
+		},
+		"write": {
+			"label": "Aprovar sempre operacions d'escriptura",
+			"description": "Crear i editar fitxers automàticament sense requerir aprovació",
+			"delayLabel": "Retard després d'escriptura per permetre que els diagnòstics detectin possibles problemes"
+		},
+		"browser": {
+			"label": "Aprovar sempre accions del navegador",
+			"description": "Realitzar accions del navegador automàticament sense requerir aprovació",
+			"note": "Nota: Només s'aplica quan el model admet l'ús de l'ordinador"
+		},
+		"retry": {
+			"label": "Tornar a intentar sempre sol·licituds d'API fallides",
+			"description": "Tornar a intentar sol·licituds d'API fallides automàticament quan el servidor retorna una resposta d'error",
+			"delayLabel": "Retard abans de tornar a intentar la sol·licitud"
+		},
+		"mcp": {
+			"label": "Aprovar sempre eines MCP",
+			"description": "Habilitar l'aprovació automàtica d'eines MCP individuals a la vista de Servidors MCP (requereix tant aquesta configuració com la casella \"Permetre sempre\" de l'eina)"
+		},
+		"modeSwitch": {
+			"label": "Aprovar sempre canvis de mode",
+			"description": "Canviar automàticament entre diferents modes sense requerir aprovació"
+		},
+		"subtasks": {
+			"label": "Aprovar sempre creació i finalització de subtasques",
+			"description": "Permetre la creació i finalització de subtasques sense requerir aprovació"
+		},
+		"execute": {
+			"label": "Aprovar sempre operacions d'execució permeses",
+			"description": "Executar automàticament comandes de terminal permeses sense requerir aprovació",
+			"allowedCommands": "Comandes d'auto-execució permeses",
+			"allowedCommandsDescription": "Prefixos de comandes que poden ser executats automàticament quan \"Aprovar sempre operacions d'execució\" està habilitat. Afegeix * per permetre totes les comandes (usar amb precaució).",
+			"commandPlaceholder": "Introduïu prefix de comanda (ex. 'git ')",
+			"addButton": "Afegir"
+		}
+	},
+	"providers": {
+		"configProfile": "Perfil de configuració",
+		"description": "Descripció",
+		"apiProvider": "Proveïdor d'API",
+		"openRouterApiKey": "Clau API d'OpenRouter",
+		"apiKeyStorageNotice": "Les claus API s'emmagatzemen de forma segura a l'Emmagatzematge Secret de VSCode",
+		"useCustomBaseUrl": "Utilitzar URL base personalitzada",
+		"openRouterTransformsText": "Comprimir prompts i cadenes de missatges a la mida del context (<a>Transformacions d'OpenRouter</a>)"
+	},
+	"browser": {
+		"enable": {
+			"label": "Habilitar eina de navegador",
+			"description": "Quan està habilitat, Roo pot utilitzar un navegador per interactuar amb llocs web quan s'utilitzen models que admeten l'ús de l'ordinador."
+		},
+		"viewport": {
+			"label": "Mida del viewport",
+			"description": "Seleccioneu la mida del viewport per a interaccions del navegador. Això afecta com es mostren i interactuen els llocs web.",
+			"options": {
+				"largeDesktop": "Escriptori gran (1280x800)",
+				"smallDesktop": "Escriptori petit (900x600)",
+				"tablet": "Tauleta (768x1024)",
+				"mobile": "Mòbil (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "Qualitat de captures de pantalla",
+			"description": "Ajusteu la qualitat WebP de les captures de pantalla del navegador. Valors més alts proporcionen captures més clares però augmenten l'ús de token."
+		},
+		"remote": {
+			"label": "Utilitzar connexió remota del navegador",
+			"description": "Connectar a un navegador Chrome que s'executa amb depuració remota habilitada (--remote-debugging-port=9222).",
+			"urlPlaceholder": "URL personalitzada (ex. http://localhost:9222)",
+			"testButton": "Provar connexió",
+			"testingButton": "Provant...",
+			"instructions": "Introduïu l'adreça d'amfitrió del protocol DevTools o deixeu-la buida per descobrir automàticament instàncies locals de Chrome. El botó Provar Connexió provarà la URL personalitzada si es proporciona, o descobrirà automàticament si el camp està buit."
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "Habilitar punts de control automàtics",
+			"description": "Quan està habilitat, Roo crearà automàticament punts de control durant l'execució de tasques, facilitant la revisió de canvis o la reversió a estats anteriors."
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "Habilitar efectes de so",
+			"description": "Quan està habilitat, Roo reproduirà efectes de so per a notificacions i esdeveniments.",
+			"volumeLabel": "Volum"
+		}
+	},
+	"contextManagement": {
+		"description": "Controleu quina informació s'inclou a la finestra de context de la IA, afectant l'ús de token i la qualitat de resposta",
+		"terminal": {
+			"label": "Límit de sortida de terminal",
+			"description": "Nombre màxim de línies a incloure a la sortida del terminal en executar comandes. Quan s'excedeix, s'eliminaran línies del mig, estalviant token."
+		},
+		"openTabs": {
+			"label": "Límit de context de pestanyes obertes",
+			"description": "Nombre màxim de pestanyes obertes de VSCode a incloure al context. Valors més alts proporcionen més context però augmenten l'ús de token."
+		},
+		"workspaceFiles": {
+			"label": "Límit de context de fitxers de l'espai de treball",
+			"description": "Nombre màxim de fitxers a incloure als detalls del directori de treball actual. Valors més alts proporcionen més context però augmenten l'ús de token."
+		},
+		"rooignore": {
+			"label": "Mostrar fitxers .rooignore en llistes i cerques",
+			"description": "Quan està habilitat, els fitxers que coincideixen amb els patrons a .rooignore es mostraran en llistes amb un símbol de cadenat. Quan està deshabilitat, aquests fitxers s'ocultaran completament de les llistes de fitxers i cerques."
+		}
+	},
+	"advanced": {
+		"rateLimit": {
+			"label": "Límit de freqüència",
+			"description": "Temps mínim entre sol·licituds d'API."
+		},
+		"diff": {
+			"label": "Habilitar edició mitjançant diffs",
+			"description": "Quan està habilitat, Roo podrà editar fitxers més ràpidament i rebutjarà automàticament escriptures completes de fitxers truncats. Funciona millor amb l'últim model Claude 3.7 Sonnet.",
+			"strategy": {
+				"label": "Estratègia de diff",
+				"options": {
+					"standard": "Estàndard (Bloc únic)",
+					"multiBlock": "Experimental: Diff multi-bloc",
+					"unified": "Experimental: Diff unificat"
+				},
+				"descriptions": {
+					"standard": "L'estratègia de diff estàndard aplica canvis a un sol bloc de codi alhora.",
+					"unified": "L'estratègia de diff unificat pren múltiples enfocaments per aplicar diffs i tria el millor enfocament.",
+					"multiBlock": "L'estratègia de diff multi-bloc permet actualitzar múltiples blocs de codi en un fitxer en una sola sol·licitud."
+				}
+			},
+			"matchPrecision": {
+				"label": "Precisió de coincidència",
+				"description": "Aquest control lliscant controla amb quina precisió han de coincidir les seccions de codi en aplicar diffs. Valors més baixos permeten coincidències més flexibles però augmenten el risc de reemplaçaments incorrectes. Utilitzeu valors per sota del 100% amb extrema precaució."
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Utilitzar estratègia diff unificada experimental",
+			"description": "Activar l'estratègia diff unificada experimental. Aquesta estratègia podria reduir el nombre de reintents causats per errors del model, però pot causar comportaments inesperats o edicions incorrectes. Activeu-la només si enteneu els riscos i esteu disposats a revisar acuradament tots els canvis."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Utilitzar eina de cerca i reemplaçament experimental",
+			"description": "Activar l'eina de cerca i reemplaçament experimental, permetent a Roo reemplaçar múltiples instàncies d'un terme de cerca en una sola petició."
+		},
+		"INSERT_BLOCK": {
+			"name": "Utilitzar eina d'inserció de contingut experimental",
+			"description": "Activar l'eina d'inserció de contingut experimental, permetent a Roo inserir contingut a números de línia específics sense necessitat de crear un diff."
+		},
+		"POWER_STEERING": {
+			"name": "Utilitzar mode \"direcció assistida\" experimental",
+			"description": "Quan està activat, Roo recordarà al model els detalls de la seva definició de mode actual amb més freqüència. Això portarà a una adherència més forta a les definicions de rol i instruccions personalitzades, però utilitzarà més tokens per missatge."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Utilitzar eina diff de blocs múltiples experimental",
+			"description": "Quan està activat, Roo utilitzarà l'eina diff de blocs múltiples. Això intentarà actualitzar múltiples blocs de codi a l'arxiu en una sola petició."
+		}
+	},
+	"temperature": {
+		"useCustom": "Utilitzar temperatura personalitzada",
+		"description": "Controla l'aleatorietat en les respostes del model.",
+		"rangeDescription": "Valors més alts fan que la sortida sigui més aleatòria, valors més baixos la fan més determinista."
+	},
+	"modelInfo": {
+		"supportsImages": "Suporta imatges",
+		"noImages": "No suporta imatges",
+		"supportsComputerUse": "Suporta ús de l'ordinador",
+		"noComputerUse": "No suporta ús de l'ordinador",
+		"supportsPromptCache": "Suporta emmagatzematge en caché de prompts",
+		"noPromptCache": "No suporta emmagatzematge en caché de prompts",
+		"maxOutput": "Sortida màxima",
+		"inputPrice": "Preu d'entrada",
+		"outputPrice": "Preu de sortida",
+		"cacheReadsPrice": "Preu de lectures de caché",
+		"cacheWritesPrice": "Preu d'escriptures de caché",
+		"gemini": {
+			"freeRequests": "* Gratuït fins a {{count}} sol·licituds per minut. Després d'això, la facturació depèn de la mida del prompt.",
+			"pricingDetails": "Per a més informació, consulteu els detalls de preus."
+		}
+	},
+	"modelPicker": {
+		"automaticFetch": "L'extensió obté automàticament la llista més recent de models disponibles a <serviceLink>{{serviceName}}</serviceLink>. Si no esteu segur de quin model triar, Roo Code funciona millor amb <defaultModelLink>{{defaultModelId}}</defaultModelLink>. També podeu cercar \"free\" per a opcions gratuïtes actualment disponibles."
+	},
+	"footer": {
+		"feedback": "Si teniu qualsevol pregunta o comentari, no dubteu a obrir un issue a <githubLink>github.com/RooVetGit/Roo-Code</githubLink> o unir-vos a <redditLink>reddit.com/r/RooCode</redditLink> o <discordLink>discord.gg/roocode</discordLink>",
+		"version": "Roo Code v{{version}}",
+		"telemetry": {
+			"label": "Permetre informes anònims d'errors i ús",
+			"description": "Ajudeu a millorar Roo Code enviant dades d'ús anònimes i informes d'errors. Mai s'envia codi, prompts o informació personal. Vegeu la nostra política de privacitat per a més detalls."
+		},
+		"reset": {
+			"description": "Restablir tot l'estat global i emmagatzematge secret a l'extensió.",
+			"button": "Restablir"
+		}
+	}
+}

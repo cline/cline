@@ -1,5 +1,6 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 import { useDebounce } from "react-use"
 
 interface TemperatureControlProps {
@@ -9,6 +10,7 @@ interface TemperatureControlProps {
 }
 
 export const TemperatureControl = ({ value, onChange, maxValue = 1 }: TemperatureControlProps) => {
+	const { t } = useAppTranslation()
 	const [isCustomTemperature, setIsCustomTemperature] = useState(value !== undefined)
 	const [inputValue, setInputValue] = useState(value)
 	useDebounce(() => onChange(inputValue), 50, [onChange, inputValue])
@@ -33,11 +35,9 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 							setInputValue(value ?? 0) // Use the value from apiConfiguration, if set
 						}
 					}}>
-					<span className="font-medium">Use custom temperature</span>
+					<span className="font-medium">{t("settings:temperature.useCustom")}</span>
 				</VSCodeCheckbox>
-				<div className="text-sm text-vscode-descriptionForeground">
-					Controls randomness in the model's responses.
-				</div>
+				<div className="text-sm text-vscode-descriptionForeground">{t("settings:temperature.description")}</div>
 			</div>
 
 			{isCustomTemperature && (
@@ -60,7 +60,7 @@ export const TemperatureControl = ({ value, onChange, maxValue = 1 }: Temperatur
 						<span>{inputValue}</span>
 					</div>
 					<p className="text-vscode-descriptionForeground text-sm mt-1">
-						Higher values make output more random, lower values make it more deterministic.
+						{t("settings:temperature.rangeDescription")}
 					</p>
 				</div>
 			)}

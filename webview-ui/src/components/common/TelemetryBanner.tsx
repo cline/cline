@@ -45,13 +45,13 @@ const TelemetryBanner = () => {
 	return (
 		<BannerContainer>
 			<div>
-				<strong>{t("common:telemetryTitle")}</strong>
+				<strong>{t("welcome:telemetry.title")}</strong>
 				<div className="mt-1">
-					{t("common:anonymousTelemetry")}
+					{t("welcome:telemetry.anonymousTelemetry")}
 					<div className="mt-1">
-						{t("common:changeSettings")}{" "}
+						{t("welcome:telemetry.changeSettings")}{" "}
 						<VSCodeLink href="#" onClick={handleOpenSettings}>
-							{t("common:settings")}
+							{t("welcome:telemetry.settings")}
 						</VSCodeLink>
 						.
 					</div>
@@ -59,10 +59,10 @@ const TelemetryBanner = () => {
 			</div>
 			<ButtonContainer>
 				<VSCodeButton appearance="primary" onClick={handleAllow} disabled={hasChosen}>
-					{t("common:allow")}
+					{t("welcome:telemetry.allow")}
 				</VSCodeButton>
 				<VSCodeButton appearance="secondary" onClick={handleDeny} disabled={hasChosen}>
-					{t("common:deny")}
+					{t("welcome:telemetry.deny")}
 				</VSCodeButton>
 			</ButtonContainer>
 		</BannerContainer>

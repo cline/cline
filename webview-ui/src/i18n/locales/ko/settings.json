@@ -1,0 +1,228 @@
+{
+	"common": {
+		"save": "저장",
+		"done": "완료",
+		"cancel": "취소",
+		"reset": "초기화"
+	},
+	"header": {
+		"title": "설정",
+		"saveButtonTooltip": "변경 사항 저장",
+		"nothingChangedTooltip": "변경 사항 없음",
+		"doneButtonTooltip": "저장되지 않은 변경 사항을 버리고 설정 패널 닫기"
+	},
+	"unsavedChangesDialog": {
+		"title": "저장되지 않은 변경 사항",
+		"description": "변경 사항을 버리고 계속하시겠습니까?",
+		"cancelButton": "취소",
+		"discardButton": "변경 사항 버리기"
+	},
+	"sections": {
+		"providers": "공급자",
+		"autoApprove": "자동 승인",
+		"browser": "브라우저 / 컴퓨터 사용",
+		"checkpoints": "체크포인트",
+		"notifications": "알림",
+		"contextManagement": "컨텍스트 관리",
+		"advanced": "고급",
+		"experimental": "실험적 기능"
+	},
+	"autoApprove": {
+		"description": "Roo가 승인 없이 자동으로 작업을 수행할 수 있도록 허용합니다. AI를 완전히 신뢰하고 관련 보안 위험을 이해하는 경우에만 이러한 설정을 활성화하세요.",
+		"readOnly": {
+			"label": "읽기 전용 작업 항상 승인",
+			"description": "활성화되면 Roo는 승인 버튼을 클릭하지 않고도 자동으로 디렉토리 내용을 보고 파일을 읽습니다."
+		},
+		"write": {
+			"label": "쓰기 작업 항상 승인",
+			"description": "승인 없이 자동으로 파일 생성 및 편집",
+			"delayLabel": "진단이 잠재적 문제를 감지할 수 있도록 쓰기 후 지연"
+		},
+		"browser": {
+			"label": "브라우저 작업 항상 승인",
+			"description": "승인 없이 자동으로 브라우저 작업 수행",
+			"note": "참고: 모델이 컴퓨터 사용을 지원할 때만 적용됩니다"
+		},
+		"retry": {
+			"label": "실패한 API 요청 항상 재시도",
+			"description": "서버가 오류 응답을 반환할 때 자동으로 실패한 API 요청 재시도",
+			"delayLabel": "요청 재시도 전 지연"
+		},
+		"mcp": {
+			"label": "MCP 도구 항상 승인",
+			"description": "MCP 서버 보기에서 개별 MCP 도구의 자동 승인 활성화(이 설정과 도구의 \"항상 허용\" 체크박스 모두 필요)"
+		},
+		"modeSwitch": {
+			"label": "모드 전환 항상 승인",
+			"description": "승인 없이 자동으로 다양한 모드 간 전환"
+		},
+		"subtasks": {
+			"label": "하위 작업 생성 및 완료 항상 승인",
+			"description": "승인 없이 하위 작업 생성 및 완료 허용"
+		},
+		"execute": {
+			"label": "허용된 실행 작업 항상 승인",
+			"description": "승인 없이 자동으로 허용된 터미널 명령 실행",
+			"allowedCommands": "허용된 자동 실행 명령",
+			"allowedCommandsDescription": "\"실행 작업 항상 승인\"이 활성화되었을 때 자동 실행될 수 있는 명령 접두사. 모든 명령을 허용하려면 * 추가(주의해서 사용)",
+			"commandPlaceholder": "명령 접두사 입력(예: 'git ')",
+			"addButton": "추가"
+		}
+	},
+	"providers": {
+		"configProfile": "구성 프로필",
+		"description": "설명",
+		"apiProvider": "API 공급자",
+		"openRouterApiKey": "OpenRouter API 키",
+		"apiKeyStorageNotice": "API 키는 VSCode의 보안 저장소에 안전하게 저장됩니다",
+		"useCustomBaseUrl": "사용자 정의 기본 URL 사용",
+		"openRouterTransformsText": "프롬프트 및 메시지 체인을 컨텍스트 크기로 압축(<a>OpenRouter 변환</a>)"
+	},
+	"browser": {
+		"enable": {
+			"label": "브라우저 도구 활성화",
+			"description": "활성화되면 Roo는 컴퓨터 사용을 지원하는 모델을 사용할 때 웹사이트와 상호 작용하기 위해 브라우저를 사용할 수 있습니다."
+		},
+		"viewport": {
+			"label": "뷰포트 크기",
+			"description": "브라우저 상호 작용을 위한 뷰포트 크기를 선택하세요. 이는 웹사이트가 표시되고 상호 작용하는 방식에 영향을 미칩니다.",
+			"options": {
+				"largeDesktop": "대형 데스크톱 (1280x800)",
+				"smallDesktop": "소형 데스크톱 (900x600)",
+				"tablet": "태블릿 (768x1024)",
+				"mobile": "모바일 (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "스크린샷 품질",
+			"description": "브라우저 스크린샷의 WebP 품질을 조정합니다. 높은 값은 더 선명한 스크린샷을 제공하지만 token 사용량이 증가합니다."
+		},
+		"remote": {
+			"label": "원격 브라우저 연결 사용",
+			"description": "원격 디버깅이 활성화된 Chrome 브라우저에 연결합니다(--remote-debugging-port=9222).",
+			"urlPlaceholder": "사용자 정의 URL(예: http://localhost:9222)",
+			"testButton": "연결 테스트",
+			"testingButton": "테스트 중...",
+			"instructions": "DevTools 프로토콜 호스트 주소를 입력하거나 Chrome 로컬 인스턴스를 자동으로 발견하기 위해 비워두세요. 연결 테스트 버튼은 제공된 경우 사용자 정의 URL을 시도하거나, 필드가 비어 있으면 자동으로 발견합니다."
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "자동 체크포인트 활성화",
+			"description": "활성화되면 Roo는 작업 실행 중에 자동으로 체크포인트를 생성하여 변경 사항을 검토하거나 이전 상태로 되돌리기 쉽게 합니다."
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "사운드 효과 활성화",
+			"description": "활성화되면 Roo는 알림 및 이벤트에 대한 사운드 효과를 재생합니다.",
+			"volumeLabel": "볼륨"
+		}
+	},
+	"contextManagement": {
+		"description": "AI의 컨텍스트 창에 포함되는 정보를 제어하여 token 사용량과 응답 품질에 영향을 미칩니다",
+		"terminal": {
+			"label": "터미널 출력 제한",
+			"description": "명령 실행 시 터미널 출력에 포함할 최대 라인 수. 초과 시 중간에서 라인이 제거되어 token이 절약됩니다."
+		},
+		"openTabs": {
+			"label": "열린 탭 컨텍스트 제한",
+			"description": "컨텍스트에 포함할 VSCode 열린 탭의 최대 수. 높은 값은 더 많은 컨텍스트를 제공하지만 token 사용량이 증가합니다."
+		},
+		"workspaceFiles": {
+			"label": "작업 공간 파일 컨텍스트 제한",
+			"description": "현재 작업 디렉토리 세부 정보에 포함할 파일의 최대 수. 높은 값은 더 많은 컨텍스트를 제공하지만 token 사용량이 증가합니다."
+		},
+		"rooignore": {
+			"label": "목록 및 검색에서 .rooignore 파일 표시",
+			"description": "활성화되면 .rooignore의 패턴과 일치하는 파일이 잠금 기호와 함께 목록에 표시됩니다. 비활성화되면 이러한 파일은 파일 목록 및 검색에서 완전히 숨겨집니다."
+		}
+	},
+	"advanced": {
+		"rateLimit": {
+			"label": "속도 제한",
+			"description": "API 요청 간 최소 시간."
+		},
+		"diff": {
+			"label": "diff를 통한 편집 활성화",
+			"description": "활성화되면 Roo는 파일을 더 빠르게 편집할 수 있으며 잘린 전체 파일 쓰기를 자동으로 거부합니다. 최신 Claude 3.7 Sonnet 모델에서 가장 잘 작동합니다.",
+			"strategy": {
+				"label": "Diff 전략",
+				"options": {
+					"standard": "표준(단일 블록)",
+					"multiBlock": "실험적: 다중 블록 diff",
+					"unified": "실험적: 통합 diff"
+				},
+				"descriptions": {
+					"standard": "표준 diff 전략은 한 번에 하나의 코드 블록에 변경 사항을 적용합니다.",
+					"unified": "통합 diff 전략은 diff를 적용하는 여러 접근 방식을 취하고 최상의 접근 방식을 선택합니다.",
+					"multiBlock": "다중 블록 diff 전략은 하나의 요청으로 파일의 여러 코드 블록을 업데이트할 수 있습니다."
+				}
+			},
+			"matchPrecision": {
+				"label": "일치 정확도",
+				"description": "이 슬라이더는 diff를 적용할 때 코드 섹션이 얼마나 정확하게 일치해야 하는지 제어합니다. 낮은 값은 더 유연한 일치를 허용하지만 잘못된 교체 위험이 증가합니다. 100% 미만의 값은 극도로 주의해서 사용하세요."
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "실험적 통합 diff 전략 사용",
+			"description": "실험적 통합 diff 전략을 활성화합니다. 이 전략은 모델 오류로 인한 재시도 횟수를 줄일 수 있지만 예기치 않은 동작이나 잘못된 편집을 일으킬 수 있습니다. 위험을 이해하고 모든 변경 사항을 신중하게 검토할 의향이 있는 경우에만 활성화하십시오."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "실험적 검색 및 바꾸기 도구 사용",
+			"description": "실험적 검색 및 바꾸기 도구를 활성화하여 Roo가 하나의 요청에서 검색어의 여러 인스턴스를 바꿀 수 있게 합니다."
+		},
+		"INSERT_BLOCK": {
+			"name": "실험적 콘텐츠 삽입 도구 사용",
+			"description": "실험적 콘텐츠 삽입 도구를 활성화하여 Roo가 diff를 만들 필요 없이 특정 줄 번호에 콘텐츠를 삽입할 수 있게 합니다."
+		},
+		"POWER_STEERING": {
+			"name": "실험적 \"파워 스티어링\" 모드 사용",
+			"description": "활성화하면 Roo가 현재 모드 정의의 세부 정보를 모델에 더 자주 상기시킵니다. 이로 인해 역할 정의 및 사용자 지정 지침에 대한 준수가 강화되지만 메시지당 더 많은 token이 사용됩니다."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "실험적 다중 블록 diff 도구 사용",
+			"description": "활성화하면 Roo가 다중 블록 diff 도구를 사용합니다. 이것은 하나의 요청에서 파일의 여러 코드 블록을 업데이트하려고 시도합니다."
+		}
+	},
+	"temperature": {
+		"useCustom": "사용자 정의 온도 사용",
+		"description": "모델 응답의 무작위성을 제어합니다.",
+		"rangeDescription": "높은 값은 출력을 더 무작위하게, 낮은 값은 더 결정적으로 만듭니다."
+	},
+	"modelInfo": {
+		"supportsImages": "이미지 지원",
+		"noImages": "이미지 지원 안 함",
+		"supportsComputerUse": "컴퓨터 사용 지원",
+		"noComputerUse": "컴퓨터 사용 지원 안 함",
+		"supportsPromptCache": "프롬프트 캐싱 지원",
+		"noPromptCache": "프롬프트 캐싱 지원 안 함",
+		"maxOutput": "최대 출력",
+		"inputPrice": "입력 가격",
+		"outputPrice": "출력 가격",
+		"cacheReadsPrice": "캐시 읽기 가격",
+		"cacheWritesPrice": "캐시 쓰기 가격",
+		"gemini": {
+			"freeRequests": "* 분당 {{count}}개 요청까지 무료. 이후에는 프롬프트 크기에 따라 요금이 부과됩니다.",
+			"pricingDetails": "자세한 내용은 가격 책정 세부 정보를 참조하세요."
+		}
+	},
+	"modelPicker": {
+		"automaticFetch": "확장 프로그램은 <serviceLink>{{serviceName}}</serviceLink>에서 사용 가능한 최신 모델 목록을 자동으로 가져옵니다. 어떤 모델을 선택해야 할지 확실하지 않다면, Roo Code는 <defaultModelLink>{{defaultModelId}}</defaultModelLink>로 가장 잘 작동합니다. 현재 사용 가능한 무료 옵션을 찾으려면 \"free\"를 검색해 볼 수도 있습니다."
+	},
+	"footer": {
+		"feedback": "질문이나 피드백이 있으시면 <githubLink>github.com/RooVetGit/Roo-Code</githubLink>에서 이슈를 열거나 <redditLink>reddit.com/r/RooCode</redditLink> 또는 <discordLink>discord.gg/roocode</discordLink>에 가입하세요",
+		"version": "Roo Code v{{version}}",
+		"telemetry": {
+			"label": "익명 오류 및 사용 보고 허용",
+			"description": "익명 사용 데이터 및 오류 보고서를 보내 Roo Code 개선에 도움을 주세요. 코드, 프롬프트 또는 개인 정보는 절대 전송되지 않습니다. 자세한 내용은 개인정보 보호정책을 참조하세요."
+		},
+		"reset": {
+			"description": "확장 프로그램의 모든 전역 상태 및 보안 저장소를 재설정합니다.",
+			"button": "초기화"
+		}
+	}
+}

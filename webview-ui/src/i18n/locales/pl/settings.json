@@ -1,0 +1,228 @@
+{
+	"common": {
+		"save": "Zapisz",
+		"done": "Gotowe",
+		"cancel": "Anuluj",
+		"reset": "Resetuj"
+	},
+	"header": {
+		"title": "Ustawienia",
+		"saveButtonTooltip": "Zapisz zmiany",
+		"nothingChangedTooltip": "Nic się nie zmieniło",
+		"doneButtonTooltip": "Odrzuć niezapisane zmiany i zamknij panel ustawień"
+	},
+	"unsavedChangesDialog": {
+		"title": "Niezapisane zmiany",
+		"description": "Czy chcesz odrzucić zmiany i kontynuować?",
+		"cancelButton": "Anuluj",
+		"discardButton": "Odrzuć zmiany"
+	},
+	"sections": {
+		"providers": "Dostawcy",
+		"autoApprove": "Automatyczne zatwierdzanie",
+		"browser": "Przeglądarka / Użycie komputera",
+		"checkpoints": "Punkty kontrolne",
+		"notifications": "Powiadomienia",
+		"contextManagement": "Zarządzanie kontekstem",
+		"advanced": "Zaawansowane",
+		"experimental": "Funkcje eksperymentalne"
+	},
+	"autoApprove": {
+		"description": "Pozwól Roo na automatyczne wykonywanie operacji bez wymagania zatwierdzenia. Włącz te ustawienia tylko jeśli w pełni ufasz AI i rozumiesz związane z tym zagrożenia bezpieczeństwa.",
+		"readOnly": {
+			"label": "Zawsze zatwierdzaj operacje tylko do odczytu",
+			"description": "Gdy włączone, Roo automatycznie będzie wyświetlać zawartość katalogów i czytać pliki bez konieczności klikania przycisku Zatwierdź."
+		},
+		"write": {
+			"label": "Zawsze zatwierdzaj operacje zapisu",
+			"description": "Automatycznie twórz i edytuj pliki bez konieczności zatwierdzania",
+			"delayLabel": "Opóźnienie po zapisach, aby umożliwić diagnostyce wykrycie potencjalnych problemów"
+		},
+		"browser": {
+			"label": "Zawsze zatwierdzaj akcje przeglądarki",
+			"description": "Automatycznie wykonuj akcje przeglądarki bez konieczności zatwierdzania",
+			"note": "Uwaga: Dotyczy tylko gdy model obsługuje używanie komputera"
+		},
+		"retry": {
+			"label": "Zawsze ponawiaj nieudane żądania API",
+			"description": "Automatycznie ponawiaj nieudane żądania API, gdy serwer zwraca odpowiedź z błędem",
+			"delayLabel": "Opóźnienie przed ponowieniem żądania"
+		},
+		"mcp": {
+			"label": "Zawsze zatwierdzaj narzędzia MCP",
+			"description": "Włącz automatyczne zatwierdzanie poszczególnych narzędzi MCP w widoku Serwerów MCP (wymaga zarówno tego ustawienia, jak i pola wyboru \"Zawsze zezwalaj\" narzędzia)"
+		},
+		"modeSwitch": {
+			"label": "Zawsze zatwierdzaj przełączanie trybów",
+			"description": "Automatycznie przełączaj między różnymi trybami bez konieczności zatwierdzania"
+		},
+		"subtasks": {
+			"label": "Zawsze zatwierdzaj tworzenie i ukończenie podzadań",
+			"description": "Zezwalaj na tworzenie i ukończenie podzadań bez konieczności zatwierdzania"
+		},
+		"execute": {
+			"label": "Zawsze zatwierdzaj dozwolone operacje wykonania",
+			"description": "Automatycznie wykonuj dozwolone polecenia terminala bez konieczności zatwierdzania",
+			"allowedCommands": "Dozwolone polecenia auto-wykonania",
+			"allowedCommandsDescription": "Prefiksy poleceń, które mogą być automatycznie wykonywane, gdy \"Zawsze zatwierdzaj operacje wykonania\" jest włączone. Dodaj * aby zezwolić na wszystkie polecenia (używaj z ostrożnością).",
+			"commandPlaceholder": "Wprowadź prefiks polecenia (np. 'git ')",
+			"addButton": "Dodaj"
+		}
+	},
+	"providers": {
+		"configProfile": "Profil konfiguracji",
+		"description": "Opis",
+		"apiProvider": "Dostawca API",
+		"openRouterApiKey": "Klucz API OpenRouter",
+		"apiKeyStorageNotice": "Klucze API są bezpiecznie przechowywane w Tajnym Magazynie VSCode",
+		"useCustomBaseUrl": "Użyj niestandardowego URL bazowego",
+		"openRouterTransformsText": "Kompresuj podpowiedzi i łańcuchy wiadomości do rozmiaru kontekstu (<a>Transformacje OpenRouter</a>)"
+	},
+	"browser": {
+		"enable": {
+			"label": "Włącz narzędzie przeglądarki",
+			"description": "Gdy włączone, Roo może używać przeglądarki do interakcji ze stronami internetowymi podczas korzystania z modeli obsługujących używanie komputera."
+		},
+		"viewport": {
+			"label": "Rozmiar viewportu",
+			"description": "Wybierz rozmiar viewportu dla interakcji przeglądarki. Wpływa to na sposób wyświetlania stron internetowych i interakcji z nimi.",
+			"options": {
+				"largeDesktop": "Duży pulpit (1280x800)",
+				"smallDesktop": "Mały pulpit (900x600)",
+				"tablet": "Tablet (768x1024)",
+				"mobile": "Telefon (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "Jakość zrzutów ekranu",
+			"description": "Dostosuj jakość WebP zrzutów ekranu przeglądarki. Wyższe wartości zapewniają wyraźniejsze zrzuty ekranu, ale zwiększają zużycie token."
+		},
+		"remote": {
+			"label": "Użyj zdalnego połączenia przeglądarki",
+			"description": "Połącz się z przeglądarką Chrome uruchomioną z włączonym zdalnym debugowaniem (--remote-debugging-port=9222).",
+			"urlPlaceholder": "Niestandardowy URL (np. http://localhost:9222)",
+			"testButton": "Testuj połączenie",
+			"testingButton": "Testowanie...",
+			"instructions": "Wprowadź adres hosta protokołu DevTools lub pozostaw puste, aby automatycznie wykryć lokalne instancje Chrome. Przycisk Test Połączenia spróbuje użyć niestandardowego URL, jeśli podany, lub automatycznie wykryje, jeśli pole jest puste."
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "Włącz automatyczne punkty kontrolne",
+			"description": "Gdy włączone, Roo automatycznie utworzy punkty kontrolne podczas wykonywania zadań, ułatwiając przeglądanie zmian lub powrót do wcześniejszych stanów."
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "Włącz efekty dźwiękowe",
+			"description": "Gdy włączone, Roo będzie odtwarzać efekty dźwiękowe dla powiadomień i zdarzeń.",
+			"volumeLabel": "Głośność"
+		}
+	},
+	"contextManagement": {
+		"description": "Kontroluj, jakie informacje są zawarte w oknie kontekstu AI, wpływając na zużycie token i jakość odpowiedzi",
+		"terminal": {
+			"label": "Limit wyjścia terminala",
+			"description": "Maksymalna liczba linii do uwzględnienia w wyjściu terminala podczas wykonywania poleceń. Po przekroczeniu linie będą usuwane ze środka, oszczędzając token."
+		},
+		"openTabs": {
+			"label": "Limit kontekstu otwartych kart",
+			"description": "Maksymalna liczba otwartych kart VSCode do uwzględnienia w kontekście. Wyższe wartości zapewniają więcej kontekstu, ale zwiększają zużycie token."
+		},
+		"workspaceFiles": {
+			"label": "Limit kontekstu plików obszaru roboczego",
+			"description": "Maksymalna liczba plików do uwzględnienia w szczegółach bieżącego katalogu roboczego. Wyższe wartości zapewniają więcej kontekstu, ale zwiększają zużycie token."
+		},
+		"rooignore": {
+			"label": "Pokaż pliki .rooignore na listach i w wyszukiwaniach",
+			"description": "Gdy włączone, pliki pasujące do wzorców w .rooignore będą pokazywane na listach z symbolem kłódki. Gdy wyłączone, te pliki będą całkowicie ukryte z list plików i wyszukiwań."
+		}
+	},
+	"advanced": {
+		"rateLimit": {
+			"label": "Limit szybkości",
+			"description": "Minimalny czas między żądaniami API."
+		},
+		"diff": {
+			"label": "Włącz edycję przez różnice",
+			"description": "Gdy włączone, Roo będzie w stanie edytować pliki szybciej i automatycznie odrzuci obcięte pełne zapisy plików. Działa najlepiej z najnowszym modelem Claude 3.7 Sonnet.",
+			"strategy": {
+				"label": "Strategia diff",
+				"options": {
+					"standard": "Standardowa (Pojedynczy blok)",
+					"multiBlock": "Eksperymentalna: Diff wieloblokowy",
+					"unified": "Eksperymentalna: Diff ujednolicony"
+				},
+				"descriptions": {
+					"standard": "Standardowa strategia diff stosuje zmiany do jednego bloku kodu na raz.",
+					"unified": "Strategia diff ujednoliconego stosuje wiele podejść do zastosowania różnic i wybiera najlepsze podejście.",
+					"multiBlock": "Strategia diff wieloblokowego pozwala na aktualizację wielu bloków kodu w pliku w jednym żądaniu."
+				}
+			},
+			"matchPrecision": {
+				"label": "Precyzja dopasowania",
+				"description": "Ten suwak kontroluje, jak dokładnie sekcje kodu muszą pasować podczas stosowania różnic. Niższe wartości umożliwiają bardziej elastyczne dopasowywanie, ale zwiększają ryzyko nieprawidłowych zamian. Używaj wartości poniżej 100% z najwyższą ostrożnością."
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Użyj eksperymentalnej ujednoliconej strategii diff",
+			"description": "Włącz eksperymentalną ujednoliconą strategię diff. Ta strategia może zmniejszyć liczbę ponownych prób spowodowanych błędami modelu, ale może powodować nieoczekiwane zachowanie lub nieprawidłowe edycje. Włącz tylko jeśli rozumiesz ryzyko i jesteś gotów dokładnie przeglądać wszystkie zmiany."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Użyj eksperymentalnego narzędzia do wyszukiwania i zamiany",
+			"description": "Włącz eksperymentalne narzędzie do wyszukiwania i zamiany, umożliwiając Roo zastąpienie wielu wystąpień wyszukiwanego terminu w jednym żądaniu."
+		},
+		"INSERT_BLOCK": {
+			"name": "Użyj eksperymentalnego narzędzia do wstawiania treści",
+			"description": "Włącz eksperymentalne narzędzie do wstawiania treści, umożliwiając Roo wstawianie treści w określonych numerach linii bez konieczności tworzenia diff."
+		},
+		"POWER_STEERING": {
+			"name": "Użyj eksperymentalnego trybu \"wspomagania kierownicy\"",
+			"description": "Po włączeniu, Roo będzie częściej przypominać modelowi o szczegółach jego bieżącej definicji trybu. Doprowadzi to do silniejszego przestrzegania definicji ról i niestandardowych instrukcji, ale będzie używać więcej tokenów na wiadomość."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Użyj eksperymentalnego narzędzia diff wieloblokowego",
+			"description": "Po włączeniu, Roo użyje narzędzia diff wieloblokowego. Spróbuje to zaktualizować wiele bloków kodu w pliku w jednym żądaniu."
+		}
+	},
+	"temperature": {
+		"useCustom": "Użyj niestandardowej temperatury",
+		"description": "Kontroluje losowość w odpowiedziach modelu.",
+		"rangeDescription": "Wyższe wartości sprawiają, że wyjście jest bardziej losowe, niższe wartości czynią je bardziej deterministycznym."
+	},
+	"modelInfo": {
+		"supportsImages": "Obsługuje obrazy",
+		"noImages": "Nie obsługuje obrazów",
+		"supportsComputerUse": "Obsługuje użycie komputera",
+		"noComputerUse": "Nie obsługuje użycia komputera",
+		"supportsPromptCache": "Obsługuje buforowanie podpowiedzi",
+		"noPromptCache": "Nie obsługuje buforowania podpowiedzi",
+		"maxOutput": "Maksymalne wyjście",
+		"inputPrice": "Cena wejścia",
+		"outputPrice": "Cena wyjścia",
+		"cacheReadsPrice": "Cena odczytów bufora",
+		"cacheWritesPrice": "Cena zapisów bufora",
+		"gemini": {
+			"freeRequests": "* Darmowe do {{count}} zapytań na minutę. Po tym, rozliczanie zależy od rozmiaru podpowiedzi.",
+			"pricingDetails": "Więcej informacji znajdziesz w szczegółach cennika."
+		}
+	},
+	"modelPicker": {
+		"automaticFetch": "Rozszerzenie automatycznie pobiera najnowszą listę modeli dostępnych w <serviceLink>{{serviceName}}</serviceLink>. Jeśli nie jesteś pewien, który model wybrać, Roo Code działa najlepiej z <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Możesz również wyszukać \"free\", aby znaleźć obecnie dostępne opcje bezpłatne."
+	},
+	"footer": {
+		"feedback": "Jeśli masz jakiekolwiek pytania lub opinie, śmiało otwórz zgłoszenie na <githubLink>github.com/RooVetGit/Roo-Code</githubLink> lub dołącz do <redditLink>reddit.com/r/RooCode</redditLink> lub <discordLink>discord.gg/roocode</discordLink>",
+		"version": "Roo Code v{{version}}",
+		"telemetry": {
+			"label": "Zezwól na anonimowe raportowanie błędów i użycia",
+			"description": "Pomóż ulepszyć Roo Code, wysyłając anonimowe dane o użytkowaniu i raporty o błędach. Nigdy nie są wysyłane kod, podpowiedzi ani informacje osobiste. Zobacz naszą politykę prywatności, aby uzyskać więcej szczegółów."
+		},
+		"reset": {
+			"description": "Zresetuj wszystkie globalne stany i tajne magazyny w rozszerzeniu.",
+			"button": "Resetuj"
+		}
+	}
+}

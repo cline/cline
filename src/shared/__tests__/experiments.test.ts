@@ -5,9 +5,6 @@ describe("experiments", () => {
 		it("is configured correctly", () => {
 			expect(EXPERIMENT_IDS.POWER_STEERING).toBe("powerSteering")
 			expect(experimentConfigsMap.POWER_STEERING).toMatchObject({
-				name: 'Use experimental "power steering" mode',
-				description:
-					"When enabled, Roo will remind the model about the details of its current mode definition more frequently. This will lead to stronger adherence to role definitions and custom instructions, but will use more tokens per message.",
 				enabled: false,
 			})
 		})

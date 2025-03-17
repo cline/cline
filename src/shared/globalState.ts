@@ -116,6 +116,7 @@ export const GLOBAL_STATE_KEYS = [
 	"telemetrySetting",
 	"showRooIgnoredFiles",
 	"remoteBrowserEnabled",
+	"language",
 	"maxWorkspaceFiles",
 ] as const
 

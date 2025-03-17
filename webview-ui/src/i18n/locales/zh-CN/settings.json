@@ -1,0 +1,228 @@
+{
+	"common": {
+		"save": "保存",
+		"done": "完成",
+		"cancel": "取消",
+		"reset": "重置"
+	},
+	"header": {
+		"title": "设置",
+		"saveButtonTooltip": "保存更改",
+		"nothingChangedTooltip": "没有更改",
+		"doneButtonTooltip": "丢弃未保存的更改并关闭设置面板"
+	},
+	"unsavedChangesDialog": {
+		"title": "未保存的更改",
+		"description": "是否丢弃更改并继续？",
+		"cancelButton": "取消",
+		"discardButton": "丢弃更改"
+	},
+	"sections": {
+		"providers": "提供商",
+		"autoApprove": "自动批准",
+		"browser": "浏览器 / 计算机使用",
+		"checkpoints": "检查点",
+		"notifications": "通知",
+		"contextManagement": "上下文管理",
+		"advanced": "高级",
+		"experimental": "实验性功能"
+	},
+	"autoApprove": {
+		"description": "允许 Roo 自动执行操作而无需批准。只有在您完全信任 AI 并了解相关安全风险的情况下才启用这些设置。",
+		"readOnly": {
+			"label": "始终批准只读操作",
+			"description": "启用后，Roo 将自动查看目录内容并读取文件，无需点击批准按钮。"
+		},
+		"write": {
+			"label": "始终批准写入操作",
+			"description": "自动创建和编辑文件而无需批准",
+			"delayLabel": "写入后延迟以允许诊断检测潜在问题"
+		},
+		"browser": {
+			"label": "始终批准浏览器操作",
+			"description": "自动执行浏览器操作而无需批准",
+			"note": "注意：仅当模型支持计算机使用时适用"
+		},
+		"retry": {
+			"label": "始终重试失败的 API 请求",
+			"description": "当服务器返回错误响应时自动重试失败的 API 请求",
+			"delayLabel": "重试请求前的延迟"
+		},
+		"mcp": {
+			"label": "始终批准 MCP 工具",
+			"description": "在 MCP 服务器视图中启用单个 MCP 工具的自动批准（需要此设置和工具的\"始终允许\"复选框）"
+		},
+		"modeSwitch": {
+			"label": "始终批准模式切换",
+			"description": "自动在不同模式之间切换而无需批准"
+		},
+		"subtasks": {
+			"label": "始终批准子任务的创建和完成",
+			"description": "允许创建和完成子任务而无需批准"
+		},
+		"execute": {
+			"label": "始终批准允许的执行操作",
+			"description": "自动执行允许的终端命令而无需批准",
+			"allowedCommands": "允许的自动执行命令",
+			"allowedCommandsDescription": "当\"始终批准执行操作\"启用时可以自动执行的命令前缀。添加 * 以允许所有命令（谨慎使用）。",
+			"commandPlaceholder": "输入命令前缀（例如 'git '）",
+			"addButton": "添加"
+		}
+	},
+	"providers": {
+		"configProfile": "配置文件",
+		"description": "描述",
+		"apiProvider": "API 提供商",
+		"openRouterApiKey": "OpenRouter API 密钥",
+		"apiKeyStorageNotice": "API 密钥安全存储在 VSCode 的密钥存储中",
+		"useCustomBaseUrl": "使用自定义基础 URL",
+		"openRouterTransformsText": "将提示和消息链压缩到上下文大小 (<a>OpenRouter 转换</a>)"
+	},
+	"browser": {
+		"enable": {
+			"label": "启用浏览器工具",
+			"description": "启用后，Roo 可以在使用支持计算机使用的模型时使用浏览器与网站交互。"
+		},
+		"viewport": {
+			"label": "视口大小",
+			"description": "选择浏览器交互的视口大小。这会影响网站的显示方式和交互方式。",
+			"options": {
+				"largeDesktop": "大桌面 (1280x800)",
+				"smallDesktop": "小桌面 (900x600)",
+				"tablet": "平板 (768x1024)",
+				"mobile": "移动设备 (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "截图质量",
+			"description": "调整浏览器截图的 WebP 质量。更高的值提供更清晰的截图，但会增加 token 使用量。"
+		},
+		"remote": {
+			"label": "使用远程浏览器连接",
+			"description": "连接到启用远程调试的 Chrome 浏览器 (--remote-debugging-port=9222)。",
+			"urlPlaceholder": "自定义 URL（例如 http://localhost:9222）",
+			"testButton": "测试连接",
+			"testingButton": "测试中...",
+			"instructions": "输入 DevTools 协议主机地址或留空以自动发现本地 Chrome 实例。测试连接按钮将尝试使用自定义 URL（如果提供），或者如果字段为空则自动发现。"
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "启用自动检查点",
+			"description": "启用后，Roo 将在任务执行期间自动创建检查点，使审查更改或返回到早期状态变得容易。"
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "启用音效",
+			"description": "启用后，Roo 将为通知和事件播放音效。",
+			"volumeLabel": "音量"
+		}
+	},
+	"contextManagement": {
+		"description": "控制在 AI 的上下文窗口中包含哪些信息，影响 token 使用和响应质量",
+		"terminal": {
+			"label": "终端输出限制",
+			"description": "执行命令时在终端输出中包含的最大行数。超过时将从中间删除行，节省 token。"
+		},
+		"openTabs": {
+			"label": "打开标签上下文限制",
+			"description": "在上下文中包含的 VSCode 打开标签的最大数量。较高的值提供更多上下文，但会增加 token 使用量。"
+		},
+		"workspaceFiles": {
+			"label": "工作区文件上下文限制",
+			"description": "在当前工作目录详细信息中包含的最大文件数。较高的值提供更多上下文，但会增加 token 使用量。"
+		},
+		"rooignore": {
+			"label": "在列表和搜索中显示 .rooignore 文件",
+			"description": "启用后，与 .rooignore 中模式匹配的文件将在列表中显示锁定符号。禁用时，这些文件将从文件列表和搜索中完全隐藏。"
+		}
+	},
+	"advanced": {
+		"rateLimit": {
+			"label": "速率限制",
+			"description": "API 请求之间的最小时间。"
+		},
+		"diff": {
+			"label": "启用通过差异编辑",
+			"description": "启用后，Roo 将能够更快地编辑文件，并将自动拒绝截断的完整文件写入。与最新的 Claude 3.7 Sonnet 模型配合最佳。",
+			"strategy": {
+				"label": "Diff 策略",
+				"options": {
+					"standard": "标准（单块）",
+					"multiBlock": "实验性：多块 diff",
+					"unified": "实验性：统一 diff"
+				},
+				"descriptions": {
+					"standard": "标准 diff 策略一次对一个代码块应用更改。",
+					"unified": "统一 diff 策略采用多种方法应用差异并选择最佳方法。",
+					"multiBlock": "多块 diff 策略允许在一个请求中更新文件中的多个代码块。"
+				}
+			},
+			"matchPrecision": {
+				"label": "匹配精度",
+				"description": "此滑块控制应用差异时代码部分必须匹配的精确度。较低的值允许更灵活的匹配，但会增加错误替换的风险。极其谨慎地使用低于 100% 的值。"
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "使用实验性统一差异策略",
+			"description": "启用实验性统一差异策略。此策略可能减少由模型错误引起的重试次数，但可能导致意外行为或不正确的编辑。仅在您了解风险并愿意仔细审查所有更改时才启用。"
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "使用实验性搜索和替换工具",
+			"description": "启用实验性搜索和替换工具，允许 Roo 在一个请求中替换搜索词的多个实例。"
+		},
+		"INSERT_BLOCK": {
+			"name": "使用实验性插入内容工具",
+			"description": "启用实验性插入内容工具，允许 Roo 在特定行号插入内容，无需创建差异。"
+		},
+		"POWER_STEERING": {
+			"name": "使用实验性\"动力转向\"模式",
+			"description": "启用后，Roo 将更频繁地提醒模型关于其当前模式定义的详细信息。这将导致对角色定义和自定义指令的更强遵守，但每条消息将使用更多 token。"
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "使用实验性多块差异工具",
+			"description": "启用后，Roo 将使用多块差异工具。这将尝试在一个请求中更新文件中的多个代码块。"
+		}
+	},
+	"temperature": {
+		"useCustom": "使用自定义温度",
+		"description": "控制模型响应中的随机性。",
+		"rangeDescription": "较高的值使输出更随机，较低的值使其更确定性。"
+	},
+	"modelInfo": {
+		"supportsImages": "支持图像",
+		"noImages": "不支持图像",
+		"supportsComputerUse": "支持计算机使用",
+		"noComputerUse": "不支持计算机使用",
+		"supportsPromptCache": "支持提示缓存",
+		"noPromptCache": "不支持提示缓存",
+		"maxOutput": "最大输出",
+		"inputPrice": "输入价格",
+		"outputPrice": "输出价格",
+		"cacheReadsPrice": "缓存读取价格",
+		"cacheWritesPrice": "缓存写入价格",
+		"gemini": {
+			"freeRequests": "* 每分钟免费 {{count}} 个请求。之后，计费取决于提示大小。",
+			"pricingDetails": "有关更多信息，请参阅定价详情。"
+		}
+	},
+	"modelPicker": {
+		"automaticFetch": "扩展程序会自动获取 <serviceLink>{{serviceName}}</serviceLink> 上可用的最新模型列表。如果您不确定选择哪个模型，Roo Code 与 <defaultModelLink>{{defaultModelId}}</defaultModelLink> 配合最佳。您还可以搜索\"free\"以查找当前可用的免费选项。"
+	},
+	"footer": {
+		"feedback": "如果您有任何问题或反馈，请随时在 <githubLink>github.com/RooVetGit/Roo-Code</githubLink> 上提出问题或加入 <redditLink>reddit.com/r/RooCode</redditLink> 或 <discordLink>discord.gg/roocode</discordLink>",
+		"version": "Roo Code v{{version}}",
+		"telemetry": {
+			"label": "允许匿名错误和使用情况报告",
+			"description": "通过发送匿名使用数据和错误报告来帮助改进 Roo Code。绝不会发送代码、提示或个人信息。有关更多详细信息，请参阅我们的隐私政策。"
+		},
+		"reset": {
+			"description": "重置扩展中的所有全局状态和密钥存储。",
+			"button": "重置"
+		}
+	}
+}

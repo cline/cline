@@ -1,4 +1,5 @@
 import { HTMLAttributes } from "react"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { Cog } from "lucide-react"
 
@@ -29,19 +30,20 @@ export const AdvancedSettings = ({
 	className,
 	...props
 }: AdvancedSettingsProps) => {
+	const { t } = useAppTranslation()
 	return (
 		<div className={cn("flex flex-col gap-2", className)} {...props}>
 			<SectionHeader>
 				<div className="flex items-center gap-2">
 					<Cog className="w-4" />
-					<div>Advanced</div>
+					<div>{t("settings:sections.advanced")}</div>
 				</div>
 			</SectionHeader>
 
 			<Section>
 				<div>
 					<div className="flex flex-col gap-2">
-						<span className="font-medium">Rate limit</span>
+						<span className="font-medium">{t("settings:advanced.rateLimit.label")}</span>
 						<div className="flex items-center gap-2">
 							<input
 								type="range"
@@ -55,7 +57,9 @@ export const AdvancedSettings = ({
 							<span style={{ ...sliderLabelStyle }}>{rateLimitSeconds}s</span>
 						</div>
 					</div>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">Minimum time between API requests.</p>
+					<p className="text-vscode-descriptionForeground text-sm mt-0">
+						{t("settings:advanced.rateLimit.description")}
+					</p>
 				</div>
 
 				<div>
@@ -69,16 +73,15 @@ export const AdvancedSettings = ({
 								setExperimentEnabled(EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE, false)
 							}
 						}}>
-						<span className="font-medium">Enable editing through diffs</span>
+						<span className="font-medium">{t("settings:advanced.diff.label")}</span>
 					</VSCodeCheckbox>
 					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						When enabled, Roo will be able to edit files more quickly and will automatically reject
-						truncated full-file writes. Works best with the latest Claude 3.7 Sonnet model.
+						{t("settings:advanced.diff.description")}
 					</p>
 					{diffEnabled && (
 						<div className="flex flex-col gap-2 mt-3 mb-2 pl-3 border-l-2 border-vscode-button-background">
 							<div className="flex flex-col gap-2">
-								<span className="font-medium">Diff strategy</span>
+								<span className="font-medium">{t("settings:advanced.diff.strategy.label")}</span>
 								<select
 									value={
 										experiments[EXPERIMENT_IDS.DIFF_STRATEGY]
@@ -101,9 +104,15 @@ export const AdvancedSettings = ({
 										}
 									}}
 									className="p-2 rounded w-full bg-vscode-input-background text-vscode-input-foreground border border-vscode-input-border outline-none focus:border-vscode-focusBorder">
-									<option value="standard">Standard (Single block)</option>
-									<option value="multiBlock">Experimental: Multi-block diff</option>
-									<option value="unified">Experimental: Unified diff</option>
+									<option value="standard">
+										{t("settings:advanced.diff.strategy.options.standard")}
+									</option>
+									<option value="multiBlock">
+										{t("settings:advanced.diff.strategy.options.multiBlock")}
+									</option>
+									<option value="unified">
+										{t("settings:advanced.diff.strategy.options.unified")}
+									</option>
 								</select>
 							</div>
 
@@ -111,15 +120,15 @@ export const AdvancedSettings = ({
 							<p className="text-vscode-descriptionForeground text-sm mt-1">
 								{!experiments[EXPERIMENT_IDS.DIFF_STRATEGY] &&
 									!experiments[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE] &&
-									"Standard diff strategy applies changes to a single code block at a time."}
+									t("settings:advanced.diff.strategy.descriptions.standard")}
 								{experiments[EXPERIMENT_IDS.DIFF_STRATEGY] &&
-									"Unified diff strategy takes multiple approaches to applying diffs and chooses the best approach."}
+									t("settings:advanced.diff.strategy.descriptions.unified")}
 								{experiments[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE] &&
-									"Multi-block diff strategy allows updating multiple code blocks in a file in one request."}
+									t("settings:advanced.diff.strategy.descriptions.multiBlock")}
 							</p>
 
 							{/* Match precision slider */}
-							<span className="font-medium mt-3">Match precision</span>
+							<span className="font-medium mt-3">{t("settings:advanced.diff.matchPrecision.label")}</span>
 							<div className="flex items-center gap-2">
 								<input
 									type="range"
@@ -137,9 +146,7 @@ export const AdvancedSettings = ({
 								</span>
 							</div>
 							<p className="text-vscode-descriptionForeground text-sm mt-0">
-								This slider controls how precisely code sections must match when applying diffs. Lower
-								values allow more flexible matching but increase the risk of incorrect replacements. Use
-								values below 100% with extreme caution.
+								{t("settings:advanced.diff.matchPrecision.description")}
 							</p>
 						</div>
 					)}

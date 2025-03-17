@@ -1,0 +1,228 @@
+{
+	"common": {
+		"save": "Lưu",
+		"done": "Hoàn thành",
+		"cancel": "Hủy",
+		"reset": "Đặt lại"
+	},
+	"header": {
+		"title": "Cài đặt",
+		"saveButtonTooltip": "Lưu thay đổi",
+		"nothingChangedTooltip": "Không có gì thay đổi",
+		"doneButtonTooltip": "Hủy thay đổi chưa lưu và đóng bảng cài đặt"
+	},
+	"unsavedChangesDialog": {
+		"title": "Thay đổi chưa lưu",
+		"description": "Bạn có muốn hủy thay đổi và tiếp tục không?",
+		"cancelButton": "Hủy",
+		"discardButton": "Hủy thay đổi"
+	},
+	"sections": {
+		"providers": "Nhà cung cấp",
+		"autoApprove": "Tự động phê duyệt",
+		"browser": "Trình duyệt / Sử dụng máy tính",
+		"checkpoints": "Điểm kiểm tra",
+		"notifications": "Thông báo",
+		"contextManagement": "Quản lý ngữ cảnh",
+		"advanced": "Nâng cao",
+		"experimental": "Tính năng thử nghiệm"
+	},
+	"autoApprove": {
+		"description": "Cho phép Roo tự động thực hiện các hoạt động mà không cần phê duyệt. Chỉ bật những cài đặt này nếu bạn hoàn toàn tin tưởng AI và hiểu rõ các rủi ro bảo mật liên quan.",
+		"readOnly": {
+			"label": "Luôn phê duyệt các hoạt động chỉ đọc",
+			"description": "Khi được bật, Roo sẽ tự động xem nội dung thư mục và đọc tệp mà không yêu cầu bạn nhấp vào nút Phê duyệt."
+		},
+		"write": {
+			"label": "Luôn phê duyệt các hoạt động ghi",
+			"description": "Tự động tạo và chỉnh sửa tệp mà không cần phê duyệt",
+			"delayLabel": "Trì hoãn sau khi ghi để cho phép chẩn đoán phát hiện các vấn đề tiềm ẩn"
+		},
+		"browser": {
+			"label": "Luôn phê duyệt các hành động trình duyệt",
+			"description": "Tự động thực hiện các hành động trình duyệt mà không cần phê duyệt",
+			"note": "Lưu ý: Chỉ áp dụng khi mô hình hỗ trợ sử dụng máy tính"
+		},
+		"retry": {
+			"label": "Luôn thử lại các yêu cầu API thất bại",
+			"description": "Tự động thử lại các yêu cầu API thất bại khi máy chủ trả về phản hồi lỗi",
+			"delayLabel": "Trì hoãn trước khi thử lại yêu cầu"
+		},
+		"mcp": {
+			"label": "Luôn phê duyệt các công cụ MCP",
+			"description": "Bật tự động phê duyệt các công cụ MCP riêng lẻ trong chế độ xem Máy chủ MCP (yêu cầu cả cài đặt này và hộp kiểm \"Luôn cho phép\" của công cụ)"
+		},
+		"modeSwitch": {
+			"label": "Luôn phê duyệt chuyển đổi chế độ",
+			"description": "Tự động chuyển đổi giữa các chế độ khác nhau mà không cần phê duyệt"
+		},
+		"subtasks": {
+			"label": "Luôn phê duyệt việc tạo và hoàn thành các công việc phụ",
+			"description": "Cho phép tạo và hoàn thành các công việc phụ mà không cần phê duyệt"
+		},
+		"execute": {
+			"label": "Luôn phê duyệt các hoạt động thực thi được phép",
+			"description": "Tự động thực thi các lệnh terminal được phép mà không cần phê duyệt",
+			"allowedCommands": "Các lệnh tự động thực thi được phép",
+			"allowedCommandsDescription": "Tiền tố lệnh có thể được tự động thực thi khi \"Luôn phê duyệt các hoạt động thực thi\" được bật. Thêm * để cho phép tất cả các lệnh (sử dụng cẩn thận).",
+			"commandPlaceholder": "Nhập tiền tố lệnh (ví dụ: 'git ')",
+			"addButton": "Thêm"
+		}
+	},
+	"providers": {
+		"configProfile": "Hồ sơ cấu hình",
+		"description": "Mô tả",
+		"apiProvider": "Nhà cung cấp API",
+		"openRouterApiKey": "Khóa API OpenRouter",
+		"apiKeyStorageNotice": "Khóa API được lưu trữ an toàn trong Bộ lưu trữ bí mật của VSCode",
+		"useCustomBaseUrl": "Sử dụng URL cơ sở tùy chỉnh",
+		"openRouterTransformsText": "Nén lời nhắc và chuỗi tin nhắn theo kích thước ngữ cảnh (<a>OpenRouter Transforms</a>)"
+	},
+	"browser": {
+		"enable": {
+			"label": "Bật công cụ trình duyệt",
+			"description": "Khi được bật, Roo có thể sử dụng trình duyệt để tương tác với các trang web khi sử dụng các mô hình hỗ trợ sử dụng máy tính."
+		},
+		"viewport": {
+			"label": "Kích thước khung nhìn",
+			"description": "Chọn kích thước khung nhìn cho tương tác trình duyệt. Điều này ảnh hưởng đến cách trang web được hiển thị và tương tác.",
+			"options": {
+				"largeDesktop": "Máy tính để bàn lớn (1280x800)",
+				"smallDesktop": "Máy tính để bàn nhỏ (900x600)",
+				"tablet": "Máy tính bảng (768x1024)",
+				"mobile": "Di động (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "Chất lượng ảnh chụp màn hình",
+			"description": "Điều chỉnh chất lượng WebP của ảnh chụp màn hình trình duyệt. Giá trị cao hơn cung cấp ảnh chụp màn hình rõ ràng hơn nhưng tăng sử dụng token."
+		},
+		"remote": {
+			"label": "Sử dụng kết nối trình duyệt từ xa",
+			"description": "Kết nối với trình duyệt Chrome đang chạy với tính năng gỡ lỗi từ xa được bật (--remote-debugging-port=9222).",
+			"urlPlaceholder": "URL tùy chỉnh (ví dụ: http://localhost:9222)",
+			"testButton": "Kiểm tra kết nối",
+			"testingButton": "Đang kiểm tra...",
+			"instructions": "Nhập địa chỉ DevTools Protocol hoặc để trống để tự động phát hiện các instance Chrome cục bộ. Nút Kiểm tra kết nối sẽ thử URL tùy chỉnh nếu được cung cấp, hoặc tự động phát hiện nếu trường này trống."
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "Bật điểm kiểm tra tự động",
+			"description": "Khi được bật, Roo sẽ tự động tạo các điểm kiểm tra trong quá trình thực hiện nhiệm vụ, giúp dễ dàng xem lại các thay đổi hoặc quay lại trạng thái trước đó."
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "Bật hiệu ứng âm thanh",
+			"description": "Khi được bật, Roo sẽ phát hiệu ứng âm thanh cho thông báo và sự kiện.",
+			"volumeLabel": "Âm lượng"
+		}
+	},
+	"contextManagement": {
+		"description": "Kiểm soát thông tin nào được đưa vào cửa sổ ngữ cảnh của AI, ảnh hưởng đến việc sử dụng token và chất lượng phản hồi",
+		"terminal": {
+			"label": "Giới hạn đầu ra terminal",
+			"description": "Số dòng tối đa để đưa vào đầu ra terminal khi thực hiện lệnh. Khi vượt quá, các dòng sẽ bị xóa khỏi phần giữa, tiết kiệm token."
+		},
+		"openTabs": {
+			"label": "Giới hạn ngữ cảnh tab đang mở",
+			"description": "Số lượng tab VSCode đang mở tối đa để đưa vào ngữ cảnh. Giá trị cao hơn cung cấp nhiều ngữ cảnh hơn nhưng tăng sử dụng token."
+		},
+		"workspaceFiles": {
+			"label": "Giới hạn ngữ cảnh tệp workspace",
+			"description": "Số lượng tệp tối đa để đưa vào chi tiết thư mục làm việc hiện tại. Giá trị cao hơn cung cấp nhiều ngữ cảnh hơn nhưng tăng sử dụng token."
+		},
+		"rooignore": {
+			"label": "Hiển thị tệp .rooignore trong danh sách và tìm kiếm",
+			"description": "Khi được bật, các tệp khớp với mẫu trong .rooignore sẽ được hiển thị trong danh sách với biểu tượng khóa. Khi bị tắt, các tệp này sẽ hoàn toàn bị ẩn khỏi danh sách tệp và tìm kiếm."
+		}
+	},
+	"advanced": {
+		"rateLimit": {
+			"label": "Giới hạn tốc độ",
+			"description": "Thời gian tối thiểu giữa các yêu cầu API."
+		},
+		"diff": {
+			"label": "Bật chỉnh sửa qua diff",
+			"description": "Khi được bật, Roo sẽ có thể chỉnh sửa tệp nhanh hơn và sẽ tự động từ chối ghi toàn bộ tệp bị cắt ngắn. Hoạt động tốt nhất với mô hình Claude 3.7 Sonnet mới nhất.",
+			"strategy": {
+				"label": "Chiến lược diff",
+				"options": {
+					"standard": "Tiêu chuẩn (khối đơn)",
+					"multiBlock": "Thử nghiệm: Diff đa khối",
+					"unified": "Thử nghiệm: Diff thống nhất"
+				},
+				"descriptions": {
+					"standard": "Chiến lược diff tiêu chuẩn áp dụng thay đổi cho một khối mã tại một thời điểm.",
+					"unified": "Chiến lược diff thống nhất thực hiện nhiều cách tiếp cận để áp dụng diff và chọn cách tiếp cận tốt nhất.",
+					"multiBlock": "Chiến lược diff đa khối cho phép cập nhật nhiều khối mã trong một tệp trong một yêu cầu."
+				}
+			},
+			"matchPrecision": {
+				"label": "Độ chính xác khớp",
+				"description": "Thanh trượt này kiểm soát mức độ chính xác các phần mã phải khớp khi áp dụng diff. Giá trị thấp hơn cho phép khớp linh hoạt hơn nhưng tăng nguy cơ thay thế không chính xác. Sử dụng giá trị dưới 100% với sự thận trọng cao."
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Sử dụng chiến lược diff thống nhất thử nghiệm",
+			"description": "Bật chiến lược diff thống nhất thử nghiệm. Chiến lược này có thể giảm số lần thử lại do lỗi mô hình nhưng có thể gây ra hành vi không mong muốn hoặc chỉnh sửa không chính xác. Chỉ bật nếu bạn hiểu rõ các rủi ro và sẵn sàng xem xét cẩn thận tất cả các thay đổi."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Sử dụng công cụ tìm kiếm và thay thế thử nghiệm",
+			"description": "Bật công cụ tìm kiếm và thay thế thử nghiệm, cho phép Roo thay thế nhiều phiên bản của một thuật ngữ tìm kiếm trong một yêu cầu."
+		},
+		"INSERT_BLOCK": {
+			"name": "Sử dụng công cụ chèn nội dung thử nghiệm",
+			"description": "Bật công cụ chèn nội dung thử nghiệm, cho phép Roo chèn nội dung tại số dòng cụ thể mà không cần tạo diff."
+		},
+		"POWER_STEERING": {
+			"name": "Sử dụng chế độ \"power steering\" thử nghiệm",
+			"description": "Khi được bật, Roo sẽ nhắc nhở mô hình về chi tiết định nghĩa chế độ hiện tại thường xuyên hơn. Điều này sẽ dẫn đến việc tuân thủ chặt chẽ hơn các định nghĩa vai trò và hướng dẫn tùy chỉnh, nhưng sẽ sử dụng nhiều token hơn cho mỗi tin nhắn."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Sử dụng công cụ diff đa khối thử nghiệm",
+			"description": "Khi được bật, Roo sẽ sử dụng công cụ diff đa khối. Điều này sẽ cố gắng cập nhật nhiều khối mã trong tệp trong một yêu cầu."
+		}
+	},
+	"temperature": {
+		"useCustom": "Sử dụng nhiệt độ tùy chỉnh",
+		"description": "Kiểm soát tính ngẫu nhiên trong phản hồi của mô hình.",
+		"rangeDescription": "Giá trị cao hơn làm cho đầu ra ngẫu nhiên hơn, giá trị thấp hơn làm cho nó xác định hơn."
+	},
+	"modelInfo": {
+		"supportsImages": "Hỗ trợ hình ảnh",
+		"noImages": "Không hỗ trợ hình ảnh",
+		"supportsComputerUse": "Hỗ trợ sử dụng máy tính",
+		"noComputerUse": "Không hỗ trợ sử dụng máy tính",
+		"supportsPromptCache": "Hỗ trợ bộ nhớ đệm lời nhắc",
+		"noPromptCache": "Không hỗ trợ bộ nhớ đệm lời nhắc",
+		"maxOutput": "Đầu ra tối đa",
+		"inputPrice": "Giá đầu vào",
+		"outputPrice": "Giá đầu ra",
+		"cacheReadsPrice": "Giá đọc bộ nhớ đệm",
+		"cacheWritesPrice": "Giá ghi bộ nhớ đệm",
+		"gemini": {
+			"freeRequests": "* Miễn phí đến {{count}} yêu cầu mỗi phút. Sau đó, thanh toán phụ thuộc vào kích thước lời nhắc.",
+			"pricingDetails": "Để biết thêm thông tin, xem chi tiết giá."
+		}
+	},
+	"modelPicker": {
+		"automaticFetch": "Tiện ích mở rộng tự động lấy danh sách mới nhất các mô hình có sẵn trên <serviceLink>{{serviceName}}</serviceLink>. Nếu bạn không chắc chắn nên chọn mô hình nào, Roo Code hoạt động tốt nhất với <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Bạn cũng có thể thử tìm kiếm \"free\" cho các tùy chọn miễn phí hiện có."
+	},
+	"footer": {
+		"feedback": "Nếu bạn có bất kỳ câu hỏi hoặc phản hồi nào, vui lòng mở một vấn đề tại <githubLink>github.com/RooVetGit/Roo-Code</githubLink> hoặc tham gia <redditLink>reddit.com/r/RooCode</redditLink> hoặc <discordLink>discord.gg/roocode</discordLink>",
+		"version": "Roo Code v{{version}}",
+		"telemetry": {
+			"label": "Cho phép báo cáo lỗi và sử dụng ẩn danh",
+			"description": "Giúp cải thiện Roo Code bằng cách gửi dữ liệu sử dụng ẩn danh và báo cáo lỗi. Không bao giờ gửi mã, lời nhắc hoặc thông tin cá nhân. Xem chính sách bảo mật của chúng tôi để biết thêm chi tiết."
+		},
+		"reset": {
+			"description": "Đặt lại tất cả trạng thái toàn cầu và lưu trữ bí mật trong tiện ích mở rộng.",
+			"button": "Đặt lại"
+		}
+	}
+}

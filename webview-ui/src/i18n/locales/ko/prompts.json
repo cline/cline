@@ -18,7 +18,14 @@
 		"builtInModesText": "내장 모드용 도구는 수정할 수 없습니다",
 		"editTools": "도구 편집",
 		"doneEditing": "편집 완료",
-		"allowedFiles": "허용된 파일:"
+		"allowedFiles": "허용된 파일:",
+		"toolNames": {
+			"read": "파일 읽기",
+			"edit": "파일 편집",
+			"browser": "브라우저 사용",
+			"command": "명령 실행",
+			"mcp": "MCP 사용"
+		}
 	},
 	"roleDefinition": {
 		"title": "역할 정의",

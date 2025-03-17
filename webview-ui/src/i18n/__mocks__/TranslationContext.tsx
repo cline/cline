@@ -1,63 +1,58 @@
-import React from "react"
+import React, { createContext, useContext, ReactNode } from "react"
 
-// Create a mock for the useAppTranslation hook
-export const useAppTranslation = () => {
-	return {
-		t: (key: string, options?: Record<string, any>) => {
-			const translations: Record<string, string> = {
-				// History translations
-				"history:recentTasks": "Recent Tasks",
-				"history:viewAll": "View All",
-				"history:history": "History",
-				"history:done": "Done",
-				"history:searchPlaceholder": "Fuzzy search history...",
-				"history:newest": "Newest",
-				"history:oldest": "Oldest",
-				"history:mostExpensive": "Most Expensive",
-				"history:mostTokens": "Most Tokens",
-				"history:mostRelevant": "Most Relevant",
-				"history:deleteTaskTitle": "Delete Task (Shift + Click to skip confirmation)",
-				"history:tokensLabel": "Tokens:",
-				"history:cacheLabel": "Cache:",
-				"history:apiCostLabel": "API Cost:",
-				"history:copyPrompt": "Copy Prompt",
-				"history:exportTask": "Export Task",
-				"history:deleteTask": "Delete Task",
-				"history:deleteTaskMessage": "Are you sure you want to delete this task? This action cannot be undone.",
-				"history:cancel": "Cancel",
-				"history:delete": "Delete",
-			}
+// Mock translation function that returns English text for settings or the key itself
+const mockTranslate = (key: string, options?: Record<string, any>): string => {
+	// Convert the key back to approximate English text for test purposes
+	if (key.startsWith("settings.")) {
+		// For specific keys the tests are looking for
+		if (key === "settings.notifications.sound.label") return "Enable sound effects"
+		if (key === "settings.autoApprove.execute.label") return "Always approve allowed execute operations"
+		if (key === "settings.autoApprove.execute.allowedCommands") return "Allowed Auto-Execute Commands"
+		if (key === "settings.autoApprove.execute.commandPlaceholder") return "Enter command prefix"
+		if (key === "settings.autoApprove.execute.addButton") return "Add"
+		if (key === "settings.common.save") return "Save"
+		if (key === "settings.contextManagement.terminal.label") return "Terminal output limit"
+		if (key === "settings.header.title") return "Settings"
 
-			// Handle interpolation
-			if (options && key === "history:tokens") {
-				return `Tokens: ↑${options.in} ↓${options.out}`
-			}
-
-			if (options && key === "history:cache") {
-				return `Cache: +${options.writes} → ${options.reads}`
-			}
-
-			if (options && key === "history:apiCost") {
-				return `API Cost: $${options.cost}`
-			}
-
-			return translations[key] || key
-		},
-		i18n: {
-			language: "en",
-			changeLanguage: jest.fn(),
-		},
+		// Default handling of other keys
+		return key.split(".").pop() || key
 	}
+
+	// For keys that contain variables
+	if (options) {
+		let result = key
+		Object.entries(options).forEach(([varName, value]) => {
+			result = result.replace(`{${varName}}`, String(value))
+		})
+		return result
+	}
+
+	return key
 }
 
-export const withTranslation = (Component: React.ComponentType<any>) => {
-	return (props: any) => <Component {...props} />
+// Create mock context
+export const TranslationContext = createContext<{
+	t: (key: string, options?: Record<string, any>) => string
+	i18n: any
+}>({
+	t: mockTranslate,
+	i18n: {},
+})
+
+// Mock translation provider component
+export const TranslationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+	return (
+		<TranslationContext.Provider
+			value={{
+				t: mockTranslate,
+				i18n: {},
+			}}>
+			{children}
+		</TranslationContext.Provider>
+	)
 }
 
-// Mock provider component
-export const AppTranslationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-	return <>{children}</>
-}
+// Custom hook for translations
+export const useAppTranslation = () => useContext(TranslationContext)
 
-const TranslationContext = { AppTranslationProvider, useAppTranslation, withTranslation }
-export default TranslationContext
+export default TranslationProvider

@@ -1,0 +1,228 @@
+{
+	"common": {
+		"save": "Speichern",
+		"done": "Fertig",
+		"cancel": "Abbrechen",
+		"reset": "Zurücksetzen"
+	},
+	"header": {
+		"title": "Einstellungen",
+		"saveButtonTooltip": "Änderungen speichern",
+		"nothingChangedTooltip": "Nichts geändert",
+		"doneButtonTooltip": "Ungespeicherte Änderungen verwerfen und Einstellungsbereich schließen"
+	},
+	"unsavedChangesDialog": {
+		"title": "Ungespeicherte Änderungen",
+		"description": "Möchten Sie die Änderungen verwerfen und fortfahren?",
+		"cancelButton": "Abbrechen",
+		"discardButton": "Änderungen verwerfen"
+	},
+	"sections": {
+		"providers": "Anbieter",
+		"autoApprove": "Automatische Genehmigung",
+		"browser": "Browser / Computer-Nutzung",
+		"checkpoints": "Kontrollpunkte",
+		"notifications": "Benachrichtigungen",
+		"contextManagement": "Kontext-Management",
+		"advanced": "Erweitert",
+		"experimental": "Experimentelle Funktionen"
+	},
+	"autoApprove": {
+		"description": "Erlaubt Roo, Operationen automatisch ohne Genehmigung durchzuführen. Aktivieren Sie diese Einstellungen nur, wenn Sie der KI vollständig vertrauen und die damit verbundenen Sicherheitsrisiken verstehen.",
+		"readOnly": {
+			"label": "Schreibgeschützte Operationen immer genehmigen",
+			"description": "Wenn aktiviert, wird Roo automatisch Verzeichnisinhalte anzeigen und Dateien lesen, ohne dass Sie auf die Genehmigen-Schaltfläche klicken müssen."
+		},
+		"write": {
+			"label": "Schreiboperationen immer genehmigen",
+			"description": "Dateien automatisch erstellen und bearbeiten ohne Genehmigung",
+			"delayLabel": "Verzögerung nach Schreibvorgängen, damit Diagnosefunktionen potenzielle Probleme erkennen können"
+		},
+		"browser": {
+			"label": "Browser-Aktionen immer genehmigen",
+			"description": "Browser-Aktionen automatisch ohne Genehmigung durchführen",
+			"note": "Hinweis: Gilt nur, wenn das Modell Computer-Nutzung unterstützt"
+		},
+		"retry": {
+			"label": "Fehlgeschlagene API-Anfragen immer wiederholen",
+			"description": "Fehlgeschlagene API-Anfragen automatisch wiederholen, wenn der Server eine Fehlerantwort zurückgibt",
+			"delayLabel": "Verzögerung vor dem Wiederholen der Anfrage"
+		},
+		"mcp": {
+			"label": "MCP-Tools immer genehmigen",
+			"description": "Automatische Genehmigung einzelner MCP-Tools in der MCP-Server-Ansicht aktivieren (erfordert sowohl diese Einstellung als auch das 'Immer erlauben'-Kontrollkästchen des Tools)"
+		},
+		"modeSwitch": {
+			"label": "Moduswechsel immer genehmigen",
+			"description": "Automatisch zwischen verschiedenen Modi wechseln ohne Genehmigung"
+		},
+		"subtasks": {
+			"label": "Erstellung & Abschluss von Unteraufgaben immer genehmigen",
+			"description": "Erstellung und Abschluss von Unteraufgaben ohne Genehmigung erlauben"
+		},
+		"execute": {
+			"label": "Erlaubte Ausführungsoperationen immer genehmigen",
+			"description": "Erlaubte Terminal-Befehle automatisch ohne Genehmigung ausführen",
+			"allowedCommands": "Erlaubte Auto-Ausführungsbefehle",
+			"allowedCommandsDescription": "Befehlspräfixe, die automatisch ausgeführt werden können, wenn 'Ausführungsoperationen immer genehmigen' aktiviert ist. Fügen Sie * hinzu, um alle Befehle zu erlauben (mit Vorsicht verwenden).",
+			"commandPlaceholder": "Befehlspräfix eingeben (z.B. 'git ')",
+			"addButton": "Hinzufügen"
+		}
+	},
+	"providers": {
+		"configProfile": "Konfigurationsprofil",
+		"description": "Beschreibung",
+		"apiProvider": "API-Anbieter",
+		"openRouterApiKey": "OpenRouter API-Schlüssel",
+		"apiKeyStorageNotice": "API-Schlüssel werden sicher im VSCode Secret Storage gespeichert",
+		"useCustomBaseUrl": "Benutzerdefinierte Basis-URL verwenden",
+		"openRouterTransformsText": "Prompts und Nachrichtenketten auf Kontextgröße komprimieren (<a>OpenRouter Transformationen</a>)"
+	},
+	"browser": {
+		"enable": {
+			"label": "Browser-Tool aktivieren",
+			"description": "Wenn aktiviert, kann Roo einen Browser verwenden, um mit Websites zu interagieren, wenn Modelle verwendet werden, die Computer-Nutzung unterstützen."
+		},
+		"viewport": {
+			"label": "Viewport-Größe",
+			"description": "Wählen Sie die Viewport-Größe für Browser-Interaktionen. Dies beeinflusst, wie Websites angezeigt und mit ihnen interagiert wird.",
+			"options": {
+				"largeDesktop": "Großer Desktop (1280x800)",
+				"smallDesktop": "Kleiner Desktop (900x600)",
+				"tablet": "Tablet (768x1024)",
+				"mobile": "Mobil (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "Screenshot-Qualität",
+			"description": "Passen Sie die WebP-Qualität von Browser-Screenshots an. Höhere Werte bieten klarere Screenshots, erhöhen aber den Token-Verbrauch."
+		},
+		"remote": {
+			"label": "Remote-Browser-Verbindung verwenden",
+			"description": "Verbindung zu einem Chrome-Browser herstellen, der mit aktiviertem Remote-Debugging läuft (--remote-debugging-port=9222).",
+			"urlPlaceholder": "Benutzerdefinierte URL (z.B. http://localhost:9222)",
+			"testButton": "Verbindung testen",
+			"testingButton": "Teste...",
+			"instructions": "Geben Sie die DevTools-Protokoll-Host-Adresse ein oder lassen Sie das Feld leer, um Chrome lokale Instanzen automatisch zu erkennen. Die Schaltfläche 'Verbindung testen' versucht die benutzerdefinierte URL, wenn angegeben, oder erkennt automatisch, wenn das Feld leer ist."
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "Automatische Kontrollpunkte aktivieren",
+			"description": "Wenn aktiviert, erstellt Roo automatisch Kontrollpunkte während der Aufgabenausführung, was die Überprüfung von Änderungen oder die Rückkehr zu früheren Zuständen erleichtert."
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "Soundeffekte aktivieren",
+			"description": "Wenn aktiviert, spielt Roo Soundeffekte für Benachrichtigungen und Ereignisse ab.",
+			"volumeLabel": "Lautstärke"
+		}
+	},
+	"contextManagement": {
+		"description": "Steuern Sie, welche Informationen im KI-Kontextfenster enthalten sind, was den Token-Verbrauch und die Antwortqualität beeinflusst",
+		"terminal": {
+			"label": "Terminal-Ausgabelimit",
+			"description": "Maximale Anzahl von Zeilen, die in der Terminal-Ausgabe bei der Ausführung von Befehlen enthalten sein sollen. Bei Überschreitung werden Zeilen aus der Mitte entfernt, wodurch Token gespart werden."
+		},
+		"openTabs": {
+			"label": "Geöffnete Tabs Kontextlimit",
+			"description": "Maximale Anzahl von geöffneten VSCode-Tabs, die im Kontext enthalten sein sollen. Höhere Werte bieten mehr Kontext, erhöhen aber den Token-Verbrauch."
+		},
+		"workspaceFiles": {
+			"label": "Workspace-Dateien Kontextlimit",
+			"description": "Maximale Anzahl von Dateien, die in den Details des aktuellen Arbeitsverzeichnisses enthalten sein sollen. Höhere Werte bieten mehr Kontext, erhöhen aber den Token-Verbrauch."
+		},
+		"rooignore": {
+			"label": ".rooignore-Dateien in Listen und Suchen anzeigen",
+			"description": "Wenn aktiviert, werden Dateien, die mit Mustern in .rooignore übereinstimmen, in Listen mit einem Schlosssymbol angezeigt. Wenn deaktiviert, werden diese Dateien vollständig aus Dateilisten und Suchen ausgeblendet."
+		}
+	},
+	"advanced": {
+		"rateLimit": {
+			"label": "Ratenbegrenzung",
+			"description": "Minimale Zeit zwischen API-Anfragen."
+		},
+		"diff": {
+			"label": "Bearbeitung durch Diffs aktivieren",
+			"description": "Wenn aktiviert, kann Roo Dateien schneller bearbeiten und lehnt automatisch gekürzte vollständige Dateischreibvorgänge ab. Funktioniert am besten mit dem neuesten Claude 3.7 Sonnet-Modell.",
+			"strategy": {
+				"label": "Diff-Strategie",
+				"options": {
+					"standard": "Standard (Einzelner Block)",
+					"multiBlock": "Experimentell: Multi-Block-Diff",
+					"unified": "Experimentell: Vereinheitlichter Diff"
+				},
+				"descriptions": {
+					"standard": "Die Standard-Diff-Strategie wendet Änderungen auf einen einzelnen Codeblock gleichzeitig an.",
+					"unified": "Die vereinheitlichte Diff-Strategie verwendet mehrere Ansätze zum Anwenden von Diffs und wählt den besten Ansatz aus.",
+					"multiBlock": "Die Multi-Block-Diff-Strategie ermöglicht die Aktualisierung mehrerer Codeblöcke in einer Datei in einer Anfrage."
+				}
+			},
+			"matchPrecision": {
+				"label": "Übereinstimmungsgenauigkeit",
+				"description": "Dieser Schieberegler steuert, wie genau Codeabschnitte beim Anwenden von Diffs übereinstimmen müssen. Niedrigere Werte ermöglichen flexiblere Übereinstimmungen, erhöhen aber das Risiko falscher Ersetzungen. Verwenden Sie Werte unter 100% mit äußerster Vorsicht."
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Experimentelle einheitliche Diff-Strategie verwenden",
+			"description": "Aktiviert die experimentelle einheitliche Diff-Strategie. Diese Strategie könnte die Anzahl der durch Modellfehler verursachten Wiederholungen reduzieren, kann aber unerwartetes Verhalten oder falsche Bearbeitungen verursachen. Nur aktivieren, wenn Sie die Risiken verstehen und bereit sind, alle Änderungen sorgfältig zu überprüfen."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Experimentelles Such- und Ersetzungswerkzeug verwenden",
+			"description": "Aktiviert das experimentelle Such- und Ersetzungswerkzeug, das Roo ermöglicht, mehrere Instanzen eines Suchbegriffs in einer Anfrage zu ersetzen."
+		},
+		"INSERT_BLOCK": {
+			"name": "Experimentelles Inhalts-Einfüge-Werkzeug verwenden",
+			"description": "Aktiviert das experimentelle Inhalts-Einfüge-Werkzeug, das Roo ermöglicht, Inhalte an bestimmten Zeilennummern einzufügen, ohne einen Diff erstellen zu müssen."
+		},
+		"POWER_STEERING": {
+			"name": "Experimentellen \"Servolenkung\"-Modus verwenden",
+			"description": "Wenn aktiviert, wird Roo das Modell häufiger an die Details seiner aktuellen Modusdefinition erinnern. Dies führt zu einer stärkeren Einhaltung von Rollendefinitionen und benutzerdefinierten Anweisungen, verwendet aber mehr Tokens pro Nachricht."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Experimentelles Multi-Block-Diff-Werkzeug verwenden",
+			"description": "Wenn aktiviert, verwendet Roo das Multi-Block-Diff-Werkzeug. Dies versucht, mehrere Codeblöcke in der Datei in einer Anfrage zu aktualisieren."
+		}
+	},
+	"temperature": {
+		"useCustom": "Benutzerdefinierte Temperatur verwenden",
+		"description": "Steuert die Zufälligkeit in den Antworten des Modells.",
+		"rangeDescription": "Höhere Werte machen die Ausgabe zufälliger, niedrigere Werte machen sie deterministischer."
+	},
+	"modelInfo": {
+		"supportsImages": "Unterstützt Bilder",
+		"noImages": "Unterstützt keine Bilder",
+		"supportsComputerUse": "Unterstützt Computer-Nutzung",
+		"noComputerUse": "Unterstützt keine Computer-Nutzung",
+		"supportsPromptCache": "Unterstützt Prompt-Caching",
+		"noPromptCache": "Unterstützt kein Prompt-Caching",
+		"maxOutput": "Maximale Ausgabe",
+		"inputPrice": "Eingabepreis",
+		"outputPrice": "Ausgabepreis",
+		"cacheReadsPrice": "Cache-Lesepreis",
+		"cacheWritesPrice": "Cache-Schreibpreis",
+		"gemini": {
+			"freeRequests": "* Kostenlos bis zu {{count}} Anfragen pro Minute. Danach hängt die Abrechnung von der Prompt-Größe ab.",
+			"pricingDetails": "Weitere Informationen finden Sie in den Preisdetails."
+		}
+	},
+	"modelPicker": {
+		"automaticFetch": "Die Erweiterung ruft automatisch die neueste Liste der verfügbaren Modelle von <serviceLink>{{serviceName}}</serviceLink> ab. Wenn Sie sich nicht sicher sind, welches Modell Sie wählen sollen, funktioniert Roo Code am besten mit <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Sie können auch nach \"free\" suchen, um derzeit verfügbare kostenlose Optionen zu finden."
+	},
+	"footer": {
+		"feedback": "Wenn Sie Fragen oder Feedback haben, können Sie gerne ein Issue auf <githubLink>github.com/RooVetGit/Roo-Code</githubLink> öffnen oder <redditLink>reddit.com/r/RooCode</redditLink> oder <discordLink>discord.gg/roocode</discordLink> beitreten",
+		"version": "Roo Code v{{version}}",
+		"telemetry": {
+			"label": "Anonyme Fehler- und Nutzungsberichte zulassen",
+			"description": "Helfen Sie, Roo Code zu verbessern, indem Sie anonyme Nutzungsdaten und Fehlerberichte senden. Es werden niemals Code, Prompts oder persönliche Informationen gesendet. Weitere Details finden Sie in unserer Datenschutzrichtlinie."
+		},
+		"reset": {
+			"description": "Setzen Sie alle globalen Zustände und geheimen Speicher in der Erweiterung zurück.",
+			"button": "Zurücksetzen"
+		}
+	}
+}

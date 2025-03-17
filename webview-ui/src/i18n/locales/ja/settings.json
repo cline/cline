@@ -1,0 +1,228 @@
+{
+	"common": {
+		"save": "保存",
+		"done": "完了",
+		"cancel": "キャンセル",
+		"reset": "リセット"
+	},
+	"header": {
+		"title": "設定",
+		"saveButtonTooltip": "変更を保存",
+		"nothingChangedTooltip": "変更なし",
+		"doneButtonTooltip": "未保存の変更を破棄して設定パネルを閉じる"
+	},
+	"unsavedChangesDialog": {
+		"title": "未保存の変更",
+		"description": "変更を破棄して続行しますか？",
+		"cancelButton": "キャンセル",
+		"discardButton": "変更を破棄"
+	},
+	"sections": {
+		"providers": "プロバイダー",
+		"autoApprove": "自動承認",
+		"browser": "ブラウザ / コンピューター使用",
+		"checkpoints": "チェックポイント",
+		"notifications": "通知",
+		"contextManagement": "コンテキスト管理",
+		"advanced": "詳細設定",
+		"experimental": "実験的機能"
+	},
+	"autoApprove": {
+		"description": "Rooが承認なしで自動的に操作を実行できるようにします。AIを完全に信頼し、関連するセキュリティリスクを理解している場合にのみ、これらの設定を有効にしてください。",
+		"readOnly": {
+			"label": "読み取り専用操作を常に承認",
+			"description": "有効にすると、Rooは承認ボタンをクリックすることなく、自動的にディレクトリの内容を表示してファイルを読み取ります。"
+		},
+		"write": {
+			"label": "書き込み操作を常に承認",
+			"description": "承認なしで自動的にファイルを作成・編集",
+			"delayLabel": "診断が潜在的な問題を検出できるよう、書き込み後に遅延を設ける"
+		},
+		"browser": {
+			"label": "ブラウザアクションを常に承認",
+			"description": "承認なしで自動的にブラウザアクションを実行",
+			"note": "注意：コンピューター使用をサポートするモデルを使用している場合のみ適用されます"
+		},
+		"retry": {
+			"label": "失敗したAPIリクエストを常に再試行",
+			"description": "サーバーがエラーレスポンスを返した場合、自動的に失敗したAPIリクエストを再試行",
+			"delayLabel": "リクエスト再試行前の遅延"
+		},
+		"mcp": {
+			"label": "MCPツールを常に承認",
+			"description": "MCPサーバービューで個々のMCPツールの自動承認を有効にします（この設定とツールの「常に許可」チェックボックスの両方が必要）"
+		},
+		"modeSwitch": {
+			"label": "モード切り替えを常に承認",
+			"description": "承認なしで自動的に異なるモード間を切り替え"
+		},
+		"subtasks": {
+			"label": "サブタスクの作成と完了を常に承認",
+			"description": "承認なしでサブタスクの作成と完了を許可"
+		},
+		"execute": {
+			"label": "許可された実行操作を常に承認",
+			"description": "承認なしで自動的に許可されたターミナルコマンドを実行",
+			"allowedCommands": "許可された自動実行コマンド",
+			"allowedCommandsDescription": "「実行操作を常に承認」が有効な場合に自動実行できるコマンドプレフィックス。すべてのコマンドを許可するには * を追加します（注意して使用してください）。",
+			"commandPlaceholder": "コマンドプレフィックスを入力（例：'git '）",
+			"addButton": "追加"
+		}
+	},
+	"providers": {
+		"configProfile": "設定プロファイル",
+		"description": "説明",
+		"apiProvider": "APIプロバイダー",
+		"openRouterApiKey": "OpenRouter APIキー",
+		"apiKeyStorageNotice": "APIキーはVSCodeのシークレットストレージに安全に保存されます",
+		"useCustomBaseUrl": "カスタムベースURLを使用",
+		"openRouterTransformsText": "プロンプトとメッセージチェーンをコンテキストサイズに圧縮（<a>OpenRouter変換</a>）"
+	},
+	"browser": {
+		"enable": {
+			"label": "ブラウザツールを有効化",
+			"description": "有効にすると、コンピューター使用をサポートするモデルを使用する際に、Rooはウェブサイトとのやり取りにブラウザを使用できます。"
+		},
+		"viewport": {
+			"label": "ビューポートサイズ",
+			"description": "ブラウザインタラクションのビューポートサイズを選択します。これはウェブサイトの表示方法とインタラクション方法に影響します。",
+			"options": {
+				"largeDesktop": "大型デスクトップ (1280x800)",
+				"smallDesktop": "小型デスクトップ (900x600)",
+				"tablet": "タブレット (768x1024)",
+				"mobile": "モバイル (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "スクリーンショット品質",
+			"description": "ブラウザスクリーンショットのWebP品質を調整します。高い値はより鮮明なスクリーンショットを提供しますが、token使用量が増加します。"
+		},
+		"remote": {
+			"label": "リモートブラウザ接続を使用",
+			"description": "リモートデバッグを有効にして実行しているChromeブラウザに接続します（--remote-debugging-port=9222）。",
+			"urlPlaceholder": "カスタムURL（例：http://localhost:9222）",
+			"testButton": "接続テスト",
+			"testingButton": "テスト中...",
+			"instructions": "DevToolsプロトコルホストアドレスを入力するか、Chromeのローカルインスタンスを自動検出するために空のままにします。接続テストボタンは、提供されている場合はカスタムURLを試み、フィールドが空の場合は自動検出します。"
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "自動チェックポイントを有効化",
+			"description": "有効にすると、Rooはタスク実行中に自動的にチェックポイントを作成し、変更の確認や以前の状態への復帰を容易にします。"
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "サウンドエフェクトを有効化",
+			"description": "有効にすると、Rooは通知やイベントのためにサウンドエフェクトを再生します。",
+			"volumeLabel": "音量"
+		}
+	},
+	"contextManagement": {
+		"description": "AIのコンテキストウィンドウに含まれる情報を制御し、token使用量とレスポンスの品質に影響します",
+		"terminal": {
+			"label": "ターミナル出力制限",
+			"description": "コマンド実行時にターミナル出力に含める最大行数。超過すると中央から行が削除され、tokenを節約します。"
+		},
+		"openTabs": {
+			"label": "オープンタブコンテキスト制限",
+			"description": "コンテキストに含めるVSCodeオープンタブの最大数。高い値はより多くのコンテキストを提供しますが、token使用量が増加します。"
+		},
+		"workspaceFiles": {
+			"label": "ワークスペースファイルコンテキスト制限",
+			"description": "現在の作業ディレクトリの詳細に含めるファイルの最大数。高い値はより多くのコンテキストを提供しますが、token使用量が増加します。"
+		},
+		"rooignore": {
+			"label": "リストと検索で.rooignoreファイルを表示",
+			"description": "有効にすると、.rooignoreのパターンに一致するファイルがロックシンボル付きでリストに表示されます。無効にすると、これらのファイルはファイルリストや検索から完全に非表示になります。"
+		}
+	},
+	"advanced": {
+		"rateLimit": {
+			"label": "レート制限",
+			"description": "APIリクエスト間の最小時間。"
+		},
+		"diff": {
+			"label": "diff経由の編集を有効化",
+			"description": "有効にすると、Rooはファイルをより迅速に編集でき、切り詰められた全ファイル書き込みを自動的に拒否します。最新のClaude 3.7 Sonnetモデルで最良に機能します。",
+			"strategy": {
+				"label": "Diff戦略",
+				"options": {
+					"standard": "標準（単一ブロック）",
+					"multiBlock": "実験的：マルチブロックdiff",
+					"unified": "実験的：統合diff"
+				},
+				"descriptions": {
+					"standard": "標準diff戦略は一度に1つのコードブロックに変更を適用します。",
+					"unified": "統合diff戦略はdiffを適用するための複数のアプローチを取り、最良のアプローチを選択します。",
+					"multiBlock": "マルチブロックdiff戦略は、1つのリクエストでファイル内の複数のコードブロックを更新できます。"
+				}
+			},
+			"matchPrecision": {
+				"label": "マッチ精度",
+				"description": "このスライダーは、diffを適用する際にコードセクションがどれだけ正確に一致する必要があるかを制御します。低い値はより柔軟なマッチングを可能にしますが、誤った置換のリスクが高まります。100%未満の値は細心の注意を払って使用してください。"
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "実験的な統合diff戦略を使用する",
+			"description": "実験的な統合diff戦略を有効にします。この戦略はモデルエラーによる再試行の回数を減らす可能性がありますが、予期しない動作や不正確な編集を引き起こす可能性があります。リスクを理解し、すべての変更を注意深く確認する準備がある場合にのみ有効にしてください。"
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "実験的な検索と置換ツールを使用する",
+			"description": "実験的な検索と置換ツールを有効にし、Rooが1つのリクエストで検索語の複数のインスタンスを置き換えることを可能にします。"
+		},
+		"INSERT_BLOCK": {
+			"name": "実験的なコンテンツ挿入ツールを使用する",
+			"description": "実験的なコンテンツ挿入ツールを有効にし、Rooがdiffを作成せずに特定の行番号にコンテンツを挿入できるようにします。"
+		},
+		"POWER_STEERING": {
+			"name": "実験的な「パワーステアリング」モードを使用する",
+			"description": "有効にすると、Rooはより頻繁にモデルに現在のモード定義の詳細を思い出させます。これにより、役割定義とカスタム指示へのより強い遵守が実現しますが、メッセージごとにより多くのtokenを使用します。"
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "実験的なマルチブロックdiffツールを使用する",
+			"description": "有効にすると、Rooはマルチブロックdiffツールを使用します。これにより、1つのリクエストでファイル内の複数のコードブロックを更新しようとします。"
+		}
+	},
+	"temperature": {
+		"useCustom": "カスタム温度を使用",
+		"description": "モデルの応答のランダム性を制御します。",
+		"rangeDescription": "高い値は出力をよりランダムに、低い値はより決定論的にします。"
+	},
+	"modelInfo": {
+		"supportsImages": "画像をサポート",
+		"noImages": "画像をサポートしていません",
+		"supportsComputerUse": "コンピューター使用をサポート",
+		"noComputerUse": "コンピューター使用をサポートしていません",
+		"supportsPromptCache": "プロンプトキャッシュをサポート",
+		"noPromptCache": "プロンプトキャッシュをサポートしていません",
+		"maxOutput": "最大出力",
+		"inputPrice": "入力価格",
+		"outputPrice": "出力価格",
+		"cacheReadsPrice": "キャッシュ読み取り価格",
+		"cacheWritesPrice": "キャッシュ書き込み価格",
+		"gemini": {
+			"freeRequests": "* 毎分{{count}}リクエストまで無料。それ以降は、プロンプトサイズに応じて課金されます。",
+			"pricingDetails": "詳細については、価格詳細をご覧ください。"
+		}
+	},
+	"modelPicker": {
+		"automaticFetch": "拡張機能は<serviceLink>{{serviceName}}</serviceLink>で利用可能な最新のモデルリストを自動的に取得します。どのモデルを選ぶべきか迷っている場合、Roo Codeは<defaultModelLink>{{defaultModelId}}</defaultModelLink>で最適に動作します。また、「free」で検索すると、現在利用可能な無料オプションを見つけることができます。"
+	},
+	"footer": {
+		"feedback": "質問やフィードバックがある場合は、<githubLink>github.com/RooVetGit/Roo-Code</githubLink>で問題を開くか、<redditLink>reddit.com/r/RooCode</redditLink>や<discordLink>discord.gg/roocode</discordLink>に参加してください",
+		"version": "Roo Code v{{version}}",
+		"telemetry": {
+			"label": "匿名のエラーと使用状況レポートを許可",
+			"description": "匿名の使用データとエラーレポートを送信してRoo Codeの改善にご協力ください。コード、プロンプト、個人情報が送信されることはありません。詳細については、プライバシーポリシーをご覧ください。"
+		},
+		"reset": {
+			"description": "拡張機能内のすべてのグローバル状態とシークレットストレージをリセットします。",
+			"button": "リセット"
+		}
+	}
+}

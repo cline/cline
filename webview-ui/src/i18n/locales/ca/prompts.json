@@ -18,7 +18,14 @@
 		"builtInModesText": "Les eines per a modes integrats no es poden modificar",
 		"editTools": "Editar eines",
 		"doneEditing": "Finalitzar edició",
-		"allowedFiles": "Fitxers permesos:"
+		"allowedFiles": "Fitxers permesos:",
+		"toolNames": {
+			"read": "Llegir fitxers",
+			"edit": "Editar fitxers",
+			"browser": "Utilitzar navegador",
+			"command": "Executar comandes",
+			"mcp": "Utilitzar MCP"
+		}
 	},
 	"roleDefinition": {
 		"title": "Definició de rol",

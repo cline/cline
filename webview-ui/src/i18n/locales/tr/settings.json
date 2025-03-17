@@ -1,0 +1,228 @@
+{
+	"common": {
+		"save": "Kaydet",
+		"done": "Tamamlandı",
+		"cancel": "İptal",
+		"reset": "Sıfırla"
+	},
+	"header": {
+		"title": "Ayarlar",
+		"saveButtonTooltip": "Değişiklikleri kaydet",
+		"nothingChangedTooltip": "Hiçbir şey değişmedi",
+		"doneButtonTooltip": "Kaydedilmemiş değişiklikleri at ve ayarlar panelini kapat"
+	},
+	"unsavedChangesDialog": {
+		"title": "Kaydedilmemiş Değişiklikler",
+		"description": "Değişiklikleri atmak ve devam etmek istiyor musunuz?",
+		"cancelButton": "İptal",
+		"discardButton": "Değişiklikleri At"
+	},
+	"sections": {
+		"providers": "Sağlayıcılar",
+		"autoApprove": "Otomatik Onay",
+		"browser": "Tarayıcı / Bilgisayar Kullanımı",
+		"checkpoints": "Kontrol Noktaları",
+		"notifications": "Bildirimler",
+		"contextManagement": "Bağlam Yönetimi",
+		"advanced": "Gelişmiş",
+		"experimental": "Deneysel Özellikler"
+	},
+	"autoApprove": {
+		"description": "Roo'nun onay gerektirmeden otomatik olarak işlemler gerçekleştirmesine izin verin. Bu ayarları yalnızca yapay zekaya tamamen güveniyorsanız ve ilgili güvenlik risklerini anlıyorsanız etkinleştirin.",
+		"readOnly": {
+			"label": "Salt okunur işlemleri her zaman onayla",
+			"description": "Etkinleştirildiğinde, Roo otomatik olarak dizin içeriğini görüntüleyecek ve Onayla düğmesine tıklamanıza gerek kalmadan dosyaları okuyacaktır."
+		},
+		"write": {
+			"label": "Yazma işlemlerini her zaman onayla",
+			"description": "Onay gerektirmeden otomatik olarak dosya oluştur ve düzenle",
+			"delayLabel": "Tanılamanın potansiyel sorunları tespit etmesine izin vermek için yazmalardan sonra gecikme"
+		},
+		"browser": {
+			"label": "Tarayıcı eylemlerini her zaman onayla",
+			"description": "Onay gerektirmeden otomatik olarak tarayıcı eylemleri gerçekleştir",
+			"note": "Not: Yalnızca model bilgisayar kullanımını desteklediğinde geçerlidir"
+		},
+		"retry": {
+			"label": "Başarısız API isteklerini her zaman yeniden dene",
+			"description": "Sunucu bir hata yanıtı döndürdüğünde başarısız API isteklerini otomatik olarak yeniden dene",
+			"delayLabel": "İsteği yeniden denemeden önce gecikme"
+		},
+		"mcp": {
+			"label": "MCP araçlarını her zaman onayla",
+			"description": "MCP Sunucuları görünümünde bireysel MCP araçlarının otomatik onayını etkinleştir (hem bu ayar hem de aracın \"Her zaman izin ver\" onay kutusu gerekir)"
+		},
+		"modeSwitch": {
+			"label": "Mod değiştirmeyi her zaman onayla",
+			"description": "Onay gerektirmeden otomatik olarak farklı modlar arasında geçiş yap"
+		},
+		"subtasks": {
+			"label": "Alt görevlerin oluşturulmasını ve tamamlanmasını her zaman onayla",
+			"description": "Onay gerektirmeden alt görevlerin oluşturulmasına ve tamamlanmasına izin ver"
+		},
+		"execute": {
+			"label": "İzin verilen yürütme işlemlerini her zaman onayla",
+			"description": "Onay gerektirmeden otomatik olarak izin verilen terminal komutlarını yürüt",
+			"allowedCommands": "İzin Verilen Otomatik Yürütme Komutları",
+			"allowedCommandsDescription": "\"Yürütme işlemlerini her zaman onayla\" etkinleştirildiğinde otomatik olarak yürütülebilen komut önekleri. Tüm komutlara izin vermek için * ekleyin (dikkatli kullanın).",
+			"commandPlaceholder": "Komut öneki girin (örn. 'git ')",
+			"addButton": "Ekle"
+		}
+	},
+	"providers": {
+		"configProfile": "Yapılandırma Profili",
+		"description": "Açıklama",
+		"apiProvider": "API Sağlayıcı",
+		"openRouterApiKey": "OpenRouter API Anahtarı",
+		"apiKeyStorageNotice": "API anahtarları VSCode'un Gizli Depolamasında güvenli bir şekilde saklanır",
+		"useCustomBaseUrl": "Özel temel URL kullan",
+		"openRouterTransformsText": "İstem ve mesaj zincirlerini bağlam boyutuna sıkıştır (<a>OpenRouter Dönüşümleri</a>)"
+	},
+	"browser": {
+		"enable": {
+			"label": "Tarayıcı aracını etkinleştir",
+			"description": "Etkinleştirildiğinde, Roo bilgisayar kullanımını destekleyen modeller kullanırken web siteleriyle etkileşim kurmak için bir tarayıcı kullanabilir."
+		},
+		"viewport": {
+			"label": "Görünüm alanı boyutu",
+			"description": "Tarayıcı etkileşimleri için görünüm alanı boyutunu seçin. Bu, web sitelerinin nasıl görüntülendiğini ve etkileşime girdiğini etkiler.",
+			"options": {
+				"largeDesktop": "Büyük Masaüstü (1280x800)",
+				"smallDesktop": "Küçük Masaüstü (900x600)",
+				"tablet": "Tablet (768x1024)",
+				"mobile": "Mobil (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "Ekran görüntüsü kalitesi",
+			"description": "Tarayıcı ekran görüntülerinin WebP kalitesini ayarlayın. Daha yüksek değerler daha net ekran görüntüleri sağlar ancak token kullanımını artırır."
+		},
+		"remote": {
+			"label": "Uzak tarayıcı bağlantısı kullan",
+			"description": "Uzaktan hata ayıklama etkinleştirilmiş olarak çalışan bir Chrome tarayıcısına bağlanın (--remote-debugging-port=9222).",
+			"urlPlaceholder": "Özel URL (örn. http://localhost:9222)",
+			"testButton": "Bağlantıyı Test Et",
+			"testingButton": "Test Ediliyor...",
+			"instructions": "DevTools protokolü ana bilgisayar adresini girin veya yerel Chrome örneklerini otomatik olarak keşfetmek için boş bırakın. Bağlantıyı Test Et düğmesi, sağlanmışsa özel URL'yi deneyecek veya alan boşsa otomatik olarak keşfedecektir."
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "Otomatik kontrol noktalarını etkinleştir",
+			"description": "Etkinleştirildiğinde, Roo görev yürütme sırasında otomatik olarak kontrol noktaları oluşturarak değişiklikleri gözden geçirmeyi veya önceki durumlara dönmeyi kolaylaştırır."
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "Ses efektlerini etkinleştir",
+			"description": "Etkinleştirildiğinde, Roo bildirimler ve olaylar için ses efektleri çalacaktır.",
+			"volumeLabel": "Ses Düzeyi"
+		}
+	},
+	"contextManagement": {
+		"description": "Yapay zekanın bağlam penceresine hangi bilgilerin dahil edileceğini kontrol edin, token kullanımını ve yanıt kalitesini etkiler",
+		"terminal": {
+			"label": "Terminal çıktısı sınırı",
+			"description": "Komutları yürütürken terminal çıktısına dahil edilecek maksimum satır sayısı. Aşıldığında, token tasarrufu sağlayarak satırlar ortadan kaldırılacaktır."
+		},
+		"openTabs": {
+			"label": "Açık sekmeler bağlam sınırı",
+			"description": "Bağlama dahil edilecek maksimum VSCode açık sekme sayısı. Daha yüksek değerler daha fazla bağlam sağlar ancak token kullanımını artırır."
+		},
+		"workspaceFiles": {
+			"label": "Çalışma alanı dosyaları bağlam sınırı",
+			"description": "Mevcut çalışma dizini ayrıntılarına dahil edilecek maksimum dosya sayısı. Daha yüksek değerler daha fazla bağlam sağlar ancak token kullanımını artırır."
+		},
+		"rooignore": {
+			"label": "Listelerde ve aramalarda .rooignore dosyalarını göster",
+			"description": "Etkinleştirildiğinde, .rooignore'daki desenlerle eşleşen dosyalar kilit sembolü ile listelerde gösterilecektir. Devre dışı bırakıldığında, bu dosyalar dosya listelerinden ve aramalardan tamamen gizlenecektir."
+		}
+	},
+	"advanced": {
+		"rateLimit": {
+			"label": "Hız sınırı",
+			"description": "API istekleri arasındaki minimum süre."
+		},
+		"diff": {
+			"label": "Diff'ler aracılığıyla düzenlemeyi etkinleştir",
+			"description": "Etkinleştirildiğinde, Roo dosyaları daha hızlı düzenleyebilecek ve kesik tam dosya yazımlarını otomatik olarak reddedecektir. En son Claude 3.7 Sonnet modeliyle en iyi şekilde çalışır.",
+			"strategy": {
+				"label": "Diff stratejisi",
+				"options": {
+					"standard": "Standart (Tek blok)",
+					"multiBlock": "Deneysel: Çoklu blok diff",
+					"unified": "Deneysel: Birleştirilmiş diff"
+				},
+				"descriptions": {
+					"standard": "Standart diff stratejisi, bir seferde tek bir kod bloğuna değişiklikler uygular.",
+					"unified": "Birleştirilmiş diff stratejisi, diff'leri uygulamak için birden çok yaklaşım benimser ve en iyi yaklaşımı seçer.",
+					"multiBlock": "Çoklu blok diff stratejisi, tek bir istekte bir dosyadaki birden çok kod bloğunu güncellemenize olanak tanır."
+				}
+			},
+			"matchPrecision": {
+				"label": "Eşleşme hassasiyeti",
+				"description": "Bu kaydırıcı, diff'ler uygulanırken kod bölümlerinin ne kadar hassas bir şekilde eşleşmesi gerektiğini kontrol eder. Daha düşük değerler daha esnek eşleşmeye izin verir ancak yanlış değiştirme riskini artırır. %100'ün altındaki değerleri son derece dikkatli kullanın."
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Deneysel birleştirilmiş diff stratejisini kullan",
+			"description": "Deneysel birleştirilmiş diff stratejisini etkinleştir. Bu strateji, model hatalarından kaynaklanan yeniden deneme sayısını azaltabilir, ancak beklenmeyen davranışlara veya hatalı düzenlemelere neden olabilir. Yalnızca riskleri anlıyorsanız ve tüm değişiklikleri dikkatlice incelemeye istekliyseniz etkinleştirin."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Deneysel arama ve değiştirme aracını kullan",
+			"description": "Deneysel arama ve değiştirme aracını etkinleştir, Roo'nun tek bir istekte bir arama teriminin birden fazla örneğini değiştirmesine olanak tanır."
+		},
+		"INSERT_BLOCK": {
+			"name": "Deneysel içerik ekleme aracını kullan",
+			"description": "Deneysel içerik ekleme aracını etkinleştir, Roo'nun bir diff oluşturma gereği duymadan belirli satır numaralarına içerik eklemesine olanak tanır."
+		},
+		"POWER_STEERING": {
+			"name": "Deneysel \"güç direksiyon\" modunu kullan",
+			"description": "Etkinleştirildiğinde, Roo modele geçerli mod tanımının ayrıntılarını daha sık hatırlatacaktır. Bu, rol tanımlarına ve özel talimatlara daha güçlü uyum sağlayacak, ancak mesaj başına daha fazla token kullanacaktır."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Deneysel çoklu blok diff aracını kullan",
+			"description": "Etkinleştirildiğinde, Roo çoklu blok diff aracını kullanacaktır. Bu, tek bir istekte dosyadaki birden fazla kod bloğunu güncellemeye çalışacaktır."
+		}
+	},
+	"temperature": {
+		"useCustom": "Özel sıcaklık kullan",
+		"description": "Model yanıtlarındaki rastgeleliği kontrol eder.",
+		"rangeDescription": "Daha yüksek değerler çıktıyı daha rastgele yapar, daha düşük değerler daha deterministik hale getirir."
+	},
+	"modelInfo": {
+		"supportsImages": "Görüntüleri destekler",
+		"noImages": "Görüntüleri desteklemez",
+		"supportsComputerUse": "Bilgisayar kullanımını destekler",
+		"noComputerUse": "Bilgisayar kullanımını desteklemez",
+		"supportsPromptCache": "İstem önbelleğini destekler",
+		"noPromptCache": "İstem önbelleğini desteklemez",
+		"maxOutput": "Maksimum çıktı",
+		"inputPrice": "Giriş fiyatı",
+		"outputPrice": "Çıkış fiyatı",
+		"cacheReadsPrice": "Önbellek okuma fiyatı",
+		"cacheWritesPrice": "Önbellek yazma fiyatı",
+		"gemini": {
+			"freeRequests": "* Dakikada {{count}} isteğe kadar ücretsiz. Bundan sonra, ücretlendirme istem boyutuna bağlıdır.",
+			"pricingDetails": "Daha fazla bilgi için fiyatlandırma ayrıntılarına bakın."
+		}
+	},
+	"modelPicker": {
+		"automaticFetch": "Uzantı <serviceLink>{{serviceName}}</serviceLink> üzerinde bulunan mevcut modellerin en güncel listesini otomatik olarak alır. Hangi modeli seçeceğinizden emin değilseniz, Roo Code <defaultModelLink>{{defaultModelId}}</defaultModelLink> ile en iyi şekilde çalışır. Şu anda mevcut olan ücretsiz seçenekleri bulmak için \"free\" araması da yapabilirsiniz."
+	},
+	"footer": {
+		"feedback": "Herhangi bir sorunuz veya geri bildiriminiz varsa, <githubLink>github.com/RooVetGit/Roo-Code</githubLink> adresinde bir konu açmaktan veya <redditLink>reddit.com/r/RooCode</redditLink> ya da <discordLink>discord.gg/roocode</discordLink>'a katılmaktan çekinmeyin",
+		"version": "Roo Code v{{version}}",
+		"telemetry": {
+			"label": "Anonim hata ve kullanım raporlamaya izin ver",
+			"description": "Anonim kullanım verileri ve hata raporları göndererek Roo Code'u geliştirmeye yardımcı olun. Hiçbir kod, istem veya kişisel bilgi asla gönderilmez. Daha fazla ayrıntı için gizlilik politikamıza bakın."
+		},
+		"reset": {
+			"description": "Uzantıdaki tüm global durumu ve gizli depolamayı sıfırlayın.",
+			"button": "Sıfırla"
+		}
+	}
+}

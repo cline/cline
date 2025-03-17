@@ -1,0 +1,228 @@
+{
+	"common": {
+		"save": "儲存",
+		"done": "完成",
+		"cancel": "取消",
+		"reset": "重設"
+	},
+	"header": {
+		"title": "設定",
+		"saveButtonTooltip": "儲存變更",
+		"nothingChangedTooltip": "沒有變更",
+		"doneButtonTooltip": "捨棄未儲存的變更並關閉設定面板"
+	},
+	"unsavedChangesDialog": {
+		"title": "未儲存的變更",
+		"description": "是否捨棄變更並繼續？",
+		"cancelButton": "取消",
+		"discardButton": "捨棄變更"
+	},
+	"sections": {
+		"providers": "提供者",
+		"autoApprove": "自動核准",
+		"browser": "瀏覽器 / 電腦使用",
+		"checkpoints": "檢查點",
+		"notifications": "通知",
+		"contextManagement": "內容管理",
+		"advanced": "進階",
+		"experimental": "實驗性功能"
+	},
+	"autoApprove": {
+		"description": "允許 Roo 自動執行操作而無需核准。僅在您完全信任 AI 並理解相關安全風險的情況下啟用這些設定。",
+		"readOnly": {
+			"label": "始終核准唯讀操作",
+			"description": "啟用後，Roo 將自動檢視目錄內容並讀取檔案，無需點擊核准按鈕。"
+		},
+		"write": {
+			"label": "始終核准寫入操作",
+			"description": "自動建立和編輯檔案而無需核准",
+			"delayLabel": "寫入後延遲以允許診斷偵測潛在問題"
+		},
+		"browser": {
+			"label": "始終核准瀏覽器操作",
+			"description": "自動執行瀏覽器操作而無需核准",
+			"note": "注意：僅當模型支援電腦使用時適用"
+		},
+		"retry": {
+			"label": "始終重試失敗的 API 請求",
+			"description": "當伺服器傳回錯誤回應時自動重試失敗的 API 請求",
+			"delayLabel": "重試請求前的延遲"
+		},
+		"mcp": {
+			"label": "始終核准 MCP 工具",
+			"description": "在 MCP 伺服器檢視中啟用個別 MCP 工具的自動核准（需要此設定和工具的\"始終允許\"核取方塊）"
+		},
+		"modeSwitch": {
+			"label": "始終核准模式切換",
+			"description": "自動在不同模式之間切換而無需核准"
+		},
+		"subtasks": {
+			"label": "始終核准子任務的建立和完成",
+			"description": "允許建立和完成子任務而無需核准"
+		},
+		"execute": {
+			"label": "始終核准允許的執行操作",
+			"description": "自動執行允許的終端機命令而無需核准",
+			"allowedCommands": "允許的自動執行命令",
+			"allowedCommandsDescription": "當\"始終核准執行操作\"啟用時可以自動執行的命令前綴。添加 * 以允許所有命令（謹慎使用）。",
+			"commandPlaceholder": "輸入命令前綴（例如 'git '）",
+			"addButton": "新增"
+		}
+	},
+	"providers": {
+		"configProfile": "設定檔案",
+		"description": "描述",
+		"apiProvider": "API 提供者",
+		"openRouterApiKey": "OpenRouter API 金鑰",
+		"apiKeyStorageNotice": "API 金鑰安全儲存在 VSCode 的秘密儲存中",
+		"useCustomBaseUrl": "使用自訂基礎 URL",
+		"openRouterTransformsText": "將提示和訊息鏈壓縮到內容大小 (<a>OpenRouter 轉換</a>)"
+	},
+	"browser": {
+		"enable": {
+			"label": "啟用瀏覽器工具",
+			"description": "啟用後，Roo 可以在使用支援電腦使用的模型時使用瀏覽器與網站互動。"
+		},
+		"viewport": {
+			"label": "視窗大小",
+			"description": "選擇瀏覽器互動的視窗大小。這會影響網站的顯示方式和互動方式。",
+			"options": {
+				"largeDesktop": "大型桌面 (1280x800)",
+				"smallDesktop": "小型桌面 (900x600)",
+				"tablet": "平板 (768x1024)",
+				"mobile": "行動裝置 (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "截圖品質",
+			"description": "調整瀏覽器截圖的 WebP 品質。較高的值提供更清晰的截圖，但會增加 token 使用量。"
+		},
+		"remote": {
+			"label": "使用遠端瀏覽器連線",
+			"description": "連線到啟用遠端偵錯的 Chrome 瀏覽器 (--remote-debugging-port=9222)。",
+			"urlPlaceholder": "自訂 URL（例如 http://localhost:9222）",
+			"testButton": "測試連線",
+			"testingButton": "測試中...",
+			"instructions": "輸入 DevTools 協議主機地址或留空以自動探索本地 Chrome 實例。測試連線按鈕將嘗試使用自訂 URL（如果提供），或者如果欄位為空則自動探索。"
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "啟用自動檢查點",
+			"description": "啟用後，Roo 將在任務執行期間自動建立檢查點，使審核變更或返回到早期狀態變得容易。"
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "啟用音效",
+			"description": "啟用後，Roo 將為通知和事件播放音效。",
+			"volumeLabel": "音量"
+		}
+	},
+	"contextManagement": {
+		"description": "控制在 AI 的內容視窗中包含哪些資訊，影響 token 使用和回應品質",
+		"terminal": {
+			"label": "終端機輸出限制",
+			"description": "執行命令時在終端機輸出中包含的最大行數。超過時將從中間刪除行，節省 token。"
+		},
+		"openTabs": {
+			"label": "開啟分頁內容限制",
+			"description": "在內容中包含的 VSCode 開啟分頁的最大數量。較高的值提供更多內容，但會增加 token 使用量。"
+		},
+		"workspaceFiles": {
+			"label": "工作區檔案內容限制",
+			"description": "在目前工作目錄詳細資訊中包含的最大檔案數。較高的值提供更多內容，但會增加 token 使用量。"
+		},
+		"rooignore": {
+			"label": "在列表和搜尋中顯示 .rooignore 檔案",
+			"description": "啟用後，與 .rooignore 中模式匹配的檔案將在列表中顯示鎖定符號。禁用時，這些檔案將從檔案列表和搜尋中完全隱藏。"
+		}
+	},
+	"advanced": {
+		"rateLimit": {
+			"label": "速率限制",
+			"description": "API 請求之間的最小時間。"
+		},
+		"diff": {
+			"label": "啟用透過差異編輯",
+			"description": "啟用後，Roo 將能夠更快地編輯檔案，並將自動拒絕截斷的完整檔案寫入。與最新的 Claude 3.7 Sonnet 模型搭配最佳。",
+			"strategy": {
+				"label": "Diff 策略",
+				"options": {
+					"standard": "標準（單塊）",
+					"multiBlock": "實驗性：多塊 diff",
+					"unified": "實驗性：統一 diff"
+				},
+				"descriptions": {
+					"standard": "標準 diff 策略一次對一個程式碼塊應用變更。",
+					"unified": "統一 diff 策略採用多種方法應用差異並選擇最佳方法。",
+					"multiBlock": "多塊 diff 策略允許在一個請求中更新檔案中的多個程式碼塊。"
+				}
+			},
+			"matchPrecision": {
+				"label": "匹配精度",
+				"description": "此滑桿控制應用差異時程式碼部分必須匹配的精確度。較低的值允許更靈活的匹配，但會增加錯誤替換的風險。極其謹慎地使用低於 100% 的值。"
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "使用實驗性統一差異策略",
+			"description": "啟用實驗性統一差異策略。此策略可能減少由模型錯誤引起的重試次數，但可能導致意外行為或不正確的編輯。僅在您了解風險並願意仔細審查所有更改時才啟用。"
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "使用實驗性搜索和替換工具",
+			"description": "啟用實驗性搜索和替換工具，允許 Roo 在一個請求中替換搜索詞的多個實例。"
+		},
+		"INSERT_BLOCK": {
+			"name": "使用實驗性插入內容工具",
+			"description": "啟用實驗性插入內容工具，允許 Roo 在特定行號插入內容，無需創建差異。"
+		},
+		"POWER_STEERING": {
+			"name": "使用實驗性\"動力轉向\"模式",
+			"description": "啟用後，Roo 將更頻繁地提醒模型關於其當前模式定義的詳細信息。這將導致對角色定義和自定義指令的更強遵守，但每條消息將使用更多 token。"
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "使用實驗性多塊差異工具",
+			"description": "啟用後，Roo 將使用多塊差異工具。這將嘗試在一個請求中更新文件中的多個代碼塊。"
+		}
+	},
+	"temperature": {
+		"useCustom": "使用自訂溫度",
+		"description": "控制模型回應中的隨機性。",
+		"rangeDescription": "較高的值使輸出更隨機，較低的值使其更確定性。"
+	},
+	"modelInfo": {
+		"supportsImages": "支援圖像",
+		"noImages": "不支援圖像",
+		"supportsComputerUse": "支援電腦使用",
+		"noComputerUse": "不支援電腦使用",
+		"supportsPromptCache": "支援提示快取",
+		"noPromptCache": "不支援提示快取",
+		"maxOutput": "最大輸出",
+		"inputPrice": "輸入價格",
+		"outputPrice": "輸出價格",
+		"cacheReadsPrice": "快取讀取價格",
+		"cacheWritesPrice": "快取寫入價格",
+		"gemini": {
+			"freeRequests": "* 每分鐘免費 {{count}} 個請求。之後，計費取決於提示大小。",
+			"pricingDetails": "有關更多資訊，請參閱定價詳情。"
+		}
+	},
+	"modelPicker": {
+		"automaticFetch": "擴充功能會自動獲取 <serviceLink>{{serviceName}}</serviceLink> 上可用的最新模型列表。如果您不確定選擇哪個模型，Roo Code 與 <defaultModelLink>{{defaultModelId}}</defaultModelLink> 配合最佳。您還可以搜尋\"free\"以尋找目前可用的免費選項。"
+	},
+	"footer": {
+		"feedback": "如果您有任何問題或反饋，請隨時在 <githubLink>github.com/RooVetGit/Roo-Code</githubLink> 上提出問題或加入 <redditLink>reddit.com/r/RooCode</redditLink> 或 <discordLink>discord.gg/roocode</discordLink>",
+		"version": "Roo Code v{{version}}",
+		"telemetry": {
+			"label": "允許匿名錯誤和使用情況報告",
+			"description": "透過發送匿名使用資料和錯誤報告來幫助改進 Roo Code。絕不會發送程式碼、提示或個人資訊。有關更多詳細資訊，請參閱我們的隱私政策。"
+		},
+		"reset": {
+			"description": "重設擴充功能中的所有全域狀態和秘密儲存。",
+			"button": "重設"
+		}
+	}
+}

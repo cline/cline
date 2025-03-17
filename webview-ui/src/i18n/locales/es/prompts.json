@@ -18,7 +18,14 @@
 		"builtInModesText": "Las herramientas para modos integrados no se pueden modificar",
 		"editTools": "Editar herramientas",
 		"doneEditing": "Terminar edición",
-		"allowedFiles": "Archivos permitidos:"
+		"allowedFiles": "Archivos permitidos:",
+		"toolNames": {
+			"read": "Leer archivos",
+			"edit": "Editar archivos",
+			"browser": "Usar navegador",
+			"command": "Ejecutar comandos",
+			"mcp": "Usar MCP"
+		}
 	},
 	"roleDefinition": {
 		"title": "Definición de rol",

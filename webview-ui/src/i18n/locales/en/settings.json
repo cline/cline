@@ -1,0 +1,228 @@
+{
+	"common": {
+		"save": "Save",
+		"done": "Done",
+		"cancel": "Cancel",
+		"reset": "Reset"
+	},
+	"header": {
+		"title": "Settings",
+		"saveButtonTooltip": "Save changes",
+		"nothingChangedTooltip": "Nothing changed",
+		"doneButtonTooltip": "Discard unsaved changes and close settings panel"
+	},
+	"unsavedChangesDialog": {
+		"title": "Unsaved Changes",
+		"description": "Do you want to discard changes and continue?",
+		"cancelButton": "Cancel",
+		"discardButton": "Discard changes"
+	},
+	"sections": {
+		"providers": "Providers",
+		"autoApprove": "Auto-Approve",
+		"browser": "Browser / Computer Use",
+		"checkpoints": "Checkpoints",
+		"notifications": "Notifications",
+		"contextManagement": "Context Management",
+		"advanced": "Advanced",
+		"experimental": "Experimental Features"
+	},
+	"autoApprove": {
+		"description": "Allow Roo to automatically perform operations without requiring approval. Enable these settings only if you fully trust the AI and understand the associated security risks.",
+		"readOnly": {
+			"label": "Always approve read-only operations",
+			"description": "When enabled, Roo will automatically view directory contents and read files without requiring you to click the Approve button."
+		},
+		"write": {
+			"label": "Always approve write operations",
+			"description": "Automatically create and edit files without requiring approval",
+			"delayLabel": "Delay after writes to allow diagnostics to detect potential problems"
+		},
+		"browser": {
+			"label": "Always approve browser actions",
+			"description": "Automatically perform browser actions without requiring approval",
+			"note": "Note: Only applies when the model supports computer use"
+		},
+		"retry": {
+			"label": "Always retry failed API requests",
+			"description": "Automatically retry failed API requests when server returns an error response",
+			"delayLabel": "Delay before retrying the request"
+		},
+		"mcp": {
+			"label": "Always approve MCP tools",
+			"description": "Enable auto-approval of individual MCP tools in the MCP Servers view (requires both this setting and the tool's individual \"Always allow\" checkbox)"
+		},
+		"modeSwitch": {
+			"label": "Always approve mode switching",
+			"description": "Automatically switch between different modes without requiring approval"
+		},
+		"subtasks": {
+			"label": "Always approve creation & completion of subtasks",
+			"description": "Allow creation and completion of subtasks without requiring approval"
+		},
+		"execute": {
+			"label": "Always approve allowed execute operations",
+			"description": "Automatically execute allowed terminal commands without requiring approval",
+			"allowedCommands": "Allowed Auto-Execute Commands",
+			"allowedCommandsDescription": "Command prefixes that can be auto-executed when \"Always approve execute operations\" is enabled. Add * to allow all commands (use with caution).",
+			"commandPlaceholder": "Enter command prefix (e.g., 'git ')",
+			"addButton": "Add"
+		}
+	},
+	"providers": {
+		"configProfile": "Configuration Profile",
+		"description": "Description",
+		"apiProvider": "API Provider",
+		"openRouterApiKey": "OpenRouter API Key",
+		"apiKeyStorageNotice": "API keys are stored securely in VSCode's Secret Storage",
+		"useCustomBaseUrl": "Use custom base URL",
+		"openRouterTransformsText": "Compress prompts and message chains to the context size (<a>OpenRouter Transforms</a>)"
+	},
+	"browser": {
+		"enable": {
+			"label": "Enable browser tool",
+			"description": "When enabled, Roo can use a browser to interact with websites when using models that support computer use."
+		},
+		"viewport": {
+			"label": "Viewport size",
+			"description": "Select the viewport size for browser interactions. This affects how websites are displayed and interacted with.",
+			"options": {
+				"largeDesktop": "Large Desktop (1280x800)",
+				"smallDesktop": "Small Desktop (900x600)",
+				"tablet": "Tablet (768x1024)",
+				"mobile": "Mobile (360x640)"
+			}
+		},
+		"screenshotQuality": {
+			"label": "Screenshot quality",
+			"description": "Adjust the WebP quality of browser screenshots. Higher values provide clearer screenshots but increase token usage."
+		},
+		"remote": {
+			"label": "Use remote browser connection",
+			"description": "Connect to a Chrome browser running with remote debugging enabled (--remote-debugging-port=9222).",
+			"urlPlaceholder": "Custom URL (e.g., http://localhost:9222)",
+			"testButton": "Test Connection",
+			"testingButton": "Testing...",
+			"instructions": "Enter the DevTools Protocol host address or leave empty to auto-discover Chrome local instances. The Test Connection button will try the custom URL if provided, or auto-discover if the field is empty."
+		}
+	},
+	"checkpoints": {
+		"enable": {
+			"label": "Enable automatic checkpoints",
+			"description": "When enabled, Roo will automatically create checkpoints during task execution, making it easy to review changes or revert to earlier states."
+		}
+	},
+	"notifications": {
+		"sound": {
+			"label": "Enable sound effects",
+			"description": "When enabled, Roo will play sound effects for notifications and events.",
+			"volumeLabel": "Volume"
+		}
+	},
+	"contextManagement": {
+		"description": "Control what information is included in the AI's context window, affecting token usage and response quality",
+		"terminal": {
+			"label": "Terminal output limit",
+			"description": "Maximum number of lines to include in terminal output when executing commands. When exceeded lines will be removed from the middle, saving tokens."
+		},
+		"openTabs": {
+			"label": "Open tabs context limit",
+			"description": "Maximum number of VSCode open tabs to include in context. Higher values provide more context but increase token usage."
+		},
+		"workspaceFiles": {
+			"label": "Workspace files context limit",
+			"description": "Maximum number of files to include in current working directory details. Higher values provide more context but increase token usage."
+		},
+		"rooignore": {
+			"label": "Show .rooignore'd files in lists and searches",
+			"description": "When enabled, files matching patterns in .rooignore will be shown in lists with a lock symbol. When disabled, these files will be completely hidden from file lists and searches."
+		}
+	},
+	"advanced": {
+		"rateLimit": {
+			"label": "Rate limit",
+			"description": "Minimum time between API requests."
+		},
+		"diff": {
+			"label": "Enable editing through diffs",
+			"description": "When enabled, Roo will be able to edit files more quickly and will automatically reject truncated full-file writes. Works best with the latest Claude 3.7 Sonnet model.",
+			"strategy": {
+				"label": "Diff strategy",
+				"options": {
+					"standard": "Standard (Single block)",
+					"multiBlock": "Experimental: Multi-block diff",
+					"unified": "Experimental: Unified diff"
+				},
+				"descriptions": {
+					"standard": "Standard diff strategy applies changes to a single code block at a time.",
+					"unified": "Unified diff strategy takes multiple approaches to applying diffs and chooses the best approach.",
+					"multiBlock": "Multi-block diff strategy allows updating multiple code blocks in a file in one request."
+				}
+			},
+			"matchPrecision": {
+				"label": "Match precision",
+				"description": "This slider controls how precisely code sections must match when applying diffs. Lower values allow more flexible matching but increase the risk of incorrect replacements. Use values below 100% with extreme caution."
+			}
+		}
+	},
+	"experimental": {
+		"warning": "⚠️",
+		"DIFF_STRATEGY": {
+			"name": "Use experimental unified diff strategy",
+			"description": "Enable the experimental unified diff strategy. This strategy might reduce the number of retries caused by model errors but may cause unexpected behavior or incorrect edits. Only enable if you understand the risks and are willing to carefully review all changes."
+		},
+		"SEARCH_AND_REPLACE": {
+			"name": "Use experimental search and replace tool",
+			"description": "Enable the experimental search and replace tool, allowing Roo to replace multiple instances of a search term in one request."
+		},
+		"INSERT_BLOCK": {
+			"name": "Use experimental insert content tool",
+			"description": "Enable the experimental insert content tool, allowing Roo to insert content at specific line numbers without needing to create a diff."
+		},
+		"POWER_STEERING": {
+			"name": "Use experimental \"power steering\" mode",
+			"description": "When enabled, Roo will remind the model about the details of its current mode definition more frequently. This will lead to stronger adherence to role definitions and custom instructions, but will use more tokens per message."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Use experimental multi block diff tool",
+			"description": "When enabled, Roo will use multi block diff tool. This will try to update multiple code blocks in the file in one request."
+		}
+	},
+	"temperature": {
+		"useCustom": "Use custom temperature",
+		"description": "Controls randomness in the model's responses.",
+		"rangeDescription": "Higher values make output more random, lower values make it more deterministic."
+	},
+	"modelInfo": {
+		"supportsImages": "Supports images",
+		"noImages": "Does not support images",
+		"supportsComputerUse": "Supports computer use",
+		"noComputerUse": "Does not support computer use",
+		"supportsPromptCache": "Supports prompt caching",
+		"noPromptCache": "Does not support prompt caching",
+		"maxOutput": "Max output",
+		"inputPrice": "Input price",
+		"outputPrice": "Output price",
+		"cacheReadsPrice": "Cache reads price",
+		"cacheWritesPrice": "Cache writes price",
+		"gemini": {
+			"freeRequests": "* Free up to {{count}} requests per minute. After that, billing depends on prompt size.",
+			"pricingDetails": "For more info, see pricing details."
+		}
+	},
+	"modelPicker": {
+		"automaticFetch": "The extension automatically fetches the latest list of models available on <serviceLink>{{serviceName}}</serviceLink>. If you're unsure which model to choose, Roo Code works best with <defaultModelLink>{{defaultModelId}}</defaultModelLink>. You can also try searching \"free\" for no-cost options currently available."
+	},
+	"footer": {
+		"feedback": "If you have any questions or feedback, feel free to open an issue at <githubLink>github.com/RooVetGit/Roo-Code</githubLink> or join <redditLink>reddit.com/r/RooCode</redditLink> or <discordLink>discord.gg/roocode</discordLink>",
+		"version": "Roo Code v{{version}}",
+		"telemetry": {
+			"label": "Allow anonymous error and usage reporting",
+			"description": "Help improve Roo Code by sending anonymous usage data and error reports. No code, prompts, or personal information is ever sent. See our privacy policy for more details."
+		},
+		"reset": {
+			"description": "Reset all global state and secret storage in the extension.",
+			"button": "Reset"
+		}
+	}
+}
