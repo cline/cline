@@ -94,19 +94,25 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	}, [isTextExpanded, windowHeight])
 
 	useEffect(() => {
-		if (textRef.current && textContainerRef.current) {
-			let textContainerHeight = textContainerRef.current.clientHeight
-			if (!textContainerHeight) {
-				textContainerHeight = textContainerRef.current.getBoundingClientRect().height
-			}
-			const isOverflowing = textRef.current.scrollHeight > textContainerHeight
-			// necessary to show see more button again if user resizes window to expand and then back to collapse
-			if (!isOverflowing) {
-				setIsTextExpanded(false)
-			}
-			setShowSeeMore(isOverflowing)
+		if (isTaskExpanded && textRef.current && textContainerRef.current) {
+			const textRefCurrent = textRef.current
+			const textContainerRefCurrent = textContainerRef.current
+
+			requestAnimationFrame(() => {
+				let textContainerHeight = textContainerRefCurrent.clientHeight
+				if (!textContainerHeight) {
+					textContainerHeight = textContainerRefCurrent.getBoundingClientRect().height
+				}
+				const isOverflowing = textRefCurrent.scrollHeight > textContainerHeight
+
+				// necessary to show see more button again if user resizes window to expand and then back to collapse
+				if (!isOverflowing) {
+					setIsTextExpanded(false)
+				}
+				setShowSeeMore(isOverflowing)
+			})
 		}
-	}, [task.text, windowWidth])
+	}, [task.text, windowWidth, isTaskExpanded])
 
 	const isCostAvailable = useMemo(() => {
 		const openAiCompatHasPricing =
