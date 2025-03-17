@@ -5,6 +5,7 @@ export interface RooCodeEvents {
 	taskStarted: [taskId: string]
 	taskPaused: [taskId: string]
 	taskUnpaused: [taskId: string]
+	taskAskResponded: [taskId: string]
 	taskAborted: [taskId: string]
 	taskSpawned: [taskId: string, childTaskId: string]
 }

@@ -89,6 +89,7 @@ export type ClineEvents = {
 	taskStarted: []
 	taskPaused: []
 	taskUnpaused: []
+	taskAskResponded: []
 	taskAborted: []
 	taskSpawned: [taskId: string]
 }
@@ -495,6 +496,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		this.askResponse = undefined
 		this.askResponseText = undefined
 		this.askResponseImages = undefined
+		this.emit("taskAskResponded")
 		return result
 	}
 
