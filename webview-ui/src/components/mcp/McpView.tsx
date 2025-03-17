@@ -103,7 +103,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 									vscode.postMessage({ type: "openMcpSettings" })
 								}}>
 								<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
-								Edit Global MCP
+								{t("mcp:editGlobalMCP")}
 							</VSCodeButton>
 							<VSCodeButton
 								appearance="secondary"
@@ -112,7 +112,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 									vscode.postMessage({ type: "openProjectMcpSettings" })
 								}}>
 								<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
-								{t("mcp:editSettings")}
+								{t("mcp:editProjectMCP")}
 							</VSCodeButton>
 						</div>
 					</>

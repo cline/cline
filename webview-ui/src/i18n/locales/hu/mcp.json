@@ -10,7 +10,8 @@
 		"title": "MCP szerver létrehozás engedélyezése",
 		"description": "Ha engedélyezve van, a Roo segíthet új MCP szerverek létrehozásában olyan parancsokkal, mint \"új eszköz hozzáadása...\". Ha nincs szükséged MCP szerverek létrehozására, kikapcsolhatod ezt, hogy csökkentsd a Roo token használatát."
 	},
-	"editSettings": "MCP beállítások szerkesztése",
+	"editGlobalMCP": "Globális MCP szerkesztése",
+	"editProjectMCP": "Projekt MCP szerkesztése",
 	"tool": {
 		"alwaysAllow": "Mindig engedélyez",
 		"parameters": "Paraméterek",

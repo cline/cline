@@ -10,7 +10,8 @@
 		"title": "Povolit vytváření MCP serverů",
 		"description": "Když je povoleno, Roo vám může pomoci vytvářet nové MCP servery pomocí příkazů jako \"přidat nový nástroj pro...\". Pokud nepotřebujete vytvářet MCP servery, můžete tuto funkci zakázat a snížit spotřebu tokenů Roo."
 	},
-	"editSettings": "Upravit nastavení MCP",
+	"editGlobalMCP": "Upravit globální MCP",
+	"editProjectMCP": "Upravit projektové MCP",
 	"tool": {
 		"alwaysAllow": "Vždy povolit",
 		"parameters": "Parametry",
