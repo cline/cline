@@ -68,6 +68,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		await this.provider.postMessageToWebview({ type: "invoke", invoke: "secondaryButtonClick" })
 	}
 
+	// TODO: Change this to `setApiConfiguration`.
 	public async setConfiguration(values: Partial<ConfigurationValues>) {
 		await this.provider.setValues(values)
 	}

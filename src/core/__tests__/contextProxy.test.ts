@@ -250,6 +250,67 @@ describe("ContextProxy", () => {
 		})
 	})
 
+	describe("setApiConfiguration", () => {
+		it("should clear old API configuration values and set new ones", async () => {
+			// Set up initial API configuration values
+			await proxy.updateGlobalState("apiModelId", "old-model")
+			await proxy.updateGlobalState("openAiBaseUrl", "https://old-url.com")
+			await proxy.updateGlobalState("modelTemperature", 0.7)
+
+			// Spy on setValues
+			const setValuesSpy = jest.spyOn(proxy, "setValues")
+
+			// Call setApiConfiguration with new configuration
+			await proxy.setApiConfiguration({
+				apiModelId: "new-model",
+				apiProvider: "anthropic",
+				// Note: openAiBaseUrl is not included in the new config
+			})
+
+			// Verify setValues was called with the correct parameters
+			// It should include undefined for openAiBaseUrl (to clear it)
+			// and the new values for apiModelId and apiProvider
+			expect(setValuesSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					apiModelId: "new-model",
+					apiProvider: "anthropic",
+					openAiBaseUrl: undefined,
+					modelTemperature: undefined,
+				}),
+			)
+
+			// Verify the state cache has been updated correctly
+			expect(proxy.getGlobalState("apiModelId")).toBe("new-model")
+			expect(proxy.getGlobalState("apiProvider")).toBe("anthropic")
+			expect(proxy.getGlobalState("openAiBaseUrl")).toBeUndefined()
+			expect(proxy.getGlobalState("modelTemperature")).toBeUndefined()
+		})
+
+		it("should handle empty API configuration", async () => {
+			// Set up initial API configuration values
+			await proxy.updateGlobalState("apiModelId", "old-model")
+			await proxy.updateGlobalState("openAiBaseUrl", "https://old-url.com")
+
+			// Spy on setValues
+			const setValuesSpy = jest.spyOn(proxy, "setValues")
+
+			// Call setApiConfiguration with empty configuration
+			await proxy.setApiConfiguration({})
+
+			// Verify setValues was called with undefined for all existing API config keys
+			expect(setValuesSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					apiModelId: undefined,
+					openAiBaseUrl: undefined,
+				}),
+			)
+
+			// Verify the state cache has been cleared
+			expect(proxy.getGlobalState("apiModelId")).toBeUndefined()
+			expect(proxy.getGlobalState("openAiBaseUrl")).toBeUndefined()
+		})
+	})
+
 	describe("resetAllState", () => {
 		it("should clear all in-memory caches", async () => {
 			// Setup initial state in caches

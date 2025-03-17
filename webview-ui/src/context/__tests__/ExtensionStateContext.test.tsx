@@ -1,4 +1,4 @@
-// npx jest webview-ui/src/context/__tests__/ExtensionStateContext.test.tsx
+// cd webview-ui && npx jest src/context/__tests__/ExtensionStateContext.test.tsx
 
 import { render, screen, act } from "@testing-library/react"
 
@@ -21,6 +21,24 @@ const TestComponent = () => {
 			</button>
 			<button data-testid="toggle-rooignore-button" onClick={() => setShowRooIgnoredFiles(!showRooIgnoredFiles)}>
 				Update Commands
+			</button>
+		</div>
+	)
+}
+
+// Test component for API configuration
+const ApiConfigTestComponent = () => {
+	const { apiConfiguration, setApiConfiguration } = useExtensionState()
+	return (
+		<div>
+			<div data-testid="api-configuration">{JSON.stringify(apiConfiguration)}</div>
+			<button
+				data-testid="update-api-config-button"
+				onClick={() => setApiConfiguration({ apiModelId: "new-model", apiProvider: "anthropic" })}>
+				Update API Config
+			</button>
+			<button data-testid="partial-update-button" onClick={() => setApiConfiguration({ modelTemperature: 0.7 })}>
+				Partial Update
 			</button>
 		</div>
 	)
@@ -96,6 +114,70 @@ describe("ExtensionStateContext", () => {
 
 		consoleSpy.mockRestore()
 	})
+
+	it("updates apiConfiguration through setApiConfiguration", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiConfigTestComponent />
+			</ExtensionStateContextProvider>,
+		)
+
+		const initialContent = screen.getByTestId("api-configuration").textContent!
+		expect(initialContent).toBeDefined()
+
+		act(() => {
+			screen.getByTestId("update-api-config-button").click()
+		})
+
+		const updatedContent = screen.getByTestId("api-configuration").textContent!
+		const updatedConfig = JSON.parse(updatedContent || "{}")
+
+		expect(updatedConfig).toEqual(
+			expect.objectContaining({
+				apiModelId: "new-model",
+				apiProvider: "anthropic",
+			}),
+		)
+	})
+
+	it("correctly merges partial updates to apiConfiguration", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiConfigTestComponent />
+			</ExtensionStateContextProvider>,
+		)
+
+		// First set the initial configuration
+		act(() => {
+			screen.getByTestId("update-api-config-button").click()
+		})
+
+		// Verify initial update
+		const initialContent = screen.getByTestId("api-configuration").textContent!
+		const initialConfig = JSON.parse(initialContent || "{}")
+		expect(initialConfig).toEqual(
+			expect.objectContaining({
+				apiModelId: "new-model",
+				apiProvider: "anthropic",
+			}),
+		)
+
+		// Now perform a partial update
+		act(() => {
+			screen.getByTestId("partial-update-button").click()
+		})
+
+		// Verify that the partial update was merged with the existing configuration
+		const updatedContent = screen.getByTestId("api-configuration").textContent!
+		const updatedConfig = JSON.parse(updatedContent || "{}")
+		expect(updatedConfig).toEqual(
+			expect.objectContaining({
+				apiModelId: "new-model", // Should retain this from previous update
+				apiProvider: "anthropic", // Should retain this from previous update
+				modelTemperature: 0.7, // Should add this from partial update
+			}),
+		)
+	})
 })
 
 describe("mergeExtensionState", () => {
@@ -125,19 +207,35 @@ describe("mergeExtensionState", () => {
 		const prevState: ExtensionState = {
 			...baseState,
 			apiConfiguration: { modelMaxTokens: 1234, modelMaxThinkingTokens: 123 },
+			experiments: {
+				experimentalDiffStrategy: true,
+				search_and_replace: true,
+				insert_content: true,
+			} as Record<ExperimentId, boolean>,
 		}
 
 		const newState: ExtensionState = {
 			...baseState,
 			apiConfiguration: { modelMaxThinkingTokens: 456, modelTemperature: 0.3 },
+			experiments: {
+				powerSteering: true,
+				multi_search_and_replace: true,
+			} as Record<ExperimentId, boolean>,
 		}
 
 		const result = mergeExtensionState(prevState, newState)
 
 		expect(result.apiConfiguration).toEqual({
-			modelMaxTokens: 1234,
 			modelMaxThinkingTokens: 456,
 			modelTemperature: 0.3,
+		})
+
+		expect(result.experiments).toEqual({
+			experimentalDiffStrategy: true,
+			search_and_replace: true,
+			insert_content: true,
+			powerSteering: true,
+			multi_search_and_replace: true,
 		})
 	})
 })
