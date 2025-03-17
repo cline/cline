@@ -1,0 +1,14 @@
+{
+	"greeting": "Xin chào, tôi là Roo!",
+	"introduction": "Tôi có thể thực hiện nhiều loại nhiệm vụ nhờ vào những đột phá mới nhất trong khả năng lập trình dạng đại lý và quyền truy cập vào các công cụ cho phép tôi tạo & chỉnh sửa tệp, khám phá các dự án phức tạp, sử dụng trình duyệt và thực thi lệnh terminal (với sự cho phép của bạn, tất nhiên). Tôi thậm chí có thể sử dụng MCP để tạo công cụ mới và mở rộng khả năng của mình.",
+	"notice": "Để bắt đầu, tiện ích mở rộng này cần một nhà cung cấp API.",
+	"start": "Bắt đầu thôi!",
+	"telemetry": {
+		"title": "Giúp cải thiện Roo Code",
+		"anonymousTelemetry": "Gửi dữ liệu lỗi và sử dụng ẩn danh để giúp chúng tôi sửa lỗi và cải thiện tiện ích mở rộng. Không bao giờ gửi mã, lời nhắc hoặc thông tin cá nhân.",
+		"changeSettings": "Bạn luôn có thể thay đổi điều này ở cuối phần cài đặt",
+		"settings": "cài đặt",
+		"allow": "Cho phép",
+		"deny": "Từ chối"
+	}
+}
