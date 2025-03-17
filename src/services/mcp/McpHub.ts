@@ -338,11 +338,20 @@ export class McpHub {
 					console.error(`Server "${name}" stderr:`, errorOutput)
 					const connection = this.connections.find((conn) => conn.server.name === name)
 					if (connection) {
-						// NOTE: we do not set server status to "disconnected" because stderr logs do not necessarily mean the server crashed or disconnected, it could just be informational. In fact when the server first starts up, it immediately logs "<name> server running on stdio" to stderr.
-						this.appendErrorMessage(connection, errorOutput)
-						// Only need to update webview right away if it's already disconnected
-						if (connection.server.status === "disconnected") {
-							await this.notifyWebviewOfServerChanges()
+						// Filter out normal startup messages that appear in stderr
+						const isStartupMessage =
+							errorOutput.includes("server running") ||
+							errorOutput.includes("MCP server running") ||
+							errorOutput.includes('mode: "stdio"')
+
+						// Only append to error message if it's not a startup message
+						if (!isStartupMessage) {
+							// NOTE: we do not set server status to "disconnected" because stderr logs do not necessarily mean the server crashed or disconnected, it could just be informational.
+							this.appendErrorMessage(connection, errorOutput)
+							// Only need to update webview right away if it's already disconnected
+							if (connection.server.status === "disconnected") {
+								await this.notifyWebviewOfServerChanges()
+							}
 						}
 					}
 				})
@@ -526,13 +535,15 @@ export class McpHub {
 		if (config) {
 			vscode.window.showInformationMessage(`Restarting ${serverName} MCP server...`)
 			connection.server.status = "connecting"
-			connection.server.error = ""
+			connection.server.error = "" // Clear any previous error messages
 			await this.notifyWebviewOfServerChanges()
 			await delay(500) // artificial delay to show user that server is restarting
 			try {
+				// Save the original source before deleting the connection
+				const source = connection.server.source || "global"
 				await this.deleteConnection(serverName)
-				// Try to connect again using existing config
-				await this.connectToServer(serverName, JSON.parse(config))
+				// Try to connect again using existing config and preserve the original source
+				await this.connectToServer(serverName, JSON.parse(config), source)
 				vscode.window.showInformationMessage(`${serverName} MCP server connected`)
 			} catch (error) {
 				console.error(`Failed to restart connection for ${serverName}:`, error)
@@ -692,16 +703,30 @@ export class McpHub {
 
 	public async deleteServer(serverName: string): Promise<void> {
 		try {
-			const settingsPath = await this.getMcpSettingsFilePath()
+			// Find the connection to determine if it's a global or project server
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			const isProjectServer = connection?.server.source === "project"
 
-			// Ensure the settings file exists and is accessible
-			try {
-				await fs.access(settingsPath)
-			} catch (error) {
-				throw new Error("Settings file not accessible")
+			// Determine which config file to modify
+			let configPath: string
+			if (isProjectServer) {
+				const projectMcpPath = await this.getProjectMcpPath()
+				if (!projectMcpPath) {
+					throw new Error("Project MCP configuration file not found")
+				}
+				configPath = projectMcpPath
+			} else {
+				configPath = await this.getMcpSettingsFilePath()
 			}
 
-			const content = await fs.readFile(settingsPath, "utf-8")
+			// Ensure the config file exists and is accessible
+			try {
+				await fs.access(configPath)
+			} catch (error) {
+				throw new Error(`Configuration file not accessible: ${configPath}`)
+			}
+
+			const content = await fs.readFile(configPath, "utf-8")
 			const config = JSON.parse(content)
 
 			// Validate the config structure
@@ -722,10 +747,17 @@ export class McpHub {
 					mcpServers: config.mcpServers,
 				}
 
-				await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
+				await fs.writeFile(configPath, JSON.stringify(updatedConfig, null, 2))
 
-				// Update server connections
-				await this.updateServerConnections(config.mcpServers)
+				// Delete the connection
+				await this.deleteConnection(serverName)
+
+				// If it's a project server, update project servers, otherwise update global servers
+				if (isProjectServer) {
+					await this.updateProjectMcpServers()
+				} else {
+					await this.updateServerConnections(config.mcpServers)
+				}
 
 				vscode.window.showInformationMessage(`Deleted MCP server: ${serverName}`)
 			} else {
