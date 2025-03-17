@@ -163,7 +163,7 @@ class CheckpointTracker {
 
 			console.info(`Creating checkpoint commit with message: ${commitMessage}`)
 			const result = await git.commit(commitMessage, {
-				"--allow-empty": null,
+				"--allow-empty --no-verify": null,
 			})
 			const commitHash = result.commit || ""
 			console.warn(`Checkpoint commit created.`)
