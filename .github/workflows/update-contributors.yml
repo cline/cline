@@ -49,7 +49,6 @@ jobs:
           commit-message: "docs: update contributors list [skip ci]"
           committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
           branch: update-contributors
-          branch-suffix: timestamp
           delete-branch: true
           title: "Update contributors list"
           body: |
