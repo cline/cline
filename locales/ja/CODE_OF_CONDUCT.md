@@ -68,7 +68,7 @@ support@roocode.com でプロジェクトチームに連絡することで報告
 
 ## 帰属
 
-この行動規範は、[Clineのバージョン][cline_coc]の[Contributor Covenant][homepage]、バージョン1.4から適応されています。
+この行動規範は、[Clineのバージョン][cline_coc]の[Contributor Covenant][homepage]、バージョン1.4から適用されています。
 https://www.contributor-covenant.org/version/1/4/code-of-conduct.html から入手可能です。
 
 [cline_coc]: https://github.com/cline/cline/blob/main/CODE_OF_CONDUCT.md
