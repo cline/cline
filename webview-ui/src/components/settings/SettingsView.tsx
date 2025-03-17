@@ -1,10 +1,21 @@
-import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
-import { memo, useEffect, useState } from "react"
+import {
+	VSCodeButton,
+	VSCodeCheckbox,
+	VSCodeLink,
+	VSCodeTextArea,
+	VSCodePanels,
+	VSCodePanelTab,
+	VSCodePanelView,
+} from "@vscode/webview-ui-toolkit/react"
+import { memo, useCallback, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import SettingsButton from "../common/SettingsButton"
 import ApiOptions from "./ApiOptions"
+import { TabButton } from "../mcp/McpView"
+import { useEvent } from "react-use"
+import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 const { IS_DEV } = process.env
 
 type SettingsViewProps = {
@@ -20,27 +31,51 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		openRouterModels,
 		telemetrySetting,
 		setTelemetrySetting,
+		chatSettings,
+		planActSeparateModelsSetting,
+		setPlanActSeparateModelsSetting,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
+	const [pendingTabChange, setPendingTabChange] = useState<"plan" | "act" | null>(null)
 
-	const handleSubmit = () => {
+	const handleSubmit = (withoutDone: boolean = false) => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
-		setApiErrorMessage(apiValidationResult)
-		setModelIdErrorMessage(modelIdValidationResult)
+		// setApiErrorMessage(apiValidationResult)
+		// setModelIdErrorMessage(modelIdValidationResult)
 
+		let apiConfigurationToSubmit = apiConfiguration
 		if (!apiValidationResult && !modelIdValidationResult) {
-			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			vscode.postMessage({
-				type: "customInstructions",
-				text: customInstructions,
-			})
-			vscode.postMessage({
-				type: "telemetrySetting",
-				text: telemetrySetting,
-			})
+			// vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
+			// vscode.postMessage({
+			// 	type: "customInstructions",
+			// 	text: customInstructions,
+			// })
+			// vscode.postMessage({
+			// 	type: "telemetrySetting",
+			// 	text: telemetrySetting,
+			// })
+			// console.log("handleSubmit", withoutDone)
+			// vscode.postMessage({
+			// 	type: "separateModeSetting",
+			// 	text: separateModeSetting,
+			// })
+		} else {
+			// if the api configuration is invalid, we don't save it
+			apiConfigurationToSubmit = undefined
+		}
+
+		vscode.postMessage({
+			type: "updateSettings",
+			planActSeparateModelsSetting,
+			customInstructionsSetting: customInstructions,
+			telemetrySetting,
+			apiConfiguration: apiConfigurationToSubmit,
+		})
+
+		if (!withoutDone) {
 			onDone()
 		}
 	}
@@ -52,18 +87,49 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 	// validate as soon as the component is mounted
 	/*
-	useEffect will use stale values of variables if they are not included in the dependency array. so trying to use useEffect with a dependency array of only one value for example will use any other variables' old values. In most cases you don't want this, and should opt to use react-use hooks.
-	
-	useEffect(() => {
-		// uses someVar and anotherVar
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [someVar])
-
+    useEffect will use stale values of variables if they are not included in the dependency array. 
+    so trying to use useEffect with a dependency array of only one value for example will use any 
+    other variables' old values. In most cases you don't want this, and should opt to use react-use 
+    hooks.
+    
+        // uses someVar and anotherVar
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [someVar])
 	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
-	*/
+    */
+
+	const handleMessage = useCallback(
+		(event: MessageEvent) => {
+			const message: ExtensionMessage = event.data
+			switch (message.type) {
+				case "didUpdateSettings":
+					if (pendingTabChange) {
+						vscode.postMessage({
+							type: "togglePlanActMode",
+							chatSettings: {
+								mode: pendingTabChange,
+							},
+						})
+						setPendingTabChange(null)
+					}
+					break
+			}
+		},
+		[pendingTabChange],
+	)
+
+	useEvent("message", handleMessage)
 
 	const handleResetState = () => {
 		vscode.postMessage({ type: "resetState" })
+	}
+
+	const handleTabChange = (tab: "plan" | "act") => {
+		if (tab === chatSettings.mode) {
+			return
+		}
+		setPendingTabChange(tab)
+		handleSubmit(true)
 	}
 
 	return (
@@ -84,11 +150,11 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					display: "flex",
 					justifyContent: "space-between",
 					alignItems: "center",
-					marginBottom: "17px",
+					marginBottom: "13px",
 					paddingRight: 17,
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
-				<VSCodeButton onClick={handleSubmit}>Done</VSCodeButton>
+				<VSCodeButton onClick={() => handleSubmit(false)}>Done</VSCodeButton>
 			</div>
 			<div
 				style={{
@@ -98,13 +164,50 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					display: "flex",
 					flexDirection: "column",
 				}}>
-				<div style={{ marginBottom: 5 }}>
+				{/* Tabs container */}
+				{planActSeparateModelsSetting ? (
+					<div
+						style={{
+							border: "1px solid var(--vscode-panel-border)",
+							borderRadius: "4px",
+							padding: "10px",
+							marginBottom: "20px",
+							background: "var(--vscode-panel-background)",
+						}}>
+						<div
+							style={{
+								display: "flex",
+								gap: "1px",
+								marginBottom: "10px",
+								marginTop: -8,
+								borderBottom: "1px solid var(--vscode-panel-border)",
+							}}>
+							<TabButton isActive={chatSettings.mode === "plan"} onClick={() => handleTabChange("plan")}>
+								Plan Mode
+							</TabButton>
+							<TabButton isActive={chatSettings.mode === "act"} onClick={() => handleTabChange("act")}>
+								Act Mode
+							</TabButton>
+						</div>
+
+						{/* Content container */}
+						<div style={{ marginBottom: -12 }}>
+							<ApiOptions
+								key={chatSettings.mode}
+								showModelOptions={true}
+								apiErrorMessage={apiErrorMessage}
+								modelIdErrorMessage={modelIdErrorMessage}
+							/>
+						</div>
+					</div>
+				) : (
 					<ApiOptions
+						key={"single"}
 						showModelOptions={true}
 						apiErrorMessage={apiErrorMessage}
 						modelIdErrorMessage={modelIdErrorMessage}
 					/>
-				</div>
+				)}
 
 				<div style={{ marginBottom: 5 }}>
 					<VSCodeTextArea
@@ -129,6 +232,27 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				<div style={{ marginBottom: 5 }}>
 					<VSCodeCheckbox
 						style={{ marginBottom: "5px" }}
+						checked={planActSeparateModelsSetting}
+						onChange={(e: any) => {
+							const checked = e.target.checked === true
+							setPlanActSeparateModelsSetting(checked)
+						}}>
+						Use different models for Plan and Act modes
+					</VSCodeCheckbox>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be
+						helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeCheckbox
+						style={{ marginBottom: "5px" }}
 						checked={telemetrySetting === "enabled"}
 						onChange={(e: any) => {
 							const checked = e.target.checked === true
@@ -143,10 +267,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						Help improve Cline by sending anonymous usage data and error reports. No code, prompts, or personal
-						information is ever sent. See our{" "}
-						<VSCodeLink
-							href="https://github.com/cline/cline/blob/main/docs/PRIVACY.md"
-							style={{ fontSize: "inherit" }}>
+						information are ever sent. See our{" "}
+						<VSCodeLink href="https://docs.cline.bot/more-info/telemetry" style={{ fontSize: "inherit" }}>
+							telemetry overview
+						</VSCodeLink>{" "}
+						and{" "}
+						<VSCodeLink href="https://cline.bot/privacy" style={{ fontSize: "inherit" }}>
 							privacy policy
 						</VSCodeLink>{" "}
 						for more details.

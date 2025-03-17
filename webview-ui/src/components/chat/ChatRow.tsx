@@ -5,8 +5,10 @@ import { useEvent, useSize } from "react-use"
 import styled from "styled-components"
 import {
 	ClineApiReqInfo,
+	ClineAskQuestion,
 	ClineAskUseMcpServer,
 	ClineMessage,
+	ClinePlanModeResponse,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 	ExtensionMessage,
@@ -15,6 +17,7 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "../../../../src/s
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
+import { CheckmarkControl } from "../common/CheckmarkControl"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
@@ -23,10 +26,9 @@ import SuccessButton from "../common/SuccessButton"
 import Thumbnails from "../common/Thumbnails"
 import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
-import { highlightMentions } from "./TaskHeader"
 import CreditLimitError from "./CreditLimitError"
-import { CheckmarkControl } from "../common/CheckmarkControl"
-import McpResponseDisplay from "../mcp/McpResponseDisplay"
+import { OptionsButtons } from "./OptionsButtons"
+import { highlightMentions } from "./TaskHeader"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -790,8 +792,30 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					)
 				case "api_req_finished":
 					return null // we should never see this message type
+				// case "mcp_server_response":
+				// 	return <McpResponseDisplay responseText={message.text || ""} />
 				case "mcp_server_response":
-					return <McpResponseDisplay responseText={message.text || ""} />
+					return (
+						<>
+							<div style={{ paddingTop: 0 }}>
+								<div
+									style={{
+										marginBottom: "4px",
+										opacity: 0.8,
+										fontSize: "12px",
+										textTransform: "uppercase",
+									}}>
+									Response
+								</div>
+								<CodeAccordian
+									code={message.text}
+									language="json"
+									isExpanded={true}
+									onToggleExpand={onToggleExpand}
+								/>
+							</div>
+						</>
+					)
 				case "text":
 					return (
 						<div>
@@ -912,10 +936,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								style={{
 									display: "flex",
 									flexDirection: "column",
-									backgroundColor: "rgba(255, 191, 0, 0.1)",
+									backgroundColor: "var(--vscode-textBlockQuote-background)",
 									padding: 8,
 									borderRadius: 3,
 									fontSize: 12,
+									color: "var(--vscode-foreground)",
+									opacity: 0.8,
 								}}>
 								<div
 									style={{
@@ -924,24 +950,15 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										marginBottom: 4,
 									}}>
 									<i
-										className="codicon codicon-error"
+										className="codicon codicon-warning"
 										style={{
 											marginRight: 8,
-											fontSize: 18,
-											color: "#FFA500",
+											fontSize: 14,
+											color: "var(--vscode-descriptionForeground)",
 										}}></i>
-									<span
-										style={{
-											fontWeight: 500,
-											color: "#FFA500",
-										}}>
-										Diff Edit Failed
-									</span>
+									<span style={{ fontWeight: 500 }}>Diff Edit Mismatch</span>
 								</div>
-								<div>
-									This usually happens when the model uses search patterns that don't match anything in the
-									file. Retrying...
-								</div>
+								<div>The model used search patterns that don't match anything in the file. Retrying...</div>
 							</div>
 						</>
 					)
@@ -1183,6 +1200,19 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						return null // Don't render anything when we get a completion_result ask without text
 					}
 				case "followup":
+					let question: string | undefined
+					let options: string[] | undefined
+					let selected: string | undefined
+					try {
+						const parsedMessage = JSON.parse(message.text || "{}") as ClineAskQuestion
+						question = parsedMessage.question
+						options = parsedMessage.options
+						selected = parsedMessage.selected
+					} catch (e) {
+						// legacy messages would pass question directly
+						question = message.text
+					}
+
 					return (
 						<>
 							{title && (
@@ -1192,16 +1222,39 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								</div>
 							)}
 							<div style={{ paddingTop: 10 }}>
-								<Markdown markdown={message.text} />
+								<Markdown markdown={question} />
+								<OptionsButtons
+									options={options}
+									selected={selected}
+									isActive={isLast && lastModifiedMessage?.ask === "followup"}
+								/>
 							</div>
 						</>
 					)
-				case "plan_mode_response":
+				case "plan_mode_response": {
+					let response: string | undefined
+					let options: string[] | undefined
+					let selected: string | undefined
+					try {
+						const parsedMessage = JSON.parse(message.text || "{}") as ClinePlanModeResponse
+						response = parsedMessage.response
+						options = parsedMessage.options
+						selected = parsedMessage.selected
+					} catch (e) {
+						// legacy messages would pass response directly
+						response = message.text
+					}
 					return (
 						<div style={{}}>
-							<Markdown markdown={message.text} />
+							<Markdown markdown={response} />
+							<OptionsButtons
+								options={options}
+								selected={selected}
+								isActive={isLast && lastModifiedMessage?.ask === "plan_mode_response"}
+							/>
 						</div>
 					)
+				}
 				default:
 					return null
 			}
