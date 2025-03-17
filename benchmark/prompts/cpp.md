@@ -12,6 +12,6 @@ cmake -G "Unix Makefiles" -DEXERCISM_RUN_ALL_TESTS=1 ..
 make
 ```
 
-Note that running `make` will compile the tests and generate compile time errors. Once the errors are fixed, runningn `make` will build and run the tests.
+Note that running `make` will compile the tests and generate compile time errors. Once the errors are fixed, running `make` will build and run the tests.
 
 Do not alter the test file; it should be run as-is.
