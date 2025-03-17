@@ -197,6 +197,7 @@
 		}
 	},
 	"reasoning": {
-		"thinking": "विचार कर रहा है"
+		"thinking": "विचार कर रहा है",
+		"seconds": "{{count}} सेकंड"
 	}
 }

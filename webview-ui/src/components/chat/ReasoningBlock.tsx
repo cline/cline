@@ -83,7 +83,7 @@ export const ReasoningBlock = ({ content, elapsed, isCollapsed = false, onToggle
 					{elapsedRef.current > 1000 && (
 						<>
 							<CounterClockwiseClockIcon className="scale-80" />
-							<div>{Math.round(elapsedRef.current / 1000)}s</div>
+							<div>{t("reasoning.seconds", { count: Math.round(elapsedRef.current / 1000) })}</div>
 						</>
 					)}
 					{isCollapsed ? <CaretDownIcon /> : <CaretUpIcon />}

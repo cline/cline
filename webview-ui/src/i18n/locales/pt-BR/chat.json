@@ -197,6 +197,7 @@
 		}
 	},
 	"reasoning": {
-		"thinking": "Pensando"
+		"thinking": "Pensando",
+		"seconds": "{{count}}s"
 	}
 }

@@ -197,6 +197,7 @@
 		}
 	},
 	"reasoning": {
-		"thinking": "考え中"
+		"thinking": "考え中",
+		"seconds": "{{count}}秒"
 	}
 }
