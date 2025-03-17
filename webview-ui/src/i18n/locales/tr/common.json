@@ -1,1 +1,7 @@
-{}
+{
+	"number_format": {
+		"thousand_suffix": "B",
+		"million_suffix": "Mn",
+		"billion_suffix": "Mr"
+	}
+}

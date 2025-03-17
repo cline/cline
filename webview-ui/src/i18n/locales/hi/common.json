@@ -1,1 +1,7 @@
-{}
+{
+	"number_format": {
+		"thousand_suffix": "ह",
+		"million_suffix": "लाख",
+		"billion_suffix": "अरब"
+	}
+}

@@ -1,1 +1,7 @@
-{}
+{
+	"number_format": {
+		"thousand_suffix": "천",
+		"million_suffix": "백만",
+		"billion_suffix": "십억"
+	}
+}
