@@ -2208,33 +2208,51 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	}> {
 		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
 		const historyItem = history.find((item) => item.id === id)
-		if (historyItem) {
-			const taskDirPath = path.join(this.contextProxy.globalStorageUri.fsPath, "tasks", id)
-			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
-			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
-			const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
-			if (fileExists) {
-				const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
-				return {
-					historyItem,
-					taskDirPath,
-					apiConversationHistoryFilePath,
-					uiMessagesFilePath,
-					apiConversationHistory,
-				}
-			}
+		if (!historyItem) {
+			throw new Error("Task not found in history")
 		}
-		// if we tried to get a task that doesn't exist, remove it from state
-		// FIXME: this seems to happen sometimes when the json file doesnt save to disk for some reason
-		await this.deleteTaskFromState(id)
-		throw new Error("Task not found")
+
+		const taskDirPath = path.join(this.contextProxy.globalStorageUri.fsPath, "tasks", id)
+		const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
+		const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
+
+		const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
+		if (!fileExists) {
+			// Instead of silently deleting, throw a specific error
+			throw new Error("TASK_FILES_MISSING")
+		}
+
+		const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
+		return {
+			historyItem,
+			taskDirPath,
+			apiConversationHistoryFilePath,
+			uiMessagesFilePath,
+			apiConversationHistory,
+		}
 	}
 
 	async showTaskWithId(id: string) {
 		if (id !== this.getCurrentCline()?.taskId) {
-			// Non-current task.
-			const { historyItem } = await this.getTaskWithId(id)
-			await this.initClineWithHistoryItem(historyItem) // Clears existing task.
+			try {
+				const { historyItem } = await this.getTaskWithId(id)
+				await this.initClineWithHistoryItem(historyItem)
+			} catch (error) {
+				if (error.message === "TASK_FILES_MISSING") {
+					const response = await vscode.window.showWarningMessage(
+						"This task's files are missing. Would you like to remove it from the task list?",
+						"Remove",
+						"Keep",
+					)
+
+					if (response === "Remove") {
+						await this.deleteTaskFromState(id)
+						await this.postStateToWebview()
+					}
+					return
+				}
+				throw error
+			}
 		}
 
 		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
@@ -2701,5 +2719,31 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		}
 
 		return properties
+	}
+
+	async validateTaskHistory() {
+		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
+		const validTasks: HistoryItem[] = []
+
+		for (const item of history) {
+			const taskDirPath = path.join(this.contextProxy.globalStorageUri.fsPath, "tasks", item.id)
+			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
+
+			if (await fileExistsAtPath(apiConversationHistoryFilePath)) {
+				validTasks.push(item)
+			}
+		}
+
+		if (validTasks.length !== history.length) {
+			await this.updateGlobalState("taskHistory", validTasks)
+			await this.postStateToWebview()
+
+			const removedCount = history.length - validTasks.length
+			if (removedCount > 0) {
+				await vscode.window.showInformationMessage(
+					`Cleaned up ${removedCount} task(s) with missing files from history.`,
+				)
+			}
+		}
 	}
 }
