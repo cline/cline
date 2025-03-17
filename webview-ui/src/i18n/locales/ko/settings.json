@@ -82,6 +82,7 @@
 		"useCustomBaseUrl": "사용자 정의 기본 URL 사용",
 		"requestyApiKey": "Requesty API 키",
 		"getRequestyApiKey": "Requesty API 키 받기",
+		"openRouterTransformsText": "프롬프트와 메시지 체인을 컨텍스트 크기로 압축 (<a>OpenRouter Transforms</a>)",
 		"anthropicApiKey": "Anthropic API 키",
 		"getAnthropicApiKey": "Anthropic API 키 받기",
 		"deepSeekApiKey": "DeepSeek API 키",

@@ -73,10 +73,111 @@
 		"configProfile": "Hồ sơ cấu hình",
 		"description": "Mô tả",
 		"apiProvider": "Nhà cung cấp API",
+		"model": "Mẫu",
 		"openRouterApiKey": "Khóa API OpenRouter",
+		"getOpenRouterApiKey": "Lấy khóa API OpenRouter",
 		"apiKeyStorageNotice": "Khóa API được lưu trữ an toàn trong Bộ lưu trữ bí mật của VSCode",
+		"glamaApiKey": "Khóa API Glama",
+		"getGlamaApiKey": "Lấy khóa API Glama",
 		"useCustomBaseUrl": "Sử dụng URL cơ sở tùy chỉnh",
-		"openRouterTransformsText": "Nén lời nhắc và chuỗi tin nhắn theo kích thước ngữ cảnh (<a>OpenRouter Transforms</a>)"
+		"requestyApiKey": "Khóa API Requesty",
+		"getRequestyApiKey": "Lấy khóa API Requesty",
+		"anthropicApiKey": "Khóa API Anthropic",
+		"getAnthropicApiKey": "Lấy khóa API Anthropic",
+		"deepSeekApiKey": "Khóa API DeepSeek",
+		"getDeepSeekApiKey": "Lấy khóa API DeepSeek",
+		"geminiApiKey": "Khóa API Gemini",
+		"getGeminiApiKey": "Lấy khóa API Gemini",
+		"openAiApiKey": "Khóa API OpenAI",
+		"openAiBaseUrl": "URL cơ sở",
+		"getOpenAiApiKey": "Lấy khóa API OpenAI",
+		"mistralApiKey": "Khóa API Mistral",
+		"getMistralApiKey": "Lấy khóa API Mistral / Codestral",
+		"codestralBaseUrl": "URL cơ sở Codestral (Tùy chọn)",
+		"codestralBaseUrlDesc": "Đặt URL thay thế cho mô hình Codestral.",
+		"awsCredentials": "Thông tin xác thực AWS",
+		"awsProfile": "Hồ sơ AWS",
+		"awsProfileName": "Tên hồ sơ AWS",
+		"awsAccessKey": "Khóa truy cập AWS",
+		"awsSecretKey": "Khóa bí mật AWS",
+		"awsSessionToken": "Token phiên AWS",
+		"awsRegion": "Vùng AWS",
+		"awsCrossRegion": "Sử dụng suy luận liên vùng",
+		"googleCloudSetup": {
+			"title": "Để sử dụng Google Cloud Vertex AI, bạn cần:",
+			"step1": "1. Tạo tài khoản Google Cloud, kích hoạt Vertex AI API và kích hoạt các mô hình Claude mong muốn.",
+			"step2": "2. Cài đặt Google Cloud CLI và cấu hình thông tin xác thực mặc định của ứng dụng.",
+			"step3": "3. Hoặc tạo tài khoản dịch vụ với thông tin xác thực."
+		},
+		"googleCloudCredentials": "Thông tin xác thực Google Cloud",
+		"googleCloudKeyFile": "Đường dẫn tệp khóa Google Cloud",
+		"googleCloudProjectId": "ID dự án Google Cloud",
+		"googleCloudRegion": "Vùng Google Cloud",
+		"lmStudio": {
+			"baseUrl": "URL cơ sở (tùy chọn)",
+			"modelId": "ID mô hình",
+			"speculativeDecoding": "Bật giải mã suy đoán",
+			"draftModelId": "ID mô hình nháp",
+			"draftModelDesc": "Mô hình nháp phải từ cùng một họ mô hình để giải mã suy đoán hoạt động chính xác.",
+			"selectDraftModel": "Chọn mô hình nháp",
+			"noModelsFound": "Không tìm thấy mô hình nháp nào. Vui lòng đảm bảo LM Studio đang chạy với chế độ máy chủ được bật.",
+			"description": "LM Studio cho phép bạn chạy các mô hình cục bộ trên máy tính của bạn. Để biết hướng dẫn về cách bắt đầu, xem <a>hướng dẫn nhanh</a> của họ. Bạn cũng sẽ cần khởi động tính năng <b>máy chủ cục bộ</b> của LM Studio để sử dụng nó với tiện ích mở rộng này. <span>Lưu ý:</span> Roo Code sử dụng các lời nhắc phức tạp và hoạt động tốt nhất với các mô hình Claude. Các mô hình kém mạnh hơn có thể không hoạt động như mong đợi."
+		},
+		"ollama": {
+			"baseUrl": "URL cơ sở (tùy chọn)",
+			"modelId": "ID mô hình",
+			"description": "Ollama cho phép bạn chạy các mô hình cục bộ trên máy tính của bạn. Để biết hướng dẫn về cách bắt đầu, xem hướng dẫn nhanh của họ.",
+			"warning": "Lưu ý: Roo Code sử dụng các lời nhắc phức tạp và hoạt động tốt nhất với các mô hình Claude. Các mô hình kém mạnh hơn có thể không hoạt động như mong đợi."
+		},
+		"openRouterTransformsText": "Nén lời nhắc và chuỗi tin nhắn theo kích thước ngữ cảnh (<a>OpenRouter Transforms</a>)",
+		"unboundApiKey": "Khóa API Unbound",
+		"getUnboundApiKey": "Lấy khóa API Unbound",
+		"humanRelay": {
+			"description": "Không cần khóa API, nhưng người dùng cần giúp sao chép và dán thông tin vào AI trò chuyện web.",
+			"instructions": "Trong quá trình sử dụng, một hộp thoại sẽ xuất hiện và tin nhắn hiện tại sẽ được tự động sao chép vào clipboard. Bạn cần dán chúng vào các phiên bản web của AI (như ChatGPT hoặc Claude), sau đó sao chép phản hồi của AI trở lại hộp thoại và nhấp vào nút xác nhận."
+		},
+		"customModel": {
+			"capabilities": "Cấu hình các khả năng và giá cả cho mô hình tương thích OpenAI tùy chỉnh của bạn. Hãy cẩn thận khi chỉ định khả năng của mô hình, vì chúng có thể ảnh hưởng đến cách Roo Code hoạt động.",
+			"maxTokens": {
+				"label": "Số token đầu ra tối đa",
+				"description": "Số lượng token tối đa mà mô hình có thể tạo ra trong một phản hồi. (Chỉ định -1 để cho phép máy chủ đặt số token tối đa.)"
+			},
+			"contextWindow": {
+				"label": "Kích thước cửa sổ ngữ cảnh",
+				"description": "Tổng số token (đầu vào + đầu ra) mà mô hình có thể xử lý."
+			},
+			"imageSupport": {
+				"label": "Hỗ trợ hình ảnh",
+				"description": "Mô hình này có khả năng xử lý và hiểu hình ảnh không?"
+			},
+			"computerUse": {
+				"label": "Sử dụng máy tính",
+				"description": "Mô hình này có khả năng tương tác với trình duyệt không? (ví dụ: Claude 3.7 Sonnet)."
+			},
+			"promptCache": {
+				"label": "Bộ nhớ đệm lời nhắc",
+				"description": "Mô hình này có khả năng lưu trữ lời nhắc trong bộ nhớ đệm không?"
+			},
+			"pricing": {
+				"input": {
+					"label": "Giá đầu vào",
+					"description": "Chi phí cho mỗi triệu token trong đầu vào/lời nhắc. Điều này ảnh hưởng đến chi phí gửi ngữ cảnh và hướng dẫn đến mô hình."
+				},
+				"output": {
+					"label": "Giá đầu ra",
+					"description": "Chi phí cho mỗi triệu token trong phản hồi của mô hình. Điều này ảnh hưởng đến chi phí của nội dung được tạo ra và hoàn thành."
+				},
+				"cacheReads": {
+					"label": "Giá đọc bộ nhớ đệm",
+					"description": "Chi phí cho mỗi triệu token khi đọc từ bộ nhớ đệm. Đây là giá được tính khi một phản hồi được lưu trong bộ nhớ đệm được truy xuất."
+				},
+				"cacheWrites": {
+					"label": "Giá ghi bộ nhớ đệm",
+					"description": "Chi phí cho mỗi triệu token khi ghi vào bộ nhớ đệm. Đây là giá được tính khi một lời nhắc được lưu vào bộ nhớ đệm lần đầu tiên."
+				}
+			},
+			"resetDefaults": "Đặt lại về mặc định"
+		}
 	},
 	"browser": {
 		"enable": {
@@ -205,6 +306,9 @@
 		"outputPrice": "Giá đầu ra",
 		"cacheReadsPrice": "Giá đọc bộ nhớ đệm",
 		"cacheWritesPrice": "Giá ghi bộ nhớ đệm",
+		"enableStreaming": "Bật streaming",
+		"useAzure": "Sử dụng Azure",
+		"azureApiVersion": "Đặt phiên bản API Azure",
 		"gemini": {
 			"freeRequests": "* Miễn phí đến {{count}} yêu cầu mỗi phút. Sau đó, thanh toán phụ thuộc vào kích thước lời nhắc.",
 			"pricingDetails": "Để biết thêm thông tin, xem chi tiết giá."
