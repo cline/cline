@@ -2545,7 +2545,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			writeDelayMs: stateValues.writeDelayMs ?? 1000,
 			terminalOutputLineLimit: stateValues.terminalOutputLineLimit ?? 500,
 			mode: stateValues.mode ?? defaultModeSlug,
-			language: stateValues.language || formatLanguage(vscode.env.language),
+			language: stateValues.language ?? formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,
 			enableMcpServerCreation: stateValues.enableMcpServerCreation ?? true,
 			alwaysApproveResubmit: stateValues.alwaysApproveResubmit ?? false,
