@@ -57,11 +57,21 @@ export class McpHub {
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
+	private _autoRestartOnChanges: boolean
 
 	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
+		this._autoRestartOnChanges = vscode.workspace.getConfiguration("cline.mcp").get<boolean>("autoRestartOnChanges", true)
 		this.watchMcpSettingsFile()
 		this.initializeMcpServers()
+
+		vscode.workspace.onDidChangeConfiguration((event) => {
+			if (event.affectsConfiguration("cline.mcp.autoRestartOnChanges")) {
+				this._autoRestartOnChanges = vscode.workspace
+					.getConfiguration("cline.mcp")
+					.get<boolean>("autoRestartOnChanges", true)
+			}
+		})
 	}
 
 	getServers(): McpServer[] {
@@ -386,6 +396,9 @@ export class McpHub {
 			})
 
 			watcher.on("change", () => {
+				if (!this._autoRestartOnChanges) {
+					return
+				}
 				console.log(`Detected change in ${filePath}. Restarting server ${name}...`)
 				this.restartConnection(name)
 			})

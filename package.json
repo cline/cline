@@ -157,6 +157,11 @@
 					"default": "full",
 					"description": "Controls MCP inclusion in prompts, reduces token usage if you only need access to certain functionality."
 				},
+				"cline.mcp.autoRestartOnChanges": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable or disable automatic restart of MCP servers when their files change."
+				},
 				"cline.enableCheckpoints": {
 					"type": "boolean",
 					"default": true,
