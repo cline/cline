@@ -281,6 +281,7 @@
 		"format:fix": "prettier . --write",
 		"test": "vscode-test",
 		"test:ci": "node scripts/test-ci.js",
+		"test:unit": "jest",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"dev:webview": "cd webview-ui && npm run dev",
 		"build:webview": "cd webview-ui && npm run build",
@@ -293,8 +294,10 @@
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.12",
+		"@jest/globals": "^29.7.0",
 		"@types/chai": "^5.0.1",
 		"@types/diff": "^5.2.1",
+		"@types/jest": "^29.5.14",
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
 		"@types/should": "^11.2.0",
@@ -308,10 +311,13 @@
 		"esbuild": "^0.25.0",
 		"eslint": "^8.57.0",
 		"husky": "^9.1.7",
+		"jest": "^29.7.0",
+		"jest-simple-dot-reporter": "^1.0.5",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
 		"should": "^13.2.3",
 		"sinon": "^19.0.2",
+		"ts-jest": "^29.3.0",
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
