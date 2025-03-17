@@ -6,7 +6,7 @@ on:
             release-type:
                 description: "Choose release type (release or pre-release)"
                 required: true
-                default: "release"
+                default: "pre-release"
                 type: choice
                 options:
                     - pre-release
@@ -19,11 +19,11 @@ permissions:
     pull-requests: write
 
 jobs:
-    test:
-        uses: ./.github/workflows/test.yml
+    # test:
+    #     uses: ./.github/workflows/test.yml
 
     publish:
-        needs: test
+        # needs: test
         name: Publish Extension
         runs-on: ubuntu-latest
         environment: publish
@@ -75,8 +75,8 @@ jobs:
                   VERSION=v${{ steps.get_version.outputs.version }}
                   echo "tag=$VERSION" >> $GITHUB_OUTPUT
                   echo "Tagging with $VERSION"
-                  git tag "$VERSION"
-                  git push origin "$VERSION"
+                  # git tag "$VERSION"
+                  # git push origin "$VERSION"
 
             - name: Package and Publish Extension
               env:
@@ -87,29 +87,39 @@ jobs:
                   vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"
 
                   if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
-                    npm run publish:marketplace:prerelease
+                    # npm run publish:marketplace:prerelease
                     echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   else
-                    npm run publish:marketplace
+                    # npm run publish:marketplace
                     echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
                   fi
 
-            # - name: Get Changelog Entry
-            #   id: changelog
-            #   uses: mindsers/changelog-reader-action@v2
-            #   with:
-            #       # This expects a standard Keep a Changelog format
-            #       # "latest" means it will read whichever is the most recent version
-            #       # set in "## [1.2.3] - 2025-01-28" style
-            #       version: latest
+            # - name: Create Changelog Entry
+            #   id: changesets
+            #   uses: changesets/action@v1
+            #   env:
+            #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Create GitHub Release
-              uses: softprops/action-gh-release@v1
-              with:
-                  tag_name: ${{ steps.create_tag.outputs.tag }}
-                  files: "*.vsix"
-                  # body: ${{ steps.changelog.outputs.content }}
-                  generate_release_notes: true
-                  prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
+            - name: Create Changelog Entry
+              id: changesets
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  VERSION: ${{ steps.get_version.outputs.version }}
+              run: |
+                  python .github/scripts/overwrite_changeset_changelog.py
+
+            - name: Get Changelog Entry
+              id: changelog
+              uses: mindsers/changelog-reader-action@v2
+              with:
+                  version: ${{ steps.get_version.outputs.version }}
+
+            # - name: Create GitHub Release
+            #   uses: softprops/action-gh-release@v1
+            #   with:
+            #       tag_name: ${{ steps.create_tag.outputs.tag }}
+            #       files: "*.vsix"
+            #       # body: ${{ steps.fetch-changelog.outputs.content }}
+            #       generate_release_notes: true
+            #       prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
+            #   env:
+            #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

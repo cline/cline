@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.7.1]
+
+-   Tests
+-   Tests
+-   Tests
+
 ## [3.7.0]
 
 -   Cline now displays selectable options when asking questions or presenting a plan, saving you from having to type out responses!

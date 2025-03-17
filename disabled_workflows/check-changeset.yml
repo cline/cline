@@ -18,7 +18,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout
-              uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+              uses: actions/checkout@v4
               with:
                   fetch-depth: 0
                   ref: ${{ github.event.pull_request.head.sha }}
