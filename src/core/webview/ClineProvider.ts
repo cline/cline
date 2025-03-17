@@ -549,8 +549,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "apiConfiguration":
 						if (message.apiConfiguration) {
-                await this.updateApiConfiguration(message.apiConfiguration)
-              }
+							await this.updateApiConfiguration(message.apiConfiguration)
+						}
 						await this.postStateToWebview()
 						break
 					case "autoApprovalSettings":
