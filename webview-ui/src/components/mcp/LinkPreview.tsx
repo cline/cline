@@ -414,7 +414,7 @@ class LinkPreview extends React.Component<
 // Create a wrapper component that memoizes the LinkPreview to prevent unnecessary re-renders
 const MemoizedLinkPreview = React.memo(
 	(props: LinkPreviewProps) => <LinkPreview {...props} />,
-	(prevProps, nextProps) => prevProps.url === nextProps.url // Only re-render if URL changes
+	(prevProps, nextProps) => prevProps.url === nextProps.url, // Only re-render if URL changes
 )
 
 // Wrap the LinkPreview component with an error boundary

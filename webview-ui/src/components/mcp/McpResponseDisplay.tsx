@@ -5,14 +5,14 @@ import { vscode } from "../../utils/vscode"
 import DOMPurify from "dompurify"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import { 
-	safeCreateUrl, 
-	isUrl, 
-	getSafeHostname, 
-	isLocalhostUrl, 
-	normalizeRelativeUrl, 
-	formatUrlForOpening, 
-	checkIfImageUrl 
+import {
+	safeCreateUrl,
+	isUrl,
+	getSafeHostname,
+	isLocalhostUrl,
+	normalizeRelativeUrl,
+	formatUrlForOpening,
+	checkIfImageUrl,
 } from "./McpRichUtil"
 
 // Maximum number of URLs to process in total, per response
@@ -353,7 +353,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					// Add text segment before this URL
 					if (index > lastIndex) {
 						segments.push(
-							<UrlText key={`segment-${segmentIndex++}`}>{responseText.substring(lastIndex, index)}</UrlText>
+							<UrlText key={`segment-${segmentIndex++}`}>{responseText.substring(lastIndex, index)}</UrlText>,
 						)
 					}
 
@@ -370,7 +370,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 							<div key={`embed-image-${url}-${segmentIndex++}`}>
 								{/* Use formatUrlForOpening for network calls but preserve original URL in display */}
 								<ImagePreview url={formatUrlForOpening(url)} />
-							</div>
+							</div>,
 						)
 						embedCount++
 						// console.log(`Added image embed for ${url}, embed count: ${embedCount}`);
@@ -386,7 +386,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 											{/* Already using formatUrlForOpening for link previews */}
 											<LinkPreview url={formatUrlForOpening(url)} />
 										</ErrorBoundary>
-									</div>
+									</div>,
 								)
 
 								embedCount++
@@ -408,7 +408,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 										overflow: "auto", // Allow scrolling if content overflows
 									}}>
 									Failed to create preview for: {url}
-								</div>
+								</div>,
 							)
 						}
 					}

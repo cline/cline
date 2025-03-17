@@ -794,7 +794,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 				case "api_req_finished":
 					return null // we should never see this message type
 				case "mcp_server_response":
-				 	return <McpResponseDisplay responseText={message.text || ""} />
+					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
 					return (
 						<div>
