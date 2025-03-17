@@ -29,6 +29,7 @@ const LANGUAGES: Record<string, string> = {
 	"pt-BR": "Português do Brasil",
 	ru: "Русский",
 	tr: "Türkçe",
+	vi: "Tiếng Việt",
 	"zh-CN": "简体中文",
 	"zh-TW": "繁體中文",
 }
