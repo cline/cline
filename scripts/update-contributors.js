@@ -3,6 +3,7 @@
 /**
  * This script fetches contributor data from GitHub and updates the README.md file
  * with a contributors section showing avatars and usernames.
+ * It also updates all localized README files in the locales directory.
  */
 
 const https = require("https")
@@ -12,6 +13,7 @@ const path = require("path")
 // GitHub API URL for fetching contributors
 const GITHUB_API_URL = "https://api.github.com/repos/RooVetGit/Roo-Code/contributors?per_page=100"
 const README_PATH = path.join(__dirname, "..", "README.md")
+const LOCALES_DIR = path.join(__dirname, "..", "locales")
 
 // Sentinel markers for contributors section
 const START_MARKER = "<!-- START CONTRIBUTORS SECTION - AUTO-GENERATED, DO NOT EDIT MANUALLY -->"
@@ -90,10 +92,6 @@ function formatContributorsSection(contributors) {
 
 	// Start building with Markdown table format
 	let markdown = `${START_MARKER}
-## Contributors
-
-Thanks to all our contributors who have helped make Roo Code better!
-
 `
 	// Number of columns in the table
 	const COLUMNS = 6
@@ -185,19 +183,107 @@ function writeReadme(content) {
 		})
 	})
 }
+/**
+ * Finds all localized README files in the locales directory
+ * @returns {Promise<string[]>} Array of README file paths
+ */
+function findLocalizedReadmes() {
+	return new Promise((resolve) => {
+		const readmeFiles = []
+
+		// Check if locales directory exists
+		if (!fs.existsSync(LOCALES_DIR)) {
+			// No localized READMEs found
+			return resolve(readmeFiles)
+		}
+
+		// Get all language subdirectories
+		const languageDirs = fs
+			.readdirSync(LOCALES_DIR, { withFileTypes: true })
+			.filter((dirent) => dirent.isDirectory())
+			.map((dirent) => dirent.name)
+
+		// Add all localized READMEs to the list
+		for (const langDir of languageDirs) {
+			const readmePath = path.join(LOCALES_DIR, langDir, "README.md")
+			if (fs.existsSync(readmePath)) {
+				readmeFiles.push(readmePath)
+			}
+		}
+
+		resolve(readmeFiles)
+	})
+}
+
+/**
+ * Updates a localized README file with contributors section
+ * @param {string} filePath Path to the README file
+ * @param {string} contributorsSection HTML for contributors section
+ * @returns {Promise<void>}
+ */
+function updateLocalizedReadme(filePath, contributorsSection) {
+	return new Promise((resolve, reject) => {
+		fs.readFile(filePath, "utf8", (err, readmeContent) => {
+			if (err) {
+				console.warn(`Warning: Could not read ${filePath}: ${err.message}`)
+				return resolve()
+			}
+
+			// Find existing contributors section markers
+			const startPos = readmeContent.indexOf(START_MARKER)
+			const endPos = readmeContent.indexOf(END_MARKER)
+
+			if (startPos === -1 || endPos === -1) {
+				console.warn(`Warning: Could not find contributors section markers in ${filePath}`)
+				console.warn(`Skipping update for ${filePath}`)
+				return resolve()
+			}
+
+			// Replace existing section, trimming whitespace at section boundaries
+			const beforeSection = readmeContent.substring(0, startPos).trimEnd()
+			const afterSection = readmeContent.substring(endPos + END_MARKER.length).trimStart()
+			// Ensure single newline separators between sections
+			const updatedContent = beforeSection + "\n\n" + contributorsSection.trim() + "\n\n" + afterSection
+
+			fs.writeFile(filePath, updatedContent, "utf8", (writeErr) => {
+				if (writeErr) {
+					console.warn(`Warning: Failed to update ${filePath}: ${writeErr.message}`)
+					return resolve()
+				}
+				console.log(`Updated ${filePath}`)
+				resolve()
+			})
+		})
+	})
+}
 
 /**
  * Main function that orchestrates the update process
  */
 async function main() {
 	try {
+		// Fetch contributors from GitHub
 		const contributors = await fetchContributors()
+		console.log(`Fetched ${contributors.length} contributors from GitHub`)
 
-		const readmeContent = await readReadme()
-
+		// Generate contributors section
 		const contributorsSection = formatContributorsSection(contributors)
 
+		// Update main README
+		const readmeContent = await readReadme()
 		await updateReadme(readmeContent, contributorsSection)
+		console.log(`Updated ${README_PATH}`)
+
+		// Find and update all localized README files
+		const localizedReadmes = await findLocalizedReadmes()
+		console.log(`Found ${localizedReadmes.length} localized README files`)
+
+		// Update each localized README
+		for (const readmePath of localizedReadmes) {
+			await updateLocalizedReadme(readmePath, contributorsSection)
+		}
+
+		console.log("Contributors section update complete")
 	} catch (error) {
 		console.error(`Error: ${error.message}`)
 		process.exit(1)
