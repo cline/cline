@@ -112,7 +112,8 @@ export class McpHub {
 		this.watchMcpSettingsFile()
 		this.watchProjectMcpFile()
 		this.setupWorkspaceFoldersWatcher()
-		this.initializeMcpServers()
+		this.initializeGlobalMcpServers()
+		this.initializeProjectMcpServers()
 	}
 
 	public setupWorkspaceFoldersWatcher(): void {
@@ -149,17 +150,20 @@ export class McpHub {
 	}
 
 	private async updateProjectMcpServers(): Promise<void> {
+		// Only clean up and initialize project servers, not affecting global servers
 		await this.cleanupProjectMcpServers()
 		await this.initializeProjectMcpServers()
 	}
 
 	private async cleanupProjectMcpServers(): Promise<void> {
+		// Only filter and delete project servers
 		const projectServers = this.connections.filter((conn) => conn.server.source === "project")
 
 		for (const conn of projectServers) {
 			await this.deleteConnection(conn.server.name)
 		}
 
+		// Notify webview of changes after cleanup
 		await this.notifyWebviewOfServerChanges()
 	}
 
@@ -299,7 +303,8 @@ export class McpHub {
 						return
 					}
 					try {
-						await this.updateServerConnections(result.data.mcpServers || {})
+						// Only update global servers when global settings change
+						await this.updateServerConnections(result.data.mcpServers || {}, "global")
 					} catch (error) {
 						this.showErrorMessage("Failed to process MCP settings change", error)
 					}
@@ -308,9 +313,9 @@ export class McpHub {
 		)
 	}
 
-	private async initializeMcpServers(): Promise<void> {
+	private async initializeGlobalMcpServers(): Promise<void> {
 		try {
-			// 1. Initialize global MCP servers
+			// Initialize global MCP servers
 			const settingsPath = await this.getMcpSettingsFilePath()
 			const content = await fs.readFile(settingsPath, "utf-8")
 			let config: any
@@ -340,15 +345,12 @@ export class McpHub {
 				// Still try to connect with the raw config, but show warnings
 				try {
 					await this.updateServerConnections(config.mcpServers || {}, "global")
-
-					// 2. Initialize project-level MCP servers
-					await this.initializeProjectMcpServers()
 				} catch (error) {
-					this.showErrorMessage("Failed to initialize MCP servers with raw config", error)
+					this.showErrorMessage("Failed to initialize global MCP servers with raw config", error)
 				}
 			}
 		} catch (error) {
-			this.showErrorMessage("Failed to initialize MCP servers", error)
+			this.showErrorMessage("Failed to initialize global MCP servers", error)
 		}
 	}
 
@@ -454,15 +456,22 @@ export class McpHub {
 				const stderrStream = transport.stderr
 				if (stderrStream) {
 					stderrStream.on("data", async (data: Buffer) => {
-						const errorOutput = data.toString()
-						console.error(`Server "${name}" stderr:`, errorOutput)
-						const connection = this.connections.find((conn) => conn.server.name === name)
-						if (connection) {
-							// NOTE: we do not set server status to "disconnected" because stderr logs do not necessarily mean the server crashed or disconnected, it could just be informational. In fact when the server first starts up, it immediately logs "<name> server running on stdio" to stderr.
-							this.appendErrorMessage(connection, errorOutput)
-							// Only need to update webview right away if it's already disconnected
-							if (connection.server.status === "disconnected") {
-								await this.notifyWebviewOfServerChanges()
+						const output = data.toString()
+
+						// Check if this is a startup info message or a real error
+						const isStartupInfo = output.includes("server running") || output.includes("MCP server running")
+
+						if (!isStartupInfo) {
+							// Only log and process real errors, ignore startup info messages
+							console.error(`Server "${name}" stderr:`, output)
+							const connection = this.connections.find((conn) => conn.server.name === name)
+							if (connection) {
+								// NOTE: we do not set server status to "disconnected" because stderr logs do not necessarily mean the server crashed or disconnected
+								this.appendErrorMessage(connection, output)
+								// Only need to update webview right away if it's already disconnected
+								if (connection.server.status === "disconnected") {
+									await this.notifyWebviewOfServerChanges()
+								}
 							}
 						}
 					})
@@ -630,7 +639,12 @@ export class McpHub {
 
 		// Update or add servers
 		for (const [name, config] of Object.entries(newServers)) {
-			const currentConnection = this.connections.find((conn) => conn.server.name === name)
+			// Only consider connections that match the current source
+			const currentConnection = this.connections.find(
+				(conn) =>
+					conn.server.name === name &&
+					(conn.server.source === source || (!conn.server.source && source === "global")),
+			)
 
 			// Validate and transform the config
 			let validatedConfig: z.infer<typeof ServerConfigSchema>
@@ -735,20 +749,49 @@ export class McpHub {
 	}
 
 	private async notifyWebviewOfServerChanges(): Promise<void> {
-		// servers should always be sorted in the order they are defined in the settings file
+		// Get global server order from settings file
 		const settingsPath = await this.getMcpSettingsFilePath()
 		const content = await fs.readFile(settingsPath, "utf-8")
 		const config = JSON.parse(content)
-		const serverOrder = Object.keys(config.mcpServers || {})
+		const globalServerOrder = Object.keys(config.mcpServers || {})
+
+		// Get project server order if available
+		const projectMcpPath = await this.getProjectMcpPath()
+		let projectServerOrder: string[] = []
+		if (projectMcpPath) {
+			try {
+				const projectContent = await fs.readFile(projectMcpPath, "utf-8")
+				const projectConfig = JSON.parse(projectContent)
+				projectServerOrder = Object.keys(projectConfig.mcpServers || {})
+			} catch (error) {
+				console.error("Failed to read project MCP config:", error)
+			}
+		}
+
+		// Sort connections: first global servers in their defined order, then project servers in their defined order
+		const sortedConnections = [...this.connections].sort((a, b) => {
+			const aIsGlobal = a.server.source === "global" || !a.server.source
+			const bIsGlobal = b.server.source === "global" || !b.server.source
+
+			// If both are global or both are project, sort by their respective order
+			if (aIsGlobal && bIsGlobal) {
+				const indexA = globalServerOrder.indexOf(a.server.name)
+				const indexB = globalServerOrder.indexOf(b.server.name)
+				return indexA - indexB
+			} else if (!aIsGlobal && !bIsGlobal) {
+				const indexA = projectServerOrder.indexOf(a.server.name)
+				const indexB = projectServerOrder.indexOf(b.server.name)
+				return indexA - indexB
+			}
+
+			// Global servers come before project servers
+			return aIsGlobal ? -1 : 1
+		})
+
+		// Send sorted servers to webview
 		await this.providerRef.deref()?.postMessageToWebview({
 			type: "mcpServers",
-			mcpServers: [...this.connections]
-				.sort((a, b) => {
-					const indexA = serverOrder.indexOf(a.server.name)
-					const indexB = serverOrder.indexOf(b.server.name)
-					return indexA - indexB
-				})
-				.map((connection) => connection.server),
+			mcpServers: sortedConnections.map((connection) => connection.server),
 		})
 	}
 
