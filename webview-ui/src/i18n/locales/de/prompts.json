@@ -36,12 +36,12 @@
 		"title": "Modusspezifische benutzerdefinierte Anweisungen (optional)",
 		"resetToDefault": "Auf Standardwerte zurücksetzen",
 		"description": "Fügen Sie verhaltensspezifische Richtlinien für den Modus {{modeName}} hinzu.",
-		"loadFromFile": "Benutzerdefinierte Anweisungen für den Modus {{modeName}} können auch aus .clinerules-{{modeSlug}} in Ihrem Arbeitsbereich geladen werden."
+		"loadFromFile": "Benutzerdefinierte Anweisungen für den Modus {{mode}} können auch aus <span>.clinerules-{{slug}}</span> in Ihrem Arbeitsbereich geladen werden."
 	},
 	"globalCustomInstructions": {
 		"title": "Benutzerdefinierte Anweisungen für alle Modi",
 		"description": "Diese Anweisungen gelten für alle Modi. Sie bieten einen grundlegenden Satz von Verhaltensweisen, die durch modusspezifische Anweisungen unten erweitert werden können.\nWenn Sie möchten, dass Roo in einer anderen Sprache als Ihrer Editor-Anzeigesprache ({{language}}) denkt und spricht, können Sie das hier angeben.",
-		"loadFromFile": "Anweisungen können auch aus .clinerules in Ihrem Arbeitsbereich geladen werden."
+		"loadFromFile": "Anweisungen können auch aus <span>.clinerules</span> in Ihrem Arbeitsbereich geladen werden."
 	},
 	"systemPrompt": {
 		"preview": "System-Prompt Vorschau",
@@ -100,7 +100,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "Erweitert: System-Prompt überschreiben",
-		"description": "Sie können den System-Prompt für diesen Modus vollständig ersetzen (abgesehen von der Rollendefinition und benutzerdefinierten Anweisungen), indem Sie eine Datei unter .roo/system-prompt-{{modeSlug}} in Ihrem Arbeitsbereich erstellen. Dies ist eine sehr fortgeschrittene Funktion, die eingebaute Schutzmaßnahmen und Konsistenzprüfungen umgeht (besonders bei der Werkzeugnutzung), also seien Sie vorsichtig!"
+		"description": "Sie können den System-Prompt für diesen Modus vollständig ersetzen (abgesehen von der Rollendefinition und benutzerdefinierten Anweisungen), indem Sie eine Datei unter <span>.roo/system-prompt-{{slug}}</span> in Ihrem Arbeitsbereich erstellen. Dies ist eine sehr fortgeschrittene Funktion, die eingebaute Schutzmaßnahmen und Konsistenzprüfungen umgeht (besonders bei der Werkzeugnutzung), also seien Sie vorsichtig!"
 	},
 	"createModeDialog": {
 		"title": "Neuen Modus erstellen",

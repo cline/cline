@@ -36,12 +36,12 @@
 		"title": "모드별 사용자 지정 지침 (선택 사항)",
 		"resetToDefault": "기본값으로 재설정",
 		"description": "{{modeName}} 모드에 대한 특정 행동 지침을 추가하세요.",
-		"loadFromFile": "{{modeName}} 모드에 대한 사용자 지정 지침은 작업 공간의 .clinerules-{{modeSlug}}에서도 로드할 수 있습니다."
+		"loadFromFile": "{{mode}} 모드에 대한 사용자 지정 지침은 작업 공간의 <span>.clinerules-{{slug}}</span>에서도 로드할 수 있습니다."
 	},
 	"globalCustomInstructions": {
 		"title": "모든 모드에 대한 사용자 지정 지침",
 		"description": "이 지침은 모든 모드에 적용됩니다. 아래의 모드별 지침으로 향상될 수 있는 기본 동작 세트를 제공합니다.\nRoo가 에디터 표시 언어({{language}})와 다른 언어로 생각하고 말하기를 원하시면, 여기에 지정할 수 있습니다.",
-		"loadFromFile": "지침은 작업 공간의 .clinerules에서도 로드할 수 있습니다."
+		"loadFromFile": "지침은 작업 공간의 <span>.clinerules</span>에서도 로드할 수 있습니다."
 	},
 	"systemPrompt": {
 		"preview": "시스템 프롬프트 미리보기",
@@ -100,7 +100,7 @@
 	},
 	"advancedSystemPrompt": {
 		"title": "고급: 시스템 프롬프트 재정의",
-		"description": "작업 공간의 .roo/system-prompt-{{modeSlug}}에 파일을 생성하여 이 모드의 시스템 프롬프트(역할 정의 및 사용자 지정 지침 제외)를 완전히 대체할 수 있습니다. 이는 내장된 안전 장치와 일관성 검사(특히 도구 사용 관련)를 우회하는 매우 고급 기능이므로 주의하세요!"
+		"description": "작업 공간의 <span>.roo/system-prompt-{{slug}}</span>에 파일을 생성하여 이 모드의 시스템 프롬프트(역할 정의 및 사용자 지정 지침 제외)를 완전히 대체할 수 있습니다. 이는 내장된 안전 장치와 일관성 검사(특히 도구 사용 관련)를 우회하는 매우 고급 기능이므로 주의하세요!"
 	},
 	"createModeDialog": {
 		"title": "새 모드 만들기",

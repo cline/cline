@@ -54,7 +54,7 @@
 		"prompt": "Prompt",
 		"enhance": {
 			"apiConfiguration": "Configuração de API",
-			"apiConfigDescription": "Você pode selecionar uma configuração de API para usar sempre para aprimorar prompts, ou simplesmente usar a que está atualmente selecionada",
+			"apiConfigDescription": "Você pode selecionar uma configuração de API para usar sempre para aprimorar prompts, ou simplesmente use o que está atualmente selecionado",
 			"useCurrentConfig": "Usar configuração de API atualmente selecionada",
 			"testPromptPlaceholder": "Digite um prompt para testar o aprimoramento",
 			"previewButton": "Visualizar aprimoramento do prompt"
@@ -62,35 +62,35 @@
 		"types": {
 			"ENHANCE": {
 				"label": "Aprimorar Prompt",
-				"description": "Use o aprimoramento de prompt para obter sugestões ou melhorias personalizadas para suas entradas. Isso garante que o Roo entenda sua intenção e forneça as melhores respostas possíveis. Disponível através do ícone ✨ no chat."
+				"description": "Use prompt enhancement to get tailored suggestions or improvements for your inputs. This ensures Roo understands your intent and provides the best possible responses. Available via the ✨ icon in chat."
 			},
 			"EXPLAIN": {
 				"label": "Explicar Código",
-				"description": "Obtenha explicações detalhadas de trechos de código, funções ou arquivos inteiros. Útil para entender código complexo ou aprender novos padrões. Disponível nas ações de código (ícone de lâmpada no editor) e no menu de contexto do editor (clique com o botão direito no código selecionado)."
+				"description": "Obtenha explicações detalhadas de trechos de código, funções ou arquivos inteiros. Useful for understanding complex code or learning new patterns. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
 			},
 			"FIX": {
 				"label": "Corrigir Problemas",
-				"description": "Obtenha ajuda para identificar e resolver bugs, erros ou problemas de qualidade de código. Fornece orientação passo a passo para corrigir problemas. Disponível nas ações de código (ícone de lâmpada no editor) e no menu de contexto do editor (clique com o botão direito no código selecionado)."
+				"description": "Obtenha ajuda para identificar e resolver bugs, erros ou code quality issues. Provides step-by-step guidance for fixing problems. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
 			},
 			"IMPROVE": {
 				"label": "Melhorar Código",
-				"description": "Receba sugestões para otimização de código, melhores práticas e melhorias arquitetônicas mantendo a funcionalidade. Disponível nas ações de código (ícone de lâmpada no editor) e no menu de contexto do editor (clique com o botão direito no código selecionado)."
+				"description": "Receba sugestões para code optimization, better practices e architectural improvements while maintaining functionality. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
 			},
 			"ADD_TO_CONTEXT": {
 				"label": "Adicionar ao Contexto",
-				"description": "Adicione contexto à sua tarefa ou conversa atual. Útil para fornecer informações adicionais ou esclarecimentos. Disponível nas ações de código (ícone de lâmpada no editor) e no menu de contexto do editor (clique com o botão direito no código selecionado)."
+				"description": "Adicione contexto à sua tarefa ou conversa atual. Useful for providing additional information or clarifications. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
 			},
 			"TERMINAL_ADD_TO_CONTEXT": {
 				"label": "Adicionar Conteúdo do Terminal ao Contexto",
-				"description": "Adicione a saída do terminal à sua tarefa ou conversa atual. Útil para fornecer saídas de comandos ou logs. Disponível no menu de contexto do terminal (clique com o botão direito no conteúdo selecionado do terminal)."
+				"description": "Adicione a saída do terminal à sua tarefa ou conversa atual. Useful for providing command outputs or logs. Available in the terminal context menu (right-click on selected terminal content)."
 			},
 			"TERMINAL_FIX": {
 				"label": "Corrigir Comando do Terminal",
-				"description": "Obtenha ajuda para corrigir comandos de terminal que falharam ou precisam de melhorias. Disponível no menu de contexto do terminal (clique com o botão direito no conteúdo selecionado do terminal)."
+				"description": "Obtenha ajuda para corrigir comandos de terminal que falharam ou precisam de melhorias. Available in the terminal context menu (right-click on selected terminal content)."
 			},
 			"TERMINAL_EXPLAIN": {
 				"label": "Explicar Comando do Terminal",
-				"description": "Obtenha explicações detalhadas de comandos de terminal e suas saídas. Disponível no menu de contexto do terminal (clique com o botão direito no conteúdo selecionado do terminal)."
+				"description": "Obtenha explicações detalhadas de comandos de terminal e suas saídas. Available in the terminal context menu (right-click on selected terminal content)."
 			}
 		}
 	},
@@ -139,7 +139,7 @@
 		},
 		"buttons": {
 			"cancel": "Cancelar",
-			"create": "Criar modo"
+			"create": "Criar Modo"
 		},
 		"deleteMode": "Excluir modo"
 	},

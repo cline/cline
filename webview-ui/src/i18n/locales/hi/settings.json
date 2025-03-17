@@ -73,10 +73,111 @@
 		"configProfile": "कॉन्फिगरेशन प्रोफाइल",
 		"description": "विवरण",
 		"apiProvider": "API प्रदाता",
+		"model": "मॉडल",
 		"openRouterApiKey": "OpenRouter API कुंजी",
+		"getOpenRouterApiKey": "OpenRouter API कुंजी प्राप्त करें",
 		"apiKeyStorageNotice": "API कुंजियाँ VSCode के सुरक्षित स्टोरेज में सुरक्षित रूप से संग्रहीत हैं",
+		"glamaApiKey": "Glama API कुंजी",
+		"getGlamaApiKey": "Glama API कुंजी प्राप्त करें",
 		"useCustomBaseUrl": "कस्टम बेस URL का उपयोग करें",
-		"openRouterTransformsText": "संदर्भ आकार के लिए प्रॉम्प्ट और संदेश श्रृंखलाओं को संपीड़ित करें (<a>OpenRouter ट्रांसफॉर्म</a>)"
+		"requestyApiKey": "Requesty API कुंजी",
+		"getRequestyApiKey": "Requesty API कुंजी प्राप्त करें",
+		"openRouterTransformsText": "संदर्भ आकार के लिए प्रॉम्प्ट और संदेश श्रृंखलाओं को संपीड़ित करें (<a>OpenRouter ट्रांसफॉर्म</a>)",
+		"anthropicApiKey": "Anthropic API कुंजी",
+		"getAnthropicApiKey": "Anthropic API कुंजी प्राप्त करें",
+		"deepSeekApiKey": "DeepSeek API कुंजी",
+		"getDeepSeekApiKey": "DeepSeek API कुंजी प्राप्त करें",
+		"geminiApiKey": "Gemini API कुंजी",
+		"getGeminiApiKey": "Gemini API कुंजी प्राप्त करें",
+		"openAiApiKey": "OpenAI API कुंजी",
+		"openAiBaseUrl": "बेस URL",
+		"getOpenAiApiKey": "OpenAI API कुंजी प्राप्त करें",
+		"mistralApiKey": "Mistral API कुंजी",
+		"getMistralApiKey": "Mistral / Codestral API कुंजी प्राप्त करें",
+		"codestralBaseUrl": "Codestral बेस URL (वैकल्पिक)",
+		"codestralBaseUrlDesc": "Codestral मॉडल के लिए वैकल्पिक URL सेट करें।",
+		"awsCredentials": "AWS क्रेडेंशियल्स",
+		"awsProfile": "AWS प्रोफाइल",
+		"awsProfileName": "AWS प्रोफाइल नाम",
+		"awsAccessKey": "AWS एक्सेस कुंजी",
+		"awsSecretKey": "AWS सीक्रेट कुंजी",
+		"awsSessionToken": "AWS सत्र टोकन",
+		"awsRegion": "AWS क्षेत्र",
+		"awsCrossRegion": "क्रॉस-क्षेत्र अनुमान का उपयोग करें",
+		"googleCloudSetup": {
+			"title": "Google Cloud Vertex AI का उपयोग करने के लिए, आपको आवश्यकता है:",
+			"step1": "1. Google Cloud खाता बनाएं, Vertex AI API सक्षम करें और वांछित Claude मॉडल सक्षम करें।",
+			"step2": "2. Google Cloud CLI इंस्टॉल करें और एप्लिकेशन डिफ़ॉल्ट क्रेडेंशियल्स कॉन्फ़िगर करें।",
+			"step3": "3. या क्रेडेंशियल्स के साथ एक सर्विस अकाउंट बनाएं।"
+		},
+		"googleCloudCredentials": "Google Cloud क्रेडेंशियल्स",
+		"googleCloudKeyFile": "Google Cloud कुंजी फ़ाइल पथ",
+		"googleCloudProjectId": "Google Cloud प्रोजेक्ट ID",
+		"googleCloudRegion": "Google Cloud क्षेत्र",
+		"lmStudio": {
+			"baseUrl": "बेस URL (वैकल्पिक)",
+			"modelId": "मॉडल ID",
+			"speculativeDecoding": "स्पेक्युलेटिव डिकोडिंग सक्षम करें",
+			"draftModelId": "ड्राफ्ट मॉडल ID",
+			"draftModelDesc": "स्पेक्युलेटिव डिकोडिंग के सही काम करने के लिए ड्राफ्ट मॉडल को समान मॉडल परिवार से होना चाहिए।",
+			"selectDraftModel": "ड्राफ्ट मॉडल चुनें",
+			"noModelsFound": "कोई ड्राफ्ट मॉडल नहीं मिला। कृपया सुनिश्चित करें कि LM Studio सर्वर मोड सक्षम के साथ चल रहा है।",
+			"description": "LM Studio आपको अपने कंप्यूटर पर स्थानीय रूप से मॉडल चलाने की अनुमति देता है। आरंभ करने के निर्देशों के लिए, उनकी <a>क्विकस्टार्ट गाइड</a> देखें। आपको इस एक्सटेंशन के साथ उपयोग करने के लिए LM Studio की <b>स्थानीय सर्वर</b> सुविधा भी शुरू करनी होगी। <span>नोट:</span> Roo Code जटिल प्रॉम्प्ट्स का उपयोग करता है और Claude मॉडल के साथ सबसे अच्छा काम करता है। कम क्षमता वाले मॉडल अपेक्षित रूप से काम नहीं कर सकते हैं।"
+		},
+		"ollama": {
+			"baseUrl": "बेस URL (वैकल्पिक)",
+			"modelId": "मॉडल ID",
+			"description": "Ollama आपको अपने कंप्यूटर पर स्थानीय रूप से मॉडल चलाने की अनुमति देता है। आरंभ करने के निर्देशों के लिए, उनकी क्विकस्टार्ट गाइड देखें।",
+			"warning": "नोट: Roo Code जटिल प्रॉम्प्ट्स का उपयोग करता है और Claude मॉडल के साथ सबसे अच्छा काम करता है। कम क्षमता वाले मॉडल अपेक्षित रूप से काम नहीं कर सकते हैं।"
+		},
+		"unboundApiKey": "Unbound API कुंजी",
+		"getUnboundApiKey": "Unbound API कुंजी प्राप्त करें",
+		"humanRelay": {
+			"description": "कोई API कुंजी आवश्यक नहीं है, लेकिन उपयोगकर्ता को वेब चैट AI में जानकारी कॉपी और पेस्ट करने में मदद करनी होगी।",
+			"instructions": "उपयोग के दौरान, एक डायलॉग बॉक्स पॉप अप होगा और वर्तमान संदेश स्वचालित रूप से क्लिपबोर्ड पर कॉपी हो जाएगा। आपको इन्हें AI के वेब संस्करणों (जैसे ChatGPT या Claude) में पेस्ट करना होगा, फिर AI की प्रतिक्रिया को डायलॉग बॉक्स में वापस कॉपी करें और पुष्टि बटन पर क्लिक करें।"
+		},
+		"customModel": {
+			"capabilities": "अपने कस्टम OpenAI-संगत मॉडल के लिए क्षमताओं और मूल्य निर्धारण को कॉन्फ़िगर करें। मॉडल क्षमताओं को निर्दिष्ट करते समय सावधान रहें, क्योंकि वे Roo Code के प्रदर्शन को प्रभावित कर सकती हैं।",
+			"maxTokens": {
+				"label": "अधिकतम आउटपुट टोकन",
+				"description": "मॉडल एक प्रतिक्रिया में अधिकतम कितने टोकन जनरेट कर सकता है। (सर्वर को अधिकतम टोकन सेट करने की अनुमति देने के लिए -1 निर्दिष्ट करें।)"
+			},
+			"contextWindow": {
+				"label": "संदर्भ विंडो आकार",
+				"description": "कुल टोकन (इनपुट + आउटपुट) जो मॉडल प्रोसेस कर सकता है।"
+			},
+			"imageSupport": {
+				"label": "छवि समर्थन",
+				"description": "क्या यह मॉडल छवियों को प्रोसेस और समझने में सक्षम है?"
+			},
+			"computerUse": {
+				"label": "कंप्यूटर उपयोग",
+				"description": "क्या यह मॉडल ब्राउज़र के साथ इंटरैक्ट करने में सक्षम है? (उदा. Claude 3.7 Sonnet)।"
+			},
+			"promptCache": {
+				"label": "प्रॉम्प्ट कैशिंग",
+				"description": "क्या यह मॉडल प्रॉम्प्ट्स को कैश करने में सक्षम है?"
+			},
+			"pricing": {
+				"input": {
+					"label": "इनपुट मूल्य",
+					"description": "इनपुट/प्रॉम्प्ट में प्रति मिलियन टोकन की लागत। यह मॉडल को संदर्भ और निर्देश भेजने की लागत को प्रभावित करता है।"
+				},
+				"output": {
+					"label": "आउटपुट मूल्य",
+					"description": "मॉडल की प्रतिक्रिया में प्रति मिलियन टोकन की लागत। यह जनरेट की गई सामग्री और पूर्णताओं की लागत को प्रभावित करता है।"
+				},
+				"cacheReads": {
+					"label": "कैश रीड्स मूल्य",
+					"description": "कैश से पढ़ने के लिए प्रति मिलियन टोकन की लागत। यह वह मूल्य है जो कैश की गई प्रतिक्रिया प्राप्त करने पर लगाया जाता है।"
+				},
+				"cacheWrites": {
+					"label": "कैश राइट्स मूल्य",
+					"description": "कैश में लिखने के लिए प्रति मिलियन टोकन की लागत। यह वह मूल्य है जो पहली बार प्रॉम्प्ट को कैश करने पर लगाया जाता है।"
+				}
+			},
+			"resetDefaults": "डिफ़ॉल्ट पर रीसेट करें"
+		}
 	},
 	"browser": {
 		"enable": {
@@ -205,6 +306,9 @@
 		"outputPrice": "आउटपुट मूल्य",
 		"cacheReadsPrice": "कैश रीड्स मूल्य",
 		"cacheWritesPrice": "कैश राइट्स मूल्य",
+		"enableStreaming": "स्ट्रीमिंग सक्षम करें",
+		"useAzure": "Azure का उपयोग करें",
+		"azureApiVersion": "Azure API संस्करण सेट करें",
 		"gemini": {
 			"freeRequests": "* प्रति मिनट {{count}} अनुरोधों तक मुफ्त। उसके बाद, बिलिंग प्रॉम्प्ट आकार पर निर्भर करती है।",
 			"pricingDetails": "अधिक जानकारी के लिए, मूल्य निर्धारण विवरण देखें।"

@@ -73,10 +73,111 @@
 		"configProfile": "配置文件",
 		"description": "描述",
 		"apiProvider": "API 提供商",
+		"model": "模型",
 		"openRouterApiKey": "OpenRouter API 密钥",
+		"getOpenRouterApiKey": "获取 OpenRouter API 密钥",
 		"apiKeyStorageNotice": "API 密钥安全存储在 VSCode 的密钥存储中",
 		"useCustomBaseUrl": "使用自定义基础 URL",
-		"openRouterTransformsText": "将提示和消息链压缩到上下文大小 (<a>OpenRouter 转换</a>)"
+		"glamaApiKey": "Glama API 密钥",
+		"getGlamaApiKey": "获取 Glama API 密钥",
+		"requestyApiKey": "Requesty API 密钥",
+		"getRequestyApiKey": "获取 Requesty API 密钥",
+		"openRouterTransformsText": "将提示和消息链压缩到上下文大小 (<a>OpenRouter 转换</a>)",
+		"anthropicApiKey": "Anthropic API 密钥",
+		"getAnthropicApiKey": "获取 Anthropic API 密钥",
+		"deepSeekApiKey": "DeepSeek API 密钥",
+		"getDeepSeekApiKey": "获取 DeepSeek API 密钥",
+		"geminiApiKey": "Gemini API 密钥",
+		"getGeminiApiKey": "获取 Gemini API 密钥",
+		"openAiApiKey": "OpenAI API 密钥",
+		"openAiBaseUrl": "OpenAI 基础 URL",
+		"getOpenAiApiKey": "获取 OpenAI API 密钥",
+		"mistralApiKey": "Mistral API 密钥",
+		"getMistralApiKey": "获取 Mistral / Codestral API 密钥",
+		"codestralBaseUrl": "Codestral 基础 URL（可选）",
+		"codestralBaseUrlDesc": "为 Codestral 模型设置替代 URL。",
+		"awsCredentials": "AWS 凭证",
+		"awsProfile": "AWS 配置文件",
+		"awsProfileName": "AWS 配置文件名称",
+		"awsAccessKey": "AWS 访问密钥",
+		"awsSecretKey": "AWS 密钥",
+		"awsSessionToken": "AWS 会话令牌",
+		"awsRegion": "AWS 区域",
+		"awsCrossRegion": "使用跨区域推理",
+		"googleCloudSetup": {
+			"title": "要使用 Google Cloud Vertex AI，您需要：",
+			"step1": "1. 创建 Google Cloud 账户，启用 Vertex AI API 并启用所需的 Claude 模型。",
+			"step2": "2. 安装 Google Cloud CLI 并配置应用程序默认凭证。",
+			"step3": "3. 或创建具有凭证的服务账户。"
+		},
+		"googleCloudCredentials": "Google Cloud 凭证",
+		"googleCloudKeyFile": "Google Cloud 密钥文件路径",
+		"googleCloudProjectId": "Google Cloud 项目 ID",
+		"googleCloudRegion": "Google Cloud 区域",
+		"lmStudio": {
+			"baseUrl": "基础 URL（可选）",
+			"modelId": "模型 ID",
+			"speculativeDecoding": "启用推测性解码",
+			"draftModelId": "草稿模型 ID",
+			"draftModelDesc": "草稿模型必须来自相同的模型系列，推测性解码才能正常工作。",
+			"selectDraftModel": "选择草稿模型",
+			"noModelsFound": "未找到草稿模型。请确保 LM Studio 已启用服务器模式运行。",
+			"description": "LM Studio 允许您在本地计算机上运行模型。要了解如何开始，请参阅他们的 <a>快速入门指南</a>。您还需要启动 LM Studio 的 <b>本地服务器</b> 功能，以便与此扩展一起使用。<span>注意：</span>Roo Code 使用复杂的提示，并且在 Claude 模型上效果最佳。功能较弱的模型可能无法正常工作。"
+		},
+		"ollama": {
+			"baseUrl": "基础 URL（可选）",
+			"modelId": "模型 ID",
+			"description": "Ollama 允许您在本地计算机上运行模型。有关如何开始使用的说明，请参阅其快速入门指南。",
+			"warning": "注意：Roo Code 使用复杂的提示，与 Claude 模型配合最佳。功能较弱的模型可能无法按预期工作。"
+		},
+		"unboundApiKey": "Unbound API 密钥",
+		"getUnboundApiKey": "获取 Unbound API 密钥",
+		"humanRelay": {
+			"description": "不需要 API 密钥，但用户需要帮助将信息复制并粘贴到网页聊天 AI。",
+			"instructions": "使用期间，将弹出对话框并自动将当前消息复制到剪贴板。您需要将这些内容粘贴到 AI 的网页版本（如 ChatGPT 或 Claude），然后将 AI 的回复复制回对话框并点击确认按钮。"
+		},
+		"customModel": {
+			"capabilities": "配置您的自定义 OpenAI 兼容模型的功能和定价。在指定模型功能时要小心，因为它们会影响 Roo Code 的性能。",
+			"maxTokens": {
+				"label": "最大输出令牌数",
+				"description": "模型在响应中可以生成的最大令牌数。（指定 -1 允许服务器设置最大令牌数。）"
+			},
+			"contextWindow": {
+				"label": "上下文窗口大小",
+				"description": "模型可以处理的总令牌数（输入 + 输出）。"
+			},
+			"imageSupport": {
+				"label": "图像支持",
+				"description": "此模型是否能够处理和理解图像？"
+			},
+			"computerUse": {
+				"label": "计算机使用",
+				"description": "此模型是否能够与浏览器交互？（例如 Claude 3.7 Sonnet）。"
+			},
+			"promptCache": {
+				"label": "提示缓存",
+				"description": "此模型是否能够缓存提示？"
+			},
+			"pricing": {
+				"input": {
+					"label": "输入价格",
+					"description": "输入/提示中每百万令牌的成本。这会影响向模型发送上下文和指令的成本。"
+				},
+				"output": {
+					"label": "输出价格",
+					"description": "模型响应中每百万令牌的成本。这会影响生成内容和补全的成本。"
+				},
+				"cacheReads": {
+					"label": "缓存读取价格",
+					"description": "从缓存读取每百万令牌的成本。这是检索缓存响应时收取的费用。"
+				},
+				"cacheWrites": {
+					"label": "缓存写入价格",
+					"description": "向缓存写入每百万令牌的成本。这是首次缓存提示时收取的费用。"
+				}
+			},
+			"resetDefaults": "重置为默认值"
+		}
 	},
 	"browser": {
 		"enable": {
@@ -205,6 +306,9 @@
 		"outputPrice": "输出价格",
 		"cacheReadsPrice": "缓存读取价格",
 		"cacheWritesPrice": "缓存写入价格",
+		"enableStreaming": "启用流式传输",
+		"useAzure": "使用 Azure 服务",
+		"azureApiVersion": "设置 Azure API 版本",
 		"gemini": {
 			"freeRequests": "* 每分钟免费 {{count}} 个请求。之后，计费取决于提示大小。",
 			"pricingDetails": "有关更多信息，请参阅定价详情。"
