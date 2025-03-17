@@ -1,1 +1,7 @@
-{}
+{
+	"number_format": {
+		"thousand_suffix": "千",
+		"million_suffix": "百萬",
+		"billion_suffix": "十億"
+	}
+}

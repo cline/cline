@@ -1,1 +1,7 @@
-{}
+{
+	"number_format": {
+		"thousand_suffix": "k",
+		"million_suffix": "M",
+		"billion_suffix": "B"
+	}
+}
