@@ -53,7 +53,7 @@ Roo Code 3.8, performans iyileştirmeleri, yeni özellikler ve hata düzeltmeler
 - Deneysel çoklu-fark düzenleme stratejisi
 - Alt görevden ana göreve iletişim
 - Güncellenmiş DeepSeek sağlayıcısı
-- Yeni "İnsan Rölesi" sağlayıcısı
+- Yeni "İnsan Rolü" sağlayıcısı
 
 ---
 
