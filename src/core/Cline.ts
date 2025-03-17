@@ -1900,10 +1900,10 @@ export class Cline {
 
 								const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent, autoRunOutput } =
 									await this.diffViewProvider.saveChanges(this.providerRef.deref())
-								
+
 								// If auto-run output is available, send it to the AI
 								if (autoRunOutput) {
-									await this.say("auto_run_output", autoRunOutput);
+									await this.say("auto_run_output", autoRunOutput)
 								}
 								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 								if (userEdits) {
@@ -3443,8 +3443,8 @@ export class Cline {
 
 	async loadContext(userContent: UserContent, includeFileDetails: boolean = false) {
 		// Check for auto-run output in the clineMessages
-		const autoRunOutput = findLast(this.clineMessages, (m) => m.say === "auto_run_output")?.text;
-		
+		const autoRunOutput = findLast(this.clineMessages, (m) => m.say === "auto_run_output")?.text
+
 		return await Promise.all([
 			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
 			// (Note: this caused the @/ import alias bug where file contents were being parsed as well, since v2 converted tool results to text blocks)
@@ -3642,7 +3642,7 @@ export class Cline {
 		// This is what is being sent to cline
 		// autoRunOutput = `# Auto-Run Command\nThe following command was automatically executed after your last file edit:\n$ ${autoRunResult.command}\n\nOutput:\n${autoRunResult.output}`;
 		if (autoRunOutput) {
-			details += autoRunOutput;
+			details += autoRunOutput
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`

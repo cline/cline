@@ -157,7 +157,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
-		
+
 		// Setup auto-run file watcher
 		this.setupAutoRunWatcher()
 	}

@@ -88,7 +88,7 @@ const AutoRunMenu = ({ style }: AutoRunMenuProps) => {
 							overflow: "hidden",
 							textOverflow: "ellipsis",
 						}}>
-						{autoRunSettings.enabled ? (autoRunSettings.command || "No command") : "Disabled"}
+						{autoRunSettings.enabled ? autoRunSettings.command || "No command" : "Disabled"}
 					</span>
 					<span
 						className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}
@@ -107,7 +107,9 @@ const AutoRunMenu = ({ style }: AutoRunMenuProps) => {
 							color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 							fontSize: "12px",
 						}}>
-						Auto-run automatically executes your specified command whenever Cline saves a file. The output is sent directly to Cline for context, making it ideal for running tests, linters, or other processes that should trigger on save.
+						Auto-run automatically executes your specified command whenever Cline saves a file. The output is sent
+						directly to Cline for context, making it ideal for running tests, linters, or other processes that should
+						trigger on save.
 					</div>
 					<div
 						style={{

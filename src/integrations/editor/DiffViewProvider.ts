@@ -134,61 +134,61 @@ export class DiffViewProvider {
 		}
 	}
 
-	async runAutoRunCommand(clineProvider: any): Promise<{ command: string, output: string } | undefined> {
+	async runAutoRunCommand(clineProvider: any): Promise<{ command: string; output: string } | undefined> {
 		if (!clineProvider) {
-			return undefined;
+			return undefined
 		}
 
 		try {
 			// Get auto-run settings
-			const { autoRunSettings } = await clineProvider.getState();
-			
+			const { autoRunSettings } = await clineProvider.getState()
+
 			// If auto-run is enabled and a command is specified, run it
 			if (autoRunSettings.enabled && autoRunSettings.command) {
 				// Mark that we're running the auto-run command
-				clineProvider.isAutoRunning = true;
-				
+				clineProvider.isAutoRunning = true
+
 				// Use the terminal manager to run the command and capture output
-				const terminalManager = clineProvider.cline?.terminalManager;
+				const terminalManager = clineProvider.cline?.terminalManager
 				if (!terminalManager) {
-					return undefined;
+					return undefined
 				}
-				
+
 				// Create a terminal
-				const terminalInfo = await terminalManager.getOrCreateTerminal(this.cwd);
-				terminalInfo.terminal.show();
-				
+				const terminalInfo = await terminalManager.getOrCreateTerminal(this.cwd)
+				terminalInfo.terminal.show()
+
 				// Run the command and capture output
-				const process = terminalManager.runCommand(terminalInfo, autoRunSettings.command);
-				
+				const process = terminalManager.runCommand(terminalInfo, autoRunSettings.command)
+
 				// Collect output
-				let result = "";
+				let result = ""
 				process.on("line", (line: string) => {
-					result += line + "\n";
-				});
-				
+					result += line + "\n"
+				})
+
 				// Wait for the command to complete
-				let completed = false;
+				let completed = false
 				process.once("completed", () => {
-					completed = true;
-				});
-				
-				await process;
-				
+					completed = true
+				})
+
+				await process
+
 				// Mark that we're done running the auto-run command
-				clineProvider.isAutoRunning = false;
-				
+				clineProvider.isAutoRunning = false
+
 				return {
 					command: autoRunSettings.command,
-					output: result.trim()
-				};
+					output: result.trim(),
+				}
 			}
 		} catch (error) {
-			console.error('Error running auto-run command:', error);
-			clineProvider.isAutoRunning = false;
+			console.error("Error running auto-run command:", error)
+			clineProvider.isAutoRunning = false
 		}
-		
-		return undefined;
+
+		return undefined
 	}
 
 	async saveChanges(clineProvider?: any): Promise<{
@@ -281,11 +281,11 @@ export class DiffViewProvider {
 		}
 
 		// Run auto-run command if enabled
-		let autoRunOutput: string | undefined;
+		let autoRunOutput: string | undefined
 		if (clineProvider) {
-			const autoRunResult = await this.runAutoRunCommand(clineProvider);
+			const autoRunResult = await this.runAutoRunCommand(clineProvider)
 			if (autoRunResult) {
-				autoRunOutput = `# Auto-Run Command\nThe following command was automatically executed after your last file edit:\n$ ${autoRunResult.command}\n\nOutput:\n${autoRunResult.output}`;
+				autoRunOutput = `# Auto-Run Command\nThe following command was automatically executed after your last file edit:\n$ ${autoRunResult.command}\n\nOutput:\n${autoRunResult.output}`
 			}
 		}
 
