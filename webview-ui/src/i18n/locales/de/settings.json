@@ -365,5 +365,9 @@
 			"description": "Setzen Sie alle globalen Zustände und geheimen Speicher in der Erweiterung zurück.",
 			"button": "Zurücksetzen"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "Maximale Tokens",
+		"maxThinkingTokens": "Maximale Thinking-Tokens"
 	}
 }

@@ -365,5 +365,9 @@
 			"description": "Reimposta tutti gli stati globali e l'archivio segreto nell'estensione.",
 			"button": "Ripristina"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "Token massimi",
+		"maxThinkingTokens": "Token massimi di pensiero"
 	}
 }

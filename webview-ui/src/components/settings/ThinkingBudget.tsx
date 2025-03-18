@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react"
+import { useAppTranslation } from "@/i18n/TranslationContext"
 
 import { Slider } from "@/components/ui"
 
@@ -11,6 +12,7 @@ interface ThinkingBudgetProps {
 }
 
 export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, modelInfo }: ThinkingBudgetProps) => {
+	const { t } = useAppTranslation()
 	const tokens = apiConfiguration?.modelMaxTokens || 16_384
 	const tokensMin = 8192
 	const tokensMax = modelInfo?.maxTokens || 64_000
@@ -37,7 +39,7 @@ export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, mod
 	return (
 		<>
 			<div className="flex flex-col gap-1">
-				<div className="font-medium">Max Tokens</div>
+				<div className="font-medium">{t("settings:thinkingBudget.maxTokens")}</div>
 				<div className="flex items-center gap-1">
 					<Slider
 						min={tokensMin}
@@ -50,7 +52,7 @@ export const ThinkingBudget = ({ apiConfiguration, setApiConfigurationField, mod
 				</div>
 			</div>
 			<div className="flex flex-col gap-1">
-				<div className="font-medium">Max Thinking Tokens</div>
+				<div className="font-medium">{t("settings:thinkingBudget.maxThinkingTokens")}</div>
 				<div className="flex items-center gap-1">
 					<Slider
 						min={thinkingTokensMin}

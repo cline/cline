@@ -365,5 +365,9 @@
 			"description": "확장 프로그램의 모든 전역 상태 및 보안 저장소를 재설정합니다.",
 			"button": "초기화"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "최대 tokens",
+		"maxThinkingTokens": "최대 사고 tokens"
 	}
 }

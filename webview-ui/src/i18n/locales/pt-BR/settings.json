@@ -365,5 +365,9 @@
 			"description": "Redefinir todo o estado global e armazenamento secreto na extensão.",
 			"button": "Redefinir"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "Tokens máximos",
+		"maxThinkingTokens": "Tokens máximos de pensamento"
 	}
 }

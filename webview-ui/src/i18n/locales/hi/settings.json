@@ -365,5 +365,9 @@
 			"description": "एक्सटेंशन में सभी वैश्विक स्थिति और गुप्त भंडारण को रीसेट करें।",
 			"button": "रीसेट करें"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "अधिकतम tokens",
+		"maxThinkingTokens": "अधिकतम thinking tokens"
 	}
 }

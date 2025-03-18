@@ -365,5 +365,9 @@
 			"description": "Restablir tot l'estat global i emmagatzematge secret a l'extensió.",
 			"button": "Restablir"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "Tokens màxims",
+		"maxThinkingTokens": "Tokens de pensament màxims"
 	}
 }

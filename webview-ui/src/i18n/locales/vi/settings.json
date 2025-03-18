@@ -365,5 +365,9 @@
 			"description": "Đặt lại tất cả trạng thái toàn cầu và lưu trữ bí mật trong tiện ích mở rộng.",
 			"button": "Đặt lại"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "Tokens tối đa",
+		"maxThinkingTokens": "Tokens suy nghĩ tối đa"
 	}
 }

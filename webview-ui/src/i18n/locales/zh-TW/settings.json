@@ -365,5 +365,9 @@
 			"description": "重設擴充功能中的所有全域狀態和秘密儲存。",
 			"button": "重設"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "最大 tokens",
+		"maxThinkingTokens": "最大思考 tokens"
 	}
 }

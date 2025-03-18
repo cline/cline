@@ -365,5 +365,9 @@
 			"description": "Zresetuj wszystkie globalne stany i tajne magazyny w rozszerzeniu.",
 			"button": "Resetuj"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "Maksymalna liczba tokenów",
+		"maxThinkingTokens": "Maksymalna liczba tokenów myślenia"
 	}
 }

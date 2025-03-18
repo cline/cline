@@ -364,5 +364,9 @@
 			"description": "Reset all global state and secret storage in the extension.",
 			"button": "Reset"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "Max Tokens",
+		"maxThinkingTokens": "Max Thinking Tokens"
 	}
 }

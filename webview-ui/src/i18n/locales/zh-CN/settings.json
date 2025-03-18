@@ -365,5 +365,9 @@
 			"description": "重置扩展中的所有全局状态和密钥存储。",
 			"button": "重置"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "最大 tokens",
+		"maxThinkingTokens": "最大思考 tokens"
 	}
 }

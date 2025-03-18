@@ -365,5 +365,9 @@
 			"description": "Uzantıdaki tüm global durumu ve gizli depolamayı sıfırlayın.",
 			"button": "Sıfırla"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "Maksimum token",
+		"maxThinkingTokens": "Maksimum düşünme tokeni"
 	}
 }

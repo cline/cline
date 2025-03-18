@@ -365,5 +365,9 @@
 			"description": "Réinitialiser tous les états globaux et le stockage secret dans l'extension.",
 			"button": "Réinitialiser"
 		}
+	},
+	"thinkingBudget": {
+		"maxTokens": "Tokens maximum",
+		"maxThinkingTokens": "Tokens de réflexion maximum"
 	}
 }
