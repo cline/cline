@@ -1280,38 +1280,9 @@ export const xaiModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-// Inference.net
-export type InferenceModelId = keyof typeof inferenceModels
-export const inferenceDefaultModelId: InferenceModelId = "meta-llama/llama-3.1-8b-instruct/fp-8"
-export const inferenceModels = {
-	"meta-llama/llama-3.1-8b-instruct/fp-8": {
-		maxTokens: 4096,
-		contextWindow: 16_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.025,
-		outputPrice: 0.025,
-		description: "Meta's Llama 3.1 8B Instruct model with 8-bit floating point quantization",
-	},
-	"meta-llama/llama-3.1-70b-instruct/fp-8": {
-		maxTokens: 4096,
-		contextWindow: 16_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.4,
-		outputPrice: 0.4,
-		description: "Meta's Llama 3.1 70B Instruct model with 8-bit floating point quantization",
-	},
-	"meta-llama/llama-3.3-70b-instruct/fp-16": {
-		maxTokens: 4096,
-		contextWindow: 16_000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.4,
-		outputPrice: 0.4,
-		description: "Meta's Llama 3.3 70B Instruct model with 16-bit floating point quantization",
-	},
-} as const satisfies Record<string, ModelInfo>
+// Inference.net - Models are fetched dynamically from the API
+export type { InferenceModelId } from "../api/providers/inference"
+export { inferenceDefaultModelId, defaultInferenceModels as inferenceModels } from "../api/providers/inference"
 
 // SambaNova
 // https://docs.sambanova.ai/cloud/docs/get-started/supported-models
