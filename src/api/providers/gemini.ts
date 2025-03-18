@@ -23,7 +23,7 @@ export class GeminiHandler implements ApiHandler {
 
 	/**
 	 * Creates a new GeminiHandler instance.
-	 * 
+	 *
 	 * @param options - Configuration options including the Gemini API key
 	 * @throws Error if geminiApiKey is not provided in options
 	 */
@@ -39,7 +39,7 @@ export class GeminiHandler implements ApiHandler {
 	 * Generates content from Gemini models based on messages in Anthropic format.
 	 * Uses stream processing to return results as they become available.
 	 * Decorated with @withRetry to automatically retry on transient failures.
-	 * 
+	 *
 	 * @param systemPrompt - Instructions to guide the model's behavior
 	 * @param messages - Array of messages in Anthropic format
 	 * @yields Streaming text content and usage information
@@ -75,7 +75,7 @@ export class GeminiHandler implements ApiHandler {
 
 	/**
 	 * Determines which Gemini model to use based on configuration or defaults.
-	 * 
+	 *
 	 * @returns Object containing the model ID and associated model information
 	 */
 	getModel(): { id: GeminiModelId; info: ModelInfo } {
