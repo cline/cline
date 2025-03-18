@@ -8,7 +8,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "../../shared/api"
-import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
+import { convertAnthropicMessageToGemini, unescapeGeminiContent } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
 /**
@@ -50,26 +50,60 @@ export class GeminiHandler implements ApiHandler {
 			model: this.getModel().id,
 			systemInstruction: systemPrompt,
 		})
-		const result = await model.generateContentStream({
-			contents: messages.map(convertAnthropicMessageToGemini),
-			generationConfig: {
-				// maxOutputTokens: this.getModel().info.maxTokens,
-				temperature: 0,
-			},
-		})
 
-		for await (const chunk of result.stream) {
-			yield {
-				type: "text",
-				text: chunk.text(),
+		try {
+			const result = await model.generateContentStream({
+				contents: messages.map(convertAnthropicMessageToGemini),
+				generationConfig: {
+					maxOutputTokens: this.getModel().info.maxTokens,
+					temperature: 0, // Consistent with other handlers in the codebase
+				},
+			})
+
+			let hasError = false
+			for await (const chunk of result.stream) {
+				try {
+					const text = chunk.text()
+					if (text) {
+						yield {
+							type: "text",
+							text: unescapeGeminiContent(text),
+						}
+					}
+				} catch (error) {
+					hasError = true
+					console.error("Error processing stream chunk:", error)
+					throw error
+				}
 			}
-		}
 
-		const response = await result.response
-		yield {
-			type: "usage",
-			inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
-			outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+			if (hasError) {
+				throw new Error("Stream processing encountered errors")
+			}
+
+			const response = await result.response
+			if (!response) {
+				throw new Error("No response received from Gemini API")
+			}
+
+			// Check for finish reason
+			const finishReason = response.candidates?.[0]?.finishReason
+			if (finishReason === "SAFETY") {
+				throw new Error("Content generation was blocked for safety reasons")
+			} else if (finishReason === "RECITATION") {
+				throw new Error("Content was blocked due to potential copyright issues")
+			} else if (finishReason === "OTHER") {
+				throw new Error("Content generation was blocked for other reasons")
+			}
+
+			yield {
+				type: "usage",
+				inputTokens: response.usageMetadata?.promptTokenCount ?? 0,
+				outputTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+			}
+		} catch (error) {
+			console.error("Error in Gemini message generation:", error)
+			throw error
 		}
 	}
 
