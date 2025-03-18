@@ -8,7 +8,7 @@ import { Content, EnhancedGenerateContentResponse, InlineDataPart, Part, TextPar
 
 /**
  * Converts Anthropic content format to Gemini's Part format.
- * 
+ *
  * @param content - Either a string or an array of Anthropic content blocks
  * @returns An array of Gemini-compatible Part objects
  * @throws Error when encountering unsupported content types or image source types
@@ -32,7 +32,9 @@ export function convertAnthropicContentToGemini(content: string | Anthropic.Cont
 					},
 				} as InlineDataPart
 			default:
-				throw new Error(`Unsupported content block type: ${(block as any).type}. Only text and image types are currently supported.`)
+				throw new Error(
+					`Unsupported content block type: ${(block as any).type}. Only text and image types are currently supported.`,
+				)
 		}
 	})
 }
@@ -40,7 +42,7 @@ export function convertAnthropicContentToGemini(content: string | Anthropic.Cont
 /**
  * Converts an Anthropic message to Gemini's Content format.
  * Handles the role mapping difference between Anthropic ("assistant") and Gemini ("model").
- * 
+ *
  * @param message - An Anthropic message object
  * @returns A Gemini-compatible Content object
  */
@@ -55,7 +57,7 @@ export function convertAnthropicMessageToGemini(message: Anthropic.Messages.Mess
  * Fixes Gemini's double-escaping of special characters in string responses.
  * Gemini sometimes returns strings with double-escaped characters (e.g., \\n instead of \n)
  * when writing file contents or other structured data.
- * 
+ *
  * @see https://discuss.ai.google.dev/t/function-call-string-property-is-double-escaped/37867
  * @param content - Potentially double-escaped string from Gemini
  * @returns Properly unescaped string with normalized special characters
@@ -68,7 +70,7 @@ export function unescapeGeminiContent(content: string) {
  * Converts a Gemini response to Anthropic's message format.
  * Maps finish reasons between different API terminologies and structures the response
  * to match Anthropic's expected format.
- * 
+ *
  * @param response - The Gemini response object
  * @returns An Anthropic-compatible message object
  */
