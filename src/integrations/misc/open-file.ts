@@ -44,7 +44,7 @@ export async function openFile(absolutePath: string | vscode.Uri) {
 		if (!(await fileExistsAtPath(uri))) {
 			const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri).at(0)
 			if (!cwd) {
-				throw new Error()
+				throw new Error("No workspace folder found.")
 			}
 			uri = vscode.Uri.joinPath(cwd, uri.fsPath)
 		}
