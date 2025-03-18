@@ -418,11 +418,13 @@ export const ChatRowContent = ({
 									<Trans
 										i18nKey="chat:directoryOperations.wantsToSearch"
 										components={{ code: <code>{tool.regex}</code> }}
+										values={{ regex: tool.regex }}
 									/>
 								) : (
 									<Trans
 										i18nKey="chat:directoryOperations.didSearch"
 										components={{ code: <code>{tool.regex}</code> }}
+										values={{ regex: tool.regex }}
 									/>
 								)}
 							</span>
