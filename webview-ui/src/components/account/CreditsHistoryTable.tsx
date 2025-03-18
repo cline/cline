@@ -4,9 +4,9 @@ import { TabButton } from "../mcp/McpView"
 import type { PaymentTransaction, UsageTransaction } from "../../../../src/services/account/ClineAccountService"
 
 interface CreditsHistoryTableProps {
-	isLoading: boolean;
-	usageData: UsageTransaction[];
-	paymentsData: PaymentTransaction[];
+	isLoading: boolean
+	usageData: UsageTransaction[]
+	paymentsData: PaymentTransaction[]
 }
 
 const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHistoryTableProps) => {

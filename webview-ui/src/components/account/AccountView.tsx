@@ -47,7 +47,6 @@ export const ClineAccountView = () => {
 				setPaymentsData(message.userCreditsPayments)
 			}
 			setIsLoading(false)
-
 		}
 
 		window.addEventListener("message", handleMessage)
@@ -138,11 +137,7 @@ export const ClineAccountView = () => {
 
 					<VSCodeDivider className="mt-6 mb-10 w-full" />
 
-					<CreditsHistoryTable 
-						isLoading={isLoading}
-						usageData={usageData}
-						paymentsData={paymentsData}
-					/>
+					<CreditsHistoryTable isLoading={isLoading} usageData={usageData} paymentsData={paymentsData} />
 				</div>
 			) : (
 				<div className="flex flex-col items-center p-5 max-w-[400px]">
