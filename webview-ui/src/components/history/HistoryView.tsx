@@ -17,17 +17,26 @@ type HistoryViewProps = {
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
-	const { taskHistory } = useExtensionState()
-	const [searchQuery, setSearchQuery] = useState("")
-	const [sortOption, setSortOption] = useState<SortOption>("newest")
-	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
-	const [deleteAllDisabled, setDeleteAllDisabled] = useState(false)
+	const { taskHistory, totalTasksSize } = useExtensionState()
+
+	const requestTotalTasksSize = useCallback(() => {
+		vscode.postMessage({ type: "requestTotalTasksSize" })
+	}, [])
 
 	const handleMessage = useCallback((event: MessageEvent<ExtensionMessage>) => {
 		if (event.data.type === "relinquishControl") {
 			setDeleteAllDisabled(false)
 		}
 	}, [])
+
+	// Request total tasks size when component mounts
+	useEffect(() => {
+		requestTotalTasksSize()
+	}, [requestTotalTasksSize])
+	const [searchQuery, setSearchQuery] = useState("")
+	const [sortOption, setSortOption] = useState<SortOption>("newest")
+	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
+	const [deleteAllDisabled, setDeleteAllDisabled] = useState(false)
 
 	useEvent("message", handleMessage)
 
@@ -471,7 +480,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							setDeleteAllDisabled(true)
 							vscode.postMessage({ type: "clearAllTaskHistory" })
 						}}>
-						Delete All History
+						Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
 					</DangerButton>
 				</div>
 			</div>
