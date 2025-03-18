@@ -141,10 +141,17 @@ function checkAreaTranslations(area) {
 	}
 
 	// Load file contents
-	const englishFileContents = englishFiles.map((file) => ({
-		name: file,
-		content: JSON.parse(fs.readFileSync(path.join(englishDir, file), "utf8")),
-	}))
+	let englishFileContents
+
+	try {
+		englishFileContents = englishFiles.map((file) => ({
+			name: file,
+			content: JSON.parse(fs.readFileSync(path.join(englishDir, file), "utf8")),
+		}))
+	} catch (e) {
+		console.error(`Error: File '${englishDir}' is not a valid JSON file`)
+		process.exit(1)
+	}
 
 	console.log(
 		`Checking ${englishFileContents.length} translation file(s): ${englishFileContents.map((f) => f.name).join(", ")}`,
@@ -167,7 +174,14 @@ function checkAreaTranslations(area) {
 			}
 
 			// Load the locale file
-			const localeContent = JSON.parse(fs.readFileSync(localeFilePath, "utf8"))
+			let localeContent
+
+			try {
+				localeContent = JSON.parse(fs.readFileSync(localeFilePath, "utf8"))
+			} catch (e) {
+				console.error(`Error: File '${localeFilePath}' is not a valid JSON file`)
+				process.exit(1)
+			}
 
 			// Find all keys in the English file
 			const englishKeys = findKeys(englishContent)

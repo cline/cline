@@ -3,7 +3,8 @@
 		"save": "Kaydet",
 		"done": "Tamamlandı",
 		"cancel": "İptal",
-		"reset": "Sıfırla"
+		"reset": "Sıfırla",
+		"select": "Seç"
 	},
 	"header": {
 		"title": "Ayarlar",
@@ -74,7 +75,7 @@
 	},
 	"providers": {
 		"configProfile": "Yapılandırma Profili",
-		"description": "Açıklama",
+		"description": "Sağlayıcılar ve ayarlar arasında hızlıca geçiş yapmak için farklı API yapılandırmalarını kaydedin.",
 		"apiProvider": "API Sağlayıcı",
 		"model": "Model",
 		"nameEmpty": "İsim boş olamaz",

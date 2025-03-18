@@ -76,10 +76,3 @@ export const StyledMarkdown = styled.div`
 		}
 	}
 `
-
-export const sliderLabelStyle = {
-	minWidth: "45px",
-	textAlign: "right" as const,
-	lineHeight: "20px",
-	paddingBottom: "2px",
-}

@@ -1,9 +1,9 @@
 import React from "react"
 
-export const Checkbox = ({ children, checked, onChange }: any) =>
+export const Checkbox = ({ children, onChange }: any) =>
 	React.createElement("div", { "data-testid": "mock-checkbox", onClick: onChange }, children)
 
-export const Dropdown = ({ children, value, onChange }: any) =>
+export const Dropdown = ({ children, onChange }: any) =>
 	React.createElement("div", { "data-testid": "mock-dropdown", onClick: onChange }, children)
 
 export const Pane = ({ children }: any) => React.createElement("div", { "data-testid": "mock-pane" }, children)

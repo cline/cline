@@ -6,6 +6,7 @@ import { Bell } from "lucide-react"
 import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
+import { Slider } from "../ui"
 
 type NotificationSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	ttsEnabled?: boolean
@@ -41,31 +42,32 @@ export const NotificationSettings = ({
 						data-testid="tts-enabled-checkbox">
 						<span className="font-medium">{t("settings:notifications.tts.label")}</span>
 					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:notifications.tts.description")}
-					</p>
-					{ttsEnabled && (
-						<div className="pl-[10px] ml-0 border-l-2 border-l-vscode-button-background">
-							<div className="flex items-center gap-[5px]">
-								<input
-									type="range"
-									min="0.1"
-									max="2.0"
-									step="0.01"
-									value={ttsSpeed ?? 1.0}
-									onChange={(e) => setCachedStateField("ttsSpeed", parseFloat(e.target.value))}
-									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
-									aria-label="Speed"
+					</div>
+				</div>
+
+				{ttsEnabled && (
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div>
+							<label className="block font-medium mb-1">
+								{t("settings:notifications.tts.speedLabel")}
+							</label>
+							<div className="flex items-center gap-2">
+								<Slider
+									min={0.1}
+									max={2.0}
+									step={0.01}
+									value={[ttsSpeed ?? 1.0]}
+									onValueChange={([value]) => setCachedStateField("ttsSpeed", value)}
 									data-testid="tts-speed-slider"
 								/>
-								<span className="min-w-[35px] text-left">{((ttsSpeed ?? 1.0) * 100).toFixed(0)}%</span>
+								<span className="w-10">{((ttsSpeed ?? 1.0) * 100).toFixed(0)}%</span>
 							</div>
-							<p className="text-vscode-descriptionForeground text-sm mt-1">
-								{t("settings:notifications.tts.speedLabel")}
-							</p>
 						</div>
-					)}
-				</div>
+					</div>
+				)}
+
 				<div>
 					<VSCodeCheckbox
 						checked={soundEnabled}
@@ -73,33 +75,31 @@ export const NotificationSettings = ({
 						data-testid="sound-enabled-checkbox">
 						<span className="font-medium">{t("settings:notifications.sound.label")}</span>
 					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:notifications.sound.description")}
-					</p>
-					{soundEnabled && (
-						<div className="pl-[10px] ml-0 border-l-2 border-l-vscode-button-background">
-							<div className="flex items-center gap-[5px]">
-								<input
-									type="range"
-									min="0"
-									max="1"
-									step="0.01"
-									value={soundVolume ?? 0.5}
-									onChange={(e) => setCachedStateField("soundVolume", parseFloat(e.target.value))}
-									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
-									aria-label="Volume"
+					</div>
+				</div>
+
+				{soundEnabled && (
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div>
+							<label className="block font-medium mb-1">
+								{t("settings:notifications.sound.volumeLabel")}
+							</label>
+							<div className="flex items-center gap-2">
+								<Slider
+									min={0}
+									max={1}
+									step={0.01}
+									value={[soundVolume ?? 0.5]}
+									onValueChange={([value]) => setCachedStateField("soundVolume", value)}
 									data-testid="sound-volume-slider"
 								/>
-								<span className="min-w-[35px] text-left">
-									{((soundVolume ?? 0.5) * 100).toFixed(0)}%
-								</span>
+								<span className="w-10">{((soundVolume ?? 0.5) * 100).toFixed(0)}%</span>
 							</div>
-							<p className="text-vscode-descriptionForeground text-sm mt-1">
-								{t("settings:notifications.sound.volumeLabel")}
-							</p>
 						</div>
-					)}
-				</div>
+					</div>
+				)}
 			</Section>
 		</div>
 	)

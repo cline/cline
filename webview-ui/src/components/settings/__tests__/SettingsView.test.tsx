@@ -78,28 +78,22 @@ jest.mock("@vscode/webview-ui-toolkit/react", () => ({
 			data-testid={dataTestId}
 		/>
 	),
-	VSCodeTextArea: () => <textarea />,
 	VSCodeLink: ({ children, href }: any) => <a href={href || "#"}>{children}</a>,
-	VSCodeDropdown: ({ children, value, onChange }: any) => (
-		<select value={value} onChange={onChange}>
-			{children}
-		</select>
-	),
-	VSCodeOption: ({ children, value }: any) => <option value={value}>{children}</option>,
 	VSCodeRadio: ({ children, value, checked, onChange }: any) => (
 		<input type="radio" value={value} checked={checked} onChange={onChange} />
 	),
 	VSCodeRadioGroup: ({ children, value, onChange }: any) => <div onChange={onChange}>{children}</div>,
-	VSCodeSlider: ({ value, onChange, "data-testid": dataTestId }: any) => (
+}))
+
+// Mock Slider component
+jest.mock("@/components/ui", () => ({
+	...jest.requireActual("@/components/ui"),
+	Slider: ({ value, onValueChange, "data-testid": dataTestId }: any) => (
 		<input
 			type="range"
-			value={value}
-			onChange={(e) => onChange({ target: { value: Number(e.target.value) } })}
-			min={0}
-			max={1}
+			value={value[0]}
+			onChange={(e) => onValueChange([parseFloat(e.target.value)])}
 			data-testid={dataTestId}
-			step={0.01}
-			style={{ flexGrow: 1, height: "2px" }}
 		/>
 	),
 }))
@@ -126,6 +120,14 @@ const mockPostMessage = (state: any) => {
 		"*",
 	)
 }
+
+class MockResizeObserver {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+}
+
+global.ResizeObserver = MockResizeObserver
 
 const renderSettingsView = () => {
 	const onDone = jest.fn()

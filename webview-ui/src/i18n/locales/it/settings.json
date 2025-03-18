@@ -3,7 +3,8 @@
 		"save": "Salva",
 		"done": "Fatto",
 		"cancel": "Annulla",
-		"reset": "Ripristina"
+		"reset": "Ripristina",
+		"select": "Seleziona"
 	},
 	"header": {
 		"title": "Impostazioni",
@@ -74,7 +75,7 @@
 	},
 	"providers": {
 		"configProfile": "Profilo di configurazione",
-		"description": "Descrizione",
+		"description": "Salva diverse configurazioni API per passare rapidamente tra fornitori e impostazioni.",
 		"apiProvider": "Fornitore API",
 		"model": "Modello",
 		"nameEmpty": "Il nome non può essere vuoto",

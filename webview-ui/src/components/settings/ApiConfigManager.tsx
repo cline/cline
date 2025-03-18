@@ -1,11 +1,21 @@
-import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useRef, useState } from "react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+
 import { ApiConfigMeta } from "../../../../src/shared/ExtensionMessage"
-import { Dropdown } from "vscrui"
-import type { DropdownOption } from "vscrui"
-import { Dialog, DialogContent, DialogTitle } from "../ui/dialog"
-import { Button, Input } from "../ui"
+
+import { useAppTranslation } from "@/i18n/TranslationContext"
+import {
+	Button,
+	Input,
+	Dialog,
+	DialogContent,
+	DialogTitle,
+	Select,
+	SelectTrigger,
+	SelectValue,
+	SelectContent,
+	SelectItem,
+} from "@/components/ui"
 
 interface ApiConfigManagerProps {
 	currentApiConfigName?: string
@@ -25,6 +35,7 @@ const ApiConfigManager = ({
 	onUpsertConfig,
 }: ApiConfigManagerProps) => {
 	const { t } = useAppTranslation()
+
 	const [isRenaming, setIsRenaming] = useState(false)
 	const [isCreating, setIsCreating] = useState(false)
 	const [inputValue, setInputValue] = useState("")
@@ -39,12 +50,12 @@ const ApiConfigManager = ({
 
 		const nameExists = listApiConfigMeta?.some((config) => config.name.toLowerCase() === trimmed.toLowerCase())
 
-		// For new profiles, any existing name is invalid
+		// For new profiles, any existing name is invalid.
 		if (isNewProfile && nameExists) {
 			return t("settings:providers.nameExists")
 		}
 
-		// For rename, only block if trying to rename to a different existing profile
+		// For rename, only block if trying to rename to a different existing profile.
 		if (!isNewProfile && nameExists && trimmed.toLowerCase() !== currentApiConfigName?.toLowerCase()) {
 			return t("settings:providers.nameExists")
 		}
@@ -64,7 +75,7 @@ const ApiConfigManager = ({
 		setError(null)
 	}
 
-	// Focus input when entering rename mode
+	// Focus input when entering rename mode.
 	useEffect(() => {
 		if (isRenaming) {
 			const timeoutId = setTimeout(() => inputRef.current?.focus(), 0)
@@ -72,7 +83,7 @@ const ApiConfigManager = ({
 		}
 	}, [isRenaming])
 
-	// Focus input when opening new dialog
+	// Focus input when opening new dialog.
 	useEffect(() => {
 		if (isCreating) {
 			const timeoutId = setTimeout(() => newProfileInputRef.current?.focus(), 0)
@@ -80,7 +91,7 @@ const ApiConfigManager = ({
 		}
 	}, [isCreating])
 
-	// Reset state when current profile changes
+	// Reset state when current profile changes.
 	useEffect(() => {
 		resetCreateState()
 		resetRenameState()
@@ -137,7 +148,7 @@ const ApiConfigManager = ({
 	const handleDelete = () => {
 		if (!currentApiConfigName || !listApiConfigMeta || listApiConfigMeta.length <= 1) return
 
-		// Let the extension handle both deletion and selection
+		// Let the extension handle both deletion and selection.
 		onDeleteConfig(currentApiConfigName)
 	}
 
@@ -145,15 +156,11 @@ const ApiConfigManager = ({
 
 	return (
 		<div className="flex flex-col gap-1">
-			<label htmlFor="config-profile">
-				<span className="font-medium">{t("settings:providers.configProfile")}</span>
-			</label>
+			<label className="block font-medium mb-1">{t("settings:providers.configProfile")}</label>
 
 			{isRenaming ? (
-				<div
-					data-testid="rename-form"
-					style={{ display: "flex", gap: "4px", alignItems: "center", flexDirection: "column" }}>
-					<div style={{ display: "flex", gap: "4px", alignItems: "center", width: "100%" }}>
+				<div data-testid="rename-form">
+					<div className="flex items-center gap-1">
 						<VSCodeTextField
 							ref={inputRef}
 							value={inputValue}
@@ -163,100 +170,75 @@ const ApiConfigManager = ({
 								setError(null)
 							}}
 							placeholder={t("settings:providers.enterNewName")}
-							style={{ flexGrow: 1 }}
-							onKeyDown={(e: unknown) => {
-								const event = e as { key: string }
-								if (event.key === "Enter" && inputValue.trim()) {
+							onKeyDown={({ key }) => {
+								if (key === "Enter" && inputValue.trim()) {
 									handleSave()
-								} else if (event.key === "Escape") {
+								} else if (key === "Escape") {
 									handleCancel()
 								}
 							}}
+							className="grow"
 						/>
-						<VSCodeButton
-							appearance="icon"
+						<Button
+							variant="ghost"
+							size="icon"
 							disabled={!inputValue.trim()}
 							onClick={handleSave}
 							title={t("settings:common.save")}
-							data-testid="save-rename-button"
-							style={{
-								padding: 0,
-								margin: 0,
-								height: "28px",
-								width: "28px",
-								minWidth: "28px",
-							}}>
+							data-testid="save-rename-button">
 							<span className="codicon codicon-check" />
-						</VSCodeButton>
-						<VSCodeButton
-							appearance="icon"
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
 							onClick={handleCancel}
 							title={t("settings:common.cancel")}
-							data-testid="cancel-rename-button"
-							style={{
-								padding: 0,
-								margin: 0,
-								height: "28px",
-								width: "28px",
-								minWidth: "28px",
-							}}>
+							data-testid="cancel-rename-button">
 							<span className="codicon codicon-close" />
-						</VSCodeButton>
+						</Button>
 					</div>
 					{error && (
-						<p className="text-red-500 text-sm mt-2" data-testid="error-message">
+						<div className="text-vscode-descriptionForeground text-sm mt-1" data-testid="error-message">
 							{error}
-						</p>
+						</div>
 					)}
 				</div>
 			) : (
 				<>
-					<div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-						<Dropdown
-							id="config-profile"
-							value={currentApiConfigName}
-							onChange={(value: unknown) => {
-								onSelectConfig((value as DropdownOption).value)
-							}}
-							role="combobox"
-							options={listApiConfigMeta.map((config) => ({
-								value: config.name,
-								label: config.name,
-							}))}
-							className="w-full"
-						/>
-						<VSCodeButton
-							appearance="icon"
+					<div className="flex items-center gap-1">
+						<Select value={currentApiConfigName} onValueChange={onSelectConfig}>
+							<SelectTrigger className="grow">
+								<SelectValue placeholder={t("settings:common.select")} />
+							</SelectTrigger>
+							<SelectContent>
+								{listApiConfigMeta.map((config) => (
+									<SelectItem key={config.name} value={config.name}>
+										{config.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<Button
+							variant="ghost"
+							size="icon"
 							onClick={handleAdd}
 							title={t("settings:providers.addProfile")}
-							data-testid="add-profile-button"
-							style={{
-								padding: 0,
-								margin: 0,
-								height: "28px",
-								width: "28px",
-								minWidth: "28px",
-							}}>
+							data-testid="add-profile-button">
 							<span className="codicon codicon-add" />
-						</VSCodeButton>
+						</Button>
 						{currentApiConfigName && (
 							<>
-								<VSCodeButton
-									appearance="icon"
+								<Button
+									variant="ghost"
+									size="icon"
 									onClick={handleStartRename}
 									title={t("settings:providers.renameProfile")}
-									data-testid="rename-profile-button"
-									style={{
-										padding: 0,
-										margin: 0,
-										height: "28px",
-										width: "28px",
-										minWidth: "28px",
-									}}>
+									data-testid="rename-profile-button">
 									<span className="codicon codicon-edit" />
-								</VSCodeButton>
-								<VSCodeButton
-									appearance="icon"
+								</Button>
+								<Button
+									variant="ghost"
+									size="icon"
 									onClick={handleDelete}
 									title={
 										isOnlyProfile
@@ -264,27 +246,15 @@ const ApiConfigManager = ({
 											: t("settings:providers.deleteProfile")
 									}
 									data-testid="delete-profile-button"
-									disabled={isOnlyProfile}
-									style={{
-										padding: 0,
-										margin: 0,
-										height: "28px",
-										width: "28px",
-										minWidth: "28px",
-									}}>
+									disabled={isOnlyProfile}>
 									<span className="codicon codicon-trash" />
-								</VSCodeButton>
+								</Button>
 							</>
 						)}
 					</div>
-					<p
-						style={{
-							fontSize: "12px",
-							margin: "5px 0 12px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:providers.description")}
-					</p>
+					</div>
 				</>
 			)}
 

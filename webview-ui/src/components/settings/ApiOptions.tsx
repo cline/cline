@@ -249,7 +249,7 @@ const ApiOptions = ({
 					value={selectedProvider}
 					onValueChange={(value) => setApiConfigurationField("apiProvider", value as ApiProvider)}>
 					<SelectTrigger className="w-full">
-						<SelectValue placeholder="Select" />
+						<SelectValue placeholder={t("settings:common.select")} />
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="openrouter">OpenRouter</SelectItem>
@@ -521,7 +521,7 @@ const ApiOptions = ({
 							value={apiConfiguration?.awsRegion || ""}
 							onValueChange={(value) => setApiConfigurationField("awsRegion", value)}>
 							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Select" />
+								<SelectValue placeholder={t("settings:common.select")} />
 							</SelectTrigger>
 							<SelectContent>
 								{AWS_REGIONS.map(({ value, label }) => (
@@ -595,7 +595,7 @@ const ApiOptions = ({
 							value={apiConfiguration?.vertexRegion || ""}
 							onValueChange={(value) => setApiConfigurationField("vertexRegion", value)}>
 							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Select" />
+								<SelectValue placeholder={t("settings:common.select")} />
 							</SelectTrigger>
 							<SelectContent>
 								{VERTEX_REGIONS.map(({ value, label }) => (
@@ -1222,7 +1222,7 @@ const ApiOptions = ({
 									return { vendor, family }
 								})}>
 								<SelectTrigger className="w-full">
-									<SelectValue placeholder="Select" />
+									<SelectValue placeholder={t("settings:common.select")} />
 								</SelectTrigger>
 								<SelectContent>
 									{vsCodeLmModels.map((model) => (
@@ -1361,7 +1361,7 @@ const ApiOptions = ({
 								setApiConfigurationField("openRouterSpecificProvider", value)
 							}}>
 							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Select" />
+								<SelectValue placeholder={t("settings:common.select")} />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value={OPENROUTER_DEFAULT_PROVIDER_NAME}>
@@ -1374,7 +1374,7 @@ const ApiOptions = ({
 								))}
 							</SelectContent>
 						</Select>
-						<div className="text-sm text-vscode-descriptionForeground">
+						<div className="text-sm text-vscode-descriptionForeground mt-1">
 							{t("settings:providers.openRouter.providerRouting.description")}{" "}
 							<a href="https://openrouter.ai/docs/features/provider-routing">
 								{t("settings:providers.openRouter.providerRouting.learnMore")}.
@@ -1441,7 +1441,7 @@ const ApiOptions = ({
 								}
 							}}>
 							<SelectTrigger className="w-full">
-								<SelectValue placeholder="Select" />
+								<SelectValue placeholder={t("settings:common.select")} />
 							</SelectTrigger>
 							<SelectContent>
 								{selectedProviderModelOptions.map((option) => (

@@ -1,4 +1,6 @@
-import React, { ReactNode } from "react"
+// npx jest webview-ui/src/components/ui/__tests__/select-dropdown.test.tsx
+
+import { ReactNode } from "react"
 import { render, screen, fireEvent } from "@testing-library/react"
 import { SelectDropdown, DropdownOptionType } from "../select-dropdown"
 
@@ -47,6 +49,10 @@ jest.mock("../dropdown-menu", () => {
 		),
 
 		DropdownMenuSeparator: () => <div data-testid="dropdown-separator" />,
+
+		DropdownMenuShortcut: ({ children }: { children: ReactNode }) => (
+			<span data-testid="dropdown-shortcut">{children}</span>
+		),
 	}
 })
 

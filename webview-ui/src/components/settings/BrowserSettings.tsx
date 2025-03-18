@@ -4,10 +4,9 @@ import { SquareMousePointer } from "lucide-react"
 
 import { vscode } from "@/utils/vscode"
 import { useAppTranslation } from "@/i18n/TranslationContext"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue, Slider } from "@/components/ui"
 
 import { SetCachedStateField } from "./types"
-import { sliderLabelStyle } from "./styles"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 
@@ -128,119 +127,110 @@ export const BrowserSettings = ({
 						onChange={(e: any) => setCachedStateField("browserToolEnabled", e.target.checked)}>
 						<span className="font-medium">{t("settings:browser.enable.label")}</span>
 					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:browser.enable.description")}
-					</p>
-					{browserToolEnabled && (
-						<div
-							style={{
-								marginLeft: 0,
-								paddingLeft: 10,
-								borderLeft: "2px solid var(--vscode-button-background)",
-							}}>
-							<div>
-								<label className="block font-medium mb-1">{t("settings:browser.viewport.label")}</label>
-								<Select
-									value={browserViewportSize}
-									onValueChange={(value) => setCachedStateField("browserViewportSize", value)}>
-									<SelectTrigger className="w-full">
-										<SelectValue placeholder="Select" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectGroup>
-											{options.map(({ value, label }) => (
-												<SelectItem key={value} value={value}>
-													{label}
-												</SelectItem>
-											))}
-										</SelectGroup>
-									</SelectContent>
-								</Select>
-								<p className="text-vscode-descriptionForeground text-sm mt-1">
-									{t("settings:browser.viewport.description")}
-								</p>
-							</div>
-							<div>
-								<div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-									<span className="font-medium">{t("settings:browser.screenshotQuality.label")}</span>
-									<div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-										<input
-											type="range"
-											min="1"
-											max="100"
-											step="1"
-											value={screenshotQuality ?? 75}
-											className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
-											onChange={(e) =>
-												setCachedStateField("screenshotQuality", parseInt(e.target.value))
-											}
-										/>
-										<span style={{ ...sliderLabelStyle }}>{screenshotQuality ?? 75}%</span>
-									</div>
-								</div>
-								<p className="text-vscode-descriptionForeground text-sm mt-0">
-									{t("settings:browser.screenshotQuality.description")}
-								</p>
-							</div>
-							<div className="mt-4">
-								<div className="mb-2">
-									<VSCodeCheckbox
-										checked={remoteBrowserEnabled}
-										onChange={(e: any) => {
-											// Update the global state - remoteBrowserEnabled now means "enable remote browser connection"
-											setCachedStateField("remoteBrowserEnabled", e.target.checked)
-											if (!e.target.checked) {
-												// If disabling remote browser, clear the custom URL
-												setCachedStateField("remoteBrowserHost", undefined)
-											}
-										}}>
-										<span className="font-medium">{t("settings:browser.remote.label")}</span>
-									</VSCodeCheckbox>
-									<p className="text-vscode-descriptionForeground text-sm mt-0 ml-6">
-										{t("settings:browser.remote.description")}
-									</p>
-								</div>
-								{remoteBrowserEnabled && (
-									<>
-										<div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
-											<VSCodeTextField
-												value={remoteBrowserHost ?? ""}
-												onChange={(e: any) =>
-													setCachedStateField(
-														"remoteBrowserHost",
-														e.target.value || undefined,
-													)
-												}
-												placeholder={t("settings:browser.remote.urlPlaceholder")}
-												style={{ flexGrow: 1 }}
-											/>
-											<VSCodeButton
-												disabled={testingConnection}
-												onClick={remoteBrowserHost ? testConnection : discoverBrowser}>
-												{testingConnection || discovering
-													? t("settings:browser.remote.testingButton")
-													: t("settings:browser.remote.testButton")}
-											</VSCodeButton>
-										</div>
-										{testResult && (
-											<div
-												className={`p-2 mt-2 mb-2 rounded text-sm ${
-													testResult.success
-														? "bg-green-800/20 text-green-400"
-														: "bg-red-800/20 text-red-400"
-												}`}>
-												{testResult.message}
-											</div>
-										)}
-										<p className="text-vscode-descriptionForeground text-sm mt-2">
-											{t("settings:browser.remote.instructions")}
-										</p>
-									</>
-								)}
+					</div>
+				</div>
+
+				{browserToolEnabled && (
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div>
+							<label className="block font-medium mb-1">{t("settings:browser.viewport.label")}</label>
+							<Select
+								value={browserViewportSize}
+								onValueChange={(value) => setCachedStateField("browserViewportSize", value)}>
+								<SelectTrigger className="w-full">
+									<SelectValue placeholder={t("settings:common.select")} />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectGroup>
+										{options.map(({ value, label }) => (
+											<SelectItem key={value} value={value}>
+												{label}
+											</SelectItem>
+										))}
+									</SelectGroup>
+								</SelectContent>
+							</Select>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:browser.viewport.description")}
 							</div>
 						</div>
-					)}
-				</div>
+
+						<div>
+							<label className="block font-medium mb-1">
+								{t("settings:browser.screenshotQuality.label")}
+							</label>
+							<div className="flex items-center gap-2">
+								<Slider
+									min={1}
+									max={100}
+									step={1}
+									value={[screenshotQuality ?? 75]}
+									onValueChange={([value]) => setCachedStateField("screenshotQuality", value)}
+								/>
+								<span className="w-10">{screenshotQuality ?? 75}%</span>
+							</div>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:browser.screenshotQuality.description")}
+							</div>
+						</div>
+
+						<div>
+							<VSCodeCheckbox
+								checked={remoteBrowserEnabled}
+								onChange={(e: any) => {
+									// Update the global state - remoteBrowserEnabled now means "enable remote browser connection".
+									setCachedStateField("remoteBrowserEnabled", e.target.checked)
+
+									if (!e.target.checked) {
+										// If disabling remote browser, clear the custom URL.
+										setCachedStateField("remoteBrowserHost", undefined)
+									}
+								}}>
+								<label className="block font-medium mb-1">{t("settings:browser.remote.label")}</label>
+							</VSCodeCheckbox>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:browser.remote.description")}
+							</div>
+						</div>
+
+						{remoteBrowserEnabled && (
+							<>
+								<div className="flex items-center gap-2">
+									<VSCodeTextField
+										value={remoteBrowserHost ?? ""}
+										onChange={(e: any) =>
+											setCachedStateField("remoteBrowserHost", e.target.value || undefined)
+										}
+										placeholder={t("settings:browser.remote.urlPlaceholder")}
+										style={{ flexGrow: 1 }}
+									/>
+									<VSCodeButton
+										disabled={testingConnection}
+										onClick={remoteBrowserHost ? testConnection : discoverBrowser}>
+										{testingConnection || discovering
+											? t("settings:browser.remote.testingButton")
+											: t("settings:browser.remote.testButton")}
+									</VSCodeButton>
+								</div>
+								{testResult && (
+									<div
+										className={`p-2 rounded-xs text-sm ${
+											testResult.success
+												? "bg-green-800/20 text-green-400"
+												: "bg-red-800/20 text-red-400"
+										}`}>
+										{testResult.message}
+									</div>
+								)}
+								<div className="text-vscode-descriptionForeground text-sm mt-1">
+									{t("settings:browser.remote.instructions")}
+								</div>
+							</>
+						)}
+					</div>
+				)}
 			</Section>
 		</div>
 	)

@@ -3,7 +3,8 @@
 		"save": "保存",
 		"done": "完了",
 		"cancel": "キャンセル",
-		"reset": "リセット"
+		"reset": "リセット",
+		"select": "選択"
 	},
 	"header": {
 		"title": "設定",
@@ -74,7 +75,7 @@
 	},
 	"providers": {
 		"configProfile": "設定プロファイル",
-		"description": "説明",
+		"description": "異なるAPI設定を保存して、プロバイダーと設定をすばやく切り替えることができます。",
 		"apiProvider": "APIプロバイダー",
 		"model": "モデル",
 		"nameEmpty": "名前を空にすることはできません",

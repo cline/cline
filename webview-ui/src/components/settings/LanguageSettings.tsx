@@ -47,7 +47,7 @@ export const LanguageSettings = ({ language, setCachedStateField, className, ...
 			<Section>
 				<Select value={language} onValueChange={(value) => setCachedStateField("language", value)}>
 					<SelectTrigger className="w-full">
-						<SelectValue placeholder="Select" />
+						<SelectValue placeholder={t("settings:common.select")} />
 					</SelectTrigger>
 					<SelectContent>
 						<SelectGroup>

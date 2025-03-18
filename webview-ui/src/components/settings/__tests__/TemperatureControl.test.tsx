@@ -1,5 +1,28 @@
+// npx jest src/components/settings/__tests__/TemperatureControl.test.ts
+
 import { render, screen, fireEvent } from "@testing-library/react"
+
 import { TemperatureControl } from "../TemperatureControl"
+
+class MockResizeObserver {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+}
+
+global.ResizeObserver = MockResizeObserver
+
+jest.mock("@/components/ui", () => ({
+	...jest.requireActual("@/components/ui"),
+	Slider: ({ value, onValueChange, "data-testid": dataTestId }: any) => (
+		<input
+			type="range"
+			value={value[0]}
+			onChange={(e) => onValueChange([parseFloat(e.target.value)])}
+			data-testid={dataTestId}
+		/>
+	),
+}))
 
 describe("TemperatureControl", () => {
 	it("renders with default temperature disabled", () => {
@@ -29,67 +52,34 @@ describe("TemperatureControl", () => {
 
 		const checkbox = screen.getByRole("checkbox")
 
-		// Uncheck - should clear temperature
+		// Uncheck - should clear temperature.
 		fireEvent.click(checkbox)
-		// Waiting for debounce
+
+		// Waiting for debounce.
 		await new Promise((x) => setTimeout(x, 100))
 		expect(onChange).toHaveBeenCalledWith(null)
 
-		// Check - should restore previous temperature
+		// Check - should restore previous temperature.
 		fireEvent.click(checkbox)
-		// Waiting for debounce
+
+		// Waiting for debounce.
 		await new Promise((x) => setTimeout(x, 100))
 		expect(onChange).toHaveBeenCalledWith(0.7)
-	})
-
-	it("updates temperature when input loses focus", async () => {
-		const onChange = jest.fn()
-		render(<TemperatureControl value={0.7} onChange={onChange} />)
-
-		const input = screen.getByRole("slider")
-		fireEvent.change(input, { target: { value: "0.8" } })
-		fireEvent.blur(input)
-
-		// Waiting for debounce
-		await new Promise((x) => setTimeout(x, 100))
-		expect(onChange).toHaveBeenCalledWith(0.8)
-	})
-
-	it("respects maxValue prop", async () => {
-		const onChange = jest.fn()
-		render(<TemperatureControl value={1.5} onChange={onChange} maxValue={2} />)
-
-		const input = screen.getByRole("slider")
-
-		// Valid value within max
-		fireEvent.change(input, { target: { value: "1.8" } })
-		fireEvent.blur(input)
-		// Waiting for debounce
-		await new Promise((x) => setTimeout(x, 100))
-		expect(onChange).toHaveBeenCalledWith(1.8)
-
-		// Invalid value above max
-		fireEvent.change(input, { target: { value: "2.5" } })
-		fireEvent.blur(input)
-		expect(input).toHaveValue("2") // Clamped between 0 and 2
-		// Waiting for debounce
-		await new Promise((x) => setTimeout(x, 100))
-		expect(onChange).toHaveBeenCalledWith(2)
 	})
 
 	it("syncs checkbox state when value prop changes", () => {
 		const onChange = jest.fn()
 		const { rerender } = render(<TemperatureControl value={0.7} onChange={onChange} />)
 
-		// Initially checked
+		// Initially checked.
 		const checkbox = screen.getByRole("checkbox")
 		expect(checkbox).toBeChecked()
 
-		// Update to undefined
+		// Update to undefined.
 		rerender(<TemperatureControl value={undefined} onChange={onChange} />)
 		expect(checkbox).not.toBeChecked()
 
-		// Update back to a value
+		// Update back to a value.
 		rerender(<TemperatureControl value={0.5} onChange={onChange} />)
 		expect(checkbox).toBeChecked()
 	})

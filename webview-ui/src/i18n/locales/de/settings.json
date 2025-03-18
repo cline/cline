@@ -3,7 +3,8 @@
 		"save": "Speichern",
 		"done": "Fertig",
 		"cancel": "Abbrechen",
-		"reset": "Zurücksetzen"
+		"reset": "Zurücksetzen",
+		"select": "Auswählen"
 	},
 	"header": {
 		"title": "Einstellungen",
@@ -74,7 +75,7 @@
 	},
 	"providers": {
 		"configProfile": "Konfigurationsprofil",
-		"description": "Beschreibung",
+		"description": "Speichern Sie verschiedene API-Konfigurationen, um schnell zwischen Anbietern und Einstellungen zu wechseln.",
 		"apiProvider": "API-Anbieter",
 		"model": "Modell",
 		"nameEmpty": "Name darf nicht leer sein",

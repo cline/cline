@@ -1,13 +1,12 @@
+// npx jest src/components/settings/__tests__/ApiConfigManager.test.tsx
+
+import React from "react"
 import { render, screen, fireEvent, within } from "@testing-library/react"
+
 import ApiConfigManager from "../ApiConfigManager"
 
 // Mock VSCode components
 jest.mock("@vscode/webview-ui-toolkit/react", () => ({
-	VSCodeButton: ({ children, onClick, title, disabled, "data-testid": dataTestId }: any) => (
-		<button onClick={onClick} title={title} disabled={disabled} data-testid={dataTestId}>
-			{children}
-		</button>
-	),
 	VSCodeTextField: ({ value, onInput, placeholder, onKeyDown, "data-testid": dataTestId }: any) => (
 		<input
 			value={value}
@@ -20,22 +19,8 @@ jest.mock("@vscode/webview-ui-toolkit/react", () => ({
 	),
 }))
 
-jest.mock("vscrui", () => ({
-	Dropdown: ({ id, value, onChange, options, role }: any) => (
-		<div data-testid={`mock-dropdown-${id}`}>
-			<select value={value} onChange={(e) => onChange({ value: e.target.value })} data-testid={id} role={role}>
-				{options.map((opt: any) => (
-					<option key={opt.value} value={opt.value}>
-						{opt.label}
-					</option>
-				))}
-			</select>
-		</div>
-	),
-}))
-
-// Mock Dialog component
-jest.mock("@/components/ui/dialog", () => ({
+jest.mock("@/components/ui", () => ({
+	...jest.requireActual("@/components/ui"),
 	Dialog: ({ children, open, onOpenChange }: any) => (
 		<div role="dialog" aria-modal="true" style={{ display: open ? "block" : "none" }} data-testid="dialog">
 			{children}
@@ -43,10 +28,6 @@ jest.mock("@/components/ui/dialog", () => ({
 	),
 	DialogContent: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
 	DialogTitle: ({ children }: any) => <div data-testid="dialog-title">{children}</div>,
-}))
-
-// Mock UI components
-jest.mock("@/components/ui", () => ({
 	Button: ({ children, onClick, disabled, variant, "data-testid": dataTestId }: any) => (
 		<button onClick={onClick} disabled={disabled} data-testid={dataTestId}>
 			{children}
@@ -60,6 +41,25 @@ jest.mock("@/components/ui", () => ({
 			onKeyDown={onKeyDown}
 			data-testid={dataTestId}
 		/>
+	),
+	Select: ({ children, value, onValueChange }: any) => (
+		<select
+			value={value}
+			onChange={(e) => {
+				if (onValueChange) onValueChange(e.target.value)
+			}}
+			data-testid="select-component">
+			<option value="Default Config">Default Config</option>
+			<option value="Another Config">Another Config</option>
+		</select>
+	),
+	SelectTrigger: ({ children }: any) => <div className="select-trigger-mock">{children}</div>,
+	SelectValue: ({ children }: any) => <div className="select-value-mock">{children}</div>,
+	SelectContent: ({ children }: any) => <div className="select-content-mock">{children}</div>,
+	SelectItem: ({ children, value }: any) => (
+		<option value={value} className="select-item-mock">
+			{children}
+		</option>
 	),
 }))
 
@@ -215,7 +215,7 @@ describe("ApiConfigManager", () => {
 	it("allows selecting a different config", () => {
 		render(<ApiConfigManager {...defaultProps} />)
 
-		const select = screen.getByRole("combobox")
+		const select = screen.getByTestId("select-component")
 		fireEvent.change(select, { target: { value: "Another Config" } })
 
 		expect(mockOnSelectConfig).toHaveBeenCalledWith("Another Config")

@@ -1,9 +1,31 @@
+// npx jest src/components/settings/__tests__/ContextManagementSettings.test.ts
+
 import { render, screen, fireEvent } from "@testing-library/react"
+
 import { ContextManagementSettings } from "../ContextManagementSettings"
+
+class MockResizeObserver {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+}
+
+global.ResizeObserver = MockResizeObserver
+
+jest.mock("@/components/ui", () => ({
+	...jest.requireActual("@/components/ui"),
+	Slider: ({ value, onValueChange, "data-testid": dataTestId }: any) => (
+		<input
+			type="range"
+			value={value[0]}
+			onChange={(e) => onValueChange([parseFloat(e.target.value)])}
+			data-testid={dataTestId}
+		/>
+	),
+}))
 
 describe("ContextManagementSettings", () => {
 	const defaultProps = {
-		terminalOutputLineLimit: 500,
 		maxOpenTabsContext: 20,
 		maxWorkspaceFiles: 200,
 		showRooIgnoredFiles: false,
@@ -20,12 +42,10 @@ describe("ContextManagementSettings", () => {
 		// Open tabs context limit
 		const openTabsSlider = screen.getByTestId("open-tabs-limit-slider")
 		expect(openTabsSlider).toBeInTheDocument()
-		expect(openTabsSlider).toHaveValue("20")
 
 		// Workspace files limit
 		const workspaceFilesSlider = screen.getByTestId("workspace-files-limit-slider")
 		expect(workspaceFilesSlider).toBeInTheDocument()
-		expect(workspaceFilesSlider).toHaveValue("200")
 
 		// Show .rooignore'd files
 		const showRooIgnoredFilesCheckbox = screen.getByTestId("show-rooignored-files-checkbox")

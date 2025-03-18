@@ -3,7 +3,8 @@
 		"save": "保存",
 		"done": "完成",
 		"cancel": "取消",
-		"reset": "重置"
+		"reset": "重置",
+		"select": "选择"
 	},
 	"header": {
 		"title": "设置",
@@ -74,7 +75,7 @@
 	},
 	"providers": {
 		"configProfile": "配置文件",
-		"description": "描述",
+		"description": "保存不同的 API 配置以快速切换提供商和设置。",
 		"apiProvider": "API 提供商",
 		"model": "模型",
 		"nameEmpty": "名称不能为空",

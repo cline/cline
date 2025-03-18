@@ -103,15 +103,3 @@ export const VSCodeRadio: React.FC<VSCodeProps> = ({ children, value, checked, o
 
 export const VSCodeRadioGroup: React.FC<VSCodeProps> = ({ children, onChange, ...props }) =>
 	React.createElement("div", { role: "radiogroup", onChange, ...props }, children)
-
-export const VSCodeSlider: React.FC<VSCodeProps> = ({ value, onChange, ...props }) =>
-	React.createElement("input", {
-		type: "range",
-		value,
-		onChange: (e: any) => onChange?.({ target: { value: Number(e.target.value) } }),
-		min: 0,
-		max: 1,
-		step: 0.01,
-		style: { flexGrow: 1, height: "2px" },
-		...props,
-	})

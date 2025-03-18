@@ -3,7 +3,8 @@
 		"save": "Lưu",
 		"done": "Hoàn thành",
 		"cancel": "Hủy",
-		"reset": "Đặt lại"
+		"reset": "Đặt lại",
+		"select": "Chọn"
 	},
 	"header": {
 		"title": "Cài đặt",
@@ -74,7 +75,7 @@
 	},
 	"providers": {
 		"configProfile": "Hồ sơ cấu hình",
-		"description": "Mô tả",
+		"description": "Lưu các cấu hình API khác nhau để nhanh chóng chuyển đổi giữa các nhà cung cấp và cài đặt.",
 		"apiProvider": "Nhà cung cấp API",
 		"model": "Mẫu",
 		"nameEmpty": "Tên không được để trống",

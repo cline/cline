@@ -9,7 +9,9 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 	DropdownMenuSeparator,
+	DropdownMenuShortcut,
 } from "./dropdown-menu"
+import { Check } from "lucide-react"
 
 export enum DropdownOptionType {
 	ITEM = "item",
@@ -30,7 +32,6 @@ export interface SelectDropdownProps {
 	onChange: (value: string) => void
 	disabled?: boolean
 	title?: string
-	className?: string
 	triggerClassName?: string
 	contentClassName?: string
 	sideOffset?: number
@@ -48,7 +49,6 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 			onChange,
 			disabled = false,
 			title = "",
-			className = "",
 			triggerClassName = "",
 			contentClassName = "",
 			sideOffset = 4,
@@ -141,12 +141,14 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 							<DropdownMenuItem
 								key={`item-${option.value}`}
 								disabled={option.disabled}
-								className={cn(
-									"cursor-pointer text-xs focus:bg-vscode-list-hoverBackground focus:text-vscode-list-hoverForeground",
-									option.value === value && "bg-vscode-list-focusBackground",
-								)}
+								className="text-xs focus:bg-vscode-list-activeSelectionBackground cursor-pointer"
 								onClick={() => handleSelect(option)}>
 								{option.label}
+								{option.value === value && (
+									<DropdownMenuShortcut>
+										<Check className="w-3 h-3" />
+									</DropdownMenuShortcut>
+								)}
 							</DropdownMenuItem>
 						)
 					})}

@@ -3,6 +3,7 @@ import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { Trans } from "react-i18next"
 import { ChevronsUpDown, Check, X } from "lucide-react"
 
+import { useAppTranslation } from "@/i18n/TranslationContext"
 import { cn } from "@/lib/utils"
 import {
 	Command,
@@ -54,6 +55,8 @@ export const ModelPicker = ({
 	setApiConfigurationField,
 	defaultModelInfo,
 }: ModelPickerProps) => {
+	const { t } = useAppTranslation()
+
 	const [open, setOpen] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const isInitialized = useRef(false)
@@ -117,7 +120,7 @@ export const ModelPicker = ({
 							role="combobox"
 							aria-expanded={open}
 							className="w-full justify-between">
-							<div>{selectedModelId ?? "Select"}</div>
+							<div>{selectedModelId ?? t("settings:common.select")}</div>
 							<ChevronsUpDown className="opacity-50" />
 						</Button>
 					</PopoverTrigger>

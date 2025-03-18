@@ -2,7 +2,6 @@ import { render, screen, fireEvent } from "@testing-library/react"
 import { ThinkingBudget } from "../ThinkingBudget"
 import { ModelInfo } from "../../../../../src/shared/api"
 
-// Mock Slider component
 jest.mock("@/components/ui", () => ({
 	Slider: ({ value, onValueChange, min, max }: any) => (
 		<input

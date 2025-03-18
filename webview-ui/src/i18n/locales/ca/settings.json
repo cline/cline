@@ -3,7 +3,8 @@
 		"save": "Desar",
 		"done": "Fet",
 		"cancel": "Cancel·lar",
-		"reset": "Restablir"
+		"reset": "Restablir",
+		"select": "Seleccionar"
 	},
 	"header": {
 		"title": "Configuració",
@@ -74,7 +75,7 @@
 	},
 	"providers": {
 		"configProfile": "Perfil de configuració",
-		"description": "Descripció",
+		"description": "Deseu diferents configuracions d'API per canviar ràpidament entre proveïdors i configuracions.",
 		"apiProvider": "Proveïdor d'API",
 		"openRouterApiKey": "Clau API d'OpenRouter",
 		"nameEmpty": "El nom no pot estar buit",

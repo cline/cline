@@ -6,26 +6,22 @@ import { Cog } from "lucide-react"
 import { EXPERIMENT_IDS, ExperimentId } from "../../../../src/shared/experiments"
 
 import { cn } from "@/lib/utils"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from "@/components/ui"
 
 import { SetCachedStateField, SetExperimentEnabled } from "./types"
-import { sliderLabelStyle } from "./styles"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 
 type AdvancedSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	rateLimitSeconds: number
-	terminalShellIntegrationTimeout: number | undefined
 	diffEnabled?: boolean
 	fuzzyMatchThreshold?: number
-	setCachedStateField: SetCachedStateField<
-		"rateLimitSeconds" | "diffEnabled" | "fuzzyMatchThreshold" | "terminalShellIntegrationTimeout"
-	>
+	setCachedStateField: SetCachedStateField<"rateLimitSeconds" | "diffEnabled" | "fuzzyMatchThreshold">
 	experiments: Record<ExperimentId, boolean>
 	setExperimentEnabled: SetExperimentEnabled
 }
 export const AdvancedSettings = ({
 	rateLimitSeconds,
-	terminalShellIntegrationTimeout,
 	diffEnabled,
 	fuzzyMatchThreshold,
 	setCachedStateField,
@@ -35,6 +31,7 @@ export const AdvancedSettings = ({
 	...props
 }: AdvancedSettingsProps) => {
 	const { t } = useAppTranslation()
+
 	return (
 		<div className={cn("flex flex-col gap-2", className)} {...props}>
 			<SectionHeader>
@@ -49,50 +46,18 @@ export const AdvancedSettings = ({
 					<div className="flex flex-col gap-2">
 						<span className="font-medium">{t("settings:advanced.rateLimit.label")}</span>
 						<div className="flex items-center gap-2">
-							<input
-								type="range"
-								min="0"
-								max="60"
-								step="1"
-								value={rateLimitSeconds}
-								onChange={(e) => setCachedStateField("rateLimitSeconds", parseInt(e.target.value))}
-								className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
+							<Slider
+								min={0}
+								max={60}
+								step={1}
+								value={[rateLimitSeconds]}
+								onValueChange={([value]) => setCachedStateField("rateLimitSeconds", value)}
 							/>
-							<span style={{ ...sliderLabelStyle }}>{rateLimitSeconds}s</span>
+							<span className="w-10">{rateLimitSeconds}s</span>
 						</div>
 					</div>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:advanced.rateLimit.description")}
-					</p>
-				</div>
-
-				<div>
-					<div className="flex flex-col gap-2">
-						<span className="font-medium">Terminal shell integration timeout</span>
-						<div className="flex items-center gap-2">
-							<input
-								type="range"
-								min="1000"
-								max="60000"
-								step="1000"
-								value={terminalShellIntegrationTimeout}
-								onChange={(e) =>
-									setCachedStateField(
-										"terminalShellIntegrationTimeout",
-										Math.min(60000, Math.max(1000, parseInt(e.target.value))),
-									)
-								}
-								className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
-							/>
-							<span style={{ ...sliderLabelStyle }}>
-								{(terminalShellIntegrationTimeout ?? 4000) / 1000}s
-							</span>
-						</div>
-						<p className="text-vscode-descriptionForeground text-sm mt-0">
-							Maximum time to wait for shell integration to initialize before executing commands. For
-							users with long shell startup times, this value may need to be increased if you see "Shell
-							Integration Unavailable" errors in the terminal.
-						</p>
 					</div>
 				</div>
 
@@ -109,48 +74,53 @@ export const AdvancedSettings = ({
 						}}>
 						<span className="font-medium">{t("settings:advanced.diff.label")}</span>
 					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm">
 						{t("settings:advanced.diff.description")}
-					</p>
-					{diffEnabled && (
-						<div className="flex flex-col gap-2 mt-3 mb-2 pl-3 border-l-2 border-vscode-button-background">
-							<div className="flex flex-col gap-2">
-								<span className="font-medium">{t("settings:advanced.diff.strategy.label")}</span>
-								<select
-									value={
-										experiments[EXPERIMENT_IDS.DIFF_STRATEGY]
-											? "unified"
-											: experiments[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE]
-												? "multiBlock"
-												: "standard"
-									}
-									onChange={(e) => {
-										const value = e.target.value
-										if (value === "standard") {
-											setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, false)
-											setExperimentEnabled(EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE, false)
-										} else if (value === "unified") {
-											setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, true)
-											setExperimentEnabled(EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE, false)
-										} else if (value === "multiBlock") {
-											setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, false)
-											setExperimentEnabled(EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE, true)
-										}
-									}}
-									className="p-2 rounded w-full bg-vscode-input-background text-vscode-input-foreground border border-vscode-input-border outline-none focus:border-vscode-focusBorder">
-									<option value="standard">
-										{t("settings:advanced.diff.strategy.options.standard")}
-									</option>
-									<option value="multiBlock">
-										{t("settings:advanced.diff.strategy.options.multiBlock")}
-									</option>
-									<option value="unified">
-										{t("settings:advanced.diff.strategy.options.unified")}
-									</option>
-								</select>
-							</div>
+					</div>
+				</div>
 
-							<p className="text-vscode-descriptionForeground text-sm mt-1">
+				{diffEnabled && (
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div>
+							<label className="block font-medium mb-1">
+								{t("settings:advanced.diff.strategy.label")}
+							</label>
+							<Select
+								value={
+									experiments[EXPERIMENT_IDS.DIFF_STRATEGY]
+										? "unified"
+										: experiments[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE]
+											? "multiBlock"
+											: "standard"
+								}
+								onValueChange={(value) => {
+									if (value === "standard") {
+										setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, false)
+										setExperimentEnabled(EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE, false)
+									} else if (value === "unified") {
+										setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, true)
+										setExperimentEnabled(EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE, false)
+									} else if (value === "multiBlock") {
+										setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, false)
+										setExperimentEnabled(EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE, true)
+									}
+								}}>
+								<SelectTrigger className="w-full">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="standard">
+										{t("settings:advanced.diff.strategy.options.standard")}
+									</SelectItem>
+									<SelectItem value="multiBlock">
+										{t("settings:advanced.diff.strategy.options.multiBlock")}
+									</SelectItem>
+									<SelectItem value="unified">
+										{t("settings:advanced.diff.strategy.options.unified")}
+									</SelectItem>
+								</SelectContent>
+							</Select>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
 								{!experiments[EXPERIMENT_IDS.DIFF_STRATEGY] &&
 									!experiments[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE] &&
 									t("settings:advanced.diff.strategy.descriptions.standard")}
@@ -158,31 +128,29 @@ export const AdvancedSettings = ({
 									t("settings:advanced.diff.strategy.descriptions.unified")}
 								{experiments[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE] &&
 									t("settings:advanced.diff.strategy.descriptions.multiBlock")}
-							</p>
-
-							<span className="font-medium mt-3">{t("settings:advanced.diff.matchPrecision.label")}</span>
-							<div className="flex items-center gap-2">
-								<input
-									type="range"
-									min="0.8"
-									max="1"
-									step="0.005"
-									value={fuzzyMatchThreshold ?? 1.0}
-									onChange={(e) => {
-										setCachedStateField("fuzzyMatchThreshold", parseFloat(e.target.value))
-									}}
-									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
-								/>
-								<span style={{ ...sliderLabelStyle }}>
-									{Math.round((fuzzyMatchThreshold || 1) * 100)}%
-								</span>
 							</div>
-							<p className="text-vscode-descriptionForeground text-sm mt-0">
-								{t("settings:advanced.diff.matchPrecision.description")}
-							</p>
 						</div>
-					)}
-				</div>
+
+						<div>
+							<label className="block font-medium mb-1">
+								{t("settings:advanced.diff.matchPrecision.label")}
+							</label>
+							<div className="flex items-center gap-2">
+								<Slider
+									min={0.8}
+									max={1}
+									step={0.005}
+									value={[fuzzyMatchThreshold ?? 1.0]}
+									onValueChange={([value]) => setCachedStateField("fuzzyMatchThreshold", value)}
+								/>
+								<span className="w-10">{Math.round((fuzzyMatchThreshold || 1) * 100)}%</span>
+							</div>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:advanced.diff.matchPrecision.description")}
+							</div>
+						</div>
+					</div>
+				)}
 			</Section>
 		</div>
 	)

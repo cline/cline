@@ -3,7 +3,8 @@
 		"save": "Enregistrer",
 		"done": "Terminé",
 		"cancel": "Annuler",
-		"reset": "Réinitialiser"
+		"reset": "Réinitialiser",
+		"select": "Sélectionner"
 	},
 	"header": {
 		"title": "Paramètres",
@@ -74,7 +75,7 @@
 	},
 	"providers": {
 		"configProfile": "Profil de configuration",
-		"description": "Description",
+		"description": "Enregistrez différentes configurations d'API pour basculer rapidement entre les fournisseurs et les paramètres.",
 		"apiProvider": "Fournisseur d'API",
 		"model": "Modèle",
 		"nameEmpty": "Le nom ne peut pas être vide",

@@ -4,7 +4,7 @@ import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-u
 import { CheckCheck } from "lucide-react"
 
 import { vscode } from "@/utils/vscode"
-import { ExtensionStateContextType } from "@/context/ExtensionStateContext"
+import { Slider } from "@/components/ui"
 
 import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"
@@ -22,7 +22,19 @@ type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	alwaysAllowSubtasks?: boolean
 	alwaysAllowExecute?: boolean
 	allowedCommands?: string[]
-	setCachedStateField: SetCachedStateField<keyof ExtensionStateContextType>
+	setCachedStateField: SetCachedStateField<
+		| "alwaysAllowReadOnly"
+		| "alwaysAllowWrite"
+		| "writeDelayMs"
+		| "alwaysAllowBrowser"
+		| "alwaysApproveResubmit"
+		| "requestDelaySeconds"
+		| "alwaysAllowMcp"
+		| "alwaysAllowModeSwitch"
+		| "alwaysAllowSubtasks"
+		| "alwaysAllowExecute"
+		| "allowedCommands"
+	>
 }
 
 export const AutoApproveSettings = ({
@@ -71,9 +83,9 @@ export const AutoApproveSettings = ({
 						data-testid="always-allow-readonly-checkbox">
 						<span className="font-medium">{t("settings:autoApprove.readOnly.label")}</span>
 					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:autoApprove.readOnly.description")}
-					</p>
+					</div>
 				</div>
 
 				<div>
@@ -83,35 +95,31 @@ export const AutoApproveSettings = ({
 						data-testid="always-allow-write-checkbox">
 						<span className="font-medium">{t("settings:autoApprove.write.label")}</span>
 					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:autoApprove.write.description")}
-					</p>
-					{alwaysAllowWrite && (
-						<div
-							style={{
-								marginTop: 10,
-								paddingLeft: 10,
-								borderLeft: "2px solid var(--vscode-button-background)",
-							}}>
-							<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-								<input
-									type="range"
-									min="0"
-									max="5000"
-									step="100"
-									value={writeDelayMs}
-									onChange={(e) => setCachedStateField("writeDelayMs", parseInt(e.target.value))}
-									data-testid="write-delay-slider"
-									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
-								/>
-								<span style={{ minWidth: "45px", textAlign: "left" }}>{writeDelayMs}ms</span>
-							</div>
-							<p className="text-vscode-descriptionForeground text-sm mt-1">
-								{t("settings:autoApprove.write.delayLabel")}
-							</p>
-						</div>
-					)}
+					</div>
 				</div>
+
+				{alwaysAllowWrite && (
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div>
+							<div className="flex items-center gap-2">
+								<Slider
+									min={0}
+									max={5000}
+									step={100}
+									value={[writeDelayMs]}
+									onValueChange={([value]) => setCachedStateField("writeDelayMs", value)}
+									data-testid="write-delay-slider"
+								/>
+								<span className="w-20">{writeDelayMs}ms</span>
+							</div>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:autoApprove.write.delayLabel")}
+							</div>
+						</div>
+					</div>
+				)}
 
 				<div>
 					<VSCodeCheckbox
@@ -120,11 +128,10 @@ export const AutoApproveSettings = ({
 						data-testid="always-allow-browser-checkbox">
 						<span className="font-medium">{t("settings:autoApprove.browser.label")}</span>
 					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						{t("settings:autoApprove.browser.description")}
-						<br />
-						{t("settings:autoApprove.browser.note")}
-					</p>
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
+						<div>{t("settings:autoApprove.browser.description")}</div>
+						<div>{t("settings:autoApprove.browser.note")}</div>
+					</div>
 				</div>
 
 				<div>
@@ -134,37 +141,31 @@ export const AutoApproveSettings = ({
 						data-testid="always-approve-resubmit-checkbox">
 						<span className="font-medium">{t("settings:autoApprove.retry.label")}</span>
 					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:autoApprove.retry.description")}
-					</p>
-					{alwaysApproveResubmit && (
-						<div
-							style={{
-								marginTop: 10,
-								paddingLeft: 10,
-								borderLeft: "2px solid var(--vscode-button-background)",
-							}}>
-							<div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-								<input
-									type="range"
-									min="5"
-									max="100"
-									step="1"
-									value={requestDelaySeconds}
-									onChange={(e) =>
-										setCachedStateField("requestDelaySeconds", parseInt(e.target.value))
-									}
-									data-testid="request-delay-slider"
-									className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
-								/>
-								<span style={{ minWidth: "45px", textAlign: "left" }}>{requestDelaySeconds}s</span>
-							</div>
-							<p className="text-vscode-descriptionForeground text-sm mt-0">
-								{t("settings:autoApprove.retry.delayLabel")}
-							</p>
-						</div>
-					)}
+					</div>
 				</div>
+
+				{alwaysApproveResubmit && (
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div>
+							<div className="flex items-center gap-2">
+								<Slider
+									min={5}
+									max={100}
+									step={1}
+									value={[requestDelaySeconds]}
+									onValueChange={([value]) => setCachedStateField("requestDelaySeconds", value)}
+									data-testid="request-delay-slider"
+								/>
+								<span className="w-20">{requestDelaySeconds}s</span>
+							</div>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:autoApprove.retry.delayLabel")}
+							</div>
+						</div>
+					</div>
+				)}
 
 				<div>
 					<VSCodeCheckbox
@@ -173,9 +174,9 @@ export const AutoApproveSettings = ({
 						data-testid="always-allow-mcp-checkbox">
 						<span className="font-medium">{t("settings:autoApprove.mcp.label")}</span>
 					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:autoApprove.mcp.description")}
-					</p>
+					</div>
 				</div>
 
 				<div>
@@ -185,9 +186,9 @@ export const AutoApproveSettings = ({
 						data-testid="always-allow-mode-switch-checkbox">
 						<span className="font-medium">{t("settings:autoApprove.modeSwitch.label")}</span>
 					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:autoApprove.modeSwitch.description")}
-					</p>
+					</div>
 				</div>
 
 				<div>
@@ -197,9 +198,9 @@ export const AutoApproveSettings = ({
 						data-testid="always-allow-subtasks-checkbox">
 						<span className="font-medium">{t("settings:autoApprove.subtasks.label")}</span>
 					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:autoApprove.subtasks.description")}
-					</p>
+					</div>
 				</div>
 
 				<div>
@@ -209,71 +210,63 @@ export const AutoApproveSettings = ({
 						data-testid="always-allow-execute-checkbox">
 						<span className="font-medium">{t("settings:autoApprove.execute.label")}</span>
 					</VSCodeCheckbox>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:autoApprove.execute.description")}
-					</p>
-					{alwaysAllowExecute && (
-						<div
-							style={{
-								marginTop: 10,
-								paddingLeft: 10,
-								borderLeft: "2px solid var(--vscode-button-background)",
-							}}>
-							<span className="font-medium" data-testid="allowed-commands-heading">
+					</div>
+				</div>
+
+				{alwaysAllowExecute && (
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div>
+							<label className="block font-medium mb-1" data-testid="allowed-commands-heading">
 								{t("settings:autoApprove.execute.allowedCommands")}
-							</span>
-							<p className="text-vscode-descriptionForeground text-sm mt-0">
+							</label>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
 								{t("settings:autoApprove.execute.allowedCommandsDescription")}
-							</p>
-							<div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
-								<VSCodeTextField
-									value={commandInput}
-									onInput={(e: any) => setCommandInput(e.target.value)}
-									onKeyDown={(e: any) => {
-										if (e.key === "Enter") {
-											e.preventDefault()
-											handleAddCommand()
-										}
-									}}
-									placeholder={t("settings:autoApprove.execute.commandPlaceholder")}
-									data-testid="command-input"
-									style={{ flexGrow: 1 }}
-								/>
-								<VSCodeButton onClick={handleAddCommand} data-testid="add-command-button">
-									{t("settings:autoApprove.execute.addButton")}
-								</VSCodeButton>
-							</div>
-							<div
-								style={{
-									marginTop: "10px",
-									display: "flex",
-									flexWrap: "wrap",
-									gap: "5px",
-								}}>
-								{(allowedCommands ?? []).map((cmd, index) => (
-									<div
-										key={index}
-										className="border border-vscode-input-border bg-primary text-primary-foreground flex items-center gap-1 rounded-xs px-1.5 p-0.5">
-										<span>{cmd}</span>
-										<VSCodeButton
-											appearance="icon"
-											className="text-primary-foreground"
-											data-testid={`remove-command-${index}`}
-											onClick={() => {
-												const newCommands = (allowedCommands ?? []).filter(
-													(_, i) => i !== index,
-												)
-												setCachedStateField("allowedCommands", newCommands)
-												vscode.postMessage({ type: "allowedCommands", commands: newCommands })
-											}}>
-											<span className="codicon codicon-close" />
-										</VSCodeButton>
-									</div>
-								))}
 							</div>
 						</div>
-					)}
-				</div>
+
+						<div className="flex gap-2">
+							<VSCodeTextField
+								value={commandInput}
+								onInput={(e: any) => setCommandInput(e.target.value)}
+								onKeyDown={(e: any) => {
+									if (e.key === "Enter") {
+										e.preventDefault()
+										handleAddCommand()
+									}
+								}}
+								placeholder={t("settings:autoApprove.execute.commandPlaceholder")}
+								className="grow"
+								data-testid="command-input"
+							/>
+							<VSCodeButton onClick={handleAddCommand} data-testid="add-command-button">
+								{t("settings:autoApprove.execute.addButton")}
+							</VSCodeButton>
+						</div>
+
+						<div className="flex flex-wrap gap-2">
+							{(allowedCommands ?? []).map((cmd, index) => (
+								<div
+									key={index}
+									className="border border-vscode-input-border bg-primary text-primary-foreground flex items-center gap-1 rounded-xs px-1.5 p-0.5">
+									<span>{cmd}</span>
+									<VSCodeButton
+										appearance="icon"
+										className="text-primary-foreground"
+										data-testid={`remove-command-${index}`}
+										onClick={() => {
+											const newCommands = (allowedCommands ?? []).filter((_, i) => i !== index)
+											setCachedStateField("allowedCommands", newCommands)
+											vscode.postMessage({ type: "allowedCommands", commands: newCommands })
+										}}>
+										<span className="codicon codicon-close" />
+									</VSCodeButton>
+								</div>
+							))}
+						</div>
+					</div>
+				)}
 			</Section>
 		</div>
 	)
