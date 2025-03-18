@@ -2,6 +2,7 @@ import * as path from "path"
 import * as os from "os"
 import * as vscode from "vscode"
 import { arePathsEqual } from "../../utils/path"
+import { fileExistsAtPath } from "../../utils/fs"
 
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
@@ -20,10 +21,9 @@ export async function openImage(dataUri: string) {
 	}
 }
 
-export async function openFile(absolutePath: string) {
+export async function openFile(absolutePath: string | vscode.Uri) {
 	try {
-		const uri = vscode.Uri.file(absolutePath)
-
+		let uri = absolutePath instanceof vscode.Uri ? absolutePath : vscode.Uri.parse(absolutePath)
 		// Check if the document is already open in a tab group that's not in the active editor's column. If it is, then close it (if not dirty) so that we don't duplicate tabs
 		try {
 			for (const group of vscode.window.tabGroups.all) {
@@ -41,6 +41,13 @@ export async function openFile(absolutePath: string) {
 			}
 		} catch {} // not essential, sometimes tab operations fail
 
+		if (!(await fileExistsAtPath(uri))) {
+			const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri).at(0)
+			if (!cwd) {
+				throw new Error()
+			}
+			uri = vscode.Uri.joinPath(cwd, uri.fsPath)
+		}
 		const document = await vscode.workspace.openTextDocument(uri)
 		await vscode.window.showTextDocument(document, { preview: false })
 	} catch (error) {

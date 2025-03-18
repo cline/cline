@@ -3,29 +3,29 @@ import * as path from "path"
 import { openFile } from "../../integrations/misc/open-file"
 import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
 import { mentionRegexGlobal } from "../../shared/context-mentions"
-import fs from "fs/promises"
+
 import { extractTextFromFile } from "../../integrations/misc/extract-text"
-import { isBinaryFile } from "isbinaryfile"
 import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
 import { getLatestTerminalOutput } from "../../integrations/terminal/get-latest-output"
-import { getCommitInfo } from "../../utils/git"
-import { getWorkingState } from "../../utils/git"
+import { getCommitInfo, getWorkingState } from "../../utils/git"
+import { isBinaryFile } from "../../utils/fs"
+import { FileType } from "vscode"
 
 export function openMention(mention?: string): void {
 	if (!mention) {
 		return
 	}
 
-	const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+	const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri).at(0)
 	if (!cwd) {
 		return
 	}
 
 	if (mention.startsWith("/")) {
 		const relPath = mention.slice(1)
-		const absPath = path.resolve(cwd, relPath)
+		const absPath = vscode.Uri.joinPath(cwd, relPath)
 		if (mention.endsWith("/")) {
-			vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath))
+			vscode.commands.executeCommand("revealInExplorer", absPath)
 		} else {
 			openFile(absPath)
 		}
@@ -38,7 +38,7 @@ export function openMention(mention?: string): void {
 	}
 }
 
-export async function parseMentions(text: string, cwd: string, urlContentFetcher: UrlContentFetcher): Promise<string> {
+export async function parseMentions(text: string, cwd: vscode.Uri, urlContentFetcher: UrlContentFetcher): Promise<string> {
 	const mentions: Set<string> = new Set()
 	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
 		mentions.add(mention)
@@ -105,7 +105,7 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 			}
 		} else if (mention === "problems") {
 			try {
-				const problems = getWorkspaceProblems(cwd)
+				const problems = getWorkspaceProblems(cwd.fsPath)
 				parsedText += `\n\n<workspace_diagnostics>\n${problems}\n</workspace_diagnostics>`
 			} catch (error) {
 				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
@@ -119,14 +119,14 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 			}
 		} else if (mention === "git-changes") {
 			try {
-				const workingState = await getWorkingState(cwd)
+				const workingState = await getWorkingState(cwd.fsPath)
 				parsedText += `\n\n<git_working_state>\n${workingState}\n</git_working_state>`
 			} catch (error) {
 				parsedText += `\n\n<git_working_state>\nError fetching working state: ${error.message}\n</git_working_state>`
 			}
 		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
 			try {
-				const commitInfo = await getCommitInfo(mention, cwd)
+				const commitInfo = await getCommitInfo(mention, cwd.fsPath)
 				parsedText += `\n\n<git_commit hash="${mention}">\n${commitInfo}\n</git_commit>`
 			} catch (error) {
 				parsedText += `\n\n<git_commit hash="${mention}">\nError fetching commit info: ${error.message}\n</git_commit>`
@@ -145,30 +145,31 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 	return parsedText
 }
 
-async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise<string> {
-	const absPath = path.resolve(cwd, mentionPath)
+async function getFileOrFolderContent(mentionPath: string, cwd: vscode.Uri): Promise<string> {
+	const absPath = vscode.Uri.joinPath(cwd, mentionPath)
 
 	try {
-		const stats = await fs.stat(absPath)
+		const stats = await vscode.workspace.fs.stat(absPath)
 
-		if (stats.isFile()) {
+		if (stats.type === FileType.File) {
 			const isBinary = await isBinaryFile(absPath).catch(() => false)
 			if (isBinary) {
 				return "(Binary file, unable to display content)"
 			}
 			const content = await extractTextFromFile(absPath)
 			return content
-		} else if (stats.isDirectory()) {
-			const entries = await fs.readdir(absPath, { withFileTypes: true })
+		} else if (stats.type === FileType.Directory) {
+			const entries = await vscode.workspace.fs.readDirectory(absPath)
 			let folderContent = ""
 			const fileContentPromises: Promise<string | undefined>[] = []
 			entries.forEach((entry, index) => {
 				const isLast = index === entries.length - 1
 				const linePrefix = isLast ? "└── " : "├── "
-				if (entry.isFile()) {
-					folderContent += `${linePrefix}${entry.name}\n`
-					const filePath = path.join(mentionPath, entry.name)
-					const absoluteFilePath = path.resolve(absPath, entry.name)
+				if (entry[1] === FileType.File) {
+					let name = entry[0]
+					folderContent += `${linePrefix}${name}\n`
+					const filePath = path.join(mentionPath, name)
+					const absoluteFilePath = vscode.Uri.joinPath(absPath, name)
 					// const relativeFilePath = path.relative(cwd, absoluteFilePath);
 					fileContentPromises.push(
 						(async () => {
@@ -184,11 +185,11 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 							}
 						})(),
 					)
-				} else if (entry.isDirectory()) {
-					folderContent += `${linePrefix}${entry.name}/\n`
+				} else if (entry[1] === FileType.Directory) {
+					folderContent += `${linePrefix}${entry[0]}/\n`
 					// not recursively getting folder contents
 				} else {
-					folderContent += `${linePrefix}${entry.name}\n`
+					folderContent += `${linePrefix}${entry[0]}\n`
 				}
 			})
 			const fileContents = (await Promise.all(fileContentPromises)).filter((content) => content)

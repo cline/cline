@@ -65,8 +65,11 @@ import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 import { telemetryService } from "../services/telemetry/TelemetryService"
 import pTimeout from "p-timeout"
+import { Uri } from "vscode"
 
-const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
+const cwdUri =
+	vscode.workspace.workspaceFolders?.map((folder) => folder.uri).at(0) ?? Uri.parse(path.join(os.homedir(), "Desktop"))
+const cwd = cwdUri.fsPath // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -129,7 +132,7 @@ export class Cline {
 		images?: string[],
 		historyItem?: HistoryItem,
 	) {
-		this.clineIgnoreController = new ClineIgnoreController(cwd)
+		this.clineIgnoreController = new ClineIgnoreController(cwdUri)
 		this.clineIgnoreController.initialize().catch((error) => {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 		})
@@ -139,7 +142,7 @@ export class Cline {
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context, browserSettings)
-		this.diffViewProvider = new DiffViewProvider(cwd)
+		this.diffViewProvider = new DiffViewProvider(cwdUri)
 		this.customInstructions = customInstructions
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
@@ -1712,7 +1715,7 @@ export class Cline {
 							fileExists = this.diffViewProvider.editType === "modify"
 						} else {
 							const absolutePath = path.resolve(cwd, relPath)
-							fileExists = await fileExistsAtPath(absolutePath)
+							fileExists = await fileExistsAtPath(cwdUri.with({ path: absolutePath }))
 							this.diffViewProvider.editType = fileExists ? "modify" : "create"
 						}
 
@@ -1992,10 +1995,10 @@ export class Cline {
 								}
 
 								this.consecutiveMistakeCount = 0
-								const absolutePath = path.resolve(cwd, relPath)
+								const absolutePath = Uri.joinPath(cwdUri, relPath)
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
-									content: absolutePath,
+									content: absolutePath.fsPath,
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2004,7 +2007,7 @@ export class Cline {
 									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
-										`Cline wants to read ${path.basename(absolutePath)}`,
+										`Cline wants to read ${path.basename(absolutePath.fsPath)}`,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
@@ -2057,12 +2060,12 @@ export class Cline {
 								}
 								this.consecutiveMistakeCount = 0
 
-								const absolutePath = path.resolve(cwd, relDirPath)
+								const absolutePath = cwdUri?.with({ path: path.resolve(cwd, relDirPath) })
 
 								const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
 
 								const result = formatResponse.formatFilesList(
-									absolutePath,
+									absolutePath.fsPath,
 									files,
 									didHitLimit,
 									this.clineIgnoreController,
@@ -2078,7 +2081,7 @@ export class Cline {
 									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
-										`Cline wants to view directory ${path.basename(absolutePath)}/`,
+										`Cline wants to view directory ${path.basename(absolutePath.fsPath)}/`,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
@@ -3453,7 +3456,7 @@ export class Cline {
 						) {
 							return {
 								...block,
-								text: await parseMentions(block.text, cwd, this.urlContentFetcher),
+								text: await parseMentions(block.text, cwdUri, this.urlContentFetcher),
 							}
 						}
 					}

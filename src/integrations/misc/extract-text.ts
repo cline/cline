@@ -2,17 +2,18 @@ import * as path from "path"
 // @ts-ignore-next-line
 import pdf from "pdf-parse/lib/pdf-parse"
 import mammoth from "mammoth"
-import fs from "fs/promises"
+import * as vscode from "vscode"
 import { isBinaryFile } from "isbinaryfile"
-import { getFileSizeInKB } from "../../utils/fs"
-
-export async function extractTextFromFile(filePath: string): Promise<string> {
+const decoder = new TextDecoder("utf-8")
+export async function extractTextFromFile(filePath: string | vscode.Uri): Promise<string> {
+	filePath = filePath instanceof vscode.Uri ? filePath : vscode.Uri.parse(filePath)
+	let fileSizeInKB = 0
 	try {
-		await fs.access(filePath)
+		fileSizeInKB = (await vscode.workspace.fs.stat(filePath)).size / 1000
 	} catch (error) {
 		throw new Error(`File not found: ${filePath}`)
 	}
-	const fileExtension = path.extname(filePath).toLowerCase()
+	const fileExtension = path.extname(filePath.fsPath).toLowerCase()
 	switch (fileExtension) {
 		case ".pdf":
 			return extractTextFromPDF(filePath)
@@ -21,33 +22,36 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 		case ".ipynb":
 			return extractTextFromIPYNB(filePath)
 		default:
-			const isBinary = await isBinaryFile(filePath).catch(() => false)
+			if (fileSizeInKB > 300) {
+				throw new Error(`File is too large to read into context.`)
+			}
+			const buffer = Buffer.from(await vscode.workspace.fs.readFile(filePath))
+			const isBinary = await isBinaryFile(buffer).catch(() => false)
 			if (!isBinary) {
-				// If file is over 300KB, throw an error
-				const fileSizeInKB = await getFileSizeInKB(filePath)
-				if (fileSizeInKB > 300) {
-					throw new Error(`File is too large to read into context.`)
-				}
-				return await fs.readFile(filePath, "utf8")
+				return decoder.decode(buffer)
 			} else {
 				throw new Error(`Cannot read text for file type: ${fileExtension}`)
 			}
 	}
 }
 
-async function extractTextFromPDF(filePath: string): Promise<string> {
-	const dataBuffer = await fs.readFile(filePath)
+async function extractTextFromPDF(filePath: string | vscode.Uri): Promise<string> {
+	filePath = filePath instanceof vscode.Uri ? filePath : vscode.Uri.parse(filePath)
+	const dataBuffer = await vscode.workspace.fs.readFile(filePath)
 	const data = await pdf(dataBuffer)
 	return data.text
 }
 
-async function extractTextFromDOCX(filePath: string): Promise<string> {
-	const result = await mammoth.extractRawText({ path: filePath })
+async function extractTextFromDOCX(filePath: string | vscode.Uri): Promise<string> {
+	filePath = filePath instanceof vscode.Uri ? filePath : vscode.Uri.parse(filePath)
+	const dataBuffer = await vscode.workspace.fs.readFile(filePath)
+	const result = await mammoth.extractRawText({ arrayBuffer: dataBuffer })
 	return result.value
 }
 
-async function extractTextFromIPYNB(filePath: string): Promise<string> {
-	const data = await fs.readFile(filePath, "utf8")
+async function extractTextFromIPYNB(filePath: string | vscode.Uri): Promise<string> {
+	filePath = filePath instanceof vscode.Uri ? filePath : vscode.Uri.parse(filePath)
+	const data = decoder.decode(await vscode.workspace.fs.readFile(filePath))
 	const notebook = JSON.parse(data)
 	let extractedText = ""
 

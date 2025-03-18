@@ -24,12 +24,13 @@ export class DiffViewProvider {
 	private streamedLines: string[] = []
 	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
 
-	constructor(private cwd: string) {}
+	constructor(private cwd: vscode.Uri) {}
 
 	async open(relPath: string): Promise<void> {
 		this.relPath = relPath
 		const fileExists = this.editType === "modify"
-		const absolutePath = path.resolve(this.cwd, relPath)
+		const absolutePathUri = vscode.Uri.joinPath(this.cwd, relPath)
+		const absolutePath = absolutePathUri.fsPath
 		this.isEditing = true
 		// if the file is already open, ensure it's not dirty before getting its contents
 		if (fileExists) {
@@ -43,15 +44,15 @@ export class DiffViewProvider {
 		this.preDiagnostics = vscode.languages.getDiagnostics()
 
 		if (fileExists) {
-			this.originalContent = await fs.readFile(absolutePath, "utf-8")
+			this.originalContent = new TextDecoder("utf-8").decode(await vscode.workspace.fs.readFile(absolutePathUri))
 		} else {
 			this.originalContent = ""
 		}
 		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
-		this.createdDirs = await createDirectoriesForFile(absolutePath)
+		this.createdDirs = await createDirectoriesForFile(absolutePathUri)
 		// make sure the file exists before we open it
 		if (!fileExists) {
-			await fs.writeFile(absolutePath, "")
+			await vscode.workspace.fs.writeFile(absolutePathUri, new TextEncoder().encode(""))
 		}
 		// if the file was already open, close it (must happen after showing the diff view since if it's the only tab the column will close)
 		this.documentWasOpen = false
@@ -148,7 +149,7 @@ export class DiffViewProvider {
 				finalContent: undefined,
 			}
 		}
-		const absolutePath = path.resolve(this.cwd, this.relPath)
+		const absolutePath = this.cwd.with({ path: path.resolve(this.cwd.fsPath, this.relPath) })
 		const updatedDocument = this.activeDiffEditor.document
 
 		// get the contents before save operation which may do auto-formatting
@@ -162,7 +163,7 @@ export class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = updatedDocument.getText()
 
-		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
+		await vscode.window.showTextDocument(absolutePath, {
 			preview: false,
 		})
 		await this.closeAllDiffViews()
@@ -190,7 +191,7 @@ export class DiffViewProvider {
 			[
 				vscode.DiagnosticSeverity.Error, // only including errors since warnings can be distracting (if user wants to fix warnings they can use the @problems mention)
 			],
-			this.cwd,
+			this.cwd.fsPath,
 		) // will be empty string if no errors
 		const newProblemsMessage =
 			newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
@@ -236,13 +237,13 @@ export class DiffViewProvider {
 		}
 		const fileExists = this.editType === "modify"
 		const updatedDocument = this.activeDiffEditor.document
-		const absolutePath = path.resolve(this.cwd, this.relPath)
+		const absolutePath = this.cwd.with({ path: path.resolve(this.cwd.fsPath, this.relPath) })
 		if (!fileExists) {
 			if (updatedDocument.isDirty) {
 				await updatedDocument.save()
 			}
 			await this.closeAllDiffViews()
-			await fs.unlink(absolutePath)
+			await vscode.workspace.fs.delete(absolutePath)
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
 				await fs.rmdir(this.createdDirs[i])
@@ -262,7 +263,7 @@ export class DiffViewProvider {
 			await updatedDocument.save()
 			console.log(`File ${absolutePath} has been reverted to its original content.`)
 			if (this.documentWasOpen) {
-				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
+				await vscode.window.showTextDocument(absolutePath, {
 					preview: false,
 				})
 			}
@@ -289,7 +290,7 @@ export class DiffViewProvider {
 		if (!this.relPath) {
 			throw new Error("No file path set")
 		}
-		const uri = vscode.Uri.file(path.resolve(this.cwd, this.relPath))
+		const uri = this.cwd.with({ path: path.resolve(this.cwd.fsPath, this.relPath) })
 		// If this diff editor is already open (ie if a previous write file was interrupted) then we should activate that instead of opening a new diff
 		const diffTab = vscode.window.tabGroups.all
 			.flatMap((group) => group.tabs)
