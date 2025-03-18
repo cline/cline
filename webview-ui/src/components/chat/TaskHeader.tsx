@@ -98,19 +98,17 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			const textRefCurrent = textRef.current
 			const textContainerRefCurrent = textContainerRef.current
 
-			requestAnimationFrame(() => {
-				let textContainerHeight = textContainerRefCurrent.clientHeight
-				if (!textContainerHeight) {
-					textContainerHeight = textContainerRefCurrent.getBoundingClientRect().height
-				}
-				const isOverflowing = textRefCurrent.scrollHeight > textContainerHeight
+			let textContainerHeight = textContainerRefCurrent.clientHeight
+			if (!textContainerHeight) {
+				textContainerHeight = textContainerRefCurrent.getBoundingClientRect().height
+			}
+			const isOverflowing = textRefCurrent.scrollHeight > textContainerHeight
 
-				// necessary to show see more button again if user resizes window to expand and then back to collapse
-				if (!isOverflowing) {
-					setIsTextExpanded(false)
-				}
-				setShowSeeMore(isOverflowing)
-			})
+			// necessary to show see more button again if user resizes window to expand and then back to collapse
+			if (!isOverflowing) {
+				setIsTextExpanded(false)
+			}
+			setShowSeeMore(isOverflowing)
 		}
 	}, [task.text, windowWidth, isTaskExpanded])
 
