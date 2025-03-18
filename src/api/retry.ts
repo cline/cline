@@ -1,3 +1,18 @@
+/**
+ * Retry mechanism for API calls.
+ * Provides a decorator that automatically retries failed generator methods with
+ * configurable retry count, delay, and intelligent backoff based on rate limit headers.
+ */
+
+/**
+ * Configuration options for the retry mechanism.
+ *
+ * @interface RetryOptions
+ * @property {number} [maxRetries] - Maximum number of retry attempts (default: 3)
+ * @property {number} [baseDelay] - Initial delay in milliseconds between retries (default: 1000)
+ * @property {number} [maxDelay] - Maximum delay in milliseconds between retries (default: 10000)
+ * @property {boolean} [retryAllErrors] - Whether to retry on all errors or only rate limit errors (default: false)
+ */
 interface RetryOptions {
 	maxRetries?: number
 	baseDelay?: number
@@ -12,6 +27,34 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
 	retryAllErrors: false,
 }
 
+/**
+ * Decorator factory that adds retry logic to an async generator method.
+ * The decorated method will be automatically retried on failure with exponential backoff.
+ *
+ * Features:
+ * - Smart handling of rate limit (429) errors
+ * - Respects standard retry-after headers
+ * - Exponential backoff with configurable base and maximum delay
+ * - Option to retry all errors or only rate limit errors
+ *
+ * @example
+ * ```typescript
+ * class ApiClient {
+ *   @withRetry()
+ *   async *fetchData() {
+ *     // Method that might fail due to rate limits
+ *   }
+ *
+ *   @withRetry({ maxRetries: 5, retryAllErrors: true })
+ *   async *fetchWithCustomRetry() {
+ *     // Method with custom retry settings
+ *   }
+ * }
+ * ```
+ *
+ * @param options - Configuration options for the retry behavior
+ * @returns A method decorator that adds retry logic to the decorated method
+ */
 export function withRetry(options: RetryOptions = {}) {
 	const { maxRetries, baseDelay, maxDelay, retryAllErrors } = { ...DEFAULT_OPTIONS, ...options }
 
