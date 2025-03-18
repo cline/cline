@@ -27,7 +27,13 @@ const mockVscode = {
 			{
 				uri: { fsPath: "/test/workspace" },
 			},
-		],
+		] as { uri: { fsPath: string } }[] | undefined,
+		getWorkspaceFolder: jest.fn().mockReturnValue("/test/workspace"),
+		fs: {
+			stat: jest.fn(),
+			writeFile: jest.fn(),
+		},
+		openTextDocument: jest.fn().mockResolvedValue({}),
 	},
 	window: {
 		showErrorMessage: mockShowErrorMessage,
@@ -36,7 +42,14 @@ const mockVscode = {
 		createTextEditorDecorationType: jest.fn(),
 		createOutputChannel: jest.fn(),
 		createWebviewPanel: jest.fn(),
-		activeTextEditor: undefined,
+		showTextDocument: jest.fn().mockResolvedValue({}),
+		activeTextEditor: undefined as
+			| undefined
+			| {
+					document: {
+						uri: { fsPath: string }
+					}
+			  },
 	},
 	commands: {
 		executeCommand: mockExecuteCommand,
@@ -64,11 +77,15 @@ const mockVscode = {
 jest.mock("vscode", () => mockVscode)
 jest.mock("../../../services/browser/UrlContentFetcher")
 jest.mock("../../../utils/git")
+jest.mock("../../../utils/path")
 
 // Now import the modules that use the mocks
 import { parseMentions, openMention } from "../index"
 import { UrlContentFetcher } from "../../../services/browser/UrlContentFetcher"
 import * as git from "../../../utils/git"
+
+import { getWorkspacePath } from "../../../utils/path"
+;(getWorkspacePath as jest.Mock).mockReturnValue("/test/workspace")
 
 describe("mentions", () => {
 	const mockCwd = "/test/workspace"
@@ -83,6 +100,15 @@ describe("mentions", () => {
 			closeBrowser: jest.fn().mockResolvedValue(undefined),
 			urlToMarkdown: jest.fn().mockResolvedValue(""),
 		} as unknown as UrlContentFetcher
+
+		// Reset all vscode mocks
+		mockVscode.workspace.fs.stat.mockReset()
+		mockVscode.workspace.fs.writeFile.mockReset()
+		mockVscode.workspace.openTextDocument.mockReset().mockResolvedValue({})
+		mockVscode.window.showTextDocument.mockReset().mockResolvedValue({})
+		mockVscode.window.showErrorMessage.mockReset()
+		mockExecuteCommand.mockReset()
+		mockOpenExternal.mockReset()
 	})
 
 	describe("parseMentions", () => {
@@ -122,11 +148,21 @@ Detailed commit message with multiple lines
 
 	describe("openMention", () => {
 		it("should handle file paths and problems", async () => {
+			// Mock stat to simulate file not existing
+			mockVscode.workspace.fs.stat.mockRejectedValueOnce(new Error("File does not exist"))
+
+			// Call openMention and wait for it to complete
 			await openMention("/path/to/file")
+
+			// Verify error handling
 			expect(mockExecuteCommand).not.toHaveBeenCalled()
 			expect(mockOpenExternal).not.toHaveBeenCalled()
-			expect(mockShowErrorMessage).toHaveBeenCalledWith("Could not open file: File does not exist")
+			expect(mockVscode.window.showErrorMessage).toHaveBeenCalledWith("Could not open file: File does not exist")
 
+			// Reset mocks for next test
+			jest.clearAllMocks()
+
+			// Test problems command
 			await openMention("problems")
 			expect(mockExecuteCommand).toHaveBeenCalledWith("workbench.actions.view.problems")
 		})
@@ -135,8 +171,8 @@ Detailed commit message with multiple lines
 			const url = "https://example.com"
 			await openMention(url)
 			const mockUri = mockVscode.Uri.parse(url)
-			expect(mockOpenExternal).toHaveBeenCalled()
-			const calledArg = mockOpenExternal.mock.calls[0][0]
+			expect(mockVscode.env.openExternal).toHaveBeenCalled()
+			const calledArg = mockVscode.env.openExternal.mock.calls[0][0]
 			expect(calledArg).toEqual(
 				expect.objectContaining({
 					scheme: mockUri.scheme,

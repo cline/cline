@@ -1,7 +1,7 @@
 import * as path from "path"
 import * as os from "os"
 import * as vscode from "vscode"
-import { arePathsEqual } from "../../utils/path"
+import { arePathsEqual, getWorkspacePath } from "../../utils/path"
 
 export async function openImage(dataUri: string) {
 	const matches = dataUri.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/)
@@ -28,7 +28,7 @@ interface OpenFileOptions {
 export async function openFile(filePath: string, options: OpenFileOptions = {}) {
 	try {
 		// Get workspace root
-		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+		const workspaceRoot = getWorkspacePath()
 		if (!workspaceRoot) {
 			throw new Error("No workspace root found")
 		}

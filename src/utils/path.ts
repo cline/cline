@@ -1,5 +1,6 @@
 import * as path from "path"
 import os from "os"
+import * as vscode from "vscode"
 
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:
@@ -103,4 +104,14 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 export const toRelativePath = (filePath: string, cwd: string) => {
 	const relativePath = path.relative(cwd, filePath).toPosix()
 	return filePath.endsWith("/") ? relativePath + "/" : relativePath
+}
+
+export const getWorkspacePath = (defaultCwdPath = "") => {
+	const cwdPath = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) || defaultCwdPath
+	const currentFileUri = vscode.window.activeTextEditor?.document.uri
+	if (currentFileUri) {
+		const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentFileUri)
+		return workspaceFolder?.uri.fsPath || cwdPath
+	}
+	return cwdPath
 }

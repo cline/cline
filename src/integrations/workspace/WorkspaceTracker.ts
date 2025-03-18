@@ -3,8 +3,9 @@ import * as path from "path"
 import { listFiles } from "../../services/glob/list-files"
 import { ClineProvider } from "../../core/webview/ClineProvider"
 import { toRelativePath } from "../../utils/path"
+import { getWorkspacePath } from "../../utils/path"
+import { logger } from "../../utils/logging"
 
-const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 const MAX_INITIAL_FILES = 1_000
 
 // Note: this is not a drop-in replacement for listFiles at the start of tasks, since that will be done for Desktops when there is no workspace selected
@@ -13,7 +14,12 @@ class WorkspaceTracker {
 	private disposables: vscode.Disposable[] = []
 	private filePaths: Set<string> = new Set()
 	private updateTimer: NodeJS.Timeout | null = null
+	private prevWorkSpacePath: string | undefined
+	private resetTimer: NodeJS.Timeout | null = null
 
+	get cwd() {
+		return getWorkspacePath()
+	}
 	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
 		this.registerListeners()
@@ -21,17 +27,21 @@ class WorkspaceTracker {
 
 	async initializeFilePaths() {
 		// should not auto get filepaths for desktop since it would immediately show permission popup before cline ever creates a file
-		if (!cwd) {
+		if (!this.cwd) {
 			return
 		}
-		const [files, _] = await listFiles(cwd, true, MAX_INITIAL_FILES)
+		const tempCwd = this.cwd
+		const [files, _] = await listFiles(tempCwd, true, MAX_INITIAL_FILES)
+		if (this.prevWorkSpacePath !== tempCwd) {
+			return
+		}
 		files.slice(0, MAX_INITIAL_FILES).forEach((file) => this.filePaths.add(this.normalizeFilePath(file)))
 		this.workspaceDidUpdate()
 	}
 
 	private registerListeners() {
 		const watcher = vscode.workspace.createFileSystemWatcher("**")
-
+		this.prevWorkSpacePath = this.cwd
 		this.disposables.push(
 			watcher.onDidCreate(async (uri) => {
 				await this.addFilePath(uri.fsPath)
@@ -50,7 +60,7 @@ class WorkspaceTracker {
 
 		this.disposables.push(watcher)
 
-		this.disposables.push(vscode.window.tabGroups.onDidChangeTabs(() => this.workspaceDidUpdate()))
+		this.disposables.push(vscode.window.tabGroups.onDidChangeTabs(() => this.workspaceDidReset()))
 	}
 
 	private getOpenedTabsInfo() {
@@ -62,23 +72,40 @@ class WorkspaceTracker {
 					return {
 						label: tab.label,
 						isActive: tab.isActive,
-						path: toRelativePath(path, cwd || ""),
+						path: toRelativePath(path, this.cwd || ""),
 					}
 				}),
 		)
+	}
+
+	private async workspaceDidReset() {
+		if (this.resetTimer) {
+			clearTimeout(this.resetTimer)
+		}
+		this.resetTimer = setTimeout(async () => {
+			if (this.prevWorkSpacePath !== this.cwd) {
+				await this.providerRef.deref()?.postMessageToWebview({
+					type: "workspaceUpdated",
+					filePaths: [],
+					openedTabs: this.getOpenedTabsInfo(),
+				})
+				this.filePaths.clear()
+				this.prevWorkSpacePath = this.cwd
+				this.initializeFilePaths()
+			}
+		}, 300) // Debounce for 300ms
 	}
 
 	private workspaceDidUpdate() {
 		if (this.updateTimer) {
 			clearTimeout(this.updateTimer)
 		}
-
 		this.updateTimer = setTimeout(() => {
-			if (!cwd) {
+			if (!this.cwd) {
 				return
 			}
 
-			const relativeFilePaths = Array.from(this.filePaths).map((file) => toRelativePath(file, cwd))
+			const relativeFilePaths = Array.from(this.filePaths).map((file) => toRelativePath(file, this.cwd))
 			this.providerRef.deref()?.postMessageToWebview({
 				type: "workspaceUpdated",
 				filePaths: relativeFilePaths,
@@ -89,7 +116,7 @@ class WorkspaceTracker {
 	}
 
 	private normalizeFilePath(filePath: string): string {
-		const resolvedPath = cwd ? path.resolve(cwd, filePath) : path.resolve(filePath)
+		const resolvedPath = this.cwd ? path.resolve(this.cwd, filePath) : path.resolve(filePath)
 		return filePath.endsWith("/") ? resolvedPath + "/" : resolvedPath
 	}
 
@@ -122,6 +149,10 @@ class WorkspaceTracker {
 		if (this.updateTimer) {
 			clearTimeout(this.updateTimer)
 			this.updateTimer = null
+		}
+		if (this.resetTimer) {
+			clearTimeout(this.resetTimer)
+			this.resetTimer = null
 		}
 		this.disposables.forEach((d) => d.dispose())
 	}

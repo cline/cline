@@ -1,12 +1,37 @@
 // npx jest src/utils/__tests__/path.test.ts
-
 import os from "os"
 import * as path from "path"
 
-import { arePathsEqual, getReadablePath } from "../path"
+import { arePathsEqual, getReadablePath, getWorkspacePath } from "../path"
 
+// Mock modules
+
+jest.mock("vscode", () => ({
+	window: {
+		activeTextEditor: {
+			document: {
+				uri: { fsPath: "/test/workspaceFolder/file.ts" },
+			},
+		},
+	},
+	workspace: {
+		workspaceFolders: [
+			{
+				uri: { fsPath: "/test/workspace" },
+				name: "test",
+				index: 0,
+			},
+		],
+		getWorkspaceFolder: jest.fn().mockReturnValue({
+			uri: {
+				fsPath: "/test/workspaceFolder",
+			},
+		}),
+	},
+}))
 describe("Path Utilities", () => {
 	const originalPlatform = process.platform
+	// Helper to mock VS Code configuration
 
 	afterEach(() => {
 		Object.defineProperty(process, "platform", {
@@ -30,7 +55,14 @@ describe("Path Utilities", () => {
 			expect(extendedPath.toPosix()).toBe("\\\\?\\C:\\Very\\Long\\Path")
 		})
 	})
+	describe("getWorkspacePath", () => {
+		it("should return the current workspace path", () => {
+			const workspacePath = "/Users/test/project"
+			expect(getWorkspacePath(workspacePath)).toBe("/test/workspaceFolder")
+		})
 
+		it("should return undefined when outside a workspace", () => {})
+	})
 	describe("arePathsEqual", () => {
 		describe("on Windows", () => {
 			beforeEach(() => {

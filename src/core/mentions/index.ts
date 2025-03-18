@@ -9,13 +9,14 @@ import { isBinaryFile } from "isbinaryfile"
 import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
 import { getCommitInfo, getWorkingState } from "../../utils/git"
 import { getLatestTerminalOutput } from "../../integrations/terminal/get-latest-output"
+import { getWorkspacePath } from "../../utils/path"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
 		return
 	}
 
-	const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+	const cwd = getWorkspacePath()
 	if (!cwd) {
 		return
 	}

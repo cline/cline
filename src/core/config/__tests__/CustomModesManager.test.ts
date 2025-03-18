@@ -6,10 +6,12 @@ import * as fs from "fs/promises"
 import { CustomModesManager } from "../CustomModesManager"
 import { ModeConfig } from "../../../shared/modes"
 import { fileExistsAtPath } from "../../../utils/fs"
+import { getWorkspacePath, arePathsEqual } from "../../../utils/path"
 
 jest.mock("vscode")
 jest.mock("fs/promises")
 jest.mock("../../../utils/fs")
+jest.mock("../../../utils/path")
 
 describe("CustomModesManager", () => {
 	let manager: CustomModesManager
@@ -37,6 +39,7 @@ describe("CustomModesManager", () => {
 		mockWorkspaceFolders = [{ uri: { fsPath: "/mock/workspace" } }]
 		;(vscode.workspace as any).workspaceFolders = mockWorkspaceFolders
 		;(vscode.workspace.onDidSaveTextDocument as jest.Mock).mockReturnValue({ dispose: jest.fn() })
+		;(getWorkspacePath as jest.Mock).mockReturnValue("/mock/workspace")
 		;(fileExistsAtPath as jest.Mock).mockImplementation(async (path: string) => {
 			return path === mockSettingsPath || path === mockRoomodes
 		})
@@ -362,8 +365,11 @@ describe("CustomModesManager", () => {
 
 		it("watches file for changes", async () => {
 			const configPath = path.join(mockStoragePath, "settings", "cline_custom_modes.json")
-			;(fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ customModes: [] }))
 
+			;(fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ customModes: [] }))
+			;(arePathsEqual as jest.Mock).mockImplementation((path1: string, path2: string) => {
+				return path.normalize(path1) === path.normalize(path2)
+			})
 			// Get the registered callback
 			const registerCall = (vscode.workspace.onDidSaveTextDocument as jest.Mock).mock.calls[0]
 			expect(registerCall).toBeDefined()
