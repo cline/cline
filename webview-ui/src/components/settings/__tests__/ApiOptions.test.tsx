@@ -23,18 +23,12 @@ jest.mock("@vscode/webview-ui-toolkit/react", () => ({
 
 // Mock other components
 jest.mock("vscrui", () => ({
-	Dropdown: ({ children, value, onChange }: any) => (
-		<select value={value} onChange={onChange}>
-			{children}
-		</select>
-	),
 	Checkbox: ({ children, checked, onChange }: any) => (
 		<label>
 			<input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
 			{children}
 		</label>
 	),
-	Pane: ({ children }: any) => <div>{children}</div>,
 }))
 
 // Mock @shadcn/ui components
@@ -49,12 +43,12 @@ jest.mock("@/components/ui", () => ({
 	SelectTrigger: ({ children }: any) => <div className="select-trigger-mock">{children}</div>,
 	SelectValue: ({ children }: any) => <div className="select-value-mock">{children}</div>,
 	SelectContent: ({ children }: any) => <div className="select-content-mock">{children}</div>,
-	SelectGroup: ({ children }: any) => <div className="select-group-mock">{children}</div>,
 	SelectItem: ({ children, value }: any) => (
 		<option value={value} className="select-item-mock">
 			{children}
 		</option>
 	),
+	SelectSeparator: ({ children }: any) => <div className="select-separator-mock">{children}</div>,
 	Button: ({ children, onClick }: any) => (
 		<button onClick={onClick} className="button-mock">
 			{children}
