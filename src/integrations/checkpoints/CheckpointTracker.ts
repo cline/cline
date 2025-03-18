@@ -45,6 +45,7 @@ class CheckpointTracker {
 	private cwdHash: string
 	private lastRetrievedShadowGitConfigWorkTree?: string
 	private gitOperations: GitOperations
+	private currentGitPath?: string
 
 	/**
 	 * Creates a new CheckpointTracker instance to manage checkpoints for a specific task.
@@ -54,12 +55,37 @@ class CheckpointTracker {
 	 * @param cwd - The current working directory to track files in
 	 * @param cwdHash - Hash of the working directory path for shadow git organization
 	 */
+
 	private constructor(globalStoragePath: string, taskId: string, cwd: string, cwdHash: string) {
 		this.globalStoragePath = globalStoragePath
 		this.taskId = taskId
 		this.cwd = cwd
 		this.cwdHash = cwdHash
 		this.gitOperations = new GitOperations(cwd)
+	}
+
+	public async trackCheckpointsForTask(taskId: string) {
+		//TODO: Should we throw if feature is not enabled?
+		if (this.isEnabled()) {
+			console.log("checkpoints are not enabled, task  with id %s not tracked", taskId)
+			return
+		}
+		await this.initShadowGit()
+		const gitPath = ""
+		this.gitOperations.initShadowGit(gitPath, this.cwd)
+		telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized")
+	}
+
+	private async initShadowGit() {
+		try {
+			await simpleGit().version()
+		} catch (error) {
+			throw new Error("Git must be installed to use checkpoints.") // FIXME: must match what we check for in TaskHeader to show link
+		}
+	}
+
+	private isEnabled() {
+		return vscode.workspace.getConfiguration("cline").get<boolean>("enableCheckpoints") ?? true
 	}
 
 	/**
@@ -200,7 +226,7 @@ class CheckpointTracker {
 	 * - Shadow git repository doesn't exist
 	 * - Config read fails
 	 * - No worktree is configured
-	 * @throws Error if unable to:
+	 * logs Error if unable to:
 	 * - Access shadow git path
 	 * - Initialize simple-git
 	 * - Read git configuration
