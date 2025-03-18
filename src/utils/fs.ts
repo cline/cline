@@ -81,7 +81,7 @@ export async function getFileSizeInKB(filePath: string | vscode.Uri): Promise<nu
 }
 
 /**
- * Get the file is Binary file
+ * Determines whether the file is a binary file
  * note: When operating in a virtual file system, since the interface does not support limiting the size of files being read, files considered to be larger than 1MB are deemed to be binary files.
  * @param filePath - Path to the file to check
  * @returns Promise<boolean> - A promise that resolves to true if the file is binary file, false otherwise.
