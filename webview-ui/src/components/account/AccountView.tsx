@@ -6,6 +6,7 @@ import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import clineLogoWhite from "../../assets/cline-logo-white.svg"
 import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
+import type { PaymentTransaction, UsageTransaction } from "../../../../src/services/account/ClineAccountService"
 
 type AccountViewProps = {
 	onDone: () => void
@@ -29,22 +30,29 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 
 export const ClineAccountView = () => {
 	const { user, handleSignOut } = useFirebaseAuth()
-	const [balance, setBalance] = useState<number>(0)
-	const [isLoading, setIsLoading] = useState<boolean>(true)
+	const [balance, setBalance] = useState(0)
+	const [isLoading, setIsLoading] = useState(true)
+	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
+	const [paymentsData, setPaymentsData] = useState<PaymentTransaction[]>([])
 
-	// Listen for balance updates from the extension
+	// Listen for balance and transaction data updates from the extension
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
 			const message = event.data
 			if (message.type === "userCreditsBalance" && message.userCreditsBalance) {
 				setBalance(message.userCreditsBalance.balance)
-				setIsLoading(false)
+			} else if (message.type === "userCreditsUsage" && message.userCreditsUsage) {
+				setUsageData(message.userCreditsUsage)
+			} else if (message.type === "userCreditsPayments" && message.userCreditsPayments) {
+				setPaymentsData(message.userCreditsPayments)
 			}
+			setIsLoading(false)
+
 		}
 
 		window.addEventListener("message", handleMessage)
 
-		// Fetch balance data when component mounts
+		// Fetch all account data when component mounts
 		if (user) {
 			setIsLoading(true)
 			vscode.postMessage({ type: "fetchUserCreditsData" })
@@ -130,7 +138,11 @@ export const ClineAccountView = () => {
 
 					<VSCodeDivider className="mt-6 mb-10 w-full" />
 
-					<CreditsHistoryTable />
+					<CreditsHistoryTable 
+						isLoading={isLoading}
+						usageData={usageData}
+						paymentsData={paymentsData}
+					/>
 				</div>
 			) : (
 				<div className="flex flex-col items-center p-5 max-w-[400px]">
