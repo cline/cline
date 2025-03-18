@@ -1,4 +1,6 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
+// Replace ESM import with CommonJS require
+const mocha = require("mocha")
+const { describe, it, beforeEach, afterEach } = mocha
 // Using require for chai to fix ESM import issue
 const chai = require("chai")
 const { expect } = chai

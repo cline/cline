@@ -1,4 +1,6 @@
-import { describe, it } from "mocha"
+// Using require for mocha to fix ESM import issue
+const mocha = require("mocha")
+const { describe, it } = mocha
 import "should"
 import { calculateApiCostAnthropic, calculateApiCostOpenAI } from "./cost"
 import { ModelInfo } from "../shared/api"

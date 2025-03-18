@@ -1,5 +1,7 @@
 import * as fs from "fs/promises"
-import { after, describe, it } from "mocha"
+// Using require for mocha to fix ESM import issue
+const mocha = require("mocha")
+const { after, describe, it } = mocha
 import * as os from "os"
 import * as path from "path"
 import "should"

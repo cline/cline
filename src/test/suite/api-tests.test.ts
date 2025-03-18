@@ -4,7 +4,9 @@
  * with the main test suite.
  */
 
-import * as mocha from "mocha"
+// Using require instead of import for compatibility with the test runner
+const mocha = require("mocha")
+const { describe, it } = mocha
 // Using require for chai to fix ESM import issue
 const chai = require("chai")
 import "should"

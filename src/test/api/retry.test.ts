@@ -1,4 +1,5 @@
-import { describe, it } from "mocha"
+const mocha = require("mocha")
+const { describe, it } = mocha
 import "should"
 import { withRetry } from "../../api/retry"
 
