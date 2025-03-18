@@ -102,6 +102,7 @@ type GlobalStateKey =
 	| "liteLlmModelId"
 	| "qwenApiLine"
 	| "requestyModelId"
+	| "requestyModelInfo"
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
@@ -644,6 +645,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "refreshOpenRouterModels":
 						await this.refreshOpenRouterModels()
 						break
+					case "refreshRequestyModels":
+						await this.refreshRequestyModels()
+						break
 					case "refreshOpenAiModels":
 						const { apiConfiguration } = await this.getState()
 						const openAiModels = await this.getOpenAiModels(
@@ -991,6 +995,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					break
 				case "requesty":
 					await this.updateGlobalState("previousModeModelId", apiConfiguration.requestyModelId)
+					await this.updateGlobalState("previousModeModelInfo", apiConfiguration.requestyModelInfo)
 					break
 			}
 
@@ -1032,6 +1037,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "requesty":
 						await this.updateGlobalState("requestyModelId", newModelId)
+						await this.updateGlobalState("requestyModelInfo", newModelInfo)
 						break
 				}
 
@@ -1131,6 +1137,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			deepSeekApiKey,
 			requestyApiKey,
 			requestyModelId,
+			requestyModelInfo,
 			togetherApiKey,
 			togetherModelId,
 			qwenApiKey,
@@ -1192,6 +1199,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
 		await this.updateGlobalState("qwenApiLine", qwenApiLine)
 		await this.updateGlobalState("requestyModelId", requestyModelId)
+		await this.updateGlobalState("requestyModelInfo", requestyModelInfo)
 		await this.updateGlobalState("togetherModelId", togetherModelId)
 		await this.storeSecret("asksageApiKey", asksageApiKey)
 		await this.updateGlobalState("asksageApiUrl", asksageApiUrl)
@@ -1716,6 +1724,48 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		return models
 	}
 
+	async refreshRequestyModels() {
+		const parsePrice = (price: any) => {
+			if (price) {
+				return parseFloat(price) * 1_000_000
+			}
+			return undefined
+		}
+
+		let models: Record<string, ModelInfo> = {}
+		try {
+			const response = await axios.get("https://router.requesty.ai/v1/models")
+			if (response.data?.data) {
+				for (const model of response.data.data) {
+					const modelInfo: ModelInfo = {
+						maxTokens: model.max_output_tokens || undefined,
+						contextWindow: model.context_window,
+						supportsImages: model.supports_vision || undefined,
+						supportsComputerUse: model.supports_computer_use || undefined,
+						supportsPromptCache: model.supports_caching || undefined,
+						inputPrice: parsePrice(model.input_price),
+						outputPrice: parsePrice(model.output_price),
+						cacheWritesPrice: parsePrice(model.caching_price),
+						cacheReadsPrice: parsePrice(model.cached_price),
+						description: model.description,
+					}
+					models[model.id] = modelInfo
+				}
+				console.log("Requesty models fetched", models)
+			} else {
+				console.error("Invalid response from Requesty API")
+			}
+		} catch (error) {
+			console.error("Error fetching Requesty models:", error)
+		}
+
+		await this.postMessageToWebview({
+			type: "requestyModels",
+			requestyModels: models,
+		})
+		return models
+	}
+
 	// Task history
 
 	async getTaskWithId(id: string): Promise<{
@@ -1969,6 +2019,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			deepSeekApiKey,
 			requestyApiKey,
 			requestyModelId,
+			requestyModelInfo,
 			togetherApiKey,
 			togetherModelId,
 			qwenApiKey,
@@ -2031,6 +2082,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getSecret("deepSeekApiKey") as Promise<string | undefined>,
 			this.getSecret("requestyApiKey") as Promise<string | undefined>,
 			this.getGlobalState("requestyModelId") as Promise<string | undefined>,
+			this.getGlobalState("requestyModelInfo") as Promise<ModelInfo | undefined>,
 			this.getSecret("togetherApiKey") as Promise<string | undefined>,
 			this.getGlobalState("togetherModelId") as Promise<string | undefined>,
 			this.getSecret("qwenApiKey") as Promise<string | undefined>,
@@ -2134,6 +2186,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				deepSeekApiKey,
 				requestyApiKey,
 				requestyModelId,
+				requestyModelInfo,
 				togetherApiKey,
 				togetherModelId,
 				qwenApiKey,
