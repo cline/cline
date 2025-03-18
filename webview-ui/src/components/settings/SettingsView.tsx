@@ -100,6 +100,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		soundVolume,
 		telemetrySetting,
 		terminalOutputLineLimit,
+		terminalShellIntegrationTimeout,
 		writeDelayMs,
 		showRooIgnoredFiles,
 		remoteBrowserEnabled,
@@ -200,6 +201,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			vscode.postMessage({ type: "writeDelayMs", value: writeDelayMs })
 			vscode.postMessage({ type: "screenshotQuality", value: screenshotQuality ?? 75 })
 			vscode.postMessage({ type: "terminalOutputLineLimit", value: terminalOutputLineLimit ?? 500 })
+			vscode.postMessage({ type: "terminalShellIntegrationTimeout", value: terminalShellIntegrationTimeout })
 			vscode.postMessage({ type: "mcpEnabled", bool: mcpEnabled })
 			vscode.postMessage({ type: "alwaysApproveResubmit", bool: alwaysApproveResubmit })
 			vscode.postMessage({ type: "requestDelaySeconds", value: requestDelaySeconds })
@@ -455,6 +457,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 				<div ref={advancedRef}>
 					<AdvancedSettings
 						rateLimitSeconds={rateLimitSeconds}
+						terminalShellIntegrationTimeout={terminalShellIntegrationTimeout}
 						diffEnabled={diffEnabled}
 						fuzzyMatchThreshold={fuzzyMatchThreshold}
 						setCachedStateField={setCachedStateField}

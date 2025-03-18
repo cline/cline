@@ -88,6 +88,7 @@ export const GLOBAL_STATE_KEYS = [
 	"fuzzyMatchThreshold",
 	"writeDelayMs",
 	"terminalOutputLineLimit",
+	"terminalShellIntegrationTimeout",
 	"mcpEnabled",
 	"enableMcpServerCreation",
 	"alwaysApproveResubmit",

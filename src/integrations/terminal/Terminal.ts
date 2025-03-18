@@ -4,6 +4,8 @@ import { ExitCodeDetails, mergePromise, TerminalProcess, TerminalProcessResultPr
 import { truncateOutput, applyRunLengthEncoding } from "../misc/extract-text"
 
 export class Terminal {
+	private static shellIntegrationTimeout: number = 4000
+
 	public terminal: vscode.Terminal
 	public busy: boolean
 	public id: number
@@ -57,16 +59,18 @@ export class Terminal {
 		if (stream) {
 			// New stream is available
 			if (!this.process) {
-				throw new Error(`Cannot set active stream on terminal ${this.id} because process is undefined`)
+				this.running = false
+				console.warn(
+					`[Terminal ${this.id}] process is undefined, so cannot set terminal stream (probably user-initiated non-Roo command)`,
+				)
+				return
 			}
 
 			this.streamClosed = false
-			this.running = true
 			this.process.emit("stream_available", stream)
 		} else {
 			// Stream is being closed
 			this.streamClosed = true
-			this.running = false
 		}
 	}
 
@@ -75,7 +79,6 @@ export class Terminal {
 	 * @param exitDetails The exit details of the shell execution
 	 */
 	public shellExecutionComplete(exitDetails: ExitCodeDetails): void {
-		this.running = false
 		this.busy = false
 
 		if (this.process) {
@@ -149,6 +152,9 @@ export class Terminal {
 	}
 
 	public runCommand(command: string): TerminalProcessResultPromise {
+		// We set busy before the command is running because the terminal may be waiting
+		// on terminal integration, and we must prevent another instance from selecting
+		// the terminal for use during that time.
 		this.busy = true
 
 		// Create process immediately
@@ -165,20 +171,20 @@ export class Terminal {
 			// Set up event handlers
 			process.once("continue", () => resolve())
 			process.once("error", (error) => {
-				console.error(`Error in terminal ${this.id}:`, error)
+				console.error(`[Terminal ${this.id}] error:`, error)
 				reject(error)
 			})
 
 			// Wait for shell integration before executing the command
-			pWaitFor(() => this.terminal.shellIntegration !== undefined, { timeout: 4000 })
+			pWaitFor(() => this.terminal.shellIntegration !== undefined, { timeout: Terminal.shellIntegrationTimeout })
 				.then(() => {
 					process.run(command)
 				})
 				.catch(() => {
-					console.log("[Terminal] Shell integration not available. Command execution aborted.")
+					console.log(`[Terminal ${this.id}] Shell integration not available. Command execution aborted.`)
 					process.emit(
 						"no_shell_integration",
-						"Shell integration initialization sequence '\\x1b]633;A' was not received within 4 seconds. Shell integration has been disabled for this terminal instance.",
+						"Shell integration initialization sequence '\\x1b]633;A' was not received within 4 seconds. Shell integration has been disabled for this terminal instance. Increase the timeout in the settings if necessary.",
 					)
 				})
 		})
@@ -244,6 +250,10 @@ export class Terminal {
 	 * @param input The terminal output to compress
 	 * @returns The compressed terminal output
 	 */
+	public static setShellIntegrationTimeout(timeoutMs: number): void {
+		Terminal.shellIntegrationTimeout = timeoutMs
+	}
+
 	public static compressTerminalOutput(input: string, lineLimit: number): string {
 		return truncateOutput(applyRunLengthEncoding(input), lineLimit)
 	}

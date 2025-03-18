@@ -24,17 +24,22 @@ export class TerminalRegistry {
 					// Get a handle to the stream as early as possible:
 					const stream = e?.execution.read()
 					const terminalInfo = this.getTerminalByVSCETerminal(e.terminal)
-					if (terminalInfo) {
-						terminalInfo.setActiveStream(stream)
-					} else {
-						console.error("[TerminalRegistry] Stream failed, not registered for terminal")
-					}
 
 					console.info("[TerminalRegistry] Shell execution started:", {
 						hasExecution: !!e?.execution,
 						command: e?.execution?.commandLine?.value,
 						terminalId: terminalInfo?.id,
 					})
+
+					if (terminalInfo) {
+						terminalInfo.running = true
+						terminalInfo.setActiveStream(stream)
+					} else {
+						console.error(
+							"[TerminalRegistry] Shell execution started, but not from a Roo-registered terminal:",
+							e,
+						)
+					}
 				},
 			)
 
@@ -44,10 +49,20 @@ export class TerminalRegistry {
 					const terminalInfo = this.getTerminalByVSCETerminal(e.terminal)
 					const process = terminalInfo?.process
 
+					const exitDetails = TerminalProcess.interpretExitCode(e?.exitCode)
+
+					console.info("[TerminalRegistry] Shell execution ended:", {
+						hasExecution: !!e?.execution,
+						command: e?.execution?.commandLine?.value,
+						terminalId: terminalInfo?.id,
+						...exitDetails,
+					})
+
 					if (!terminalInfo) {
-						console.error("[TerminalRegistry] Shell execution ended but terminal not found:", {
-							exitCode: e?.exitCode,
-						})
+						console.error(
+							"[TerminalRegistry] Shell execution ended, but not from a Roo-registered terminal:",
+							e,
+						)
 						return
 					}
 
@@ -74,15 +89,9 @@ export class TerminalRegistry {
 						return
 					}
 
-					const exitDetails = TerminalProcess.interpretExitCode(e?.exitCode)
-					console.info("[TerminalRegistry] Shell execution ended:", {
-						...exitDetails,
-						terminalId: terminalInfo.id,
-						command: process?.command ?? "<unknown>",
-					})
-
 					// Signal completion to any waiting processes
 					if (terminalInfo) {
+						terminalInfo.running = false
 						terminalInfo.shellExecutionComplete(exitDetails)
 					}
 				},

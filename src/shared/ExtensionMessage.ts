@@ -138,6 +138,7 @@ export interface ExtensionState {
 	language?: string
 	writeDelayMs: number
 	terminalOutputLineLimit?: number
+	terminalShellIntegrationTimeout?: number
 	mcpEnabled: boolean
 	enableMcpServerCreation: boolean
 	enableCustomModeCreation?: boolean

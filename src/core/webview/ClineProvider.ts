@@ -6,6 +6,7 @@ import fs from "fs/promises"
 import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
+import { Terminal } from "../../integrations/terminal/Terminal"
 import * as vscode from "vscode"
 
 import { setPanel } from "../../activate/registerCommands"
@@ -355,9 +356,10 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			setPanel(webviewView, "sidebar")
 		}
 
-		// Initialize sound enabled state
-		this.getState().then(({ soundEnabled }) => {
+		// Initialize out-of-scope variables that need to recieve persistent global state values
+		this.getState().then(({ soundEnabled, terminalShellIntegrationTimeout }) => {
 			setSoundEnabled(soundEnabled ?? false)
+			Terminal.setShellIntegrationTimeout(terminalShellIntegrationTimeout ?? 4000)
 		})
 
 		// Initialize tts enabled state
@@ -1403,6 +1405,13 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 						await this.updateGlobalState("terminalOutputLineLimit", message.value)
 						await this.postStateToWebview()
 						break
+					case "terminalShellIntegrationTimeout":
+						await this.updateGlobalState("terminalShellIntegrationTimeout", message.value)
+						await this.postStateToWebview()
+						if (message.value !== undefined) {
+							Terminal.setShellIntegrationTimeout(message.value)
+						}
+						break
 					case "mode":
 						await this.handleModeSwitch(message.text as Mode)
 						break
@@ -2369,6 +2378,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			remoteBrowserEnabled,
 			writeDelayMs,
 			terminalOutputLineLimit,
+			terminalShellIntegrationTimeout,
 			fuzzyMatchThreshold,
 			mcpEnabled,
 			enableMcpServerCreation,
@@ -2432,6 +2442,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			remoteBrowserEnabled: remoteBrowserEnabled ?? false,
 			writeDelayMs: writeDelayMs ?? 1000,
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
+			terminalShellIntegrationTimeout: terminalShellIntegrationTimeout ?? 4000,
 			fuzzyMatchThreshold: fuzzyMatchThreshold ?? 1.0,
 			mcpEnabled: mcpEnabled ?? true,
 			enableMcpServerCreation: enableMcpServerCreation ?? true,
@@ -2591,6 +2602,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			fuzzyMatchThreshold: stateValues.fuzzyMatchThreshold ?? 1.0,
 			writeDelayMs: stateValues.writeDelayMs ?? 1000,
 			terminalOutputLineLimit: stateValues.terminalOutputLineLimit ?? 500,
+			terminalShellIntegrationTimeout: stateValues.terminalShellIntegrationTimeout ?? 4000,
 			mode: stateValues.mode ?? defaultModeSlug,
 			language: stateValues.language ?? formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,

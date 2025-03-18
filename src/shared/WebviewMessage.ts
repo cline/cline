@@ -74,6 +74,7 @@ export interface WebviewMessage {
 		| "draggedImages"
 		| "deleteMessage"
 		| "terminalOutputLineLimit"
+		| "terminalShellIntegrationTimeout"
 		| "mcpEnabled"
 		| "enableMcpServerCreation"
 		| "enableCustomModeCreation"

@@ -1033,7 +1033,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 				),
 			]
 		} else if (completed) {
-			let exitStatus: string
+			let exitStatus: string = ""
 			if (exitDetails !== undefined) {
 				if (exitDetails.signal) {
 					exitStatus = `Process terminated by signal ${exitDetails.signal} (${exitDetails.signalName})`
@@ -1044,13 +1044,22 @@ export class Cline extends EventEmitter<ClineEvents> {
 					result += "<VSCE exit code is undefined: terminal output and command execution status is unknown.>"
 					exitStatus = `Exit code: <undefined, notify user>`
 				} else {
-					exitStatus = `Exit code: ${exitDetails.exitCode}`
+					if (exitDetails.exitCode !== 0) {
+						exitStatus += "Command execution was not successful, inspect the cause and adjust as needed.\n"
+					}
+					exitStatus += `Exit code: ${exitDetails.exitCode}`
 				}
 			} else {
 				result += "<VSCE exitDetails == undefined: terminal output and command execution status is unknown.>"
 				exitStatus = `Exit code: <undefined, notify user>`
 			}
-			const workingDirInfo = workingDir ? ` from '${workingDir.toPosix()}'` : ""
+
+			let workingDirInfo: string = workingDir ? ` within working directory '${workingDir.toPosix()}'` : ""
+			const newWorkingDir = terminalInfo.getCurrentWorkingDirectory()
+
+			if (newWorkingDir !== workingDir) {
+				workingDirInfo += `; command changed working directory for this terminal to '${newWorkingDir.toPosix()} so be aware that future commands will be executed from this directory`
+			}
 
 			const outputInfo = `\nOutput:\n${result}`
 			return [
