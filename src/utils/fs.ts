@@ -91,7 +91,7 @@ export async function isBinaryFile(filePath: string | vscode.Uri): Promise<boole
 	if (uri.scheme === "file") {
 		return await isBinaryFileImpl(uri.fsPath)
 	} else {
-		if ((await getFileSizeInKB(uri)) > 10000) {
+		if ((await getFileSizeInKB(uri)) > 1000) {
 			return true
 		} else {
 			return await isBinaryFileImpl(Buffer.from(await vscode.workspace.fs.readFile(uri)))
