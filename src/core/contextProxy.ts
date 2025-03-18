@@ -10,6 +10,7 @@ import {
 	ConfigurationValues,
 	isSecretKey,
 	isGlobalStateKey,
+	isPassThroughStateKey,
 } from "../shared/globalState"
 import { API_CONFIG_KEYS, ApiConfiguration } from "../shared/api"
 
@@ -80,11 +81,18 @@ export class ContextProxy {
 	getGlobalState<T>(key: GlobalStateKey): T | undefined
 	getGlobalState<T>(key: GlobalStateKey, defaultValue: T): T
 	getGlobalState<T>(key: GlobalStateKey, defaultValue?: T): T | undefined {
+		if (isPassThroughStateKey(key)) {
+			const value = this.originalContext.globalState.get(key)
+			return value === undefined || value === null ? defaultValue : (value as T)
+		}
 		const value = this.stateCache.get(key) as T | undefined
 		return value !== undefined ? value : (defaultValue as T | undefined)
 	}
 
 	updateGlobalState<T>(key: GlobalStateKey, value: T) {
+		if (isPassThroughStateKey(key)) {
+			return this.originalContext.globalState.update(key, value)
+		}
 		this.stateCache.set(key, value)
 		return this.originalContext.globalState.update(key, value)
 	}
@@ -114,12 +122,14 @@ export class ContextProxy {
 	setValue(key: ConfigurationKey, value: any) {
 		if (isSecretKey(key)) {
 			return this.storeSecret(key, value)
-		} else if (isGlobalStateKey(key)) {
-			return this.updateGlobalState(key, value)
-		} else {
-			logger.warn(`Unknown key: ${key}. Storing as global state.`)
+		}
+
+		if (isGlobalStateKey(key)) {
 			return this.updateGlobalState(key, value)
 		}
+
+		logger.warn(`Unknown key: ${key}. Storing as global state.`)
+		return this.updateGlobalState(key, value)
 	}
 
 	/**
