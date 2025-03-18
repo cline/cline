@@ -97,7 +97,7 @@ export class Cline {
 	didFinishAbortingStream = false
 	abandoned = false
 	private diffViewProvider: DiffViewProvider
-	private checkpointTracker?: CheckpointTracker
+	private checkpointTracker: CheckpointTracker
 	checkpointTrackerErrorMessage?: string
 	conversationHistoryDeletedRange?: [number, number]
 	isInitialized = false
@@ -124,6 +124,7 @@ export class Cline {
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
 		chatSettings: ChatSettings,
+		checkpointTracker: CheckpointTracker,
 		customInstructions?: string,
 		task?: string,
 		images?: string[],
@@ -144,6 +145,8 @@ export class Cline {
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
+		this.checkpointTracker = checkpointTracker
+
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
@@ -297,22 +300,18 @@ export class Cline {
 				break
 			case "taskAndWorkspace":
 			case "workspace":
-				if (!this.checkpointTracker && !this.checkpointTrackerErrorMessage) {
-					try {
-						this.checkpointTracker = await CheckpointTracker.create(
-							this.taskId,
-							this.providerRef.deref()?.context.globalStorageUri.fsPath,
-						)
-					} catch (error) {
-						const errorMessage = error instanceof Error ? error.message : "Unknown error"
-						console.error("Failed to initialize checkpoint tracker:", errorMessage)
-						this.checkpointTrackerErrorMessage = errorMessage
-						await this.providerRef.deref()?.postStateToWebview()
-						vscode.window.showErrorMessage(errorMessage)
-						didWorkspaceRestoreFail = true
-					}
+				try {
+					await this.checkpointTracker.trackCheckpointsForTask(this.taskId)
+					this.checkpointTrackerErrorMessage = undefined
+				} catch (error) {
+					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					console.error("Failed to initialize checkpoint tracker:", errorMessage)
+					this.checkpointTrackerErrorMessage = errorMessage
+					await this.providerRef.deref()?.postStateToWebview()
+					vscode.window.showErrorMessage(errorMessage)
+					didWorkspaceRestoreFail = true
 				}
-				if (message.lastCheckpointHash && this.checkpointTracker) {
+				if (message.lastCheckpointHash) {
 					try {
 						await this.checkpointTracker.resetHead(message.lastCheckpointHash)
 					} catch (error) {
@@ -412,21 +411,17 @@ export class Cline {
 		}
 
 		// TODO: handle if this is called from outside original workspace, in which case we need to show user error message we cant show diff outside of workspace?
-		if (!this.checkpointTracker && !this.checkpointTrackerErrorMessage) {
-			try {
-				this.checkpointTracker = await CheckpointTracker.create(
-					this.taskId,
-					this.providerRef.deref()?.context.globalStorageUri.fsPath,
-				)
-			} catch (error) {
-				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				this.checkpointTrackerErrorMessage = errorMessage
-				await this.providerRef.deref()?.postStateToWebview()
-				vscode.window.showErrorMessage(errorMessage)
-				relinquishButton()
-				return
-			}
+		try {
+			this.checkpointTracker.trackCheckpointsForTask(this.taskId)
+			this.checkpointTrackerErrorMessage = undefined
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : "Unknown error"
+			console.error("Failed to initialize checkpoint tracker:", errorMessage)
+			this.checkpointTrackerErrorMessage = errorMessage
+			await this.providerRef.deref()?.postStateToWebview()
+			vscode.window.showErrorMessage(errorMessage)
+			relinquishButton()
+			return
 		}
 
 		let changedFiles:
