@@ -54,10 +54,10 @@ describe("Path handling with spaces", () => {
 	it("should verify safeDirname handles paths with spaces", () => {
 		const regularDirname = __dirname
 		const safeDirnameResult = safeDirname()
-		
+
 		// Both should resolve to the same location
 		expect(path.resolve(regularDirname)).to.equal(safeDirnameResult)
-		
+
 		// Explicit test with spaces
 		const pathWithSpaces = "C:\\Test Path With Spaces\\directory"
 		expect(safeDirname(pathWithSpaces)).to.equal(path.resolve(pathWithSpaces))
