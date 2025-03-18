@@ -1,3 +1,8 @@
+/**
+ * Implementation of ApiHandler for Anthropic's Claude models.
+ * This handler provides direct access to Claude's advanced features including
+ * streaming responses, prompt caching, and extended reasoning capabilities.
+ */
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { withRetry } from "../retry"
@@ -5,10 +10,22 @@ import { anthropicDefaultModelId, AnthropicModelId, anthropicModels, ApiHandlerO
 import { ApiHandler } from "../index"
 import { ApiStream } from "../transform/stream"
 
+/**
+ * Handler for interacting with Anthropic's Claude API.
+ * Implements the ApiHandler interface with native support for Claude's
+ * advanced features like extended reasoning, prompt caching, and
+ * detailed streaming event types.
+ */
 export class AnthropicHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private client: Anthropic
 
+	/**
+	 * Creates a new AnthropicHandler instance.
+	 *
+	 * @param options - Configuration options including the Anthropic API key
+	 *                  and optional base URL for the API
+	 */
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new Anthropic({
@@ -17,17 +34,29 @@ export class AnthropicHandler implements ApiHandler {
 		})
 	}
 
+	/**
+	 * Generates a message using Claude models with streaming response.
+	 * Supports advanced Anthropic features including:
+	 * - Extended reasoning/thinking capabilities (for Claude 3.7+)
+	 * - Prompt caching for improved performance
+	 * - Detailed event streaming with different content block types
+	 *
+	 * @param systemPrompt - Instructions to guide the model's behavior
+	 * @param messages - Array of messages in Anthropic format
+	 * @yields Various types of streaming content (text, reasoning, usage)
+	 */
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
 		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent>
 		const modelId = model.id
 
+		// Configure extended reasoning/thinking for supported models
 		let budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
 		switch (modelId) {
-			// 'latest' alias does not support cache_control
+			// Models that support prompt caching with cache_control
 			case "claude-3-7-sonnet-20250219":
 			case "claude-3-5-sonnet-20241022":
 			case "claude-3-5-haiku-20241022":
@@ -47,7 +76,7 @@ export class AnthropicHandler implements ApiHandler {
 						model: modelId,
 						thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 						max_tokens: model.info.maxTokens || 8192,
-						// "Thinking isn’t compatible with temperature, top_p, or top_k modifications as well as forced tool use."
+						// "Thinking isn't compatible with temperature, top_p, or top_k modifications as well as forced tool use."
 						// (https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking)
 						temperature: reasoningOn ? undefined : 0,
 						system: [
@@ -114,6 +143,7 @@ export class AnthropicHandler implements ApiHandler {
 				break
 			}
 			default: {
+				// Standard request for models without cache control support
 				stream = (await this.client.messages.create({
 					model: modelId,
 					max_tokens: model.info.maxTokens || 8192,
@@ -128,6 +158,7 @@ export class AnthropicHandler implements ApiHandler {
 			}
 		}
 
+		// Process the event stream, handling different event types
 		for await (const chunk of stream) {
 			switch (chunk.type) {
 				case "message_start":
@@ -210,6 +241,11 @@ export class AnthropicHandler implements ApiHandler {
 		}
 	}
 
+	/**
+	 * Determines which Claude model to use based on configuration or defaults.
+	 *
+	 * @returns Object containing the model ID and associated model information
+	 */
 	getModel(): { id: AnthropicModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in anthropicModels) {

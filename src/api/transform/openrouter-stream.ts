@@ -6,6 +6,27 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { OpenRouterErrorResponse } from "../providers/types"
 
+/**
+ * Creates a stream for generating content via OpenRouter-compatible APIs.
+ * Handles diverse model-specific requirements including:
+ * - Format conversion between Anthropic and OpenAI message formats
+ * - Prompt caching for Claude models
+ * - Max token settings for various model types
+ * - Temperature and top_p adjustments for specific models
+ * - Reasoning/thinking configuration for supported models
+ * - Context window management with middle-out transformation
+ *
+ * This function serves as a shared utility for both OpenRouter and Cline handlers.
+ *
+ * @param client - An OpenAI-compatible client configured for the target API
+ * @param systemPrompt - Instructions to guide the model's behavior
+ * @param messages - Array of messages in Anthropic format
+ * @param model - Object containing model ID and information
+ * @param o3MiniReasoningEffort - Optional reasoning effort setting for o3-mini model ("low"|"medium"|"high")
+ * @param thinkingBudgetTokens - Optional token budget for Claude 3.7 extended thinking
+ * @returns A stream of completion chunks compatible with OpenRouter's response format
+ * @see https://openrouter.ai/docs
+ */
 export async function createOpenRouterStream(
 	client: OpenAI,
 	systemPrompt: string,
@@ -40,6 +61,7 @@ export async function createOpenRouterStream(
 		case "anthropic/claude-3-haiku:beta":
 		case "anthropic/claude-3-opus":
 		case "anthropic/claude-3-opus:beta":
+			// Apply cache_control for system prompt
 			openAiMessages[0] = {
 				role: "system",
 				content: [
@@ -96,6 +118,7 @@ export async function createOpenRouterStream(
 			break
 	}
 
+	// Set temperature and topP for specific models
 	let temperature: number | undefined = 0
 	let topP: number | undefined = undefined
 	if (
@@ -110,6 +133,7 @@ export async function createOpenRouterStream(
 		openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 	}
 
+	// Configure extended reasoning/thinking for Claude 3.7 models
 	let reasoning: { max_tokens: number } | undefined = undefined
 	switch (model.id) {
 		case "anthropic/claude-3.7-sonnet":
@@ -126,6 +150,7 @@ export async function createOpenRouterStream(
 			break
 	}
 
+	// Determine whether to apply middle-out transformation for context window management
 	// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
 	let shouldApplyMiddleOutTransform = !model.info.supportsPromptCache
 	// except for deepseek (which we set supportsPromptCache to true for), where because the context window is so small our truncation algo might miss and we should use openrouter's middle-out transform as a fallback to ensure we don't exceed the context window (FIXME: once we have a more robust token estimator we should not rely on this)
@@ -133,6 +158,7 @@ export async function createOpenRouterStream(
 		shouldApplyMiddleOutTransform = true
 	}
 
+	// Create and return the completion stream
 	// @ts-ignore-next-line
 	const stream = await client.chat.completions.create({
 		model: model.id,

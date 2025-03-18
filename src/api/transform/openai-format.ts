@@ -1,18 +1,36 @@
+/**
+ * Conversion utilities for transforming between Anthropic and OpenAI message formats.
+ * This module handles the complex mapping between different API message structures,
+ * with special handling for multimodal content (images) and tool interactions.
+ */
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
+/**
+ * Converts Anthropic message format to OpenAI's chat completion format.
+ * Handles complex conversion cases including:
+ * - Simple text messages
+ * - Multimodal content (text and images)
+ * - Tool calls from assistant messages
+ * - Tool results from user messages
+ *
+ * @param anthropicMessages - Array of messages in Anthropic format
+ * @returns Array of messages in OpenAI's chat completion format
+ */
 export function convertToOpenAiMessages(
 	anthropicMessages: Anthropic.Messages.MessageParam[],
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
 	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = []
 
 	for (const anthropicMessage of anthropicMessages) {
+		// Handle simple string content case
 		if (typeof anthropicMessage.content === "string") {
 			openAiMessages.push({
 				role: anthropicMessage.role,
 				content: anthropicMessage.content,
 			})
 		} else {
+			// Handle complex content blocks (multimodal content and tools)
 			// image_url.url is base64 encoded image data
 			// ensure it contains the content-type of the image: data:image/png;base64,
 			/*
@@ -22,6 +40,7 @@ export function convertToOpenAiMessages(
         { role: "tool", tool_call_id: "", content: ""}
          */
 			if (anthropicMessage.role === "user") {
+				// For user messages, separate content into tool results and non-tool messages
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
 					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
 					toolMessages: Anthropic.ToolResultBlockParam[]
@@ -80,7 +99,7 @@ export function convertToOpenAiMessages(
 				// 	})
 				// }
 
-				// Process non-tool messages
+				// Process non-tool messages (text and images)
 				if (nonToolMessages.length > 0) {
 					openAiMessages.push({
 						role: "user",
@@ -98,6 +117,7 @@ export function convertToOpenAiMessages(
 					})
 				}
 			} else if (anthropicMessage.role === "assistant") {
+				// For assistant messages, separate content into tool uses and non-tool messages
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
 					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
 					toolMessages: Anthropic.ToolUseBlockParam[]
@@ -126,7 +146,7 @@ export function convertToOpenAiMessages(
 						.join("\n")
 				}
 
-				// Process tool use messages
+				// Process tool use messages as OpenAI's tool_calls
 				let tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = toolMessages.map((toolMessage) => ({
 					id: toolMessage.id,
 					type: "function",
@@ -150,7 +170,17 @@ export function convertToOpenAiMessages(
 	return openAiMessages
 }
 
-// Convert OpenAI response to Anthropic format
+/**
+ * Converts an OpenAI chat completion to Anthropic message format.
+ * Maps between the different API message structures, including:
+ * - Message content and roles
+ * - Finish/stop reason mapping
+ * - Tool calls conversion
+ * - Usage statistics
+ *
+ * @param completion - OpenAI chat completion response
+ * @returns Message in Anthropic format
+ */
 export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.ChatCompletion): Anthropic.Messages.Message {
 	const openAiMessage = completion.choices[0].message
 	const anthropicMessage: Anthropic.Messages.Message = {
@@ -165,6 +195,7 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 			},
 		],
 		model: completion.model,
+		// Map OpenAI finish reasons to Anthropic stop reasons
 		stop_reason: (() => {
 			switch (completion.choices[0].finish_reason) {
 				case "stop":
@@ -187,6 +218,7 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 		},
 	}
 
+	// Convert OpenAI tool calls to Anthropic tool_use blocks
 	if (openAiMessage.tool_calls && openAiMessage.tool_calls.length > 0) {
 		anthropicMessage.content.push(
 			...openAiMessage.tool_calls.map((toolCall): Anthropic.ToolUseBlock => {
