@@ -91,7 +91,7 @@ export class GeminiHandler implements ApiHandler {
 			if (finishReason === "SAFETY") {
 				throw new Error("Content generation was blocked for safety reasons")
 			} else if (finishReason === "RECITATION") {
-				throw new Error("Content was blocked due to potential copyright issues")
+				throw new Error("Content generation was blocked due to potential copyright issues")
 			} else if (finishReason === "OTHER") {
 				throw new Error("Content generation was blocked for other reasons")
 			}

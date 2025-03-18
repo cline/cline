@@ -9,5 +9,21 @@
 		"dist": true // set this to false to include "dist" folder in search results
 	},
 	// Turn off tsc task auto detection since we have the necessary tasks as npm scripts
-	"typescript.tsc.autoDetect": "off"
+	"typescript.tsc.autoDetect": "off",
+	"mochaExplorer.files": ["out/**/*.test.js", "src/test/**/*.test.ts", "src/test/**/*.test.js"],
+	"mochaExplorer.require": "ts-node/register",
+	"mochaExplorer.env": {
+		"TS_NODE_PROJECT": "./tsconfig.test.json",
+		"TEST_MODE": "true"
+	},
+	"mochaExplorer.nodeArgv": ["--require", "./src/test/test-helper.js"],
+	"mochaExplorer.timeout": 30000,
+	"testExplorer.codeLens": true,
+	"testExplorer.gutterDecoration": true,
+	"testExplorer.errorDecoration": true,
+	"testExplorer.errorDecorationHover": true,
+	"testExplorer.onStart": "reset",
+	"testExplorer.onReload": "reset",
+	"testExplorer.showCollapseButton": true,
+	"testExplorer.mergeSuites": true
 }

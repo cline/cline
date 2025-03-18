@@ -63,7 +63,27 @@ export function convertAnthropicMessageToGemini(message: Anthropic.Messages.Mess
  * @returns Properly unescaped string with normalized special characters
  */
 export function unescapeGeminiContent(content: string) {
-	return content.replace(/\\n/g, "\n").replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\r/g, "\r").replace(/\\t/g, "\t")
+	// Process escape sequences in a specific order to avoid conflicts
+	// First handle standard escaped characters
+	let unescaped = content
+		.replace(/\\n/g, "\n")
+		.replace(/\\'/g, "'")
+		.replace(/\\"/g, '"')
+		.replace(/\\r/g, "\r")
+		.replace(/\\t/g, "\t")
+
+	// Special handling for Windows paths with backslashes
+	// This regex looks for patterns like C:\\Program Files\\App
+	// and replaces them with single backslashes (C:\Program Files\App)
+	unescaped = unescaped.replace(/([A-Z]):\\\\([^\\].*?)(?=\\\\|$)/gi, (match, drive, path) => {
+		return `${drive}:\\${path.replace(/\\\\/g, "\\")}`
+	})
+
+	// Handle any remaining double backslashes that might be intentional escapes
+	// in contexts other than Windows paths
+	unescaped = unescaped.replace(/\\\\(?=[^\\/])/g, "\\")
+
+	return unescaped
 }
 
 /**
