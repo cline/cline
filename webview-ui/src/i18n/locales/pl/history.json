@@ -5,6 +5,8 @@
 	"cache": "Pamięć podręczna: +{{writes}} → {{reads}}",
 	"apiCost": "Koszt API: ${{cost}}",
 	"history": "Historia",
+	"exitSelectionMode": "Wyłącz tryb wyboru",
+	"enterSelectionMode": "Włącz tryb wyboru",
 	"done": "Gotowe",
 	"searchPlaceholder": "Szukaj w historii...",
 	"newest": "Najnowsze",
@@ -21,5 +23,16 @@
 	"deleteTask": "Usuń zadanie",
 	"deleteTaskMessage": "Czy na pewno chcesz usunąć to zadanie? Tej akcji nie można cofnąć.",
 	"cancel": "Anuluj",
-	"delete": "Usuń"
+	"delete": "Usuń",
+	"exitSelection": "Wyjdź z wyboru",
+	"selectionMode": "Tryb wyboru",
+	"deselectAll": "Odznacz wszystko",
+	"selectAll": "Zaznacz wszystko",
+	"selectedItems": "{{selected}}/{{total}} elementów wybranych",
+	"clearSelection": "Wyczyść wybór",
+	"deleteSelected": "Usuń wybrane",
+	"deleteTasks": "Usuń zadania",
+	"confirmDeleteTasks": "Czy na pewno chcesz usunąć {{count}} zadań?",
+	"deleteTasksWarning": "Usuniętych zadań nie można przywrócić. Upewnij się, że chcesz kontynuować.",
+	"deleteItems": "Usuń {{count}} elementów"
 }

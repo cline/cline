@@ -5,6 +5,8 @@
 	"cache": "Cache: +{{writes}} → {{reads}}",
 	"apiCost": "API Cost: ${{cost}}",
 	"history": "History",
+	"exitSelectionMode": "Exit Selection Mode",
+	"enterSelectionMode": "Enter Selection Mode",
 	"done": "Done",
 	"searchPlaceholder": "Fuzzy search history...",
 	"newest": "Newest",
@@ -21,5 +23,16 @@
 	"deleteTask": "Delete Task",
 	"deleteTaskMessage": "Are you sure you want to delete this task? This action cannot be undone.",
 	"cancel": "Cancel",
-	"delete": "Delete"
+	"delete": "Delete",
+	"exitSelection": "Exit Selection",
+	"selectionMode": "Selection Mode",
+	"deselectAll": "Deselect All",
+	"selectAll": "Select All",
+	"selectedItems": "Selected {{selected}}/{{total}} items",
+	"clearSelection": "Clear Selection",
+	"deleteSelected": "Delete Selected",
+	"deleteTasks": "Delete Tasks",
+	"confirmDeleteTasks": "Are you sure you want to delete {{count}} tasks?",
+	"deleteTasksWarning": "Deleted tasks cannot be recovered. Please make sure you want to proceed.",
+	"deleteItems": "Delete {{count}} Items"
 }

@@ -5,6 +5,8 @@
 	"cache": "Önbellek: +{{writes}} → {{reads}}",
 	"apiCost": "API Maliyeti: ${{cost}}",
 	"history": "Geçmiş",
+	"exitSelectionMode": "Seçim Modundan Çık",
+	"enterSelectionMode": "Seçim Moduna Gir",
 	"done": "Tamam",
 	"searchPlaceholder": "Geçmişte ara...",
 	"newest": "En Yeni",
@@ -21,5 +23,16 @@
 	"deleteTask": "Görevi Sil",
 	"deleteTaskMessage": "Bu görevi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.",
 	"cancel": "İptal",
-	"delete": "Sil"
+	"delete": "Sil",
+	"exitSelection": "Seçimden Çık",
+	"selectionMode": "Seçim Modu",
+	"deselectAll": "Tümünü Seçimi Kaldır",
+	"selectAll": "Tümünü Seç",
+	"selectedItems": "{{selected}}/{{total}} öğe seçildi",
+	"clearSelection": "Seçimi Temizle",
+	"deleteSelected": "Seçilenleri Sil",
+	"deleteTasks": "Görevleri Sil",
+	"confirmDeleteTasks": "{{count}} görevi silmek istediğinizden emin misiniz?",
+	"deleteTasksWarning": "Silinen görevler geri alınamaz. Lütfen devam etmek istediğinizden emin olun.",
+	"deleteItems": "{{count}} Öğeyi Sil"
 }

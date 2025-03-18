@@ -5,6 +5,8 @@
 	"cache": "Cau: +{{writes}} → {{reads}}",
 	"apiCost": "Cost d'API: ${{cost}}",
 	"history": "Historial",
+	"exitSelectionMode": "Sortir del mode de selecció",
+	"enterSelectionMode": "Entrar en mode de selecció",
 	"done": "Fet",
 	"searchPlaceholder": "Cerca a l'historial...",
 	"newest": "Més recents",
@@ -21,5 +23,16 @@
 	"deleteTask": "Eliminar tasca",
 	"deleteTaskMessage": "Estàs segur que vols eliminar aquesta tasca? Aquesta acció no es pot desfer.",
 	"cancel": "Cancel·lar",
-	"delete": "Eliminar"
+	"delete": "Eliminar",
+	"exitSelection": "Sortir de la selecció",
+	"selectionMode": "Mode de selecció",
+	"deselectAll": "Desseleccionar tot",
+	"selectAll": "Seleccionar tot",
+	"selectedItems": "{{selected}}/{{total}} elements seleccionats",
+	"clearSelection": "Netejar selecció",
+	"deleteSelected": "Eliminar seleccionats",
+	"deleteTasks": "Eliminar tasques",
+	"confirmDeleteTasks": "Estàs segur que vols eliminar {{count}} tasques?",
+	"deleteTasksWarning": "Les tasques eliminades no es poden recuperar. Si us plau, assegura't que vols continuar.",
+	"deleteItems": "Eliminar {{count}} elements"
 }

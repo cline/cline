@@ -5,6 +5,8 @@
 	"cache": "Cache: +{{writes}} → {{reads}}",
 	"apiCost": "Custo da API: ${{cost}}",
 	"history": "Histórico",
+	"exitSelectionMode": "Sair do modo de seleção",
+	"enterSelectionMode": "Entrar no modo de seleção",
 	"done": "Concluído",
 	"searchPlaceholder": "Pesquisar no histórico...",
 	"newest": "Mais recentes",
@@ -21,5 +23,16 @@
 	"deleteTask": "Excluir tarefa",
 	"deleteTaskMessage": "Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita.",
 	"cancel": "Cancelar",
-	"delete": "Excluir"
+	"delete": "Excluir",
+	"exitSelection": "Sair da seleção",
+	"selectionMode": "Modo de seleção",
+	"deselectAll": "Desmarcar tudo",
+	"selectAll": "Selecionar tudo",
+	"selectedItems": "{{selected}}/{{total}} itens selecionados",
+	"clearSelection": "Limpar seleção",
+	"deleteSelected": "Excluir selecionados",
+	"deleteTasks": "Excluir tarefas",
+	"confirmDeleteTasks": "Tem certeza que deseja excluir {{count}} tarefas?",
+	"deleteTasksWarning": "As tarefas excluídas não podem ser recuperadas. Por favor, certifique-se de que deseja prosseguir.",
+	"deleteItems": "Excluir {{count}} itens"
 }

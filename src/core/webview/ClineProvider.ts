@@ -999,6 +999,49 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 					case "deleteTaskWithId":
 						this.deleteTaskWithId(message.text!)
 						break
+					case "deleteMultipleTasksWithIds": {
+						const ids = message.ids
+						if (Array.isArray(ids)) {
+							// Process in batches of 20 (or another reasonable number)
+							const batchSize = 20
+							const results = []
+
+							// Only log start and end of the operation
+							console.log(`Batch deletion started: ${ids.length} tasks total`)
+
+							for (let i = 0; i < ids.length; i += batchSize) {
+								const batch = ids.slice(i, i + batchSize)
+
+								const batchPromises = batch.map(async (id) => {
+									try {
+										await this.deleteTaskWithId(id)
+										return { id, success: true }
+									} catch (error) {
+										// Keep error logging for debugging purposes
+										console.log(
+											`Failed to delete task ${id}: ${error instanceof Error ? error.message : String(error)}`,
+										)
+										return { id, success: false }
+									}
+								})
+
+								// Process each batch in parallel but wait for completion before starting the next batch
+								const batchResults = await Promise.all(batchPromises)
+								results.push(...batchResults)
+
+								// Update the UI after each batch to show progress
+								await this.postStateToWebview()
+							}
+
+							// Log final results
+							const successCount = results.filter((r) => r.success).length
+							const failCount = results.length - successCount
+							console.log(
+								`Batch deletion completed: ${successCount}/${ids.length} tasks successful, ${failCount} tasks failed`,
+							)
+						}
+						break
+					}
 					case "exportTaskWithId":
 						this.exportTaskWithId(message.text!)
 						break
@@ -2301,40 +2344,49 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 
 	// this function deletes a task from task hidtory, and deletes it's checkpoints and delete the task folder
 	async deleteTaskWithId(id: string) {
-		// get the task directory full path
-		const { taskDirPath } = await this.getTaskWithId(id)
-
-		// remove task from stack if it's the current task
-		if (id === this.getCurrentCline()?.taskId) {
-			// if we found the taskid to delete - call finish to abort this task and allow a new task to be started,
-			// if we are deleting a subtask and parent task is still waiting for subtask to finish - it allows the parent to resume (this case should neve exist)
-			await this.finishSubTask(`Task failure: It was stopped and deleted by the user.`)
-		}
-
-		// delete task from the task history state
-		await this.deleteTaskFromState(id)
-
-		// Delete associated shadow repository or branch.
-		// TODO: Store `workspaceDir` in the `HistoryItem` object.
-		const globalStorageDir = this.contextProxy.globalStorageUri.fsPath
-		const workspaceDir = this.cwd
-
 		try {
-			await ShadowCheckpointService.deleteTask({ taskId: id, globalStorageDir, workspaceDir })
-		} catch (error) {
-			console.error(
-				`[deleteTaskWithId${id}] failed to delete associated shadow repository or branch: ${error instanceof Error ? error.message : String(error)}`,
-			)
-		}
+			// Try to get the task directory full path
+			const { taskDirPath } = await this.getTaskWithId(id)
 
-		// delete the entire task directory including checkpoints and all content
-		try {
-			await fs.rm(taskDirPath, { recursive: true, force: true })
-			console.log(`[deleteTaskWithId${id}] removed task directory`)
+			// remove task from stack if it's the current task
+			if (id === this.getCurrentCline()?.taskId) {
+				// if we found the taskid to delete - call finish to abort this task and allow a new task to be started,
+				// if we are deleting a subtask and parent task is still waiting for subtask to finish - it allows the parent to resume (this case should neve exist)
+				await this.finishSubTask(`Task failure: It was stopped and deleted by the user.`)
+			}
+
+			// delete task from the task history state
+			await this.deleteTaskFromState(id)
+
+			// Delete associated shadow repository or branch.
+			// TODO: Store `workspaceDir` in the `HistoryItem` object.
+			const globalStorageDir = this.contextProxy.globalStorageUri.fsPath
+			const workspaceDir = this.cwd
+
+			try {
+				await ShadowCheckpointService.deleteTask({ taskId: id, globalStorageDir, workspaceDir })
+			} catch (error) {
+				console.error(
+					`[deleteTaskWithId${id}] failed to delete associated shadow repository or branch: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+
+			// delete the entire task directory including checkpoints and all content
+			try {
+				await fs.rm(taskDirPath, { recursive: true, force: true })
+				console.log(`[deleteTaskWithId${id}] removed task directory`)
+			} catch (error) {
+				console.error(
+					`[deleteTaskWithId${id}] failed to remove task directory: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
 		} catch (error) {
-			console.error(
-				`[deleteTaskWithId${id}] failed to remove task directory: ${error instanceof Error ? error.message : String(error)}`,
-			)
+			// If task is not found, just remove it from state
+			if (error instanceof Error && error.message === "Task not found") {
+				await this.deleteTaskFromState(id)
+				return
+			}
+			throw error
 		}
 	}
 

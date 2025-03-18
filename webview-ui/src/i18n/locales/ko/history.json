@@ -5,6 +5,8 @@
 	"cache": "캐시: +{{writes}} → {{reads}}",
 	"apiCost": "API 비용: ${{cost}}",
 	"history": "기록",
+	"exitSelectionMode": "선택 모드 종료",
+	"enterSelectionMode": "선택 모드 진입",
 	"done": "완료",
 	"searchPlaceholder": "기록 검색...",
 	"newest": "최신순",
@@ -21,5 +23,16 @@
 	"deleteTask": "작업 삭제",
 	"deleteTaskMessage": "이 작업을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
 	"cancel": "취소",
-	"delete": "삭제"
+	"delete": "삭제",
+	"exitSelection": "선택 종료",
+	"selectionMode": "선택 모드",
+	"deselectAll": "전체 선택 해제",
+	"selectAll": "전체 선택",
+	"selectedItems": "{{selected}}/{{total}}개 선택됨",
+	"clearSelection": "선택 초기화",
+	"deleteSelected": "선택 항목 삭제",
+	"deleteTasks": "작업 삭제",
+	"confirmDeleteTasks": "{{count}}개의 작업을 삭제하시겠습니까?",
+	"deleteTasksWarning": "삭제된 작업은 복구할 수 없습니다. 계속 진행하시겠습니까?",
+	"deleteItems": "{{count}}개 항목 삭제"
 }

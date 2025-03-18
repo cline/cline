@@ -5,6 +5,8 @@
 	"cache": "Caché: +{{writes}} → {{reads}}",
 	"apiCost": "Costo de API: ${{cost}}",
 	"history": "Historial",
+	"exitSelectionMode": "Salir del modo selección",
+	"enterSelectionMode": "Entrar en modo selección",
 	"done": "Listo",
 	"searchPlaceholder": "Buscar en el historial...",
 	"newest": "Más recientes",
@@ -21,5 +23,16 @@
 	"deleteTask": "Eliminar tarea",
 	"deleteTaskMessage": "¿Estás seguro de que quieres eliminar esta tarea? Esta acción no se puede deshacer.",
 	"cancel": "Cancelar",
-	"delete": "Eliminar"
+	"delete": "Eliminar",
+	"exitSelection": "Salir de la selección",
+	"selectionMode": "Modo selección",
+	"deselectAll": "Deseleccionar todo",
+	"selectAll": "Seleccionar todo",
+	"selectedItems": "{{selected}}/{{total}} elementos seleccionados",
+	"clearSelection": "Limpiar selección",
+	"deleteSelected": "Eliminar seleccionados",
+	"deleteTasks": "Eliminar tareas",
+	"confirmDeleteTasks": "¿Estás seguro de que quieres eliminar {{count}} tareas?",
+	"deleteTasksWarning": "Las tareas eliminadas no se pueden recuperar. Por favor, asegúrate de que quieres continuar.",
+	"deleteItems": "Eliminar {{count}} elementos"
 }

@@ -5,6 +5,8 @@
 	"cache": "कैश: +{{writes}} → {{reads}}",
 	"apiCost": "API लागत: ${{cost}}",
 	"history": "इतिहास",
+	"exitSelectionMode": "चयन मोड से बाहर निकलें",
+	"enterSelectionMode": "चयन मोड में प्रवेश करें",
 	"done": "पूर्ण",
 	"searchPlaceholder": "इतिहास खोजें...",
 	"newest": "नवीनतम",
@@ -21,5 +23,16 @@
 	"deleteTask": "कार्य हटाएं",
 	"deleteTaskMessage": "क्या आप वाकई इस कार्य को हटाना चाहते हैं? यह क्रिया पूर्ववत नहीं की जा सकती है।",
 	"cancel": "रद्द करें",
-	"delete": "हटाएं"
+	"delete": "हटाएं",
+	"exitSelection": "चयन से बाहर निकलें",
+	"selectionMode": "चयन मोड",
+	"deselectAll": "सभी चयन हटाएं",
+	"selectAll": "सभी चुनें",
+	"selectedItems": "{{selected}}/{{total}} आइटम चयनित",
+	"clearSelection": "चयन साफ़ करें",
+	"deleteSelected": "चयनित हटाएं",
+	"deleteTasks": "कार्य हटाएं",
+	"confirmDeleteTasks": "क्या आप वाकई {{count}} कार्य हटाना चाहते हैं?",
+	"deleteTasksWarning": "हटाए गए कार्य पुनर्प्राप्त नहीं किए जा सकते। कृपया सुनिश्चित करें कि आप आगे बढ़ना चाहते हैं।",
+	"deleteItems": "{{count}} आइटम हटाएं"
 }

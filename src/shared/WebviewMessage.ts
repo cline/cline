@@ -11,6 +11,7 @@ export type AudioType = "notification" | "celebration" | "progress_loop"
 export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
+		| "deleteMultipleTasksWithIds"
 		| "currentApiConfigName"
 		| "saveApiConfiguration"
 		| "upsertApiConfiguration"
@@ -137,6 +138,7 @@ export interface WebviewMessage {
 	payload?: WebViewMessagePayload
 	source?: "global" | "project"
 	requestId?: string
+	ids?: string[]
 }
 
 export const checkoutDiffPayloadSchema = z.object({

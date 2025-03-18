@@ -5,6 +5,8 @@
 	"cache": "Cache: +{{writes}} → {{reads}}",
 	"apiCost": "Coût API: ${{cost}}",
 	"history": "Historique",
+	"exitSelectionMode": "Quitter le mode sélection",
+	"enterSelectionMode": "Entrer en mode sélection",
 	"done": "Terminé",
 	"searchPlaceholder": "Rechercher dans l'historique...",
 	"newest": "Plus récentes",
@@ -21,5 +23,16 @@
 	"deleteTask": "Supprimer la tâche",
 	"deleteTaskMessage": "Êtes-vous sûr de vouloir supprimer cette tâche ? Cette action ne peut pas être annulée.",
 	"cancel": "Annuler",
-	"delete": "Supprimer"
+	"delete": "Supprimer",
+	"exitSelection": "Quitter la sélection",
+	"selectionMode": "Mode sélection",
+	"deselectAll": "Tout désélectionner",
+	"selectAll": "Tout sélectionner",
+	"selectedItems": "{{selected}}/{{total}} éléments sélectionnés",
+	"clearSelection": "Effacer la sélection",
+	"deleteSelected": "Supprimer les éléments sélectionnés",
+	"deleteTasks": "Supprimer les tâches",
+	"confirmDeleteTasks": "Êtes-vous sûr de vouloir supprimer {{count}} tâches ?",
+	"deleteTasksWarning": "Les tâches supprimées ne peuvent pas être récupérées. Veuillez confirmer que vous souhaitez continuer.",
+	"deleteItems": "Supprimer {{count}} éléments"
 }

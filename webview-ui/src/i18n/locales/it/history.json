@@ -5,6 +5,8 @@
 	"cache": "Cache: +{{writes}} → {{reads}}",
 	"apiCost": "Costo API: ${{cost}}",
 	"history": "Cronologia",
+	"exitSelectionMode": "Esci dalla modalità selezione",
+	"enterSelectionMode": "Entra in modalità selezione",
 	"done": "Fatto",
 	"searchPlaceholder": "Ricerca nella cronologia...",
 	"newest": "Più recenti",
@@ -21,5 +23,16 @@
 	"deleteTask": "Elimina attività",
 	"deleteTaskMessage": "Sei sicuro di voler eliminare questa attività? Questa azione non può essere annullata.",
 	"cancel": "Annulla",
-	"delete": "Elimina"
+	"delete": "Elimina",
+	"exitSelection": "Esci dalla selezione",
+	"selectionMode": "Modalità selezione",
+	"deselectAll": "Deseleziona tutto",
+	"selectAll": "Seleziona tutto",
+	"selectedItems": "{{selected}}/{{total}} elementi selezionati",
+	"clearSelection": "Cancella selezione",
+	"deleteSelected": "Elimina selezionati",
+	"deleteTasks": "Elimina attività",
+	"confirmDeleteTasks": "Sei sicuro di voler eliminare {{count}} attività?",
+	"deleteTasksWarning": "Le attività eliminate non possono essere recuperate. Assicurati di voler continuare.",
+	"deleteItems": "Elimina {{count}} elementi"
 }

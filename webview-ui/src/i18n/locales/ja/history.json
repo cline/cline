@@ -5,6 +5,8 @@
 	"cache": "キャッシュ: +{{writes}} → {{reads}}",
 	"apiCost": "API コスト: ${{cost}}",
 	"history": "履歴",
+	"exitSelectionMode": "選択モードを終了",
+	"enterSelectionMode": "選択モードに入る",
 	"done": "完了",
 	"searchPlaceholder": "履歴をあいまい検索...",
 	"newest": "最新",
@@ -21,5 +23,16 @@
 	"deleteTask": "タスクを削除",
 	"deleteTaskMessage": "このタスクを削除してもよろしいですか？この操作は元に戻せません。",
 	"cancel": "キャンセル",
-	"delete": "削除"
+	"delete": "削除",
+	"exitSelection": "選択を終了",
+	"selectionMode": "選択モード",
+	"deselectAll": "すべての選択を解除",
+	"selectAll": "すべて選択",
+	"selectedItems": "{{selected}}/{{total}} 項目を選択中",
+	"clearSelection": "選択をクリア",
+	"deleteSelected": "選択した項目を削除",
+	"deleteTasks": "タスクを削除",
+	"confirmDeleteTasks": "{{count}} 件のタスクを削除してもよろしいですか？",
+	"deleteTasksWarning": "削除されたタスクは復元できません。続行してもよろしいですか？",
+	"deleteItems": "{{count}} 項目を削除"
 }

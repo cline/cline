@@ -1,10 +1,12 @@
 {
-	"recentTasks": "Neueste Aufgaben",
+	"recentTasks": "Kürzliche Aufgaben",
 	"viewAll": "Alle anzeigen",
 	"tokens": "Tokens: ↑{{in}} ↓{{out}}",
 	"cache": "Cache: +{{writes}} → {{reads}}",
 	"apiCost": "API-Kosten: ${{cost}}",
 	"history": "Verlauf",
+	"exitSelectionMode": "Auswahlmodus beenden",
+	"enterSelectionMode": "Auswahlmodus starten",
 	"done": "Fertig",
 	"searchPlaceholder": "Verlauf durchsuchen...",
 	"newest": "Neueste",
@@ -21,5 +23,16 @@
 	"deleteTask": "Aufgabe löschen",
 	"deleteTaskMessage": "Sind Sie sicher, dass Sie diese Aufgabe löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
 	"cancel": "Abbrechen",
-	"delete": "Löschen"
+	"delete": "Löschen",
+	"exitSelection": "Auswahl beenden",
+	"selectionMode": "Auswahlmodus",
+	"deselectAll": "Alle abwählen",
+	"selectAll": "Alle auswählen",
+	"selectedItems": "{{selected}}/{{total}} Elemente ausgewählt",
+	"clearSelection": "Auswahl aufheben",
+	"deleteSelected": "Ausgewählte löschen",
+	"deleteTasks": "Aufgaben löschen",
+	"confirmDeleteTasks": "Sind Sie sicher, dass Sie {{count}} Aufgaben löschen möchten?",
+	"deleteTasksWarning": "Gelöschte Aufgaben können nicht wiederhergestellt werden. Bitte vergewissern Sie sich, dass Sie fortfahren möchten.",
+	"deleteItems": "{{count}} Elemente löschen"
 }

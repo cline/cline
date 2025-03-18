@@ -21,5 +21,18 @@
 	"deleteTask": "Xóa nhiệm vụ",
 	"deleteTaskMessage": "Bạn có chắc chắn muốn xóa nhiệm vụ này không? Hành động này không thể hoàn tác.",
 	"cancel": "Hủy",
-	"delete": "Xóa"
+	"delete": "Xóa",
+	"exitSelectionMode": "Thoát chế độ chọn",
+	"enterSelectionMode": "Vào chế độ chọn",
+	"exitSelection": "Thoát chọn",
+	"selectionMode": "Chế độ chọn",
+	"deselectAll": "Bỏ chọn tất cả",
+	"selectAll": "Chọn tất cả",
+	"selectedItems": "Đã chọn {{selected}}/{{total}} mục",
+	"clearSelection": "Xóa chọn",
+	"deleteSelected": "Xóa các mục đã chọn",
+	"deleteTasks": "Xóa nhiệm vụ",
+	"confirmDeleteTasks": "Bạn có chắc chắn muốn xóa {{count}} nhiệm vụ không?",
+	"deleteTasksWarning": "Các nhiệm vụ đã xóa không thể khôi phục. Vui lòng chắc chắn bạn muốn tiếp tục.",
+	"deleteItems": "Xóa {{count}} mục"
 }
