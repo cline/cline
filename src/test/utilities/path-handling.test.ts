@@ -6,4 +6,5 @@ const chai = require("chai")
 const { expect } = chai
 import * as vscode from "vscode"
 import { getShell } from "../../utils/shell"
-import "../../utils/global-path" // Initialize safeDirname
+// Import the path utils instead of the missing global-path module
+import "../../utils/path"

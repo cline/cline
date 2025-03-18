@@ -6,6 +6,8 @@ export default defineConfig({
 	mocha: {
 		ui: "bdd",
 		timeout: 20000, // Maximum time (in ms) that a test can run before failing
+		color: true, // Force color output
+		fullTrace: true, // Display full stack traces
 	},
 	workspaceFolder: "test-workspace",
 	version: "stable",
