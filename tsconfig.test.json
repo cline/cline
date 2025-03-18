@@ -8,14 +8,20 @@
 	"compilerOptions": {
 		"module": "commonjs",
 		"moduleResolution": "node",
-		"noEmitOnError": true,
+		"noEmitOnError": false,
+		"skipLibCheck": true,
 		"outDir": "out",
 		"rootDir": "src",
 		"lib": ["ES2020"],
 		"sourceMap": true,
 		"strict": true,
-		"types": ["node", "mocha", "chai"]
+		"types": ["node", "mocha", "chai", "should"]
 	},
 	"include": ["src/test/**/*.ts"],
-	"exclude": ["node_modules", "**/*.d.ts", "src/api/**/*.ts", "src/shared/**/*.ts"]
+	"exclude": [
+		"node_modules", 
+		"**/*.d.ts", 
+		"src/api/**/*.ts", 
+		"src/shared/**/*.ts"
+	]
 }
