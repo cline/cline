@@ -1,7 +1,8 @@
-// cd webview-ui && npx jest src/components/settings/__tests__/ModelPicker.test.ts
+// npx jest src/components/settings/__tests__/ModelPicker.test.ts
 
 import { screen, fireEvent, render } from "@testing-library/react"
 import { act } from "react"
+
 import { ModelPicker } from "../ModelPicker"
 
 jest.mock("../../../context/ExtensionStateContext", () => ({
@@ -69,9 +70,16 @@ describe("ModelPicker", () => {
 		})
 
 		await act(async () => {
-			// Find and click the model item by its value.
-			const modelItem = screen.getByTestId("model-input")
-			fireEvent.input(modelItem, { target: { value: "model2" } })
+			// Find and set the input value
+			const modelInput = screen.getByTestId("model-input")
+			fireEvent.input(modelInput, { target: { value: "model2" } })
+		})
+
+		// Need to find and click the CommandItem to trigger onSelect
+		await act(async () => {
+			// Find the CommandItem for model2 and click it
+			const modelItem = screen.getByText("model2")
+			fireEvent.click(modelItem)
 		})
 
 		// Verify the API config was updated.

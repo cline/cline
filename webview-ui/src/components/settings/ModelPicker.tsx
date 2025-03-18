@@ -1,8 +1,21 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { Trans } from "react-i18next"
+import { ChevronsUpDown, Check, X } from "lucide-react"
 
-import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem } from "@/components/ui/combobox"
+import { cn } from "@/lib/utils"
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+	Button,
+} from "@/components/ui"
 
 import { ApiConfiguration, ModelInfo } from "../../../../src/shared/api"
 
@@ -41,9 +54,10 @@ export const ModelPicker = ({
 	setApiConfigurationField,
 	defaultModelInfo,
 }: ModelPickerProps) => {
+	const [open, setOpen] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 	const isInitialized = useRef(false)
-
+	const searchInputRef = useRef<HTMLInputElement>(null)
 	const modelIds = useMemo(() => Object.keys(models ?? {}).sort((a, b) => a.localeCompare(b)), [models])
 
 	const { selectedModelId, selectedModelInfo } = useMemo(
@@ -51,43 +65,103 @@ export const ModelPicker = ({
 		[apiConfiguration],
 	)
 
+	const [searchValue, setSearchValue] = useState(selectedModelId)
+
 	const onSelect = useCallback(
 		(modelId: string) => {
+			setOpen(false)
 			const modelInfo = models?.[modelId]
 			setApiConfigurationField(modelIdKey, modelId)
 			setApiConfigurationField(modelInfoKey, modelInfo ?? defaultModelInfo)
+			// Delay to ensure the popover is closed before setting the search value.
+			setTimeout(() => setSearchValue(modelId), 100)
 		},
 		[modelIdKey, modelInfoKey, models, setApiConfigurationField, defaultModelInfo],
 	)
 
-	const inputValue = apiConfiguration[modelIdKey]
+	const onOpenChange = useCallback(
+		(open: boolean) => {
+			setOpen(open)
+
+			// Abandon the current search if the popover is closed.
+			if (!open) {
+				// Delay to ensure the popover is closed before setting the search value.
+				setTimeout(() => setSearchValue(selectedModelId), 100)
+			}
+		},
+		[selectedModelId],
+	)
+
+	const onClearSearch = useCallback(() => {
+		setSearchValue("")
+		searchInputRef.current?.focus()
+	}, [])
 
 	useEffect(() => {
-		if (!inputValue && !isInitialized.current) {
+		if (!selectedModelId && !isInitialized.current) {
 			const initialValue = modelIds.includes(selectedModelId) ? selectedModelId : defaultModelId
 			setApiConfigurationField(modelIdKey, initialValue)
 		}
 
 		isInitialized.current = true
-	}, [inputValue, modelIds, setApiConfigurationField, modelIdKey, selectedModelId, defaultModelId])
+	}, [modelIds, setApiConfigurationField, modelIdKey, selectedModelId, defaultModelId])
 
 	return (
 		<>
 			<div>
-				<div className="font-medium">Model</div>
-				<Combobox type="single" inputValue={inputValue} onInputValueChange={onSelect}>
-					<ComboboxInput placeholder="Search model..." data-testid="model-input" />
-					<ComboboxContent>
-						<ComboboxEmpty>No model found.</ComboboxEmpty>
-						{modelIds.map((model) => (
-							<ComboboxItem key={model} value={model}>
-								{model}
-							</ComboboxItem>
-						))}
-					</ComboboxContent>
-				</Combobox>
+				<label className="block font-medium mb-1">Model</label>
+				<Popover open={open} onOpenChange={onOpenChange}>
+					<PopoverTrigger asChild>
+						<Button
+							variant="outline"
+							role="combobox"
+							aria-expanded={open}
+							className="w-full justify-between">
+							<div>{selectedModelId ?? "Select"}</div>
+							<ChevronsUpDown className="opacity-50" />
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]">
+						<Command>
+							<div className="relative">
+								<CommandInput
+									ref={searchInputRef}
+									value={searchValue}
+									onValueChange={setSearchValue}
+									placeholder="Search"
+									className="h-9 mr-4"
+									data-testid="model-input"
+								/>
+								{searchValue.length > 0 && (
+									<div className="absolute right-2 top-0 bottom-0 flex items-center justify-center">
+										<X
+											className="opacity-25 hover:opacity-100 cursor-pointer size-4 bg-vscode-button-secondaryBackground rounded-full p-0.5"
+											onClick={onClearSearch}
+										/>
+									</div>
+								)}
+							</div>
+							<CommandList>
+								<CommandEmpty>No model found.</CommandEmpty>
+								<CommandGroup>
+									{modelIds.map((model) => (
+										<CommandItem key={model} value={model} onSelect={onSelect}>
+											{model}
+											<Check
+												className={cn(
+													"ml-auto",
+													model === selectedModelId ? "opacity-100" : "opacity-0",
+												)}
+											/>
+										</CommandItem>
+									))}
+								</CommandGroup>
+							</CommandList>
+						</Command>
+					</PopoverContent>
+				</Popover>
 			</div>
-			{selectedModelId && selectedModelInfo && selectedModelId === inputValue && (
+			{selectedModelId && selectedModelInfo && (
 				<ModelInfoView
 					selectedModelId={selectedModelId}
 					modelInfo={selectedModelInfo}
