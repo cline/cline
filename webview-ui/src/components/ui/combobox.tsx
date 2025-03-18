@@ -6,9 +6,10 @@ import { cva } from "class-variance-authority"
 import { Check, ChevronsUpDown, Loader, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+
 import * as ComboboxPrimitive from "@/components/ui/combobox-primitive"
 import { badgeVariants } from "@/components/ui/badge"
-// import * as ComboboxPrimitive from "@/registry/default/ui/combobox-primitive"
+
 import {
 	InputBase,
 	InputBaseAdornmentButton,
@@ -159,7 +160,7 @@ const ComboboxSeparator = React.forwardRef<
 ComboboxSeparator.displayName = "ComboboxSeparator"
 
 export const comboboxItemStyle = cva(
-	"relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-accent data-[selected=true]:text-vscode-dropdown-foreground data-[disabled=true]:opacity-50",
+	"relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-vscode-list-activeSelectionBackground data-[selected=true]:text-vscode-dropdown-foreground data-[disabled=true]:opacity-50",
 )
 
 export const ComboboxItem = React.forwardRef<
