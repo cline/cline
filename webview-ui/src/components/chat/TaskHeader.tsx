@@ -95,14 +95,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	useEffect(() => {
 		if (isTaskExpanded && textRef.current && textContainerRef.current) {
-			const textRefCurrent = textRef.current
-			const textContainerRefCurrent = textContainerRef.current
-
-			let textContainerHeight = textContainerRefCurrent.clientHeight
+			let textContainerHeight = textContainerRef.current.clientHeight
 			if (!textContainerHeight) {
-				textContainerHeight = textContainerRefCurrent.getBoundingClientRect().height
+				textContainerHeight = textContainerRef.current.getBoundingClientRect().height
 			}
-			const isOverflowing = textRefCurrent.scrollHeight > textContainerHeight
+			const isOverflowing = textRef.current.scrollHeight > textContainerHeight
 
 			// necessary to show see more button again if user resizes window to expand and then back to collapse
 			if (!isOverflowing) {
