@@ -1,5 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "mocha"
-import { expect } from "chai"
+// Using require for chai to fix ESM import issue
+const chai = require("chai")
+const { expect } = chai
 import "should"
 import * as sinon from "sinon"
 import { GeminiHandler } from "../../../api/providers/gemini"

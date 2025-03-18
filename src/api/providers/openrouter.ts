@@ -8,7 +8,8 @@
  */
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
-import delay from "delay"
+// Using require for delay to avoid ESM/CommonJS conflicts
+const delay = require("delay")
 import OpenAI from "openai"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"

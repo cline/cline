@@ -1,4 +1,6 @@
-import { describe, it } from "mocha"
+// Using require for mocha to fix ESM import issue
+const mocha = require("mocha")
+const { describe, it } = mocha
 import * as os from "os"
 import * as path from "path"
 import "should"

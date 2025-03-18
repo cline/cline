@@ -6,8 +6,8 @@
 	// compiled to make them compatible with VS Code's test runner.
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
-		"module": "commonjs",
-		"moduleResolution": "node",
+		"module": "NodeNext",
+		"moduleResolution": "nodenext",
 		"noEmitOnError": false,
 		"skipLibCheck": true,
 		"outDir": "out",
@@ -18,10 +18,5 @@
 		"types": ["node", "mocha", "chai", "should"]
 	},
 	"include": ["src/test/**/*.ts"],
-	"exclude": [
-		"node_modules", 
-		"**/*.d.ts", 
-		"src/api/**/*.ts", 
-		"src/shared/**/*.ts"
-	]
+	"exclude": ["node_modules", "**/*.d.ts"]
 }

@@ -5,7 +5,8 @@
  */
 
 import * as mocha from "mocha"
-import * as chai from "chai"
+// Using require for chai to fix ESM import issue
+const chai = require("chai")
 import "should"
 
 describe("Gemini API Integration", () => {
