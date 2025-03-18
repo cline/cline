@@ -1,0 +1,13 @@
+{
+	"dialogTitle": "人工中继 - 请协助复制粘贴信息",
+	"dialogDescription": "请将以下提示词复制到网页AI，然后将AI的回复粘贴到下方的输入框中。",
+	"copiedToClipboard": "已复制到剪贴板",
+	"aiResponse": {
+		"label": "请输入AI的回复：",
+		"placeholder": "在此粘贴AI的回复..."
+	},
+	"actions": {
+		"cancel": "取消",
+		"submit": "提交"
+	}
+}

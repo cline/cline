@@ -1,0 +1,13 @@
+{
+	"dialogTitle": "Chuyển tiếp Thủ công - Vui lòng giúp Sao chép/Dán thông tin",
+	"dialogDescription": "Vui lòng sao chép đoạn nhắc sau vào AI web, sau đó dán phản hồi của AI vào hộp nhập liệu bên dưới.",
+	"copiedToClipboard": "Đã sao chép vào clipboard",
+	"aiResponse": {
+		"label": "Vui lòng nhập phản hồi của AI:",
+		"placeholder": "Dán phản hồi của AI vào đây..."
+	},
+	"actions": {
+		"cancel": "Hủy",
+		"submit": "Gửi"
+	}
+}

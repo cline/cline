@@ -1,0 +1,13 @@
+{
+	"dialogTitle": "휴먼 릴레이 - 정보 복사/붙여넣기를 도와주세요",
+	"dialogDescription": "다음 프롬프트를 웹 AI에 복사하고, AI의 응답을 아래 입력창에 붙여넣어 주세요.",
+	"copiedToClipboard": "클립보드에 복사됨",
+	"aiResponse": {
+		"label": "AI의 응답을 입력해주세요:",
+		"placeholder": "여기에 AI의 응답을 붙여넣으세요..."
+	},
+	"actions": {
+		"cancel": "취소",
+		"submit": "제출"
+	}
+}

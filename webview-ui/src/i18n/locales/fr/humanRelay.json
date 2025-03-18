@@ -1,0 +1,13 @@
+{
+	"dialogTitle": "Relais Humain - Veuillez aider à copier/coller les informations",
+	"dialogDescription": "Veuillez copier le texte suivant dans l'IA web, puis collez la réponse de l'IA dans la zone de saisie ci-dessous.",
+	"copiedToClipboard": "Copié dans le presse-papiers",
+	"aiResponse": {
+		"label": "Veuillez saisir la réponse de l'IA :",
+		"placeholder": "Collez la réponse de l'IA ici..."
+	},
+	"actions": {
+		"cancel": "Annuler",
+		"submit": "Envoyer"
+	}
+}

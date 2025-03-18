@@ -1,0 +1,13 @@
+{
+	"dialogTitle": "Relay Umano - Aiuta a copiare/incollare le informazioni",
+	"dialogDescription": "Copia il seguente prompt nell'AI web, quindi incolla la risposta dell'AI nella casella di input sottostante.",
+	"copiedToClipboard": "Copiato negli appunti",
+	"aiResponse": {
+		"label": "Inserisci la risposta dell'AI:",
+		"placeholder": "Incolla qui la risposta dell'AI..."
+	},
+	"actions": {
+		"cancel": "Annulla",
+		"submit": "Invia"
+	}
+}

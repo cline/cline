@@ -1,0 +1,13 @@
+{
+	"dialogTitle": "ヒューマンリレー - 情報のコピー＆ペーストにご協力ください",
+	"dialogDescription": "以下のプロンプトをウェブAIにコピーし、AIの応答を下の入力ボックスにペーストしてください。",
+	"copiedToClipboard": "クリップボードにコピーしました",
+	"aiResponse": {
+		"label": "AIの応答を入力してください：",
+		"placeholder": "ここにAIの応答をペースト..."
+	},
+	"actions": {
+		"cancel": "キャンセル",
+		"submit": "送信"
+	}
+}
