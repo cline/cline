@@ -14,8 +14,17 @@
 			"preLaunchTask": "${defaultBuildTask}",
 			"env": {
 				"IS_DEV": "true",
+				// Use absolute path to avoid issues with spaces
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
 			}
+		},
+		{
+			"name": "Run Tests",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--extensionTestsPath=${workspaceFolder}/out/test"],
+			"outFiles": ["${workspaceFolder}/out/**/*.js"],
+			"preLaunchTask": "npm: compile-tests"
 		}
 	]
 }
