@@ -5,7 +5,7 @@ import {
 	convertAnthropicMessageToGemini,
 	unescapeGeminiContent,
 	convertGeminiResponseToAnthropic,
-} from "./gemini-format"
+} from "../../../api/transform/gemini-format"
 import { Anthropic } from "@anthropic-ai/sdk"
 
 describe("Gemini Format Utilities", () => {

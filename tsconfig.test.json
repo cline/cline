@@ -8,11 +8,14 @@
 	"compilerOptions": {
 		"module": "commonjs",
 		"moduleResolution": "node",
-		"types": ["node", "mocha", "should", "vscode", "chai"],
-		"typeRoots": ["./node_modules/@types", "./src/test/types"],
+		"noEmitOnError": true,
 		"outDir": "out",
-		"rootDir": "src"
+		"rootDir": "src",
+		"lib": ["ES2020"],
+		"sourceMap": true,
+		"strict": true,
+		"types": ["node", "mocha", "chai"]
 	},
-	"include": ["src/**/*.test.ts"],
-	"exclude": ["src/test/**/*.js"]
+	"include": ["src/test/**/*.ts"],
+	"exclude": ["node_modules", "**/*.d.ts", "src/api/**/*.ts", "src/shared/**/*.ts"]
 }

@@ -230,6 +230,8 @@
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
 		"test": "vscode-test",
+		"test:api": "npm run compile-tests && mocha out/test/api/**/*.test.js",
+		"test:gemini": "npm run compile-tests && node src/test/gemini-test-runner.js",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"dev:webview": "cd webview-ui && npm run dev",
 		"build:webview": "cd webview-ui && npm run build",
