@@ -61,6 +61,7 @@ export interface WebviewMessage {
 		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
+		| "optionsResponse"
 		| "requestTotalTasksSize"
 	// | "relaunchChromeDebugMode"
 	text?: string

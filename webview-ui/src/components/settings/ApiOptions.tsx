@@ -43,6 +43,8 @@ import {
 	askSageDefaultURL,
 	xaiDefaultModelId,
 	xaiModels,
+	sambanovaModels,
+	sambanovaDefaultModelId,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -90,6 +92,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
 	const [anthropicBaseUrlSelected, setAnthropicBaseUrlSelected] = useState(!!apiConfiguration?.anthropicBaseUrl)
 	const [azureApiVersionSelected, setAzureApiVersionSelected] = useState(!!apiConfiguration?.azureApiVersion)
+	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
 
@@ -207,6 +210,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="litellm">LiteLLM</VSCodeOption>
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">X AI</VSCodeOption>
+					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -580,7 +584,33 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
 						</VSCodeDropdown>
 					</DropdownContainer>
+
 					<div style={{ display: "flex", flexDirection: "column" }}>
+						<VSCodeCheckbox
+							checked={awsEndpointSelected}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								setAwsEndpointSelected(isChecked)
+								if (!isChecked) {
+									setApiConfiguration({
+										...apiConfiguration,
+										awsBedrockEndpoint: "",
+									})
+								}
+							}}>
+							Use custom VPC endpoint
+						</VSCodeCheckbox>
+
+						{awsEndpointSelected && (
+							<VSCodeTextField
+								value={apiConfiguration?.awsBedrockEndpoint || ""}
+								style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
+								type="url"
+								onInput={handleInputChange("awsBedrockEndpoint")}
+								placeholder="Enter VPC Endpoint URL (optional)"
+							/>
+						)}
+
 						<VSCodeCheckbox
 							checked={apiConfiguration?.awsUseCrossRegionInference || false}
 							onChange={(e: any) => {
@@ -799,6 +829,21 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									})
 								}}>
 								Supports Images
+							</VSCodeCheckbox>
+							<VSCodeCheckbox
+								checked={!!apiConfiguration?.openAiModelInfo?.supportsComputerUse}
+								onChange={(e: any) => {
+									const isChecked = e.target.checked === true
+									let modelInfo = apiConfiguration?.openAiModelInfo
+										? apiConfiguration.openAiModelInfo
+										: { ...openAiModelInfoSaneDefaults }
+									modelInfo = { ...modelInfo, supportsComputerUse: isChecked }
+									setApiConfiguration({
+										...apiConfiguration,
+										openAiModelInfo: modelInfo,
+									})
+								}}>
+								Supports Computer Use
 							</VSCodeCheckbox>
 							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 								<VSCodeTextField
@@ -1266,6 +1311,37 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
+			{selectedProvider === "sambanova" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.sambanovaApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("sambanovaApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>SambaNova API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+						{!apiConfiguration?.sambanovaApiKey && (
+							<VSCodeLink
+								href="https://docs.sambanova.ai/cloud/docs/get-started/overview"
+								style={{
+									display: "inline",
+									fontSize: "inherit",
+								}}>
+								You can get a SambaNova API key by signing up here.
+							</VSCodeLink>
+						)}
+					</p>
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -1304,6 +1380,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "mistral" && createDropdown(mistralModels)}
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
+							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
 						</DropdownContainer>
 
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
@@ -1576,6 +1653,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
+		case "sambanova":
+			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
