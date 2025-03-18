@@ -24,8 +24,11 @@
 		"checkpoints": "Điểm kiểm tra",
 		"notifications": "Thông báo",
 		"contextManagement": "Quản lý ngữ cảnh",
+		"terminal": "Terminal",
 		"advanced": "Nâng cao",
-		"experimental": "Tính năng thử nghiệm"
+		"experimental": "Tính năng thử nghiệm",
+		"language": "Ngôn ngữ",
+		"about": "Về Roo Code"
 	},
 	"autoApprove": {
 		"description": "Cho phép Roo tự động thực hiện các hoạt động mà không cần phê duyệt. Chỉ bật những cài đặt này nếu bạn hoàn toàn tin tưởng AI và hiểu rõ các rủi ro bảo mật liên quan.",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "Kiểm soát thông tin nào được đưa vào cửa sổ ngữ cảnh của AI, ảnh hưởng đến việc sử dụng token và chất lượng phản hồi",
-		"terminal": {
-			"label": "Giới hạn đầu ra terminal",
-			"description": "Số dòng tối đa để đưa vào đầu ra terminal khi thực hiện lệnh. Khi vượt quá, các dòng sẽ bị xóa khỏi phần giữa, tiết kiệm token."
-		},
 		"openTabs": {
 			"label": "Giới hạn ngữ cảnh tab đang mở",
 			"description": "Số lượng tab VSCode đang mở tối đa để đưa vào ngữ cảnh. Giá trị cao hơn cung cấp nhiều ngữ cảnh hơn nhưng tăng sử dụng token."
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": "Hiển thị tệp .rooignore trong danh sách và tìm kiếm",
 			"description": "Khi được bật, các tệp khớp với mẫu trong .rooignore sẽ được hiển thị trong danh sách với biểu tượng khóa. Khi bị tắt, các tệp này sẽ hoàn toàn bị ẩn khỏi danh sách tệp và tìm kiếm."
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "Giới hạn đầu ra terminal",
+			"description": "Số dòng tối đa để đưa vào đầu ra terminal khi thực hiện lệnh. Khi vượt quá, các dòng sẽ bị xóa khỏi phần giữa, tiết kiệm token."
+		},
+		"shellIntegrationTimeout": {
+			"label": "Thời gian chờ tích hợp shell terminal",
+			"description": "Thời gian tối đa để chờ tích hợp shell khởi tạo trước khi thực hiện lệnh. Đối với người dùng có thời gian khởi động shell dài, giá trị này có thể cần được tăng lên nếu bạn thấy lỗi \"Shell Integration Unavailable\" trong terminal."
 		}
 	},
 	"advanced": {

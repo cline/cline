@@ -150,7 +150,6 @@ export const AdvancedSettings = ({
 								</select>
 							</div>
 
-							{/* Description for selected strategy */}
 							<p className="text-vscode-descriptionForeground text-sm mt-1">
 								{!experiments[EXPERIMENT_IDS.DIFF_STRATEGY] &&
 									!experiments[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE] &&
@@ -161,7 +160,6 @@ export const AdvancedSettings = ({
 									t("settings:advanced.diff.strategy.descriptions.multiBlock")}
 							</p>
 
-							{/* Match precision slider */}
 							<span className="font-medium mt-3">{t("settings:advanced.diff.matchPrecision.label")}</span>
 							<div className="flex items-center gap-2">
 								<input

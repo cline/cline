@@ -24,8 +24,11 @@
 		"checkpoints": "Points de contrôle",
 		"notifications": "Notifications",
 		"contextManagement": "Gestion du contexte",
+		"terminal": "Terminal",
 		"advanced": "Avancé",
-		"experimental": "Fonctionnalités expérimentales"
+		"experimental": "Fonctionnalités expérimentales",
+		"language": "Langue",
+		"about": "À propos de Roo Code"
 	},
 	"autoApprove": {
 		"description": "Permettre à Roo d'effectuer automatiquement des opérations sans requérir d'approbation. Activez ces paramètres uniquement si vous faites entièrement confiance à l'IA et que vous comprenez les risques de sécurité associés.",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "Contrôlez quelles informations sont incluses dans la fenêtre de contexte de l'IA, affectant l'utilisation de token et la qualité des réponses",
-		"terminal": {
-			"label": "Limite de sortie du terminal",
-			"description": "Nombre maximum de lignes à inclure dans la sortie du terminal lors de l'exécution de commandes. Lorsque ce nombre est dépassé, les lignes seront supprimées du milieu, économisant des token."
-		},
 		"openTabs": {
 			"label": "Limite de contexte des onglets ouverts",
 			"description": "Nombre maximum d'onglets VSCode ouverts à inclure dans le contexte. Des valeurs plus élevées fournissent plus de contexte mais augmentent l'utilisation de token."
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": "Afficher les fichiers .rooignore dans les listes et recherches",
 			"description": "Lorsque cette option est activée, les fichiers correspondant aux modèles dans .rooignore seront affichés dans les listes avec un symbole de cadenas. Lorsqu'elle est désactivée, ces fichiers seront complètement masqués des listes de fichiers et des recherches."
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "Limite de sortie du terminal",
+			"description": "Nombre maximum de lignes à inclure dans la sortie du terminal lors de l'exécution de commandes. Lorsque ce nombre est dépassé, les lignes seront supprimées du milieu, économisant des token."
+		},
+		"shellIntegrationTimeout": {
+			"label": "Délai d'intégration du shell du terminal",
+			"description": "Temps maximum d'attente pour l'initialisation de l'intégration du shell avant d'exécuter des commandes. Pour les utilisateurs avec des temps de démarrage de shell longs, cette valeur peut nécessiter d'être augmentée si vous voyez des erreurs \"Shell Integration Unavailable\" dans le terminal."
 		}
 	},
 	"advanced": {

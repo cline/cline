@@ -3,8 +3,10 @@ import pWaitFor from "p-wait-for"
 import { ExitCodeDetails, mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
 import { truncateOutput, applyRunLengthEncoding } from "../misc/extract-text"
 
+export const TERMINAL_SHELL_INTEGRATION_TIMEOUT = 5000
+
 export class Terminal {
-	private static shellIntegrationTimeout: number = 4000
+	private static shellIntegrationTimeout: number = TERMINAL_SHELL_INTEGRATION_TIMEOUT
 
 	public terminal: vscode.Terminal
 	public busy: boolean

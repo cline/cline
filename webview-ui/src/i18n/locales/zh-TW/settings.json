@@ -24,8 +24,11 @@
 		"checkpoints": "檢查點",
 		"notifications": "通知",
 		"contextManagement": "內容管理",
+		"terminal": "終端機",
 		"advanced": "進階",
-		"experimental": "實驗性功能"
+		"experimental": "實驗性功能",
+		"language": "語言",
+		"about": "關於 Roo Code"
 	},
 	"autoApprove": {
 		"description": "允許 Roo 自動執行操作而無需核准。僅在您完全信任 AI 並理解相關安全風險的情況下啟用這些設定。",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "控制在 AI 的內容視窗中包含哪些資訊，影響 token 使用和回應品質",
-		"terminal": {
-			"label": "終端機輸出限制",
-			"description": "執行命令時在終端機輸出中包含的最大行數。超過時將從中間刪除行，節省 token。"
-		},
 		"openTabs": {
 			"label": "開啟分頁內容限制",
 			"description": "在內容中包含的 VSCode 開啟分頁的最大數量。較高的值提供更多內容，但會增加 token 使用量。"
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": "在列表和搜尋中顯示 .rooignore 檔案",
 			"description": "啟用後，與 .rooignore 中模式匹配的檔案將在列表中顯示鎖定符號。禁用時，這些檔案將從檔案列表和搜尋中完全隱藏。"
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "終端機輸出限制",
+			"description": "執行命令時在終端機輸出中包含的最大行數。超過時將從中間刪除行，節省 token。"
+		},
+		"shellIntegrationTimeout": {
+			"label": "終端機 Shell 整合逾時",
+			"description": "執行命令前等待 Shell 整合初始化的最長時間。對於 Shell 啟動時間較長的使用者，如果在終端機中看到\"Shell Integration Unavailable\"錯誤，可能需要增加此值。"
 		}
 	},
 	"advanced": {

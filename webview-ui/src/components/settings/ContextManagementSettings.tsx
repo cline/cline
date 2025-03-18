@@ -11,17 +11,13 @@ import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 
 type ContextManagementSettingsProps = HTMLAttributes<HTMLDivElement> & {
-	terminalOutputLineLimit?: number
 	maxOpenTabsContext: number
 	maxWorkspaceFiles: number
 	showRooIgnoredFiles?: boolean
-	setCachedStateField: SetCachedStateField<
-		"terminalOutputLineLimit" | "maxOpenTabsContext" | "maxWorkspaceFiles" | "showRooIgnoredFiles"
-	>
+	setCachedStateField: SetCachedStateField<"maxOpenTabsContext" | "maxWorkspaceFiles" | "showRooIgnoredFiles">
 }
 
 export const ContextManagementSettings = ({
-	terminalOutputLineLimit,
 	maxOpenTabsContext,
 	maxWorkspaceFiles,
 	showRooIgnoredFiles,
@@ -40,30 +36,6 @@ export const ContextManagementSettings = ({
 			</SectionHeader>
 
 			<Section>
-				<div>
-					<div className="flex flex-col gap-2">
-						<span className="font-medium">{t("settings:contextManagement.terminal.label")}</span>
-						<div className="flex items-center gap-2">
-							<input
-								type="range"
-								min="100"
-								max="5000"
-								step="100"
-								value={terminalOutputLineLimit ?? 500}
-								onChange={(e) =>
-									setCachedStateField("terminalOutputLineLimit", parseInt(e.target.value))
-								}
-								className="h-2 focus:outline-0 w-4/5 accent-vscode-button-background"
-								data-testid="terminal-output-limit-slider"
-							/>
-							<span style={{ ...sliderLabelStyle }}>{terminalOutputLineLimit ?? 500}</span>
-						</div>
-					</div>
-					<p className="text-vscode-descriptionForeground text-sm mt-0">
-						{t("settings:contextManagement.terminal.description")}
-					</p>
-				</div>
-
 				<div>
 					<div className="flex flex-col gap-2">
 						<span className="font-medium">{t("settings:contextManagement.openTabs.label")}</span>

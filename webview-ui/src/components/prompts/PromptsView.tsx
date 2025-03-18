@@ -45,6 +45,7 @@ function getGroupName(group: GroupEntry): ToolGroup {
 
 const PromptsView = ({ onDone }: PromptsViewProps) => {
 	const { t } = useAppTranslation()
+
 	const {
 		customModePrompts,
 		customSupportPrompts,

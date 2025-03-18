@@ -3,10 +3,9 @@
 	// for the documentation about the extensions.json format
 	"recommendations": [
 		"dbaeumer.vscode-eslint",
-		"connor4312.esbuild-problem-matchers",
-		"ms-vscode.extension-test-runner",
+		"esbenp.prettier-vscode",
 		"csstools.postcss",
 		"bradlc.vscode-tailwindcss",
-		"tobermory.es6-string-html"
+		"connor4312.esbuild-problem-matchers"
 	]
 }

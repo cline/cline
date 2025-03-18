@@ -24,8 +24,11 @@
 		"checkpoints": "체크포인트",
 		"notifications": "알림",
 		"contextManagement": "컨텍스트 관리",
+		"terminal": "터미널",
 		"advanced": "고급",
-		"experimental": "실험적 기능"
+		"experimental": "실험적 기능",
+		"language": "언어",
+		"about": "Roo Code 정보"
 	},
 	"autoApprove": {
 		"description": "Roo가 승인 없이 자동으로 작업을 수행할 수 있도록 허용합니다. AI를 완전히 신뢰하고 관련 보안 위험을 이해하는 경우에만 이러한 설정을 활성화하세요.",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "AI의 컨텍스트 창에 포함되는 정보를 제어하여 token 사용량과 응답 품질에 영향을 미칩니다",
-		"terminal": {
-			"label": "터미널 출력 제한",
-			"description": "명령 실행 시 터미널 출력에 포함할 최대 라인 수. 초과 시 중간에서 라인이 제거되어 token이 절약됩니다."
-		},
 		"openTabs": {
 			"label": "열린 탭 컨텍스트 제한",
 			"description": "컨텍스트에 포함할 VSCode 열린 탭의 최대 수. 높은 값은 더 많은 컨텍스트를 제공하지만 token 사용량이 증가합니다."
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": "목록 및 검색에서 .rooignore 파일 표시",
 			"description": "활성화되면 .rooignore의 패턴과 일치하는 파일이 잠금 기호와 함께 목록에 표시됩니다. 비활성화되면 이러한 파일은 파일 목록 및 검색에서 완전히 숨겨집니다."
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "터미널 출력 제한",
+			"description": "명령 실행 시 터미널 출력에 포함할 최대 라인 수. 초과 시 중간에서 라인이 제거되어 token이 절약됩니다."
+		},
+		"shellIntegrationTimeout": {
+			"label": "터미널 쉘 통합 타임아웃",
+			"description": "명령을 실행하기 전에 쉘 통합이 초기화될 때까지 기다리는 최대 시간. 쉘 시작 시간이 긴 사용자의 경우, 터미널에서 \"Shell Integration Unavailable\" 오류가 표시되면 이 값을 늘려야 할 수 있습니다."
 		}
 	},
 	"advanced": {

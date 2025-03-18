@@ -56,7 +56,7 @@ export function activate(context: vscode.ExtensionContext) {
 		context.globalState.update("allowedCommands", defaultCommands)
 	}
 
-	const provider = new ClineProvider(context, outputChannel)
+	const provider = new ClineProvider(context, outputChannel, "sidebar")
 	telemetryService.setProvider(provider)
 
 	// Validate task history on extension activation

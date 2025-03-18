@@ -24,8 +24,11 @@
 		"checkpoints": "Pontos de verificação",
 		"notifications": "Notificações",
 		"contextManagement": "Gestão de contexto",
+		"terminal": "Terminal",
 		"advanced": "Avançado",
-		"experimental": "Recursos experimentais"
+		"experimental": "Recursos experimentais",
+		"language": "Idioma",
+		"about": "Sobre o Roo Code"
 	},
 	"autoApprove": {
 		"description": "Permitir que o Roo realize operações automaticamente sem exigir aprovação. Ative essas configurações apenas se confiar totalmente na IA e compreender os riscos de segurança associados.",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "Controle quais informações são incluídas na janela de contexto da IA, afetando o uso de token e a qualidade da resposta",
-		"terminal": {
-			"label": "Limite de saída do terminal",
-			"description": "Número máximo de linhas a incluir na saída do terminal ao executar comandos. Quando excedido, as linhas serão removidas do meio, economizando token."
-		},
 		"openTabs": {
 			"label": "Limite de contexto de abas abertas",
 			"description": "Número máximo de abas abertas do VSCode a incluir no contexto. Valores mais altos fornecem mais contexto, mas aumentam o uso de token."
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": "Mostrar arquivos .rooignore em listas e pesquisas",
 			"description": "Quando ativado, os arquivos que correspondem aos padrões em .rooignore serão mostrados em listas com um símbolo de cadeado. Quando desativado, esses arquivos serão completamente ocultos das listas de arquivos e pesquisas."
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "Limite de saída do terminal",
+			"description": "Número máximo de linhas a incluir na saída do terminal ao executar comandos. Quando excedido, as linhas serão removidas do meio, economizando token."
+		},
+		"shellIntegrationTimeout": {
+			"label": "Tempo limite de integração do shell do terminal",
+			"description": "Tempo máximo de espera para a inicialização da integração do shell antes de executar comandos. Para usuários com tempos de inicialização de shell longos, este valor pode precisar ser aumentado se você vir erros \"Shell Integration Unavailable\" no terminal."
 		}
 	},
 	"advanced": {

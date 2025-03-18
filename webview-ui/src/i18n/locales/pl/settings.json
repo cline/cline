@@ -24,8 +24,11 @@
 		"checkpoints": "Punkty kontrolne",
 		"notifications": "Powiadomienia",
 		"contextManagement": "Zarządzanie kontekstem",
+		"terminal": "Terminal",
 		"advanced": "Zaawansowane",
-		"experimental": "Funkcje eksperymentalne"
+		"experimental": "Funkcje eksperymentalne",
+		"language": "Język",
+		"about": "O Roo Code"
 	},
 	"autoApprove": {
 		"description": "Pozwól Roo na automatyczne wykonywanie operacji bez wymagania zatwierdzenia. Włącz te ustawienia tylko jeśli w pełni ufasz AI i rozumiesz związane z tym zagrożenia bezpieczeństwa.",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "Kontroluj, jakie informacje są zawarte w oknie kontekstu AI, wpływając na zużycie token i jakość odpowiedzi",
-		"terminal": {
-			"label": "Limit wyjścia terminala",
-			"description": "Maksymalna liczba linii do uwzględnienia w wyjściu terminala podczas wykonywania poleceń. Po przekroczeniu linie będą usuwane ze środka, oszczędzając token."
-		},
 		"openTabs": {
 			"label": "Limit kontekstu otwartych kart",
 			"description": "Maksymalna liczba otwartych kart VSCode do uwzględnienia w kontekście. Wyższe wartości zapewniają więcej kontekstu, ale zwiększają zużycie token."
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": "Pokaż pliki .rooignore na listach i w wyszukiwaniach",
 			"description": "Gdy włączone, pliki pasujące do wzorców w .rooignore będą pokazywane na listach z symbolem kłódki. Gdy wyłączone, te pliki będą całkowicie ukryte z list plików i wyszukiwań."
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "Limit wyjścia terminala",
+			"description": "Maksymalna liczba linii do uwzględnienia w wyjściu terminala podczas wykonywania poleceń. Po przekroczeniu linie będą usuwane ze środka, oszczędzając token."
+		},
+		"shellIntegrationTimeout": {
+			"label": "Limit czasu integracji powłoki terminala",
+			"description": "Maksymalny czas oczekiwania na inicjalizację integracji powłoki przed wykonaniem poleceń. Dla użytkowników z długim czasem uruchamiania powłoki, ta wartość może wymagać zwiększenia, jeśli widzisz błędy \"Shell Integration Unavailable\" w terminalu."
 		}
 	},
 	"advanced": {

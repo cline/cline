@@ -24,8 +24,11 @@
 		"checkpoints": "チェックポイント",
 		"notifications": "通知",
 		"contextManagement": "コンテキスト管理",
+		"terminal": "ターミナル",
 		"advanced": "詳細設定",
-		"experimental": "実験的機能"
+		"experimental": "実験的機能",
+		"language": "言語",
+		"about": "Roo Codeについて"
 	},
 	"autoApprove": {
 		"description": "Rooが承認なしで自動的に操作を実行できるようにします。AIを完全に信頼し、関連するセキュリティリスクを理解している場合にのみ、これらの設定を有効にしてください。",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "AIのコンテキストウィンドウに含まれる情報を制御し、token使用量とレスポンスの品質に影響します",
-		"terminal": {
-			"label": "ターミナル出力制限",
-			"description": "コマンド実行時にターミナル出力に含める最大行数。超過すると中央から行が削除され、tokenを節約します。"
-		},
 		"openTabs": {
 			"label": "オープンタブコンテキスト制限",
 			"description": "コンテキストに含めるVSCodeオープンタブの最大数。高い値はより多くのコンテキストを提供しますが、token使用量が増加します。"
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": "リストと検索で.rooignoreファイルを表示",
 			"description": "有効にすると、.rooignoreのパターンに一致するファイルがロックシンボル付きでリストに表示されます。無効にすると、これらのファイルはファイルリストや検索から完全に非表示になります。"
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "ターミナル出力制限",
+			"description": "コマンド実行時にターミナル出力に含める最大行数。超過すると中央から行が削除され、tokenを節約します。"
+		},
+		"shellIntegrationTimeout": {
+			"label": "ターミナルシェル統合タイムアウト",
+			"description": "コマンドを実行する前にシェル統合の初期化を待つ最大時間。シェルの起動時間が長いユーザーの場合、ターミナルで「Shell Integration Unavailable」エラーが表示される場合は、この値を増やす必要があるかもしれません。"
 		}
 	},
 	"advanced": {

@@ -24,8 +24,11 @@
 		"checkpoints": "Kontrollpunkte",
 		"notifications": "Benachrichtigungen",
 		"contextManagement": "Kontext-Management",
+		"terminal": "Terminal",
 		"advanced": "Erweitert",
-		"experimental": "Experimentelle Funktionen"
+		"experimental": "Experimentelle Funktionen",
+		"language": "Sprache",
+		"about": "Über Roo Code"
 	},
 	"autoApprove": {
 		"description": "Erlaubt Roo, Operationen automatisch ohne Genehmigung durchzuführen. Aktivieren Sie diese Einstellungen nur, wenn Sie der KI vollständig vertrauen und die damit verbundenen Sicherheitsrisiken verstehen.",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "Steuern Sie, welche Informationen im KI-Kontextfenster enthalten sind, was den Token-Verbrauch und die Antwortqualität beeinflusst",
-		"terminal": {
-			"label": "Terminal-Ausgabelimit",
-			"description": "Maximale Anzahl von Zeilen, die in der Terminal-Ausgabe bei der Ausführung von Befehlen enthalten sein sollen. Bei Überschreitung werden Zeilen aus der Mitte entfernt, wodurch Token gespart werden."
-		},
 		"openTabs": {
 			"label": "Geöffnete Tabs Kontextlimit",
 			"description": "Maximale Anzahl von geöffneten VSCode-Tabs, die im Kontext enthalten sein sollen. Höhere Werte bieten mehr Kontext, erhöhen aber den Token-Verbrauch."
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": ".rooignore-Dateien in Listen und Suchen anzeigen",
 			"description": "Wenn aktiviert, werden Dateien, die mit Mustern in .rooignore übereinstimmen, in Listen mit einem Schlosssymbol angezeigt. Wenn deaktiviert, werden diese Dateien vollständig aus Dateilisten und Suchen ausgeblendet."
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "Terminal-Ausgabelimit",
+			"description": "Maximale Anzahl von Zeilen, die in der Terminal-Ausgabe bei der Ausführung von Befehlen enthalten sein sollen. Bei Überschreitung werden Zeilen aus der Mitte entfernt, wodurch Token gespart werden."
+		},
+		"shellIntegrationTimeout": {
+			"label": "Terminal-Shell-Integrationszeit-Limit",
+			"description": "Maximale Wartezeit für die Shell-Integration, bevor Befehle ausgeführt werden. Für Benutzer mit langen Shell-Startzeiten muss dieser Wert möglicherweise erhöht werden, wenn Sie Fehler vom Typ \"Shell Integration Unavailable\" im Terminal sehen."
 		}
 	},
 	"advanced": {

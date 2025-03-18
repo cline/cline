@@ -24,8 +24,11 @@
 		"checkpoints": "Punti di controllo",
 		"notifications": "Notifiche",
 		"contextManagement": "Gestione del contesto",
+		"terminal": "Terminal",
 		"advanced": "Avanzate",
-		"experimental": "Funzionalità sperimentali"
+		"experimental": "Funzionalità sperimentali",
+		"language": "Lingua",
+		"about": "Informazioni su Roo Code"
 	},
 	"autoApprove": {
 		"description": "Permetti a Roo di eseguire automaticamente operazioni senza richiedere approvazione. Abilita queste impostazioni solo se ti fidi completamente dell'IA e comprendi i rischi di sicurezza associati.",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "Controlla quali informazioni sono incluse nella finestra di contesto dell'IA, influenzando l'utilizzo di token e la qualità delle risposte",
-		"terminal": {
-			"label": "Limite output terminale",
-			"description": "Numero massimo di righe da includere nell'output del terminale durante l'esecuzione dei comandi. Quando superato, le righe verranno rimosse dal centro, risparmiando token."
-		},
 		"openTabs": {
 			"label": "Limite contesto schede aperte",
 			"description": "Numero massimo di schede VSCode aperte da includere nel contesto. Valori più alti forniscono più contesto ma aumentano l'utilizzo di token."
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": "Mostra file .rooignore negli elenchi e nelle ricerche",
 			"description": "Quando abilitato, i file che corrispondono ai pattern in .rooignore verranno mostrati negli elenchi con un simbolo di blocco. Quando disabilitato, questi file saranno completamente nascosti dagli elenchi di file e dalle ricerche."
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "Limite output terminale",
+			"description": "Numero massimo di righe da includere nell'output del terminale durante l'esecuzione dei comandi. Quando superato, le righe verranno rimosse dal centro, risparmiando token."
+		},
+		"shellIntegrationTimeout": {
+			"label": "Timeout integrazione shell del terminale",
+			"description": "Tempo massimo di attesa per l'inizializzazione dell'integrazione della shell prima di eseguire i comandi. Per gli utenti con tempi di avvio della shell lunghi, questo valore potrebbe dover essere aumentato se si vedono errori \"Shell Integration Unavailable\" nel terminale."
 		}
 	},
 	"advanced": {

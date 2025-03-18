@@ -24,8 +24,11 @@
 		"checkpoints": "Kontrol Noktaları",
 		"notifications": "Bildirimler",
 		"contextManagement": "Bağlam Yönetimi",
+		"terminal": "Terminal",
 		"advanced": "Gelişmiş",
-		"experimental": "Deneysel Özellikler"
+		"experimental": "Deneysel Özellikler",
+		"language": "Dil",
+		"about": "Roo Code Hakkında"
 	},
 	"autoApprove": {
 		"description": "Roo'nun onay gerektirmeden otomatik olarak işlemler gerçekleştirmesine izin verin. Bu ayarları yalnızca yapay zekaya tamamen güveniyorsanız ve ilgili güvenlik risklerini anlıyorsanız etkinleştirin.",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "Yapay zekanın bağlam penceresine hangi bilgilerin dahil edileceğini kontrol edin, token kullanımını ve yanıt kalitesini etkiler",
-		"terminal": {
-			"label": "Terminal çıktısı sınırı",
-			"description": "Komutları yürütürken terminal çıktısına dahil edilecek maksimum satır sayısı. Aşıldığında, token tasarrufu sağlayarak satırlar ortadan kaldırılacaktır."
-		},
 		"openTabs": {
 			"label": "Açık sekmeler bağlam sınırı",
 			"description": "Bağlama dahil edilecek maksimum VSCode açık sekme sayısı. Daha yüksek değerler daha fazla bağlam sağlar ancak token kullanımını artırır."
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": "Listelerde ve aramalarda .rooignore dosyalarını göster",
 			"description": "Etkinleştirildiğinde, .rooignore'daki desenlerle eşleşen dosyalar kilit sembolü ile listelerde gösterilecektir. Devre dışı bırakıldığında, bu dosyalar dosya listelerinden ve aramalardan tamamen gizlenecektir."
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "Terminal çıktısı sınırı",
+			"description": "Komutları yürütürken terminal çıktısına dahil edilecek maksimum satır sayısı. Aşıldığında, token tasarrufu sağlayarak satırlar ortadan kaldırılacaktır."
+		},
+		"shellIntegrationTimeout": {
+			"label": "Terminal kabuk entegrasyonu zaman aşımı",
+			"description": "Komutları yürütmeden önce kabuk entegrasyonunun başlatılması için beklenecek maksimum süre. Kabuk başlatma süresi uzun olan kullanıcılar için, terminalde \"Shell Integration Unavailable\" hatalarını görürseniz bu değerin artırılması gerekebilir."
 		}
 	},
 	"advanced": {

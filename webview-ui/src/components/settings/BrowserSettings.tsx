@@ -1,14 +1,15 @@
-import React, { HTMLAttributes, useState, useEffect } from "react"
-import { useAppTranslation } from "@/i18n/TranslationContext"
+import { HTMLAttributes, useState, useEffect, useMemo } from "react"
 import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { Dropdown, type DropdownOption } from "vscrui"
 import { SquareMousePointer } from "lucide-react"
+
+import { vscode } from "@/utils/vscode"
+import { useAppTranslation } from "@/i18n/TranslationContext"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui"
 
 import { SetCachedStateField } from "./types"
 import { sliderLabelStyle } from "./styles"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
-import { vscode } from "../../utils/vscode"
 
 type BrowserSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	browserToolEnabled?: boolean
@@ -35,22 +36,22 @@ export const BrowserSettings = ({
 	...props
 }: BrowserSettingsProps) => {
 	const { t } = useAppTranslation()
+
 	const [testingConnection, setTestingConnection] = useState(false)
 	const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
 	const [discovering, setDiscovering] = useState(false)
-	// We don't need a local state for useRemoteBrowser since we're using the enableRemoteBrowser prop directly
-	// This ensures the checkbox always reflects the current global state
 
-	// Set up message listener for browser connection results
+	// We don't need a local state for useRemoteBrowser since we're using the
+	// `enableRemoteBrowser` prop directly. This ensures the checkbox always
+	// reflects the current global state.
+
+	// Set up message listener for browser connection results.
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
 			const message = event.data
 
 			if (message.type === "browserConnectionResult") {
-				setTestResult({
-					success: message.success,
-					message: message.text,
-				})
+				setTestResult({ success: message.success, message: message.text })
 				setTestingConnection(false)
 				setDiscovering(false)
 			}
@@ -68,11 +69,8 @@ export const BrowserSettings = ({
 		setTestResult(null)
 
 		try {
-			// Send a message to the extension to test the connection
-			vscode.postMessage({
-				type: "testBrowserConnection",
-				text: remoteBrowserHost,
-			})
+			// Send a message to the extension to test the connection.
+			vscode.postMessage({ type: "testBrowserConnection", text: remoteBrowserHost })
 		} catch (error) {
 			setTestResult({
 				success: false,
@@ -87,10 +85,8 @@ export const BrowserSettings = ({
 		setTestResult(null)
 
 		try {
-			// Send a message to the extension to discover Chrome instances
-			vscode.postMessage({
-				type: "discoverBrowser",
-			})
+			// Send a message to the extension to discover Chrome instances.
+			vscode.postMessage({ type: "discoverBrowser" })
 		} catch (error) {
 			setTestResult({
 				success: false,
@@ -99,6 +95,23 @@ export const BrowserSettings = ({
 			setDiscovering(false)
 		}
 	}
+
+	const options = useMemo(
+		() => [
+			{
+				value: "1280x800",
+				label: t("settings:browser.viewport.options.largeDesktop"),
+			},
+			{
+				value: "900x600",
+				label: t("settings:browser.viewport.options.smallDesktop"),
+			},
+			{ value: "768x1024", label: t("settings:browser.viewport.options.tablet") },
+			{ value: "360x640", label: t("settings:browser.viewport.options.mobile") },
+		],
+		[t],
+	)
+
 	return (
 		<div {...props}>
 			<SectionHeader>
@@ -126,31 +139,24 @@ export const BrowserSettings = ({
 								borderLeft: "2px solid var(--vscode-button-background)",
 							}}>
 							<div>
-								<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
-									{t("settings:browser.viewport.label")}
-								</label>
-								<div className="dropdown-container">
-									<Dropdown
-										value={browserViewportSize}
-										onChange={(value: unknown) => {
-											setCachedStateField("browserViewportSize", (value as DropdownOption).value)
-										}}
-										style={{ width: "100%" }}
-										options={[
-											{
-												value: "1280x800",
-												label: t("settings:browser.viewport.options.largeDesktop"),
-											},
-											{
-												value: "900x600",
-												label: t("settings:browser.viewport.options.smallDesktop"),
-											},
-											{ value: "768x1024", label: t("settings:browser.viewport.options.tablet") },
-											{ value: "360x640", label: t("settings:browser.viewport.options.mobile") },
-										]}
-									/>
-								</div>
-								<p className="text-vscode-descriptionForeground text-sm mt-0">
+								<label className="block font-medium mb-1">{t("settings:browser.viewport.label")}</label>
+								<Select
+									value={browserViewportSize}
+									onValueChange={(value) => setCachedStateField("browserViewportSize", value)}>
+									<SelectTrigger className="w-full">
+										<SelectValue placeholder="Select" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectGroup>
+											{options.map(({ value, label }) => (
+												<SelectItem key={value} value={value}>
+													{label}
+												</SelectItem>
+											))}
+										</SelectGroup>
+									</SelectContent>
+								</Select>
+								<p className="text-vscode-descriptionForeground text-sm mt-1">
 									{t("settings:browser.viewport.description")}
 								</p>
 							</div>

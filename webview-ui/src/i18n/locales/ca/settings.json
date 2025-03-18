@@ -24,8 +24,11 @@
 		"checkpoints": "Punts de control",
 		"notifications": "Notificacions",
 		"contextManagement": "Gestió de context",
+		"terminal": "Terminal",
 		"advanced": "Avançat",
-		"experimental": "Funcions experimentals"
+		"experimental": "Funcions experimentals",
+		"language": "Idioma",
+		"about": "Sobre Roo Code"
 	},
 	"autoApprove": {
 		"description": "Permet que Roo realitzi operacions automàticament sense requerir aprovació. Activeu aquesta configuració només si confieu plenament en la IA i enteneu els riscos de seguretat associats.",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "Controleu quina informació s'inclou a la finestra de context de la IA, afectant l'ús de token i la qualitat de resposta",
-		"terminal": {
-			"label": "Límit de sortida de terminal",
-			"description": "Nombre màxim de línies a incloure a la sortida del terminal en executar comandes. Quan s'excedeix, s'eliminaran línies del mig, estalviant token."
-		},
 		"openTabs": {
 			"label": "Límit de context de pestanyes obertes",
 			"description": "Nombre màxim de pestanyes obertes de VSCode a incloure al context. Valors més alts proporcionen més context però augmenten l'ús de token."
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": "Mostrar fitxers .rooignore en llistes i cerques",
 			"description": "Quan està habilitat, els fitxers que coincideixen amb els patrons a .rooignore es mostraran en llistes amb un símbol de cadenat. Quan està deshabilitat, aquests fitxers s'ocultaran completament de les llistes de fitxers i cerques."
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "Límit de sortida de terminal",
+			"description": "Nombre màxim de línies a incloure a la sortida del terminal en executar comandes. Quan s'excedeix, s'eliminaran línies del mig, estalviant token."
+		},
+		"shellIntegrationTimeout": {
+			"label": "Temps d'espera d'integració de shell del terminal",
+			"description": "Temps màxim d'espera per a la inicialització de la integració de shell abans d'executar comandes. Per a usuaris amb temps d'inici de shell llargs, aquest valor pot necessitar ser augmentat si veieu errors \"Shell Integration Unavailable\" al terminal."
 		}
 	},
 	"advanced": {

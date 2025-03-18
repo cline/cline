@@ -151,7 +151,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		cwd: "",
 		browserToolEnabled: true,
 		telemetrySetting: "unset",
-		showRooIgnoredFiles: true, // Default to showing .rooignore'd files with lock symbol (current behavior)
+		showRooIgnoredFiles: true, // Default to showing .rooignore'd files with lock symbol (current behavior).
+		renderContext: "sidebar",
 	})
 
 	const [didHydrateState, setDidHydrateState] = useState(false)

@@ -24,8 +24,11 @@
 		"checkpoints": "Checkpoints",
 		"notifications": "Notifications",
 		"contextManagement": "Context Management",
+		"terminal": "Terminal",
 		"advanced": "Advanced",
-		"experimental": "Experimental Features"
+		"experimental": "Experimental Features",
+		"language": "Language",
+		"about": "About Roo Code"
 	},
 	"autoApprove": {
 		"description": "Allow Roo to automatically perform operations without requiring approval. Enable these settings only if you fully trust the AI and understand the associated security risks.",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "Control what information is included in the AI's context window, affecting token usage and response quality",
-		"terminal": {
-			"label": "Terminal output limit",
-			"description": "Maximum number of lines to include in terminal output when executing commands. When exceeded lines will be removed from the middle, saving tokens."
-		},
 		"openTabs": {
 			"label": "Open tabs context limit",
 			"description": "Maximum number of VSCode open tabs to include in context. Higher values provide more context but increase token usage."
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": "Show .rooignore'd files in lists and searches",
 			"description": "When enabled, files matching patterns in .rooignore will be shown in lists with a lock symbol. When disabled, these files will be completely hidden from file lists and searches."
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "Terminal output limit",
+			"description": "Maximum number of lines to include in terminal output when executing commands. When exceeded lines will be removed from the middle, saving tokens."
+		},
+		"shellIntegrationTimeout": {
+			"label": "Terminal shell integration timeout",
+			"description": "Maximum time to wait for shell integration to initialize before executing commands. For users with long shell startup times, this value may need to be increased if you see \"Shell Integration Unavailable\" errors in the terminal."
 		}
 	},
 	"advanced": {
@@ -347,7 +356,6 @@
 	},
 	"footer": {
 		"feedback": "If you have any questions or feedback, feel free to open an issue at <githubLink>github.com/RooVetGit/Roo-Code</githubLink> or join <redditLink>reddit.com/r/RooCode</redditLink> or <discordLink>discord.gg/roocode</discordLink>",
-		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Allow anonymous error and usage reporting",
 			"description": "Help improve Roo Code by sending anonymous usage data and error reports. No code, prompts, or personal information is ever sent. See our privacy policy for more details."

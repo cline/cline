@@ -27,6 +27,7 @@ export const ExperimentalSettings = ({
 	...props
 }: ExperimentalSettingsProps) => {
 	const { t } = useAppTranslation()
+
 	return (
 		<div className={cn("flex flex-col gap-2", className)} {...props}>
 			<SectionHeader>

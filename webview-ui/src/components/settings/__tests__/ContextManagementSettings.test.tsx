@@ -17,11 +17,6 @@ describe("ContextManagementSettings", () => {
 	it("renders all controls", () => {
 		render(<ContextManagementSettings {...defaultProps} />)
 
-		// Terminal output limit
-		const terminalSlider = screen.getByTestId("terminal-output-limit-slider")
-		expect(terminalSlider).toBeInTheDocument()
-		expect(terminalSlider).toHaveValue("500")
-
 		// Open tabs context limit
 		const openTabsSlider = screen.getByTestId("open-tabs-limit-slider")
 		expect(openTabsSlider).toBeInTheDocument()
@@ -36,15 +31,6 @@ describe("ContextManagementSettings", () => {
 		const showRooIgnoredFilesCheckbox = screen.getByTestId("show-rooignored-files-checkbox")
 		expect(showRooIgnoredFilesCheckbox).toBeInTheDocument()
 		expect(screen.getByTestId("show-rooignored-files-checkbox")).not.toBeChecked()
-	})
-
-	it("updates terminal output limit", () => {
-		render(<ContextManagementSettings {...defaultProps} />)
-
-		const slider = screen.getByTestId("terminal-output-limit-slider")
-		fireEvent.change(slider, { target: { value: "1000" } })
-
-		expect(defaultProps.setCachedStateField).toHaveBeenCalledWith("terminalOutputLineLimit", 1000)
 	})
 
 	it("updates open tabs context limit", () => {

@@ -24,8 +24,11 @@
 		"checkpoints": "检查点",
 		"notifications": "通知",
 		"contextManagement": "上下文管理",
+		"terminal": "终端",
 		"advanced": "高级",
-		"experimental": "实验性功能"
+		"experimental": "实验性功能",
+		"language": "语言",
+		"about": "关于 Roo Code"
 	},
 	"autoApprove": {
 		"description": "允许 Roo 自动执行操作而无需批准。只有在您完全信任 AI 并了解相关安全风险的情况下才启用这些设置。",
@@ -250,10 +253,6 @@
 	},
 	"contextManagement": {
 		"description": "控制在 AI 的上下文窗口中包含哪些信息，影响 token 使用和响应质量",
-		"terminal": {
-			"label": "终端输出限制",
-			"description": "执行命令时在终端输出中包含的最大行数。超过时将从中间删除行，节省 token。"
-		},
 		"openTabs": {
 			"label": "打开标签上下文限制",
 			"description": "在上下文中包含的 VSCode 打开标签的最大数量。较高的值提供更多上下文，但会增加 token 使用量。"
@@ -265,6 +264,16 @@
 		"rooignore": {
 			"label": "在列表和搜索中显示 .rooignore 文件",
 			"description": "启用后，与 .rooignore 中模式匹配的文件将在列表中显示锁定符号。禁用时，这些文件将从文件列表和搜索中完全隐藏。"
+		}
+	},
+	"terminal": {
+		"outputLineLimit": {
+			"label": "终端输出限制",
+			"description": "执行命令时在终端输出中包含的最大行数。超过时将从中间删除行，节省 token。"
+		},
+		"shellIntegrationTimeout": {
+			"label": "终端 Shell 集成超时",
+			"description": "执行命令前等待 Shell 集成初始化的最长时间。对于 Shell 启动时间较长的用户，如果在终端中看到\"Shell Integration Unavailable\"错误，可能需要增加此值。"
 		}
 	},
 	"advanced": {
