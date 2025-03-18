@@ -158,5 +158,5 @@ Cline 所做的所有更改都会记录在你的文件时间轴中，提供了�
 
 ## 许可证
 
-[Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)
+[Apache 2.0 © 2025 Cline Bot Inc.](./LICENSE)
 

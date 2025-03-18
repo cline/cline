@@ -63,12 +63,14 @@ type SecretKey =
 	| "authNonce"
 	| "asksageApiKey"
 	| "xaiApiKey"
+	| "sambanovaApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
 	| "awsRegion"
 	| "awsUseCrossRegionInference"
 	| "awsBedrockUsePromptCache"
+	| "awsBedrockEndpoint"
 	| "awsProfile"
 	| "awsUseProfile"
 	| "vertexProjectId"
@@ -141,18 +143,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
-
-		// Set defaults for new users
-		;(async () => {
-			const existingPlanActSeparateModelsSetting = await this.getGlobalState("planActSeparateModelsSetting")
-			if (existingPlanActSeparateModelsSetting === undefined) {
-				// If api provider is not set, it's a new user. In order to get past the welcome screen, the user needs to choose an api provider and api key (logging into cline sets provider to cline). This is a good opportunity to set values for NEW users that we don't want to modify defaults for existing users. For example, existing users may already be using model switching between plan/act, but new users shouldn't be opted in to this behavior by default.
-				const apiProvider = await this.getGlobalState("apiProvider")
-				if (!apiProvider) {
-					await this.updateGlobalState("planActSeparateModelsSetting", false)
-				}
-			}
-		})()
 	}
 
 	/*
@@ -588,6 +578,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
 						}
 						break
+					case "optionsResponse":
+						await this.postMessageToWebview({
+							type: "invoke",
+							invoke: "sendMessage",
+							text: message.text,
+						})
+						break
 					case "memoryBankSettings":
 						if (message.memoryBankSettings) {
 							await this.updateGlobalState("memoryBankSettings", message.memoryBankSettings)
@@ -979,6 +976,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				case "vertex":
 				case "gemini":
 				case "asksage":
+				case "openai-native":
+				case "qwen":
+				case "deepseek":
 					await this.updateGlobalState("previousModeModelId", apiConfiguration.apiModelId)
 					break
 				case "openrouter":
@@ -1017,6 +1017,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "vertex":
 					case "gemini":
 					case "asksage":
+					case "openai-native":
+					case "qwen":
+					case "deepseek":
 						await this.updateGlobalState("apiModelId", newModelId)
 						break
 					case "openrouter":
@@ -1121,6 +1124,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			awsRegion,
 			awsUseCrossRegionInference,
 			awsBedrockUsePromptCache,
+			awsBedrockEndpoint,
 			awsProfile,
 			awsUseProfile,
 			vertexProjectId,
@@ -1157,6 +1161,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			xaiApiKey,
 			thinkingBudgetTokens,
 			clineApiKey,
+			sambanovaApiKey,
 		} = apiConfiguration
 		await this.updateGlobalState("apiProvider", apiProvider)
 		await this.updateGlobalState("apiModelId", apiModelId)
@@ -1168,6 +1173,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("awsRegion", awsRegion)
 		await this.updateGlobalState("awsUseCrossRegionInference", awsUseCrossRegionInference)
 		await this.updateGlobalState("awsBedrockUsePromptCache", awsBedrockUsePromptCache)
+		await this.updateGlobalState("awsBedrockEndpoint", awsBedrockEndpoint)
 		await this.updateGlobalState("awsProfile", awsProfile)
 		await this.updateGlobalState("awsUseProfile", awsUseProfile)
 		await this.updateGlobalState("vertexProjectId", vertexProjectId)
@@ -1204,6 +1210,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("asksageApiUrl", asksageApiUrl)
 		await this.updateGlobalState("thinkingBudgetTokens", thinkingBudgetTokens)
 		await this.storeSecret("clineApiKey", clineApiKey)
+		await this.storeSecret("sambanovaApiKey", sambanovaApiKey)
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
 		}
@@ -1957,6 +1964,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			awsRegion,
 			awsUseCrossRegionInference,
 			awsBedrockUsePromptCache,
+			awsBedrockEndpoint,
 			awsProfile,
 			awsUseProfile,
 			vertexProjectId,
@@ -2005,7 +2013,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			asksageApiUrl,
 			xaiApiKey,
 			thinkingBudgetTokens,
-			planActSeparateModelsSetting,
+			sambanovaApiKey,
+			planActSeparateModelsSettingRaw,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -2018,6 +2027,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("awsRegion") as Promise<string | undefined>,
 			this.getGlobalState("awsUseCrossRegionInference") as Promise<boolean | undefined>,
 			this.getGlobalState("awsBedrockUsePromptCache") as Promise<boolean | undefined>,
+			this.getGlobalState("awsBedrockEndpoint") as Promise<string | undefined>,
 			this.getGlobalState("awsProfile") as Promise<string | undefined>,
 			this.getGlobalState("awsUseProfile") as Promise<boolean | undefined>,
 			this.getGlobalState("vertexProjectId") as Promise<string | undefined>,
@@ -2066,6 +2076,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("asksageApiUrl") as Promise<string | undefined>,
 			this.getSecret("xaiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("thinkingBudgetTokens") as Promise<number | undefined>,
+			this.getSecret("sambanovaApiKey") as Promise<string | undefined>,
 			this.getGlobalState("planActSeparateModelsSetting") as Promise<boolean | undefined>,
 		])
 
@@ -2089,6 +2100,24 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
 
+		// Plan/Act separate models setting is a boolean indicating whether the user wants to use different models for plan and act. Existing users expect this to be enabled, while we want new users to opt in to this being disabled by default.
+		// On win11 state sometimes initializes as empty string instead of undefined
+		let planActSeparateModelsSetting: boolean | undefined = undefined
+		if (planActSeparateModelsSettingRaw === true || planActSeparateModelsSettingRaw === false) {
+			planActSeparateModelsSetting = planActSeparateModelsSettingRaw
+		} else {
+			// default to true for existing users
+			if (storedApiProvider) {
+				planActSeparateModelsSetting = true
+			} else {
+				// default to false for new users
+				planActSeparateModelsSetting = false
+			}
+			// this is a special case where it's a new state, but we want it to default to different values for existing and new users.
+			// persist so next time state is retrieved it's set to the correct value.
+			await this.updateGlobalState("planActSeparateModelsSetting", planActSeparateModelsSetting)
+		}
+
 		return {
 			apiConfiguration: {
 				apiProvider,
@@ -2102,6 +2131,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				awsRegion,
 				awsUseCrossRegionInference,
 				awsBedrockUsePromptCache,
+				awsBedrockEndpoint,
 				awsProfile,
 				awsUseProfile,
 				vertexProjectId,
@@ -2138,6 +2168,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				asksageApiKey,
 				asksageApiUrl,
 				xaiApiKey,
+				sambanovaApiKey,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -2153,7 +2184,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeThinkingBudgetTokens,
 			mcpMarketplaceEnabled,
 			telemetrySetting: telemetrySetting || "unset",
-			planActSeparateModelsSetting: planActSeparateModelsSetting ?? true,
+			planActSeparateModelsSetting,
 		}
 	}
 
@@ -2285,6 +2316,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			"liteLlmApiKey",
 			"asksageApiKey",
 			"xaiApiKey",
+			"sambanovaApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)
