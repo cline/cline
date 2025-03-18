@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "Cały zespół programistów AI w Twoim edytorze."
+	},
+	"number_format": {
+		"thousand_suffix": "tys.",
+		"million_suffix": "mln",
+		"billion_suffix": "mld"
+	},
+	"welcome": "Witaj, {{name}}! Masz {{count}} powiadomień.",
+	"items": {
+		"zero": "Brak elementów",
+		"one": "Jeden element",
+		"other": "{{count}} elementów"
+	},
+	"confirmation": {
+		"reset_state": "Czy na pewno chcesz zresetować wszystkie stany i tajne magazyny w rozszerzeniu? Tej operacji nie można cofnąć.",
+		"delete_config_profile": "Czy na pewno chcesz usunąć ten profil konfiguracyjny?",
+		"delete_custom_mode": "Czy na pewno chcesz usunąć ten niestandardowy tryb?",
+		"delete_message": "Co chcesz usunąć?",
+		"just_this_message": "Tylko tę wiadomość",
+		"this_and_subsequent": "Tę i wszystkie kolejne wiadomości"
+	},
+	"errors": {
+		"invalid_mcp_config": "Nieprawidłowy format konfiguracji MCP projektu",
+		"invalid_mcp_settings_format": "Nieprawidłowy format JSON ustawień MCP. Upewnij się, że Twoje ustawienia są zgodne z poprawnym formatem JSON.",
+		"invalid_mcp_settings_syntax": "Nieprawidłowy format JSON ustawień MCP. Sprawdź, czy w pliku ustawień nie ma błędów składniowych.",
+		"invalid_mcp_settings_validation": "Nieprawidłowy format ustawień MCP: {{errorMessages}}",
+		"failed_initialize_project_mcp": "Nie udało się zainicjować serwera MCP projektu: {{error}}",
+		"invalid_data_uri": "Nieprawidłowy format URI danych",
+		"checkpoint_timeout": "Upłynął limit czasu podczas próby przywrócenia punktu kontrolnego.",
+		"checkpoint_failed": "Nie udało się przywrócić punktu kontrolnego.",
+		"no_workspace": "Najpierw otwórz folder projektu",
+		"update_support_prompt": "Nie udało się zaktualizować komunikatu wsparcia",
+		"reset_support_prompt": "Nie udało się zresetować komunikatu wsparcia",
+		"enhance_prompt": "Nie udało się ulepszyć komunikatu",
+		"get_system_prompt": "Nie udało się pobrać komunikatu systemowego",
+		"search_commits": "Nie udało się wyszukać commitów",
+		"save_api_config": "Nie udało się zapisać konfiguracji API",
+		"create_api_config": "Nie udało się utworzyć konfiguracji API",
+		"rename_api_config": "Nie udało się zmienić nazwy konfiguracji API",
+		"load_api_config": "Nie udało się załadować konfiguracji API",
+		"delete_api_config": "Nie udało się usunąć konfiguracji API",
+		"list_api_config": "Nie udało się pobrać listy konfiguracji API",
+		"update_server_timeout": "Nie udało się zaktualizować limitu czasu serwera",
+		"create_mcp_json": "Nie udało się utworzyć lub otworzyć .roo/mcp.json: {{error}}",
+		"hmr_not_running": "Lokalny serwer deweloperski nie jest uruchomiony, HMR nie będzie działać. Uruchom 'npm run dev' przed uruchomieniem rozszerzenia, aby włączyć HMR.",
+		"retrieve_current_mode": "Błąd podczas pobierania bieżącego trybu ze stanu.",
+		"failed_delete_repo": "Nie udało się usunąć powiązanego repozytorium lub gałęzi pomocniczej: {{error}}",
+		"failed_remove_directory": "Nie udało się usunąć katalogu zadania: {{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "Nie wybrano zawartości terminala",
+		"missing_task_files": "Pliki tego zadania są brakujące. Czy chcesz usunąć je z listy zadań?"
+	},
+	"info": {
+		"no_changes": "Nie znaleziono zmian.",
+		"clipboard_copy": "Komunikat systemowy został pomyślnie skopiowany do schowka",
+		"history_cleanup": "Wyczyszczono {{count}} zadań z brakującymi plikami z historii.",
+		"mcp_server_restarting": "Ponowne uruchamianie serwera MCP {{serverName}}...",
+		"mcp_server_connected": "Serwer MCP {{serverName}} połączony",
+		"mcp_server_deleted": "Usunięto serwer MCP: {{serverName}}",
+		"mcp_server_not_found": "Serwer \"{{serverName}}\" nie znaleziony w konfiguracji"
+	},
+	"answers": {
+		"yes": "Tak",
+		"no": "Nie",
+		"cancel": "Anuluj",
+		"remove": "Usuń",
+		"keep": "Zachowaj"
+	},
+	"tasks": {
+		"canceled": "Błąd zadania: Zostało zatrzymane i anulowane przez użytkownika.",
+		"deleted": "Niepowodzenie zadania: Zostało zatrzymane i usunięte przez użytkownika."
+	}
+}

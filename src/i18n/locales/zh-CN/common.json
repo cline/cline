@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "您编辑器中的完整AI开发团队。"
+	},
+	"number_format": {
+		"thousand_suffix": "千",
+		"million_suffix": "百万",
+		"billion_suffix": "十亿"
+	},
+	"welcome": "欢迎，{{name}}！您有 {{count}} 条通知。",
+	"items": {
+		"zero": "没有项目",
+		"one": "1个项目",
+		"other": "{{count}}个项目"
+	},
+	"confirmation": {
+		"reset_state": "您确定要重置扩展中的所有状态和密钥存储吗？此操作无法撤消。",
+		"delete_config_profile": "您确定要删除此配置文件吗？",
+		"delete_custom_mode": "您确定要删除此自定义模式吗？",
+		"delete_message": "您想删除什么？",
+		"just_this_message": "仅此消息",
+		"this_and_subsequent": "此消息及所有后续消息"
+	},
+	"errors": {
+		"invalid_mcp_config": "项目MCP配置格式无效",
+		"invalid_mcp_settings_format": "MCP设置JSON格式无效。请确保您的设置遵循正确的JSON格式。",
+		"invalid_mcp_settings_syntax": "MCP设置JSON格式无效。请检查您的设置文件是否有语法错误。",
+		"invalid_mcp_settings_validation": "MCP设置格式无效：{{errorMessages}}",
+		"failed_initialize_project_mcp": "初始化项目MCP服务器失败：{{error}}",
+		"invalid_data_uri": "数据URI格式无效",
+		"checkpoint_timeout": "尝试恢复检查点时超时。",
+		"checkpoint_failed": "恢复检查点失败。",
+		"no_workspace": "请先打开项目文件夹",
+		"update_support_prompt": "更新支持消息失败",
+		"reset_support_prompt": "重置支持消息失败",
+		"enhance_prompt": "增强消息失败",
+		"get_system_prompt": "获取系统消息失败",
+		"search_commits": "搜索提交失败",
+		"save_api_config": "保存API配置失败",
+		"create_api_config": "创建API配置失败",
+		"rename_api_config": "重命名API配置失败",
+		"load_api_config": "加载API配置失败",
+		"delete_api_config": "删除API配置失败",
+		"list_api_config": "获取API配置列表失败",
+		"update_server_timeout": "更新服务器超时设置失败",
+		"create_mcp_json": "创建或打开 .roo/mcp.json 失败：{{error}}",
+		"hmr_not_running": "本地开发服务器未运行，HMR将不起作用。请在启动扩展前运行'npm run dev'以启用HMR。",
+		"retrieve_current_mode": "从状态中检索当前模式失败。",
+		"failed_delete_repo": "删除关联的影子仓库或分支失败：{{error}}",
+		"failed_remove_directory": "删除任务目录失败：{{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "没有选择终端内容",
+		"missing_task_files": "此任务的文件丢失。您想从任务列表中删除它吗？"
+	},
+	"info": {
+		"no_changes": "未找到更改。",
+		"clipboard_copy": "系统消息已成功复制到剪贴板",
+		"history_cleanup": "已从历史记录中清理{{count}}个缺少文件的任务。",
+		"mcp_server_restarting": "正在重启{{serverName}}MCP服务器...",
+		"mcp_server_connected": "{{serverName}}MCP服务器已连接",
+		"mcp_server_deleted": "已删除MCP服务器：{{serverName}}",
+		"mcp_server_not_found": "在配置中未找到服务器\"{{serverName}}\""
+	},
+	"answers": {
+		"yes": "是",
+		"no": "否",
+		"cancel": "取消",
+		"remove": "删除",
+		"keep": "保留"
+	},
+	"tasks": {
+		"canceled": "任务错误：它已被用户停止并取消。",
+		"deleted": "任务失败：它已被用户停止并删除。"
+	}
+}

@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "Un intero team di sviluppatori AI nel tuo editor."
+	},
+	"number_format": {
+		"thousand_suffix": "k",
+		"million_suffix": "mln",
+		"billion_suffix": "mld"
+	},
+	"welcome": "Benvenuto, {{name}}! Hai {{count}} notifiche.",
+	"items": {
+		"zero": "Nessun elemento",
+		"one": "Un elemento",
+		"other": "{{count}} elementi"
+	},
+	"confirmation": {
+		"reset_state": "Sei sicuro di voler reimpostare tutti gli stati e l'archiviazione segreta nell'estensione? Questa azione non può essere annullata.",
+		"delete_config_profile": "Sei sicuro di voler eliminare questo profilo di configurazione?",
+		"delete_custom_mode": "Sei sicuro di voler eliminare questa modalità personalizzata?",
+		"delete_message": "Cosa desideri eliminare?",
+		"just_this_message": "Solo questo messaggio",
+		"this_and_subsequent": "Questo e tutti i messaggi successivi"
+	},
+	"errors": {
+		"invalid_mcp_config": "Formato di configurazione MCP del progetto non valido",
+		"invalid_mcp_settings_format": "Formato JSON delle impostazioni MCP non valido. Assicurati che le tue impostazioni seguano il formato JSON corretto.",
+		"invalid_mcp_settings_syntax": "Formato JSON delle impostazioni MCP non valido. Verifica gli errori di sintassi nel tuo file delle impostazioni.",
+		"invalid_mcp_settings_validation": "Formato delle impostazioni MCP non valido: {{errorMessages}}",
+		"failed_initialize_project_mcp": "Impossibile inizializzare il server MCP del progetto: {{error}}",
+		"invalid_data_uri": "Formato URI dati non valido",
+		"checkpoint_timeout": "Timeout durante il tentativo di ripristinare il checkpoint.",
+		"checkpoint_failed": "Impossibile ripristinare il checkpoint.",
+		"no_workspace": "Per favore, apri prima una cartella di progetto",
+		"update_support_prompt": "Errore durante l'aggiornamento del messaggio di supporto",
+		"reset_support_prompt": "Errore durante il ripristino del messaggio di supporto",
+		"enhance_prompt": "Errore durante il miglioramento del messaggio",
+		"get_system_prompt": "Errore durante l'ottenimento del messaggio di sistema",
+		"search_commits": "Errore durante la ricerca dei commit",
+		"save_api_config": "Errore durante il salvataggio della configurazione API",
+		"create_api_config": "Errore durante la creazione della configurazione API",
+		"rename_api_config": "Errore durante la ridenominazione della configurazione API",
+		"load_api_config": "Errore durante il caricamento della configurazione API",
+		"delete_api_config": "Errore durante l'eliminazione della configurazione API",
+		"list_api_config": "Errore durante l'ottenimento dell'elenco delle configurazioni API",
+		"update_server_timeout": "Errore durante l'aggiornamento del timeout del server",
+		"create_mcp_json": "Impossibile creare o aprire .roo/mcp.json: {{error}}",
+		"hmr_not_running": "Il server di sviluppo locale non è in esecuzione, l'HMR non funzionerà. Esegui 'npm run dev' prima di avviare l'estensione per abilitare l'HMR.",
+		"retrieve_current_mode": "Errore durante il recupero della modalità corrente dallo stato.",
+		"failed_delete_repo": "Impossibile eliminare il repository o il ramo associato: {{error}}",
+		"failed_remove_directory": "Impossibile rimuovere la directory delle attività: {{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "Nessun contenuto del terminale selezionato",
+		"missing_task_files": "I file di questa attività sono mancanti. Vuoi rimuoverla dall'elenco delle attività?"
+	},
+	"info": {
+		"no_changes": "Nessuna modifica trovata.",
+		"clipboard_copy": "Messaggio di sistema copiato con successo negli appunti",
+		"history_cleanup": "Pulite {{count}} attività con file mancanti dalla cronologia.",
+		"mcp_server_restarting": "Riavvio del server MCP {{serverName}}...",
+		"mcp_server_connected": "Server MCP {{serverName}} connesso",
+		"mcp_server_deleted": "Server MCP eliminato: {{serverName}}",
+		"mcp_server_not_found": "Server \"{{serverName}}\" non trovato nella configurazione"
+	},
+	"answers": {
+		"yes": "Sì",
+		"no": "No",
+		"cancel": "Annulla",
+		"remove": "Rimuovi",
+		"keep": "Mantieni"
+	},
+	"tasks": {
+		"canceled": "Errore attività: È stata interrotta e annullata dall'utente.",
+		"deleted": "Fallimento attività: È stata interrotta ed eliminata dall'utente."
+	}
+}

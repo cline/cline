@@ -28,6 +28,7 @@ demo.gif
 .roomodes
 cline_docs/**
 coverage/**
+locales/**
 
 # Ignore all webview-ui files except the build directory (https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/frameworks/hello-world-react-cra/.vscodeignore)
 webview-ui/src/**

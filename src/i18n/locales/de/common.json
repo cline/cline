@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "Ein komplettes Entwicklerteam mit KI in deinem Editor."
+	},
+	"number_format": {
+		"thousand_suffix": "T",
+		"million_suffix": "Mio.",
+		"billion_suffix": "Mrd."
+	},
+	"welcome": "Willkommen, {{name}}! Du hast {{count}} Benachrichtigungen.",
+	"items": {
+		"zero": "Keine Elemente",
+		"one": "Ein Element",
+		"other": "{{count}} Elemente"
+	},
+	"confirmation": {
+		"reset_state": "Möchten Sie wirklich alle Zustände und geheimen Speicher in der Erweiterung zurücksetzen? Dies kann nicht rückgängig gemacht werden.",
+		"delete_config_profile": "Möchten Sie dieses Konfigurationsprofil wirklich löschen?",
+		"delete_custom_mode": "Möchten Sie diesen benutzerdefinierten Modus wirklich löschen?",
+		"delete_message": "Was möchten Sie löschen?",
+		"just_this_message": "Nur diese Nachricht",
+		"this_and_subsequent": "Diese und alle nachfolgenden Nachrichten"
+	},
+	"errors": {
+		"invalid_mcp_config": "Ungültiges MCP-Projekt-Konfigurationsformat",
+		"invalid_mcp_settings_format": "Ungültiges MCP-Einstellungen-JSON-Format. Bitte stellen Sie sicher, dass Ihre Einstellungen dem korrekten JSON-Format entsprechen.",
+		"invalid_mcp_settings_syntax": "Ungültiges MCP-Einstellungen-JSON-Format. Bitte überprüfen Sie Ihre Einstellungsdatei auf Syntaxfehler.",
+		"invalid_mcp_settings_validation": "Ungültiges MCP-Einstellungen-Format: {{errorMessages}}",
+		"failed_initialize_project_mcp": "Fehler beim Initialisieren des Projekt-MCP-Servers: {{error}}",
+		"invalid_data_uri": "Ungültiges Daten-URI-Format",
+		"checkpoint_timeout": "Zeitüberschreitung beim Versuch, den Checkpoint wiederherzustellen.",
+		"checkpoint_failed": "Fehler beim Wiederherstellen des Checkpoints.",
+		"no_workspace": "Bitte öffnen Sie zuerst einen Projektordner",
+		"update_support_prompt": "Fehler beim Aktualisieren der Support-Nachricht",
+		"reset_support_prompt": "Fehler beim Zurücksetzen der Support-Nachricht",
+		"enhance_prompt": "Fehler beim Verbessern der Nachricht",
+		"get_system_prompt": "Fehler beim Abrufen der Systemnachricht",
+		"search_commits": "Fehler beim Suchen von Commits",
+		"save_api_config": "Fehler beim Speichern der API-Konfiguration",
+		"create_api_config": "Fehler beim Erstellen der API-Konfiguration",
+		"rename_api_config": "Fehler beim Umbenennen der API-Konfiguration",
+		"load_api_config": "Fehler beim Laden der API-Konfiguration",
+		"delete_api_config": "Fehler beim Löschen der API-Konfiguration",
+		"list_api_config": "Fehler beim Abrufen der API-Konfigurationsliste",
+		"update_server_timeout": "Fehler beim Aktualisieren des Server-Timeouts",
+		"create_mcp_json": "Fehler beim Erstellen oder Öffnen von .roo/mcp.json: {{error}}",
+		"hmr_not_running": "Der lokale Entwicklungsserver läuft nicht, HMR wird nicht funktionieren. Bitte führen Sie 'npm run dev' vor dem Start der Erweiterung aus, um HMR zu aktivieren.",
+		"retrieve_current_mode": "Fehler beim Abrufen des aktuellen Modus aus dem Zustand.",
+		"failed_delete_repo": "Fehler beim Löschen des zugehörigen Shadow-Repositorys oder -Zweigs: {{error}}",
+		"failed_remove_directory": "Fehler beim Entfernen des Aufgabenverzeichnisses: {{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "Kein Terminal-Inhalt ausgewählt",
+		"missing_task_files": "Die Dateien dieser Aufgabe fehlen. Möchten Sie sie aus der Aufgabenliste entfernen?"
+	},
+	"info": {
+		"no_changes": "Keine Änderungen gefunden.",
+		"clipboard_copy": "Systemnachricht erfolgreich in die Zwischenablage kopiert",
+		"history_cleanup": "{{count}} Aufgabe(n) mit fehlenden Dateien aus dem Verlauf bereinigt.",
+		"mcp_server_restarting": "MCP-Server {{serverName}} wird neu gestartet...",
+		"mcp_server_connected": "MCP-Server {{serverName}} verbunden",
+		"mcp_server_deleted": "MCP-Server gelöscht: {{serverName}}",
+		"mcp_server_not_found": "Server \"{{serverName}}\" nicht in der Konfiguration gefunden"
+	},
+	"answers": {
+		"yes": "Ja",
+		"no": "Nein",
+		"cancel": "Abbrechen",
+		"remove": "Entfernen",
+		"keep": "Behalten"
+	},
+	"tasks": {
+		"canceled": "Aufgabenfehler: Sie wurde vom Benutzer gestoppt und abgebrochen.",
+		"deleted": "Aufgabenfehler: Sie wurde vom Benutzer gestoppt und gelöscht."
+	}
+}

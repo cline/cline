@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "Düzenleyicinizde tam bir AI geliştirici ekibi."
+	},
+	"number_format": {
+		"thousand_suffix": "B",
+		"million_suffix": "M",
+		"billion_suffix": "Mr"
+	},
+	"welcome": "Hoş geldiniz, {{name}}! {{count}} bildiriminiz var.",
+	"items": {
+		"zero": "Öğe yok",
+		"one": "Bir öğe",
+		"other": "{{count}} öğe"
+	},
+	"confirmation": {
+		"reset_state": "Uzantıdaki tüm durumları ve gizli depolamayı sıfırlamak istediğinizden emin misiniz? Bu işlem geri alınamaz.",
+		"delete_config_profile": "Bu yapılandırma profilini silmek istediğinizden emin misiniz?",
+		"delete_custom_mode": "Bu özel modu silmek istediğinizden emin misiniz?",
+		"delete_message": "Neyi silmek istersiniz?",
+		"just_this_message": "Sadece bu mesajı",
+		"this_and_subsequent": "Bu ve sonraki tüm mesajları"
+	},
+	"errors": {
+		"invalid_mcp_config": "Geçersiz proje MCP yapılandırma formatı",
+		"invalid_mcp_settings_format": "Geçersiz MCP ayarları JSON formatı. Lütfen ayarlarınızın doğru JSON formatını takip ettiğinden emin olun.",
+		"invalid_mcp_settings_syntax": "Geçersiz MCP ayarları JSON formatı. Lütfen ayarlar dosyanızda sözdizimi hatalarını kontrol edin.",
+		"invalid_mcp_settings_validation": "Geçersiz MCP ayarları formatı: {{errorMessages}}",
+		"failed_initialize_project_mcp": "Proje MCP sunucusu başlatılamadı: {{error}}",
+		"invalid_data_uri": "Geçersiz veri URI formatı",
+		"checkpoint_timeout": "Kontrol noktasını geri yüklemeye çalışırken zaman aşımına uğradı.",
+		"checkpoint_failed": "Kontrol noktası geri yüklenemedi.",
+		"no_workspace": "Lütfen önce bir proje klasörü açın",
+		"update_support_prompt": "Destek istemi güncellenemedi",
+		"reset_support_prompt": "Destek istemi sıfırlanamadı",
+		"enhance_prompt": "İstem geliştirilemedi",
+		"get_system_prompt": "Sistem istemi alınamadı",
+		"search_commits": "Taahhütler aranamadı",
+		"save_api_config": "API yapılandırması kaydedilemedi",
+		"create_api_config": "API yapılandırması oluşturulamadı",
+		"rename_api_config": "API yapılandırmasının adı değiştirilemedi",
+		"load_api_config": "API yapılandırması yüklenemedi",
+		"delete_api_config": "API yapılandırması silinemedi",
+		"list_api_config": "API yapılandırma listesi alınamadı",
+		"update_server_timeout": "Sunucu zaman aşımı güncellenemedi",
+		"create_mcp_json": ".roo/mcp.json oluşturulamadı veya açılamadı: {{error}}",
+		"hmr_not_running": "Yerel geliştirme sunucusu çalışmıyor, HMR çalışmayacak. HMR'yi etkinleştirmek için uzantıyı başlatmadan önce lütfen 'npm run dev' komutunu çalıştırın.",
+		"retrieve_current_mode": "Mevcut mod durumdan alınırken hata oluştu.",
+		"failed_delete_repo": "İlişkili gölge depo veya dal silinemedi: {{error}}",
+		"failed_remove_directory": "Görev dizini kaldırılamadı: {{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "Seçili terminal içeriği yok",
+		"missing_task_files": "Bu görevin dosyaları eksik. Görev listesinden kaldırmak istiyor musunuz?"
+	},
+	"info": {
+		"no_changes": "Değişiklik bulunamadı.",
+		"clipboard_copy": "Sistem istemi panoya başarıyla kopyalandı",
+		"history_cleanup": "Geçmişten eksik dosyaları olan {{count}} görev temizlendi.",
+		"mcp_server_restarting": "{{serverName}} MCP sunucusu yeniden başlatılıyor...",
+		"mcp_server_connected": "{{serverName}} MCP sunucusu bağlandı",
+		"mcp_server_deleted": "MCP sunucusu silindi: {{serverName}}",
+		"mcp_server_not_found": "Yapılandırmada \"{{serverName}}\" sunucusu bulunamadı"
+	},
+	"answers": {
+		"yes": "Evet",
+		"no": "Hayır",
+		"cancel": "İptal",
+		"remove": "Kaldır",
+		"keep": "Koru"
+	},
+	"tasks": {
+		"canceled": "Görev hatası: Kullanıcı tarafından durduruldu ve iptal edildi.",
+		"deleted": "Görev başarısız: Kullanıcı tarafından durduruldu ve silindi."
+	}
+}

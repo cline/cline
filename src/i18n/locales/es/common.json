@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "Un equipo completo de desarrolladores con IA en tu editor."
+	},
+	"number_format": {
+		"thousand_suffix": "k",
+		"million_suffix": "m",
+		"billion_suffix": "b"
+	},
+	"welcome": "¡Bienvenido, {{name}}! Tienes {{count}} notificaciones.",
+	"items": {
+		"zero": "Sin elementos",
+		"one": "Un elemento",
+		"other": "{{count}} elementos"
+	},
+	"confirmation": {
+		"reset_state": "¿Estás seguro de que deseas restablecer todo el estado y el almacenamiento secreto en la extensión? Esta acción no se puede deshacer.",
+		"delete_config_profile": "¿Estás seguro de que deseas eliminar este perfil de configuración?",
+		"delete_custom_mode": "¿Estás seguro de que deseas eliminar este modo personalizado?",
+		"delete_message": "¿Qué deseas eliminar?",
+		"just_this_message": "Solo este mensaje",
+		"this_and_subsequent": "Este y todos los mensajes posteriores"
+	},
+	"errors": {
+		"invalid_mcp_config": "Formato de configuración MCP del proyecto no válido",
+		"invalid_mcp_settings_format": "Formato JSON de la configuración MCP no válido. Asegúrate de que tus ajustes sigan el formato JSON correcto.",
+		"invalid_mcp_settings_syntax": "Formato JSON de la configuración MCP no válido. Verifica si hay errores de sintaxis en tu archivo de configuración.",
+		"invalid_mcp_settings_validation": "Formato de configuración MCP no válido: {{errorMessages}}",
+		"failed_initialize_project_mcp": "Error al inicializar el servidor MCP del proyecto: {{error}}",
+		"invalid_data_uri": "Formato de URI de datos no válido",
+		"checkpoint_timeout": "Se agotó el tiempo al intentar restaurar el punto de control.",
+		"checkpoint_failed": "Error al restaurar el punto de control.",
+		"no_workspace": "Por favor, abre primero una carpeta de proyecto",
+		"update_support_prompt": "Error al actualizar el mensaje de soporte",
+		"reset_support_prompt": "Error al restablecer el mensaje de soporte",
+		"enhance_prompt": "Error al mejorar el mensaje",
+		"get_system_prompt": "Error al obtener el mensaje del sistema",
+		"search_commits": "Error al buscar commits",
+		"save_api_config": "Error al guardar la configuración de API",
+		"create_api_config": "Error al crear la configuración de API",
+		"rename_api_config": "Error al renombrar la configuración de API",
+		"load_api_config": "Error al cargar la configuración de API",
+		"delete_api_config": "Error al eliminar la configuración de API",
+		"list_api_config": "Error al obtener la lista de configuraciones de API",
+		"update_server_timeout": "Error al actualizar el tiempo de espera del servidor",
+		"create_mcp_json": "Error al crear o abrir .roo/mcp.json: {{error}}",
+		"hmr_not_running": "El servidor de desarrollo local no está en ejecución, HMR no funcionará. Por favor, ejecuta 'npm run dev' antes de lanzar la extensión para habilitar HMR.",
+		"retrieve_current_mode": "Error al recuperar el modo actual del estado.",
+		"failed_delete_repo": "Error al eliminar el repositorio o rama asociada: {{error}}",
+		"failed_remove_directory": "Error al eliminar el directorio de tareas: {{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "No hay contenido de terminal seleccionado",
+		"missing_task_files": "Los archivos de esta tarea faltan. ¿Deseas eliminarla de la lista de tareas?"
+	},
+	"info": {
+		"no_changes": "No se encontraron cambios.",
+		"clipboard_copy": "Mensaje del sistema copiado correctamente al portapapeles",
+		"history_cleanup": "Se limpiaron {{count}} tarea(s) con archivos faltantes del historial.",
+		"mcp_server_restarting": "Reiniciando el servidor MCP {{serverName}}...",
+		"mcp_server_connected": "Servidor MCP {{serverName}} conectado",
+		"mcp_server_deleted": "Servidor MCP eliminado: {{serverName}}",
+		"mcp_server_not_found": "Servidor \"{{serverName}}\" no encontrado en la configuración"
+	},
+	"answers": {
+		"yes": "Sí",
+		"no": "No",
+		"cancel": "Cancelar",
+		"remove": "Eliminar",
+		"keep": "Mantener"
+	},
+	"tasks": {
+		"canceled": "Error de tarea: Fue detenida y cancelada por el usuario.",
+		"deleted": "Fallo de tarea: Fue detenida y eliminada por el usuario."
+	}
+}

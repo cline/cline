@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "Tot un equip de desenvolupadors d'IA al teu editor."
+	},
+	"number_format": {
+		"thousand_suffix": "k",
+		"million_suffix": "M",
+		"billion_suffix": "MM"
+	},
+	"welcome": "Benvingut/da, {{name}}! Tens {{count}} notificacions.",
+	"items": {
+		"zero": "Cap element",
+		"one": "Un element",
+		"other": "{{count}} elements"
+	},
+	"confirmation": {
+		"reset_state": "Estàs segur que vols restablir tots els estats i emmagatzematge secret a l'extensió? Això no es pot desfer.",
+		"delete_config_profile": "Estàs segur que vols eliminar aquest perfil de configuració?",
+		"delete_custom_mode": "Estàs segur que vols eliminar aquest mode personalitzat?",
+		"delete_message": "Què vols eliminar?",
+		"just_this_message": "Només aquest missatge",
+		"this_and_subsequent": "Aquest i tots els missatges posteriors"
+	},
+	"errors": {
+		"invalid_mcp_config": "Format de configuració MCP del projecte no vàlid",
+		"invalid_mcp_settings_format": "Format JSON de configuració MCP no vàlid. Si us plau, assegura't que la teva configuració segueix el format JSON correcte.",
+		"invalid_mcp_settings_syntax": "Format JSON de configuració MCP no vàlid. Si us plau, comprova si hi ha errors de sintaxi al teu fitxer de configuració.",
+		"invalid_mcp_settings_validation": "Format de configuració MCP no vàlid: {{errorMessages}}",
+		"failed_initialize_project_mcp": "Ha fallat la inicialització del servidor MCP del projecte: {{error}}",
+		"invalid_data_uri": "Format d'URI de dades no vàlid",
+		"checkpoint_timeout": "S'ha esgotat el temps en intentar restaurar el punt de control.",
+		"checkpoint_failed": "Ha fallat la restauració del punt de control.",
+		"no_workspace": "Si us plau, obre primer una carpeta de projecte",
+		"update_support_prompt": "Ha fallat l'actualització del missatge de suport",
+		"reset_support_prompt": "Ha fallat el restabliment del missatge de suport",
+		"enhance_prompt": "Ha fallat la millora del missatge",
+		"get_system_prompt": "Ha fallat l'obtenció del missatge del sistema",
+		"search_commits": "Ha fallat la cerca de commits",
+		"save_api_config": "Ha fallat el desament de la configuració de l'API",
+		"create_api_config": "Ha fallat la creació de la configuració de l'API",
+		"rename_api_config": "Ha fallat el canvi de nom de la configuració de l'API",
+		"load_api_config": "Ha fallat la càrrega de la configuració de l'API",
+		"delete_api_config": "Ha fallat l'eliminació de la configuració de l'API",
+		"list_api_config": "Ha fallat l'obtenció de la llista de configuracions de l'API",
+		"update_server_timeout": "Ha fallat l'actualització del temps d'espera del servidor",
+		"create_mcp_json": "Ha fallat la creació o obertura de .roo/mcp.json: {{error}}",
+		"hmr_not_running": "El servidor de desenvolupament local no està executant-se, l'HMR no funcionarà. Si us plau, executa 'npm run dev' abans de llançar l'extensió per habilitar l'HMR.",
+		"retrieve_current_mode": "Error en recuperar el mode actual de l'estat.",
+		"failed_delete_repo": "Ha fallat l'eliminació del repositori o branca associada: {{error}}",
+		"failed_remove_directory": "Ha fallat l'eliminació del directori de tasques: {{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "No s'ha seleccionat contingut de terminal",
+		"missing_task_files": "Els fitxers d'aquesta tasca falten. Vols eliminar-la de la llista de tasques?"
+	},
+	"info": {
+		"no_changes": "No s'han trobat canvis.",
+		"clipboard_copy": "Missatge del sistema copiat correctament al portapapers",
+		"history_cleanup": "S'han netejat {{count}} tasques amb fitxers que falten de l'historial.",
+		"mcp_server_restarting": "Reiniciant el servidor MCP {{serverName}}...",
+		"mcp_server_connected": "Servidor MCP {{serverName}} connectat",
+		"mcp_server_deleted": "Servidor MCP eliminat: {{serverName}}",
+		"mcp_server_not_found": "Servidor \"{{serverName}}\" no trobat a la configuració"
+	},
+	"answers": {
+		"yes": "Sí",
+		"no": "No",
+		"cancel": "Cancel·lar",
+		"remove": "Eliminar",
+		"keep": "Mantenir"
+	},
+	"tasks": {
+		"canceled": "Error de tasca: Ha estat aturada i cancel·lada per l'usuari.",
+		"deleted": "Fallada de tasca: Ha estat aturada i eliminada per l'usuari."
+	}
+}

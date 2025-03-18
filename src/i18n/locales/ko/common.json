@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "에디터 내에서 동작하는 AI 개발팀 전체입니다."
+	},
+	"number_format": {
+		"thousand_suffix": "천",
+		"million_suffix": "백만",
+		"billion_suffix": "십억"
+	},
+	"welcome": "안녕하세요, {{name}}님! {{count}}개의 알림이 있습니다.",
+	"items": {
+		"zero": "항목 없음",
+		"one": "1개 항목",
+		"other": "{{count}}개 항목"
+	},
+	"confirmation": {
+		"reset_state": "확장 프로그램의 모든 상태와 보안 저장소를 재설정하시겠습니까? 이 작업은 취소할 수 없습니다.",
+		"delete_config_profile": "이 구성 프로필을 삭제하시겠습니까?",
+		"delete_custom_mode": "이 사용자 지정 모드를 삭제하시겠습니까?",
+		"delete_message": "무엇을 삭제하시겠습니까?",
+		"just_this_message": "이 메시지만",
+		"this_and_subsequent": "이 메시지와 모든 후속 메시지"
+	},
+	"errors": {
+		"invalid_mcp_config": "잘못된 프로젝트 MCP 구성 형식",
+		"invalid_mcp_settings_format": "잘못된 MCP 설정 JSON 형식입니다. 설정이 올바른 JSON 형식을 따르는지 확인하세요.",
+		"invalid_mcp_settings_syntax": "잘못된 MCP 설정 JSON 형식입니다. 설정 파일의 구문 오류를 확인하세요.",
+		"invalid_mcp_settings_validation": "잘못된 MCP 설정 형식: {{errorMessages}}",
+		"failed_initialize_project_mcp": "프로젝트 MCP 서버 초기화 실패: {{error}}",
+		"invalid_data_uri": "잘못된 데이터 URI 형식",
+		"checkpoint_timeout": "체크포인트 복원을 시도하는 중 시간 초과되었습니다.",
+		"checkpoint_failed": "체크포인트 복원에 실패했습니다.",
+		"no_workspace": "먼저 프로젝트 폴더를 열어주세요",
+		"update_support_prompt": "지원 프롬프트 업데이트에 실패했습니다",
+		"reset_support_prompt": "지원 프롬프트 재설정에 실패했습니다",
+		"enhance_prompt": "프롬프트 향상에 실패했습니다",
+		"get_system_prompt": "시스템 프롬프트 가져오기에 실패했습니다",
+		"search_commits": "커밋 검색에 실패했습니다",
+		"save_api_config": "API 구성 저장에 실패했습니다",
+		"create_api_config": "API 구성 생성에 실패했습니다",
+		"rename_api_config": "API 구성 이름 변경에 실패했습니다",
+		"load_api_config": "API 구성 로드에 실패했습니다",
+		"delete_api_config": "API 구성 삭제에 실패했습니다",
+		"list_api_config": "API 구성 목록 가져오기에 실패했습니다",
+		"update_server_timeout": "서버 타임아웃 업데이트에 실패했습니다",
+		"create_mcp_json": ".roo/mcp.json 생성 또는 열기 실패: {{error}}",
+		"hmr_not_running": "로컬 개발 서버가 실행되고 있지 않아 HMR이 작동하지 않습니다. HMR을 활성화하려면 확장 프로그램을 실행하기 전에 'npm run dev'를 실행하세요.",
+		"retrieve_current_mode": "상태에서 현재 모드를 검색하는 데 오류가 발생했습니다.",
+		"failed_delete_repo": "관련 shadow 저장소 또는 브랜치 삭제 실패: {{error}}",
+		"failed_remove_directory": "작업 디렉토리 제거 실패: {{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "선택된 터미널 내용이 없습니다",
+		"missing_task_files": "이 작업의 파일이 누락되었습니다. 작업 목록에서 제거하시겠습니까?"
+	},
+	"info": {
+		"no_changes": "변경 사항이 없습니다.",
+		"clipboard_copy": "시스템 프롬프트가 클립보드에 성공적으로 복사되었습니다",
+		"history_cleanup": "이력에서 파일이 누락된 {{count}}개의 작업을 정리했습니다.",
+		"mcp_server_restarting": "{{serverName}} MCP 서버를 재시작하는 중...",
+		"mcp_server_connected": "{{serverName}} MCP 서버 연결됨",
+		"mcp_server_deleted": "MCP 서버 삭제됨: {{serverName}}",
+		"mcp_server_not_found": "구성에서 서버 \"{{serverName}}\"을(를) 찾을 수 없습니다"
+	},
+	"answers": {
+		"yes": "예",
+		"no": "아니오",
+		"cancel": "취소",
+		"remove": "제거",
+		"keep": "유지"
+	},
+	"tasks": {
+		"canceled": "작업 오류: 사용자에 의해 중지 및 취소되었습니다.",
+		"deleted": "작업 실패: 사용자에 의해 중지 및 삭제되었습니다."
+	}
+}

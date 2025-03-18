@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "Uma equipe completa de desenvolvedores com IA em seu editor."
+	},
+	"number_format": {
+		"thousand_suffix": "k",
+		"million_suffix": "mi",
+		"billion_suffix": "bi"
+	},
+	"welcome": "Bem-vindo(a), {{name}}! Você tem {{count}} notificações.",
+	"items": {
+		"zero": "Nenhum item",
+		"one": "Um item",
+		"other": "{{count}} itens"
+	},
+	"confirmation": {
+		"reset_state": "Tem certeza de que deseja redefinir todo o estado e armazenamento secreto na extensão? Isso não pode ser desfeito.",
+		"delete_config_profile": "Tem certeza de que deseja excluir este perfil de configuração?",
+		"delete_custom_mode": "Tem certeza de que deseja excluir este modo personalizado?",
+		"delete_message": "O que você gostaria de excluir?",
+		"just_this_message": "Apenas esta mensagem",
+		"this_and_subsequent": "Esta e todas as mensagens subsequentes"
+	},
+	"errors": {
+		"invalid_mcp_config": "Formato de configuração MCP do projeto inválido",
+		"invalid_mcp_settings_format": "Formato JSON das configurações MCP inválido. Por favor, verifique se suas configurações seguem o formato JSON correto.",
+		"invalid_mcp_settings_syntax": "Formato JSON das configurações MCP inválido. Por favor, verifique se há erros de sintaxe no seu arquivo de configurações.",
+		"invalid_mcp_settings_validation": "Formato de configurações MCP inválido: {{errorMessages}}",
+		"failed_initialize_project_mcp": "Falha ao inicializar o servidor MCP do projeto: {{error}}",
+		"invalid_data_uri": "Formato de URI de dados inválido",
+		"checkpoint_timeout": "Tempo esgotado ao tentar restaurar o ponto de verificação.",
+		"checkpoint_failed": "Falha ao restaurar o ponto de verificação.",
+		"no_workspace": "Por favor, abra primeiro uma pasta de projeto",
+		"update_support_prompt": "Falha ao atualizar o prompt de suporte",
+		"reset_support_prompt": "Falha ao redefinir o prompt de suporte",
+		"enhance_prompt": "Falha ao aprimorar o prompt",
+		"get_system_prompt": "Falha ao obter o prompt do sistema",
+		"search_commits": "Falha ao pesquisar commits",
+		"save_api_config": "Falha ao salvar a configuração da API",
+		"create_api_config": "Falha ao criar a configuração da API",
+		"rename_api_config": "Falha ao renomear a configuração da API",
+		"load_api_config": "Falha ao carregar a configuração da API",
+		"delete_api_config": "Falha ao excluir a configuração da API",
+		"list_api_config": "Falha ao obter a lista de configurações da API",
+		"update_server_timeout": "Falha ao atualizar o tempo limite do servidor",
+		"create_mcp_json": "Falha ao criar ou abrir .roo/mcp.json: {{error}}",
+		"hmr_not_running": "O servidor de desenvolvimento local não está em execução, o HMR não funcionará. Por favor, execute 'npm run dev' antes de iniciar a extensão para habilitar o HMR.",
+		"retrieve_current_mode": "Erro ao recuperar o modo atual do estado.",
+		"failed_delete_repo": "Falha ao excluir o repositório ou ramificação associada: {{error}}",
+		"failed_remove_directory": "Falha ao remover o diretório de tarefas: {{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "Nenhum conteúdo do terminal selecionado",
+		"missing_task_files": "Os arquivos desta tarefa estão faltando. Deseja removê-la da lista de tarefas?"
+	},
+	"info": {
+		"no_changes": "Nenhuma alteração encontrada.",
+		"clipboard_copy": "Prompt do sistema copiado com sucesso para a área de transferência",
+		"history_cleanup": "{{count}} tarefa(s) com arquivos ausentes foram limpas do histórico.",
+		"mcp_server_restarting": "Reiniciando o servidor MCP {{serverName}}...",
+		"mcp_server_connected": "Servidor MCP {{serverName}} conectado",
+		"mcp_server_deleted": "Servidor MCP excluído: {{serverName}}",
+		"mcp_server_not_found": "Servidor \"{{serverName}}\" não encontrado na configuração"
+	},
+	"answers": {
+		"yes": "Sim",
+		"no": "Não",
+		"cancel": "Cancelar",
+		"remove": "Remover",
+		"keep": "Manter"
+	},
+	"tasks": {
+		"canceled": "Erro na tarefa: Foi interrompida e cancelada pelo usuário.",
+		"deleted": "Falha na tarefa: Foi interrompida e excluída pelo usuário."
+	}
+}

@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "A whole dev team of AI agents in your editor."
+	},
+	"number_format": {
+		"thousand_suffix": "k",
+		"million_suffix": "m",
+		"billion_suffix": "b"
+	},
+	"welcome": "Welcome, {{name}}! You have {{count}} notifications.",
+	"items": {
+		"zero": "No items",
+		"one": "One item",
+		"other": "{{count}} items"
+	},
+	"confirmation": {
+		"reset_state": "Are you sure you want to reset all state and secret storage in the extension? This cannot be undone.",
+		"delete_config_profile": "Are you sure you want to delete this configuration profile?",
+		"delete_custom_mode": "Are you sure you want to delete this custom mode?",
+		"delete_message": "What would you like to delete?",
+		"just_this_message": "Just this message",
+		"this_and_subsequent": "This and all subsequent messages"
+	},
+	"errors": {
+		"invalid_mcp_config": "Invalid project MCP configuration format",
+		"invalid_mcp_settings_format": "Invalid MCP settings JSON format. Please ensure your settings follow the correct JSON format.",
+		"invalid_mcp_settings_syntax": "Invalid MCP settings JSON format. Please check your settings file for syntax errors.",
+		"invalid_mcp_settings_validation": "Invalid MCP settings format: {{errorMessages}}",
+		"failed_initialize_project_mcp": "Failed to initialize project MCP server: {{error}}",
+		"invalid_data_uri": "Invalid data URI format",
+		"checkpoint_timeout": "Timed out when attempting to restore checkpoint.",
+		"checkpoint_failed": "Failed to restore checkpoint.",
+		"no_workspace": "Please open a project folder first",
+		"update_support_prompt": "Failed to update support prompt",
+		"reset_support_prompt": "Failed to reset support prompt",
+		"enhance_prompt": "Failed to enhance prompt",
+		"get_system_prompt": "Failed to get system prompt",
+		"search_commits": "Failed to search commits",
+		"save_api_config": "Failed to save api configuration",
+		"create_api_config": "Failed to create api configuration",
+		"rename_api_config": "Failed to rename api configuration",
+		"load_api_config": "Failed to load api configuration",
+		"delete_api_config": "Failed to delete api configuration",
+		"list_api_config": "Failed to get list api configuration",
+		"update_server_timeout": "Failed to update server timeout",
+		"create_mcp_json": "Failed to create or open .roo/mcp.json: {{error}}",
+		"hmr_not_running": "Local development server is not running, HMR will not work. Please run 'npm run dev' before launching the extension to enable HMR.",
+		"retrieve_current_mode": "Error: failed to retrieve current mode from state.",
+		"failed_delete_repo": "Failed to delete associated shadow repository or branch: {{error}}",
+		"failed_remove_directory": "Failed to remove task directory: {{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "No terminal content selected",
+		"missing_task_files": "This task's files are missing. Would you like to remove it from the task list?"
+	},
+	"info": {
+		"no_changes": "No changes found.",
+		"clipboard_copy": "System prompt successfully copied to clipboard",
+		"history_cleanup": "Cleaned up {{count}} task(s) with missing files from history.",
+		"mcp_server_restarting": "Restarting {{serverName}} MCP server...",
+		"mcp_server_connected": "{{serverName}} MCP server connected",
+		"mcp_server_deleted": "Deleted MCP server: {{serverName}}",
+		"mcp_server_not_found": "Server \"{{serverName}}\" not found in configuration"
+	},
+	"answers": {
+		"yes": "Yes",
+		"no": "No",
+		"cancel": "Cancel",
+		"remove": "Remove",
+		"keep": "Keep"
+	},
+	"tasks": {
+		"canceled": "Task error: It was stopped and canceled by the user.",
+		"deleted": "Task failure: It was stopped and deleted by the user."
+	}
+}

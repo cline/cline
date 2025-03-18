@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "आपके एडिटर में AI डेवलपर्स की पूरी टीम।"
+	},
+	"number_format": {
+		"thousand_suffix": "हज़ार",
+		"million_suffix": "लाख",
+		"billion_suffix": "अरब"
+	},
+	"welcome": "स्वागत है, {{name}}! आपके पास {{count}} सूचनाएँ हैं।",
+	"items": {
+		"zero": "कोई आइटम नहीं",
+		"one": "एक आइटम",
+		"other": "{{count}} आइटम"
+	},
+	"confirmation": {
+		"reset_state": "क्या आप वाकई एक्सटेंशन में सभी स्टेट और गुप्त स्टोरेज रीसेट करना चाहते हैं? इसे पूर्ववत नहीं किया जा सकता है।",
+		"delete_config_profile": "क्या आप वाकई इस कॉन्फ़िगरेशन प्रोफ़ाइल को हटाना चाहते हैं?",
+		"delete_custom_mode": "क्या आप वाकई इस कस्टम मोड को हटाना चाहते हैं?",
+		"delete_message": "आप क्या हटाना चाहते हैं?",
+		"just_this_message": "सिर्फ यह संदेश",
+		"this_and_subsequent": "यह और सभी बाद के संदेश"
+	},
+	"errors": {
+		"invalid_mcp_config": "अमान्य प्रोजेक्ट MCP कॉन्फ़िगरेशन फॉर्मेट",
+		"invalid_mcp_settings_format": "अमान्य MCP सेटिंग्स JSON फॉर्मेट। कृपया सुनिश्चित करें कि आपकी सेटिंग्स सही JSON फॉर्मेट का पालन करती हैं।",
+		"invalid_mcp_settings_syntax": "अमान्य MCP सेटिंग्स JSON फॉर्मेट। कृपया अपनी सेटिंग्स फ़ाइल में सिंटैक्स त्रुटियों की जांच करें।",
+		"invalid_mcp_settings_validation": "अमान्य MCP सेटिंग्स फॉर्मेट: {{errorMessages}}",
+		"failed_initialize_project_mcp": "प्रोजेक्ट MCP सर्वर को प्रारंभ करने में विफल: {{error}}",
+		"invalid_data_uri": "अमान्य डेटा URI फॉर्मेट",
+		"checkpoint_timeout": "चेकपॉइंट को पुनर्स्थापित करने का प्रयास करते समय टाइमआउट हो गया।",
+		"checkpoint_failed": "चेकपॉइंट पुनर्स्थापित करने में विफल।",
+		"no_workspace": "कृपया पहले प्रोजेक्ट फ़ोल्डर खोलें",
+		"update_support_prompt": "सपोर्ट प्रॉम्प्ट अपडेट करने में विफल",
+		"reset_support_prompt": "सपोर्ट प्रॉम्प्ट रीसेट करने में विफल",
+		"enhance_prompt": "प्रॉम्प्ट को बेहतर बनाने में विफल",
+		"get_system_prompt": "सिस्टम प्रॉम्प्ट प्राप्त करने में विफल",
+		"search_commits": "कमिट्स खोजने में विफल",
+		"save_api_config": "API कॉन्फ़िगरेशन सहेजने में विफल",
+		"create_api_config": "API कॉन्फ़िगरेशन बनाने में विफल",
+		"rename_api_config": "API कॉन्फ़िगरेशन का नाम बदलने में विफल",
+		"load_api_config": "API कॉन्फ़िगरेशन लोड करने में विफल",
+		"delete_api_config": "API कॉन्फ़िगरेशन हटाने में विफल",
+		"list_api_config": "API कॉन्फ़िगरेशन की सूची प्राप्त करने में विफल",
+		"update_server_timeout": "सर्वर टाइमआउट अपडेट करने में विफल",
+		"create_mcp_json": ".roo/mcp.json बनाने या खोलने में विफल: {{error}}",
+		"hmr_not_running": "स्थानीय विकास सर्वर चल नहीं रहा है, HMR काम नहीं करेगा। कृपया HMR सक्षम करने के लिए एक्सटेंशन लॉन्च करने से पहले 'npm run dev' चलाएँ।",
+		"retrieve_current_mode": "स्टेट से वर्तमान मोड प्राप्त करने में त्रुटि।",
+		"failed_delete_repo": "संबंधित शैडो रिपॉजिटरी या ब्रांच हटाने में विफल: {{error}}",
+		"failed_remove_directory": "टास्क डायरेक्टरी हटाने में विफल: {{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "कोई टर्मिनल सामग्री चयनित नहीं",
+		"missing_task_files": "इस टास्क की फाइलें गायब हैं। क्या आप इसे टास्क सूची से हटाना चाहते हैं?"
+	},
+	"info": {
+		"no_changes": "कोई परिवर्तन नहीं मिला।",
+		"clipboard_copy": "सिस्टम प्रॉम्प्ट क्लिपबोर्ड पर सफलतापूर्वक कॉपी किया गया",
+		"history_cleanup": "इतिहास से गायब फाइलों वाले {{count}} टास्क साफ किए गए।",
+		"mcp_server_restarting": "{{serverName}} MCP सर्वर पुनः प्रारंभ हो रहा है...",
+		"mcp_server_connected": "{{serverName}} MCP सर्वर कनेक्टेड",
+		"mcp_server_deleted": "MCP सर्वर हटाया गया: {{serverName}}",
+		"mcp_server_not_found": "सर्वर \"{{serverName}}\" कॉन्फ़िगरेशन में नहीं मिला"
+	},
+	"answers": {
+		"yes": "हां",
+		"no": "नहीं",
+		"cancel": "रद्द करें",
+		"remove": "हटाएं",
+		"keep": "रखें"
+	},
+	"tasks": {
+		"canceled": "टास्क त्रुटि: इसे उपयोगकर्ता द्वारा रोका और रद्द किया गया था।",
+		"deleted": "टास्क विफलता: इसे उपयोगकर्ता द्वारा रोका और हटाया गया था।"
+	}
+}

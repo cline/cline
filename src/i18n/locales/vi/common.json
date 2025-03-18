@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "Toàn bộ đội ngũ phát triển AI trong trình soạn thảo của bạn."
+	},
+	"number_format": {
+		"thousand_suffix": "k",
+		"million_suffix": "tr",
+		"billion_suffix": "tỷ"
+	},
+	"welcome": "Chào mừng, {{name}}! Bạn có {{count}} thông báo.",
+	"items": {
+		"zero": "Không có mục nào",
+		"one": "Một mục",
+		"other": "{{count}} mục"
+	},
+	"confirmation": {
+		"reset_state": "Bạn có chắc chắn muốn đặt lại tất cả trạng thái và lưu trữ bí mật trong tiện ích mở rộng không? Hành động này không thể hoàn tác.",
+		"delete_config_profile": "Bạn có chắc chắn muốn xóa hồ sơ cấu hình này không?",
+		"delete_custom_mode": "Bạn có chắc chắn muốn xóa chế độ tùy chỉnh này không?",
+		"delete_message": "Bạn muốn xóa gì?",
+		"just_this_message": "Chỉ tin nhắn này",
+		"this_and_subsequent": "Tin nhắn này và tất cả tin nhắn tiếp theo"
+	},
+	"errors": {
+		"invalid_mcp_config": "Định dạng cấu hình MCP dự án không hợp lệ",
+		"invalid_mcp_settings_format": "Định dạng JSON của cài đặt MCP không hợp lệ. Vui lòng đảm bảo cài đặt của bạn tuân theo định dạng JSON chính xác.",
+		"invalid_mcp_settings_syntax": "Định dạng JSON của cài đặt MCP không hợp lệ. Vui lòng kiểm tra lỗi cú pháp trong tệp cài đặt của bạn.",
+		"invalid_mcp_settings_validation": "Định dạng cài đặt MCP không hợp lệ: {{errorMessages}}",
+		"failed_initialize_project_mcp": "Không thể khởi tạo máy chủ MCP của dự án: {{error}}",
+		"invalid_data_uri": "Định dạng URI dữ liệu không hợp lệ",
+		"checkpoint_timeout": "Đã hết thời gian khi cố gắng khôi phục điểm kiểm tra.",
+		"checkpoint_failed": "Không thể khôi phục điểm kiểm tra.",
+		"no_workspace": "Vui lòng mở thư mục dự án trước",
+		"update_support_prompt": "Không thể cập nhật lời nhắc hỗ trợ",
+		"reset_support_prompt": "Không thể đặt lại lời nhắc hỗ trợ",
+		"enhance_prompt": "Không thể nâng cao lời nhắc",
+		"get_system_prompt": "Không thể lấy lời nhắc hệ thống",
+		"search_commits": "Không thể tìm kiếm các commit",
+		"save_api_config": "Không thể lưu cấu hình API",
+		"create_api_config": "Không thể tạo cấu hình API",
+		"rename_api_config": "Không thể đổi tên cấu hình API",
+		"load_api_config": "Không thể tải cấu hình API",
+		"delete_api_config": "Không thể xóa cấu hình API",
+		"list_api_config": "Không thể lấy danh sách cấu hình API",
+		"update_server_timeout": "Không thể cập nhật thời gian chờ máy chủ",
+		"create_mcp_json": "Không thể tạo hoặc mở .roo/mcp.json: {{error}}",
+		"hmr_not_running": "Máy chủ phát triển cục bộ không chạy, HMR sẽ không hoạt động. Vui lòng chạy 'npm run dev' trước khi khởi chạy tiện ích mở rộng để bật HMR.",
+		"retrieve_current_mode": "Lỗi không thể truy xuất chế độ hiện tại từ trạng thái.",
+		"failed_delete_repo": "Không thể xóa kho lưu trữ hoặc nhánh liên quan: {{error}}",
+		"failed_remove_directory": "Không thể xóa thư mục nhiệm vụ: {{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "Không có nội dung terminal được chọn",
+		"missing_task_files": "Các tệp của nhiệm vụ này bị thiếu. Bạn có muốn xóa nó khỏi danh sách nhiệm vụ không?"
+	},
+	"info": {
+		"no_changes": "Không tìm thấy thay đổi nào.",
+		"clipboard_copy": "Lời nhắc hệ thống đã được sao chép thành công vào clipboard",
+		"history_cleanup": "Đã dọn dẹp {{count}} nhiệm vụ có tệp bị thiếu khỏi lịch sử.",
+		"mcp_server_restarting": "Đang khởi động lại máy chủ MCP {{serverName}}...",
+		"mcp_server_connected": "Máy chủ MCP {{serverName}} đã kết nối",
+		"mcp_server_deleted": "Đã xóa máy chủ MCP: {{serverName}}",
+		"mcp_server_not_found": "Không tìm thấy máy chủ \"{{serverName}}\" trong cấu hình"
+	},
+	"answers": {
+		"yes": "Có",
+		"no": "Không",
+		"cancel": "Hủy",
+		"remove": "Xóa",
+		"keep": "Giữ"
+	},
+	"tasks": {
+		"canceled": "Lỗi nhiệm vụ: Nó đã bị dừng và hủy bởi người dùng.",
+		"deleted": "Nhiệm vụ thất bại: Nó đã bị dừng và xóa bởi người dùng."
+	}
+}

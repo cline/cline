@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "Une équipe complète de développeurs IA dans votre éditeur."
+	},
+	"number_format": {
+		"thousand_suffix": "k",
+		"million_suffix": "M",
+		"billion_suffix": "Md"
+	},
+	"welcome": "Bienvenue, {{name}} ! Vous avez {{count}} notifications.",
+	"items": {
+		"zero": "Aucun élément",
+		"one": "Un élément",
+		"other": "{{count}} éléments"
+	},
+	"confirmation": {
+		"reset_state": "Êtes-vous sûr de vouloir réinitialiser tous les états et le stockage secret dans l'extension ? Cette action ne peut pas être annulée.",
+		"delete_config_profile": "Êtes-vous sûr de vouloir supprimer ce profil de configuration ?",
+		"delete_custom_mode": "Êtes-vous sûr de vouloir supprimer ce mode personnalisé ?",
+		"delete_message": "Que souhaitez-vous supprimer ?",
+		"just_this_message": "Uniquement ce message",
+		"this_and_subsequent": "Ce message et tous les messages suivants"
+	},
+	"errors": {
+		"invalid_mcp_config": "Format de configuration MCP du projet non valide",
+		"invalid_mcp_settings_format": "Format JSON des paramètres MCP non valide. Veuillez vous assurer que vos paramètres suivent le format JSON correct.",
+		"invalid_mcp_settings_syntax": "Format JSON des paramètres MCP non valide. Veuillez vérifier les erreurs de syntaxe dans votre fichier de paramètres.",
+		"invalid_mcp_settings_validation": "Format de paramètres MCP non valide : {{errorMessages}}",
+		"failed_initialize_project_mcp": "Échec de l'initialisation du serveur MCP du projet : {{error}}",
+		"invalid_data_uri": "Format d'URI de données non valide",
+		"checkpoint_timeout": "Délai d'expiration lors de la restauration du point de contrôle.",
+		"checkpoint_failed": "Échec de la restauration du point de contrôle.",
+		"no_workspace": "Veuillez d'abord ouvrir un dossier de projet",
+		"update_support_prompt": "Erreur lors de la mise à jour du message de support",
+		"reset_support_prompt": "Erreur lors de la réinitialisation du message de support",
+		"enhance_prompt": "Erreur lors de l'amélioration du message",
+		"get_system_prompt": "Erreur lors de l'obtention du message système",
+		"search_commits": "Erreur lors de la recherche des commits",
+		"save_api_config": "Erreur lors de l'enregistrement de la configuration API",
+		"create_api_config": "Erreur lors de la création de la configuration API",
+		"rename_api_config": "Erreur lors du renommage de la configuration API",
+		"load_api_config": "Erreur lors du chargement de la configuration API",
+		"delete_api_config": "Erreur lors de la suppression de la configuration API",
+		"list_api_config": "Erreur lors de l'obtention de la liste des configurations API",
+		"update_server_timeout": "Erreur lors de la mise à jour du délai d'attente du serveur",
+		"create_mcp_json": "Échec de la création ou de l'ouverture de .roo/mcp.json : {{error}}",
+		"hmr_not_running": "Le serveur de développement local n'est pas en cours d'exécution, HMR ne fonctionnera pas. Veuillez exécuter 'npm run dev' avant de lancer l'extension pour activer HMR.",
+		"retrieve_current_mode": "Erreur lors de la récupération du mode actuel à partir de l'état.",
+		"failed_delete_repo": "Échec de la suppression du référentiel ou de la branche associée : {{error}}",
+		"failed_remove_directory": "Échec de la suppression du répertoire de tâches : {{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "Aucun contenu de terminal sélectionné",
+		"missing_task_files": "Les fichiers de cette tâche sont manquants. Souhaitez-vous la supprimer de la liste des tâches ?"
+	},
+	"info": {
+		"no_changes": "Aucun changement trouvé.",
+		"clipboard_copy": "Message système copié avec succès dans le presse-papiers",
+		"history_cleanup": "{{count}} tâche(s) avec des fichiers manquants ont été nettoyées de l'historique.",
+		"mcp_server_restarting": "Redémarrage du serveur MCP {{serverName}}...",
+		"mcp_server_connected": "Serveur MCP {{serverName}} connecté",
+		"mcp_server_deleted": "Serveur MCP supprimé : {{serverName}}",
+		"mcp_server_not_found": "Serveur \"{{serverName}}\" introuvable dans la configuration"
+	},
+	"answers": {
+		"yes": "Oui",
+		"no": "Non",
+		"cancel": "Annuler",
+		"remove": "Supprimer",
+		"keep": "Conserver"
+	},
+	"tasks": {
+		"canceled": "Erreur de tâche : Elle a été arrêtée et annulée par l'utilisateur.",
+		"deleted": "Échec de la tâche : Elle a été arrêtée et supprimée par l'utilisateur."
+	}
+}

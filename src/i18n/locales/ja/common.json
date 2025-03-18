@@ -1,0 +1,77 @@
+{
+	"extension": {
+		"name": "Roo Code",
+		"description": "エディター内のAIデベロッパーチーム全体。"
+	},
+	"number_format": {
+		"thousand_suffix": "千",
+		"million_suffix": "百万",
+		"billion_suffix": "十億"
+	},
+	"welcome": "ようこそ、{{name}}さん！{{count}}件の通知があります。",
+	"items": {
+		"zero": "アイテムなし",
+		"one": "1つのアイテム",
+		"other": "{{count}}個のアイテム"
+	},
+	"confirmation": {
+		"reset_state": "拡張機能のすべての状態とシークレットストレージをリセットしてもよろしいですか？この操作は元に戻せません。",
+		"delete_config_profile": "この設定プロファイルを削除してもよろしいですか？",
+		"delete_custom_mode": "このカスタムモードを削除してもよろしいですか？",
+		"delete_message": "何を削除しますか？",
+		"just_this_message": "このメッセージのみ",
+		"this_and_subsequent": "これ以降のすべてのメッセージ"
+	},
+	"errors": {
+		"invalid_mcp_config": "プロジェクトMCP設定フォーマットが無効です",
+		"invalid_mcp_settings_format": "MCP設定のJSONフォーマットが無効です。設定が正しいJSONフォーマットに従っていることを確認してください。",
+		"invalid_mcp_settings_syntax": "MCP設定のJSONフォーマットが無効です。設定ファイルの構文エラーを確認してください。",
+		"invalid_mcp_settings_validation": "MCP設定フォーマットが無効です：{{errorMessages}}",
+		"failed_initialize_project_mcp": "プロジェクトMCPサーバーの初期化に失敗しました：{{error}}",
+		"invalid_data_uri": "データURIフォーマットが無効です",
+		"checkpoint_timeout": "チェックポイントの復元を試みる際にタイムアウトしました。",
+		"checkpoint_failed": "チェックポイントの復元に失敗しました。",
+		"no_workspace": "まずプロジェクトフォルダを開いてください",
+		"update_support_prompt": "サポートメッセージの更新に失敗しました",
+		"reset_support_prompt": "サポートメッセージのリセットに失敗しました",
+		"enhance_prompt": "メッセージの強化に失敗しました",
+		"get_system_prompt": "システムメッセージの取得に失敗しました",
+		"search_commits": "コミットの検索に失敗しました",
+		"save_api_config": "API設定の保存に失敗しました",
+		"create_api_config": "API設定の作成に失敗しました",
+		"rename_api_config": "API設定の名前変更に失敗しました",
+		"load_api_config": "API設定の読み込みに失敗しました",
+		"delete_api_config": "API設定の削除に失敗しました",
+		"list_api_config": "API設定リストの取得に失敗しました",
+		"update_server_timeout": "サーバータイムアウトの更新に失敗しました",
+		"create_mcp_json": ".roo/mcp.jsonの作成または開くことに失敗しました：{{error}}",
+		"hmr_not_running": "ローカル開発サーバーが実行されていないため、HMRは機能しません。HMRを有効にするには、拡張機能を起動する前に'npm run dev'を実行してください。",
+		"retrieve_current_mode": "現在のモードを状態から取得する際にエラーが発生しました。",
+		"failed_delete_repo": "関連するシャドウリポジトリまたはブランチの削除に失敗しました：{{error}}",
+		"failed_remove_directory": "タスクディレクトリの削除に失敗しました：{{error}}"
+	},
+	"warnings": {
+		"no_terminal_content": "選択されたターミナルコンテンツがありません",
+		"missing_task_files": "このタスクのファイルが見つかりません。タスクリストから削除しますか？"
+	},
+	"info": {
+		"no_changes": "変更は見つかりませんでした。",
+		"clipboard_copy": "システムメッセージがクリップボードに正常にコピーされました",
+		"history_cleanup": "履歴から不足ファイルのある{{count}}個のタスクをクリーンアップしました。",
+		"mcp_server_restarting": "MCPサーバー{{serverName}}を再起動中...",
+		"mcp_server_connected": "MCPサーバー{{serverName}}が接続されました",
+		"mcp_server_deleted": "MCPサーバーが削除されました：{{serverName}}",
+		"mcp_server_not_found": "サーバー\"{{serverName}}\"が設定内に見つかりません"
+	},
+	"answers": {
+		"yes": "はい",
+		"no": "いいえ",
+		"cancel": "キャンセル",
+		"remove": "削除",
+		"keep": "保持"
+	},
+	"tasks": {
+		"canceled": "タスクエラー：ユーザーによって停止およびキャンセルされました。",
+		"deleted": "タスク失敗：ユーザーによって停止および削除されました。"
+	}
+}

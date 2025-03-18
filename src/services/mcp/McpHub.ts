@@ -16,6 +16,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
+import { t } from "../../i18n"
 
 import { ClineProvider } from "../../core/webview/ClineProvider"
 import { GlobalFileNames } from "../../shared/globalFileNames"
@@ -285,8 +286,7 @@ export class McpHub {
 			vscode.workspace.onDidSaveTextDocument(async (document) => {
 				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
 					const content = await fs.readFile(settingsPath, "utf-8")
-					const errorMessage =
-						"Invalid MCP settings JSON format. Please ensure your settings follow the correct JSON format."
+					const errorMessage = t("common:errors.invalid_mcp_settings_format")
 					let config: any
 					try {
 						config = JSON.parse(content)
@@ -299,7 +299,9 @@ export class McpHub {
 						const errorMessages = result.error.errors
 							.map((err) => `${err.path.join(".")}: ${err.message}`)
 							.join("\n")
-						vscode.window.showErrorMessage(`Invalid MCP settings format: ${errorMessages}`)
+						vscode.window.showErrorMessage(
+							t("common:errors.invalid_mcp_settings_validation", { errorMessages }),
+						)
 						return
 					}
 					try {
@@ -323,8 +325,7 @@ export class McpHub {
 			try {
 				config = JSON.parse(content)
 			} catch (parseError) {
-				const errorMessage =
-					"Invalid MCP settings JSON format. Please check your settings file for syntax errors."
+				const errorMessage = t("common:errors.invalid_mcp_settings_syntax")
 				console.error(errorMessage, parseError)
 				vscode.window.showErrorMessage(errorMessage)
 				return
@@ -340,7 +341,7 @@ export class McpHub {
 					.map((err) => `${err.path.join(".")}: ${err.message}`)
 					.join("\n")
 				console.error("Invalid MCP settings format:", errorMessages)
-				vscode.window.showErrorMessage(`Invalid MCP settings format: ${errorMessages}`)
+				vscode.window.showErrorMessage(t("common:errors.invalid_mcp_settings_validation", { errorMessages }))
 
 				// Still try to connect with the raw config, but show warnings
 				try {
@@ -386,7 +387,7 @@ export class McpHub {
 			// Validate configuration structure
 			const result = McpSettingsSchema.safeParse(config)
 			if (!result.success) {
-				vscode.window.showErrorMessage("Invalid project MCP configuration format")
+				vscode.window.showErrorMessage(t("common:errors.invalid_mcp_config"))
 				return
 			}
 
@@ -394,7 +395,7 @@ export class McpHub {
 			await this.updateServerConnections(result.data.mcpServers || {}, "project")
 		} catch (error) {
 			console.error("Failed to initialize project MCP servers:", error)
-			vscode.window.showErrorMessage(`Failed to initialize project MCP server: ${error}`)
+			vscode.window.showErrorMessage(t("common:errors.failed_initialize_project_mcp", { error }))
 		}
 	}
 
@@ -718,7 +719,7 @@ export class McpHub {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		const config = connection?.server.config
 		if (config) {
-			vscode.window.showInformationMessage(`Restarting ${serverName} MCP server...`)
+			vscode.window.showInformationMessage(t("common:info.mcp_server_restarting", { serverName }))
 			connection.server.status = "connecting"
 			connection.server.error = "" // Clear any previous error messages
 			await this.notifyWebviewOfServerChanges()
@@ -735,7 +736,7 @@ export class McpHub {
 
 					// Try to connect again using validated config and preserve the original source
 					await this.connectToServer(serverName, validatedConfig, source)
-					vscode.window.showInformationMessage(`${serverName} MCP server connected`)
+					vscode.window.showInformationMessage(t("common:info.mcp_server_connected", { serverName }))
 				} catch (validationError) {
 					this.showErrorMessage(`Invalid configuration for MCP server "${serverName}"`, validationError)
 				}
@@ -969,9 +970,9 @@ export class McpHub {
 					await this.updateServerConnections(config.mcpServers)
 				}
 
-				vscode.window.showInformationMessage(`Deleted MCP server: ${serverName}`)
+				vscode.window.showInformationMessage(t("common:info.mcp_server_deleted", { serverName }))
 			} else {
-				vscode.window.showWarningMessage(`Server "${serverName}" not found in configuration`)
+				vscode.window.showWarningMessage(t("common:info.mcp_server_not_found", { serverName }))
 			}
 		} catch (error) {
 			this.showErrorMessage(`Failed to delete MCP server ${serverName}`, error)
