@@ -7,7 +7,8 @@
  * maintaining control over sensitive operations.
  *
  * Auto-approval should be used carefully as it reduces the security barrier between
- * the AI assistant and your system.
+ * the AI assistant and your system. When enabled, actions can be performed without
+ * direct user intervention, which improves workflow efficiency but increases risk.
  */
 
 /**
@@ -80,6 +81,9 @@ export interface AutoApprovalSettings {
  *
  * By default, all auto-approvals are disabled for security, requiring manual
  * confirmation for all actions. These defaults can be overridden by user configuration.
+ *
+ * The maxRequests limit of 20 provides a reasonable cap on automated actions
+ * if auto-approval is enabled by the user.
  */
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	enabled: false,
