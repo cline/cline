@@ -2,8 +2,13 @@ import { globby, Options } from "globby"
 import os from "os"
 import * as path from "path"
 import { arePathsEqual } from "../../utils/path"
+import * as vscode from "vscode"
 
-export async function listFiles(dirPath: string, recursive: boolean, limit: number): Promise<[string[], boolean]> {
+export async function listFiles(dirPath: string | vscode.Uri, recursive: boolean, limit: number): Promise<[string[], boolean]> {
+	if (vscode.workspace.workspaceFolders?.some((v) => v.uri.scheme !== "file")) {
+		return listVFiles(dirPath, recursive, limit)
+	}
+	dirPath = dirPath instanceof vscode.Uri ? dirPath.fsPath : dirPath
 	const absolutePath = path.resolve(dirPath)
 	// Do not allow listing files in root or home directory, which cline tends to want to do when the user's prompt is vague.
 	const root = process.platform === "win32" ? path.parse(absolutePath).root : "/"
@@ -97,4 +102,55 @@ async function globbyLevelByLevel(limit: number, options?: Options) {
 		console.warn("Globbing timed out, returning partial results")
 		return Array.from(results)
 	}
+}
+
+export async function listVFiles(dirPath: string | vscode.Uri, recursive: boolean, limit: number): Promise<[string[], boolean]> {
+	let dirUri = dirPath instanceof vscode.Uri ? dirPath : vscode.Uri.parse(dirPath)
+	const workspace = vscode.workspace.workspaceFolders?.map((v) => v.uri).at(0)
+	let dirsToIgnore = [
+		"node_modules",
+		"__pycache__",
+		"env",
+		"venv",
+		"target/dependency",
+		"build/dependencies",
+		"dist",
+		"out",
+		"bundle",
+		"vendor",
+		"tmp",
+		"temp",
+		"deps",
+		"pkg",
+		"Pods",
+		".*",
+	]
+	if (recursive) {
+		dirsToIgnore.push(".*")
+		if (workspace) {
+			const gitignore = vscode.Uri.joinPath(workspace, ".gitignore")
+			try {
+				let igores = new TextDecoder("utf-8").decode(await vscode.workspace.fs.readFile(gitignore)).split("\n")
+				igores = igores.map((v) => v.trim()).filter((v) => v && !v.startsWith("#"))
+				dirsToIgnore.push(...igores)
+			} catch (e) {}
+		}
+	}
+
+	let globPatternPix = ""
+	if (workspace) {
+		globPatternPix = path.relative(workspace.fsPath, dirUri.fsPath)
+	}
+	const globPattern = globPatternPix + (recursive ? "**/*" : "*")
+
+	const files = await vscode.workspace.findFiles(`${globPattern}`, `{${dirsToIgnore.join(",")}}`, limit)
+
+	const filePaths = files
+		.map((f) => {
+			const isDirectory = f.fsPath.endsWith(path.sep)
+			return isDirectory ? `${f.fsPath}${path.sep}` : f.fsPath
+		})
+		.slice(0, limit)
+
+	return [filePaths, filePaths.length >= limit]
 }
