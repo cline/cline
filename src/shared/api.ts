@@ -19,6 +19,7 @@ export type ApiProvider =
 	| "asksage"
 	| "xai"
 	| "sambanova"
+	| "inference"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -69,6 +70,7 @@ export interface ApiHandlerOptions {
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
 	sambanovaApiKey?: string
+	inferenceApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -1275,6 +1277,39 @@ export const xaiModels = {
 		inputPrice: 5.0,
 		outputPrice: 15.0,
 		description: "X AI's Grok Beta model (legacy) with 131K context window",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Inference.net
+export type InferenceModelId = keyof typeof inferenceModels
+export const inferenceDefaultModelId: InferenceModelId = "meta-llama/llama-3.1-8b-instruct/fp-8"
+export const inferenceModels = {
+	"meta-llama/llama-3.1-8b-instruct/fp-8": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.025,
+		outputPrice: 0.025,
+		description: "Meta's Llama 3.1 8B Instruct model with 8-bit floating point quantization",
+	},
+	"meta-llama/llama-3.1-70b-instruct/fp-8": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 0.4,
+		description: "Meta's Llama 3.1 70B Instruct model with 8-bit floating point quantization",
+	},
+	"meta-llama/llama-3.3-70b-instruct/fp-16": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 0.4,
+		description: "Meta's Llama 3.3 70B Instruct model with 16-bit floating point quantization",
 	},
 } as const satisfies Record<string, ModelInfo>
 
