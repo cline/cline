@@ -241,6 +241,11 @@
 			"label": "Enable sound effects",
 			"description": "When enabled, Roo will play sound effects for notifications and events.",
 			"volumeLabel": "Volume"
+		},
+		"tts": {
+			"label": "Enable text-to-speech",
+			"description": "When enabled, Roo will read aloud its responses using text-to-speech.",
+			"speedLabel": "Speed"
 		}
 	},
 	"contextManagement": {

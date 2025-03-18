@@ -241,6 +241,11 @@
 			"label": "Ativar efeitos sonoros",
 			"description": "Quando ativado, o Roo reproduzirá efeitos sonoros para notificações e eventos.",
 			"volumeLabel": "Volume"
+		},
+		"tts": {
+			"label": "Ativar texto para fala",
+			"description": "Quando ativado, o Roo lerá em voz alta suas respostas usando texto para fala.",
+			"speedLabel": "Velocidade"
 		}
 	},
 	"contextManagement": {

@@ -241,6 +241,11 @@
 			"label": "사운드 효과 활성화",
 			"description": "활성화되면 Roo는 알림 및 이벤트에 대한 사운드 효과를 재생합니다.",
 			"volumeLabel": "볼륨"
+		},
+		"tts": {
+			"label": "음성 합성 활성화",
+			"description": "활성화되면 Roo는 음성 합성을 사용하여 응답을 소리내어 읽습니다.",
+			"speedLabel": "속도"
 		}
 	},
 	"contextManagement": {

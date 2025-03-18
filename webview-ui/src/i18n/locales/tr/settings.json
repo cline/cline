@@ -241,6 +241,11 @@
 			"label": "Ses efektlerini etkinleştir",
 			"description": "Etkinleştirildiğinde, Roo bildirimler ve olaylar için ses efektleri çalacaktır.",
 			"volumeLabel": "Ses Düzeyi"
+		},
+		"tts": {
+			"label": "Metinden sese özelliğini etkinleştir",
+			"description": "Etkinleştirildiğinde, Roo yanıtlarını metinden sese teknolojisi kullanarak sesli okuyacaktır.",
+			"speedLabel": "Hız"
 		}
 	},
 	"contextManagement": {

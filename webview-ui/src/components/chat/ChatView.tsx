@@ -31,6 +31,7 @@ import { validateCommand } from "../../utils/command-validation"
 import { getAllModes } from "../../../../src/shared/modes"
 import TelemetryBanner from "../common/TelemetryBanner"
 import { useAppTranslation } from "@/i18n/TranslationContext"
+import removeMd from "remove-markdown"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -91,6 +92,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
+	const lastTtsRef = useRef<string>("")
 
 	const [wasStreaming, setWasStreaming] = useState<boolean>(false)
 	const [showCheckpointWarning, setShowCheckpointWarning] = useState<boolean>(false)
@@ -102,6 +104,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	function playSound(audioType: AudioType) {
 		vscode.postMessage({ type: "playSound", audioType })
+	}
+
+	function playTts(text: string) {
+		vscode.postMessage({ type: "playTts", text })
 	}
 
 	useDeepCompareEffect(() => {
@@ -674,6 +680,34 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	useEffect(() => {
+		// this ensures the first message is not read, future user messages are labelled as user_feedback
+		if (lastMessage && messages.length > 1) {
+			//console.log(JSON.stringify(lastMessage))
+			if (
+				lastMessage.text && // has text
+				(lastMessage.say === "text" || lastMessage.say === "completion_result") && // is a text message
+				!lastMessage.partial && // not a partial message
+				!lastMessage.text.startsWith("{") // not a json object
+			) {
+				let text = lastMessage?.text || ""
+				const mermaidRegex = /```mermaid[\s\S]*?```/g
+				// remove mermaid diagrams from text
+				text = text.replace(mermaidRegex, "")
+				// remove markdown from text
+				text = removeMd(text)
+
+				// ensure message is not a duplicate of last read message
+				if (text !== lastTtsRef.current) {
+					try {
+						playTts(text)
+						lastTtsRef.current = text
+					} catch (error) {
+						console.error("Failed to execute text-to-speech:", error)
+					}
+				}
+			}
+		}
+
 		// Only execute when isStreaming changes from true to false
 		if (wasStreaming && !isStreaming && lastMessage) {
 			// Play appropriate sound based on lastMessage content
@@ -706,7 +740,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		}
 		// Update previous value
 		setWasStreaming(isStreaming)
-	}, [isStreaming, lastMessage, wasStreaming, isAutoApproved])
+	}, [isStreaming, lastMessage, wasStreaming, isAutoApproved, messages.length])
 
 	const isBrowserSessionMessage = (message: ClineMessage): boolean => {
 		// which of visible messages are browser session messages, see above

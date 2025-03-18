@@ -241,6 +241,11 @@
 			"label": "サウンドエフェクトを有効化",
 			"description": "有効にすると、Rooは通知やイベントのためにサウンドエフェクトを再生します。",
 			"volumeLabel": "音量"
+		},
+		"tts": {
+			"label": "音声合成を有効化",
+			"description": "有効にすると、Rooは音声合成を使用して応答を音声で読み上げます。",
+			"speedLabel": "速度"
 		}
 	},
 	"contextManagement": {

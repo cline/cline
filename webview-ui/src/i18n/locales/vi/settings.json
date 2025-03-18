@@ -241,6 +241,11 @@
 			"label": "Bật hiệu ứng âm thanh",
 			"description": "Khi được bật, Roo sẽ phát hiệu ứng âm thanh cho thông báo và sự kiện.",
 			"volumeLabel": "Âm lượng"
+		},
+		"tts": {
+			"label": "Bật chuyển văn bản thành giọng nói",
+			"description": "Khi được bật, Roo sẽ đọc to các phản hồi của nó bằng chức năng chuyển văn bản thành giọng nói.",
+			"speedLabel": "Tốc độ"
 		}
 	},
 	"contextManagement": {

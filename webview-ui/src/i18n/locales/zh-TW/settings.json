@@ -241,6 +241,11 @@
 			"label": "啟用音效",
 			"description": "啟用後，Roo 將為通知和事件播放音效。",
 			"volumeLabel": "音量"
+		},
+		"tts": {
+			"label": "啟用文字轉語音",
+			"description": "啟用後，Roo 將使用文字轉語音功能朗讀其回應。",
+			"speedLabel": "速度"
 		}
 	},
 	"contextManagement": {

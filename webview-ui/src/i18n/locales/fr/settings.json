@@ -241,6 +241,11 @@
 			"label": "Activer les effets sonores",
 			"description": "Lorsque cette option est activée, Roo jouera des effets sonores pour les notifications et les événements.",
 			"volumeLabel": "Volume"
+		},
+		"tts": {
+			"label": "Activer la synthèse vocale",
+			"description": "Lorsque cette option est activée, Roo lira ses réponses à haute voix en utilisant la synthèse vocale.",
+			"speedLabel": "Vitesse"
 		}
 	},
 	"contextManagement": {
