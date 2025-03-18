@@ -1183,28 +1183,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 						}
 						break
 					}
-					case "openProjectMcpSettings": {
-						if (!vscode.workspace.workspaceFolders?.length) {
-							vscode.window.showErrorMessage(t("common:errors.no_workspace"))
-							return
-						}
-
-						const workspaceFolder = vscode.workspace.workspaceFolders[0]
-						const rooDir = path.join(workspaceFolder.uri.fsPath, ".roo")
-						const mcpPath = path.join(rooDir, "mcp.json")
-
-						try {
-							await fs.mkdir(rooDir, { recursive: true })
-							const exists = await fileExistsAtPath(mcpPath)
-							if (!exists) {
-								await fs.writeFile(mcpPath, JSON.stringify({ mcpServers: {} }, null, 2))
-							}
-							await openFile(mcpPath)
-						} catch (error) {
-							vscode.window.showErrorMessage(t("common:errors.create_mcp_json", { error }))
-						}
-						break
-					}
 					case "openCustomModesSettings": {
 						const customModesFilePath = await this.customModesManager.getCustomModesFilePath()
 						if (customModesFilePath) {

@@ -10,8 +10,7 @@
 		"title": "MCP-Server-Erstellung aktivieren",
 		"description": "Wenn aktiviert, kann Roo Ihnen helfen, neue MCP-Server über Befehle wie \"neues Tool hinzufügen zu...\" zu erstellen. Wenn Sie keine MCP-Server erstellen müssen, können Sie dies deaktivieren, um den Token-Verbrauch von Roo zu reduzieren."
 	},
-	"editGlobalMCP": "Globales MCP bearbeiten",
-	"editProjectMCP": "Projekt-MCP bearbeiten",
+	"editSettings": "MCP-Einstellungen bearbeiten",
 	"tool": {
 		"alwaysAllow": "Immer erlauben",
 		"parameters": "Parameter",

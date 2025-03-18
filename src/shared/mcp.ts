@@ -8,8 +8,6 @@ export type McpServer = {
 	resourceTemplates?: McpResourceTemplate[]
 	disabled?: boolean
 	timeout?: number
-	source?: "global" | "project"
-	projectPath?: string
 }
 
 export type McpTool = {

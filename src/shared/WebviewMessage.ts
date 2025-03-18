@@ -63,7 +63,6 @@ export interface WebviewMessage {
 		| "screenshotQuality"
 		| "remoteBrowserHost"
 		| "openMcpSettings"
-		| "openProjectMcpSettings"
 		| "restartMcpServer"
 		| "toggleToolAlwaysAllow"
 		| "toggleMcpServer"
