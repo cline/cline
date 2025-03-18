@@ -4,11 +4,12 @@ import * as path from "path"
 import { expect } from "chai"
 import * as vscode from "vscode"
 import { getShell } from "../utils/shell"
+import "../utils/global-path" // Initialize safeDirname
 
 describe("Path handling with spaces", () => {
 	it("should correctly handle paths with spaces in temporary directory operations", async () => {
 		// Create a temporary directory with spaces in the name
-		const tempDirWithSpaces = path.join(__dirname, "..", "..", "temp test dir")
+		const tempDirWithSpaces = path.join(safeDirname(), "..", "..", "temp test dir")
 
 		try {
 			// Create directory if it doesn't exist
@@ -38,7 +39,7 @@ describe("Path handling with spaces", () => {
 
 	// Test specifically for handling package.json paths with spaces
 	it("should correctly read package.json when path has spaces", async () => {
-		const packagePath = path.join(__dirname, "..", "..", "package.json")
+		const packagePath = path.join(safeDirname(), "..", "..", "package.json")
 
 		// Read with path.join which properly handles spaces
 		const content = await fs.promises.readFile(packagePath, "utf8")
@@ -47,5 +48,18 @@ describe("Path handling with spaces", () => {
 		// Verify we can read even with spaces in the path
 		expect(packageJSON).to.have.property("name")
 		expect(packageJSON).to.have.property("version")
+	})
+
+	// Add a test specifically for safeDirname
+	it("should verify safeDirname handles paths with spaces", () => {
+		const regularDirname = __dirname
+		const safeDirnameResult = safeDirname()
+		
+		// Both should resolve to the same location
+		expect(path.resolve(regularDirname)).to.equal(safeDirnameResult)
+		
+		// Explicit test with spaces
+		const pathWithSpaces = "C:\\Test Path With Spaces\\directory"
+		expect(safeDirname(pathWithSpaces)).to.equal(path.resolve(pathWithSpaces))
 	})
 })
