@@ -67,6 +67,11 @@ export class InferenceHandler implements ApiHandler {
 		this.client = new OpenAI({
 			baseURL: "https://api.inference.net/v1",
 			apiKey: this.options.inferenceApiKey || process.env.INFERENCE_API_KEY,
+			defaultHeaders: {
+				"HTTP-Referer": "http://cline.bot",
+				"X-Title": "Cline",
+				"X-GitHub": "cline/cline",
+			},
 		})
 
 		this.defaultModel = {
