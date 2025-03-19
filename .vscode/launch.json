@@ -19,24 +19,56 @@
 			}
 		},
 		{
-			"name": "Run Tests",
+			"name": "Extension Tests",
 			"type": "extensionHost",
 			"request": "launch",
-			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--extensionTestsPath=${workspaceFolder}/out/test"],
-			"outFiles": ["${workspaceFolder}/out/**/*.js"],
-			"preLaunchTask": "npm: compile-tests"
-		},
-		{
-			"name": "Run All Extension Tests",
-			"type": "extensionHost",
-			"request": "launch",
-			"runtimeExecutable": "${execPath}",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--extensionTestsPath=${workspaceFolder}/out/test/suite/index"
 			],
 			"outFiles": ["${workspaceFolder}/out/**/*.js"],
-			"preLaunchTask": "npm: test:all"
+			"preLaunchTask": "npm: compile-tests",
+			"env": {
+				"TEST_MODE": "true"
+			}
+		},
+		{
+			"name": "Debug Current Test File",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+			"args": ["-u", "bdd", "--timeout", "10000", "--colors", "${file}"],
+			"internalConsoleOptions": "openOnSessionStart",
+			"skipFiles": ["<node_internals>/**"],
+			"preLaunchTask": "npm: compile-tests",
+			"env": {
+				"TEST_MODE": "true"
+			}
+		},
+		{
+			"name": "Run Path Tests",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceFolder}/src/test/run-path-tests.js",
+			"skipFiles": ["<node_internals>/**"],
+			"preLaunchTask": "npm: compile-tests",
+			"env": {
+				"TEST_MODE": "true"
+			}
+		},
+		{
+			"name": "Run All Tests",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--extensionTestsPath=${workspaceFolder}/out/test/suite/index.js"
+			],
+			"outFiles": ["${workspaceFolder}/out/**/*.js"],
+			"preLaunchTask": "npm: compile-tests",
+			"env": {
+				"TEST_MODE": "true"
+			}
 		}
 	]
 }

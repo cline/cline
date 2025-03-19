@@ -1,26 +1,49 @@
+/**
+ * Main entry point for VS Code extension tests
+ * This file is referenced in the Extension Tests launch configuration
+ */
 const path = require("path")
 const Mocha = require("mocha")
 const glob = require("glob")
 
-async function run() {
-	// Create the mocha test
+// Set TEST_MODE for consistent test behavior
+process.env.TEST_MODE = "true"
+console.log("TEST_MODE set to:", process.env.TEST_MODE)
+console.log("Platform:", process.platform)
+
+// Load test helper for module aliasing
+require("../test-helper")
+
+/**
+ * Use glob to discover and run all tests
+ * @param {Object} options Mocha options
+ * @returns {Promise<void>}
+ */
+function runTests(options = {}) {
+	// Create the mocha test runner
 	const mocha = new Mocha({
 		ui: "bdd",
 		color: true,
-		timeout: 60000, // Increased timeout for extension operations
+		timeout: 10000,
+		fullTrace: true,
+		...options,
 	})
 
-	const testsRoot = path.resolve(__dirname, ".")
+	const testsRoot = path.resolve(__dirname, "..")
 
-	try {
-		// Find all test files
-		const files = await glob("*.test.js", { cwd: testsRoot })
+	return new Promise((resolve, reject) => {
+		// Find all test files using glob
+		glob("**/**.test.js", { cwd: testsRoot }, (err, files) => {
+			if (err) {
+				return reject(err)
+			}
 
-		// Add files to the test suite
-		files.forEach((f) => mocha.addFile(path.resolve(testsRoot, f)))
+			// Add all files to the test suite
+			files.forEach((f) => {
+				console.log(`Adding test file: ${f}`)
+				mocha.addFile(path.resolve(testsRoot, f))
+			})
 
-		// Run the mocha test
-		return new Promise((resolve, reject) => {
 			try {
 				// Run the tests
 				mocha.run((failures) => {
@@ -31,13 +54,13 @@ async function run() {
 					}
 				})
 			} catch (err) {
+				console.error("Error running tests:", err)
 				reject(err)
 			}
 		})
-	} catch (err) {
-		console.error("Failed to run tests:", err)
-		throw err
-	}
+	})
 }
 
-module.exports = { run }
+module.exports = {
+	run: runTests,
+}

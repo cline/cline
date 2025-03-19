@@ -145,6 +145,78 @@
 				"panel": "new"
 			},
 			"problemMatcher": []
+		},
+		{
+			"type": "npm",
+			"script": "compile",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": "$tsc",
+			"label": "npm: compile",
+			"detail": "Compile all TypeScript files"
+		},
+		{
+			"type": "npm",
+			"script": "compile-tests",
+			"group": "build",
+			"problemMatcher": "$tsc",
+			"label": "npm: compile-tests",
+			"detail": "Compile test TypeScript files"
+		},
+		{
+			"type": "npm",
+			"script": "test:setup-discovery",
+			"group": "test",
+			"problemMatcher": [],
+			"label": "npm: test:setup-discovery",
+			"detail": "Setup test discovery for VS Code Test Explorer"
+		},
+		{
+			"type": "npm",
+			"script": "test:reliable",
+			"group": {
+				"kind": "test",
+				"isDefault": true
+			},
+			"problemMatcher": [],
+			"label": "npm: test:reliable",
+			"detail": "Run all tests with proper environment setup"
+		},
+		{
+			"type": "npm",
+			"script": "test:path",
+			"group": "test",
+			"problemMatcher": [],
+			"label": "npm: test:path",
+			"detail": "Run path utility tests"
+		},
+		{
+			"type": "npm",
+			"script": "test:coverage",
+			"group": "test",
+			"problemMatcher": [],
+			"label": "npm: test:coverage",
+			"detail": "Run tests with coverage reporting"
+		},
+		{
+			"label": "Refresh Test Explorer",
+			"type": "shell",
+			"command": "echo 'Refreshing Test Explorer...' && npm run test:setup-discovery",
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Set Up Test Environment",
+			"dependsOrder": "sequence",
+			"dependsOn": ["npm: compile-tests", "npm: test:setup-discovery"],
+			"group": "test",
+			"problemMatcher": []
 		}
 	],
 	"inputs": [

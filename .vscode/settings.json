@@ -10,14 +10,21 @@
 	},
 	// Turn off tsc task auto detection since we have the necessary tasks as npm scripts
 	"typescript.tsc.autoDetect": "off",
-	"mochaExplorer.files": ["out/**/*.test.js", "src/test/**/*.test.ts", "src/test/**/*.test.js"],
-	"mochaExplorer.require": "ts-node/register",
+	"mochaExplorer.files": ["out/**/*.test.js", "src/test/suite/index.js"],
+	"mochaExplorer.ignore": ["**/node_modules/**"],
+	"mochaExplorer.require": ["src/test/test-helper.js", "src/test/set-test-mode.js"],
+	"mochaExplorer.ui": "bdd",
+	"mochaExplorer.timeout": 20000,
+	"mochaExplorer.fullTrace": true,
 	"mochaExplorer.env": {
-		"TS_NODE_PROJECT": "./tsconfig.test.json",
 		"TEST_MODE": "true"
 	},
-	"mochaExplorer.nodeArgv": ["--require", "./src/test/test-helper.js"],
-	"mochaExplorer.timeout": 30000,
+	"mochaExplorer.debuggerConfig": "Run All Tests",
+	"mochaExplorer.nodeArgv": ["--require", "./src/test/test-helper.js", "--force-node-api-uncaught-exceptions-policy=true"],
+	"mochaExplorer.showCollapseButton": true,
+	"mochaExplorer.mergeSuites": true,
+
+	// Test Explorer settings
 	"testExplorer.codeLens": true,
 	"testExplorer.gutterDecoration": true,
 	"testExplorer.errorDecoration": true,
@@ -25,5 +32,14 @@
 	"testExplorer.onStart": "reset",
 	"testExplorer.onReload": "reset",
 	"testExplorer.showCollapseButton": true,
-	"testExplorer.mergeSuites": true
+	"testExplorer.mergeSuites": true,
+	"testExplorer.useNativeTesting": false,
+
+	// Editor settings
+	"editor.formatOnSave": true,
+	"editor.codeActionsOnSave": {
+		"source.fixAll.eslint": "explicit"
+	},
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"typescript.preferences.importModuleSpecifier": "relative"
 }
