@@ -1,149 +1,199 @@
-# Google Gemini Integration
+# Gemini Integration Architecture
 
-This document describes the integration of Google's Gemini API into the Cline extension. The implementation adapts Gemini's API to work with Cline's Anthropic-compatible architecture, allowing seamless use of Gemini models within the application.
+This document provides a comprehensive overview of the Google Gemini API integration in the Cline extension.
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Usage](#usage)
+- [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
+- [Known Issues](#known-issues)
 
 ## Overview
 
-The Gemini integration consists of the following key components:
+The Gemini integration allows users to leverage Google's Gemini models through the Cline extension. This integration adapts Gemini's API to work with the extension's architecture, which is primarily designed for Anthropic's Claude models.
 
-1. **GeminiHandler**: The main class that implements the `ApiHandler` interface, providing methods for message generation and model selection.
-2. **Format Conversion Utilities**: Functions for converting between Anthropic's message format and Gemini's content format.
-3. **Model Definitions**: Configuration for various Gemini models including their capabilities and limitations.
+Key features:
+- Support for multiple Gemini model variants
+- System prompt handling
+- Streaming responses
+- Image input processing
+- Error handling for safety filters and rate limits
 
-## GeminiHandler
+## Architecture
 
-The `GeminiHandler` class serves as the primary interface for interacting with Google's Gemini API. It implements the common `ApiHandler` interface used throughout Cline, allowing the extension to use Gemini models interchangeably with other providers like Anthropic Claude and OpenAI.
+The integration is built around several key components:
 
-### Key Features
+### GeminiHandler
 
-- **Streaming Responses**: Provides real-time streaming of model outputs, yielding text chunks as they're generated.
-- **Error Handling**: Robust error handling for various Gemini-specific error conditions including safety filters, recitation detection, and general API errors.
-- **Retry Logic**: Uses the `@withRetry` decorator to automatically retry failed requests with exponential backoff.
-- **Usage Tracking**: Reports token usage for both input and output, enabling cost tracking and monitoring.
+The `GeminiHandler` class (`src/api/providers/gemini.ts`) is the main entry point for interacting with Gemini models. It implements the `ApiHandler` interface used throughout the application, allowing Gemini to be a drop-in replacement for other LLM providers.
 
-### Usage Example
+Key methods:
+- `createMessage`: Generates content using Gemini models based on a system prompt and messages
+- `getModel`: Retrieves model information based on configuration
+
+### Format Transformation
+
+The `src/api/transform/gemini-format.ts` module contains functions to convert between Anthropic's message format and Gemini's content format:
+
+- `convertAnthropicMessageToGemini`: Converts Anthropic-style messages to Gemini format
+- `convertAnthropicContentToGemini`: Converts Anthropic content blocks to Gemini parts
+- `unescapeGeminiContent`: Processes escaped characters in Gemini responses
+- `convertGeminiResponseToAnthropic`: Transforms Gemini responses to Anthropic format
+
+### Models Configuration
+
+Model information is defined in `src/shared/api.ts`, including:
+- Model IDs
+- Token limits
+- Cost information
+- Default model selection
+
+## Usage
+
+### Basic Usage
+
+To use Gemini models in your code:
 
 ```typescript
-import { GeminiHandler } from "../api/providers/gemini"
-import { Anthropic } from "@anthropic-ai/sdk"
+import { GeminiHandler } from "../api/providers/gemini";
 
-// Initialize the handler with API key
-const handler = new GeminiHandler({ 
+// Create a handler
+const handler = new GeminiHandler({
   geminiApiKey: "YOUR_API_KEY",
   apiModelId: "gemini-1.5-pro-002" // Optional: specify a model
-})
+});
 
-// Create a system prompt and messages
-const systemPrompt = "You are a helpful AI assistant that answers questions accurately and concisely."
-const messages: Anthropic.Messages.MessageParam[] = [
-  { role: "user", content: "What is the capital of France?" }
-]
-
-// Generate a response (streaming)
+// Generate a response
 async function generateResponse() {
+  const systemPrompt = "You are a helpful assistant.";
+  const messages = [{ role: "user", content: "Hello, who are you?" }];
+
   for await (const chunk of handler.createMessage(systemPrompt, messages)) {
     if (chunk.type === "text") {
-      console.log(chunk.text)
+      console.log(chunk.text); // Process text chunks
     } else if (chunk.type === "usage") {
-      console.log(`Input tokens: ${chunk.inputTokens}, Output tokens: ${chunk.outputTokens}`)
+      console.log(`Input tokens: ${chunk.inputTokens}, Output tokens: ${chunk.outputTokens}`);
     }
   }
 }
 ```
 
-## Format Conversion
+### Working with Images
 
-The Gemini integration includes utilities for converting between Anthropic's message format and Gemini's content format. These converters handle the differences in structure and terminology between the two APIs.
+Gemini models support image input:
 
-### Key Converters
+```typescript
+// Message with image
+const message = {
+  role: "user",
+  content: [
+    { type: "text", text: "What's in this image?" },
+    {
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: "image/jpeg",
+        data: "base64EncodedImageData",
+      },
+    },
+  ],
+};
 
-1. **convertAnthropicMessageToGemini**: Converts Anthropic's message format to Gemini's content format.
-2. **convertAnthropicContentToGemini**: Converts Anthropic's content blocks to Gemini's part format.
-3. **unescapeGeminiContent**: Fixes Gemini's double-escaping of special characters in responses.
-4. **convertGeminiResponseToAnthropic**: Converts Gemini responses to Anthropic's message format.
+// Use the handler to process this image
+for await (const chunk of handler.createMessage("Describe the image", [message])) {
+  // Process response chunks
+}
+```
 
-### Content Type Support
+### Configuration Options
 
-The conversion utilities support the following content types:
+When creating a `GeminiHandler`, you can specify:
 
-- **Text**: Basic text messages are fully supported in both directions.
-- **Images**: Image blocks in Anthropic messages are converted to Gemini's `inlineData` format (base64 only).
-- **Finish Reasons**: Gemini's finish reasons are mapped to equivalent Anthropic stop reasons.
+- `geminiApiKey`: (Required) Your Google AI API key
+- `apiModelId`: (Optional) Specific Gemini model ID to use
+- Additional options inherited from `ApiHandlerOptions`
 
-## Model Configuration
+## Testing
 
-The integration includes definitions for various Gemini models, specifying their capabilities and limitations:
+### Automated Tests
 
-| Model ID | Max Tokens | Context Window | Images Support | Default |
-|----------|------------|----------------|----------------|---------|
-| gemini-2.0-flash-001 | 8,192 | 1,048,576 | Yes | Yes |
-| gemini-1.5-pro-002 | 8,192 | 2,097,152 | Yes | No |
-| *Additional models...* | ... | ... | ... | ... |
+The integration includes several test suites:
 
-### Model Selection
+1. **Format Tests**: Located in `src/test/api/transform/gemini-format.test.ts`, these verify the transformation functions work correctly.
 
-The handler automatically selects the appropriate model based on the provided configuration:
+2. **Handler Tests**: Located in `src/test/api/providers/gemini.test.ts`, these test the `GeminiHandler` functionality, including error handling and integration with the Gemini API.
 
-1. If `apiModelId` is specified and valid, that model is used.
-2. Otherwise, the default model (`gemini-2.0-flash-001`) is used.
+3. **Mock Utilities**: Located in `src/test/utils/gemini-mocks.ts`, these provide mock implementations for testing without calling the actual API.
 
-## Error Handling
+### Manual Testing
 
-The Gemini integration handles several specific error conditions:
+A standalone script for manual testing is available at `src/test/manual/gemini-test.js`. This script provides an interactive environment to test the Gemini integration:
 
-- **Safety Filters**: If content is blocked for safety reasons, an appropriate error is thrown.
-- **Recitation Detection**: If content is blocked for potential copyright issues, a specific error is raised.
-- **Stream Processing Errors**: Errors during stream processing are caught and propagated with contextual information.
-- **Missing Response**: If no response is received from the API, a clear error is provided.
+```bash
+# Set your API key
+export GEMINI_API_KEY="your-api-key"
 
-## Limitations and Considerations
+# Run the test script
+node src/test/manual/gemini-test.js
+```
 
-When using the Gemini integration, be aware of the following limitations:
-
-1. **Image Support**: Only base64-encoded images are supported. URL references are not supported.
-2. **Prompt Caching**: Gemini models currently do not support prompt caching.
-3. **Tool Use**: The current implementation does not support tool use or function calling features.
-4. **Format Differences**: Some advanced features of Anthropic's API may not have direct equivalents in Gemini.
-
-## Implementation Details
-
-### Response Streaming
-
-The implementation uses Gemini's streaming API to provide real-time text chunks. Each chunk is processed, unescaped to handle special characters, and yielded to the consumer.
-
-### Token Usage Reporting
-
-Token usage information is extracted from the response metadata and provided as a usage chunk after all text chunks have been processed. This enables accurate tracking of API costs.
-
-### Special Character Handling
-
-Gemini sometimes returns double-escaped characters in responses. The `unescapeGeminiContent` function normalizes these, handling:
-
-- Newlines (`\n`), tabs (`\t`), and carriage returns (`\r`)
-- Quotes (`"` and `'`)
-- Windows paths with backslashes
-- Other double-escaped sequences
-
-## Future Improvements
-
-Potential enhancements to the Gemini integration include:
-
-1. Supporting tool use / function calling when Gemini offers compatible functionality
-2. Implementing better prompt caching when supported by the API
-3. Adding support for additional content types as they become available
-4. Optimizing token usage for large context windows
+The script allows you to:
+- Send text messages to Gemini
+- Upload and process images
+- View token usage information
 
 ## Troubleshooting
 
-Common issues and their solutions:
+### Common Issues
 
-1. **API Key Errors**: Ensure your API key is correctly configured in the options.
-2. **Model Selection Errors**: Verify that the specified model ID is supported and spelled correctly.
-3. **Content Filtering**: If responses are being blocked, review your prompts to ensure they comply with Gemini's content policy.
-4. **Performance Issues**: For large responses, consider using a model with a higher token limit.
+1. **Authentication Errors**
+   - Ensure your API key is valid and has access to Gemini models
+   - Verify the API key is passed correctly to the `GeminiHandler`
 
-## References
+2. **Rate Limiting**
+   - The integration includes retry logic for rate limit errors
+   - If you encounter persistent rate limiting, reduce request frequency
 
-- [Google Generative AI Documentation](https://ai.google.dev/docs)
-- [Gemini API Models Reference](https://ai.google.dev/gemini-api/docs/models/gemini)
-- [Content Generation with Gemini](https://ai.google.dev/gemini-api/docs/text-generation) 
+3. **Safety Filters**
+   - Gemini has built-in safety filters that may block certain requests
+   - The `GeminiHandler` throws specific errors when content is blocked for safety reasons
+
+4. **UNC Path Handling on Windows**
+   - Special handling is implemented for Windows UNC paths in `unescapeGeminiContent`
+   - This prevents backslashes in Windows paths from being incorrectly processed
+
+### Debugging Tips
+
+1. **Enable Verbose Logging**
+   - Set the `VSCODE_DEBUG_MODE` environment variable to enable more detailed logs
+
+2. **Check Response Structure**
+   - Gemini's response format is different from Anthropic's
+   - Verify that transformations are handling all fields correctly
+
+3. **Test with Simple Prompts**
+   - When debugging, start with simple text-only prompts before testing more complex features
+
+## Known Issues
+
+1. **System Prompt Handling**
+   - The way Gemini handles system prompts differs from Anthropic models
+   - In some cases, the system prompt may have less influence on Gemini models
+
+2. **Image Format Limitations**
+   - Gemini currently only supports a limited set of image formats (JPEG, PNG, etc.)
+   - Very large images may need resizing before processing
+
+3. **Test Suite Failures**
+   - Some integration tests may occasionally fail due to timing issues with async generators
+   - These are marked with `it.skip()` in the test files
+
+4. **Model Configuration Updates**
+   - As Google adds new Gemini model versions, the model configuration in `shared/api.ts` may need updating
+
+---
+
+For further assistance, please file an issue on the project repository or contact the maintainers. 
