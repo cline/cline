@@ -2,19 +2,21 @@ import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { ClineProvider } from "../../core/webview/ClineProvider"
 
 export interface BalanceResponse {
-	balance: number
+	currentBalance: number
 }
 
 export interface UsageTransaction {
-	timestamp: string
+	spentAt: string
+	credits: string
+	modelProvider: string
 	model: string
-	tokensUsed: string
-	credit: string
+	promptTokens: string
+	completionTokens: string
 }
 
 export interface PaymentTransaction {
-	timestamp: string
-	totalCost: string
+	paidAt: string
+	amountCents: string
 	credits: string
 }
 

@@ -2,6 +2,7 @@ import { VSCodeDataGrid, VSCodeDataGridRow, VSCodeDataGridCell } from "@vscode/w
 import { useState } from "react"
 import { TabButton } from "../mcp/McpView"
 import type { PaymentTransaction, UsageTransaction } from "../../../../src/services/account/ClineAccountService"
+import { formatDollars, formatTimestamp } from "../../utils/format"
 
 interface CreditsHistoryTableProps {
 	isLoading: boolean
@@ -53,10 +54,12 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 
 										{usageData.map((row, index) => (
 											<VSCodeDataGridRow key={index}>
-												<VSCodeDataGridCell grid-column="1">{row.timestamp}</VSCodeDataGridCell>
-												<VSCodeDataGridCell grid-column="2">{row.model}</VSCodeDataGridCell>
-												<VSCodeDataGridCell grid-column="3">{row.tokensUsed}</VSCodeDataGridCell>
-												<VSCodeDataGridCell grid-column="4">{row.credit}</VSCodeDataGridCell>
+												<VSCodeDataGridCell grid-column="1">
+													{formatTimestamp(row.spentAt)}
+												</VSCodeDataGridCell>
+												<VSCodeDataGridCell grid-column="2">{`${row.modelProvider}/${row.model}`}</VSCodeDataGridCell>
+												<VSCodeDataGridCell grid-column="3">{`${row.promptTokens} → ${row.completionTokens}`}</VSCodeDataGridCell>
+												<VSCodeDataGridCell grid-column="4">{`$${Number(row.credits).toFixed(7)}`}</VSCodeDataGridCell>
 											</VSCodeDataGridRow>
 										))}
 									</VSCodeDataGrid>
@@ -86,9 +89,11 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 
 										{paymentsData.map((row, index) => (
 											<VSCodeDataGridRow key={index}>
-												<VSCodeDataGridCell grid-column="1">{row.timestamp}</VSCodeDataGridCell>
-												<VSCodeDataGridCell grid-column="2">{row.totalCost}</VSCodeDataGridCell>
-												<VSCodeDataGridCell grid-column="3">{row.credits}</VSCodeDataGridCell>
+												<VSCodeDataGridCell grid-column="1">
+													{formatTimestamp(row.paidAt)}
+												</VSCodeDataGridCell>
+												<VSCodeDataGridCell grid-column="2">{`$${formatDollars(parseInt(row.amountCents))}`}</VSCodeDataGridCell>
+												<VSCodeDataGridCell grid-column="3">{`${row.credits}`}</VSCodeDataGridCell>
 											</VSCodeDataGridRow>
 										))}
 									</VSCodeDataGrid>

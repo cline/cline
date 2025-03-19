@@ -40,11 +40,11 @@ export const ClineAccountView = () => {
 		const handleMessage = (event: MessageEvent) => {
 			const message = event.data
 			if (message.type === "userCreditsBalance" && message.userCreditsBalance) {
-				setBalance(message.userCreditsBalance.balance)
+				setBalance(message.userCreditsBalance.currentBalance)
 			} else if (message.type === "userCreditsUsage" && message.userCreditsUsage) {
-				setUsageData(message.userCreditsUsage)
+				setUsageData(message.userCreditsUsage.usageTransactions)
 			} else if (message.type === "userCreditsPayments" && message.userCreditsPayments) {
-				setPaymentsData(message.userCreditsPayments)
+				setPaymentsData(message.userCreditsPayments.paymentTransactions)
 			}
 			setIsLoading(false)
 		}
