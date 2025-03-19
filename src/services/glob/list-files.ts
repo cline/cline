@@ -5,7 +5,7 @@ import { arePathsEqual } from "../../utils/path"
 import * as vscode from "vscode"
 
 export async function listFiles(dirPath: string | vscode.Uri, recursive: boolean, limit: number): Promise<[string[], boolean]> {
-	if (vscode.workspace.workspaceFolders?.some((v) => v.uri.scheme !== "file")) {
+	if (dirPath instanceof vscode.Uri && dirPath.scheme !== "file") {
 		return listVFiles(dirPath, recursive, limit)
 	}
 	dirPath = dirPath instanceof vscode.Uri ? dirPath.fsPath : dirPath
@@ -145,10 +145,16 @@ export async function listVFiles(dirPath: string | vscode.Uri, recursive: boolea
 
 	const files = await vscode.workspace.findFiles(`${globPattern}`, `{${dirsToIgnore.join(",")}}`, limit)
 
+	const dirSet = new Set<string>([dirUri.fsPath])
 	const filePaths = files
-		.map((f) => {
-			const isDirectory = f.fsPath.endsWith(path.sep)
-			return isDirectory ? `${f.fsPath}${path.sep}` : f.fsPath
+		.flatMap((f) => {
+			let dirPath = path.dirname(f.fsPath)
+			if (dirSet.has(dirPath)) {
+				return [f.fsPath]
+			} else {
+				dirSet.add(dirPath)
+				return [dirPath + path.sep, f.fsPath]
+			}
 		})
 		.slice(0, limit)
 

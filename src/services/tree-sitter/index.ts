@@ -1,5 +1,6 @@
 import * as fs from "fs/promises"
 import * as path from "path"
+import * as vscode from "vscode"
 import { listFiles } from "../glob/list-files"
 import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 import { fileExistsAtPath } from "../../utils/fs"
@@ -7,11 +8,11 @@ import { ClineIgnoreController } from "../../core/ignore/ClineIgnoreController"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(
-	dirPath: string,
+	dirPath: string | vscode.Uri,
 	clineIgnoreController?: ClineIgnoreController,
 ): Promise<string> {
 	// check if the path exists
-	const dirExists = await fileExistsAtPath(path.resolve(dirPath))
+	const dirExists = await fileExistsAtPath(dirPath)
 	if (!dirExists) {
 		return "This directory does not exist or you do not have permission to access it."
 	}
@@ -32,6 +33,7 @@ export async function parseSourceCodeForDefinitionsTopLevel(
 	// Filter filepaths for access if controller is provided
 	const allowedFilesToParse = clineIgnoreController ? clineIgnoreController.filterPaths(filesToParse) : filesToParse
 
+	dirPath = dirPath instanceof vscode.Uri ? dirPath.fsPath : dirPath
 	for (const filePath of allowedFilesToParse) {
 		const definitions = await parseFile(filePath, languageParsers, clineIgnoreController)
 		if (definitions) {

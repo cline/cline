@@ -1998,7 +1998,8 @@ export class Cline {
 								const absolutePath = Uri.joinPath(cwdUri, relPath)
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
-									content: absolutePath.fsPath,
+									content: relPath,
+									path: absolutePath.toString(),
 								} satisfies ClineSayTool)
 								if (this.shouldAutoApproveTool(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "tool")
@@ -2131,7 +2132,7 @@ export class Cline {
 
 								this.consecutiveMistakeCount = 0
 
-								const absolutePath = path.resolve(cwd, relDirPath)
+								const absolutePath = Uri.joinPath(cwdUri, relDirPath)
 								const result = await parseSourceCodeForDefinitionsTopLevel(
 									absolutePath,
 									this.clineIgnoreController,
@@ -2148,7 +2149,7 @@ export class Cline {
 									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
-										`Cline wants to view source code definitions in ${path.basename(absolutePath)}/`,
+										`Cline wants to view source code definitions in ${path.basename(absolutePath.fsPath)}/`,
 									)
 									this.removeLastPartialMessageIfExistsWithType("say", "tool")
 									const didApprove = await askApproval("tool", completeMessage)
@@ -3616,7 +3617,7 @@ export class Cline {
 				// don't want to immediately access desktop since it would show permission popup
 				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
 			} else {
-				const [files, didHitLimit] = await listFiles(cwd, true, 200)
+				const [files, didHitLimit] = await listFiles(cwdUri, true, 200)
 				const result = formatResponse.formatFilesList(cwd, files, didHitLimit, this.clineIgnoreController)
 				details += result
 			}

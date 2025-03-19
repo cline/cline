@@ -41,12 +41,12 @@ export async function openFile(absolutePath: string | vscode.Uri) {
 			}
 		} catch {} // not essential, sometimes tab operations fail
 
-		if (!(await fileExistsAtPath(uri))) {
+		if (!(await fileExistsAtPath(uri)) && typeof absolutePath === "string") {
 			const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri).at(0)
 			if (!cwd) {
 				throw new Error("No workspace folder found.")
 			}
-			uri = vscode.Uri.joinPath(cwd, uri.fsPath)
+			uri = vscode.Uri.joinPath(cwd, absolutePath)
 		}
 		const document = await vscode.workspace.openTextDocument(uri)
 		await vscode.window.showTextDocument(document, { preview: false })

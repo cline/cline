@@ -2,8 +2,9 @@ import * as vscode from "vscode"
 import * as path from "path"
 import { listFiles } from "../../services/glob/list-files"
 import { ClineProvider } from "../../core/webview/ClineProvider"
+import { Uri } from "vscode"
 
-const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri).at(0)
 
 // Note: this is not a drop-in replacement for listFiles at the start of tasks, since that will be done for Desktops when there is no workspace selected
 class WorkspaceTracker {
@@ -88,14 +89,14 @@ class WorkspaceTracker {
 		this.providerRef.deref()?.postMessageToWebview({
 			type: "workspaceUpdated",
 			filePaths: Array.from(this.filePaths).map((file) => {
-				const relativePath = path.relative(cwd, file).toPosix()
+				const relativePath = path.relative(cwd.fsPath, file).toPosix()
 				return file.endsWith("/") ? relativePath + "/" : relativePath
 			}),
 		})
 	}
 
 	private normalizeFilePath(filePath: string): string {
-		const resolvedPath = cwd ? path.resolve(cwd, filePath) : path.resolve(filePath)
+		const resolvedPath = cwd ? path.resolve(cwd.fsPath, filePath) : path.resolve(filePath)
 		return filePath.endsWith("/") ? resolvedPath + "/" : resolvedPath
 	}
 
