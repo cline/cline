@@ -5,7 +5,7 @@ import { vscode } from "../../utils/vscode"
 import DOMPurify from "dompurify"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import ChatErrorBoundary, { ErrorAfterDelay } from "../chat/ChatErrorBoundary"
+import ChatErrorBoundary from "../chat/ChatErrorBoundary"
 import {
 	safeCreateUrl,
 	isUrl,
@@ -429,8 +429,6 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 const McpResponseDisplayWithErrorBoundary: React.FC<McpResponseDisplayProps> = (props) => {
 	return (
 		<ChatErrorBoundary>
-			{/* Demo error component for review - will be removed later */}
-			<ErrorAfterDelay />
 			<McpResponseDisplay {...props} />
 		</ChatErrorBoundary>
 	)

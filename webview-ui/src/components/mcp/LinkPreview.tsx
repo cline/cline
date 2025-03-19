@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react"
 import { vscode } from "../../utils/vscode"
 import DOMPurify from "dompurify"
 import { getSafeHostname, normalizeRelativeUrl } from "./McpRichUtil"
-import ChatErrorBoundary, { ErrorAfterDelay } from "../chat/ChatErrorBoundary"
+import ChatErrorBoundary from "../chat/ChatErrorBoundary"
 
 
 interface OpenGraphData {
@@ -385,8 +385,6 @@ const MemoizedLinkPreview = React.memo(
 const LinkPreviewWithErrorBoundary: React.FC<LinkPreviewProps> = (props) => {
 	return (
 		<ChatErrorBoundary errorTitle="Something went wrong displaying this link preview">
-			{/* Demo error component for review - will be removed later */}
-			<ErrorAfterDelay />
 			<MemoizedLinkPreview {...props} />
 		</ChatErrorBoundary>
 	)

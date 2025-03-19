@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react"
 import { vscode } from "../../utils/vscode"
 import DOMPurify from "dompurify"
 import { getSafeHostname, formatUrlForOpening, checkIfImageUrl } from "./McpRichUtil"
-import ChatErrorBoundary, { ErrorAfterDelay } from "../chat/ChatErrorBoundary"
+import ChatErrorBoundary from "../chat/ChatErrorBoundary"
 
 interface ImagePreviewProps {
 	url: string
@@ -328,8 +328,6 @@ const MemoizedImagePreview = React.memo(
 const ImagePreviewWithErrorBoundary: React.FC<ImagePreviewProps> = (props) => {
 	return (
 		<ChatErrorBoundary errorTitle="Something went wrong displaying this image">
-			{/* Demo error component for review - will be removed later */}
-			<ErrorAfterDelay />
 			<MemoizedImagePreview {...props} />
 		</ChatErrorBoundary>
 	)
