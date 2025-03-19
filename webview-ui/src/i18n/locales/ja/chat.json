@@ -201,7 +201,7 @@
 		"seconds": "{{count}}秒"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.9 Released",
+		"title": "🎉 Roo Code 3.9 リリース",
 		"description": "Roo Code 3.9で国際化が実現しました！",
 		"whatsNew": "新機能",
 		"feature1": "14言語対応の翻訳",

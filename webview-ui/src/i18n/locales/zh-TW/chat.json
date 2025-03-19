@@ -201,7 +201,7 @@
 		"seconds": "{{count}}秒"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.9 Released",
+		"title": "🎉 Roo Code 3.9 已發布",
 		"description": "Roo Code在3.9版本中實現了國際化！",
 		"whatsNew": "新功能",
 		"feature1": "14種語言的翻譯",
