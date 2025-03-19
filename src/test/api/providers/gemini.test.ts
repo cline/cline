@@ -19,6 +19,8 @@ import { ApiHandlerOptions, geminiDefaultModelId, geminiModels } from "../../../
 import * as geminiFormat from "../../../api/transform/gemini-format"
 import { ApiStream } from "../../../api/transform/stream"
 import { Anthropic } from "@anthropic-ai/sdk"
+// Import the new mock utilities
+import { createMockGeminiModel } from "../../utils/gemini-mocks"
 
 describe("Gemini API Integration", () => {
 	// Fake model info and model id for testing
@@ -56,29 +58,19 @@ describe("Gemini API Integration", () => {
 
 	describe("GeminiHandler", () => {
 		it("should yield text chunks and usage info on a successful stream", async () => {
-			// Fake model that yields two text chunks and a normal finish response
-			fakeModel = {
-				generateContentStream: async (params: any) => {
-					// Save the generation config for testing
-					fakeModel.generateConfig = params.generationConfig
+			// Using the new mock utility instead of manual fake implementation
+			fakeModel = createMockGeminiModel({
+				textChunks: ["Hello, ", "world!"],
+				promptTokens: 10,
+				completionTokens: 20,
+			})
 
-					async function* fakeStream() {
-						yield { text: () => "Hello, " }
-						yield { text: () => "world!" }
-					}
-					const fakeResponse = {
-						usageMetadata: {
-							promptTokenCount: 10,
-							candidatesTokenCount: 20,
-						},
-						// Normal finish (i.e. not one of the error finish reasons)
-						candidates: [{ finishReason: undefined }],
-					}
-					return {
-						stream: fakeStream(),
-						response: Promise.resolve(fakeResponse),
-					}
-				},
+			// Keep track of the generation config for verification
+			const originalGenerateContentStream = fakeModel.generateContentStream
+			fakeModel.generateContentStream = async (params: any) => {
+				// Save the generation config for testing
+				fakeModel.generateConfig = params.generationConfig
+				return originalGenerateContentStream(params)
 			}
 
 			const systemPrompt = "Test prompt"
@@ -104,25 +96,13 @@ describe("Gemini API Integration", () => {
 		})
 
 		it("should throw an error when finishReason is SAFETY", async () => {
-			// Modify fakeModel to simulate a finish reason of "SAFETY"
-			fakeModel = {
-				generateContentStream: async () => {
-					async function* fakeStream() {
-						yield { text: () => "Unsafe content" }
-					}
-					const fakeResponse = {
-						usageMetadata: {
-							promptTokenCount: 5,
-							candidatesTokenCount: 10,
-						},
-						candidates: [{ finishReason: "SAFETY" }],
-					}
-					return {
-						stream: fakeStream(),
-						response: Promise.resolve(fakeResponse),
-					}
-				},
-			}
+			// Using the new mock utility instead of manual fake implementation
+			fakeModel = createMockGeminiModel({
+				textChunks: ["Unsafe content"],
+				finishReason: "SAFETY",
+				promptTokens: 5,
+				completionTokens: 10,
+			})
 
 			let errorOccurred = false
 			try {
@@ -303,18 +283,11 @@ describe("Gemini API Integration", () => {
 		})
 
 		it("should handle null response object", async () => {
-			// Simulate a model that returns a null response
-			fakeModel = {
-				generateContentStream: async () => {
-					async function* fakeStream() {
-						yield { text: () => "Some content" }
-					}
-					return {
-						stream: fakeStream(),
-						response: Promise.resolve(null), // Null response
-					}
-				},
-			}
+			// Using the new mock utility instead of manual fake implementation
+			fakeModel = createMockGeminiModel({
+				textChunks: ["Some content"],
+				nullResponse: true,
+			})
 
 			let errorOccurred = false
 			try {
