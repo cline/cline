@@ -34,7 +34,7 @@ const WelcomeView = () => {
 				left: 0,
 				right: 0,
 				bottom: 0,
-				padding: "0 20px",
+				padding: "0 0px",
 				display: "flex",
 				flexDirection: "column",
 			}}>
@@ -63,7 +63,7 @@ const WelcomeView = () => {
 					3.7 Sonnet.
 				</p>
 
-				<VSCodeButton appearance="primary" onClick={handleLogin} style={{ width: "100%" }}>
+				<VSCodeButton appearance="primary" onClick={handleLogin} style={{ width: "100%", marginTop: 4 }}>
 					Get Started for Free
 				</VSCodeButton>
 

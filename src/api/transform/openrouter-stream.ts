@@ -6,14 +6,14 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { OpenRouterErrorResponse } from "../providers/types"
 
-export async function* streamOpenRouterFormatRequest(
+export async function createOpenRouterStream(
 	client: OpenAI,
 	systemPrompt: string,
 	messages: Anthropic.Messages.MessageParam[],
 	model: { id: string; info: ModelInfo },
 	o3MiniReasoningEffort?: string,
 	thinkingBudgetTokens?: number,
-): AsyncGenerator<ApiStreamChunk, string | undefined, unknown> {
+) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 		{ role: "system", content: systemPrompt },
@@ -98,7 +98,12 @@ export async function* streamOpenRouterFormatRequest(
 
 	let temperature: number | undefined = 0
 	let topP: number | undefined = undefined
-	if (model.id.startsWith("deepseek/deepseek-r1") || model.id === "perplexity/sonar-reasoning") {
+	if (
+		model.id.startsWith("deepseek/deepseek-r1") ||
+		model.id === "perplexity/sonar-reasoning" ||
+		model.id === "qwen/qwq-32b:free" ||
+		model.id === "qwen/qwq-32b"
+	) {
 		// Recommended values from DeepSeek
 		temperature = 0.7
 		topP = 0.95
@@ -142,39 +147,5 @@ export async function* streamOpenRouterFormatRequest(
 		...(reasoning ? { reasoning } : {}),
 	})
 
-	let genId: string | undefined
-
-	for await (const chunk of stream) {
-		// openrouter returns an error object instead of the openai sdk throwing an error
-		if ("error" in chunk) {
-			const error = chunk.error as OpenRouterErrorResponse["error"]
-			console.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
-			// Include metadata in the error message if available
-			const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
-			throw new Error(`OpenRouter API Error ${error.code}: ${error.message}${metadataStr}`)
-		}
-
-		if (!genId && chunk.id) {
-			genId = chunk.id
-		}
-
-		const delta = chunk.choices[0]?.delta
-		if (delta?.content) {
-			yield {
-				type: "text",
-				text: delta.content,
-			}
-		}
-
-		// Reasoning tokens are returned separately from the content
-		if ("reasoning" in delta && delta.reasoning) {
-			yield {
-				type: "reasoning",
-				// @ts-ignore-next-line
-				reasoning: delta.reasoning,
-			}
-		}
-	}
-
-	return genId
+	return stream
 }
