@@ -26,7 +26,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 			</div>
 
 			{/* Content container */}
-			<div className="mt-[30px] rounded-md overflow-hidden">
+			<div className="mt-[30px] rounded-md overflow-y-auto max-h-[400px]">
 				{isLoading ? (
 					<div className="flex justify-center items-center p-4">
 						<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>

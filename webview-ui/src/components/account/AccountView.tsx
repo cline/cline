@@ -102,7 +102,7 @@ export const ClineAccountView = () => {
 
 					<div className="flex flex-col min-[280px]:flex-row gap-2">
 						<VSCodeButtonLink
-							href="https://app.cline.bot/account"
+							href="https://app.cline.bot/credits"
 							appearance="primary"
 							className="w-full min-[280px]:w-24">
 							Account
