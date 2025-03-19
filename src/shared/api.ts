@@ -512,124 +512,8 @@ export const vertexModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-/**
- * Default model information for OpenAI-compatible providers.
- * Used when specific model information is not available.
- */
-export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
-	maxTokens: -1,
-	contextWindow: 128_000,
-	supportsImages: true,
-	supportsPromptCache: false,
-	inputPrice: 0,
-	outputPrice: 0,
-	temperature: 0,
-}
-
-/**
- * Google Gemini Models
- * @see https://ai.google.dev/gemini-api/docs/models/gemini
- */
-export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-001"
-export const geminiModels = {
-	"gemini-2.0-flash-001": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-2.0-flash-lite-preview-02-05": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-2.0-pro-exp-02-05": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-2.0-flash-thinking-exp-01-21": {
-		maxTokens: 65_536,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-2.0-flash-thinking-exp-1219": {
-		maxTokens: 8192,
-		contextWindow: 32_767,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-2.0-flash-exp": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-1.5-flash-002": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-1.5-flash-exp-0827": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-1.5-flash-8b-exp-0827": {
-		maxTokens: 8192,
-		contextWindow: 1_048_576,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-1.5-pro-002": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-1.5-pro-exp-0827": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-	"gemini-exp-1206": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-	},
-} as const satisfies Record<string, ModelInfo>
+// Update default model to latest
+export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash"
 
 /**
  * OpenAI Native Models
@@ -1496,3 +1380,125 @@ export const sambanovaModels = {
 		outputPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+/**
+ * Default model information for OpenAI-compatible providers.
+ * Used when specific model information is not available.
+ */
+export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
+	maxTokens: -1,
+	contextWindow: 128_000,
+	supportsImages: true,
+	supportsPromptCache: false,
+	inputPrice: 0,
+	outputPrice: 0,
+	temperature: 0,
+}
+
+/**
+ * Google Gemini Models
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini
+ */
+export type GeminiModelId =
+	| "gemini-2.0-flash"
+	| "gemini-2.0-flash-001"
+	| "gemini-1.5-pro"
+	| "gemini-1.5-pro-002"
+	| "gemini-1.5-flash"
+	| "gemini-1.0-pro"
+	| "gemini-1.0-pro-001"
+	| "gemini-1.0-pro-latest"
+	| "gemini-1.0-pro-vision-latest"
+
+export const geminiModels: Record<GeminiModelId, ModelInfo> = {
+	"gemini-2.0-flash": {
+		description: "Gemini 2.0 Flash",
+		contextWindow: 1048576, // 1M tokens
+		maxTokens: 8192,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0000007,
+		outputPrice: 0.0000014,
+	},
+	"gemini-2.0-flash-001": {
+		description: "Gemini 2.0 Flash 001",
+		contextWindow: 1048576, // 1M tokens
+		maxTokens: 8192,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0000007,
+		outputPrice: 0.0000014,
+	},
+	"gemini-1.5-pro": {
+		description: "Gemini 1.5 Pro",
+		contextWindow: 2097152, // 2M tokens
+		maxTokens: 8192,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.000003,
+		outputPrice: 0.00001,
+	},
+	"gemini-1.5-pro-002": {
+		description: "Gemini 1.5 Pro 002",
+		contextWindow: 2097152, // 2M tokens
+		maxTokens: 8192,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.000003,
+		outputPrice: 0.00001,
+	},
+	"gemini-1.5-flash": {
+		description: "Gemini 1.5 Flash",
+		contextWindow: 1048576, // 1M tokens
+		maxTokens: 8192,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0000005,
+		outputPrice: 0.0000015,
+	},
+	"gemini-1.0-pro": {
+		description: "Gemini 1.0 Pro",
+		contextWindow: 32768, // 32k tokens
+		maxTokens: 8192,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.000000375,
+		outputPrice: 0.00000125,
+	},
+	"gemini-1.0-pro-001": {
+		description: "Gemini 1.0 Pro 001",
+		contextWindow: 32768, // 32k tokens
+		maxTokens: 8192,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.000000375,
+		outputPrice: 0.00000125,
+	},
+	"gemini-1.0-pro-latest": {
+		description: "Gemini 1.0 Pro Latest",
+		contextWindow: 32768, // 32k tokens
+		maxTokens: 8192,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.000000375,
+		outputPrice: 0.00000125,
+	},
+	"gemini-1.0-pro-vision-latest": {
+		description: "Gemini 1.0 Pro Vision Latest",
+		contextWindow: 32768, // 32k tokens
+		maxTokens: 8192,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.000000375,
+		outputPrice: 0.00000125,
+	},
+}

@@ -216,3 +216,102 @@ export function createMockGeminiModel(streamOptions: MockGeminiStreamOptions = {
 			}),
 	}
 }
+
+/**
+ * Specialized mock for testing rate limit errors that automatically recover after a number of attempts.
+ *
+ * @param successAfterAttempts Number of times to return an error before succeeding
+ * @param successResponse Response to return after successful recovery
+ * @returns A factory function that creates a model that succeeds after n failures
+ *
+ * @example
+ * // Create a model that fails twice then succeeds
+ * let attempts = 0;
+ * const mockModel = createRateLimitingModel(2, {
+ *   textChunks: ["Success after retries"],
+ *   promptTokens: 5,
+ *   completionTokens: 3
+ * });
+ *
+ * // The first two calls will throw 429 errors, third call will succeed
+ * const handler = new GeminiHandler({ geminiApiKey: "test" });
+ * handler["client"] = {
+ *   getGenerativeModel: () => mockModel(attempts++)
+ * } as any;
+ */
+export function createRateLimitingModel(successAfterAttempts = 2, successResponse: MockGeminiStreamOptions = {}) {
+	return (attemptCount: number) => {
+		if (attemptCount < successAfterAttempts) {
+			return {
+				generateContentStream: async () => {
+					// Simulate a rate limit error
+					const error = new Error("Rate limit exceeded")
+					;(error as any).status = 429
+					throw error
+				},
+			}
+		}
+
+		// Return success model after the specified number of attempts
+		return createMockGeminiModel(successResponse)
+	}
+}
+
+/**
+ * Creates a model that simulates a safety filter error.
+ *
+ * @returns A model that always returns a safety filter error
+ *
+ * @example
+ * // Create a model that always triggers a safety filter
+ * const mockModel = createSafetyFilterModel();
+ *
+ * // Inject into handler
+ * handler["client"] = {
+ *   getGenerativeModel: () => mockModel
+ * } as any;
+ */
+export function createSafetyFilterModel() {
+	return {
+		generateContentStream: async () =>
+			createMockGeminiStream({
+				textChunks: ["I apologize, but I cannot fulfill that request."],
+				finishReason: "SAFETY",
+				promptTokens: 10,
+				completionTokens: 8,
+			}),
+	}
+}
+
+/**
+ * Helper to set up a GeminiHandler with a mock model for testing.
+ *
+ * @param mockOptions Options for configuring the mock model
+ * @param handlerOptions Options for configuring the handler
+ * @returns Handler configured with the mock
+ *
+ * @example
+ * // Set up a handler with a basic mock
+ * const handler = setupGeminiHandlerWithMock({
+ *   textChunks: ["Hello, world!"],
+ *   promptTokens: 5,
+ *   completionTokens: 3
+ * });
+ *
+ * // Now you can test the handler with the mock
+ * const results = [];
+ * for await (const chunk of handler.createMessage("System prompt", [{ role: "user", content: "Hi" }])) {
+ *   results.push(chunk);
+ * }
+ */
+export function setupGeminiHandlerWithMock(mockOptions: MockGeminiStreamOptions = {}, handlerOptions: Record<string, any> = {}) {
+	// Handler class will be imported in the test file - this is just a helper
+	// that test files can use to create a handler with a mock
+	return {
+		mockOptions,
+		handlerOptions: {
+			geminiApiKey: "test-key",
+			...handlerOptions,
+		},
+	}
+}

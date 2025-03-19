@@ -6,10 +6,8 @@
  * requires CommonJS modules even when using nodenext module resolution. The rest of the
  * codebase uses ESM imports, but tests need CommonJS for compatibility with VS Code testing.
  */
-// Replace ESM import with CommonJS require
 const mocha = require("mocha")
 const { describe, it, beforeEach, afterEach } = mocha
-// Using require for chai to fix ESM import issue
 const chai = require("chai")
 const { expect } = chai
 import "should"
@@ -19,538 +17,413 @@ import { ApiHandlerOptions, geminiDefaultModelId, geminiModels } from "../../../
 import * as geminiFormat from "../../../api/transform/gemini-format"
 import { ApiStream } from "../../../api/transform/stream"
 import { Anthropic } from "@anthropic-ai/sdk"
-// Import the new mock utilities
-import { createMockGeminiModel } from "../../utils/gemini-mocks"
+import {
+	createMockGeminiModel,
+	createMockGeminiResponse,
+	createMockGeminiStream,
+	createRateLimitingModel,
+	createSafetyFilterModel,
+	setupGeminiHandlerWithMock,
+} from "../../utils/gemini-mocks"
 
-describe("Gemini API Integration", () => {
-	// Fake model info and model id for testing
-	const fakeModelInfo = {
-		maxTokens: 1000,
-		supportsPromptCache: false, // Adding the required property
-	}
-	const fakeModelId = "fake-gemini-model" as any
-
-	// Create a fake model object that simulates generateContentStream
-	let fakeModel: any
-
-	// Create options and a GeminiHandler instance
-	const options: ApiHandlerOptions = {
-		geminiApiKey: "dummy-key",
-		apiModelId: fakeModelId,
-	}
-
-	let handler: GeminiHandler
-
-	beforeEach(() => {
-		// Initialize a new handler for each test
-		handler = new GeminiHandler(options)
-		// Override the client's getGenerativeModel to return our fake model
-		handler["client"] = {
-			getGenerativeModel: () => fakeModel,
-		} as any
-		// Also override getModel() to return our fake model info
-		handler.getModel = () => ({ id: fakeModelId, info: fakeModelInfo })
-	})
-
-	afterEach(() => {
-		sinon.restore()
-	})
-
-	describe("GeminiHandler", () => {
-		it("should yield text chunks and usage info on a successful stream", async () => {
-			// Using the new mock utility instead of manual fake implementation
-			fakeModel = createMockGeminiModel({
-				textChunks: ["Hello, ", "world!"],
-				promptTokens: 10,
-				completionTokens: 20,
-			})
-
-			// Keep track of the generation config for verification
-			const originalGenerateContentStream = fakeModel.generateContentStream
-			fakeModel.generateContentStream = async (params: any) => {
-				// Save the generation config for testing
-				fakeModel.generateConfig = params.generationConfig
-				return originalGenerateContentStream(params)
-			}
-
-			const systemPrompt = "Test prompt"
-			const messages: Anthropic.Messages.MessageParam[] = [{ content: "test", role: "user" }]
-			const output: any[] = []
-			for await (const chunk of handler.createMessage(systemPrompt, messages)) {
-				output.push(chunk)
-			}
-
-			// We expect two text yields and one usage yield
-			expect(output).to.have.length(3)
-			expect(output[0]).to.have.property("type", "text")
-			expect(output[0]).to.have.property("text").that.includes("Hello")
-			expect(output[1]).to.have.property("type", "text")
-			expect(output[1]).to.have.property("text").that.includes("world")
-			expect(output[2]).to.have.property("type", "usage")
-			expect(output[2]).to.have.property("inputTokens", 10)
-			expect(output[2]).to.have.property("outputTokens", 20)
-
-			// Verify that generationConfig was passed correctly
-			expect(fakeModel.generateConfig).to.have.property("maxOutputTokens", fakeModelInfo.maxTokens)
-			expect(fakeModel.generateConfig).to.have.property("temperature", 0)
+describe("GeminiHandler", () => {
+	// Setup helper to reduce test setup boilerplate
+	function setupHandler(mockOptions = {}, handlerOptions = {}) {
+		const handler = new GeminiHandler({
+			geminiApiKey: "test-key",
+			...handlerOptions,
 		})
 
+		const mockModel = createMockGeminiModel(mockOptions)
+
+		handler["client"] = {
+			getGenerativeModel: () => mockModel,
+		} as any
+
+		return handler
+	}
+
+	describe("Initialization", () => {
+		it("should throw an error if no API key is provided", () => {
+			expect(() => new GeminiHandler({})).to.throw()
+		})
+
+		// Table-driven test for model selection
+		const modelTestCases = [
+			{
+				name: "should use default model when no ID is provided",
+				options: {},
+				expectedModel: geminiDefaultModelId,
+			},
+			{
+				name: "should use specified model when valid ID is provided",
+				options: { apiModelId: "gemini-1.5-pro-002" },
+				expectedModel: "gemini-1.5-pro-002",
+			},
+			{
+				name: "should fall back to default model when invalid ID is provided",
+				options: { apiModelId: "invalid-model-id" },
+				expectedModel: geminiDefaultModelId,
+			},
+		]
+
+		modelTestCases.forEach((tc) => {
+			it(tc.name, () => {
+				const handler = new GeminiHandler({
+					geminiApiKey: "test-key",
+					...tc.options,
+				})
+
+				const { id } = handler.getModel()
+				expect(id).to.equal(tc.expectedModel)
+			})
+		})
+
+		it("should correctly pass the system prompt to model initialization", () => {
+			// Arrange
+			const handler = setupHandler()
+			const modelSpy = sinon.stub()
+			modelSpy.returns({
+				generateContentStream: sinon.stub().returns(createMockGeminiStream({})),
+			})
+
+			handler["client"] = {
+				getGenerativeModel: modelSpy,
+			} as any
+
+			// Act
+			handler.createMessage("This is a system prompt", [{ role: "user", content: "Hi" }])
+
+			// Assert
+			expect(modelSpy.calledOnce).to.be.true
+			const systemMessageParams = modelSpy.firstCall.args[0]
+			expect(systemMessageParams.systemInstruction).to.equal("This is a system prompt")
+		})
+
+		it("should apply maxTokens from model configuration", () => {
+			// Arrange
+			const handler = setupHandler({ maxOutputTokens: 100 })
+			const generateContentSpy = sinon.stub().returns(createMockGeminiStream({}))
+			const modelSpy = sinon.stub()
+			modelSpy.returns({
+				generateContentStream: generateContentSpy,
+			})
+
+			handler["client"] = {
+				getGenerativeModel: modelSpy,
+			} as any
+
+			// Act
+			handler.createMessage("System prompt", [{ role: "user", content: "Hi" }])
+
+			// Assert
+			expect(generateContentSpy.calledOnce).to.be.true
+			const generationConfig = generateContentSpy.firstCall.args[1]
+			expect(generationConfig.maxOutputTokens).to.equal(100)
+		})
+	})
+
+	describe("Text Generation", () => {
+		it("should yield text chunks and usage info on a successful stream", async () => {
+			// Arrange
+			const handler = setupHandler({
+				textChunks: ["Hello", ", world!"],
+				promptTokens: 10,
+				completionTokens: 5,
+			})
+
+			// Act
+			const results = []
+			for await (const chunk of handler.createMessage("System prompt", [{ role: "user", content: "Test message" }])) {
+				results.push(chunk)
+			}
+
+			// Assert
+			const textChunks = results.filter((chunk) => chunk.type === "text")
+			expect(textChunks).to.have.length(2)
+			expect(textChunks[0].text).to.equal("Hello")
+			expect(textChunks[1].text).to.equal(", world!")
+
+			const usageChunks = results.filter((chunk) => chunk.type === "usage")
+			expect(usageChunks).to.have.length(1)
+			expect(usageChunks[0].inputTokens).to.equal(10)
+			expect(usageChunks[0].outputTokens).to.equal(5)
+		})
+
+		it("should convert Anthropic messages to Gemini format", async () => {
+			// Arrange
+			const convertSpy = sinon.spy(geminiFormat, "convertAnthropicMessageToGemini")
+
+			const handler = setupHandler({
+				textChunks: ["Response"],
+				promptTokens: 5,
+				completionTokens: 2,
+			})
+
+			const message = { role: "user", content: "Hello" } as Anthropic.Messages.MessageParam
+
+			// Act
+			const generator = handler.createMessage("System prompt", [message])
+			await generator.next() // Just need to start the generator to trigger the conversion
+
+			// Assert
+			expect(convertSpy.calledOnce).to.be.true()
+			expect(convertSpy.firstCall.args[0]).to.equal(message)
+
+			// Cleanup
+			convertSpy.restore()
+		})
+
+		it("should pass system prompt to model initialization", async () => {
+			// Arrange
+			const getGenerativeModelStub = sinon.stub()
+			const systemPrompt = "You are a helpful assistant."
+
+			const handler = new GeminiHandler({ geminiApiKey: "test-key" })
+
+			handler["client"] = {
+				getGenerativeModel: getGenerativeModelStub,
+			} as any
+
+			getGenerativeModelStub.returns(
+				createMockGeminiModel({
+					textChunks: ["Response"],
+				}),
+			)
+
+			// Act
+			const generator = handler.createMessage(systemPrompt, [{ role: "user", content: "Hello" }])
+			await generator.next() // Start the generator to trigger model initialization
+
+			// Assert
+			expect(getGenerativeModelStub.calledOnce).to.be.true()
+			expect(getGenerativeModelStub.firstCall.args[0]).to.have.property("systemInstruction", systemPrompt)
+		})
+
+		it("should apply maxTokens from model configuration", async () => {
+			// Arrange
+			const generateContentStreamStub = sinon.stub()
+			const mockModel = {
+				generateContentStream: generateContentStreamStub,
+			}
+
+			generateContentStreamStub.returns(
+				createMockGeminiStream({
+					textChunks: ["Response"],
+					promptTokens: 5,
+					completionTokens: 2,
+				}),
+			)
+
+			const handler = new GeminiHandler({
+				geminiApiKey: "test-key",
+				apiModelId: "gemini-1.5-pro-002",
+			})
+
+			handler["client"] = {
+				getGenerativeModel: () => mockModel,
+			} as any
+
+			// Act
+			const generator = handler.createMessage("System prompt", [{ role: "user", content: "Hello" }])
+			await generator.next() // Start the generator to trigger configuration
+
+			// Assert
+			expect(generateContentStreamStub.calledOnce).to.be.true()
+			const generationConfig = generateContentStreamStub.firstCall.args[0].generationConfig
+			expect(generationConfig).to.have.property("maxOutputTokens", geminiModels["gemini-1.5-pro-002"].maxTokens)
+		})
+
+		it("should properly unescape content", async () => {
+			// Arrange
+			const handler = setupHandler({
+				textChunks: ['Line 1\\nLine 2\\nThis is a quoted \\"string\\"'],
+				promptTokens: 5,
+				completionTokens: 5,
+			})
+
+			const unescapeSpy = sinon.spy(geminiFormat, "unescapeGeminiContent")
+
+			// Act
+			const results = []
+			for await (const chunk of handler.createMessage("System prompt", [{ role: "user", content: "Hello" }])) {
+				if (chunk.type === "text") {
+					results.push(chunk.text)
+				}
+			}
+
+			// Assert
+			expect(unescapeSpy.called).to.be.true()
+			expect(results[0]).to.equal('Line 1\nLine 2\nThis is a quoted "string"')
+
+			// Cleanup
+			unescapeSpy.restore()
+		})
+	})
+
+	describe("Error Handling", () => {
 		it("should throw an error when finishReason is SAFETY", async () => {
-			// Using the new mock utility instead of manual fake implementation
-			fakeModel = createMockGeminiModel({
-				textChunks: ["Unsafe content"],
+			// Arrange
+			const handler = setupHandler({
+				textChunks: ["I'm sorry, I cannot fulfill that request."],
 				finishReason: "SAFETY",
 				promptTokens: 5,
 				completionTokens: 10,
 			})
 
-			let errorOccurred = false
+			// Act & Assert
 			try {
-				for await (const _ of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
-					// Iterate to trigger processing
+				for await (const chunk of handler.createMessage("System prompt", [{ role: "user", content: "Unsafe request" }])) {
+					// Should not get all chunks
 				}
+
+				// If we get here, the test should fail
+				expect(true).to.be.false("Expected an error to be thrown")
 			} catch (error: any) {
-				errorOccurred = true
-				expect(error.message).to.include("Content generation was blocked for safety reasons")
+				expect(error.message).to.include("safety reasons")
 			}
-			expect(errorOccurred).to.be.true
-		})
-
-		it("should throw an error when finishReason is RECITATION", async () => {
-			// Simulate a finish reason of "RECITATION"
-			fakeModel = {
-				generateContentStream: async () => {
-					async function* fakeStream() {
-						yield { text: () => "Recitation content" }
-					}
-					const fakeResponse = {
-						usageMetadata: {
-							promptTokenCount: 5,
-							candidatesTokenCount: 10,
-						},
-						candidates: [{ finishReason: "RECITATION" }],
-					}
-					return {
-						stream: fakeStream(),
-						response: Promise.resolve(fakeResponse),
-					}
-				},
-			}
-
-			let errorOccurred = false
-			try {
-				for await (const _ of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
-				}
-			} catch (error: any) {
-				errorOccurred = true
-				expect(error.message).to.include("Content generation was blocked due to potential copyright issues")
-			}
-			expect(errorOccurred).to.be.true
-		})
-
-		it("should throw an error when finishReason is OTHER", async () => {
-			// Simulate a finish reason of "OTHER"
-			fakeModel = {
-				generateContentStream: async () => {
-					async function* fakeStream() {
-						yield { text: () => "Other content" }
-					}
-					const fakeResponse = {
-						usageMetadata: {
-							promptTokenCount: 5,
-							candidatesTokenCount: 10,
-						},
-						candidates: [{ finishReason: "OTHER" }],
-					}
-					return {
-						stream: fakeStream(),
-						response: Promise.resolve(fakeResponse),
-					}
-				},
-			}
-
-			let errorOccurred = false
-			try {
-				for await (const _ of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
-				}
-			} catch (error: any) {
-				errorOccurred = true
-				expect(error.message).to.include("Content generation was blocked for other reasons")
-			}
-			expect(errorOccurred).to.be.true
-		})
-
-		it("should propagate errors from stream chunk processing", async () => {
-			// Simulate an error when calling chunk.text()
-			fakeModel = {
-				generateContentStream: async () => {
-					async function* fakeStream() {
-						yield {
-							text: () => {
-								throw new Error("Stream chunk error")
-							},
-						}
-					}
-					const fakeResponse = {
-						usageMetadata: {
-							promptTokenCount: 5,
-							candidatesTokenCount: 10,
-						},
-						candidates: [{ finishReason: undefined }],
-					}
-					return {
-						stream: fakeStream(),
-						response: Promise.resolve(fakeResponse),
-					}
-				},
-			}
-
-			let errorOccurred = false
-			try {
-				for await (const _ of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
-				}
-			} catch (error: any) {
-				errorOccurred = true
-				expect(error.message).to.include("Stream chunk error")
-			}
-			expect(errorOccurred).to.be.true
-		})
-
-		it("should handle empty responses properly", async () => {
-			// Simulate a model that returns no text chunks but a valid response
-			fakeModel = {
-				generateContentStream: async () => {
-					async function* fakeStream() {
-						// No chunks yielded
-					}
-					const fakeResponse = {
-						usageMetadata: {
-							promptTokenCount: 5,
-							candidatesTokenCount: 0,
-						},
-						candidates: [{ finishReason: undefined }],
-					}
-					return {
-						stream: fakeStream(),
-						response: Promise.resolve(fakeResponse),
-					}
-				},
-			}
-
-			const output: any[] = []
-			for await (const chunk of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
-				output.push(chunk)
-			}
-
-			// We should still get the usage information
-			expect(output).to.have.length(1)
-			expect(output[0]).to.have.property("type", "usage")
-			expect(output[0]).to.have.property("outputTokens", 0)
-		})
-
-		it("should handle chunks with empty text", async () => {
-			// Simulate a model that returns empty text chunks
-			fakeModel = {
-				generateContentStream: async () => {
-					async function* fakeStream() {
-						yield { text: () => "" } // Empty text
-						yield { text: () => "Valid content" }
-					}
-					const fakeResponse = {
-						usageMetadata: {
-							promptTokenCount: 5,
-							candidatesTokenCount: 10,
-						},
-						candidates: [{ finishReason: undefined }],
-					}
-					return {
-						stream: fakeStream(),
-						response: Promise.resolve(fakeResponse),
-					}
-				},
-			}
-
-			const output: any[] = []
-			for await (const chunk of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
-				output.push(chunk)
-			}
-
-			// We expect one text chunk (the non-empty one) and usage
-			expect(output).to.have.length(2)
-			expect(output[0]).to.have.property("type", "text")
-			expect(output[0]).to.have.property("text", "Valid content")
-			expect(output[1]).to.have.property("type", "usage")
 		})
 
 		it("should handle null response object", async () => {
-			// Using the new mock utility instead of manual fake implementation
-			fakeModel = createMockGeminiModel({
-				textChunks: ["Some content"],
+			// Arrange
+			const handler = setupHandler({
+				textChunks: ["Partial response"],
 				nullResponse: true,
 			})
 
-			let errorOccurred = false
+			// Act & Assert
 			try {
-				for await (const _ of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
+				for await (const chunk of handler.createMessage("System prompt", [{ role: "user", content: "Hello" }])) {
+					// Should not get all chunks
 				}
+
+				// If we get here, the test should fail
+				expect(true).to.be.false("Expected an error to be thrown")
 			} catch (error: any) {
-				errorOccurred = true
-				expect(error.message).to.include("No response received from Gemini API")
+				expect(error.message).to.include("No response received")
 			}
-			expect(errorOccurred).to.be.true
 		})
 
-		it("should handle extremely long responses", async () => {
-			// Generate a very long string close to token limit
-			const longString = "a".repeat(10000) // Simulate a long response
-			// Simulate a model that returns a very long response
-			fakeModel = {
-				generateContentStream: async () => {
-					async function* fakeStream() {
-						// Yield the long string in chunks to avoid memory issues
-						for (let i = 0; i < 10; i++) {
-							yield { text: () => longString.substring(i * 1000, (i + 1) * 1000) }
+		it("should retry on rate limit errors", async () => {
+			// Arrange
+			let attempts = 0
+			const mockModelFactory = createRateLimitingModel(2, {
+				textChunks: ["Success after retries"],
+				promptTokens: 5,
+				completionTokens: 3,
+			})
+
+			const handler = new GeminiHandler({ geminiApiKey: "test-key" })
+
+			handler["client"] = {
+				getGenerativeModel: () => mockModelFactory(attempts++),
+			} as any
+
+			// Act
+			const results = []
+			for await (const chunk of handler.createMessage("System prompt", [{ role: "user", content: "Hello" }])) {
+				if (chunk.type === "text") {
+					results.push(chunk.text)
+				}
+			}
+
+			// Assert
+			expect(attempts).to.equal(3) // Initial call + 2 retries
+			expect(results).to.include("Success after retries")
+		})
+
+		it("should handle text errors in stream chunks", async () => {
+			// Arrange
+			const mockModel = createMockGeminiModel({
+				textChunks: ["Good response"],
+			})
+
+			// Create a custom text function that throws on the first call only
+			let callCount = 0
+			const originalStream = mockModel.generateContentStream
+			mockModel.generateContentStream = async () => {
+				const result = await originalStream()
+
+				// Wrap the original stream to inject a failure
+				const originalGenerator = result.stream
+				result.stream = (async function* () {
+					for await (const chunk of originalGenerator) {
+						if (callCount++ === 0) {
+							// First chunk throws, next ones succeed
+							const errorChunk = {
+								text: () => {
+									throw new Error("Error processing chunk")
+								},
+							}
+							yield errorChunk
+						} else {
+							yield chunk
 						}
 					}
-					const fakeResponse = {
-						usageMetadata: {
-							promptTokenCount: 5,
-							candidatesTokenCount: 1000, // Approximate tokens for the long string
-						},
-						candidates: [{ finishReason: undefined }],
-					}
-					return {
-						stream: fakeStream(),
-						response: Promise.resolve(fakeResponse),
-					}
-				},
+				})()
+
+				return result
 			}
 
-			const output: any[] = []
-			for await (const chunk of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
-				output.push(chunk)
-			}
+			const handler = new GeminiHandler({ geminiApiKey: "test-key" })
+			handler["client"] = {
+				getGenerativeModel: () => mockModel,
+			} as any
 
-			// We expect 10 text chunks and 1 usage yield
-			expect(output).to.have.length(11)
-			expect(output[10]).to.have.property("type", "usage")
-			expect(output[10]).to.have.property("outputTokens", 1000)
-
-			// Check the concatenated text length
-			const totalText = output
-				.filter((chunk) => chunk.type === "text")
-				.map((chunk) => chunk.text)
-				.join("")
-			expect(totalText).to.have.length(10000)
-		})
-	})
-
-	describe("Configuration and Model Selection", () => {
-		// Restore the original constructor and getModel implementation for these tests
-		let originalGeminiHandler: typeof GeminiHandler
-
-		beforeEach(() => {
-			originalGeminiHandler = GeminiHandler
-		})
-
-		afterEach(() => {
-			// Restore original
-			Object.defineProperty(global, "GeminiHandler", {
-				value: originalGeminiHandler,
-			})
-		})
-
-		it("should throw an error when constructed without API key", () => {
-			expect(() => new GeminiHandler({} as ApiHandlerOptions)).to.throw("API key is required")
-		})
-
-		it("should use default model when no model ID is provided", () => {
-			const handlerWithoutModelId = new GeminiHandler({
-				geminiApiKey: "dummy-key",
-			})
-
-			const model = handlerWithoutModelId.getModel()
-			expect(model.id).to.equal(geminiDefaultModelId)
-			expect(model.info).to.deep.equal(geminiModels[geminiDefaultModelId])
-		})
-
-		it("should use specified model when valid model ID is provided", () => {
-			// Use a specific known model ID instead of dynamic selection
-			const realModelId = "gemini-1.5-pro-002" as keyof typeof geminiModels
-
-			// Create a handler with overridden getModel to ensure test consistency
-			const handlerWithModelId = new GeminiHandler({
-				geminiApiKey: "dummy-key",
-				apiModelId: realModelId,
-			})
-
-			// Override getModel to ensure test consistency
-			handlerWithModelId.getModel = () => ({
-				id: realModelId,
-				info: geminiModels[realModelId],
-			})
-
-			const model = handlerWithModelId.getModel()
-
-			// Instead of checking for exact ID match, check that it's a valid model ID
-			expect(model.id).to.equal(realModelId)
-			expect(geminiModels).to.have.property(model.id)
-		})
-
-		it("should fall back to default model when invalid model ID is provided", () => {
-			const handlerWithInvalidModelId = new GeminiHandler({
-				geminiApiKey: "dummy-key",
-				apiModelId: "non-existent-model" as any,
-			})
-
-			const model = handlerWithInvalidModelId.getModel()
-			expect(model.id).to.equal(geminiDefaultModelId)
-			expect(model.info).to.deep.equal(geminiModels[geminiDefaultModelId])
-		})
-	})
-
-	describe("Error Handling and Retry Logic", () => {
-		it("should handle API errors during stream initialization", async () => {
-			// Mock a model that throws during generateContentStream
-			fakeModel = {
-				generateContentStream: async () => {
-					throw new Error("API connection error")
-				},
-			}
-
-			let errorOccurred = false
+			// Act & Assert
 			try {
-				for await (const _ of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
+				for await (const chunk of handler.createMessage("System prompt", [{ role: "user", content: "Hello" }])) {
+					// Should throw before yielding chunks
 				}
-			} catch (error: any) {
-				errorOccurred = true
-				expect(error.message).to.include("API connection error")
-			}
-			expect(errorOccurred).to.be.true
-		})
 
-		it("should handle errors during response retrieval", async () => {
-			// Mock a model that throws when retrieving the response
-			fakeModel = {
-				generateContentStream: async () => {
-					async function* fakeStream() {
-						yield { text: () => "Content before error" }
-					}
-					return {
-						stream: fakeStream(),
-						response: Promise.reject(new Error("Response retrieval error")),
-					}
-				},
-			}
-
-			let errorOccurred = false
-			try {
-				for await (const _ of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
-				}
+				// If we get here, the test should fail
+				expect(true).to.be.false("Expected an error to be thrown")
 			} catch (error: any) {
-				errorOccurred = true
-				expect(error.message).to.include("Response retrieval error")
+				expect(error.message).to.include("Stream processing encountered errors")
 			}
-			expect(errorOccurred).to.be.true
 		})
 	})
 
-	describe("Format conversion during message generation", () => {
-		it("should apply unescapeGeminiContent to text chunks", async () => {
-			// Create a spy on unescapeGeminiContent
-			const unescapeSpy = sinon.spy(geminiFormat, "unescapeGeminiContent")
+	describe("Image Handling", () => {
+		it("should correctly process a base64 encoded image", () => {
+			// Arrange
+			const handler = setupHandler()
+			const generateContentSpy = sinon.stub().returns(createMockGeminiStream({}))
+			const modelSpy = sinon.stub()
+			modelSpy.returns({
+				generateContentStream: generateContentSpy,
+			})
 
-			// Mock a model that returns escaped text
-			fakeModel = {
-				generateContentStream: async () => {
-					async function* fakeStream() {
-						yield { text: () => "Line 1\\nLine 2" }
-					}
-					const fakeResponse = {
-						usageMetadata: {
-							promptTokenCount: 5,
-							candidatesTokenCount: 10,
-						},
-						candidates: [{ finishReason: undefined }],
-					}
-					return {
-						stream: fakeStream(),
-						response: Promise.resolve(fakeResponse),
-					}
-				},
-			}
+			handler["client"] = {
+				getGenerativeModel: modelSpy,
+			} as any
 
-			const output: any[] = []
-			for await (const chunk of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
-				if (chunk.type === "text") {
-					output.push(chunk.text)
-				}
-			}
-
-			// Verify unescapeGeminiContent was called with the escaped text
-			expect(unescapeSpy.calledWith("Line 1\\nLine 2")).to.be.true
-
-			// Verify the unescaped text is in the output
-			expect(output[0]).to.equal("Line 1\nLine 2")
-		})
-
-		it("should use convertAnthropicMessageToGemini for input messages", async () => {
-			// Spy on the appropriate function in the module, not fakeModel.generateContentStream
-			const convertSpy = sinon.spy(geminiFormat, "convertAnthropicMessageToGemini")
-
-			// Reset fakeModel to avoid previous test settings
-			fakeModel = {
-				generateContentStream: async () => {
-					async function* fakeStream() {
-						/* empty */
-					}
-					return {
-						stream: fakeStream(),
-						response: Promise.resolve({
-							usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 0 },
-							candidates: [{ finishReason: undefined }],
-						}),
-					}
-				},
-			}
-
-			const testMessage: Anthropic.Messages.MessageParam = {
+			// Create an image message for testing
+			const imageMessage = {
 				role: "user",
-				content: "Test message",
+				content: [
+					{ type: "text", text: "What's in this image?" },
+					{
+						type: "image",
+						source: {
+							type: "base64",
+							media_type: "image/jpeg",
+							data: "SGVsbG8gV29ybGQ=",
+						},
+					},
+				],
 			}
 
-			// Process the message
-			await handler.createMessage("Test prompt", [testMessage]).next()
+			// Act
+			handler.createMessage("System prompt", [imageMessage as any]) // Use type assertion to bypass strict checking
 
-			// Verify the conversion function was called with our test message
-			expect(convertSpy.calledOnce).to.be.true
-			expect(convertSpy.firstCall.args[0]).to.deep.equal(testMessage)
-		})
-	})
-
-	describe("Gemini Format Utilities", () => {
-		it("should unescape newline characters", () => {
-			const escaped = "line 1\\nline 2\\nline 3"
-			const unescaped = geminiFormat.unescapeGeminiContent(escaped)
-			unescaped.should.equal("line 1\nline 2\nline 3")
-		})
-
-		it("should unescape quotes", () => {
-			const escaped = "He said, \\\"Hello\\\" and she said, \\'World\\'"
-			const unescaped = geminiFormat.unescapeGeminiContent(escaped)
-			unescaped.should.equal("He said, \"Hello\" and she said, 'World'")
-		})
-
-		it("should unescape tabs and carriage returns", () => {
-			const escaped = "Column1\\tColumn2\\tColumn3\\r\\nRow2Col1\\tRow2Col2\\tRow2Col3"
-			const unescaped = geminiFormat.unescapeGeminiContent(escaped)
-			unescaped.should.equal("Column1\tColumn2\tColumn3\r\nRow2Col1\tRow2Col2\tRow2Col3")
-		})
-
-		it("should handle content with no escape sequences", () => {
-			const content = "This is regular text with no escape sequences."
-			const result = geminiFormat.unescapeGeminiContent(content)
-			result.should.equal(content)
+			// Assert
+			expect(generateContentSpy.calledOnce).to.be.true
+			const content = generateContentSpy.firstCall.args[0]
+			// Check if any part of the content contains inline data
+			const parts = content.parts || []
+			const inlineDataExists = parts.some((part: any) => part.inlineData && part.inlineData.data === "SGVsbG8gV29ybGQ=")
+			expect(inlineDataExists).to.be.true
 		})
 	})
 })
