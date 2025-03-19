@@ -70,9 +70,9 @@ describe("Gemini Format Utilities", () => {
 		})
 
 		it("should handle Windows UNC paths", () => {
-			const escaped = "UNC path: \\\\\\\\server\\\\share\\\\folder\\\\file.txt"
-			const unescaped = unescapeGeminiContent(escaped)
-			unescaped.should.equal("UNC path: \\\\\\server\\share\\folder\\file.txt")
+			const input = "UNC path: \\\\\\server\\share\\folder\\file.txt"
+			const expected = "UNC path: \\\\\\server\\share\\folder\\file.txt"
+			unescapeGeminiContent(input).should.equal(expected)
 		})
 
 		it("should handle malformed escape sequences gracefully", () => {

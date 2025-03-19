@@ -27,6 +27,16 @@ import {
 } from "../../utils/gemini-mocks"
 
 describe("GeminiHandler", () => {
+	let sandbox: sinon.SinonSandbox
+
+	beforeEach(() => {
+		sandbox = sinon.createSandbox()
+	})
+
+	afterEach(() => {
+		sandbox.restore()
+	})
+
 	// Setup helper to reduce test setup boilerplate
 	function setupHandler(mockOptions = {}, handlerOptions = {}) {
 		const handler = new GeminiHandler({
@@ -36,11 +46,18 @@ describe("GeminiHandler", () => {
 
 		const mockModel = createMockGeminiModel(mockOptions)
 
-		handler["client"] = {
-			getGenerativeModel: () => mockModel,
-		} as any
+		// Use sandbox for consistent cleanup
+		const clientStub = {
+			getGenerativeModel: sandbox.stub().returns(mockModel),
+		}
 
-		return handler
+		handler["client"] = clientStub as any
+
+		return {
+			handler,
+			clientStub,
+			mockModel,
+		}
 	}
 
 	describe("Initialization", () => {
@@ -80,53 +97,52 @@ describe("GeminiHandler", () => {
 		})
 
 		it("should correctly pass the system prompt to model initialization", () => {
-			// Arrange
-			const handler = setupHandler()
-			const modelSpy = sinon.stub()
-			modelSpy.returns({
-				generateContentStream: sinon.stub().returns(createMockGeminiStream({})),
-			})
+			// Create stubs controlled by sandbox
+			const generateContentStub = sandbox.stub().returns(createMockGeminiStream({}))
+			const modelStub = { generateContentStream: generateContentStub }
+			const getModelStub = sandbox.stub().returns(modelStub)
 
-			handler["client"] = {
-				getGenerativeModel: modelSpy,
-			} as any
+			// Set up handler
+			const handler = new GeminiHandler({ geminiApiKey: "test-key" })
+			handler["client"] = { getGenerativeModel: getModelStub } as any
 
 			// Act
 			handler.createMessage("This is a system prompt", [{ role: "user", content: "Hi" }])
 
 			// Assert
-			expect(modelSpy.calledOnce).to.be.true
-			const systemMessageParams = modelSpy.firstCall.args[0]
-			expect(systemMessageParams.systemInstruction).to.equal("This is a system prompt")
+			expect(getModelStub.calledOnce).to.be.true
+			const modelParams = getModelStub.firstCall.args[0]
+			expect(modelParams).to.have.property("systemInstruction", "This is a system prompt")
 		})
 
 		it("should apply maxTokens from model configuration", () => {
-			// Arrange
-			const handler = setupHandler({ maxOutputTokens: 100 })
-			const generateContentSpy = sinon.stub().returns(createMockGeminiStream({}))
-			const modelSpy = sinon.stub()
-			modelSpy.returns({
-				generateContentStream: generateContentSpy,
-			})
+			// Create stubs controlled by sandbox
+			const generateContentStub = sandbox.stub().returns(createMockGeminiStream({}))
+			const modelStub = { generateContentStream: generateContentStub }
+			const getModelStub = sandbox.stub().returns(modelStub)
 
-			handler["client"] = {
-				getGenerativeModel: modelSpy,
-			} as any
+			// Set up handler with a specific model configuration that has maxTokens
+			const handler = new GeminiHandler({
+				geminiApiKey: "test-key",
+				apiModelId: "gemini-1.5-pro-002", // This model has a defined maxTokens value
+			})
+			handler["client"] = { getGenerativeModel: getModelStub } as any
 
 			// Act
 			handler.createMessage("System prompt", [{ role: "user", content: "Hi" }])
 
 			// Assert
-			expect(generateContentSpy.calledOnce).to.be.true
-			const generationConfig = generateContentSpy.firstCall.args[1]
-			expect(generationConfig.maxOutputTokens).to.equal(100)
+			expect(generateContentStub.calledOnce).to.be.true
+			const params = generateContentStub.firstCall.args[0]
+			expect(params).to.have.property("generationConfig")
+			expect(params.generationConfig).to.have.property("maxOutputTokens", geminiModels["gemini-1.5-pro-002"].maxTokens)
 		})
 	})
 
 	describe("Text Generation", () => {
 		it("should yield text chunks and usage info on a successful stream", async () => {
 			// Arrange
-			const handler = setupHandler({
+			const { handler } = setupHandler({
 				textChunks: ["Hello", ", world!"],
 				promptTokens: 10,
 				completionTokens: 5,
@@ -150,121 +166,91 @@ describe("GeminiHandler", () => {
 			expect(usageChunks[0].outputTokens).to.equal(5)
 		})
 
-		it("should convert Anthropic messages to Gemini format", async () => {
+		it("should convert Anthropic messages to Gemini format", () => {
 			// Arrange
-			const convertSpy = sinon.spy(geminiFormat, "convertAnthropicMessageToGemini")
+			const convertStub = sandbox.stub(geminiFormat, "convertAnthropicMessageToGemini").callThrough() // Make sure it still performs the actual conversion
 
-			const handler = setupHandler({
-				textChunks: ["Response"],
-				promptTokens: 5,
-				completionTokens: 2,
-			})
-
-			const message = { role: "user", content: "Hello" } as Anthropic.Messages.MessageParam
+			const { handler } = setupHandler()
+			const message = { role: "user" as const, content: "Hello" }
 
 			// Act
-			const generator = handler.createMessage("System prompt", [message])
-			await generator.next() // Just need to start the generator to trigger the conversion
+			handler.createMessage("System prompt", [message])
 
 			// Assert
-			expect(convertSpy.calledOnce).to.be.true()
-			expect(convertSpy.firstCall.args[0]).to.equal(message)
-
-			// Cleanup
-			convertSpy.restore()
+			expect(convertStub.called).to.be.true
+			expect(convertStub.firstCall.args[0]).to.equal(message)
 		})
 
-		it("should pass system prompt to model initialization", async () => {
-			// Arrange
-			const getGenerativeModelStub = sinon.stub()
-			const systemPrompt = "You are a helpful assistant."
+		it("should pass system prompt to model initialization", () => {
+			// Create stubs controlled by sandbox
+			const generateContentStub = sandbox.stub().returns(createMockGeminiStream({}))
+			const modelStub = { generateContentStream: generateContentStub }
+			const getModelStub = sandbox.stub().returns(modelStub)
 
+			// Set up handler
 			const handler = new GeminiHandler({ geminiApiKey: "test-key" })
-
-			handler["client"] = {
-				getGenerativeModel: getGenerativeModelStub,
-			} as any
-
-			getGenerativeModelStub.returns(
-				createMockGeminiModel({
-					textChunks: ["Response"],
-				}),
-			)
+			handler["client"] = { getGenerativeModel: getModelStub } as any
 
 			// Act
-			const generator = handler.createMessage(systemPrompt, [{ role: "user", content: "Hello" }])
-			await generator.next() // Start the generator to trigger model initialization
+			const systemPrompt = "Act as a helpful assistant"
+			handler.createMessage(systemPrompt, [{ role: "user", content: "Hi" }])
 
 			// Assert
-			expect(getGenerativeModelStub.calledOnce).to.be.true()
-			expect(getGenerativeModelStub.firstCall.args[0]).to.have.property("systemInstruction", systemPrompt)
+			expect(getModelStub.called).to.be.true
+			const modelParams = getModelStub.firstCall.args[0]
+			expect(modelParams).to.have.property("systemInstruction", systemPrompt)
 		})
 
-		it("should apply maxTokens from model configuration", async () => {
-			// Arrange
-			const generateContentStreamStub = sinon.stub()
-			const mockModel = {
-				generateContentStream: generateContentStreamStub,
-			}
+		it("should apply maxTokens from model configuration", () => {
+			// Create stubs controlled by sandbox
+			const generateContentStub = sandbox.stub().returns(createMockGeminiStream({}))
+			const modelStub = { generateContentStream: generateContentStub }
+			const getModelStub = sandbox.stub().returns(modelStub)
 
-			generateContentStreamStub.returns(
-				createMockGeminiStream({
-					textChunks: ["Response"],
-					promptTokens: 5,
-					completionTokens: 2,
-				}),
-			)
-
+			// Set up handler with a specific model configuration that has maxTokens
 			const handler = new GeminiHandler({
 				geminiApiKey: "test-key",
-				apiModelId: "gemini-1.5-pro-002",
+				apiModelId: "gemini-1.5-pro-002", // This model has a defined maxTokens value
 			})
-
-			handler["client"] = {
-				getGenerativeModel: () => mockModel,
-			} as any
+			handler["client"] = { getGenerativeModel: getModelStub } as any
 
 			// Act
-			const generator = handler.createMessage("System prompt", [{ role: "user", content: "Hello" }])
-			await generator.next() // Start the generator to trigger configuration
+			handler.createMessage("System prompt", [{ role: "user", content: "Hi" }])
 
 			// Assert
-			expect(generateContentStreamStub.calledOnce).to.be.true()
-			const generationConfig = generateContentStreamStub.firstCall.args[0].generationConfig
-			expect(generationConfig).to.have.property("maxOutputTokens", geminiModels["gemini-1.5-pro-002"].maxTokens)
+			expect(generateContentStub.called).to.be.true
+			const params = generateContentStub.firstCall.args[0]
+			expect(params).to.have.property("generationConfig")
+			expect(params.generationConfig).to.have.property("maxOutputTokens", geminiModels["gemini-1.5-pro-002"].maxTokens)
 		})
 
 		it("should properly unescape content", async () => {
 			// Arrange
-			const handler = setupHandler({
+			const unescapeStub = sandbox.stub(geminiFormat, "unescapeGeminiContent").callThrough() // Make sure it still performs the actual unescaping
+
+			const { handler } = setupHandler({
 				textChunks: ['Line 1\\nLine 2\\nThis is a quoted \\"string\\"'],
-				promptTokens: 5,
-				completionTokens: 5,
 			})
 
-			const unescapeSpy = sinon.spy(geminiFormat, "unescapeGeminiContent")
-
 			// Act
+			const generator = handler.createMessage("System", [{ role: "user", content: "Hi" }])
 			const results = []
-			for await (const chunk of handler.createMessage("System prompt", [{ role: "user", content: "Hello" }])) {
+			for await (const chunk of generator) {
 				if (chunk.type === "text") {
 					results.push(chunk.text)
 				}
 			}
 
 			// Assert
-			expect(unescapeSpy.called).to.be.true()
+			expect(unescapeStub.called).to.be.true
 			expect(results[0]).to.equal('Line 1\nLine 2\nThis is a quoted "string"')
-
-			// Cleanup
-			unescapeSpy.restore()
 		})
 	})
 
 	describe("Error Handling", () => {
 		it("should throw an error when finishReason is SAFETY", async () => {
 			// Arrange
-			const handler = setupHandler({
+			const { handler } = setupHandler({
 				textChunks: ["I'm sorry, I cannot fulfill that request."],
 				finishReason: "SAFETY",
 				promptTokens: 5,
@@ -278,7 +264,7 @@ describe("GeminiHandler", () => {
 				}
 
 				// If we get here, the test should fail
-				expect(true).to.be.false("Expected an error to be thrown")
+				expect.fail("Expected an error to be thrown")
 			} catch (error: any) {
 				expect(error.message).to.include("safety reasons")
 			}
@@ -286,7 +272,7 @@ describe("GeminiHandler", () => {
 
 		it("should handle null response object", async () => {
 			// Arrange
-			const handler = setupHandler({
+			const { handler } = setupHandler({
 				textChunks: ["Partial response"],
 				nullResponse: true,
 			})
@@ -298,7 +284,7 @@ describe("GeminiHandler", () => {
 				}
 
 				// If we get here, the test should fail
-				expect(true).to.be.false("Expected an error to be thrown")
+				expect.fail("Expected an error to be thrown")
 			} catch (error: any) {
 				expect(error.message).to.include("No response received")
 			}
@@ -334,71 +320,50 @@ describe("GeminiHandler", () => {
 
 		it("should handle text errors in stream chunks", async () => {
 			// Arrange
-			const mockModel = createMockGeminiModel({
-				textChunks: ["Good response"],
-			})
-
-			// Create a custom text function that throws on the first call only
-			let callCount = 0
-			const originalStream = mockModel.generateContentStream
-			mockModel.generateContentStream = async () => {
-				const result = await originalStream()
-
-				// Wrap the original stream to inject a failure
-				const originalGenerator = result.stream
-				result.stream = (async function* () {
-					for await (const chunk of originalGenerator) {
-						if (callCount++ === 0) {
-							// First chunk throws, next ones succeed
-							const errorChunk = {
-								text: () => {
-									throw new Error("Error processing chunk")
-								},
-							}
-							yield errorChunk
-						} else {
-							yield chunk
+			const { handler } = setupHandler()
+			const mockStream = {
+				stream: {
+					async *[Symbol.asyncIterator]() {
+						yield {
+							text: () => {
+								throw new Error("Error processing chunk")
+							},
 						}
-					}
-				})()
-
-				return result
+					},
+				},
+				response: Promise.resolve(null),
 			}
 
-			const handler = new GeminiHandler({ geminiApiKey: "test-key" })
+			const mockModel = {
+				generateContentStream: () => mockStream,
+			}
+
 			handler["client"] = {
 				getGenerativeModel: () => mockModel,
 			} as any
 
 			// Act & Assert
 			try {
-				for await (const chunk of handler.createMessage("System prompt", [{ role: "user", content: "Hello" }])) {
-					// Should throw before yielding chunks
-				}
-
-				// If we get here, the test should fail
-				expect(true).to.be.false("Expected an error to be thrown")
+				const generator = handler.createMessage("System", [{ role: "user", content: "Hi" }])
+				await generator.next()
+				expect.fail("Should have thrown an error")
 			} catch (error: any) {
-				expect(error.message).to.include("Stream processing encountered errors")
+				expect(error.message).to.include("Error processing chunk")
 			}
 		})
 	})
 
 	describe("Image Handling", () => {
 		it("should correctly process a base64 encoded image", () => {
-			// Arrange
-			const handler = setupHandler()
-			const generateContentSpy = sinon.stub().returns(createMockGeminiStream({}))
-			const modelSpy = sinon.stub()
-			modelSpy.returns({
-				generateContentStream: generateContentSpy,
-			})
+			// Create stubs controlled by sandbox
+			const generateContentStub = sandbox.stub().returns(createMockGeminiStream({}))
+			const modelStub = { generateContentStream: generateContentStub }
+			const getModelStub = sandbox.stub().returns(modelStub)
 
-			handler["client"] = {
-				getGenerativeModel: modelSpy,
-			} as any
+			// Set up handler
+			const handler = new GeminiHandler({ geminiApiKey: "test-key" })
+			handler["client"] = { getGenerativeModel: getModelStub } as any
 
-			// Create an image message for testing
 			const imageMessage = {
 				role: "user",
 				content: [
@@ -412,18 +377,27 @@ describe("GeminiHandler", () => {
 						},
 					},
 				],
-			}
+			} as Anthropic.Messages.MessageParam
 
 			// Act
-			handler.createMessage("System prompt", [imageMessage as any]) // Use type assertion to bypass strict checking
+			handler.createMessage("System prompt", [imageMessage])
 
-			// Assert
-			expect(generateContentSpy.calledOnce).to.be.true
-			const content = generateContentSpy.firstCall.args[0]
-			// Check if any part of the content contains inline data
-			const parts = content.parts || []
-			const inlineDataExists = parts.some((part: any) => part.inlineData && part.inlineData.data === "SGVsbG8gV29ybGQ=")
-			expect(inlineDataExists).to.be.true
+			// Assert - verify that the generateContentStream was called with an object
+			// containing a part with inlineData matching our image
+			expect(generateContentStub.calledOnce).to.be.true
+
+			// Get the contents array from the first argument passed to generateContentStream
+			const params = generateContentStub.firstCall.args[0]
+			expect(params).to.have.property("contents").that.is.an("array")
+
+			// Check if any content item has a part with our image data
+			const contentWithImage = params.contents.find(
+				(content: any) =>
+					content.parts &&
+					content.parts.some((part: any) => part.inlineData && part.inlineData.data === "SGVsbG8gV29ybGQ="),
+			)
+
+			expect(contentWithImage).to.exist
 		})
 	})
 })

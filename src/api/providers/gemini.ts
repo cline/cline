@@ -31,7 +31,11 @@ import { GoogleGenerativeAI } from "@google/generative-ai"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, geminiDefaultModelId, GeminiModelId, geminiModels, ModelInfo } from "../../shared/api"
-import { convertAnthropicMessageToGemini, unescapeGeminiContent } from "../transform/gemini-format"
+import {
+	convertAnthropicMessageToGemini,
+	convertAnthropicContentToGemini,
+	unescapeGeminiContent,
+} from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
 /**
@@ -123,16 +127,24 @@ export class GeminiHandler implements ApiHandler {
 	 */
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const modelId = this.getModel().id
+		const maxTokens = this.getModel().info.maxTokens
+
+		// Set up the model with system instruction
 		const model = this.client.getGenerativeModel({
-			model: this.getModel().id,
-			systemInstruction: systemPrompt,
+			model: modelId,
+			systemInstruction: systemPrompt, // Pass system prompt correctly
 		})
 
 		try {
+			// Convert messages to Gemini format
+			const contents = messages.map(convertAnthropicMessageToGemini)
+
+			// Set up generation config with maxTokens
 			const result = await model.generateContentStream({
-				contents: messages.map(convertAnthropicMessageToGemini),
+				contents,
 				generationConfig: {
-					maxOutputTokens: this.getModel().info.maxTokens,
+					maxOutputTokens: maxTokens, // Pass maxTokens from model configuration
 					temperature: 0, // Consistent with other handlers in the codebase
 				},
 			})
