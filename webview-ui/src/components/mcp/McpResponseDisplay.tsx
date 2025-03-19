@@ -120,7 +120,6 @@ interface UrlMatch {
 	isProcessed: boolean // Whether we've already processed this URL (to avoid duplicates)
 }
 
-
 const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
 	const [isLoading, setIsLoading] = useState(true)
 	const [displayMode, setDisplayMode] = useState<"rich" | "plain">(() => {
@@ -348,8 +347,8 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 								// Use a unique key that includes the URL to ensure each preview is isolated
 								segments.push(
 									<div key={`embed-${url}-${segmentIndex++}`} style={{ margin: "10px 0" }}>
-                                        {/* Already using formatUrlForOpening for link previews */}
-                                        <LinkPreview url={formatUrlForOpening(url)} />
+										{/* Already using formatUrlForOpening for link previews */}
+										<LinkPreview url={formatUrlForOpening(url)} />
 									</div>,
 								)
 
