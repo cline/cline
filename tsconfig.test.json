@@ -17,6 +17,6 @@
 		"strict": true,
 		"types": ["node", "mocha", "chai", "should"]
 	},
-	"include": ["src/test/**/*.ts"],
+	"include": ["src/test/**/*.ts", "src/utils/**/*.test.ts"],
 	"exclude": ["node_modules", "**/*.d.ts"]
 }
