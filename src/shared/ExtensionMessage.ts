@@ -38,6 +38,7 @@ export interface ExtensionMessage {
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
+		| "totalTasksSize"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -77,6 +78,7 @@ export interface ExtensionMessage {
 	userCreditsBalance?: BalanceResponse
 	userCreditsUsage?: UsageTransaction[]
 	userCreditsPayments?: PaymentTransaction[]
+	totalTasksSize?: number | null
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -86,27 +88,27 @@ export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sun
 export const DEFAULT_PLATFORM = "unknown"
 
 export interface ExtensionState {
-	version: string
 	apiConfiguration?: ApiConfiguration
-	customInstructions?: string
-	uriScheme?: string
-	currentTaskItem?: HistoryItem
-	checkpointTrackerErrorMessage?: string
-	clineMessages: ClineMessage[]
-	taskHistory: HistoryItem[]
-	shouldShowAnnouncement: boolean
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
+	checkpointTrackerErrorMessage?: string
+	clineMessages: ClineMessage[]
+	currentTaskItem?: HistoryItem
+	customInstructions?: string
+	mcpMarketplaceEnabled?: boolean
+	planActSeparateModelsSetting: boolean
 	platform: Platform
+	shouldShowAnnouncement: boolean
+	taskHistory: HistoryItem[]
+	telemetrySetting: TelemetrySetting
+	uriScheme?: string
 	userInfo?: {
 		displayName: string | null
 		email: string | null
 		photoURL: string | null
 	}
-	mcpMarketplaceEnabled?: boolean
-	telemetrySetting: TelemetrySetting
-	planActSeparateModelsSetting: boolean
+	version: string
 	vscMachineId: string
 }
 
