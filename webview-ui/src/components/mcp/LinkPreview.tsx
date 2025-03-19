@@ -2,42 +2,7 @@ import React, { useEffect, useState } from "react"
 import { vscode } from "../../utils/vscode"
 import DOMPurify from "dompurify"
 import { getSafeHostname, normalizeRelativeUrl } from "./McpRichUtil"
-
-// Error boundary component to prevent crashes
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
-	constructor(props: { children: React.ReactNode }) {
-		super(props)
-		this.state = { hasError: false, error: null }
-	}
-
-	static getDerivedStateFromError(error: Error) {
-		return { hasError: true, error }
-	}
-
-	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-		console.log("Error in LinkPreview component:", error.message)
-	}
-
-	render() {
-		if (this.state.hasError) {
-			return (
-				<div
-					style={{
-						padding: "12px",
-						color: "var(--vscode-errorForeground)",
-						height: "128px",
-						maxWidth: "512px",
-						overflow: "auto",
-					}}>
-					<h3>Something went wrong displaying this link preview</h3>
-					<p>Error: {this.state.error?.message || "Unknown error"}</p>
-				</div>
-			)
-		}
-
-		return this.props.children
-	}
-}
+import ChatErrorBoundary from "../chat/ChatErrorBoundary"
 
 interface OpenGraphData {
 	title?: string
@@ -310,37 +275,35 @@ class LinkPreview extends React.Component<
 				}}>
 				{data.image && (
 					<div className="link-preview-image" style={{ width: "128px", height: "128px", flexShrink: 0 }}>
-						<ErrorBoundary>
-							<img
-								src={DOMPurify.sanitize(normalizeRelativeUrl(data.image, url))}
-								alt=""
-								style={{
-									width: "100%",
-									height: "100%",
-									objectFit: "contain", // Use contain for link preview thumbnails to handle logos
-									objectPosition: "center", // Center the image
-								}}
-								onLoad={(e) => {
-									// Check aspect ratio to determine if we should use contain or cover
-									const img = e.currentTarget
-									if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-										const aspectRatio = img.naturalWidth / img.naturalHeight
+						<img
+							src={DOMPurify.sanitize(normalizeRelativeUrl(data.image, url))}
+							alt=""
+							style={{
+								width: "100%",
+								height: "100%",
+								objectFit: "contain", // Use contain for link preview thumbnails to handle logos
+								objectPosition: "center", // Center the image
+							}}
+							onLoad={(e) => {
+								// Check aspect ratio to determine if we should use contain or cover
+								const img = e.currentTarget
+								if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+									const aspectRatio = img.naturalWidth / img.naturalHeight
 
-										// Use contain for extreme aspect ratios (logos), cover for photos
-										if (aspectRatio > 2.5 || aspectRatio < 0.4) {
-											img.style.objectFit = "contain"
-										} else {
-											img.style.objectFit = "cover"
-										}
+									// Use contain for extreme aspect ratios (logos), cover for photos
+									if (aspectRatio > 2.5 || aspectRatio < 0.4) {
+										img.style.objectFit = "contain"
+									} else {
+										img.style.objectFit = "cover"
 									}
-								}}
-								onError={(e) => {
-									console.log(`Image could not be loaded: ${data.image}`)
-									// Hide the broken image
-									;(e.target as HTMLImageElement).style.display = "none"
-								}}
-							/>
-						</ErrorBoundary>
+								}
+							}}
+							onError={(e) => {
+								console.log(`Image could not be loaded: ${data.image}`)
+								// Hide the broken image
+								;(e.target as HTMLImageElement).style.display = "none"
+							}}
+						/>
 					</div>
 				)}
 
@@ -420,9 +383,9 @@ const MemoizedLinkPreview = React.memo(
 // Wrap the LinkPreview component with an error boundary
 const LinkPreviewWithErrorBoundary: React.FC<LinkPreviewProps> = (props) => {
 	return (
-		<ErrorBoundary>
+		<ChatErrorBoundary errorTitle="Something went wrong displaying this link preview">
 			<MemoizedLinkPreview {...props} />
-		</ErrorBoundary>
+		</ChatErrorBoundary>
 	)
 }
 
