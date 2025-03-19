@@ -230,8 +230,6 @@
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
 		"test": "npm run test:all",
-		"test:discover": "node src/test/basic-test-runner.js",
-		"test:setup-discovery": "node src/test/setup-test-discovery.js",
 		"test:update-mocks": "mkdir -p out\\test\\mock 2>nul || (exit 0) && tsc -p ./tsconfig.test.json --outDir out",
 		"test:coverage": "nyc --reporter=lcov --reporter=text npm run test:all",
 		"test:path": "npm run compile-tests && node src/test/run-path-tests.js",
@@ -253,8 +251,7 @@
 		"publish:marketplace:prerelease": "vsce publish --pre-release && ovsx publish --pre-release",
 		"prepare": "husky",
 		"changeset": "changeset",
-		"version-packages": "changeset version",
-		"test:verify": "node src/test/verify-test-setup.js"
+		"version-packages": "changeset version"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.12",
