@@ -13,7 +13,7 @@ export function formatLargeNumber(num: number): string {
 
 // Helper to format cents as dollars with 2 decimal places
 export function formatDollars(cents?: number): string {
-	if (!cents) {
+	if (cents === undefined) {
 		return ""
 	}
 
