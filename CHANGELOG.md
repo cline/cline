@@ -1,6 +1,10 @@
 # Roo Code Changelog
 
-## 3.9.0 - 2025-03-18
+## [3.9.1] - 2025-03-18
+
+- Pass current language to system prompt correctly so Roo thinks and speaks in the selected language
+
+## [3.9.0] - 2025-03-18
 
 - Internationalize Roo Code into Catalan, German, Spanish, French, Hindi, Italian, Japanese, Korean, Polish, Portuguese, Turkish, Vietnamese, Simplified Chinese, and Traditional Chinese (thanks @feifei325!)
 - Bring back support for MCP over SSE (thanks @aheizi!)
