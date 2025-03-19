@@ -134,8 +134,6 @@ const ChatRow = memo(
 export default ChatRow
 
 export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
-	// Add demo error component at the top for review - will be removed later
-	const showDemoError = message.type === "say" && message.say === "text" && !message.partial
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
@@ -796,11 +794,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 				case "api_req_finished":
 					return null // we should never see this message type
 				case "mcp_server_response":
-					return (
-						<div>
-							<McpResponseDisplay responseText={message.text || ""} />
-						</div>
-					)
+					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
 					return (
 						<div>
