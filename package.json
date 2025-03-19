@@ -256,8 +256,7 @@
 		"changeset": "changeset",
 		"version-packages": "changeset version",
 		"test:verify": "node src/test/verify-test-setup.js",
-		"test:master": "node src/test/run-master-tests.js",
-		"test:vscode": "node src/test/vscode-test-loader.js"
+		"test:master": "node src/test/run-master-tests.js"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.12",

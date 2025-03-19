@@ -58,13 +58,10 @@
 		},
 		{
 			"name": "Run All Tests",
-			"type": "extensionHost",
+			"type": "node",
 			"request": "launch",
-			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--extensionTestsPath=${workspaceFolder}/out/test/suite/index.js"
-			],
-			"outFiles": ["${workspaceFolder}/out/**/*.js"],
+			"program": "${workspaceFolder}/src/test/run-all-tests.js",
+			"skipFiles": ["<node_internals>/**"],
 			"preLaunchTask": "npm: compile-tests",
 			"env": {
 				"TEST_MODE": "true"
