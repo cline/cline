@@ -32,13 +32,13 @@
 
 </div>
 
-**Roo Code** est un **agent de codage autonome** alimenté par l'IA qui réside dans votre éditeur. Il peut :
+**Roo Code** est un **agent de programmation autonome** propulsé par l'IA, au cœur de votre éditeur. Il peut :
 
 - Communiquer en langage naturel
 - Lire et écrire des fichiers directement dans votre espace de travail
 - Exécuter des commandes terminal
 - Automatiser des actions de navigateur
-- S'intégrer avec n'importe quelle API/modèle compatible OpenAI ou personnalisé
+- S'intégrer avec n'importe quelle modèle/API compatible OpenAI
 - Adapter sa "personnalité" et ses capacités grâce aux **Modes Personnalisés**
 
 Que vous recherchiez un partenaire de codage flexible, un architecte système, ou des rôles spécialisés comme un ingénieur QA ou un chef de produit, Roo Code peut vous aider à développer des logiciels plus efficacement.
@@ -62,7 +62,7 @@ Roo Code 3.9 devient international !
 ## Que peut faire Roo Code ?
 
 - 🚀 **Générer du code** à partir de descriptions en langage naturel
-- 🔧 **Refactoriser et déboguer** du code existant
+- 🔧 **Refactoriser et déboguer** du code
 - 📝 **Écrire et mettre à jour** de la documentation
 - 🤔 **Répondre aux questions** sur votre base de code
 - 🔄 **Automatiser** des tâches répétitives
@@ -110,7 +110,7 @@ Faites fonctionner Roo Code à votre manière avec :
 
 ### Documentation
 
-- [Guide d'utilisation de base](https://docs.roocode.com/basic-usage/the-chat-interface)
+- [Guide d'utilisation](https://docs.roocode.com/basic-usage/the-chat-interface)
 - [Fonctionnalités avancées](https://docs.roocode.com/advanced-usage/auto-approving-actions)
 - [Foire aux questions](https://docs.roocode.com/faq)
 
