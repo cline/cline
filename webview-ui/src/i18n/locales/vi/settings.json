@@ -370,5 +370,51 @@
 	"thinkingBudget": {
 		"maxTokens": "Tokens tối đa",
 		"maxThinkingTokens": "Tokens suy nghĩ tối đa"
+	},
+	"validation": {
+		"apiKey": "Bạn phải cung cấp khóa API hợp lệ.",
+		"awsRegion": "Bạn phải chọn một vùng để sử dụng AWS Bedrock.",
+		"googleCloud": "Bạn phải cung cấp ID dự án và vùng Google Cloud hợp lệ.",
+		"modelId": "Bạn phải cung cấp ID mô hình hợp lệ.",
+		"modelSelector": "Bạn phải cung cấp bộ chọn mô hình hợp lệ.",
+		"openAi": "Bạn phải cung cấp URL cơ sở, khóa API và ID mô hình hợp lệ.",
+		"arn": {
+			"invalidFormat": "Định dạng ARN không hợp lệ. Vui lòng kiểm tra yêu cầu về định dạng.",
+			"regionMismatch": "Cảnh báo: Vùng trong ARN của bạn ({{arnRegion}}) không khớp với vùng bạn đã chọn ({{region}}). Điều này có thể gây ra vấn đề truy cập. Nhà cung cấp sẽ sử dụng vùng từ ARN."
+		},
+		"modelAvailability": "ID mô hình ({{modelId}}) bạn đã cung cấp không khả dụng. Vui lòng chọn một mô hình khác."
+	},
+	"placeholders": {
+		"apiKey": "Nhập khóa API...",
+		"profileName": "Nhập tên hồ sơ",
+		"accessKey": "Nhập khóa truy cập...",
+		"secretKey": "Nhập khóa bí mật...",
+		"sessionToken": "Nhập token phiên...",
+		"credentialsJson": "Nhập JSON thông tin xác thực...",
+		"keyFilePath": "Nhập đường dẫn tệp khóa...",
+		"projectId": "Nhập ID dự án...",
+		"customArn": "Nhập ARN (vd: arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Nhập URL cơ sở...",
+		"modelId": {
+			"lmStudio": "vd: meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "vd: lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "vd: llama3.1"
+		},
+		"numbers": {
+			"maxTokens": "vd: 4096",
+			"contextWindow": "vd: 128000",
+			"inputPrice": "vd: 0.0001",
+			"outputPrice": "vd: 0.0002",
+			"cacheWritePrice": "vd: 0.00005"
+		}
+	},
+	"defaults": {
+		"ollamaUrl": "Mặc định: http://localhost:11434",
+		"lmStudioUrl": "Mặc định: http://localhost:1234",
+		"geminiUrl": "Mặc định: https://generativelanguage.googleapis.com"
+	},
+	"labels": {
+		"customArn": "ARN tùy chỉnh",
+		"useCustomArn": "Sử dụng ARN tùy chỉnh..."
 	}
 }

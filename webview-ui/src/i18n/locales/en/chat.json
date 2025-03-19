@@ -196,6 +196,18 @@
 			}
 		}
 	},
+	"announcement": {
+		"title": "🎉 Roo Code 3.9 Released",
+		"description": "Roo Code has gone international in 3.9!",
+		"whatsNew": "What's New",
+		"feature1": "Translations for 14 languages",
+		"feature2": "MCP over SSE",
+		"feature3": "Batch delete task history",
+		"feature4": "Text-to-speech",
+		"feature5": "OpenRouter provider selection",
+		"hideButton": "Hide announcement",
+		"detailsDiscussLinks": "Get more details and discuss in <discordLink>Discord</discordLink> and <redditLink>Reddit</redditLink> 🚀"
+	},
 	"reasoning": {
 		"thinking": "Thinking",
 		"seconds": "{{count}}s"

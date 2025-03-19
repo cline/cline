@@ -1,5 +1,7 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
+import { useAppTranslation } from "@/i18n/TranslationContext"
+import { Trans } from "react-i18next"
 
 interface AnnouncementProps {
 	version: string
@@ -9,6 +11,36 @@ interface AnnouncementProps {
 You must update the latestAnnouncementId in ClineProvider for new announcements to show to users. This new id will be compared with whats in state for the 'last announcement shown', and if it's different then the announcement will render. As soon as an announcement is shown, the id will be updated in state. This ensures that announcements are not shown more than once, even if the user doesn't close it themselves.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
+	const { t } = useAppTranslation()
+
+	const discordLink = (
+		<VSCodeLink
+			href="https://discord.gg/roocode"
+			onClick={(e) => {
+				e.preventDefault()
+				window.postMessage(
+					{ type: "action", action: "openExternal", data: { url: "https://discord.gg/roocode" } },
+					"*",
+				)
+			}}>
+			Discord
+		</VSCodeLink>
+	)
+
+	const redditLink = (
+		<VSCodeLink
+			href="https://reddit.com/r/RooCode"
+			onClick={(e) => {
+				e.preventDefault()
+				window.postMessage(
+					{ type: "action", action: "openExternal", data: { url: "https://reddit.com/r/RooCode" } },
+					"*",
+				)
+			}}>
+			Reddit
+		</VSCodeLink>
+	)
+
 	return (
 		<div
 			style={{
@@ -22,56 +54,33 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<VSCodeButton
 				appearance="icon"
 				onClick={hideAnnouncement}
-				title="Hide announcement"
+				title={t("chat:announcement.hideButton")}
 				style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
-			<h2 style={{ margin: "0 0 8px" }}>🎉{"  "}Roo Code 3.8 Released</h2>
+			<h2 style={{ margin: "0 0 8px" }}>{t("chat:announcement.title")}</h2>
 
-			<p style={{ margin: "5px 0px" }}>
-				Roo Code 3.8 is out with performance boosts, new features, and bug fixes.
-			</p>
+			<p style={{ margin: "5px 0px" }}>{t("chat:announcement.description")}</p>
 
-			<h3 style={{ margin: "12px 0 8px" }}>What's New</h3>
+			<h3 style={{ margin: "12px 0 8px" }}>{t("chat:announcement.whatsNew")}</h3>
 			<div style={{ margin: "5px 0px" }}>
 				<ul style={{ margin: "4px 0 6px 20px", padding: 0 }}>
-					<li>• Faster asynchronous checkpoints</li>
-					<li>• Support for .rooignore files</li>
-					<li>• Fixed terminal & gray screen issues</li>
-					<li>• Roo Code can run in multiple windows</li>
-					<li>• Experimental multi-diff editing strategy</li>
-					<li>• Subtask to parent task communication</li>
-					<li>• Updated DeepSeek provider</li>
-					<li>• New "Human Relay" provider</li>
+					<li>• {t("chat:announcement.feature1")}</li>
+					<li>• {t("chat:announcement.feature2")}</li>
+					<li>• {t("chat:announcement.feature3")}</li>
+					<li>• {t("chat:announcement.feature4")}</li>
+					<li>• {t("chat:announcement.feature5")}</li>
 				</ul>
 			</div>
 
 			<p style={{ margin: "10px 0px 0px" }}>
-				Get more details and discuss in{" "}
-				<VSCodeLink
-					href="https://discord.gg/roocode"
-					onClick={(e) => {
-						e.preventDefault()
-						window.postMessage(
-							{ type: "action", action: "openExternal", data: { url: "https://discord.gg/roocode" } },
-							"*",
-						)
-					}}>
-					Discord
-				</VSCodeLink>{" "}
-				and{" "}
-				<VSCodeLink
-					href="https://reddit.com/r/RooCode"
-					onClick={(e) => {
-						e.preventDefault()
-						window.postMessage(
-							{ type: "action", action: "openExternal", data: { url: "https://reddit.com/r/RooCode" } },
-							"*",
-						)
-					}}>
-					Reddit
-				</VSCodeLink>{" "}
-				🚀
+				<Trans
+					i18nKey="chat:announcement.detailsDiscussLinks"
+					components={{
+						discordLink: discordLink,
+						redditLink: redditLink,
+					}}
+				/>
 			</p>
 		</div>
 	)

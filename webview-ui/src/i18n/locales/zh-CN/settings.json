@@ -370,5 +370,51 @@
 	"thinkingBudget": {
 		"maxTokens": "最大 tokens",
 		"maxThinkingTokens": "最大思考 tokens"
+	},
+	"validation": {
+		"apiKey": "您必须提供有效的 API 密钥。",
+		"awsRegion": "您必须选择一个区域来使用 AWS Bedrock。",
+		"googleCloud": "您必须提供有效的 Google Cloud 项目 ID 和区域。",
+		"modelId": "您必须提供有效的模型 ID。",
+		"modelSelector": "您必须提供有效的模型选择器。",
+		"openAi": "您必须提供有效的基础 URL、API 密钥和模型 ID。",
+		"arn": {
+			"invalidFormat": "ARN 格式无效。请检查格式要求。",
+			"regionMismatch": "警告：您的 ARN 中的区域 ({{arnRegion}}) 与您选择的区域 ({{region}}) 不匹配。这可能会导致访问问题。提供程序将使用 ARN 中的区域。"
+		},
+		"modelAvailability": "您提供的模型 ID ({{modelId}}) 不可用。请选择其他模型。"
+	},
+	"placeholders": {
+		"apiKey": "请输入 API 密钥...",
+		"profileName": "请输入配置文件名称",
+		"accessKey": "请输入访问密钥...",
+		"secretKey": "请输入密钥...",
+		"sessionToken": "请输入会话令牌...",
+		"credentialsJson": "请输入凭证 JSON...",
+		"keyFilePath": "请输入密钥文件路径...",
+		"projectId": "请输入项目 ID...",
+		"customArn": "请输入 ARN（例：arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model）",
+		"baseUrl": "请输入基础 URL...",
+		"modelId": {
+			"lmStudio": "例：meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "例：lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "例：llama3.1"
+		},
+		"numbers": {
+			"maxTokens": "例：4096",
+			"contextWindow": "例：128000",
+			"inputPrice": "例：0.0001",
+			"outputPrice": "例：0.0002",
+			"cacheWritePrice": "例：0.00005"
+		}
+	},
+	"defaults": {
+		"ollamaUrl": "默认值：http://localhost:11434",
+		"lmStudioUrl": "默认值：http://localhost:1234",
+		"geminiUrl": "默认值：https://generativelanguage.googleapis.com"
+	},
+	"labels": {
+		"customArn": "自定义 ARN",
+		"useCustomArn": "使用自定义 ARN..."
 	}
 }

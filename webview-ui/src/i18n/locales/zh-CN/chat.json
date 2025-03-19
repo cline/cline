@@ -199,5 +199,17 @@
 	"reasoning": {
 		"thinking": "思考中",
 		"seconds": "{{count}}秒"
+	},
+	"announcement": {
+		"title": "🎉 Roo Code 3.9 Released",
+		"description": "Roo Code在3.9版本中实现了国际化！",
+		"whatsNew": "新特性",
+		"feature1": "14种语言的翻译",
+		"feature2": "通过SSE的MCP",
+		"feature3": "批量删除任务历史",
+		"feature4": "文字转语音",
+		"feature5": "OpenRouter提供商选择",
+		"hideButton": "隐藏公告",
+		"detailsDiscussLinks": "在<discordLink>Discord</discordLink>和<redditLink>Reddit</redditLink>获取更多详情并参与讨论 🚀"
 	}
 }

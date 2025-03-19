@@ -370,5 +370,51 @@
 	"thinkingBudget": {
 		"maxTokens": "Tokens màxims",
 		"maxThinkingTokens": "Tokens de pensament màxims"
+	},
+	"validation": {
+		"apiKey": "Heu de proporcionar una clau API vàlida.",
+		"awsRegion": "Heu de triar una regió per utilitzar AWS Bedrock.",
+		"googleCloud": "Heu de proporcionar un ID de projecte i regió de Google Cloud vàlids.",
+		"modelId": "Heu de proporcionar un ID de model vàlid.",
+		"modelSelector": "Heu de proporcionar un selector de model vàlid.",
+		"openAi": "Heu de proporcionar una URL base, clau API i ID de model vàlids.",
+		"arn": {
+			"invalidFormat": "Format ARN no vàlid. Si us plau, comproveu els requisits del format.",
+			"regionMismatch": "Avís: La regió del vostre ARN ({{arnRegion}}) no coincideix amb la regió seleccionada ({{region}}). Això pot causar problemes d'accés. El proveïdor utilitzarà la regió de l'ARN."
+		},
+		"modelAvailability": "L'ID de model ({{modelId}}) que heu proporcionat no està disponible. Si us plau, trieu un altre model."
+	},
+	"placeholders": {
+		"apiKey": "Introduïu la clau API...",
+		"profileName": "Introduïu el nom del perfil",
+		"accessKey": "Introduïu la clau d'accés...",
+		"secretKey": "Introduïu la clau secreta...",
+		"sessionToken": "Introduïu el token de sessió...",
+		"credentialsJson": "Introduïu el JSON de credencials...",
+		"keyFilePath": "Introduïu la ruta del fitxer de clau...",
+		"projectId": "Introduïu l'ID del projecte...",
+		"customArn": "Introduïu l'ARN (p. ex. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Introduïu l'URL base...",
+		"modelId": {
+			"lmStudio": "p. ex. meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "p. ex. lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "p. ex. llama3.1"
+		},
+		"numbers": {
+			"maxTokens": "p. ex. 4096",
+			"contextWindow": "p. ex. 128000",
+			"inputPrice": "p. ex. 0.0001",
+			"outputPrice": "p. ex. 0.0002",
+			"cacheWritePrice": "p. ex. 0.00005"
+		}
+	},
+	"defaults": {
+		"ollamaUrl": "Per defecte: http://localhost:11434",
+		"lmStudioUrl": "Per defecte: http://localhost:1234",
+		"geminiUrl": "Per defecte: https://generativelanguage.googleapis.com"
+	},
+	"labels": {
+		"customArn": "ARN personalitzat",
+		"useCustomArn": "Utilitza ARN personalitzat..."
 	}
 }

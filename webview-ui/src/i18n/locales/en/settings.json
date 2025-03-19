@@ -369,5 +369,51 @@
 	"thinkingBudget": {
 		"maxTokens": "Max Tokens",
 		"maxThinkingTokens": "Max Thinking Tokens"
+	},
+	"validation": {
+		"apiKey": "You must provide a valid API key.",
+		"awsRegion": "You must choose a region to use with AWS Bedrock.",
+		"googleCloud": "You must provide a valid Google Cloud Project ID and Region.",
+		"modelId": "You must provide a valid model ID.",
+		"modelSelector": "You must provide a valid model selector.",
+		"openAi": "You must provide a valid base URL, API key, and model ID.",
+		"arn": {
+			"invalidFormat": "Invalid ARN format. Please check the format requirements.",
+			"regionMismatch": "Warning: The region in your ARN ({{arnRegion}}) does not match your selected region ({{region}}). This may cause access issues. The provider will use the region from the ARN."
+		},
+		"modelAvailability": "The model ID ({{modelId}}) you provided is not available. Please choose a different model."
+	},
+	"placeholders": {
+		"apiKey": "Enter API Key...",
+		"profileName": "Enter profile name",
+		"accessKey": "Enter Access Key...",
+		"secretKey": "Enter Secret Key...",
+		"sessionToken": "Enter Session Token...",
+		"credentialsJson": "Enter Credentials JSON...",
+		"keyFilePath": "Enter Key File Path...",
+		"projectId": "Enter Project ID...",
+		"customArn": "Enter ARN (e.g. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Enter base URL...",
+		"modelId": {
+			"lmStudio": "e.g. meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "e.g. lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "e.g. llama3.1"
+		},
+		"numbers": {
+			"maxTokens": "e.g. 4096",
+			"contextWindow": "e.g. 128000",
+			"inputPrice": "e.g. 0.0001",
+			"outputPrice": "e.g. 0.0002",
+			"cacheWritePrice": "e.g. 0.00005"
+		}
+	},
+	"defaults": {
+		"ollamaUrl": "Default: http://localhost:11434",
+		"lmStudioUrl": "Default: http://localhost:1234",
+		"geminiUrl": "Default: https://generativelanguage.googleapis.com"
+	},
+	"labels": {
+		"customArn": "Custom ARN",
+		"useCustomArn": "Use custom ARN..."
 	}
 }

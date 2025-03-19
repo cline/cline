@@ -370,5 +370,51 @@
 	"thinkingBudget": {
 		"maxTokens": "Token massimi",
 		"maxThinkingTokens": "Token massimi di pensiero"
+	},
+	"validation": {
+		"apiKey": "È necessario fornire una chiave API valida.",
+		"awsRegion": "È necessario scegliere una regione per utilizzare AWS Bedrock.",
+		"googleCloud": "È necessario fornire un ID progetto e una regione Google Cloud validi.",
+		"modelId": "È necessario fornire un ID modello valido.",
+		"modelSelector": "È necessario fornire un selettore di modello valido.",
+		"openAi": "È necessario fornire un URL base, una chiave API e un ID modello validi.",
+		"arn": {
+			"invalidFormat": "Formato ARN non valido. Verificare i requisiti del formato.",
+			"regionMismatch": "Attenzione: La regione nel tuo ARN ({{arnRegion}}) non corrisponde alla regione selezionata ({{region}}). Questo potrebbe causare problemi di accesso. Il provider utilizzerà la regione dall'ARN."
+		},
+		"modelAvailability": "L'ID modello ({{modelId}}) fornito non è disponibile. Seleziona un modello diverso."
+	},
+	"placeholders": {
+		"apiKey": "Inserisci chiave API...",
+		"profileName": "Inserisci nome profilo",
+		"accessKey": "Inserisci chiave di accesso...",
+		"secretKey": "Inserisci chiave segreta...",
+		"sessionToken": "Inserisci token di sessione...",
+		"credentialsJson": "Inserisci JSON delle credenziali...",
+		"keyFilePath": "Inserisci percorso file chiave...",
+		"projectId": "Inserisci ID progetto...",
+		"customArn": "Inserisci ARN (es. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Inserisci URL base...",
+		"modelId": {
+			"lmStudio": "es. meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "es. lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "es. llama3.1"
+		},
+		"numbers": {
+			"maxTokens": "es. 4096",
+			"contextWindow": "es. 128000",
+			"inputPrice": "es. 0.0001",
+			"outputPrice": "es. 0.0002",
+			"cacheWritePrice": "es. 0.00005"
+		}
+	},
+	"defaults": {
+		"ollamaUrl": "Predefinito: http://localhost:11434",
+		"lmStudioUrl": "Predefinito: http://localhost:1234",
+		"geminiUrl": "Predefinito: https://generativelanguage.googleapis.com"
+	},
+	"labels": {
+		"customArn": "ARN personalizzato",
+		"useCustomArn": "Usa ARN personalizzato..."
 	}
 }

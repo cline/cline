@@ -199,5 +199,17 @@
 	"reasoning": {
 		"thinking": "考え中",
 		"seconds": "{{count}}秒"
+	},
+	"announcement": {
+		"title": "🎉 Roo Code 3.9 Released",
+		"description": "Roo Code 3.9で国際化が実現しました！",
+		"whatsNew": "新機能",
+		"feature1": "14言語対応の翻訳",
+		"feature2": "SSE経由のMCP",
+		"feature3": "タスク履歴の一括削除",
+		"feature4": "テキスト読み上げ",
+		"feature5": "OpenRouterプロバイダーの選択",
+		"hideButton": "通知を非表示",
+		"detailsDiscussLinks": "詳細は<discordLink>Discord</discordLink>と<redditLink>Reddit</redditLink>でご確認・ディスカッションください 🚀"
 	}
 }

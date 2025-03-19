@@ -370,5 +370,51 @@
 	"thinkingBudget": {
 		"maxTokens": "Maksimum token",
 		"maxThinkingTokens": "Maksimum düşünme tokeni"
+	},
+	"validation": {
+		"apiKey": "Geçerli bir API anahtarı sağlamalısınız.",
+		"awsRegion": "AWS Bedrock kullanmak için bir bölge seçmelisiniz.",
+		"googleCloud": "Geçerli bir Google Cloud proje kimliği ve bölge sağlamalısınız.",
+		"modelId": "Geçerli bir model kimliği sağlamalısınız.",
+		"modelSelector": "Geçerli bir model seçici sağlamalısınız.",
+		"openAi": "Geçerli bir temel URL, API anahtarı ve model kimliği sağlamalısınız.",
+		"arn": {
+			"invalidFormat": "Geçersiz ARN formatı. Lütfen format gereksinimlerini kontrol edin.",
+			"regionMismatch": "Uyarı: ARN'nizdeki bölge ({{arnRegion}}) seçtiğiniz bölge ({{region}}) ile eşleşmiyor. Bu erişim sorunlarına neden olabilir. Sağlayıcı, ARN'deki bölgeyi kullanacak."
+		},
+		"modelAvailability": "Sağladığınız model kimliği ({{modelId}}) kullanılamıyor. Lütfen başka bir model seçin."
+	},
+	"placeholders": {
+		"apiKey": "API anahtarını girin...",
+		"profileName": "Profil adını girin",
+		"accessKey": "Erişim anahtarını girin...",
+		"secretKey": "Gizli anahtarı girin...",
+		"sessionToken": "Oturum belirtecini girin...",
+		"credentialsJson": "Kimlik bilgileri JSON'ını girin...",
+		"keyFilePath": "Anahtar dosyası yolunu girin...",
+		"projectId": "Proje ID'sini girin...",
+		"customArn": "ARN girin (örn. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Temel URL'yi girin...",
+		"modelId": {
+			"lmStudio": "örn. meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "örn. lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "örn. llama3.1"
+		},
+		"numbers": {
+			"maxTokens": "örn. 4096",
+			"contextWindow": "örn. 128000",
+			"inputPrice": "örn. 0.0001",
+			"outputPrice": "örn. 0.0002",
+			"cacheWritePrice": "örn. 0.00005"
+		}
+	},
+	"defaults": {
+		"ollamaUrl": "Varsayılan: http://localhost:11434",
+		"lmStudioUrl": "Varsayılan: http://localhost:1234",
+		"geminiUrl": "Varsayılan: https://generativelanguage.googleapis.com"
+	},
+	"labels": {
+		"customArn": "Özel ARN",
+		"useCustomArn": "Özel ARN kullan..."
 	}
 }

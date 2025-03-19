@@ -199,5 +199,17 @@
 	"reasoning": {
 		"thinking": "Đang suy nghĩ",
 		"seconds": "{{count}} giây"
+	},
+	"announcement": {
+		"title": "🎉 Roo Code 3.9 Released",
+		"description": "Roo Code đã trở nên quốc tế hóa trong phiên bản 3.9!",
+		"whatsNew": "Có gì mới",
+		"feature1": "Bản dịch cho 14 ngôn ngữ",
+		"feature2": "MCP qua SSE",
+		"feature3": "Xóa hàng loạt lịch sử nhiệm vụ",
+		"feature4": "Chuyển văn bản thành giọng nói",
+		"feature5": "Lựa chọn nhà cung cấp OpenRouter",
+		"hideButton": "Ẩn thông báo",
+		"detailsDiscussLinks": "Nhận thêm chi tiết và thảo luận tại <discordLink>Discord</discordLink> và <redditLink>Reddit</redditLink> 🚀"
 	}
 }

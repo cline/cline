@@ -48,18 +48,15 @@ Check out the [CHANGELOG](CHANGELOG.md) for detailed updates and fixes.
 
 ---
 
-## 🎉 Roo Code 3.8 Released
+## 🎉 Roo Code 3.9 Released
 
-Roo Code 3.8 is out with performance boosts, new features, and bug fixes.
+Roo Code has gone international in 3.9!
 
-- Faster asynchronous checkpoints
-- Support for .rooignore files
-- Fixed terminal & gray screen issues
-- Roo Code can run in multiple windows
-- Experimental multi-diff editing strategy
-- Subtask to parent task communication
-- Updated DeepSeek provider
-- New "Human Relay" provider
+- Roo Code has been translated into 14 different languages! To see them all and change your settings, go to Settings -> Language.
+- We now support both the stdio and SSE transports for MCP
+- By popular demand, you can now batch delete history items
+- Turn on text-to-speech in your settings to hear everything Roo has to say
+- Want more control over your OpenRouter? Now you can pick a specific provider for your model.
 
 ---
 

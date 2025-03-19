@@ -271,7 +271,7 @@ const ApiOptions = ({
 						value={apiConfiguration?.openRouterApiKey || ""}
 						type="password"
 						onInput={handleInputChange("openRouterApiKey")}
-						placeholder="Enter API Key..."
+						placeholder={t("settings:placeholders.apiKey")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.openRouterApiKey")}</label>
 					</VSCodeTextField>
@@ -329,7 +329,7 @@ const ApiOptions = ({
 						value={apiConfiguration?.apiKey || ""}
 						type="password"
 						onInput={handleInputChange("apiKey")}
-						placeholder="Enter API Key..."
+						placeholder={t("settings:placeholders.apiKey")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.anthropicApiKey")}</label>
 					</VSCodeTextField>
@@ -372,7 +372,7 @@ const ApiOptions = ({
 						value={apiConfiguration?.glamaApiKey || ""}
 						type="password"
 						onInput={handleInputChange("glamaApiKey")}
-						placeholder="Enter API Key..."
+						placeholder={t("settings:placeholders.apiKey")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.glamaApiKey")}</label>
 					</VSCodeTextField>
@@ -409,9 +409,9 @@ const ApiOptions = ({
 						value={apiConfiguration?.openAiNativeApiKey || ""}
 						type="password"
 						onInput={handleInputChange("openAiNativeApiKey")}
-						placeholder="Enter API Key..."
+						placeholder={t("settings:placeholders.apiKey")}
 						className="w-full">
-						<label className="block font-medium mb-1">OpenAI API Key</label>
+						<label className="block font-medium mb-1">{t("settings:providers.openAiApiKey")}</label>
 					</VSCodeTextField>
 					<div className="text-sm text-vscode-descriptionForeground -mt-2">
 						{t("settings:providers.apiKeyStorageNotice")}
@@ -430,7 +430,7 @@ const ApiOptions = ({
 						value={apiConfiguration?.mistralApiKey || ""}
 						type="password"
 						onInput={handleInputChange("mistralApiKey")}
-						placeholder="Enter API Key..."
+						placeholder={t("settings:placeholders.apiKey")}
 						className="w-full">
 						<span className="font-medium">{t("settings:providers.mistralApiKey")}</span>
 					</VSCodeTextField>
@@ -481,7 +481,7 @@ const ApiOptions = ({
 						<VSCodeTextField
 							value={apiConfiguration?.awsProfile || ""}
 							onInput={handleInputChange("awsProfile")}
-							placeholder="Enter profile name"
+							placeholder={t("settings:placeholders.profileName")}
 							className="w-full">
 							<label className="block font-medium mb-1">{t("settings:providers.awsProfileName")}</label>
 						</VSCodeTextField>
@@ -491,7 +491,7 @@ const ApiOptions = ({
 								value={apiConfiguration?.awsAccessKey || ""}
 								type="password"
 								onInput={handleInputChange("awsAccessKey")}
-								placeholder="Enter Access Key..."
+								placeholder={t("settings:placeholders.accessKey")}
 								className="w-full">
 								<label className="block font-medium mb-1">{t("settings:providers.awsAccessKey")}</label>
 							</VSCodeTextField>
@@ -499,7 +499,7 @@ const ApiOptions = ({
 								value={apiConfiguration?.awsSecretKey || ""}
 								type="password"
 								onInput={handleInputChange("awsSecretKey")}
-								placeholder="Enter Secret Key..."
+								placeholder={t("settings:placeholders.secretKey")}
 								className="w-full">
 								<label className="block font-medium mb-1">{t("settings:providers.awsSecretKey")}</label>
 							</VSCodeTextField>
@@ -507,7 +507,7 @@ const ApiOptions = ({
 								value={apiConfiguration?.awsSessionToken || ""}
 								type="password"
 								onInput={handleInputChange("awsSessionToken")}
-								placeholder="Enter Session Token..."
+								placeholder={t("settings:placeholders.sessionToken")}
 								className="w-full">
 								<label className="block font-medium mb-1">
 									{t("settings:providers.awsSessionToken")}
@@ -569,7 +569,7 @@ const ApiOptions = ({
 					<VSCodeTextField
 						value={apiConfiguration?.vertexJsonCredentials || ""}
 						onInput={handleInputChange("vertexJsonCredentials")}
-						placeholder="Enter Credentials JSON..."
+						placeholder={t("settings:placeholders.credentialsJson")}
 						className="w-full">
 						<label className="block font-medium mb-1">
 							{t("settings:providers.googleCloudCredentials")}
@@ -578,14 +578,14 @@ const ApiOptions = ({
 					<VSCodeTextField
 						value={apiConfiguration?.vertexKeyFile || ""}
 						onInput={handleInputChange("vertexKeyFile")}
-						placeholder="Enter Key File Path..."
+						placeholder={t("settings:placeholders.keyFilePath")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.googleCloudKeyFile")}</label>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.vertexProjectId || ""}
 						onInput={handleInputChange("vertexProjectId")}
-						placeholder="Enter Project ID..."
+						placeholder={t("settings:placeholders.projectId")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.googleCloudProjectId")}</label>
 					</VSCodeTextField>
@@ -615,7 +615,7 @@ const ApiOptions = ({
 						value={apiConfiguration?.geminiApiKey || ""}
 						type="password"
 						onInput={handleInputChange("geminiApiKey")}
-						placeholder="Enter API Key..."
+						placeholder={t("settings:placeholders.apiKey")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.geminiApiKey")}</label>
 					</VSCodeTextField>
@@ -644,7 +644,7 @@ const ApiOptions = ({
 								value={apiConfiguration?.googleGeminiBaseUrl || ""}
 								type="url"
 								onInput={handleInputChange("googleGeminiBaseUrl")}
-								placeholder="https://generativelanguage.googleapis.com"
+								placeholder={t("settings:defaults.geminiUrl")}
 								className="w-full mt-1"
 							/>
 						)}
@@ -658,7 +658,7 @@ const ApiOptions = ({
 						value={apiConfiguration?.openAiBaseUrl || ""}
 						type="url"
 						onInput={handleInputChange("openAiBaseUrl")}
-						placeholder={"Enter base URL..."}
+						placeholder={t("settings:placeholders.baseUrl")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.openAiBaseUrl")}</label>
 					</VSCodeTextField>
@@ -666,7 +666,7 @@ const ApiOptions = ({
 						value={apiConfiguration?.openAiApiKey || ""}
 						type="password"
 						onInput={handleInputChange("openAiApiKey")}
-						placeholder="Enter API Key..."
+						placeholder={t("settings:placeholders.apiKey")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.openAiApiKey")}</label>
 					</VSCodeTextField>
@@ -748,7 +748,7 @@ const ApiOptions = ({
 										maxTokens: isNaN(value) ? undefined : value,
 									}
 								})}
-								placeholder="e.g. 4096"
+								placeholder={t("settings:placeholders.numbers.maxTokens")}
 								className="w-full">
 								<label className="block font-medium mb-1">
 									{t("settings:providers.customModel.maxTokens.label")}
@@ -792,7 +792,7 @@ const ApiOptions = ({
 											: parsed,
 									}
 								})}
-								placeholder="e.g. 128000"
+								placeholder={t("settings:placeholders.numbers.contextWindow")}
 								className="w-full">
 								<label className="block font-medium mb-1">
 									{t("settings:providers.customModel.contextWindow.label")}
@@ -911,7 +911,7 @@ const ApiOptions = ({
 										inputPrice: isNaN(parsed) ? openAiModelInfoSaneDefaults.inputPrice : parsed,
 									}
 								})}
-								placeholder="e.g. 0.0001"
+								placeholder={t("settings:placeholders.numbers.inputPrice")}
 								className="w-full">
 								<div className="flex items-center gap-1">
 									<label className="block font-medium mb-1">
@@ -956,7 +956,7 @@ const ApiOptions = ({
 										outputPrice: isNaN(parsed) ? openAiModelInfoSaneDefaults.outputPrice : parsed,
 									}
 								})}
-								placeholder="e.g. 0.0002"
+								placeholder={t("settings:placeholders.numbers.outputPrice")}
 								className="w-full">
 								<div className="flex items-center gap-1">
 									<label className="block font-medium mb-1">
@@ -1002,7 +1002,7 @@ const ApiOptions = ({
 												cacheReadsPrice: isNaN(parsed) ? 0 : parsed,
 											}
 										})}
-										placeholder="e.g. 0.0001"
+										placeholder={t("settings:placeholders.numbers.inputPrice")}
 										className="w-full">
 										<div className="flex items-center gap-1">
 											<span className="font-medium">
@@ -1047,7 +1047,7 @@ const ApiOptions = ({
 												cacheWritesPrice: isNaN(parsed) ? 0 : parsed,
 											}
 										})}
-										placeholder="e.g. 0.00005"
+										placeholder={t("settings:placeholders.numbers.cacheWritePrice")}
 										className="w-full">
 										<div className="flex items-center gap-1">
 											<label className="block font-medium mb-1">
@@ -1083,14 +1083,14 @@ const ApiOptions = ({
 						value={apiConfiguration?.lmStudioBaseUrl || ""}
 						type="url"
 						onInput={handleInputChange("lmStudioBaseUrl")}
-						placeholder={"Default: http://localhost:1234"}
+						placeholder={t("settings:defaults.lmStudioUrl")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.lmStudio.baseUrl")}</label>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.lmStudioModelId || ""}
 						onInput={handleInputChange("lmStudioModelId")}
-						placeholder={"e.g. meta-llama-3.1-8b-instruct"}
+						placeholder={t("settings:placeholders.modelId.lmStudio")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.lmStudio.modelId")}</label>
 					</VSCodeTextField>
@@ -1125,7 +1125,7 @@ const ApiOptions = ({
 								<VSCodeTextField
 									value={apiConfiguration?.lmStudioDraftModelId || ""}
 									onInput={handleInputChange("lmStudioDraftModelId")}
-									placeholder={"e.g. lmstudio-community/llama-3.2-1b-instruct"}
+									placeholder={t("settings:placeholders.modelId.lmStudioDraft")}
 									className="w-full">
 									<label className="block font-medium mb-1">
 										{t("settings:providers.lmStudio.draftModelId")}
@@ -1191,7 +1191,7 @@ const ApiOptions = ({
 						value={apiConfiguration?.deepSeekApiKey || ""}
 						type="password"
 						onInput={handleInputChange("deepSeekApiKey")}
-						placeholder="Enter API Key..."
+						placeholder={t("settings:placeholders.apiKey")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.deepSeekApiKey")}</label>
 					</VSCodeTextField>
@@ -1250,14 +1250,14 @@ const ApiOptions = ({
 						value={apiConfiguration?.ollamaBaseUrl || ""}
 						type="url"
 						onInput={handleInputChange("ollamaBaseUrl")}
-						placeholder={"Default: http://localhost:11434"}
+						placeholder={t("settings:defaults.ollamaUrl")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.ollama.baseUrl")}</label>
 					</VSCodeTextField>
 					<VSCodeTextField
 						value={apiConfiguration?.ollamaModelId || ""}
 						onInput={handleInputChange("ollamaModelId")}
-						placeholder={"e.g. llama3.1"}
+						placeholder={t("settings:placeholders.modelId.ollama")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.ollama.modelId")}</label>
 					</VSCodeTextField>
@@ -1294,7 +1294,7 @@ const ApiOptions = ({
 						value={apiConfiguration?.unboundApiKey || ""}
 						type="password"
 						onInput={handleInputChange("unboundApiKey")}
-						placeholder="Enter API Key..."
+						placeholder={t("settings:placeholders.apiKey")}
 						className="w-full">
 						<label className="block font-medium mb-1">{t("settings:providers.unboundApiKey")}</label>
 					</VSCodeTextField>
@@ -1450,7 +1450,7 @@ const ApiOptions = ({
 									</SelectItem>
 								))}
 								{selectedProvider === "bedrock" && (
-									<SelectItem value="custom-arn">Use custom ARN...</SelectItem>
+									<SelectItem value="custom-arn">{t("settings:labels.useCustomArn")}</SelectItem>
 								)}
 							</SelectContent>
 						</Select>
@@ -1464,9 +1464,9 @@ const ApiOptions = ({
 									const value = (e.target as HTMLInputElement).value
 									setApiConfigurationField("awsCustomArn", value)
 								}}
-								placeholder="Enter ARN (e.g. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)"
+								placeholder={t("settings:placeholders.customArn")}
 								className="w-full">
-								<label className="block font-medium mb-1">Custom ARN</label>
+								<label className="block font-medium mb-1">{t("settings:labels.customArn")}</label>
 							</VSCodeTextField>
 							<div className="text-sm text-vscode-descriptionForeground -mt-2">
 								{t("settings:providers.awsCustomArnUse")}

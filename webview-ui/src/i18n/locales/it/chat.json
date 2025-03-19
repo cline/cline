@@ -199,5 +199,17 @@
 	"reasoning": {
 		"thinking": "Sto pensando",
 		"seconds": "{{count}}s"
+	},
+	"announcement": {
+		"title": "🎉 Roo Code 3.9 Released",
+		"description": "Roo Code è diventato internazionale con la versione 3.9!",
+		"whatsNew": "Novità",
+		"feature1": "Traduzioni per 14 lingue",
+		"feature2": "MCP tramite SSE",
+		"feature3": "Eliminazione in batch della cronologia delle attività",
+		"feature4": "Sintesi vocale",
+		"feature5": "Selezione provider OpenRouter",
+		"hideButton": "Nascondi annuncio",
+		"detailsDiscussLinks": "Ottieni maggiori dettagli e partecipa alle discussioni su <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
 	}
 }

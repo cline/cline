@@ -370,5 +370,51 @@
 	"thinkingBudget": {
 		"maxTokens": "Maksymalna liczba tokenów",
 		"maxThinkingTokens": "Maksymalna liczba tokenów myślenia"
+	},
+	"validation": {
+		"apiKey": "Musisz podać prawidłowy klucz API.",
+		"awsRegion": "Musisz wybrać region, aby korzystać z AWS Bedrock.",
+		"googleCloud": "Musisz podać prawidłowe ID projektu i region Google Cloud.",
+		"modelId": "Musisz podać prawidłowe ID modelu.",
+		"modelSelector": "Musisz podać prawidłowy selektor modelu.",
+		"openAi": "Musisz podać prawidłowy bazowy URL, klucz API i ID modelu.",
+		"arn": {
+			"invalidFormat": "Nieprawidłowy format ARN. Sprawdź wymagania dotyczące formatu.",
+			"regionMismatch": "Ostrzeżenie: Region w Twoim ARN ({{arnRegion}}) nie zgadza się z wybranym regionem ({{region}}). Może to powodować problemy z dostępem. Dostawca użyje regionu z ARN."
+		},
+		"modelAvailability": "Podane ID modelu ({{modelId}}) jest niedostępne. Wybierz inny model."
+	},
+	"placeholders": {
+		"apiKey": "Wprowadź klucz API...",
+		"profileName": "Wprowadź nazwę profilu",
+		"accessKey": "Wprowadź klucz dostępu...",
+		"secretKey": "Wprowadź klucz tajny...",
+		"sessionToken": "Wprowadź token sesji...",
+		"credentialsJson": "Wprowadź JSON poświadczeń...",
+		"keyFilePath": "Wprowadź ścieżkę pliku klucza...",
+		"projectId": "Wprowadź ID projektu...",
+		"customArn": "Wprowadź ARN (np. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Wprowadź podstawowy URL...",
+		"modelId": {
+			"lmStudio": "np. meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "np. lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "np. llama3.1"
+		},
+		"numbers": {
+			"maxTokens": "np. 4096",
+			"contextWindow": "np. 128000",
+			"inputPrice": "np. 0.0001",
+			"outputPrice": "np. 0.0002",
+			"cacheWritePrice": "np. 0.00005"
+		}
+	},
+	"defaults": {
+		"ollamaUrl": "Domyślnie: http://localhost:11434",
+		"lmStudioUrl": "Domyślnie: http://localhost:1234",
+		"geminiUrl": "Domyślnie: https://generativelanguage.googleapis.com"
+	},
+	"labels": {
+		"customArn": "Niestandardowy ARN",
+		"useCustomArn": "Użyj niestandardowego ARN..."
 	}
 }

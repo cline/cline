@@ -370,5 +370,51 @@
 	"thinkingBudget": {
 		"maxTokens": "最大 tokens",
 		"maxThinkingTokens": "最大思考 tokens"
+	},
+	"validation": {
+		"apiKey": "有効なAPIキーを入力してください。",
+		"awsRegion": "AWS Bedrockを使用するにはリージョンを選択してください。",
+		"googleCloud": "有効なGoogle CloudプロジェクトIDとリージョンを入力してください。",
+		"modelId": "有効なモデルIDを入力してください。",
+		"modelSelector": "有効なモデルセレクターを入力してください。",
+		"openAi": "有効なベースURL、APIキー、モデルIDを入力してください。",
+		"arn": {
+			"invalidFormat": "ARNの形式が無効です。フォーマット要件を確認してください。",
+			"regionMismatch": "警告：ARN内のリージョン（{{arnRegion}}）が選択したリージョン（{{region}}）と一致しません。これによりアクセスの問題が発生する可能性があります。プロバイダーはARNのリージョンを使用します。"
+		},
+		"modelAvailability": "指定されたモデルID（{{modelId}}）は利用できません。別のモデルを選択してください。"
+	},
+	"placeholders": {
+		"apiKey": "API キーを入力...",
+		"profileName": "プロファイル名を入力",
+		"accessKey": "アクセスキーを入力...",
+		"secretKey": "シークレットキーを入力...",
+		"sessionToken": "セッショントークンを入力...",
+		"credentialsJson": "認証情報 JSON を入力...",
+		"keyFilePath": "キーファイルのパスを入力...",
+		"projectId": "プロジェクト ID を入力...",
+		"customArn": "ARN を入力（例：arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model）",
+		"baseUrl": "ベース URL を入力...",
+		"modelId": {
+			"lmStudio": "例：meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "例：lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "例：llama3.1"
+		},
+		"numbers": {
+			"maxTokens": "例：4096",
+			"contextWindow": "例：128000",
+			"inputPrice": "例：0.0001",
+			"outputPrice": "例：0.0002",
+			"cacheWritePrice": "例：0.00005"
+		}
+	},
+	"defaults": {
+		"ollamaUrl": "デフォルト：http://localhost:11434",
+		"lmStudioUrl": "デフォルト：http://localhost:1234",
+		"geminiUrl": "デフォルト：https://generativelanguage.googleapis.com"
+	},
+	"labels": {
+		"customArn": "カスタム ARN",
+		"useCustomArn": "カスタム ARN を使用..."
 	}
 }

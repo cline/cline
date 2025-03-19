@@ -370,5 +370,51 @@
 	"thinkingBudget": {
 		"maxTokens": "최대 tokens",
 		"maxThinkingTokens": "최대 사고 tokens"
+	},
+	"validation": {
+		"apiKey": "유효한 API 키를 입력해야 합니다.",
+		"awsRegion": "AWS Bedrock을 사용하려면 리전을 선택해야 합니다.",
+		"googleCloud": "유효한 Google Cloud 프로젝트 ID와 리전을 입력해야 합니다.",
+		"modelId": "유효한 모델 ID를 입력해야 합니다.",
+		"modelSelector": "유효한 모델 선택기를 입력해야 합니다.",
+		"openAi": "유효한 기본 URL, API 키, 모델 ID를 입력해야 합니다.",
+		"arn": {
+			"invalidFormat": "ARN 형식이 잘못되었습니다. 형식 요구사항을 확인하세요.",
+			"regionMismatch": "경고: ARN의 리전({{arnRegion}})이 선택한 리전({{region}})과 일치하지 않습니다. 접근 문제가 발생할 수 있습니다. 제공자는 ARN의 리전을 사용합니다."
+		},
+		"modelAvailability": "제공한 모델 ID({{modelId}})를 사용할 수 없습니다. 다른 모델을 선택하세요."
+	},
+	"placeholders": {
+		"apiKey": "API 키 입력...",
+		"profileName": "프로필 이름 입력",
+		"accessKey": "액세스 키 입력...",
+		"secretKey": "시크릿 키 입력...",
+		"sessionToken": "세션 토큰 입력...",
+		"credentialsJson": "인증 정보 JSON 입력...",
+		"keyFilePath": "키 파일 경로 입력...",
+		"projectId": "프로젝트 ID 입력...",
+		"customArn": "ARN 입력 (예: arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "기본 URL 입력...",
+		"modelId": {
+			"lmStudio": "예: meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "예: lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "예: llama3.1"
+		},
+		"numbers": {
+			"maxTokens": "예: 4096",
+			"contextWindow": "예: 128000",
+			"inputPrice": "예: 0.0001",
+			"outputPrice": "예: 0.0002",
+			"cacheWritePrice": "예: 0.00005"
+		}
+	},
+	"defaults": {
+		"ollamaUrl": "기본값: http://localhost:11434",
+		"lmStudioUrl": "기본값: http://localhost:1234",
+		"geminiUrl": "기본값: https://generativelanguage.googleapis.com"
+	},
+	"labels": {
+		"customArn": "사용자 지정 ARN",
+		"useCustomArn": "사용자 지정 ARN 사용..."
 	}
 }

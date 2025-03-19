@@ -370,5 +370,51 @@
 	"thinkingBudget": {
 		"maxTokens": "अधिकतम tokens",
 		"maxThinkingTokens": "अधिकतम thinking tokens"
+	},
+	"validation": {
+		"apiKey": "आपको एक मान्य API कुंजी प्रदान करनी होगी।",
+		"awsRegion": "AWS Bedrock का उपयोग करने के लिए आपको एक क्षेत्र चुनना होगा।",
+		"googleCloud": "आपको एक मान्य Google Cloud प्रोजेक्ट ID और क्षेत्र प्रदान करना होगा।",
+		"modelId": "आपको एक मान्य मॉडल ID प्रदान करनी होगी।",
+		"modelSelector": "आपको एक मान्य मॉडल चयनकर्ता प्रदान करना होगा।",
+		"openAi": "आपको एक मान्य बेस URL, API कुंजी और मॉडल ID प्रदान करनी होगी।",
+		"arn": {
+			"invalidFormat": "अमान्य ARN प्रारूप। कृपया प्रारूप आवश्यकताएं जांचें।",
+			"regionMismatch": "चेतावनी: आपके ARN में क्षेत्र ({{arnRegion}}) आपके चयनित क्षेत्र ({{region}}) से मेल नहीं खाता। इससे पहुंच संबंधी समस्याएं हो सकती हैं। प्रदाता ARN से क्षेत्र का उपयोग करेगा।"
+		},
+		"modelAvailability": "आपके द्वारा प्रदान की गई मॉडल ID ({{modelId}}) उपलब्ध नहीं है। कृपया कोई अन्य मॉडल चुनें।"
+	},
+	"placeholders": {
+		"apiKey": "API कुंजी दर्ज करें...",
+		"profileName": "प्रोफ़ाइल नाम दर्ज करें",
+		"accessKey": "एक्सेस कुंजी दर्ज करें...",
+		"secretKey": "गुप्त कुंजी दर्ज करें...",
+		"sessionToken": "सत्र टोकन दर्ज करें...",
+		"credentialsJson": "क्रेडेंशियल्स JSON दर्ज करें...",
+		"keyFilePath": "कुंजी फ़ाइल पथ दर्ज करें...",
+		"projectId": "प्रोजेक्ट ID दर्ज करें...",
+		"customArn": "ARN दर्ज करें (उदा. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "बेस URL दर्ज करें...",
+		"modelId": {
+			"lmStudio": "उदा. meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "उदा. lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "उदा. llama3.1"
+		},
+		"numbers": {
+			"maxTokens": "उदा. 4096",
+			"contextWindow": "उदा. 128000",
+			"inputPrice": "उदा. 0.0001",
+			"outputPrice": "उदा. 0.0002",
+			"cacheWritePrice": "उदा. 0.00005"
+		}
+	},
+	"defaults": {
+		"ollamaUrl": "डिफ़ॉल्ट: http://localhost:11434",
+		"lmStudioUrl": "डिफ़ॉल्ट: http://localhost:1234",
+		"geminiUrl": "डिफ़ॉल्ट: https://generativelanguage.googleapis.com"
+	},
+	"labels": {
+		"customArn": "कस्टम ARN",
+		"useCustomArn": "कस्टम ARN का उपयोग करें..."
 	}
 }
