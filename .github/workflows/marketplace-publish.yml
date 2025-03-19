@@ -6,6 +6,7 @@ on:
 
 env:
   GIT_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
+  NODE_VERSION: 20.18.1
 
 jobs:
   publish-extension:
@@ -21,15 +22,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.GIT_REF }}
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
-
+          node-version: ${{ env.NODE_VERSION }}
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
       - name: Install Dependencies
         run: |
           npm install -g vsce ovsx
@@ -46,14 +44,12 @@ jobs:
           echo "$package" | grep -q "extension/webview-ui/build/assets/index.js" || exit 1
           echo "$package" | grep -q "extension/node_modules/@vscode/codicons/dist/codicon.ttf" || exit 1
           echo "$package" | grep -q ".env" || exit 1
-
       - name: Create and Push Git Tag
         run: |
           current_package_version=$(node -p "require('./package.json').version")
           git tag -a "v${current_package_version}" -m "Release v${current_package_version}"
           git push origin "v${current_package_version}"
           echo "Successfully created and pushed git tag v${current_package_version}"
-
       - name: Publish Extension
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -62,7 +58,6 @@ jobs:
           current_package_version=$(node -p "require('./package.json').version")
           npm run publish:marketplace
           echo "Successfully published version $current_package_version to VS Code Marketplace"
-
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
