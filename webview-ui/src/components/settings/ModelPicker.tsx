@@ -68,14 +68,17 @@ export const ModelPicker = ({
 		[apiConfiguration],
 	)
 
-	const [searchValue, setSearchValue] = useState(selectedModelId)
+	const [searchValue, setSearchValue] = useState(selectedModelId || "")
 
 	const onSelect = useCallback(
 		(modelId: string) => {
+			if (!modelId) return
+
 			setOpen(false)
 			const modelInfo = models?.[modelId]
 			setApiConfigurationField(modelIdKey, modelId)
 			setApiConfigurationField(modelInfoKey, modelInfo ?? defaultModelInfo)
+
 			// Delay to ensure the popover is closed before setting the search value.
 			setTimeout(() => setSearchValue(modelId), 100)
 		},
@@ -112,7 +115,7 @@ export const ModelPicker = ({
 	return (
 		<>
 			<div>
-				<label className="block font-medium mb-1">Model</label>
+				<label className="block font-medium mb-1">{t("settings:modelPicker.label")}</label>
 				<Popover open={open} onOpenChange={onOpenChange}>
 					<PopoverTrigger asChild>
 						<Button
@@ -131,7 +134,7 @@ export const ModelPicker = ({
 									ref={searchInputRef}
 									value={searchValue}
 									onValueChange={setSearchValue}
-									placeholder="Search"
+									placeholder={t("settings:modelPicker.searchPlaceholder")}
 									className="h-9 mr-4"
 									data-testid="model-input"
 								/>
@@ -145,7 +148,13 @@ export const ModelPicker = ({
 								)}
 							</div>
 							<CommandList>
-								<CommandEmpty>No model found.</CommandEmpty>
+								<CommandEmpty>
+									{searchValue && (
+										<div className="py-2 px-1 text-sm">
+											{t("settings:modelPicker.noMatchFound")}
+										</div>
+									)}
+								</CommandEmpty>
 								<CommandGroup>
 									{modelIds.map((model) => (
 										<CommandItem key={model} value={model} onSelect={onSelect}>
@@ -160,6 +169,13 @@ export const ModelPicker = ({
 									))}
 								</CommandGroup>
 							</CommandList>
+							{searchValue && !modelIds.includes(searchValue) && (
+								<div className="p-1 border-t border-vscode-input-border">
+									<CommandItem data-testid="use-custom-model" value={searchValue} onSelect={onSelect}>
+										{t("settings:modelPicker.useCustomModel", { modelId: searchValue })}
+									</CommandItem>
+								</div>
+							)}
 						</Command>
 					</PopoverContent>
 				</Popover>

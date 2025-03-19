@@ -86,4 +86,49 @@ describe("ModelPicker", () => {
 		expect(mockSetApiConfigurationField).toHaveBeenCalledWith(defaultProps.modelIdKey, "model2")
 		expect(mockSetApiConfigurationField).toHaveBeenCalledWith(defaultProps.modelInfoKey, mockModels.model2)
 	})
+
+	it("allows setting a custom model ID that's not in the predefined list", async () => {
+		await act(async () => {
+			render(<ModelPicker {...defaultProps} />)
+		})
+
+		await act(async () => {
+			// Open the popover by clicking the button.
+			const button = screen.getByRole("combobox")
+			fireEvent.click(button)
+		})
+
+		// Wait for popover to open and animations to complete.
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 100))
+		})
+
+		const customModelId = "custom-model-id"
+
+		await act(async () => {
+			// Find and set the input value to a custom model ID
+			const modelInput = screen.getByTestId("model-input")
+			fireEvent.input(modelInput, { target: { value: customModelId } })
+		})
+
+		// Wait for the UI to update
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 100))
+		})
+
+		// Find and click the "Use custom" option
+		await act(async () => {
+			// Look for text containing our custom model ID
+			const customOption = screen.getByTestId("use-custom-model")
+			fireEvent.click(customOption)
+		})
+
+		// Verify the API config was updated with the custom model ID
+		expect(mockSetApiConfigurationField).toHaveBeenCalledWith(defaultProps.modelIdKey, customModelId)
+		// The model info should be set to the default since this is a custom model
+		expect(mockSetApiConfigurationField).toHaveBeenCalledWith(
+			defaultProps.modelInfoKey,
+			defaultProps.defaultModelInfo,
+		)
+	})
 })
