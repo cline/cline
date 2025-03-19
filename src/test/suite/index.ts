@@ -134,36 +134,47 @@ export function run(): Promise<void> {
 		console.log(`Discovering tests in workspaceRoot: ${workspaceRoot}`)
 		console.log(`Starting from testsRoot: ${testsRoot}`)
 
+		// Debug function to log which pattern found which files
+		const runGlobWithDebug = async (pattern: string, options: any) => {
+			console.log(`Searching with pattern: ${pattern}`)
+			const matches = await glob(pattern, options)
+			if (matches.length > 0) {
+				console.log(`  - Pattern ${pattern} found ${matches.length} matches:`)
+				matches.forEach((m) => console.log(`    * ${m}`))
+			} else {
+				console.log(`  - Pattern ${pattern} found no matches`)
+			}
+			return matches
+		}
+
 		// More comprehensive test discovery
 		Promise.all([
-			// Find all compiled JS test files throughout the codebase
-			glob("out/**/*.test.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			// Find all standard test files (singular "test")
+			runGlobWithDebug("out/**/*.test.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			runGlobWithDebug("src/**/*.test.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
 
-			// Find TS test files (for direct running with ts-node)
-			glob("src/**/*.test.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			// Find plural "tests" files (with dot)
+			runGlobWithDebug("out/**/*.tests.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			runGlobWithDebug("src/**/*.tests.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
 
-			// Additional patterns for test files
-			glob("out/**/*test*.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
-			glob("src/**/*test*.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			// Find test files with different naming conventions
+			runGlobWithDebug("out/**/*-test.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			runGlobWithDebug("src/**/*-test.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			runGlobWithDebug("out/**/*_test.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			runGlobWithDebug("src/**/*_test.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
 
-			// Find reference files in suite directory
-			glob("src/test/suite/*.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			// Find spec files
+			runGlobWithDebug("out/**/*.spec.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			runGlobWithDebug("src/**/*.spec.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
 
-			// Explicitly find API tests
-			glob("out/test/api/**/*.test.js", { cwd: workspaceRoot }),
-			glob("out/api/**/*.test.js", { cwd: workspaceRoot }),
+			// Look in specific directories where tests might be located
+			runGlobWithDebug("out/test/**/*.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			runGlobWithDebug("src/test/**/*.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
 
-			// Explicitly find utility tests
-			glob("out/utils/**/*.test.js", { cwd: workspaceRoot }),
-			glob("out/test/utilities/**/*.test.js", { cwd: workspaceRoot }),
-
-			// Explicitly find shell tests
-			glob("out/**/shell/**/*.js", { cwd: workspaceRoot }),
-			glob("out/**/terminal/**/*.js", { cwd: workspaceRoot }),
-
-			// Find any file with 'spec' in the name (another common test naming pattern)
-			glob("out/**/*.spec.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
-			glob("src/**/*.spec.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			// Specific directory searches
+			runGlobWithDebug("out/api/**/*.js", { cwd: workspaceRoot }),
+			runGlobWithDebug("out/utils/**/*.js", { cwd: workspaceRoot }),
+			runGlobWithDebug("out/**/shell/**/*.js", { cwd: workspaceRoot }),
 		])
 			.then((results) => {
 				// Flatten the arrays and resolve paths
@@ -173,63 +184,139 @@ export function run(): Promise<void> {
 					// Remove duplicates
 					.filter((f, i, a) => a.indexOf(f) === i)
 
-				console.log(`Found ${allPaths.length} test files in total`)
+				console.log(`\n\nSUMMARY: Found ${allPaths.length} unique test files in total`)
 
-				// Debug - log each found file
-				allPaths.forEach((file) => {
-					const relativePath = path.relative(workspaceRoot, file)
-					console.log(`Found test file: ${relativePath}`)
-				})
+				// Try one more check for any files that might be tests but we missed
+				// by looking for 'test' in the filename without extension restrictions
+				if (allPaths.length < 8) {
+					console.log("Too few tests found! Trying broader search patterns...")
+					return Promise.all([
+						// First try a focused approach looking for exactly .tests. files
+						runGlobWithDebug("**/*.tests.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+						runGlobWithDebug("**/*.tests.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
 
-				if (allPaths.length === 0) {
-					console.warn("No test files found! Verify your glob patterns.")
-					return resolve()
-				}
+						// Then try broader patterns
+						runGlobWithDebug("out/**/*test*.*", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+						runGlobWithDebug("src/**/*test*.*", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+						runGlobWithDebug("out/**/*spec*.*", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+						runGlobWithDebug("src/**/*spec*.*", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+						runGlobWithDebug("out/test/**/*.*", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+						runGlobWithDebug("src/test/**/*.*", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+					]).then((moreResults) => {
+						const morePaths = moreResults
+							.flat()
+							.map((f) => path.resolve(workspaceRoot, f))
+							.filter((f) => !allPaths.includes(f)) // Only add files we haven't already found
 
-				// Organize tests by category
-				const categories = organizeTestFiles(allPaths, testsRoot)
+						console.log(`Found ${morePaths.length} additional test files with broader search`)
 
-				// Log discovered tests by category
-				Object.entries(categories).forEach(([category, testFiles]) => {
-					if (testFiles.length > 0) {
-						console.log(`\n${category} (${testFiles.length} files):`)
-						testFiles.forEach((file) => {
-							console.log(`  - ${path.relative(testsRoot, file)}`)
-							// Add the file to mocha
-							mocha.addFile(file)
-						})
-					}
-				})
+						// Combine all found paths
+						const combinedPaths = [...allPaths, ...morePaths].filter((f, i, a) => a.indexOf(f) === i) // Ensure still unique
 
-				// Run the mocha test
-				try {
-					// Make sure we add any leftover "Other Tests" to Mocha as well
-					if (categories["Other Tests"].length > 0) {
-						console.log(`\nOther Tests (${categories["Other Tests"].length} files):`)
-						categories["Other Tests"].forEach((file) => {
-							console.log(`  - ${path.relative(testsRoot, file)}`)
-							// Add the file to mocha
-							mocha.addFile(file)
-						})
-						console.log("All 'Other Tests' have been added to the test suite.")
-					}
+						// If we STILL haven't found tests, this will be our last resort
+						if (combinedPaths.length < 8) {
+							console.log("STILL too few tests! Using last-resort search approach...")
 
-					// Run the mocha test
-					mocha.run((failures: number) => {
-						if (failures > 0) {
-							reject(new Error(`${failures} tests failed.`))
-						} else {
-							resolve()
+							// List all .js files and look for test-like names
+							return glob("**/*.{js,ts}", {
+								cwd: workspaceRoot,
+								ignore: ["**/node_modules/**", "**/out/node_modules/**"],
+							}).then((allFiles) => {
+								console.log(`Examining ${allFiles.length} total .js and .ts files...`)
+
+								// Filter to find potential test files
+								const potentialTests = allFiles.filter((file) => {
+									const lowerFile = file.toLowerCase()
+									return (
+										lowerFile.includes("test") ||
+										lowerFile.includes("spec") ||
+										lowerFile.includes("suite") ||
+										lowerFile.endsWith(".tests.js") ||
+										lowerFile.endsWith(".tests.ts")
+									)
+								})
+
+								console.log(`Found ${potentialTests.length} potential test files by name`)
+								potentialTests.forEach((f) => console.log(`  * ${f}`))
+
+								// Add these to our combined paths
+								const morePaths2 = potentialTests
+									.map((f) => path.resolve(workspaceRoot, f))
+									.filter((f) => !combinedPaths.includes(f))
+
+								const finalPaths = [...combinedPaths, ...morePaths2].filter((f, i, a) => a.indexOf(f) === i)
+
+								console.log(`Total test files found after all searches: ${finalPaths.length}`)
+								return processPaths(finalPaths)
+							})
 						}
+
+						return processPaths(combinedPaths)
 					})
-				} catch (err) {
-					console.error("Error running tests:", err)
-					reject(err)
 				}
+
+				return processPaths(allPaths)
 			})
 			.catch((err: Error) => {
 				console.error("Error discovering tests:", err)
 				reject(err)
 			})
+
+		// Function to process test paths and continue with test running
+		function processPaths(paths: string[]) {
+			console.log(`Processing ${paths.length} test paths`)
+
+			// Debug - log each found file
+			paths.forEach((file) => {
+				const relativePath = path.relative(workspaceRoot, file)
+				console.log(`Found test file: ${relativePath}`)
+			})
+
+			if (paths.length === 0) {
+				console.warn("No test files found! Verify your glob patterns.")
+				return resolve()
+			}
+
+			// Organize tests by category
+			const categories = organizeTestFiles(paths, testsRoot)
+
+			// Log discovered tests by category
+			Object.entries(categories).forEach(([category, testFiles]) => {
+				if (testFiles.length > 0) {
+					console.log(`\n${category} (${testFiles.length} files):`)
+					testFiles.forEach((file) => {
+						console.log(`  - ${path.relative(testsRoot, file)}`)
+						// Add the file to mocha
+						mocha.addFile(file)
+					})
+				}
+			})
+
+			// Run the mocha test
+			try {
+				// Make sure we add any leftover "Other Tests" to Mocha as well
+				if (categories["Other Tests"].length > 0) {
+					console.log(`\nOther Tests (${categories["Other Tests"].length} files):`)
+					categories["Other Tests"].forEach((file) => {
+						console.log(`  - ${path.relative(testsRoot, file)}`)
+						// Add the file to mocha
+						mocha.addFile(file)
+					})
+					console.log("All 'Other Tests' have been added to the test suite.")
+				}
+
+				// Run the mocha test
+				mocha.run((failures: number) => {
+					if (failures > 0) {
+						reject(new Error(`${failures} tests failed.`))
+					} else {
+						resolve()
+					}
+				})
+			} catch (err) {
+				console.error("Error running tests:", err)
+				reject(err)
+			}
+		}
 	})
 }
