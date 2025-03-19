@@ -211,5 +211,27 @@
 		"feature5": "Wybór dostawcy OpenRouter",
 		"hideButton": "Ukryj ogłoszenie",
 		"detailsDiscussLinks": "Uzyskaj więcej szczegółów i dołącz do dyskusji na <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
+	},
+	"browser": {
+		"rooWantsToUse": "Roo chce użyć przeglądarki:",
+		"consoleLogs": "Logi konsoli",
+		"noNewLogs": "(Brak nowych logów)",
+		"screenshot": "Zrzut ekranu przeglądarki",
+		"cursor": "kursor",
+		"navigation": {
+			"step": "Krok {{current}} z {{total}}",
+			"previous": "Poprzedni",
+			"next": "Następny"
+		},
+		"sessionStarted": "Sesja przeglądarki rozpoczęta",
+		"actions": {
+			"title": "Akcja przeglądarki: ",
+			"launch": "Uruchom przeglądarkę na {{url}}",
+			"click": "Kliknij ({{coordinate}})",
+			"type": "Wpisz \"{{text}}\"",
+			"scrollDown": "Przewiń w dół",
+			"scrollUp": "Przewiń w górę",
+			"close": "Zamknij przeglądarkę"
+		}
 	}
 }

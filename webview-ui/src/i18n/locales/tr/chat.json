@@ -211,5 +211,27 @@
 		"feature5": "OpenRouter sağlayıcı seçimi",
 		"hideButton": "Duyuruyu gizle",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink> ve <redditLink>Reddit</redditLink> üzerinde daha fazla ayrıntı edinin ve tartışmalara katılın 🚀"
+	},
+	"browser": {
+		"rooWantsToUse": "Roo tarayıcıyı kullanmak istiyor:",
+		"consoleLogs": "Konsol Kayıtları",
+		"noNewLogs": "(Yeni kayıt yok)",
+		"screenshot": "Tarayıcı ekran görüntüsü",
+		"cursor": "imleç",
+		"navigation": {
+			"step": "Adım {{current}} / {{total}}",
+			"previous": "Önceki",
+			"next": "Sonraki"
+		},
+		"sessionStarted": "Tarayıcı Oturumu Başlatıldı",
+		"actions": {
+			"title": "Tarayıcı İşlemi: ",
+			"launch": "{{url}} adresinde tarayıcı başlat",
+			"click": "Tıkla ({{coordinate}})",
+			"type": "Yaz \"{{text}}\"",
+			"scrollDown": "Aşağı kaydır",
+			"scrollUp": "Yukarı kaydır",
+			"close": "Tarayıcıyı kapat"
+		}
 	}
 }

@@ -211,5 +211,27 @@
 		"feature5": "Selecció de proveïdor OpenRouter",
 		"hideButton": "Amagar anunci",
 		"detailsDiscussLinks": "Obté més detalls i participa a <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
+	},
+	"browser": {
+		"rooWantsToUse": "Roo vol utilitzar el navegador:",
+		"consoleLogs": "Registres de consola",
+		"noNewLogs": "(Cap registre nou)",
+		"screenshot": "Captura de pantalla del navegador",
+		"cursor": "cursor",
+		"navigation": {
+			"step": "Pas {{current}} de {{total}}",
+			"previous": "Anterior",
+			"next": "Següent"
+		},
+		"sessionStarted": "Sessió de navegador iniciada",
+		"actions": {
+			"title": "Acció de navegació: ",
+			"launch": "Iniciar navegador a {{url}}",
+			"click": "Clic ({{coordinate}})",
+			"type": "Escriure \"{{text}}\"",
+			"scrollDown": "Desplaçar avall",
+			"scrollUp": "Desplaçar amunt",
+			"close": "Tancar navegador"
+		}
 	}
 }

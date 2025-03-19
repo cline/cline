@@ -211,5 +211,27 @@
 		"feature5": "OpenRouter 제공자 선택",
 		"hideButton": "공지 숨기기",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 더 자세한 정보를 확인하고 논의하세요 🚀"
+	},
+	"browser": {
+		"rooWantsToUse": "Roo가 브라우저를 사용하고 싶어합니다:",
+		"consoleLogs": "콘솔 로그",
+		"noNewLogs": "(새 로그 없음)",
+		"screenshot": "브라우저 스크린샷",
+		"cursor": "커서",
+		"navigation": {
+			"step": "단계 {{current}} / {{total}}",
+			"previous": "이전",
+			"next": "다음"
+		},
+		"sessionStarted": "브라우저 세션 시작됨",
+		"actions": {
+			"title": "브라우저 작업: ",
+			"launch": "{{url}}에서 브라우저 실행",
+			"click": "클릭 ({{coordinate}})",
+			"type": "입력 \"{{text}}\"",
+			"scrollDown": "아래로 스크롤",
+			"scrollUp": "위로 스크롤",
+			"close": "브라우저 닫기"
+		}
 	}
 }

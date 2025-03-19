@@ -211,5 +211,27 @@
 	"reasoning": {
 		"thinking": "Thinking",
 		"seconds": "{{count}}s"
+	},
+	"browser": {
+		"rooWantsToUse": "Roo wants to use the browser:",
+		"consoleLogs": "Console Logs",
+		"noNewLogs": "(No new logs)",
+		"screenshot": "Browser screenshot",
+		"cursor": "cursor",
+		"navigation": {
+			"step": "Step {{current}} of {{total}}",
+			"previous": "Previous",
+			"next": "Next"
+		},
+		"sessionStarted": "Browser Session Started",
+		"actions": {
+			"title": "Browse Action: ",
+			"launch": "Launch browser at {{url}}",
+			"click": "Click ({{coordinate}})",
+			"type": "Type \"{{text}}\"",
+			"scrollDown": "Scroll down",
+			"scrollUp": "Scroll up",
+			"close": "Close browser"
+		}
 	}
 }

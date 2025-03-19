@@ -12,6 +12,7 @@ import { vscode } from "../../utils/vscode"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { ChatRowContent, ProgressIndicator } from "./ChatRow"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -25,6 +26,7 @@ interface BrowserSessionRowProps {
 
 const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const { messages, isLast, onHeightChange, lastModifiedMessage } = props
+	const { t } = useTranslation()
 	const prevHeightRef = useRef(0)
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
 	const [consoleLogsExpanded, setConsoleLogsExpanded] = useState(false)
@@ -242,7 +244,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						style={{ color: "var(--vscode-foreground)", marginBottom: "-1.5px" }}></span>
 				)}
 				<span style={{ fontWeight: "bold" }}>
-					<>Roo wants to use the browser:</>
+					<>{t("chat:browser.rooWantsToUse")}</>
 				</span>
 			</div>
 			<div
@@ -295,7 +297,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					{displayState.screenshot ? (
 						<img
 							src={displayState.screenshot}
-							alt="Browser screenshot"
+							alt={t("chat:browser.screenshot")}
 							style={{
 								position: "absolute",
 								top: 0,
@@ -353,10 +355,12 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							padding: `9px 8px ${consoleLogsExpanded ? 0 : 8}px 8px`,
 						}}>
 						<span className={`codicon codicon-chevron-${consoleLogsExpanded ? "down" : "right"}`}></span>
-						<span style={{ fontSize: "0.8em" }}>Console Logs</span>
+						<span style={{ fontSize: "0.8em" }}>{t("chat:browser.consoleLogs")}</span>
 					</div>
 					{consoleLogsExpanded && (
-						<CodeBlock source={`${"```"}shell\n${displayState.consoleLogs || "(No new logs)"}\n${"```"}`} />
+						<CodeBlock
+							source={`${"```"}shell\n${displayState.consoleLogs || t("chat:browser.noNewLogs")}\n${"```"}`}
+						/>
 					)}
 				</div>
 			</div>
@@ -376,18 +380,18 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						borderTop: "1px solid var(--vscode-editorGroup-border)",
 					}}>
 					<div>
-						Step {currentPageIndex + 1} of {pages.length}
+						{t("chat:browser.navigation.step", { current: currentPageIndex + 1, total: pages.length })}
 					</div>
 					<div style={{ display: "flex", gap: "4px" }}>
 						<VSCodeButton
 							disabled={currentPageIndex === 0 || isBrowsing}
 							onClick={() => setCurrentPageIndex((i) => i - 1)}>
-							Previous
+							{t("chat:browser.navigation.previous")}
 						</VSCodeButton>
 						<VSCodeButton
 							disabled={currentPageIndex === pages.length - 1 || isBrowsing}
 							onClick={() => setCurrentPageIndex((i) => i + 1)}>
-							Next
+							{t("chat:browser.navigation.next")}
 						</VSCodeButton>
 					</div>
 				</div>
@@ -424,6 +428,7 @@ const BrowserSessionRowContent = ({
 	setMaxActionHeight,
 	isStreaming,
 }: BrowserSessionRowContentProps) => {
+	const { t } = useTranslation()
 	const headerStyle: React.CSSProperties = {
 		display: "flex",
 		alignItems: "center",
@@ -474,7 +479,7 @@ const BrowserSessionRowContent = ({
 					return (
 						<>
 							<div style={headerStyle}>
-								<span style={{ fontWeight: "bold" }}>Browser Session Started</span>
+								<span style={{ fontWeight: "bold" }}>{t("chat:browser.sessionStarted")}</span>
 							</div>
 							<div
 								style={{
@@ -503,20 +508,21 @@ const BrowserActionBox = ({
 	coordinate?: string
 	text?: string
 }) => {
+	const { t } = useTranslation()
 	const getBrowserActionText = (action: BrowserAction, coordinate?: string, text?: string) => {
 		switch (action) {
 			case "launch":
-				return `Launch browser at ${text}`
+				return t("chat:browser.actions.launch", { url: text })
 			case "click":
-				return `Click (${coordinate?.replace(",", ", ")})`
+				return t("chat:browser.actions.click", { coordinate: coordinate?.replace(",", ", ") })
 			case "type":
-				return `Type "${text}"`
+				return t("chat:browser.actions.type", { text })
 			case "scroll_down":
-				return "Scroll down"
+				return t("chat:browser.actions.scrollDown")
 			case "scroll_up":
-				return "Scroll up"
+				return t("chat:browser.actions.scrollUp")
 			case "close":
-				return "Close browser"
+				return t("chat:browser.actions.close")
 			default:
 				return action
 		}
@@ -541,7 +547,7 @@ const BrowserActionBox = ({
 							whiteSpace: "normal",
 							wordBreak: "break-word",
 						}}>
-						<span style={{ fontWeight: 500 }}>Browse Action: </span>
+						<span style={{ fontWeight: 500 }}>{t("chat:browser.actions.title")}</span>
 						{getBrowserActionText(action, coordinate, text)}
 					</span>
 				</div>
@@ -551,6 +557,7 @@ const BrowserActionBox = ({
 }
 
 const BrowserCursor: React.FC<{ style?: React.CSSProperties }> = ({ style }) => {
+	const { t } = useTranslation()
 	// (can't use svgs in vsc extensions)
 	const cursorBase64 =
 		"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABUAAAAYCAYAAAAVibZIAAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAFaADAAQAAAABAAAAGAAAAADwi9a/AAADGElEQVQ4EZ2VbUiTURTH772be/PxZdsz3cZwC4RVaB8SAjMpxQwSWZbQG/TFkN7oW1Df+h6IRV9C+hCpKUSIZUXOfGM5tAKViijFFEyfZ7Ol29S1Pbdzl8Uw9+aBu91zzv3/nt17zt2DEZjBYOAkKrtFMXIghAWM8U2vMN/FctsxGRMpM7NbEEYNMM2CYUSInlJx3OpawO9i+XSNQYkmk2uFb9njzkcfVSr1p/GJiQKMULVaw2WuBv296UKRxWJR6wxGCmM1EAhSNppv33GBH9qI32cPTAtss9lUm6EM3N7R+RbigT+5/CeosFCZKpjEW+iorS1pb30wDUXzQfHqtD/9L3ieZ2ee1OJCmbL8QHnRs+4uj0wmW4QzrpCwvJ8zGg3JqAmhTLynuLiwv8/5KyND8Q3cEkUEDWu15oJE4KRQJt5hs1rcriGNRqP+DK4dyyWXXm/aFQ+cEpSJ8/LyDGPuEZNOmzsOroUSOqzXG/dtBU4ZysTZYKNut91sNo2Cq6cE9enz86s2g9OCMrFSqVC5hgb32u072W3jKMU90Hb1seC0oUwsB+t92bO/rKx0EFGkgFCnjjc1/gVvC8rE0L+4o63t4InjxwbAJQjTe3qD8QrLkXA4DC24fWtuajp06cLFYSBIFKGmXKPRRmAnME9sPt+yLwIWb9WN69fKoTneQz4Dh2mpPNkvfeV0jjecb9wNAkwIEVQq5VJOds4Kb+DXoAsiVquVwI1Dougpij6UyGYx+5cKroeDEFibm5lWRRMbH1+npmYrq6qhwlQHIbajZEf1fElcqGGFpGg9HMuKzpfBjhytCTMgkJ56RX09zy/ysENTBElmjIgJnmNChJqohDVQqpEfwkILE8v/o0GAnV9F1eEvofVQCbiTBEXOIPQh5PGgefDZeAcjrpGZjULBr/m3tZOnz7oEQWRAQZLjWlEU/XEJWySiILgRc5Cz1DkcAyuBFcnpfF0JiXWKpcolQXizhS5hKAqFpr0MVbgbuxJ6+5xX+P4wNpbqPPrugZfbmIbLmgQR3Aw8QSi66hUXulOFbF73GxqjE5BNXWNeAAAAAElFTkSuQmCC"
@@ -563,8 +570,8 @@ const BrowserCursor: React.FC<{ style?: React.CSSProperties }> = ({ style }) => 
 				height: "22px",
 				...style,
 			}}
-			alt="cursor"
-			aria-label="cursor"
+			alt={t("chat:browser.cursor")}
+			aria-label={t("chat:browser.cursor")}
 		/>
 	)
 }

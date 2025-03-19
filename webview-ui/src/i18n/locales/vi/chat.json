@@ -211,5 +211,27 @@
 		"feature5": "Lựa chọn nhà cung cấp OpenRouter",
 		"hideButton": "Ẩn thông báo",
 		"detailsDiscussLinks": "Nhận thêm chi tiết và thảo luận tại <discordLink>Discord</discordLink> và <redditLink>Reddit</redditLink> 🚀"
+	},
+	"browser": {
+		"rooWantsToUse": "Roo muốn sử dụng trình duyệt:",
+		"consoleLogs": "Nhật ký bảng điều khiển",
+		"noNewLogs": "(Không có nhật ký mới)",
+		"screenshot": "Ảnh chụp màn hình trình duyệt",
+		"cursor": "con trỏ",
+		"navigation": {
+			"step": "Bước {{current}} / {{total}}",
+			"previous": "Trước",
+			"next": "Tiếp"
+		},
+		"sessionStarted": "Phiên trình duyệt đã bắt đầu",
+		"actions": {
+			"title": "Hành động trình duyệt: ",
+			"launch": "Khởi chạy trình duyệt tại {{url}}",
+			"click": "Nhấp ({{coordinate}})",
+			"type": "Gõ \"{{text}}\"",
+			"scrollDown": "Cuộn xuống",
+			"scrollUp": "Cuộn lên",
+			"close": "Đóng trình duyệt"
+		}
 	}
 }

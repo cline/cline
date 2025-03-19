@@ -211,5 +211,27 @@
 		"feature5": "OpenRouter提供者選擇",
 		"hideButton": "隱藏公告",
 		"detailsDiscussLinks": "在<discordLink>Discord</discordLink>和<redditLink>Reddit</redditLink>取得更多詳情並參與討論 🚀"
+	},
+	"browser": {
+		"rooWantsToUse": "Roo想使用瀏覽器:",
+		"consoleLogs": "主控台記錄",
+		"noNewLogs": "(沒有新記錄)",
+		"screenshot": "瀏覽器截圖",
+		"cursor": "游標",
+		"navigation": {
+			"step": "步驟 {{current}} / {{total}}",
+			"previous": "上一步",
+			"next": "下一步"
+		},
+		"sessionStarted": "瀏覽器工作階段已啟動",
+		"actions": {
+			"title": "瀏覽器動作: ",
+			"launch": "在 {{url}} 啟動瀏覽器",
+			"click": "點擊 ({{coordinate}})",
+			"type": "輸入 \"{{text}}\"",
+			"scrollDown": "向下捲動",
+			"scrollUp": "向上捲動",
+			"close": "關閉瀏覽器"
+		}
 	}
 }

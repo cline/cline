@@ -211,5 +211,27 @@
 		"feature5": "OpenRouterプロバイダーの選択",
 		"hideButton": "通知を非表示",
 		"detailsDiscussLinks": "詳細は<discordLink>Discord</discordLink>と<redditLink>Reddit</redditLink>でご確認・ディスカッションください 🚀"
+	},
+	"browser": {
+		"rooWantsToUse": "Rooはブラウザを使用したい:",
+		"consoleLogs": "コンソールログ",
+		"noNewLogs": "(新しいログはありません)",
+		"screenshot": "ブラウザのスクリーンショット",
+		"cursor": "カーソル",
+		"navigation": {
+			"step": "ステップ {{current}} / {{total}}",
+			"previous": "前へ",
+			"next": "次へ"
+		},
+		"sessionStarted": "ブラウザセッション開始",
+		"actions": {
+			"title": "ブラウザアクション: ",
+			"launch": "{{url}} でブラウザを起動",
+			"click": "クリック ({{coordinate}})",
+			"type": "入力 \"{{text}}\"",
+			"scrollDown": "下にスクロール",
+			"scrollUp": "上にスクロール",
+			"close": "ブラウザを閉じる"
+		}
 	}
 }
