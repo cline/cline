@@ -7,9 +7,9 @@ const path = require("path")
 
 // Simple color helper functions since chalk might have ESM/CJS compatibility issues
 const colors = {
-	red: (text) => `\x1b[31m${text}\x1b[0m`,
 	green: (text) => `\x1b[32m${text}\x1b[0m`,
 	yellow: (text) => `\x1b[33m${text}\x1b[0m`,
+	red: (text) => `\x1b[31m${text}\x1b[0m`,
 }
 
 // Set TEST_MODE for consistent test behavior
@@ -223,35 +223,25 @@ async function checkVSCodeConfig() {
 			// Check settings.json for proper Mocha Explorer configuration
 			try {
 				// Read the file content
-				const settingsPath = path.join(vscodeDir, "settings.json")
-				const settingsContent = fs.readFileSync(settingsPath, "utf8")
+				const settingsContent = fs.readFileSync(path.join(vscodeDir, "settings.json"), "utf8")
 
 				// Strip comments from JSON (VS Code allows comments in JSON, but JSON.parse doesn't)
 				const jsonContent = settingsContent.replace(/\/\/.*$/gm, "")
 				const settingsJson = JSON.parse(jsonContent)
 
-				const hasMochaConfig =
-					settingsJson["mochaExplorer.files"] !== undefined ||
-					(settingsJson.mochaExplorer && settingsJson.mochaExplorer.files)
-
-				const hasTestModeEnv =
-					(settingsJson.mochaExplorer &&
-						settingsJson.mochaExplorer.env &&
-						settingsJson.mochaExplorer.env.TEST_MODE === "true") ||
-					(settingsJson["mochaExplorer.env"] &&
-						typeof settingsJson["mochaExplorer.env"] === "object" &&
-						settingsJson["mochaExplorer.env"].TEST_MODE === "true")
-
-				if (hasMochaConfig && hasTestModeEnv) {
+				if (
+					settingsJson.mochaExplorer &&
+					settingsJson.mochaExplorer.files &&
+					settingsJson.mochaExplorer.require &&
+					settingsJson.mochaExplorer.env &&
+					settingsJson.mochaExplorer.env.TEST_MODE === "true"
+				) {
 					result.success = true
 					result.message = "VS Code configuration is valid"
 					console.log(colors.green("✅ VS Code configuration is valid"))
 				} else {
 					result.message = "VS Code settings.json is missing Mocha Explorer configuration"
 					console.log(colors.yellow("⚠️ VS Code settings.json is missing proper Mocha Explorer configuration"))
-					console.log(
-						colors.yellow("   Check that TEST_MODE is set to 'true' in the Mocha Explorer environment settings"),
-					)
 				}
 			} catch (jsonError) {
 				// If we can't parse the JSON, check for settings with regex instead
@@ -260,8 +250,7 @@ async function checkVSCodeConfig() {
 				if (
 					settingsContent.includes("mochaExplorer.files") &&
 					settingsContent.includes("mochaExplorer.require") &&
-					settingsContent.includes("TEST_MODE") &&
-					settingsContent.includes("true")
+					settingsContent.includes("TEST_MODE")
 				) {
 					result.success = true
 					result.message = "VS Code configuration is valid (validated with regex)"

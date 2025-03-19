@@ -239,7 +239,6 @@
 		"test:only": "npx --node-options=--force-node-api-uncaught-exceptions-policy=true vscode-test --pre-launch-hook=\"echo Using VS Code for tests\" --run ./src/test/suite/extension.test.js --run ./out/test/suite/api-tests.test.js -- --verbose",
 		"test:core": "npx --node-options=--force-node-api-uncaught-exceptions-policy=true vscode-test --pre-launch-hook=\"echo Running core tests\" --run ./src/test/suite/extension.test.js --run ./out/test/suite/api-tests.test.js --run ./out/test/api/transform/gemini-format.test.js -- --verbose",
 		"test:all": "cross-env TEST_MODE=true npx --node-options=--force-node-api-uncaught-exceptions-policy=true vscode-test --pre-launch-hook=\"echo Running all tests && node src/test/set-test-mode.js\" --run ./src/test/suite/extension.test.js --run ./out/test/suite/api-tests.test.js --run ./out/utils/cost.test.js --run ./out/utils/fs.test.js --run ./out/utils/path.test.js --run ./out/test/api/retry.test.js --run ./out/test/api/transform/gemini-format.test.js --run ./out/test/api/providers/gemini.test.js",
-		"test:all-discovered": "npm run test:setup-discovery && cross-env TEST_MODE=true npx --node-options=--force-node-api-uncaught-exceptions-policy=true vscode-test --pre-launch-hook=\"echo Running all discovered tests && node src/test/set-test-mode.js\" --run ./src/test/suite/src-test-*.test.js --run ./src/test/suite/out-*.test.js",
 		"test:direct": "npx --node-options=--force-node-api-uncaught-exceptions-policy=true vscode-test --pre-launch-hook=\"echo Using VS Code for tests\" --no-clean-workspace",
 		"test:skipcheck": "npx tsc -p ./tsconfig.test.json --outDir out --skipLibCheck --noEmitOnError false && npx --node-options=--force-node-api-uncaught-exceptions-policy=true vscode-test --pre-launch-hook=\"echo Using VS Code for tests\"",
 		"test:utils": "npx --node-options=--force-node-api-uncaught-exceptions-policy=true vscode-test --pre-launch-hook=\"echo Testing utilities && node src/test/set-test-mode.js\" --run ./out/utils/cost.test.js --run ./out/utils/fs.test.js --run ./out/utils/path.test.js",
@@ -255,8 +254,7 @@
 		"prepare": "husky",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
-		"test:verify": "node src/test/verify-test-setup.js",
-		"test:master": "node src/test/run-master-tests.js"
+		"test:verify": "node src/test/verify-test-setup.js"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.12",
