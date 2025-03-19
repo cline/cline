@@ -1988,6 +1988,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				experiments,
 				enableMcpServerCreation,
 				browserToolEnabled,
+				language,
 			} = await this.getState()
 
 			// Create diffStrategy based on current model and settings
@@ -2021,6 +2022,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				diffEnabled,
 				experiments,
 				enableMcpServerCreation,
+				language,
 				rooIgnoreInstructions,
 			)
 			return systemPrompt

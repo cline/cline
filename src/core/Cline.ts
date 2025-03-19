@@ -1125,6 +1125,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 			experiments,
 			enableMcpServerCreation,
 			browserToolEnabled,
+			language,
 		} = (await this.providerRef.deref()?.getState()) ?? {}
 		const { customModes } = (await this.providerRef.deref()?.getState()) ?? {}
 		const systemPrompt = await (async () => {
@@ -1146,6 +1147,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 				this.diffEnabled,
 				experiments,
 				enableMcpServerCreation,
+				language,
 				rooIgnoreInstructions,
 			)
 		})()
