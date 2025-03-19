@@ -52,6 +52,7 @@ export interface WebviewMessage {
 		| "alwaysAllowSubtasks"
 		| "playSound"
 		| "playTts"
+		| "stopTts"
 		| "soundEnabled"
 		| "ttsEnabled"
 		| "ttsSpeed"

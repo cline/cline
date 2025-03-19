@@ -54,6 +54,8 @@ export interface ExtensionMessage {
 		| "browserToolEnabled"
 		| "browserConnectionResult"
 		| "remoteBrowserEnabled"
+		| "ttsStart"
+		| "ttsStop"
 	text?: string
 	action?:
 		| "chatButtonClicked"

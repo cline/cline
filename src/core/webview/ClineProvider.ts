@@ -41,7 +41,7 @@ import { BrowserSession } from "../../services/browser/BrowserSession"
 import { discoverChromeInstances } from "../../services/browser/browserDiscovery"
 import { fileExistsAtPath } from "../../utils/fs"
 import { playSound, setSoundEnabled, setSoundVolume } from "../../utils/sound"
-import { playTts, setTtsEnabled, setTtsSpeed } from "../../utils/tts"
+import { playTts, setTtsEnabled, setTtsSpeed, stopTts } from "../../utils/tts"
 import { singleCompletionHandler } from "../../utils/single-completion-handler"
 import { searchCommits } from "../../utils/git"
 import { getDiffStrategy } from "../diff/DiffStrategy"
@@ -1281,8 +1281,14 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 						break
 					case "playTts":
 						if (message.text) {
-							playTts(message.text)
+							playTts(message.text, {
+								onStart: () => this.postMessageToWebview({ type: "ttsStart", text: message.text }),
+								onStop: () => this.postMessageToWebview({ type: "ttsStop", text: message.text }),
+							})
 						}
+						break
+					case "stopTts":
+						stopTts()
 						break
 					case "diffEnabled":
 						const diffEnabled = message.bool ?? true
