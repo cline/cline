@@ -66,13 +66,13 @@ export const HumanRelayDialog: React.FC<HumanRelayDialogProps> = ({
 
 	return (
 		<Dialog open={isOpen} onOpenChange={(open) => !open && handleCancel()}>
-			<DialogContent className="sm:max-w-[600px]">
+			<DialogContent className="sm:max-w-[600px] overflow-y-auto max-h-[80vh]">
 				<DialogHeader>
 					<DialogTitle>{t("humanRelay:dialogTitle")}</DialogTitle>
 					<DialogDescription>{t("humanRelay:dialogDescription")}</DialogDescription>
 				</DialogHeader>
 
-				<div className="grid gap-4 py-4">
+				<div className="grid gap-6 py-6">
 					<div className="relative">
 						<Textarea
 							className="min-h-[200px] font-mono text-sm p-4 pr-12 whitespace-pre-wrap"
