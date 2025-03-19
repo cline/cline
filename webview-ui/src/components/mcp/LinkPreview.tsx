@@ -276,37 +276,35 @@ class LinkPreview extends React.Component<
 				}}>
 				{data.image && (
 					<div className="link-preview-image" style={{ width: "128px", height: "128px", flexShrink: 0 }}>
-						<ChatErrorBoundary errorTitle="Image preview failed to load">
-							<img
-								src={DOMPurify.sanitize(normalizeRelativeUrl(data.image, url))}
-								alt=""
-								style={{
-									width: "100%",
-									height: "100%",
-									objectFit: "contain", // Use contain for link preview thumbnails to handle logos
-									objectPosition: "center", // Center the image
-								}}
-								onLoad={(e) => {
-									// Check aspect ratio to determine if we should use contain or cover
-									const img = e.currentTarget
-									if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-										const aspectRatio = img.naturalWidth / img.naturalHeight
+                        <img
+                            src={DOMPurify.sanitize(normalizeRelativeUrl(data.image, url))}
+                            alt=""
+                            style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "contain", // Use contain for link preview thumbnails to handle logos
+                                objectPosition: "center", // Center the image
+                            }}
+                            onLoad={(e) => {
+                                // Check aspect ratio to determine if we should use contain or cover
+                                const img = e.currentTarget
+                                if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+                                    const aspectRatio = img.naturalWidth / img.naturalHeight
 
-										// Use contain for extreme aspect ratios (logos), cover for photos
-										if (aspectRatio > 2.5 || aspectRatio < 0.4) {
-											img.style.objectFit = "contain"
-										} else {
-											img.style.objectFit = "cover"
-										}
-									}
-								}}
-								onError={(e) => {
-									console.log(`Image could not be loaded: ${data.image}`)
-									// Hide the broken image
-									;(e.target as HTMLImageElement).style.display = "none"
-								}}
-							/>
-						</ChatErrorBoundary>
+                                    // Use contain for extreme aspect ratios (logos), cover for photos
+                                    if (aspectRatio > 2.5 || aspectRatio < 0.4) {
+                                        img.style.objectFit = "contain"
+                                    } else {
+                                        img.style.objectFit = "cover"
+                                    }
+                                }
+                            }}
+                            onError={(e) => {
+                                console.log(`Image could not be loaded: ${data.image}`)
+                                // Hide the broken image
+                                ;(e.target as HTMLImageElement).style.display = "none"
+                            }}
+                        />
 					</div>
 				)}
 
