@@ -369,6 +369,11 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			setTtsEnabled(ttsEnabled ?? false)
 		})
 
+		// Initialize tts speed state
+		this.getState().then(({ ttsSpeed }) => {
+			setTtsSpeed(ttsSpeed ?? 1)
+		})
+
 		webviewView.webview.options = {
 			// Allow scripts in the webview
 			enableScripts: true,
