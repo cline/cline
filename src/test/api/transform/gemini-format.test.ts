@@ -16,6 +16,7 @@ import {
 	convertGeminiResponseToAnthropic,
 } from "../../../api/transform/gemini-format"
 import { Anthropic } from "@anthropic-ai/sdk"
+import { Content, EnhancedGenerateContentResponse } from "@google/generative-ai"
 
 describe("Gemini Format Utilities", () => {
 	describe("unescapeGeminiContent", () => {
@@ -60,9 +61,115 @@ describe("Gemini Format Utilities", () => {
 			const unescaped = unescapeGeminiContent(escaped)
 			unescaped.should.equal('```typescript\nconst greeting = "Hello, world!"\nconsole.log(greeting);\n```')
 		})
+
+		it("should handle Unicode characters correctly", () => {
+			const escaped = "Unicode: \\u00A9 \\u2713 \\u03C0"
+			const unescaped = unescapeGeminiContent(escaped)
+			// Unicode escapes aren't processed by the unescape function, they should remain as-is
+			unescaped.should.equal("Unicode: \\u00A9 \\u2713 \\u03C0")
+		})
+
+		it("should handle Windows UNC paths", () => {
+			const escaped = "UNC path: \\\\\\\\server\\\\share\\\\folder\\\\file.txt"
+			const unescaped = unescapeGeminiContent(escaped)
+			unescaped.should.equal("UNC path: \\\\server\\share\\folder\\file.txt")
+		})
+
+		it("should handle malformed escape sequences gracefully", () => {
+			const escaped = "Malformed: \\x \\y \\z"
+			const unescaped = unescapeGeminiContent(escaped)
+			// Unknown escape sequences should just have the backslash removed
+			unescaped.should.equal("Malformed: x y z")
+		})
 	})
 
-	// Basic tests for the other functions to ensure they're working correctly
+	describe("convertAnthropicContentToGemini", () => {
+		it("should convert a simple string to Gemini text part", () => {
+			const content = "Hello, world!"
+			const result = convertAnthropicContentToGemini(content)
+
+			result.should.be.an.Array().with.lengthOf(1)
+			result[0].should.have.property("text", "Hello, world!")
+		})
+
+		it("should convert array of text blocks", () => {
+			const content: Anthropic.ContentBlockParam[] = [
+				{ type: "text", text: "First paragraph" },
+				{ type: "text", text: "Second paragraph" },
+			]
+
+			const result = convertAnthropicContentToGemini(content)
+
+			result.should.be.an.Array().with.lengthOf(2)
+			result[0].should.have.property("text", "First paragraph")
+			result[1].should.have.property("text", "Second paragraph")
+		})
+
+		it("should convert image blocks with base64 data", () => {
+			const content: Anthropic.ContentBlockParam[] = [
+				{
+					type: "image",
+					source: {
+						type: "base64",
+						media_type: "image/jpeg",
+						data: "base64encodeddata",
+					},
+				},
+			]
+
+			const result = convertAnthropicContentToGemini(content)
+
+			result.should.be.an.Array().with.lengthOf(1)
+			result[0].should.have.property("inlineData")
+			result[0].inlineData.should.have.property("data", "base64encodeddata")
+			result[0].inlineData.should.have.property("mimeType", "image/jpeg")
+		})
+
+		it("should convert mixed content types", () => {
+			const content: Anthropic.ContentBlockParam[] = [
+				{ type: "text", text: "Check this image:" },
+				{
+					type: "image",
+					source: {
+						type: "base64",
+						media_type: "image/png",
+						data: "base64encodeddata",
+					},
+				},
+				{ type: "text", text: "What do you think?" },
+			]
+
+			const result = convertAnthropicContentToGemini(content)
+
+			result.should.be.an.Array().with.lengthOf(3)
+			result[0].should.have.property("text")
+			result[1].should.have.property("inlineData")
+			result[2].should.have.property("text")
+		})
+
+		it("should throw error for unsupported image source types", () => {
+			const content: Anthropic.ContentBlockParam[] = [
+				{
+					type: "image",
+					source: {
+						type: "url" as any, // Type assertion to bypass TypeScript check
+						media_type: "image/jpeg",
+						url: "https://example.com/image.jpg",
+					} as any,
+				},
+			](() => convertAnthropicContentToGemini(content)).should.throw(/Unsupported image source type/)
+		})
+
+		it("should throw error for unsupported content block types", () => {
+			const content: any[] = [
+				{
+					type: "unknown_type",
+					content: "Some content",
+				},
+			](() => convertAnthropicContentToGemini(content)).should.throw(/Unsupported content block type/)
+		})
+	})
+
 	describe("convertAnthropicMessageToGemini", () => {
 		it("should convert user message correctly", () => {
 			const message: Anthropic.Messages.MessageParam = {
@@ -86,6 +193,151 @@ describe("Gemini Format Utilities", () => {
 			result.role.should.equal("model")
 			result.parts.should.have.length(1)
 			result.parts[0].should.have.property("text", "I'm an AI assistant. How can I help you today?")
+		})
+
+		it("should convert message with complex content", () => {
+			const message: Anthropic.Messages.MessageParam = {
+				role: "user",
+				content: [
+					{ type: "text", text: "What's in this image?" },
+					{
+						type: "image",
+						source: {
+							type: "base64",
+							media_type: "image/jpeg",
+							data: "base64encodeddata",
+						},
+					},
+				],
+			}
+
+			const result = convertAnthropicMessageToGemini(message)
+			result.role.should.equal("user")
+			result.parts.should.have.length(2)
+			result.parts[0].should.have.property("text", "What's in this image?")
+			result.parts[1].should.have.property("inlineData")
+		})
+	})
+
+	describe("convertGeminiResponseToAnthropic", () => {
+		// Helper to create a mock Gemini response
+		function createMockGeminiResponse(options: {
+			text?: string
+			finishReason?: string
+			promptTokens?: number
+			completionTokens?: number
+		}): EnhancedGenerateContentResponse {
+			return {
+				text: () => options.text || "",
+				candidates: options.finishReason ? [{ finishReason: options.finishReason }] : [],
+				usageMetadata: {
+					promptTokenCount: options.promptTokens || 0,
+					candidatesTokenCount: options.completionTokens || 0,
+				},
+			} as EnhancedGenerateContentResponse
+		}
+
+		it("should convert a basic text response", () => {
+			const mockResponse = createMockGeminiResponse({
+				text: "This is a response",
+				promptTokens: 10,
+				completionTokens: 20,
+			})
+
+			const result = convertGeminiResponseToAnthropic(mockResponse)
+
+			result.should.have.property("type", "message")
+			result.should.have.property("role", "assistant")
+			result.content.should.be.an.Array().with.lengthOf(1)
+			result.content[0].should.have.property("type", "text")
+			result.content[0].should.have.property("text", "This is a response")
+			result.usage.should.have.property("input_tokens", 10)
+			result.usage.should.have.property("output_tokens", 20)
+		})
+
+		it("should map STOP finish reason to end_turn", () => {
+			const mockResponse = createMockGeminiResponse({
+				text: "Response",
+				finishReason: "STOP",
+			})
+
+			const result = convertGeminiResponseToAnthropic(mockResponse)
+			result.should.have.property("stop_reason", "end_turn")
+		})
+
+		it("should map MAX_TOKENS finish reason to max_tokens", () => {
+			const mockResponse = createMockGeminiResponse({
+				text: "Response",
+				finishReason: "MAX_TOKENS",
+			})
+
+			const result = convertGeminiResponseToAnthropic(mockResponse)
+			result.should.have.property("stop_reason", "max_tokens")
+		})
+
+		it("should map SAFETY finish reason to stop_sequence", () => {
+			const mockResponse = createMockGeminiResponse({
+				text: "Response",
+				finishReason: "SAFETY",
+			})
+
+			const result = convertGeminiResponseToAnthropic(mockResponse)
+			result.should.have.property("stop_reason", "stop_sequence")
+		})
+
+		it("should map RECITATION finish reason to stop_sequence", () => {
+			const mockResponse = createMockGeminiResponse({
+				text: "Response",
+				finishReason: "RECITATION",
+			})
+
+			const result = convertGeminiResponseToAnthropic(mockResponse)
+			result.should.have.property("stop_reason", "stop_sequence")
+		})
+
+		it("should map OTHER finish reason to stop_sequence", () => {
+			const mockResponse = createMockGeminiResponse({
+				text: "Response",
+				finishReason: "OTHER",
+			})
+
+			const result = convertGeminiResponseToAnthropic(mockResponse)
+			result.should.have.property("stop_reason", "stop_sequence")
+		})
+
+		it("should handle responses with missing usage metadata", () => {
+			const mockResponse = {
+				text: () => "Response with no usage",
+				candidates: [],
+				// No usageMetadata
+			} as EnhancedGenerateContentResponse
+
+			const result = convertGeminiResponseToAnthropic(mockResponse)
+
+			result.usage.should.have.property("input_tokens", 0)
+			result.usage.should.have.property("output_tokens", 0)
+		})
+
+		it("should handle empty text responses", () => {
+			const mockResponse = createMockGeminiResponse({
+				text: "", // Empty text
+				promptTokens: 5,
+				completionTokens: 0,
+			})
+
+			const result = convertGeminiResponseToAnthropic(mockResponse)
+
+			result.content.should.be.an.Array().with.lengthOf(1)
+			result.content[0].should.have.property("text", "")
+		})
+
+		it("should generate a unique message ID", () => {
+			const mockResponse = createMockGeminiResponse({ text: "Response" })
+
+			const result = convertGeminiResponseToAnthropic(mockResponse)
+
+			result.should.have.property("id")
+			result.id.should.be.a.String().and.match(/^msg_\d+$/)
 		})
 	})
 })

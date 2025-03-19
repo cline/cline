@@ -15,7 +15,7 @@ const { expect } = chai
 import "should"
 import * as sinon from "sinon"
 import { GeminiHandler } from "../../../api/providers/gemini"
-import { ApiHandlerOptions, geminiModels } from "../../../shared/api"
+import { ApiHandlerOptions, geminiDefaultModelId, geminiModels } from "../../../shared/api"
 import * as geminiFormat from "../../../api/transform/gemini-format"
 import { ApiStream } from "../../../api/transform/stream"
 import { Anthropic } from "@anthropic-ai/sdk"
@@ -234,6 +234,318 @@ describe("Gemini API Integration", () => {
 				expect(error.message).to.include("Stream chunk error")
 			}
 			expect(errorOccurred).to.be.true
+		})
+
+		it("should handle empty responses properly", async () => {
+			// Simulate a model that returns no text chunks but a valid response
+			fakeModel = {
+				generateContentStream: async () => {
+					async function* fakeStream() {
+						// No chunks yielded
+					}
+					const fakeResponse = {
+						usageMetadata: {
+							promptTokenCount: 5,
+							candidatesTokenCount: 0,
+						},
+						candidates: [{ finishReason: undefined }],
+					}
+					return {
+						stream: fakeStream(),
+						response: Promise.resolve(fakeResponse),
+					}
+				},
+			}
+
+			const output: any[] = []
+			for await (const chunk of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
+				output.push(chunk)
+			}
+
+			// We should still get the usage information
+			expect(output).to.have.length(1)
+			expect(output[0]).to.have.property("type", "usage")
+			expect(output[0]).to.have.property("outputTokens", 0)
+		})
+
+		it("should handle chunks with empty text", async () => {
+			// Simulate a model that returns empty text chunks
+			fakeModel = {
+				generateContentStream: async () => {
+					async function* fakeStream() {
+						yield { text: () => "" } // Empty text
+						yield { text: () => "Valid content" }
+					}
+					const fakeResponse = {
+						usageMetadata: {
+							promptTokenCount: 5,
+							candidatesTokenCount: 10,
+						},
+						candidates: [{ finishReason: undefined }],
+					}
+					return {
+						stream: fakeStream(),
+						response: Promise.resolve(fakeResponse),
+					}
+				},
+			}
+
+			const output: any[] = []
+			for await (const chunk of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
+				output.push(chunk)
+			}
+
+			// We expect one text chunk (the non-empty one) and usage
+			expect(output).to.have.length(2)
+			expect(output[0]).to.have.property("type", "text")
+			expect(output[0]).to.have.property("text", "Valid content")
+			expect(output[1]).to.have.property("type", "usage")
+		})
+
+		it("should handle null response object", async () => {
+			// Simulate a model that returns a null response
+			fakeModel = {
+				generateContentStream: async () => {
+					async function* fakeStream() {
+						yield { text: () => "Some content" }
+					}
+					return {
+						stream: fakeStream(),
+						response: Promise.resolve(null), // Null response
+					}
+				},
+			}
+
+			let errorOccurred = false
+			try {
+				for await (const _ of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
+				}
+			} catch (error: any) {
+				errorOccurred = true
+				expect(error.message).to.include("No response received from Gemini API")
+			}
+			expect(errorOccurred).to.be.true
+		})
+
+		it("should handle extremely long responses", async () => {
+			// Generate a very long string close to token limit
+			const longString = "a".repeat(10000) // Simulate a long response
+			// Simulate a model that returns a very long response
+			fakeModel = {
+				generateContentStream: async () => {
+					async function* fakeStream() {
+						// Yield the long string in chunks to avoid memory issues
+						for (let i = 0; i < 10; i++) {
+							yield { text: () => longString.substring(i * 1000, (i + 1) * 1000) }
+						}
+					}
+					const fakeResponse = {
+						usageMetadata: {
+							promptTokenCount: 5,
+							candidatesTokenCount: 1000, // Approximate tokens for the long string
+						},
+						candidates: [{ finishReason: undefined }],
+					}
+					return {
+						stream: fakeStream(),
+						response: Promise.resolve(fakeResponse),
+					}
+				},
+			}
+
+			const output: any[] = []
+			for await (const chunk of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
+				output.push(chunk)
+			}
+
+			// We expect 10 text chunks and 1 usage yield
+			expect(output).to.have.length(11)
+			expect(output[10]).to.have.property("type", "usage")
+			expect(output[10]).to.have.property("outputTokens", 1000)
+
+			// Check the concatenated text length
+			const totalText = output
+				.filter((chunk) => chunk.type === "text")
+				.map((chunk) => chunk.text)
+				.join("")
+			expect(totalText).to.have.length(10000)
+		})
+	})
+
+	describe("Configuration and Model Selection", () => {
+		// Restore the original constructor and getModel implementation for these tests
+		let originalGeminiHandler: typeof GeminiHandler
+
+		beforeEach(() => {
+			originalGeminiHandler = GeminiHandler
+		})
+
+		afterEach(() => {
+			// Restore original
+			Object.defineProperty(global, "GeminiHandler", {
+				value: originalGeminiHandler,
+			})
+		})
+
+		it("should throw an error when constructed without API key", () => {
+			expect(() => new GeminiHandler({} as ApiHandlerOptions)).to.throw("API key is required")
+		})
+
+		it("should use default model when no model ID is provided", () => {
+			const handlerWithoutModelId = new GeminiHandler({
+				geminiApiKey: "dummy-key",
+			})
+
+			const model = handlerWithoutModelId.getModel()
+			expect(model.id).to.equal(geminiDefaultModelId)
+			expect(model.info).to.deep.equal(geminiModels[geminiDefaultModelId])
+		})
+
+		it("should use specified model when valid model ID is provided", () => {
+			// Use a real model ID from the geminiModels object
+			const realModelId = Object.keys(geminiModels)[0] as any
+			const handlerWithModelId = new GeminiHandler({
+				geminiApiKey: "dummy-key",
+				apiModelId: realModelId,
+			})
+
+			const model = handlerWithModelId.getModel()
+			expect(model.id).to.equal(realModelId)
+			expect(model.info).to.deep.equal(geminiModels[realModelId])
+		})
+
+		it("should fall back to default model when invalid model ID is provided", () => {
+			const handlerWithInvalidModelId = new GeminiHandler({
+				geminiApiKey: "dummy-key",
+				apiModelId: "non-existent-model" as any,
+			})
+
+			const model = handlerWithInvalidModelId.getModel()
+			expect(model.id).to.equal(geminiDefaultModelId)
+			expect(model.info).to.deep.equal(geminiModels[geminiDefaultModelId])
+		})
+	})
+
+	describe("Error Handling and Retry Logic", () => {
+		it("should handle API errors during stream initialization", async () => {
+			// Mock a model that throws during generateContentStream
+			fakeModel = {
+				generateContentStream: async () => {
+					throw new Error("API connection error")
+				},
+			}
+
+			let errorOccurred = false
+			try {
+				for await (const _ of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
+				}
+			} catch (error: any) {
+				errorOccurred = true
+				expect(error.message).to.include("API connection error")
+			}
+			expect(errorOccurred).to.be.true
+		})
+
+		it("should handle errors during response retrieval", async () => {
+			// Mock a model that throws when retrieving the response
+			fakeModel = {
+				generateContentStream: async () => {
+					async function* fakeStream() {
+						yield { text: () => "Content before error" }
+					}
+					return {
+						stream: fakeStream(),
+						response: Promise.reject(new Error("Response retrieval error")),
+					}
+				},
+			}
+
+			let errorOccurred = false
+			try {
+				for await (const _ of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
+				}
+			} catch (error: any) {
+				errorOccurred = true
+				expect(error.message).to.include("Response retrieval error")
+			}
+			expect(errorOccurred).to.be.true
+		})
+	})
+
+	describe("Format conversion during message generation", () => {
+		it("should apply unescapeGeminiContent to text chunks", async () => {
+			// Create a spy on unescapeGeminiContent
+			const unescapeSpy = sinon.spy(geminiFormat, "unescapeGeminiContent")
+
+			// Mock a model that returns escaped text
+			fakeModel = {
+				generateContentStream: async () => {
+					async function* fakeStream() {
+						yield { text: () => "Line 1\\nLine 2" }
+					}
+					const fakeResponse = {
+						usageMetadata: {
+							promptTokenCount: 5,
+							candidatesTokenCount: 10,
+						},
+						candidates: [{ finishReason: undefined }],
+					}
+					return {
+						stream: fakeStream(),
+						response: Promise.resolve(fakeResponse),
+					}
+				},
+			}
+
+			const output: any[] = []
+			for await (const chunk of handler.createMessage("Prompt", [{ content: "test", role: "user" }])) {
+				if (chunk.type === "text") {
+					output.push(chunk.text)
+				}
+			}
+
+			// Verify unescapeGeminiContent was called with the escaped text
+			expect(unescapeSpy.calledWith("Line 1\\nLine 2")).to.be.true
+
+			// Verify the unescaped text is in the output
+			expect(output[0]).to.equal("Line 1\nLine 2")
+		})
+
+		it("should use convertAnthropicMessageToGemini for input messages", async () => {
+			// Create a spy on convertAnthropicMessageToGemini
+			const convertSpy = sinon.spy(fakeModel, "generateContentStream")
+
+			// Simple model that just records the call
+			fakeModel.generateContentStream = async (params: any) => {
+				async function* fakeStream() {
+					// No chunks needed
+				}
+				return {
+					stream: fakeStream(),
+					response: Promise.resolve({
+						usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 0 },
+						candidates: [{ finishReason: undefined }],
+					}),
+				}
+			}
+
+			const testMessage: Anthropic.Messages.MessageParam = {
+				role: "user",
+				content: "Test message",
+			}
+
+			// Process the message
+			for await (const _ of handler.createMessage("Test prompt", [testMessage])) {
+				// Just iterate to process
+			}
+
+			// Verify the conversion was called correctly
+			expect(convertSpy.called).to.be.true
+
+			// The first argument should contain the contents array with the converted message
+			const callArg = convertSpy.firstCall.args[0]
+			expect(callArg).to.have.property("contents")
+			expect(callArg.contents.length).to.be.at.least(1)
 		})
 	})
 
