@@ -2,35 +2,7 @@ import React, { useEffect, useRef } from "react"
 import { vscode } from "../../utils/vscode"
 import DOMPurify from "dompurify"
 import { getSafeHostname, formatUrlForOpening, checkIfImageUrl } from "./McpRichUtil"
-
-// Error boundary component to prevent crashes
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
-	constructor(props: { children: React.ReactNode }) {
-		super(props)
-		this.state = { hasError: false, error: null }
-	}
-
-	static getDerivedStateFromError(error: Error) {
-		return { hasError: true, error }
-	}
-
-	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-		console.log("Error in ImagePreview component:", error.message)
-	}
-
-	render() {
-		if (this.state.hasError) {
-			return (
-				<div style={{ padding: "10px", color: "var(--vscode-errorForeground)" }}>
-					<h3>Something went wrong displaying this image</h3>
-					<p>Error: {this.state.error?.message || "Unknown error"}</p>
-				</div>
-			)
-		}
-
-		return this.props.children
-	}
-}
+import ChatErrorBoundary, { ErrorAfterDelay } from "../chat/ChatErrorBoundary"
 
 interface ImagePreviewProps {
 	url: string
@@ -355,9 +327,11 @@ const MemoizedImagePreview = React.memo(
 // Wrap the ImagePreview component with an error boundary
 const ImagePreviewWithErrorBoundary: React.FC<ImagePreviewProps> = (props) => {
 	return (
-		<ErrorBoundary>
+		<ChatErrorBoundary errorTitle="Something went wrong displaying this image">
+			{/* Demo error component for review - will be removed later */}
+			<ErrorAfterDelay />
 			<MemoizedImagePreview {...props} />
-		</ErrorBoundary>
+		</ChatErrorBoundary>
 	)
 }
 

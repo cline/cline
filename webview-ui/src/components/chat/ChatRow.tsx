@@ -3,7 +3,6 @@ import deepEqual from "fast-deep-equal"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent, useSize } from "react-use"
 import styled from "styled-components"
-import { ErrorAfterDelay } from "./ChatErrorBoundary"
 import {
 	ClineApiReqInfo,
 	ClineAskQuestion,
@@ -799,7 +798,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 				case "mcp_server_response":
 					return (
 						<div>
-							{showDemoError && <ErrorAfterDelay />}
 							<McpResponseDisplay responseText={message.text || ""} />
 						</div>
 					)

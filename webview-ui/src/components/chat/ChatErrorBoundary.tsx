@@ -63,43 +63,68 @@ export class ChatErrorBoundary extends React.Component<ChatErrorBoundaryProps, C
 
 /**
  * A demo component that throws an error after a delay.
- * This is useful for testing error boundaries during development.
- * It will be removed in production.
+ * This is useful for testing error boundaries during development
  */
-export class ErrorAfterDelay extends React.Component {
-  private timeoutId: NodeJS.Timeout | null = null
+interface ErrorAfterDelayProps {
+  numSecondsToWait?: number;
+}
 
-  componentDidMount() {
-    // Throw an error after 1 second (reduced from 5 seconds for faster testing)
-    this.timeoutId = setTimeout(() => {
-      // Using a more direct approach to trigger an error that will be caught by the boundary
-      this.setState(() => {
-        throw new Error("This is a demo error for testing the error boundary")
-      })
-    }, 1000)
-  }
+interface ErrorAfterDelayState {
+  tickCount: number;
+}
 
-  componentWillUnmount() {
-    if (this.timeoutId) {
-      clearTimeout(this.timeoutId)
+export class ErrorAfterDelay extends React.Component<ErrorAfterDelayProps, ErrorAfterDelayState> {
+  private intervalID: NodeJS.Timeout | null = null
+
+  constructor(props: ErrorAfterDelayProps) {
+    super(props)
+    this.state = {
+      tickCount: 0,
     }
   }
 
-  render() {
+  componentDidMount() {
+    const secondsToWait = this.props.numSecondsToWait ?? 5;
+    
+    this.intervalID = setInterval(() => {
+      if (this.state.tickCount >= secondsToWait) {
+        if (this.intervalID) {
+          clearInterval(this.intervalID)
+        }
+        // Error boundaries don't catch async code :(
+        // So this only works by throwing inside of a setState
+        this.setState(() => {
+          throw new Error("This is an error for testing the error boundary");
+        });
+      } else {
+        this.setState({
+          tickCount: this.state.tickCount + 1
+        });
+      }
+    }, 1000);
+  }
+
+  componentWillUnmount() {
+    if (this.intervalID) {
+      clearInterval(this.intervalID)
+    }
+  }
+
+  render() {    
     // Add a small visual indicator that this component will cause an error
     return (
       <div style={{ 
         position: "absolute", 
         top: 0, 
         right: 0,
-        background: "rgba(255, 0, 0, 0.2)",
+        background: "rgba(255, 0, 0, 0.5)",
         color: "var(--vscode-errorForeground)",
         padding: "2px 5px",
-        fontSize: "10px",
+        fontSize: "12px",
         borderRadius: "0 0 0 4px",
         zIndex: 100
       }}>
-        Error in 1s
+        Error in {this.state.tickCount}/{this.props.numSecondsToWait ?? 5} seconds
       </div>
     )
   }
