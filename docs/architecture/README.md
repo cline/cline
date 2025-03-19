@@ -25,6 +25,17 @@ The [extension-architecture.mmd](./extension-architecture.mmd) file contains a M
    - Webview UI data flow
    - Bidirectional communication between core and webview
 
+## API Provider Integrations
+
+Cline supports multiple API providers for AI models:
+
+1. **Google Gemini** - [Gemini Integration](./gemini-integration.md)
+   - Implementation of the Gemini API provider
+   - Format conversion between Anthropic and Gemini structures
+   - Model configuration and selection
+
+Additional provider documentation will be added for other supported APIs.
+
 ## Viewing the Diagram
 
 To view the diagram:

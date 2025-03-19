@@ -2,6 +2,23 @@
  * Conversion utilities for transforming between Anthropic and Google Gemini API formats.
  * This module contains adapter functions that enable compatibility between the two API formats,
  * allowing a system designed for Anthropic's Claude to work with Google's Gemini models.
+ *
+ * @example
+ * // Basic usage of conversion utilities:
+ * import { Anthropic } from "@anthropic-ai/sdk";
+ * import { convertAnthropicMessageToGemini, unescapeGeminiContent } from "../api/transform/gemini-format";
+ *
+ * // Convert Anthropic message to Gemini format
+ * const anthropicMessage: Anthropic.Messages.MessageParam = {
+ *   role: "user",
+ *   content: "Hello, how are you?"
+ * };
+ * const geminiContent = convertAnthropicMessageToGemini(anthropicMessage);
+ *
+ * // Handle escaped content from Gemini response
+ * const escapedContent = "Hello,\\nHow are you?";
+ * const unescaped = unescapeGeminiContent(escapedContent);
+ * console.log(unescaped); // "Hello,\nHow are you?"
  */
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Content, EnhancedGenerateContentResponse, InlineDataPart, Part, TextPart } from "@google/generative-ai"
@@ -12,6 +29,30 @@ import { Content, EnhancedGenerateContentResponse, InlineDataPart, Part, TextPar
  * @param content - Either a string or an array of Anthropic content blocks
  * @returns An array of Gemini-compatible Part objects
  * @throws Error when encountering unsupported content types or image source types
+ *
+ * @example
+ * // Convert a simple string
+ * const parts = convertAnthropicContentToGemini("Hello, world!");
+ * // Result: [{ text: "Hello, world!" }]
+ *
+ * @example
+ * // Convert an array of content blocks with text and image
+ * const content: Anthropic.ContentBlockParam[] = [
+ *   { type: "text", text: "What's in this image?" },
+ *   {
+ *     type: "image",
+ *     source: {
+ *       type: "base64",
+ *       media_type: "image/jpeg",
+ *       data: "base64EncodedImageData"
+ *     }
+ *   }
+ * ];
+ * const parts = convertAnthropicContentToGemini(content);
+ * // Result: [
+ * //   { text: "What's in this image?" },
+ * //   { inlineData: { data: "base64EncodedImageData", mimeType: "image/jpeg" } }
+ * // ]
  */
 export function convertAnthropicContentToGemini(content: string | Anthropic.ContentBlockParam[]): Part[] {
 	if (typeof content === "string") {
@@ -45,6 +86,24 @@ export function convertAnthropicContentToGemini(content: string | Anthropic.Cont
  *
  * @param message - An Anthropic message object
  * @returns A Gemini-compatible Content object
+ *
+ * @example
+ * // Convert a user message
+ * const userMessage: Anthropic.Messages.MessageParam = {
+ *   role: "user",
+ *   content: "Hello, how are you?"
+ * };
+ * const geminiContent = convertAnthropicMessageToGemini(userMessage);
+ * // Result: { role: "user", parts: [{ text: "Hello, how are you?" }] }
+ *
+ * @example
+ * // Convert an assistant message
+ * const assistantMessage: Anthropic.Messages.MessageParam = {
+ *   role: "assistant",
+ *   content: "I'm doing well, thank you!"
+ * };
+ * const geminiContent = convertAnthropicMessageToGemini(assistantMessage);
+ * // Result: { role: "model", parts: [{ text: "I'm doing well, thank you!" }] }
  */
 export function convertAnthropicMessageToGemini(message: Anthropic.Messages.MessageParam): Content {
 	return {
@@ -61,6 +120,18 @@ export function convertAnthropicMessageToGemini(message: Anthropic.Messages.Mess
  * @see https://discuss.ai.google.dev/t/function-call-string-property-is-double-escaped/37867
  * @param content - Potentially double-escaped string from Gemini
  * @returns Properly unescaped string with normalized special characters
+ *
+ * @example
+ * // Unescape newlines and quotes
+ * const escaped = "Line 1\\nLine 2\\nHe said, \\\"Hello!\\\"";
+ * const unescaped = unescapeGeminiContent(escaped);
+ * console.log(unescaped); // "Line 1\nLine 2\nHe said, \"Hello!\""
+ *
+ * @example
+ * // Handle Windows paths
+ * const escaped = "Path: C:\\\\Program Files\\\\App";
+ * const unescaped = unescapeGeminiContent(escaped);
+ * console.log(unescaped); // "Path: C:\Program Files\App"
  */
 export function unescapeGeminiContent(content: string) {
 	// Process escape sequences in a specific order to avoid conflicts
@@ -93,6 +164,14 @@ export function unescapeGeminiContent(content: string) {
  *
  * @param response - The Gemini response object
  * @returns An Anthropic-compatible message object
+ *
+ * @example
+ * // Convert a Gemini response to Anthropic format
+ * const geminiResponse = await model.generateContent(...);
+ * const anthropicMessage = convertGeminiResponseToAnthropic(geminiResponse);
+ * console.log(anthropicMessage.content); // Array of content blocks
+ * console.log(anthropicMessage.stop_reason); // Mapped stop reason
+ * console.log(anthropicMessage.usage); // Token usage information
  */
 export function convertGeminiResponseToAnthropic(response: EnhancedGenerateContentResponse): Anthropic.Messages.Message {
 	const content: Anthropic.Messages.ContentBlock[] = []

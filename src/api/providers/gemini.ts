@@ -2,6 +2,29 @@
  * Implementation of ApiHandler for Google's Gemini models.
  * This handler adapts Gemini's API to the common ApiHandler interface,
  * allowing Gemini models to be used with an Anthropic-compatible system.
+ *
+ * @example
+ * // Basic usage example:
+ * const handler = new GeminiHandler({
+ *   geminiApiKey: "YOUR_API_KEY",
+ *   apiModelId: "gemini-1.5-pro-002" // Optional: specify a model
+ * });
+ *
+ * // Generate a response (streaming)
+ * async function generateResponse() {
+ *   const systemPrompt = "You are a helpful assistant.";
+ *   const messages = [{ role: "user", content: "Hello, who are you?" }];
+ *
+ *   for await (const chunk of handler.createMessage(systemPrompt, messages)) {
+ *     if (chunk.type === "text") {
+ *       console.log(chunk.text); // Process text chunks
+ *     } else if (chunk.type === "usage") {
+ *       console.log(`Input tokens: ${chunk.inputTokens}, Output tokens: ${chunk.outputTokens}`);
+ *     }
+ *   }
+ * }
+ *
+ * @see docs/architecture/gemini-integration.md for detailed documentation
  */
 import { Anthropic } from "@anthropic-ai/sdk"
 import { GoogleGenerativeAI } from "@google/generative-ai"
@@ -16,6 +39,19 @@ import { ApiStream } from "../transform/stream"
  * Implements the common ApiHandler interface, providing message generation
  * and model selection functionality compatible with the application's
  * Anthropic-based architecture.
+ *
+ * @example
+ * // Create a handler with specific model
+ * const handler = new GeminiHandler({
+ *   geminiApiKey: process.env.GEMINI_API_KEY,
+ *   apiModelId: "gemini-2.0-flash-001"
+ * });
+ *
+ * @example
+ * // Create a handler with default model
+ * const handler = new GeminiHandler({
+ *   geminiApiKey: process.env.GEMINI_API_KEY
+ * });
  */
 export class GeminiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -26,6 +62,12 @@ export class GeminiHandler implements ApiHandler {
 	 *
 	 * @param options - Configuration options including the Gemini API key
 	 * @throws Error if geminiApiKey is not provided in options
+	 *
+	 * @example
+	 * const handler = new GeminiHandler({
+	 *   geminiApiKey: "YOUR_GEMINI_API_KEY",
+	 *   apiModelId: "gemini-1.5-pro-002" // Optional
+	 * });
 	 */
 	constructor(options: ApiHandlerOptions) {
 		if (!options.geminiApiKey) {
@@ -43,6 +85,41 @@ export class GeminiHandler implements ApiHandler {
 	 * @param systemPrompt - Instructions to guide the model's behavior
 	 * @param messages - Array of messages in Anthropic format
 	 * @yields Streaming text content and usage information
+	 *
+	 * @example
+	 * // Basic usage with text-only content
+	 * const systemPrompt = "You are a helpful AI assistant.";
+	 * const messages = [{ role: "user", content: "What is the capital of France?" }];
+	 *
+	 * for await (const chunk of handler.createMessage(systemPrompt, messages)) {
+	 *   if (chunk.type === "text") {
+	 *     console.log(chunk.text);
+	 *   } else if (chunk.type === "usage") {
+	 *     console.log(`Tokens used: ${chunk.inputTokens + chunk.outputTokens}`);
+	 *   }
+	 * }
+	 *
+	 * @example
+	 * // Using with image content
+	 * const systemPrompt = "Describe the image in detail.";
+	 * const messages = [{
+	 *   role: "user",
+	 *   content: [
+	 *     { type: "text", text: "What's in this image?" },
+	 *     {
+	 *       type: "image",
+	 *       source: {
+	 *         type: "base64",
+	 *         data: "base64EncodedImageData",
+	 *         media_type: "image/jpeg"
+	 *       }
+	 *     }
+	 *   ]
+	 * }];
+	 *
+	 * for await (const chunk of handler.createMessage(systemPrompt, messages)) {
+	 *   // Process chunks...
+	 * }
 	 */
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
@@ -111,6 +188,11 @@ export class GeminiHandler implements ApiHandler {
 	 * Determines which Gemini model to use based on configuration or defaults.
 	 *
 	 * @returns Object containing the model ID and associated model information
+	 *
+	 * @example
+	 * const handler = new GeminiHandler({ geminiApiKey: "YOUR_API_KEY" });
+	 * const { id, info } = handler.getModel();
+	 * console.log(`Using model: ${id}, max tokens: ${info.maxTokens}`);
 	 */
 	getModel(): { id: GeminiModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
