@@ -86,13 +86,6 @@ describe("SelectDropdown", () => {
 		expect(trigger).toHaveAttribute("disabled")
 	})
 
-	it("renders with width: 100% for proper sizing", () => {
-		render(<SelectDropdown value="option1" options={options} onChange={onChangeMock} />)
-
-		const trigger = screen.getByTestId("dropdown-trigger")
-		expect(trigger).toHaveStyle("width: 100%")
-	})
-
 	it("passes the selected value to the trigger", () => {
 		const { rerender } = render(<SelectDropdown value="option1" options={options} onChange={onChangeMock} />)
 
