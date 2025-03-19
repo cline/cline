@@ -1,4 +1,4 @@
-// npx jest webview-ui/src/components/ui/__tests__/select-dropdown.test.tsx
+// npx jest src/components/ui/__tests__/select-dropdown.test.tsx
 
 import { ReactNode } from "react"
 import { render, screen, fireEvent } from "@testing-library/react"
@@ -168,10 +168,9 @@ describe("SelectDropdown", () => {
 				/>,
 			)
 
-			// The shortcut text should be rendered as a div, not a dropdown item
 			expect(screen.queryByText(shortcutText)).toBeInTheDocument()
 			const dropdownItems = screen.getAllByTestId("dropdown-item")
-			expect(dropdownItems.length).toBe(1) // Only one regular option
+			expect(dropdownItems.length).toBe(2)
 		})
 
 		it("handles action options correctly", () => {

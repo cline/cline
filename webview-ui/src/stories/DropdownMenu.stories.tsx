@@ -17,12 +17,8 @@ import {
 	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
-	DropdownMenuPortal,
 	DropdownMenuSeparator,
 	DropdownMenuShortcut,
-	DropdownMenuSub,
-	DropdownMenuSubContent,
-	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "@/components/ui"
 
@@ -54,23 +50,6 @@ export const Default: Story = {
 					<DropdownMenuItem>
 						Item 2<DropdownMenuShortcut>⌘2</DropdownMenuShortcut>
 					</DropdownMenuItem>
-				</DropdownMenuGroup>
-				<DropdownMenuSeparator />
-				<DropdownMenuGroup>
-					<DropdownMenuSub>
-						<DropdownMenuSubTrigger>Submenu</DropdownMenuSubTrigger>
-						<DropdownMenuPortal>
-							<DropdownMenuSubContent>
-								<DropdownMenuItem>Foo</DropdownMenuItem>
-								<DropdownMenuItem>
-									Bar
-									<DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem>Baz</DropdownMenuItem>
-							</DropdownMenuSubContent>
-						</DropdownMenuPortal>
-					</DropdownMenuSub>
 				</DropdownMenuGroup>
 			</DropdownMenuContent>
 		</DropdownMenu>

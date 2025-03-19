@@ -5,22 +5,21 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xs text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xs text-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 cursor-pointer",
 	{
 		variants: {
 			variant: {
 				default:
-					"border border-vscode-input-border bg-primary text-primary-foreground shadow hover:bg-primary/90 cursor-pointer",
-				destructive:
-					"bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 cursor-pointer",
+					"border border-vscode-input-border bg-primary text-primary-foreground shadow hover:bg-primary/90",
+				destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
 				outline:
-					"border border-vscode-input-border bg-background shadow-sm hover:bg-accent hover:text-accent-foreground cursor-pointer",
+					"border border-vscode-input-border bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
 				secondary:
-					"border border-vscode-input-border bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 cursor-pointer",
-				ghost: "hover:bg-accent hover:text-accent-foreground cursor-pointer",
-				link: "text-primary underline-offset-4 hover:underline cursor-pointer",
+					"border border-vscode-input-border bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
+				ghost: "hover:bg-accent hover:text-accent-foreground",
+				link: "text-primary underline-offset-4 hover:underline",
 				combobox:
-					"text-vscode-font-size font-normal text-popover-foreground bg-vscode-input-background border border-vscode-dropdown-border hover:bg-vscode-input-background/80 cursor-pointer",
+					"border border-vscode-dropdown-border focus-visible:border-vscode-focusBorder bg-vscode-dropdown-background hover:bg-transparent text-vscode-dropdown-foreground font-normal",
 			},
 			size: {
 				default: "h-7 px-3",

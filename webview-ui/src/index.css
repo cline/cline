@@ -97,6 +97,7 @@
 	--color-vscode-list-hoverBackground: var(--vscode-list-hoverBackground);
 	--color-vscode-list-focusBackground: var(--vscode-list-focusBackground);
 	--color-vscode-list-activeSelectionBackground: var(--vscode-list-activeSelectionBackground);
+	--color-vscode-list-activeSelectionForeground: var(--vscode-list-activeSelectionForeground);
 
 	--color-vscode-toolbar-hoverBackground: var(--vscode-toolbar-hoverBackground);
 
@@ -133,7 +134,7 @@
 		--muted: var(--vscode-disabledForeground);
 		--muted-foreground: var(--vscode-descriptionForeground);
 		--accent: var(--vscode-list-hoverBackground);
-		--accent-foreground: var(--vscode-button-foreground);
+		--accent-foreground: var(--vscode-list-hoverForeground);
 		--destructive: var(--vscode-errorForeground);
 		--destructive-foreground: var(--vscode-button-foreground);
 		--border: var(--vscode-input-border);

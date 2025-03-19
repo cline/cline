@@ -116,7 +116,7 @@ export const ModelPicker = ({
 				<Popover open={open} onOpenChange={onOpenChange}>
 					<PopoverTrigger asChild>
 						<Button
-							variant="outline"
+							variant="combobox"
 							role="combobox"
 							aria-expanded={open}
 							className="w-full justify-between">
@@ -138,7 +138,7 @@ export const ModelPicker = ({
 								{searchValue.length > 0 && (
 									<div className="absolute right-2 top-0 bottom-0 flex items-center justify-center">
 										<X
-											className="opacity-25 hover:opacity-100 cursor-pointer size-4 bg-vscode-button-secondaryBackground rounded-full p-0.5"
+											className="text-vscode-input-foreground opacity-50 hover:opacity-100 size-4 p-0.5 cursor-pointer"
 											onClick={onClearSearch}
 										/>
 									</div>
@@ -152,7 +152,7 @@ export const ModelPicker = ({
 											{model}
 											<Check
 												className={cn(
-													"ml-auto",
+													"size-4 p-0.5 ml-auto",
 													model === selectedModelId ? "opacity-100" : "opacity-0",
 												)}
 											/>

@@ -117,10 +117,7 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 					onEscapeKeyDown={() => setOpen(false)}
 					onInteractOutside={() => setOpen(false)}
 					container={portalContainer}
-					className={cn(
-						"bg-vscode-dropdown-background text-vscode-dropdown-foreground border border-vscode-dropdown-border z-50",
-						contentClassName,
-					)}>
+					className={contentClassName}>
 					{options.map((option, index) => {
 						if (option.type === DropdownOptionType.SEPARATOR) {
 							return <DropdownMenuSeparator key={`sep-${index}`} />
@@ -131,9 +128,9 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 							(option.disabled && shortcutText && option.label.includes(shortcutText))
 						) {
 							return (
-								<div key={`label-${index}`} className="px-2 py-1.5 text-xs opacity-50">
+								<DropdownMenuItem key={`label-${index}`} disabled>
 									{option.label}
-								</div>
+								</DropdownMenuItem>
 							)
 						}
 
@@ -141,12 +138,11 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 							<DropdownMenuItem
 								key={`item-${option.value}`}
 								disabled={option.disabled}
-								className="text-xs focus:bg-vscode-list-activeSelectionBackground cursor-pointer"
 								onClick={() => handleSelect(option)}>
 								{option.label}
 								{option.value === value && (
 									<DropdownMenuShortcut>
-										<Check className="w-3 h-3" />
+										<Check className="size-4 p-0.5" />
 									</DropdownMenuShortcut>
 								)}
 							</DropdownMenuItem>
