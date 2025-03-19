@@ -25,21 +25,83 @@ function organizeTestFiles(files: string[], testsRoot: string): { [category: str
 		"Extension Tests": [],
 		"API Tests": [],
 		"Utility Tests": [],
+		"Shell Tests": [],
 		"Other Tests": [],
 	}
 
+	// Log the total files being organized
+	console.log(`Organizing ${files.length} test files into categories...`)
+
 	files.forEach((file) => {
 		const relativePath = path.relative(testsRoot, file).replace(/\\/g, "/")
+		console.log(`Categorizing file: ${relativePath}`)
 
-		if (relativePath.includes("test/suite/")) {
+		let categorized = false
+
+		// Check for Extension Tests
+		if (relativePath.includes("test/suite/") || relativePath.includes("extension") || relativePath.includes("commands")) {
 			categories["Extension Tests"].push(file)
-		} else if (relativePath.includes("test/api/")) {
-			categories["API Tests"].push(file)
-		} else if (relativePath.includes("utils/") || relativePath.includes("test/utilities/")) {
-			categories["Utility Tests"].push(file)
-		} else {
-			categories["Other Tests"].push(file)
+			console.log(`  - Added to Extension Tests`)
+			categorized = true
 		}
+
+		// Check for API Tests - expanded patterns
+		else if (
+			relativePath.includes("test/api/") ||
+			relativePath.includes("api/") ||
+			relativePath.includes("providers") ||
+			relativePath.includes("transform") ||
+			relativePath.includes("gemini") ||
+			relativePath.includes("anthropic") ||
+			relativePath.includes("openai") ||
+			relativePath.includes("ollama")
+		) {
+			categories["API Tests"].push(file)
+			console.log(`  - Added to API Tests`)
+			categorized = true
+		}
+
+		// Check for Shell Tests
+		else if (
+			relativePath.includes("shell") ||
+			relativePath.includes("terminal") ||
+			relativePath.includes("command") ||
+			relativePath.includes("exec")
+		) {
+			categories["Shell Tests"].push(file)
+			console.log(`  - Added to Shell Tests`)
+			categorized = true
+		}
+
+		// Check for Utility Tests - broader patterns
+		else if (
+			relativePath.includes("utils") ||
+			relativePath.includes("util/") ||
+			relativePath.includes("utilities") ||
+			relativePath.includes("shared") ||
+			relativePath.includes("helpers") ||
+			relativePath.includes("common") ||
+			relativePath.includes("path") ||
+			relativePath.includes("fs") ||
+			relativePath.includes("file") ||
+			relativePath.includes("cost") ||
+			relativePath.includes("test/utilities")
+		) {
+			categories["Utility Tests"].push(file)
+			console.log(`  - Added to Utility Tests`)
+			categorized = true
+		}
+
+		// Add to Other Tests if no match found
+		if (!categorized) {
+			categories["Other Tests"].push(file)
+			console.log(`  - Added to Other Tests (no category matched)`)
+		}
+	})
+
+	// Add summary counts
+	Object.entries(categories).forEach(([category, testFiles]) => {
+		console.log(`Category "${category}" contains ${testFiles.length} tests`)
 	})
 
 	return categories
@@ -72,40 +134,60 @@ export function run(): Promise<void> {
 		console.log(`Discovering tests in workspaceRoot: ${workspaceRoot}`)
 		console.log(`Starting from testsRoot: ${testsRoot}`)
 
-		// Combine different glob patterns to find all test files
+		// More comprehensive test discovery
 		Promise.all([
-			// Find compiled JS test files in the out directory
-			glob("out/**/*.test.js", { cwd: workspaceRoot }),
+			// Find all compiled JS test files throughout the codebase
+			glob("out/**/*.test.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
 
-			// Find TypeScript test files in the src directory
-			glob("src/**/*.test.ts", { cwd: workspaceRoot }),
+			// Find TS test files (for direct running with ts-node)
+			glob("src/**/*.test.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
 
-			// Find reference files in the suite directory
-			glob("src/test/suite/*.js", { cwd: workspaceRoot }),
+			// Additional patterns for test files
+			glob("out/**/*test*.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			glob("src/**/*test*.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+
+			// Find reference files in suite directory
+			glob("src/test/suite/*.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+
+			// Explicitly find API tests
+			glob("out/test/api/**/*.test.js", { cwd: workspaceRoot }),
+			glob("out/api/**/*.test.js", { cwd: workspaceRoot }),
+
+			// Explicitly find utility tests
+			glob("out/utils/**/*.test.js", { cwd: workspaceRoot }),
+			glob("out/test/utilities/**/*.test.js", { cwd: workspaceRoot }),
+
+			// Explicitly find shell tests
+			glob("out/**/shell/**/*.js", { cwd: workspaceRoot }),
+			glob("out/**/terminal/**/*.js", { cwd: workspaceRoot }),
+
+			// Find any file with 'spec' in the name (another common test naming pattern)
+			glob("out/**/*.spec.js", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
+			glob("src/**/*.spec.ts", { cwd: workspaceRoot, ignore: "**/node_modules/**" }),
 		])
-			.then(([outTests, srcTests, refTests]) => {
-				const outTestPaths = outTests.map((f) => path.resolve(workspaceRoot, f))
-				const srcTestPaths = srcTests.map((f) => path.resolve(workspaceRoot, f))
-
-				// Filter reference files to only include those that are test references
-				const refTestPaths = refTests
-					.filter((f) => f.includes("-test") || f.includes(".test."))
+			.then((results) => {
+				// Flatten the arrays and resolve paths
+				const allPaths = results
+					.flat()
 					.map((f) => path.resolve(workspaceRoot, f))
+					// Remove duplicates
+					.filter((f, i, a) => a.indexOf(f) === i)
 
-				// Combine all unique test paths
-				const allTestPaths = [...new Set([...outTestPaths, ...srcTestPaths, ...refTestPaths])]
+				console.log(`Found ${allPaths.length} test files in total`)
 
-				if (allTestPaths.length === 0) {
-					console.warn("No test files found!")
+				// Debug - log each found file
+				allPaths.forEach((file) => {
+					const relativePath = path.relative(workspaceRoot, file)
+					console.log(`Found test file: ${relativePath}`)
+				})
+
+				if (allPaths.length === 0) {
+					console.warn("No test files found! Verify your glob patterns.")
 					return resolve()
 				}
 
-				console.log(
-					`Found ${allTestPaths.length} test files (${outTestPaths.length} compiled, ${srcTestPaths.length} source, ${refTestPaths.length} references)`,
-				)
-
 				// Organize tests by category
-				const categories = organizeTestFiles(allTestPaths, testsRoot)
+				const categories = organizeTestFiles(allPaths, testsRoot)
 
 				// Log discovered tests by category
 				Object.entries(categories).forEach(([category, testFiles]) => {
@@ -113,12 +195,25 @@ export function run(): Promise<void> {
 						console.log(`\n${category} (${testFiles.length} files):`)
 						testFiles.forEach((file) => {
 							console.log(`  - ${path.relative(testsRoot, file)}`)
+							// Add the file to mocha
 							mocha.addFile(file)
 						})
 					}
 				})
 
+				// Run the mocha test
 				try {
+					// Make sure we add any leftover "Other Tests" to Mocha as well
+					if (categories["Other Tests"].length > 0) {
+						console.log(`\nOther Tests (${categories["Other Tests"].length} files):`)
+						categories["Other Tests"].forEach((file) => {
+							console.log(`  - ${path.relative(testsRoot, file)}`)
+							// Add the file to mocha
+							mocha.addFile(file)
+						})
+						console.log("All 'Other Tests' have been added to the test suite.")
+					}
+
 					// Run the mocha test
 					mocha.run((failures: number) => {
 						if (failures > 0) {
