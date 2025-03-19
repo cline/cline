@@ -3,6 +3,7 @@ import deepEqual from "fast-deep-equal"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent, useSize } from "react-use"
 import styled from "styled-components"
+import { ErrorAfterDelay } from "./ChatErrorBoundary"
 import {
 	ClineApiReqInfo,
 	ClineAskQuestion,
@@ -134,6 +135,8 @@ const ChatRow = memo(
 export default ChatRow
 
 export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
+	// Add demo error component at the top for review - will be removed later
+	const showDemoError = message.type === "say" && message.say === "text" && !message.partial
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
@@ -794,7 +797,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 				case "api_req_finished":
 					return null // we should never see this message type
 				case "mcp_server_response":
-					return <McpResponseDisplay responseText={message.text || ""} />
+					return (
+						<div>
+							{showDemoError && <ErrorAfterDelay />}
+							<McpResponseDisplay responseText={message.text || ""} />
+						</div>
+					)
 				case "text":
 					return (
 						<div>

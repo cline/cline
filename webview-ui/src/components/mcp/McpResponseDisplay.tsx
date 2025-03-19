@@ -5,6 +5,7 @@ import { vscode } from "../../utils/vscode"
 import DOMPurify from "dompurify"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import ChatErrorBoundary, { ErrorAfterDelay } from "../chat/ChatErrorBoundary"
 import {
 	safeCreateUrl,
 	isUrl,
@@ -119,41 +120,6 @@ interface UrlMatch {
 	isProcessed: boolean // Whether we've already processed this URL (to avoid duplicates)
 }
 
-// Error boundary component to prevent crashes from URL processing
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
-	constructor(props: { children: React.ReactNode }) {
-		super(props)
-		this.state = { hasError: false, error: null }
-	}
-
-	static getDerivedStateFromError(error: Error) {
-		return { hasError: true, error }
-	}
-
-	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-		console.log("Error in component:", error.message)
-	}
-
-	render() {
-		if (this.state.hasError) {
-			return (
-				<div
-					style={{
-						padding: "10px",
-						color: "var(--vscode-errorForeground)",
-						height: "128px", // Fixed height
-						overflow: "auto", // Allow scrolling if content overflows
-					}}>
-					<h3>Something went wrong displaying this content</h3>
-					<p>Error: {this.state.error?.message || "Unknown error"}</p>
-					<p>Please switch to plain text mode to view the content safely.</p>
-				</div>
-			)
-		}
-
-		return this.props.children
-	}
-}
 
 const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
 	const [isLoading, setIsLoading] = useState(true)
@@ -382,10 +348,8 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 								// Use a unique key that includes the URL to ensure each preview is isolated
 								segments.push(
 									<div key={`embed-${url}-${segmentIndex++}`} style={{ margin: "10px 0" }}>
-										<ErrorBoundary>
-											{/* Already using formatUrlForOpening for link previews */}
-											<LinkPreview url={formatUrlForOpening(url)} />
-										</ErrorBoundary>
+                                        {/* Already using formatUrlForOpening for link previews */}
+                                        <LinkPreview url={formatUrlForOpening(url)} />
 									</div>,
 								)
 
@@ -464,9 +428,11 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 // Wrap the entire McpResponseDisplay component with an error boundary
 const McpResponseDisplayWithErrorBoundary: React.FC<McpResponseDisplayProps> = (props) => {
 	return (
-		<ErrorBoundary>
+		<ChatErrorBoundary>
+			{/* Demo error component for review - will be removed later */}
+			<ErrorAfterDelay />
 			<McpResponseDisplay {...props} />
-		</ErrorBoundary>
+		</ChatErrorBoundary>
 	)
 }
 

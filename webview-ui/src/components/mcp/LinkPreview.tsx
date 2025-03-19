@@ -2,42 +2,8 @@ import React, { useEffect, useState } from "react"
 import { vscode } from "../../utils/vscode"
 import DOMPurify from "dompurify"
 import { getSafeHostname, normalizeRelativeUrl } from "./McpRichUtil"
+import ChatErrorBoundary, { ErrorAfterDelay } from "../chat/ChatErrorBoundary"
 
-// Error boundary component to prevent crashes
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
-	constructor(props: { children: React.ReactNode }) {
-		super(props)
-		this.state = { hasError: false, error: null }
-	}
-
-	static getDerivedStateFromError(error: Error) {
-		return { hasError: true, error }
-	}
-
-	componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-		console.log("Error in LinkPreview component:", error.message)
-	}
-
-	render() {
-		if (this.state.hasError) {
-			return (
-				<div
-					style={{
-						padding: "12px",
-						color: "var(--vscode-errorForeground)",
-						height: "128px",
-						maxWidth: "512px",
-						overflow: "auto",
-					}}>
-					<h3>Something went wrong displaying this link preview</h3>
-					<p>Error: {this.state.error?.message || "Unknown error"}</p>
-				</div>
-			)
-		}
-
-		return this.props.children
-	}
-}
 
 interface OpenGraphData {
 	title?: string
@@ -310,7 +276,7 @@ class LinkPreview extends React.Component<
 				}}>
 				{data.image && (
 					<div className="link-preview-image" style={{ width: "128px", height: "128px", flexShrink: 0 }}>
-						<ErrorBoundary>
+						<ChatErrorBoundary errorTitle="Image preview failed to load">
 							<img
 								src={DOMPurify.sanitize(normalizeRelativeUrl(data.image, url))}
 								alt=""
@@ -340,7 +306,7 @@ class LinkPreview extends React.Component<
 									;(e.target as HTMLImageElement).style.display = "none"
 								}}
 							/>
-						</ErrorBoundary>
+						</ChatErrorBoundary>
 					</div>
 				)}
 
@@ -420,9 +386,11 @@ const MemoizedLinkPreview = React.memo(
 // Wrap the LinkPreview component with an error boundary
 const LinkPreviewWithErrorBoundary: React.FC<LinkPreviewProps> = (props) => {
 	return (
-		<ErrorBoundary>
+		<ChatErrorBoundary errorTitle="Something went wrong displaying this link preview">
+			{/* Demo error component for review - will be removed later */}
+			<ErrorAfterDelay />
 			<MemoizedLinkPreview {...props} />
-		</ErrorBoundary>
+		</ChatErrorBoundary>
 	)
 }
 
