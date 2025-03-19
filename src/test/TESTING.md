@@ -25,11 +25,6 @@ Before running tests, ensure your environment is properly set up:
    npm run compile-tests
    ```
 
-3. **Setup Test Discovery** (required for VS Code test explorer):
-   ```bash
-   npm run test:setup-discovery
-   ```
-
 ## Running Tests with npm
 
 ### Running All Tests
@@ -56,6 +51,12 @@ npm run test:utils
 
 # Run API integration tests
 npm run test:api
+
+# Run Gemini-specific tests
+npm run test:gemini
+
+# Run retry mechanism tests
+npm run test:retry
 ```
 
 ### Running Tests with Coverage
@@ -74,12 +75,7 @@ npm run test:coverage
 
 2. Open the Test Explorer view in VS Code (flask/test tube icon in sidebar)
 
-3. Click the Refresh button if tests aren't already loaded
-
-4. Run tests:
-   - Click the play button next to individual tests to run them
-   - Click the play button next to test suites to run all tests in that suite
-   - Click the main play button to run all tests
+3. Run tests directly from the explorer interface
 
 ### Using Launch Configurations
 
@@ -119,49 +115,23 @@ Our npm scripts use `cross-env` to ensure this environment variable works correc
 
 ### VS Code vs. npm Test Differences
 
-When running tests in VS Code's Test Explorer, the environment is automatically configured with TEST_MODE set. When running via npm, we use cross-env to ensure consistent behavior.
+When running tests in VS Code's Test Explorer, ensure that your environment is properly set up with TEST_MODE. When running via npm, we use cross-env to ensure consistent behavior.
 
 If you encounter any differences between running tests in VS Code versus npm, verify that TEST_MODE is properly set.
 
-## Troubleshooting
+## Test Infrastructure
 
-### Tests Not Appearing in VS Code
+### Key Files
 
-1. Make sure you've run the test discovery script:
-   ```bash
-   npm run test:setup-discovery
-   ```
+- **test-helper.js**: Sets up module aliasing for VS Code mocking
+- **set-test-mode.js**: Ensures TEST_MODE is set for consistent path handling
+- **run-all-tests.js**: Comprehensive script for running all test categories
+- **run-path-tests.js**: Specialized runner for path utility tests
+- **mock/vscode.js**: Mock implementation of VS Code API for tests
 
-2. Check that the Test Explorer extensions are installed and enabled
+### Module System
 
-3. Reload the VS Code window (Ctrl+Shift+P / Cmd+Shift+P, then "Developer: Reload Window")
-
-### Path Tests Failing
-
-Path tests require the TEST_MODE environment variable to be set to "true". The custom test runners handle this automatically, but if you're running tests in another way, make sure to set this variable:
-
-```javascript
-process.env.TEST_MODE = "true";
-```
-
-### VS Code Extension Tests Failing
-
-Extension tests require VS Code's extension testing infrastructure. Make sure you're using the proper launch configuration or npm script.
-
-## Verifying Test Setup
-
-We provide a verification script to check if the test environment is properly configured:
-
-```bash
-npm run test:verify
-```
-
-This script checks for:
-- Test helper existence
-- VS Code mock compilation
-- Test discovery setup
-- Required npm scripts
-- VS Code configuration
+Note that our tests use CommonJS-style requires (`const x = require('y')`) rather than ES Module imports (`import x from 'y'`) due to VS Code test runner compatibility requirements, even though the main codebase uses ES Modules.
 
 ## Best Practices
 
