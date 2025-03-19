@@ -166,19 +166,40 @@ describe("GeminiHandler", () => {
 			expect(usageChunks[0].outputTokens).to.equal(5)
 		})
 
-		it.skip("should convert Anthropic messages to Gemini format", () => {
-			// Arrange
-			const convertStub = sandbox.stub(geminiFormat, "convertAnthropicMessageToGemini").callThrough() // Make sure it still performs the actual conversion
+		it("should convert Anthropic messages to Gemini format", () => {
+			// Stub the conversion function to track calls
+			const convertStub = sandbox.stub(geminiFormat, "convertAnthropicMessageToGemini").callThrough()
 
-			const { handler } = setupHandler()
-			const message = { role: "user" as const, content: "Hello" }
+			// Set up the handler
+			const generateContentStreamMock = sandbox.stub().returns(createMockGeminiStream({}))
+			const mockModel = {
+				generateContentStream: generateContentStreamMock,
+			}
+			const getGenerativeModelMock = sandbox.stub().returns(mockModel)
 
-			// Act
-			handler.createMessage("System prompt", [message])
+			const handler = new GeminiHandler({ geminiApiKey: "test-key" })
+			handler["client"] = {
+				getGenerativeModel: getGenerativeModelMock,
+			} as any
 
-			// Assert
-			expect(convertStub.called).to.be.true
-			expect(convertStub.firstCall.args[0]).to.equal(message)
+			// Create test messages
+			const testMessage = { role: "user" as const, content: "Hello world" }
+			const messages = [testMessage]
+
+			// Start the generator
+			const messageGenerator = handler.createMessage("System prompt", messages)
+			messageGenerator.next().catch(() => {
+				/* Ignore errors */
+			})
+
+			// Verify the conversion function was called with our message
+			sinon.assert.called(convertStub)
+			expect(convertStub.calledWith(testMessage)).to.be.true
+
+			// Also verify the model was called with the converted content
+			sinon.assert.calledOnce(generateContentStreamMock)
+			const args = generateContentStreamMock.firstCall.args[0]
+			expect(args).to.have.property("contents").that.is.an("array")
 		})
 
 		it.skip("should pass system prompt to model initialization", () => {
@@ -398,6 +419,65 @@ describe("GeminiHandler", () => {
 			)
 
 			expect(contentWithImage).to.exist
+		})
+
+		it("should correctly process a base64 encoded image", () => {
+			// Create stubs with sinon sandbox for proper cleanup
+			const generateContentStreamMock = sandbox.stub().returns(createMockGeminiStream({}))
+			const mockModel = {
+				generateContentStream: generateContentStreamMock,
+			}
+			const getGenerativeModelMock = sandbox.stub().returns(mockModel)
+
+			// Set up handler
+			const handler = new GeminiHandler({ geminiApiKey: "test-key" })
+			handler["client"] = {
+				getGenerativeModel: getGenerativeModelMock,
+			} as any
+
+			// Create a sample image message with proper typing
+			const imageMessage = {
+				role: "user" as const,
+				content: [
+					{ type: "text" as const, text: "What's in this image?" },
+					{
+						type: "image" as const,
+						source: {
+							type: "base64" as const,
+							media_type: "image/jpeg" as const,
+							data: "SGVsbG8gV29ybGQ=", // "Hello World" in base64
+						},
+					},
+				],
+			} as Anthropic.Messages.MessageParam
+
+			// Start the generator to trigger the function
+			const messageGenerator = handler.createMessage("System prompt", [imageMessage])
+			messageGenerator.next().catch(() => {
+				/* Ignore errors */
+			})
+
+			// Verify the model was called with the right content
+			sinon.assert.calledOnce(generateContentStreamMock)
+
+			// Get the generate content args to check image data
+			const generateArgs = generateContentStreamMock.firstCall.args[0]
+			expect(generateArgs).to.have.property("contents").that.is.an("array")
+
+			// Deep check for image data in content parts
+			let foundImageData = false
+			for (const content of generateArgs.contents) {
+				if (content.parts) {
+					for (const part of content.parts) {
+						if (part.inlineData && part.inlineData.data === "SGVsbG8gV29ybGQ=") {
+							foundImageData = true
+							break
+						}
+					}
+				}
+			}
+
+			expect(foundImageData).to.be.true
 		})
 	})
 })
