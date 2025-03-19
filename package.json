@@ -274,8 +274,9 @@
 		}
 	},
 	"scripts": {
-		"build": "npm run build:webview && npm run vsix",
+		"build": "npm run vsix",
 		"build:webview": "cd webview-ui && npm run build",
+		"build:esbuild": "node esbuild.js --production",
 		"compile": "tsc -p . --outDir out && node esbuild.js",
 		"install:all": "npm install npm-run-all && npm run install:_all",
 		"install:_all": "npm-run-all -p install-*",
@@ -293,7 +294,7 @@
 		"check-types:webview": "cd webview-ui && npm run check-types",
 		"check-types:e2e": "cd e2e && npm run check-types",
 		"check-types:benchmark": "cd benchmark && npm run check-types",
-		"package": "npm run build:webview && npm run check-types && npm run lint && node esbuild.js --production",
+		"package": "npm-run-all -p build:webview build:esbuild check-types lint",
 		"pretest": "npm run compile",
 		"dev": "cd webview-ui && npm run dev",
 		"test": "npm-run-all -p test:*",
