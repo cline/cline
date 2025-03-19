@@ -1,5 +1,25 @@
 # Roo Code Changelog
 
+## 3.9.0 - 2025-03-18
+
+- Internationalize Roo Code into Catalan, German, Spanish, French, Hindi, Italian, Japanese, Korean, Polish, Portuguese, Turkish, Vietnamese, Simplified Chinese, and Traditional Chinese (thanks @feifei325!)
+- Bring back support for MCP over SSE (thanks @aheizi!)
+- Add a text-to-speech option to have Roo talk to you as it works (thanks @heyseth!)
+- Choose a specific provider when using OpenRouter (thanks PhunkyBob!)
+- Support batch deletion of task history (thanks @aheizi!)
+- Internationalize Human Relay, adjust the layout, and make it work on the welcome screen (thanks @NyxJae!)
+- Fix shell integration race condition (thanks @KJ7LNW!)
+- Fix display updating for Bedrock custom ARNs that are prompt routers (thanks @Smartsheet-JB-Brown!)
+- Fix to exclude search highlighting when copying items from task history (thanks @im47cn!)
+- Fix context mentions to work with multiple-workspace projects (thanks @teddyOOXX!)
+- Fix to task history saving when running multiple Roos (thanks @samhvw8!)
+- Improve task deletion when underlying files are missing (thanks @GitlyHallows!)
+- Improve support for NixOS & direnv (thanks @wkordalski!)
+- Fix wheel scrolling when Roo is opened in editor tabs (thanks @GitlyHallows!)
+- Don’t automatically mention the file when using the "Add to context" code action (thanks @qdaxb!)
+- Expose task stack in `RooCodeAPI` (thanks @franekp!)
+- Give the models visibility into the current task's API cost
+
 ## [3.8.6] - 2025-03-13
 
 - Revert SSE MCP support while we debug some config validation issues
