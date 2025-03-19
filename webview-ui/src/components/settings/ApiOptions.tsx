@@ -116,7 +116,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const handleOpenAiChange =
 		(field: string, isModelInfo: boolean = false) =>
 		(event: any) => {
-			// const rawValue = event.target.type === "checkbox" ? event.target.checked : event.target.value
 			const rawValue = event.target.checked !== undefined ? event.target.checked : event.target.value
 
 			const openAiConfigs = apiConfiguration?.openAiConfigs ? [...apiConfiguration.openAiConfigs] : []
