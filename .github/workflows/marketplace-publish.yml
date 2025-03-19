@@ -62,3 +62,29 @@ jobs:
           current_package_version=$(node -p "require('./package.json').version")
           npm run publish:marketplace
           echo "Successfully published version $current_package_version to VS Code Marketplace"
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          current_package_version=$(node -p "require('./package.json').version")
+
+          # Extract changelog for current version
+          changelog_content=$(awk -v ver="## [${current_package_version}]" '
+            $0 ~ ver {flag=1; next}
+            /^## \[/ {if (flag) exit}
+            flag {print}
+          ' CHANGELOG.md)
+
+          # If changelog extraction failed, use a default message
+          if [ -z "$changelog_content" ]; then
+            changelog_content="Release v${current_package_version}"
+          fi
+
+          # Create release with changelog content
+          gh release create "v${current_package_version}" \
+            --title "Release v${current_package_version}" \
+            --notes "$changelog_content" \
+            --target ${{ env.GIT_REF }} \
+            bin/roo-cline-${current_package_version}.vsix
+          echo "Successfully created GitHub Release v${current_package_version}"
