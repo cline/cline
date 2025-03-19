@@ -20,6 +20,7 @@ import { ClineHandler } from "./providers/cline"
 import { LiteLlmHandler } from "./providers/litellm"
 import { AskSageHandler } from "./providers/asksage"
 import { XAIHandler } from "./providers/xai"
+import { BitdeerAIHandler } from "./providers/bitdeerai"
 import { SambanovaHandler } from "./providers/sambanova"
 
 export interface ApiHandler {
@@ -73,6 +74,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new AskSageHandler(options)
 		case "xai":
 			return new XAIHandler(options)
+		case "bitdeerai":
+			return new BitdeerAIHandler(options)
 		case "sambanova":
 			return new SambanovaHandler(options)
 		default:

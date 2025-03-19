@@ -62,6 +62,7 @@ type SecretKey =
 	| "authNonce"
 	| "asksageApiKey"
 	| "xaiApiKey"
+	| "bitdeeraiApiKey"
 	| "sambanovaApiKey"
 type GlobalStateKey =
 	| "apiProvider"
@@ -547,7 +548,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "apiConfiguration":
 						if (message.apiConfiguration) {
+
 							await this.updateApiConfiguration(message.apiConfiguration)
+
 						}
 						await this.postStateToWebview()
 						break
@@ -951,6 +954,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			planActSeparateModelsSetting,
 		} = await this.getState()
 
+
 		const shouldSwitchModel = planActSeparateModelsSetting === true
 
 		if (shouldSwitchModel) {
@@ -963,6 +967,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				case "vertex":
 				case "gemini":
 				case "asksage":
+				case "bitdeerai":
 				case "openai-native":
 				case "qwen":
 				case "deepseek":
@@ -1997,6 +2002,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			asksageApiUrl,
 			xaiApiKey,
 			thinkingBudgetTokens,
+			bitdeeraiApiKey,
 			sambanovaApiKey,
 			planActSeparateModelsSettingRaw,
 		] = await Promise.all([
@@ -2059,6 +2065,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("asksageApiUrl") as Promise<string | undefined>,
 			this.getSecret("xaiApiKey") as Promise<string | undefined>,
 			this.getGlobalState("thinkingBudgetTokens") as Promise<number | undefined>,
+			this.getSecret("bitdeeraiApiKey") as Promise<string | undefined>,
 			this.getSecret("sambanovaApiKey") as Promise<string | undefined>,
 			this.getGlobalState("planActSeparateModelsSetting") as Promise<boolean | undefined>,
 		])
@@ -2151,6 +2158,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				asksageApiKey,
 				asksageApiUrl,
 				xaiApiKey,
+				bitdeeraiApiKey,
 				sambanovaApiKey,
 			},
 			lastShownAnnouncementId,
@@ -2298,6 +2306,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			"liteLlmApiKey",
 			"asksageApiKey",
 			"xaiApiKey",
+			"bitdeeraiApiKey",
 			"sambanovaApiKey",
 		]
 		for (const key of secretKeys) {

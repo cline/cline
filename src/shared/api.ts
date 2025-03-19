@@ -18,6 +18,7 @@ export type ApiProvider =
 	| "litellm"
 	| "asksage"
 	| "xai"
+	| "bitdeerai"
 	| "sambanova"
 
 export interface ApiHandlerOptions {
@@ -68,6 +69,7 @@ export interface ApiHandlerOptions {
 	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
+	bitdeeraiApiKey?: string
 	sambanovaApiKey?: string
 }
 
@@ -1270,6 +1272,70 @@ export const xaiModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
+
+// BitdeerAI Models
+// https://www.bitdeer.ai/en/docs/center/
+export type bitdeeraiModelId = keyof typeof bitdeeraiModels
+export const bitdeeraiDefaultModelId: bitdeeraiModelId = "deepseek-ai/DeepSeek-V3"
+export const bitdeeraiModels = {
+	"deepseek-ai/DeepSeek-R1": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"deepseek-ai/DeepSeek-V3": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Qwen/QwQ-32B": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},    
+	"Qwen/Qwen2.5-VL-72B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: true,  
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},    
+	"Qwen/Qwen2.5-Coder-32B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 8192,  
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},    
+	"OpenGVLab/InternVL2_5-78B-MPO": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: true,  
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	}, 
+	"meta-llama/Llama-3.3-70B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 8192, 
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},   
+}  as const satisfies Record<string, ModelInfo>
+
 // SambaNova
 // https://docs.sambanova.ai/cloud/docs/get-started/supported-models
 export type SambanovaModelId = keyof typeof sambanovaModels
@@ -1278,11 +1344,11 @@ export const sambanovaModels = {
 	"Meta-Llama-3.3-70B-Instruct": {
 		maxTokens: 4096,
 		contextWindow: 128_000,
-		supportsImages: false,
+ 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-	},
+	}, 
 	"DeepSeek-R1-Distill-Llama-70B": {
 		maxTokens: 4096,
 		contextWindow: 32_000,
@@ -1293,20 +1359,20 @@ export const sambanovaModels = {
 	},
 	"Llama-3.1-Swallow-70B-Instruct-v0.3": {
 		maxTokens: 4096,
-		contextWindow: 16_000,
+		contextWindow: 16_000, 
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-	},
+	},    
 	"Llama-3.1-Swallow-8B-Instruct-v0.3": {
 		maxTokens: 4096,
 		contextWindow: 16_000,
-		supportsImages: false,
+		supportsImages: false,  
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-	},
+	},    
 	"Meta-Llama-3.1-405B-Instruct": {
 		maxTokens: 4096,
 		contextWindow: 16_000,
@@ -1314,7 +1380,7 @@ export const sambanovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-	},
+	},  
 	"Meta-Llama-3.1-8B-Instruct": {
 		maxTokens: 4096,
 		contextWindow: 16_000,
@@ -1346,7 +1412,7 @@ export const sambanovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-	},
+	},    
 	"QwQ-32B-Preview": {
 		maxTokens: 4096,
 		contextWindow: 16_000,
@@ -1354,5 +1420,8 @@ export const sambanovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-	},
+	},  
 } as const satisfies Record<string, ModelInfo>
+
+
+
