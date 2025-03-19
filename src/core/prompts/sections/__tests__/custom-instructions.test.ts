@@ -117,7 +117,8 @@ describe("addCustomInstructions", () => {
 		)
 
 		expect(result).toContain("Language Preference:")
-		expect(result).toContain("es")
+		expect(result).toContain("Español") // Check for language name
+		expect(result).toContain("(es)") // Check for language code in parentheses
 		expect(result).toContain("Global Instructions:\nglobal instructions")
 		expect(result).toContain("Mode-specific Instructions:\nmode instructions")
 		expect(result).toContain("Rules from .clinerules-test-mode:\nmode specific rules")
@@ -143,6 +144,22 @@ describe("addCustomInstructions", () => {
 		expect(result).toContain("Global Instructions:")
 		expect(result).toContain("Mode-specific Instructions:")
 		expect(result).not.toContain("Rules from .clinerules-test-mode")
+	})
+
+	it("should handle unknown language codes properly", async () => {
+		mockedFs.readFile.mockRejectedValue({ code: "ENOENT" })
+
+		const result = await addCustomInstructions(
+			"mode instructions",
+			"global instructions",
+			"/fake/path",
+			"test-mode",
+			{ language: "xyz" }, // Unknown language code
+		)
+
+		expect(result).toContain("Language Preference:")
+		expect(result).toContain('"xyz" (xyz) language') // For unknown codes, the code is used as the name too
+		expect(result).toContain("Global Instructions:\nglobal instructions")
 	})
 
 	it("should throw on unexpected errors", async () => {
