@@ -532,6 +532,7 @@ describe("ClineProvider", () => {
 			telemetrySetting: "unset",
 			showRooIgnoredFiles: true,
 			renderContext: "sidebar",
+			maxReadFileLine: 500,
 		}
 
 		const message: ExtensionMessage = {

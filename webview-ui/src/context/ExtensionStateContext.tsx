@@ -78,6 +78,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	remoteBrowserEnabled?: boolean
 	setRemoteBrowserEnabled: (value: boolean) => void
+	maxReadFileLine: number
+	setMaxReadFileLine: (value: number) => void
 	machineId?: string
 }
 
@@ -153,6 +155,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		telemetrySetting: "unset",
 		showRooIgnoredFiles: true, // Default to showing .rooignore'd files with lock symbol (current behavior).
 		renderContext: "sidebar",
+		maxReadFileLine: 500, // Default max read file line limit
 	})
 
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -302,6 +305,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setTelemetrySetting: (value) => setState((prevState) => ({ ...prevState, telemetrySetting: value })),
 		setShowRooIgnoredFiles: (value) => setState((prevState) => ({ ...prevState, showRooIgnoredFiles: value })),
 		setRemoteBrowserEnabled: (value) => setState((prevState) => ({ ...prevState, remoteBrowserEnabled: value })),
+		setMaxReadFileLine: (value) => setState((prevState) => ({ ...prevState, maxReadFileLine: value })),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

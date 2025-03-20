@@ -50,13 +50,18 @@ rel/path/to/helper.ts
 const isWindows = /^win/.test(process.platform)
 const binName = isWindows ? "rg.exe" : "rg"
 
+interface ContextResult {
+	line: number
+	text: string
+}
+
 interface SearchResult {
 	file: string
 	line: number
 	column: number
-	match: string
-	beforeContext: string[]
-	afterContext: string[]
+	text: string
+	beforeContext: ContextResult[]
+	afterContext: ContextResult[]
 }
 
 // Constants
@@ -172,7 +177,7 @@ export async function regexSearchFiles(
 						file: parsed.data.path.text,
 						line: parsed.data.line_number,
 						column: parsed.data.submatches[0].start,
-						match: truncatedMatch,
+						text: truncatedMatch,
 						beforeContext: [],
 						afterContext: [],
 					}
@@ -180,11 +185,15 @@ export async function regexSearchFiles(
 					// Apply the same truncation logic to context lines
 					const contextText = parsed.data.lines.text
 					const truncatedContext = truncateLine(contextText)
+					let contextResult: ContextResult = {
+						line: parsed.data.line_number,
+						text: truncatedContext,
+					}
 
 					if (parsed.data.line_number < currentResult.line!) {
-						currentResult.beforeContext!.push(truncatedContext)
+						currentResult.beforeContext!.push(contextResult)
 					} else {
-						currentResult.afterContext!.push(truncatedContext)
+						currentResult.afterContext!.push(contextResult)
 					}
 				}
 			} catch (error) {
@@ -225,20 +234,20 @@ function formatResults(results: SearchResult[], cwd: string): string {
 	})
 
 	for (const [filePath, fileResults] of Object.entries(groupedResults)) {
-		output += `${filePath.toPosix()}\n│----\n`
+		output += `${filePath.toPosix()}\n││  ││----\n`
 
 		fileResults.forEach((result, index) => {
-			const allLines = [...result.beforeContext, result.match, ...result.afterContext]
+			const allLines = [...result.beforeContext, result, ...result.afterContext]
 			allLines.forEach((line) => {
-				output += `│${line?.trimEnd() ?? ""}\n`
+				output += `││ ${line.line} ││${line.text?.trimEnd() ?? ""}\n`
 			})
 
 			if (index < fileResults.length - 1) {
-				output += "│----\n"
+				output += "││  ││----\n"
 			}
 		})
 
-		output += "│----\n\n"
+		output += "││  ││----\n\n"
 	}
 
 	return output.trim()

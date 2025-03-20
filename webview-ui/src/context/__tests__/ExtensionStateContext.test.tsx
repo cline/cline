@@ -203,6 +203,7 @@ describe("mergeExtensionState", () => {
 			telemetrySetting: "unset",
 			showRooIgnoredFiles: true,
 			renderContext: "sidebar",
+			maxReadFileLine: 500,
 		}
 
 		const prevState: ExtensionState = {

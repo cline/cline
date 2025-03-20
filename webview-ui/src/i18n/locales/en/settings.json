@@ -265,6 +265,10 @@
 		"rooignore": {
 			"label": "Show .rooignore'd files in lists and searches",
 			"description": "When enabled, files matching patterns in .rooignore will be shown in lists with a lock symbol. When disabled, these files will be completely hidden from file lists and searches."
+		},
+		"maxReadFile": {
+			"label": "Maximum lines to read from a file",
+			"description": "Maximum number of lines to read from a file at once. Lower values reduce context/resource usage but may require more reads for large files."
 		}
 	},
 	"terminal": {

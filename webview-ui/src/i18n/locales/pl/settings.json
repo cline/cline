@@ -265,6 +265,10 @@
 		"rooignore": {
 			"label": "Pokaż pliki .rooignore na listach i w wyszukiwaniach",
 			"description": "Gdy włączone, pliki pasujące do wzorców w .rooignore będą pokazywane na listach z symbolem kłódki. Gdy wyłączone, te pliki będą całkowicie ukryte z list plików i wyszukiwań."
+		},
+		"maxReadFile": {
+			"label": "Maksymalna liczba linii do odczytu z pliku",
+			"description": "Maksymalna liczba linii odczytywanych z pliku jednocześnie. Niższe wartości zmniejszają użycie kontekstu/zasobów, ale mogą wymagać więcej odczytów dla dużych plików."
 		}
 	},
 	"terminal": {

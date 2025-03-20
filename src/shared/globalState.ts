@@ -122,6 +122,7 @@ export const GLOBAL_STATE_KEYS = [
 	"remoteBrowserEnabled",
 	"language",
 	"maxWorkspaceFiles",
+	"maxReadFileLine",
 	"fakeAi",
 ] as const
 

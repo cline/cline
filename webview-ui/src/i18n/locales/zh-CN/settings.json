@@ -265,6 +265,10 @@
 		"rooignore": {
 			"label": "在列表和搜索中显示 .rooignore 文件",
 			"description": "启用后，与 .rooignore 中模式匹配的文件将在列表中显示锁定符号。禁用时，这些文件将从文件列表和搜索中完全隐藏。"
+		},
+		"maxReadFile": {
+			"label": "文件读取的最大行数",
+			"description": "一次从文件读取的最大行数。较低的值会减少上下文/资源使用，但可能需要对大文件进行更多次读取。"
 		}
 	},
 	"terminal": {

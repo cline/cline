@@ -28,13 +28,14 @@ import {
 	stripLineNumbers,
 	everyLineHasLineNumbers,
 } from "../integrations/misc/extract-text"
+import { countFileLines } from "../integrations/misc/line-counter"
 import { ExitCodeDetails } from "../integrations/terminal/TerminalProcess"
 import { Terminal } from "../integrations/terminal/Terminal"
 import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
 import { regexSearchFiles } from "../services/ripgrep"
-import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
+import { parseSourceCodeDefinitionsForFile, parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
 import { CheckpointStorage } from "../shared/checkpoints"
 import { ApiConfiguration } from "../shared/api"
 import { findLastIndex } from "../shared/array"
@@ -78,6 +79,7 @@ import { DiffStrategy, getDiffStrategy } from "./diff/DiffStrategy"
 import { insertGroups } from "./diff/insert-groups"
 import { telemetryService } from "../services/telemetry/TelemetryService"
 import { validateToolUse, isToolAllowedForMode, ToolName } from "./mode-validator"
+import { readLines } from "../integrations/misc/read-lines"
 import { getWorkspacePath } from "../utils/path"
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
@@ -2225,6 +2227,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 					case "read_file": {
 						const relPath: string | undefined = block.params.path
+						const startLineStr: string | undefined = block.params.start_line
+						const endLineStr: string | undefined = block.params.end_line
 						const sharedMessageProps: ClineSayTool = {
 							tool: "readFile",
 							path: getReadablePath(this.cwd, removeClosingTag("path", relPath)),
@@ -2244,6 +2248,45 @@ export class Cline extends EventEmitter<ClineEvents> {
 									break
 								}
 
+								// Check if we're doing a line range read
+								let isRangeRead = false
+								let startLine: number | undefined = undefined
+								let endLine: number | undefined = undefined
+
+								// Check if we have either range parameter
+								if (startLineStr || endLineStr) {
+									isRangeRead = true
+								}
+
+								// Parse start_line if provided
+								if (startLineStr) {
+									startLine = parseInt(startLineStr)
+									if (isNaN(startLine)) {
+										// Invalid start_line
+										this.consecutiveMistakeCount++
+										await this.say("error", `Failed to parse start_line: ${startLineStr}`)
+										pushToolResult(formatResponse.toolError("Invalid start_line value"))
+										break
+									}
+									startLine -= 1 // Convert to 0-based index
+								}
+
+								// Parse end_line if provided
+								if (endLineStr) {
+									endLine = parseInt(endLineStr)
+
+									if (isNaN(endLine)) {
+										// Invalid end_line
+										this.consecutiveMistakeCount++
+										await this.say("error", `Failed to parse end_line: ${endLineStr}`)
+										pushToolResult(formatResponse.toolError("Invalid end_line value"))
+										break
+									}
+
+									// Convert to 0-based index
+									endLine -= 1
+								}
+
 								const accessAllowed = this.rooIgnoreController?.validateAccess(relPath)
 								if (!accessAllowed) {
 									await this.say("rooignore_error", relPath)
@@ -2258,12 +2301,63 @@ export class Cline extends EventEmitter<ClineEvents> {
 									...sharedMessageProps,
 									content: absolutePath,
 								} satisfies ClineSayTool)
+
 								const didApprove = await askApproval("tool", completeMessage)
 								if (!didApprove) {
 									break
 								}
+
+								// Get the maxReadFileLine setting
+								const { maxReadFileLine } = (await this.providerRef.deref()?.getState()) ?? {}
+
+								// Count total lines in the file
+								let totalLines = 0
+								try {
+									totalLines = await countFileLines(absolutePath)
+								} catch (error) {
+									console.error(`Error counting lines in file ${absolutePath}:`, error)
+								}
+
 								// now execute the tool like normal
-								const content = await extractTextFromFile(absolutePath)
+								let content: string
+								let isFileTruncated = false
+								let sourceCodeDef = ""
+
+								if (isRangeRead) {
+									// Read specific lines (startLine is guaranteed to be defined if isRangeRead is true)
+									console.log("Reading specific lines", startLine, endLine, startLineStr, endLineStr)
+									if (startLine === undefined) {
+										content = addLineNumbers(await readLines(absolutePath, endLine, startLine))
+									} else {
+										content = addLineNumbers(
+											await readLines(absolutePath, endLine, startLine),
+											startLine,
+										)
+									}
+								} else if (totalLines > maxReadFileLine) {
+									// If file is too large, only read the first maxReadFileLine lines
+									isFileTruncated = true
+
+									const res = await Promise.all([
+										readLines(absolutePath, maxReadFileLine - 1, 0),
+										parseSourceCodeDefinitionsForFile(absolutePath, this.rooIgnoreController),
+									])
+
+									content = addLineNumbers(res[0])
+									const result = res[1]
+									if (result) {
+										sourceCodeDef = `\n\n${result}`
+									}
+								} else {
+									// Read entire file
+									content = await extractTextFromFile(absolutePath)
+								}
+
+								// Add truncation notice if applicable
+								if (isFileTruncated) {
+									content += `\n\n[File truncated: showing ${maxReadFileLine} of ${totalLines} total lines. Use start_line and end_line if you need to read more.].${sourceCodeDef}`
+								}
+
 								pushToolResult(content)
 								break
 							}
@@ -2272,6 +2366,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 							break
 						}
 					}
+
 					case "list_files": {
 						const relDirPath: string | undefined = block.params.path
 						const recursiveRaw: string | undefined = block.params.recursive

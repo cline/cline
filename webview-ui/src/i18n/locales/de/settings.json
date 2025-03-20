@@ -265,6 +265,10 @@
 		"rooignore": {
 			"label": ".rooignore-Dateien in Listen und Suchen anzeigen",
 			"description": "Wenn aktiviert, werden Dateien, die mit Mustern in .rooignore übereinstimmen, in Listen mit einem Schlosssymbol angezeigt. Wenn deaktiviert, werden diese Dateien vollständig aus Dateilisten und Suchen ausgeblendet."
+		},
+		"maxReadFile": {
+			"label": "Maximale Anzahl an Zeilen, die aus einer Datei gelesen werden",
+			"description": "Maximale Anzahl an Zeilen, die auf einmal aus einer Datei gelesen werden. Niedrigere Werte reduzieren den Kontext-/Ressourcenverbrauch, können aber mehr Lesevorgänge für große Dateien erfordern."
 		}
 	},
 	"terminal": {

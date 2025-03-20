@@ -14,7 +14,10 @@ type ContextManagementSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	maxOpenTabsContext: number
 	maxWorkspaceFiles: number
 	showRooIgnoredFiles?: boolean
-	setCachedStateField: SetCachedStateField<"maxOpenTabsContext" | "maxWorkspaceFiles" | "showRooIgnoredFiles">
+	maxReadFileLine?: number
+	setCachedStateField: SetCachedStateField<
+		"maxOpenTabsContext" | "maxWorkspaceFiles" | "showRooIgnoredFiles" | "maxReadFileLine"
+	>
 }
 
 export const ContextManagementSettings = ({
@@ -22,6 +25,7 @@ export const ContextManagementSettings = ({
 	maxWorkspaceFiles,
 	showRooIgnoredFiles,
 	setCachedStateField,
+	maxReadFileLine,
 	className,
 	...props
 }: ContextManagementSettingsProps) => {
@@ -85,6 +89,26 @@ export const ContextManagementSettings = ({
 					</VSCodeCheckbox>
 					<div className="text-vscode-descriptionForeground text-sm mt-1">
 						{t("settings:contextManagement.rooignore.description")}
+					</div>
+				</div>
+
+				<div>
+					<div className="flex flex-col gap-2">
+						<span className="font-medium">{t("settings:contextManagement.maxReadFile.label")}</span>
+						<div className="flex items-center gap-2">
+							<Slider
+								min={0}
+								max={2000}
+								step={10}
+								value={[maxReadFileLine ?? 450]}
+								onValueChange={([value]) => setCachedStateField("maxReadFileLine", value)}
+								data-testid="max-read-file-line-slider"
+							/>
+							<span className="w-10">{maxReadFileLine ?? 450}</span>
+						</div>
+					</div>
+					<div className="text-vscode-descriptionForeground text-sm mt-0">
+						{t("settings:contextManagement.maxReadFile.description")}
 					</div>
 				</div>
 			</Section>

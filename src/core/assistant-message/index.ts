@@ -77,7 +77,7 @@ export interface ExecuteCommandToolUse extends ToolUse {
 
 export interface ReadFileToolUse extends ToolUse {
 	name: "read_file"
-	params: Partial<Pick<Record<ToolParamName, string>, "path">>
+	params: Partial<Pick<Record<ToolParamName, string>, "path" | "start_line" | "end_line">>
 }
 
 export interface WriteToFileToolUse extends ToolUse {

@@ -265,6 +265,10 @@
 		"rooignore": {
 			"label": "Hiển thị tệp .rooignore trong danh sách và tìm kiếm",
 			"description": "Khi được bật, các tệp khớp với mẫu trong .rooignore sẽ được hiển thị trong danh sách với biểu tượng khóa. Khi bị tắt, các tệp này sẽ hoàn toàn bị ẩn khỏi danh sách tệp và tìm kiếm."
+		},
+		"maxReadFile": {
+			"label": "Số dòng tối đa để đọc từ một tệp",
+			"description": "Số dòng tối đa để đọc từ một tệp cùng một lúc. Giá trị thấp hơn giảm sử dụng ngữ cảnh/tài nguyên nhưng có thể yêu cầu đọc nhiều lần hơn cho các tệp lớn."
 		}
 	},
 	"terminal": {

@@ -265,6 +265,10 @@
 		"rooignore": {
 			"label": "Mostra file .rooignore negli elenchi e nelle ricerche",
 			"description": "Quando abilitato, i file che corrispondono ai pattern in .rooignore verranno mostrati negli elenchi con un simbolo di blocco. Quando disabilitato, questi file saranno completamente nascosti dagli elenchi di file e dalle ricerche."
+		},
+		"maxReadFile": {
+			"label": "Numero massimo di righe da leggere da un file",
+			"description": "Numero massimo di righe da leggere da un file alla volta. Valori più bassi riducono l'utilizzo di contesto/risorse ma potrebbero richiedere più letture per file di grandi dimensioni."
 		}
 	},
 	"terminal": {
