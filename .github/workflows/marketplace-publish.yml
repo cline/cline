@@ -65,15 +65,15 @@ jobs:
           current_package_version=$(node -p "require('./package.json').version")
 
           # Extract changelog for current version
-          changelog_content=$(awk -v ver="## [${current_package_version}]" '
-            $0 ~ ver {flag=1; next}
-            /^## \[/ {if (flag) exit}
-            flag {print}
-          ' CHANGELOG.md)
+          echo "Extracting changelog for version ${current_package_version}"
+          changelog_content=$(sed -n "/## \\[${current_package_version}\\]/,/## \\[/p" CHANGELOG.md | sed '$d')
 
           # If changelog extraction failed, use a default message
           if [ -z "$changelog_content" ]; then
+            echo "Warning: No changelog section found for version ${current_package_version}"
             changelog_content="Release v${current_package_version}"
+          else
+            echo "Found changelog section for version ${current_package_version}"
           fi
 
           # Create release with changelog content
