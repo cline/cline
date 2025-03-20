@@ -55,7 +55,7 @@ export async function getWorkingDirectory(): Promise<string> {
 		await access(cwd, constants.R_OK)
 	} catch (error) {
 		throw new Error(
-			`Cannot access workspace directory. Please ensure VS Code has permission to access your workspace. Error: ${error.message}`,
+			`Cannot access workspace directory. Please ensure VS Code has permission to access your workspace. Error: ${error instanceof Error ? error.message : String(error)}`,
 		)
 	}
 
