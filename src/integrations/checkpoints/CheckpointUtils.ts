@@ -1,7 +1,8 @@
-import { mkdir } from "fs/promises"
+import { mkdir, access } from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import os from "os"
+import { constants } from "fs"
 
 /**
  * Gets the path to the shadow Git repository in globalStorage.
@@ -31,7 +32,8 @@ export async function getShadowGitPath(globalStoragePath: string, taskId: string
 /**
  * Gets the current working directory from the VS Code workspace.
  * Validates that checkpoints are not being used in protected directories
- * like home, Desktop, Documents, or Downloads.
+ * like home, Desktop, Documents, or Downloads. Checks to confirm that the workspace
+ * is accessible and that we will not encoutner permissions issues when creating checkpoints.
  *
  * Protected directories:
  * - User's home directory
@@ -40,13 +42,23 @@ export async function getShadowGitPath(globalStoragePath: string, taskId: string
  * - Downloads
  *
  * @returns Promise<string> The absolute path to the current working directory
- * @throws Error if no workspace is detected or if in a protected directory
+ * @throws Error if no workspace is detected, if in a protected directory, or if no read access
  */
 export async function getWorkingDirectory(): Promise<string> {
 	const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 	if (!cwd) {
 		throw new Error("No workspace detected. Please open Cline in a workspace to use checkpoints.")
 	}
+
+	// Check if directory exists and we have read/write permissions
+	try {
+		await access(cwd, constants.R_OK)
+	} catch (error) {
+		throw new Error(
+			`Cannot access workspace directory. Please ensure VS Code has and write permissions to your workspace. Error: ${error.message}`,
+		)
+	}
+
 	const homedir = os.homedir()
 	const desktopPath = path.join(homedir, "Desktop")
 	const documentsPath = path.join(homedir, "Documents")
