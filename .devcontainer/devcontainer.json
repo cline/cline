@@ -1,0 +1,22 @@
+{
+    "name": "Cline development environment",
+    "image": "node:22",
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:1": {},
+        "ghcr.io/devcontainers/features/git:1": {}
+    },
+    "postCreateCommand": "npm run install:all",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "saoudrizwan.claude-dev",
+                "ms-azuretools.vscode-docker",
+                "redhat.vscode-yaml",
+                "streetsidesoftware.code-spell-checker",
+                "dbaeumer.vscode-eslint",
+                "connor4312.esbuild-problem-matchers",
+                "ms-vscode.extension-test-runner"
+            ]
+        }
+    }
+}
