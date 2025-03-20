@@ -1,0 +1,5 @@
+---
+"claude-dev": patch
+---
+
+feat: add Full HD viewport preset and configurable browser settings with tests- Add "Full HD (1920x1080)" viewport preset option- Implement configuration-based browser settings through VSCode settings- Add package.json configuration properties for viewport settings- Create proper fallback for environments without VSCode API access- Add error handling with logging- Fix Logger import path in BrowserSettings.ts- Add comprehensive test suite for BrowserSettings module with 11 test cases covering: - Structure validation and preset verification - Configuration handling (preset and custom dimensions) - Edge cases (undefined settings, partial custom dimensions) - Error recovery and fallback behavior - Type guard validationThis change allows users to configure browser viewport size through extension settings, with preset options or custom dimensions. Settings are applied when browser sessions are launched without requiring code changes in consuming files. The test suite ensures robust behavior across various configurations and environments, maintaining reliability as the codebase evolves.

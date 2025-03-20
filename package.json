@@ -211,6 +211,33 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
+				},
+				"cline.defaultBrowserViewport": {
+					"type": "string",
+					"enum": [
+						"Full HD (1920x1080)",
+						"Large Desktop (1280x800)",
+						"Small Desktop (900x600)",
+						"Tablet (768x1024)",
+						"Mobile (360x640)",
+						"Custom"
+					],
+					"default": "Small Desktop (900x600)",
+					"description": "Default viewport size for browser sessions. Select 'Custom' to use custom dimensions."
+				},
+				"cline.defaultBrowserViewportWidth": {
+					"type": "number",
+					"default": 900,
+					"minimum": 320,
+					"maximum": 7680,
+					"description": "Custom width for browser viewport in pixels (only used when defaultBrowserViewport is set to 'custom')."
+				},
+				"cline.defaultBrowserViewportHeight": {
+					"type": "number",
+					"default": 600,
+					"minimum": 240,
+					"maximum": 4320,
+					"description": "Custom height for browser viewport in pixels (only used when defaultBrowserViewport is set to 'custom')."
 				}
 			}
 		}
