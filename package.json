@@ -182,11 +182,6 @@
 					"default": null,
 					"description": "Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find or download it automatically."
 				},
-				"cline.editor.skipDiffAnimation": {
-					"type": "boolean",
-					"default": false,
-					"description": "Skip the animation when applying diffs in the editor. Useful for faster updates, especially with remote repositories."
-        },
 				"cline.preferredLanguage": {
 					"type": "string",
 					"enum": [
