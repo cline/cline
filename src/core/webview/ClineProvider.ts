@@ -39,6 +39,7 @@ import { McpServerManager } from "../../services/mcp/McpServerManager"
 import { ShadowCheckpointService } from "../../services/checkpoints/ShadowCheckpointService"
 import { BrowserSession } from "../../services/browser/BrowserSession"
 import { discoverChromeInstances } from "../../services/browser/browserDiscovery"
+import { searchWorkspaceFiles } from "../../services/search/file-search"
 import { fileExistsAtPath } from "../../utils/fs"
 import { playSound, setSoundEnabled, setSoundVolume } from "../../utils/sound"
 import { playTts, setTtsEnabled, setTtsSpeed, stopTts } from "../../utils/tts"
@@ -1747,6 +1748,46 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 								)
 								vscode.window.showErrorMessage(t("common:errors.search_commits"))
 							}
+						}
+						break
+					}
+					case "searchFiles": {
+						const workspacePath = getWorkspacePath()
+
+						if (!workspacePath) {
+							// Handle case where workspace path is not available
+							await this.postMessageToWebview({
+								type: "fileSearchResults",
+								results: [],
+								requestId: message.requestId,
+								error: "No workspace path available",
+							})
+							break
+						}
+						try {
+							// Call file search service with query from message
+							const results = await searchWorkspaceFiles(
+								message.query || "",
+								workspacePath,
+								20, // Use default limit, as filtering is now done in the backend
+							)
+
+							// Send results back to webview
+							await this.postMessageToWebview({
+								type: "fileSearchResults",
+								results,
+								requestId: message.requestId,
+							})
+						} catch (error) {
+							const errorMessage = error instanceof Error ? error.message : String(error)
+
+							// Send error response to webview
+							await this.postMessageToWebview({
+								type: "fileSearchResults",
+								results: [],
+								error: errorMessage,
+								requestId: message.requestId,
+							})
 						}
 						break
 					}

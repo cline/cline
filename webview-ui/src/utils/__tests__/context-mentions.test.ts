@@ -131,8 +131,8 @@ describe("shouldShowContextMenu", () => {
 		expect(shouldShowContextMenu("Hello @http://test.com", 17)).toBe(false)
 	})
 
-	it("should return false for @problems", () => {
+	it("should return true for @problems", () => {
 		// Position cursor at the end to test the full word
-		expect(shouldShowContextMenu("@problems", 9)).toBe(false)
+		expect(shouldShowContextMenu("@problems", 9)).toBe(true)
 	})
 })

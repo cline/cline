@@ -56,6 +56,7 @@ export interface ExtensionMessage {
 		| "remoteBrowserEnabled"
 		| "ttsStart"
 		| "ttsStop"
+		| "fileSearchResults"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -92,6 +93,12 @@ export interface ExtensionMessage {
 	values?: Record<string, any>
 	requestId?: string
 	promptText?: string
+	results?: Array<{
+		path: string
+		type: "file" | "folder"
+		label?: string
+	}>
+	error?: string
 }
 
 export interface ApiConfigMeta {

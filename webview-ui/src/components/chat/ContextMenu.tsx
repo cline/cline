@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useRef } from "react"
-import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions } from "../../utils/context-mentions"
+import {
+	ContextMenuOptionType,
+	ContextMenuQueryItem,
+	getContextMenuOptions,
+	SearchResult,
+} from "../../utils/context-mentions"
 import { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
 import { ModeConfig } from "../../../../src/shared/modes"
 
@@ -12,6 +17,8 @@ interface ContextMenuProps {
 	selectedType: ContextMenuOptionType | null
 	queryItems: ContextMenuQueryItem[]
 	modes?: ModeConfig[]
+	loading?: boolean // New loading prop
+	dynamicSearchResults?: SearchResult[] // New dynamic search results prop
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -23,13 +30,14 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	selectedType,
 	queryItems,
 	modes,
+	loading = false,
+	dynamicSearchResults = [],
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
 
-	const filteredOptions = useMemo(
-		() => getContextMenuOptions(searchQuery, selectedType, queryItems, modes),
-		[searchQuery, selectedType, queryItems, modes],
-	)
+	const filteredOptions = useMemo(() => {
+		return getContextMenuOptions(searchQuery, selectedType, queryItems, dynamicSearchResults, modes)
+	}, [searchQuery, selectedType, queryItems, dynamicSearchResults, modes])
 
 	useEffect(() => {
 		if (menuRef.current) {
@@ -175,71 +183,85 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 					maxHeight: "200px",
 					overflowY: "auto",
 				}}>
-				{filteredOptions.map((option, index) => (
-					<div
-						key={`${option.type}-${option.value || index}`}
-						onClick={() => isOptionSelectable(option) && onSelect(option.type, option.value)}
-						style={{
-							padding: "8px 12px",
-							cursor: isOptionSelectable(option) ? "pointer" : "default",
-							color: "var(--vscode-dropdown-foreground)",
-							borderBottom: "1px solid var(--vscode-editorGroup-border)",
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "space-between",
-							...(index === selectedIndex && isOptionSelectable(option)
-								? {
-										backgroundColor: "var(--vscode-list-activeSelectionBackground)",
-										color: "var(--vscode-list-activeSelectionForeground)",
-									}
-								: {}),
-						}}
-						onMouseEnter={() => isOptionSelectable(option) && setSelectedIndex(index)}>
+				{filteredOptions && filteredOptions.length > 0 ? (
+					filteredOptions.map((option, index) => (
 						<div
+							key={`${option.type}-${option.value || index}`}
+							onClick={() => isOptionSelectable(option) && onSelect(option.type, option.value)}
 							style={{
+								padding: "8px 12px",
+								cursor: isOptionSelectable(option) ? "pointer" : "default",
+								color: "var(--vscode-dropdown-foreground)",
+								borderBottom: "1px solid var(--vscode-editorGroup-border)",
 								display: "flex",
 								alignItems: "center",
-								flex: 1,
-								minWidth: 0,
-								overflow: "hidden",
-								paddingTop: 0,
-							}}>
-							{option.type !== ContextMenuOptionType.Mode && getIconForOption(option) && (
+								justifyContent: "space-between",
+								...(index === selectedIndex && isOptionSelectable(option)
+									? {
+											backgroundColor: "var(--vscode-list-activeSelectionBackground)",
+											color: "var(--vscode-list-activeSelectionForeground)",
+										}
+									: {}),
+							}}
+							onMouseEnter={() => isOptionSelectable(option) && setSelectedIndex(index)}>
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									flex: 1,
+									minWidth: 0,
+									overflow: "hidden",
+									paddingTop: 0,
+								}}>
+								{option.type !== ContextMenuOptionType.Mode && getIconForOption(option) && (
+									<i
+										className={`codicon codicon-${getIconForOption(option)}`}
+										style={{
+											marginRight: "6px",
+											flexShrink: 0,
+											fontSize: "14px",
+											marginTop: 0,
+										}}
+									/>
+								)}
+								{renderOptionContent(option)}
+							</div>
+							{(option.type === ContextMenuOptionType.File ||
+								option.type === ContextMenuOptionType.Folder ||
+								option.type === ContextMenuOptionType.Git) &&
+								!option.value && (
+									<i
+										className="codicon codicon-chevron-right"
+										style={{ fontSize: "14px", flexShrink: 0, marginLeft: 8 }}
+									/>
+								)}
+							{(option.type === ContextMenuOptionType.Problems ||
+								option.type === ContextMenuOptionType.Terminal ||
+								((option.type === ContextMenuOptionType.File ||
+									option.type === ContextMenuOptionType.Folder ||
+									option.type === ContextMenuOptionType.OpenedFile ||
+									option.type === ContextMenuOptionType.Git) &&
+									option.value)) && (
 								<i
-									className={`codicon codicon-${getIconForOption(option)}`}
-									style={{
-										marginRight: "6px",
-										flexShrink: 0,
-										fontSize: "14px",
-										marginTop: 0,
-									}}
-								/>
-							)}
-							{renderOptionContent(option)}
-						</div>
-						{(option.type === ContextMenuOptionType.File ||
-							option.type === ContextMenuOptionType.Folder ||
-							option.type === ContextMenuOptionType.Git) &&
-							!option.value && (
-								<i
-									className="codicon codicon-chevron-right"
+									className="codicon codicon-add"
 									style={{ fontSize: "14px", flexShrink: 0, marginLeft: 8 }}
 								/>
 							)}
-						{(option.type === ContextMenuOptionType.Problems ||
-							option.type === ContextMenuOptionType.Terminal ||
-							((option.type === ContextMenuOptionType.File ||
-								option.type === ContextMenuOptionType.Folder ||
-								option.type === ContextMenuOptionType.OpenedFile ||
-								option.type === ContextMenuOptionType.Git) &&
-								option.value)) && (
-							<i
-								className="codicon codicon-add"
-								style={{ fontSize: "14px", flexShrink: 0, marginLeft: 8 }}
-							/>
-						)}
+						</div>
+					))
+				) : (
+					<div
+						style={{
+							padding: "12px",
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							color: "var(--vscode-foreground)",
+							opacity: 0.7,
+						}}>
+						<span>No results found</span>
 					</div>
-				))}
+				)}
 			</div>
 		</div>
 	)

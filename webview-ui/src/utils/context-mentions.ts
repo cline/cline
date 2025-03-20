@@ -1,7 +1,13 @@
 import { mentionRegex } from "../../../src/shared/context-mentions"
 import { Fzf } from "fzf"
 import { ModeConfig } from "../../../src/shared/modes"
+import * as path from "path"
 
+export interface SearchResult {
+	path: string
+	type: "file" | "folder"
+	label?: string
+}
 export function insertMention(
 	text: string,
 	position: number,
@@ -80,6 +86,7 @@ export function getContextMenuOptions(
 	query: string,
 	selectedType: ContextMenuOptionType | null = null,
 	queryItems: ContextMenuQueryItem[],
+	dynamicSearchResults: SearchResult[] = [],
 	modes?: ModeConfig[],
 ): ContextMenuQueryItem[] {
 	// Handle slash commands for modes
@@ -203,7 +210,34 @@ export function getContextMenuOptions(
 		}
 	}
 
-	// Create searchable strings array for fzf
+	if (dynamicSearchResults.length > 0) {
+		// Convert search results to queryItems format
+		const searchResultItems = dynamicSearchResults.map((result) => {
+			const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
+
+			return {
+				type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
+				value: formattedPath,
+				label: result.label || path.basename(result.path),
+				description: formattedPath,
+			}
+		})
+
+		const allItems = [...suggestions, ...searchResultItems]
+
+		// Remove duplicates
+		const seen = new Set()
+		const deduped = allItems.filter((item) => {
+			const key = `${item.type}-${item.value}`
+			if (seen.has(key)) return false
+			seen.add(key)
+			return true
+		})
+
+		return deduped
+	}
+
+	// Fallback to original static filtering if no dynamic results
 	const searchableItems = queryItems.map((item) => ({
 		original: item,
 		searchStr: [item.value, item.label, item.description].filter(Boolean).join(" "),
@@ -257,26 +291,25 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
 	if (text.startsWith("/")) {
 		return position <= text.length && !text.includes(" ")
 	}
-
 	const beforeCursor = text.slice(0, position)
 	const atIndex = beforeCursor.lastIndexOf("@")
 
-	if (atIndex === -1) return false
+	if (atIndex === -1) {
+		return false
+	}
 
 	const textAfterAt = beforeCursor.slice(atIndex + 1)
 
-	// Check if there's any whitespace after the '@'
-	if (/\s/.test(textAfterAt)) return false
-
-	// Don't show the menu if it's a URL
-	if (textAfterAt.toLowerCase().startsWith("http")) return false
-
-	// Don't show the menu if it's a problems or terminal
-	if (textAfterAt.toLowerCase().startsWith("problems") || textAfterAt.toLowerCase().startsWith("terminal"))
+	// Don't show the menu if it's clearly a URL
+	if (textAfterAt.toLowerCase().startsWith("http")) {
 		return false
+	}
 
-	// NOTE: it's okay that menu shows when there's trailing punctuation since user could be inputting a path with marks
+	// If there's a space after @, don't show the menu (normal @ mention)
+	if (textAfterAt.indexOf(" ") === 0) {
+		return false
+	}
 
-	// Show the menu if there's just '@' or '@' followed by some text (but not a URL)
+	// Show menu in all other cases
 	return true
 }

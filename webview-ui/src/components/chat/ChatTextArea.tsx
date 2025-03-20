@@ -16,6 +16,7 @@ import {
 	insertMention,
 	removeMention,
 	shouldShowContextMenu,
+	SearchResult,
 } from "@/utils/context-mentions"
 import { convertToMentionPath } from "@/utils/path-mentions"
 import { SelectDropdown, DropdownOptionType, Button } from "@/components/ui"
@@ -64,6 +65,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const { filePaths, openedTabs, currentApiConfigName, listApiConfigMeta, customModes, cwd } = useExtensionState()
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 		const [showDropdown, setShowDropdown] = useState(false)
+		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
+		const [searchLoading, setSearchLoading] = useState(false)
+		const [searchRequestId, setSearchRequestId] = useState<string>("")
 
 		// Close dropdown when clicking outside.
 		useEffect(() => {
@@ -76,7 +80,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			return () => document.removeEventListener("mousedown", handleClickOutside)
 		}, [showDropdown])
 
-		// Handle enhanced prompt response.
+		// Handle enhanced prompt response and search results.
 		useEffect(() => {
 			const messageHandler = (event: MessageEvent) => {
 				const message = event.data
@@ -97,12 +101,17 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}))
 
 					setGitCommits(commits)
+				} else if (message.type === "fileSearchResults") {
+					setSearchLoading(false)
+					if (message.requestId === searchRequestId) {
+						setFileSearchResults(message.results || [])
+					}
 				}
 			}
 
 			window.addEventListener("message", messageHandler)
 			return () => window.removeEventListener("message", messageHandler)
-		}, [setInputValue])
+		}, [setInputValue, searchRequestId])
 
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -275,6 +284,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								searchQuery,
 								selectedType,
 								queryItems,
+								fileSearchResults,
 								getAllModes(customModes),
 							)
 							const optionsLength = options.length
@@ -310,6 +320,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							searchQuery,
 							selectedType,
 							queryItems,
+							fileSearchResults,
 							getAllModes(customModes),
 						)[selectedMenuIndex]
 						if (
@@ -378,6 +389,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				justDeletedSpaceAfterMention,
 				queryItems,
 				customModes,
+				fileSearchResults,
 			],
 		)
 
@@ -387,6 +399,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setIntendedCursorPosition(null) // Reset the state.
 			}
 		}, [inputValue, intendedCursorPosition])
+		// Ref to store the search timeout
+		const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
 		const handleInputChange = useCallback(
 			(e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -408,8 +422,32 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
 						const query = newValue.slice(lastAtIndex + 1, newCursorPosition)
 						setSearchQuery(query)
+
+						// Send file search request if query is not empty
 						if (query.length > 0) {
 							setSelectedMenuIndex(0)
+							// Don't clear results until we have new ones
+							// This prevents flickering
+
+							// Clear any existing timeout
+							if (searchTimeoutRef.current) {
+								clearTimeout(searchTimeoutRef.current)
+							}
+
+							// Set a timeout to debounce the search requests
+							searchTimeoutRef.current = setTimeout(() => {
+								// Generate a request ID for this search
+								const reqId = Math.random().toString(36).substring(2, 9)
+								setSearchRequestId(reqId)
+								setSearchLoading(true)
+
+								// Send message to extension to search files
+								vscode.postMessage({
+									type: "searchFiles",
+									query: query,
+									requestId: reqId,
+								})
+							}, 200) // 200ms debounce
 						} else {
 							setSelectedMenuIndex(3) // Set to "File" option by default
 						}
@@ -417,9 +455,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				} else {
 					setSearchQuery("")
 					setSelectedMenuIndex(-1)
+					setFileSearchResults([]) // Clear file search results
 				}
 			},
-			[setInputValue],
+			[setInputValue, setSearchRequestId, setFileSearchResults, setSearchLoading],
 		)
 
 		useEffect(() => {
@@ -675,6 +714,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							selectedType={selectedType}
 							queryItems={queryItems}
 							modes={getAllModes(customModes)}
+							loading={searchLoading}
+							dynamicSearchResults={fileSearchResults}
 						/>
 					</div>
 				)}
