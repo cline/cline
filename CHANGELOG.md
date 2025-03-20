@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.10.1] - 2025-03-20
+
+- Make the suggested responses optional to not break overriden system prompts
+
 ## [3.10.0] - 2025-03-20
 
 - Suggested responses to questions (thanks samhvw8!)
