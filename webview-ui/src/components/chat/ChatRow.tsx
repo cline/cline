@@ -911,6 +911,21 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							/>
 						</div>
 					)
+				case "auto_run_output":
+					return (
+						<div
+							style={{
+								marginTop: -10,
+								width: "100%",
+							}}>
+							<CodeAccordian
+								code={message.text}
+								isAutoRunOutput={true}
+								isExpanded={isExpanded}
+								onToggleExpand={onToggleExpand}
+							/>
+						</div>
+					)
 				case "error":
 					return (
 						<>
