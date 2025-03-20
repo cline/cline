@@ -47,15 +47,13 @@ Kiểm tra [CHANGELOG](../CHANGELOG.md) để biết thông tin chi tiết về 
 
 ---
 
-## 🎉 Đã Phát Hành Roo Code 3.9
+## 🎉 Đã Phát Hành Roo Code 3.10
 
-Roo Code 3.9 đã trở nên toàn cầu!
+Roo Code 3.10 mang đến những cải tiến năng suất mạnh mẽ!
 
-- Roo Code đã được dịch sang 14 ngôn ngữ khác nhau! Truy cập Cài đặt → Ngôn ngữ để xem tất cả ngôn ngữ và thay đổi cài đặt của bạn.
-- Giờ đây chúng tôi hỗ trợ cả stdio và SSE làm phương thức truyền tải cho MCP
-- Theo yêu cầu phổ biến, bạn giờ đây có thể xóa nhiều mục lịch sử cùng lúc
-- Bật tính năng chuyển văn bản thành giọng nói trong cài đặt để nghe mọi điều Roo nói
-- Muốn kiểm soát OpenRouter của bạn tốt hơn? Giờ đây bạn có thể chọn nhà cung cấp cụ thể cho mô hình của mình.
+- Gợi ý phản hồi cho câu hỏi giúp tiết kiệm thời gian nhập liệu
+- Cải thiện xử lý tệp tin lớn thông qua việc lập bản đồ cấu trúc tệp và chỉ đọc nội dung liên quan
+- Tính năng tìm kiếm tệp tin bằng @-mention được xây dựng lại, tôn trọng .gitignore và không giới hạn số lượng tệp tin được theo dõi
 
 ---
 

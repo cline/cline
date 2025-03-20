@@ -47,15 +47,13 @@ Detaylı güncellemeler ve düzeltmeler için [CHANGELOG](../CHANGELOG.md) dosya
 
 ---
 
-## 🎉 Roo Code 3.9 Yayınlandı
+## 🎉 Roo Code 3.10 Yayınlandı
 
-Roo Code 3.9 uluslararası oldu!
+Roo Code 3.10 güçlü üretkenlik iyileştirmeleri getiriyor!
 
-- Roo Code 14 farklı dile çevrildi! Tüm dilleri görmek ve ayarlarınızı değiştirmek için Ayarlar → Dil bölümüne gidin.
-- Artık MCP için hem stdio hem de SSE taşıma protokollerini destekliyoruz
-- Yoğun talep üzerine, artık geçmiş öğelerini toplu olarak silebilirsiniz
-- Roo'nun söylediği her şeyi duymak için ayarlardan metin okuma özelliğini etkinleştirin
-- OpenRouter'ınız üzerinde daha fazla kontrol mü istiyorsunuz? Artık modeliniz için belirli bir sağlayıcı seçebilirsiniz.
+- Yazma sürenizi tasarruf etmenizi sağlayan sorulara önerilen yanıtlar
+- Dosya yapısını haritalayarak ve yalnızca ilgili içeriği okuyarak geliştirilmiş büyük dosya işleme
+- .gitignore'a saygı gösteren ve izlenen dosya sayısında sınır olmayan yeniden yapılandırılmış @-mention dosya araması
 
 ---
 

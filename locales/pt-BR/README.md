@@ -47,15 +47,13 @@ Confira o [CHANGELOG](../CHANGELOG.md) para atualizações e correções detalha
 
 ---
 
-## 🎉 Roo Code 3.9 Lançado
+## 🎉 Roo Code 3.10 Lançado
 
-O Roo Code 3.9 se tornou internacional!
+O Roo Code 3.10 traz poderosas melhorias de produtividade!
 
-- O Roo Code foi traduzido para 14 idiomas diferentes! Vá em Configurações → Idioma para ver todos os idiomas e alterar suas configurações.
-- Agora suportamos tanto stdio quanto SSE como transportes para MCP
-- Por demanda popular, agora você pode excluir itens do histórico em lote
-- Ative a conversão de texto em fala nas configurações para ouvir tudo o que o Roo tem a dizer
-- Quer mais controle sobre seu OpenRouter? Agora você pode escolher um provedor específico para seu modelo.
+- Respostas sugeridas para perguntas, economizando seu tempo de digitação
+- Manuseio aprimorado de arquivos grandes através do mapeamento da estrutura do arquivo e leitura apenas do conteúdo relevante
+- Busca de arquivos por @-menção reconstruída que respeita o .gitignore e não tem limite no número de arquivos rastreados
 
 ---
 

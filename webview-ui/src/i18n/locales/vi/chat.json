@@ -201,14 +201,14 @@
 		"seconds": "{{count}} giây"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.9 Đã phát hành",
-		"description": "Roo Code đã trở nên quốc tế hóa trong phiên bản 3.9!",
+		"title": "🎉 Roo Code 3.10 Đã phát hành",
+		"description": "Roo Code 3.10 mang đến những cải tiến năng suất mạnh mẽ!",
 		"whatsNew": "Có gì mới",
-		"feature1": "Bản dịch cho 14 ngôn ngữ",
-		"feature2": "MCP qua SSE",
-		"feature3": "Xóa hàng loạt lịch sử nhiệm vụ",
-		"feature4": "Chuyển văn bản thành giọng nói",
-		"feature5": "Lựa chọn nhà cung cấp OpenRouter",
+		"feature1": "Gợi ý phản hồi cho câu hỏi",
+		"feature2": "Cải thiện xử lý tệp tin lớn",
+		"feature3": "Xây dựng lại tìm kiếm tệp tin bằng @-mention",
+		"feature4": "",
+		"feature5": "",
 		"hideButton": "Ẩn thông báo",
 		"detailsDiscussLinks": "Nhận thêm chi tiết và thảo luận tại <discordLink>Discord</discordLink> và <redditLink>Reddit</redditLink> 🚀"
 	},

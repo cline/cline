@@ -201,14 +201,14 @@
 		"seconds": "{{count}}s"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.9 est sortie",
-		"description": "Roo Code est devenu international avec la version 3.9 !",
+		"title": "🎉 Roo Code 3.10 est sortie",
+		"description": "Roo Code 3.10 apporte de puissantes améliorations de productivité !",
 		"whatsNew": "Quoi de neuf",
-		"feature1": "Traductions pour 14 langues",
-		"feature2": "MCP via SSE",
-		"feature3": "Suppression en lot de l'historique des tâches",
-		"feature4": "Synthèse vocale",
-		"feature5": "Sélection du fournisseur OpenRouter",
+		"feature1": "Réponses suggérées aux questions",
+		"feature2": "Gestion améliorée des fichiers volumineux",
+		"feature3": "Recherche de fichiers par @-mention reconstruite",
+		"feature4": "",
+		"feature5": "",
 		"hideButton": "Masquer l'annonce",
 		"detailsDiscussLinks": "Obtenez plus de détails et participez aux discussions sur <discordLink>Discord</discordLink> et <redditLink>Reddit</redditLink> 🚀"
 	},

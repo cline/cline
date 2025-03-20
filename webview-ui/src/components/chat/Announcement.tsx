@@ -65,11 +65,10 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={{ margin: "12px 0 8px" }}>{t("chat:announcement.whatsNew")}</h3>
 			<div style={{ margin: "5px 0px" }}>
 				<ul style={{ margin: "4px 0 6px 20px", padding: 0 }}>
-					<li>• {t("chat:announcement.feature1")}</li>
-					<li>• {t("chat:announcement.feature2")}</li>
-					<li>• {t("chat:announcement.feature3")}</li>
-					<li>• {t("chat:announcement.feature4")}</li>
-					<li>• {t("chat:announcement.feature5")}</li>
+					{[1, 2, 3, 4, 5].map((num) => {
+						const feature = t(`chat:announcement.feature${num}`)
+						return feature ? <li key={num}>• {feature}</li> : null
+					})}
 				</ul>
 			</div>
 

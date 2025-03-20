@@ -87,7 +87,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	private clineStack: Cline[] = []
 	private workspaceTracker?: WorkspaceTracker
 	protected mcpHub?: McpHub // Change from private to protected
-	private latestAnnouncementId = "mar-18-2025-3-9" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "mar-20-2025-3-10" // update to some unique identifier when we add a new announcement
 	private contextProxy: ContextProxy
 	configManager: ConfigManager
 	customModesManager: CustomModesManager

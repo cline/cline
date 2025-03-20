@@ -201,14 +201,14 @@
 		"seconds": "{{count}}秒"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.9 已发布",
-		"description": "Roo Code在3.9版本中实现了国际化！",
+		"title": "🎉 Roo Code 3.10 已发布",
+		"description": "Roo Code 3.10带来强大的生产力提升！",
 		"whatsNew": "新特性",
-		"feature1": "14种语言的翻译",
-		"feature2": "通过SSE的MCP",
-		"feature3": "批量删除任务历史",
-		"feature4": "文字转语音",
-		"feature5": "OpenRouter提供商选择",
+		"feature1": "问题的建议回答",
+		"feature2": "改进的大文件处理",
+		"feature3": "重建的@-提及文件查找",
+		"feature4": "",
+		"feature5": "",
 		"hideButton": "隐藏公告",
 		"detailsDiscussLinks": "在<discordLink>Discord</discordLink>和<redditLink>Reddit</redditLink>获取更多详情并参与讨论 🚀"
 	},

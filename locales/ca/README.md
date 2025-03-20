@@ -47,15 +47,13 @@ Consulteu el [CHANGELOG](../CHANGELOG.md) per a actualitzacions i correccions de
 
 ---
 
-## 🎉 Roo Code 3.9 Llançat
+## 🎉 Roo Code 3.10 Llançat
 
-Roo Code 3.9 s'ha tornat internacional!
+Roo Code 3.10 aporta potents millores de productivitat!
 
-- Roo Code s'ha traduït a 14 idiomes diferents! Aneu a Configuració → Idioma per veure tots els idiomes i canviar la vostra configuració.
-- Ara suportem tant stdio com SSE com a transports per a MCP
-- Per demanda popular, ara podeu eliminar elements de l'historial en lot
-- Activeu la conversió de text a veu a la configuració per escoltar tot el que Roo té per dir
-- Voleu més control sobre el vostre OpenRouter? Ara podeu triar un proveïdor específic per al vostre model.
+- Respostes suggerides a les preguntes per estalviar temps d'escriptura
+- Millora en la gestió de fitxers grans mitjançant el mapeig de l'estructura del fitxer i la lectura només del contingut rellevant
+- Reconstrucció de la cerca de fitxers amb @-menció que respecta .gitignore i no té límit en el nombre de fitxers rastrejats
 
 ---
 

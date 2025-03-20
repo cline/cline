@@ -201,14 +201,14 @@
 		"seconds": "{{count}}초"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.9 출시",
-		"description": "Roo Code가 3.9 버전에서 국제화되었습니다!",
+		"title": "🎉 Roo Code 3.10 출시",
+		"description": "Roo Code 3.10이 강력한 생산성 향상 기능을 제공합니다!",
 		"whatsNew": "새로운 기능",
-		"feature1": "14개 언어로 번역",
-		"feature2": "SSE를 통한 MCP",
-		"feature3": "작업 기록 일괄 삭제",
-		"feature4": "텍스트 음성 변환",
-		"feature5": "OpenRouter 제공자 선택",
+		"feature1": "질문에 대한 제안 응답",
+		"feature2": "대용량 파일 처리 개선",
+		"feature3": "@-언급 파일 검색 기능 재구축",
+		"feature4": "",
+		"feature5": "",
 		"hideButton": "공지 숨기기",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 더 자세한 정보를 확인하고 논의하세요 🚀"
 	},

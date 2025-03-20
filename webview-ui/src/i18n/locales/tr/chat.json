@@ -201,14 +201,14 @@
 		"seconds": "{{count}}sn"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.9 Yayınlandı",
-		"description": "Roo Code 3.9 sürümünde uluslararası oldu!",
+		"title": "🎉 Roo Code 3.10 Yayınlandı",
+		"description": "Roo Code 3.10 güçlü üretkenlik iyileştirmeleri getiriyor!",
 		"whatsNew": "Yenilikler",
-		"feature1": "14 dil için çeviriler",
-		"feature2": "SSE üzerinden MCP",
-		"feature3": "Toplu görev geçmişi silme",
-		"feature4": "Metinden sese dönüştürme",
-		"feature5": "OpenRouter sağlayıcı seçimi",
+		"feature1": "Sorulara önerilen yanıtlar",
+		"feature2": "Geliştirilmiş büyük dosya işleme",
+		"feature3": "Yeniden yapılandırılmış @-mention dosya aramaları",
+		"feature4": "",
+		"feature5": "",
 		"hideButton": "Duyuruyu gizle",
 		"detailsDiscussLinks": "<discordLink>Discord</discordLink> ve <redditLink>Reddit</redditLink> üzerinde daha fazla ayrıntı edinin ve tartışmalara katılın 🚀"
 	},
