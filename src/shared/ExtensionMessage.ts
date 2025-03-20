@@ -7,7 +7,7 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
-import { TelemetrySetting, ConversationDataSetting } from "./TelemetrySetting"
+import { ConversationDataSetting, TelemetrySetting } from "./TelemetrySetting"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -34,6 +34,7 @@ export interface ExtensionMessage {
 		| "openGraphData"
 		| "isImageUrlResult"
 		| "didUpdateSettings"
+		| "totalTasksSize"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -69,6 +70,7 @@ export interface ExtensionMessage {
 	}
 	url?: string
 	isImage?: boolean
+	totalTasksSize?: number | null
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -198,6 +200,18 @@ export interface ClineAskUseMcpServer {
 	toolName?: string
 	arguments?: string
 	uri?: string
+}
+
+export interface ClinePlanModeResponse {
+	response: string
+	options?: string[]
+	selected?: string
+}
+
+export interface ClineAskQuestion {
+	question: string
+	options?: string[]
+	selected?: string
 }
 
 export interface ClineApiReqInfo {
