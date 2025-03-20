@@ -44,7 +44,7 @@ import {
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "../shared/ExtensionMessage"
-import { getApiMetrics } from "../shared/getApiMetrics"
+import { ApiMetrics, getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
 import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessage"
 import { calculateApiCostAnthropic } from "../utils/cost"
@@ -71,6 +71,7 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 	saveApiConversationHistory,
+	saveClineMessages,
 } from "./messages-io"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -184,41 +185,77 @@ export class Cline {
 
 	// Storing task to disk for history
 
-	private async saveClineMessages() {
+	private extractTaskMetricsAndMessages(clineMessages: ClineMessage[]) {
+		const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(clineMessages.slice(1))))
+		const taskMessage = clineMessages[0] // first message is always the task say
+		const lastRelevantMessage =
+			clineMessages[findLastIndex(clineMessages, (m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))]
+
+		return {
+			apiMetrics,
+			taskMessage,
+			lastRelevantMessage,
+		}
+	}
+
+	private async getTaskDirectorySize(taskDir: string): Promise<number> {
 		try {
-			const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-			const taskId = this.taskId
-			const taskDir = await ensureTaskDirectoryExists(globalStoragePath, taskId)
-			const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
-			await fs.writeFile(filePath, JSON.stringify(this.clineMessages))
-			// combined as they are in ChatView
-			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
-			const taskMessage = this.clineMessages[0] // first message is always the task say
-			const lastRelevantMessage =
-				this.clineMessages[
-					findLastIndex(this.clineMessages, (m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))
-				]
-			let taskDirSize = 0
-			try {
-				// getFolderSize.loose silently ignores errors
-				// returns # of bytes, size/1000/1000 = MB
-				taskDirSize = await getFolderSize.loose(taskDir)
-			} catch (error) {
-				console.error("Failed to get task directory size:", taskDir, error)
-			}
-			await this.providerRef.deref()?.updateTaskHistory({
-				id: this.taskId,
-				ts: lastRelevantMessage.ts,
-				task: taskMessage.text ?? "",
-				tokensIn: apiMetrics.totalTokensIn,
-				tokensOut: apiMetrics.totalTokensOut,
-				cacheWrites: apiMetrics.totalCacheWrites,
-				cacheReads: apiMetrics.totalCacheReads,
-				totalCost: apiMetrics.totalCost,
-				size: taskDirSize,
-				shadowGitConfigWorkTree: await this.checkpointTracker?.getShadowGitConfigWorkTree(),
-				conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
-			})
+			// getFolderSize.loose silently ignores errors
+			// returns # of bytes, size/1000/1000 = MB
+			return await getFolderSize.loose(taskDir)
+		} catch (error) {
+			console.error("Failed to get task directory size:", taskDir, error)
+			return 0
+		}
+	}
+
+	private async updateTaskHistoryData(
+		providerRef: WeakRef<ClineProvider>,
+		taskId: string,
+		lastRelevantMessage: ClineMessage,
+		taskMessage: ClineMessage,
+		apiMetrics: ApiMetrics,
+		taskDirSize: number,
+		checkpointTracker: CheckpointTracker | undefined,
+		conversationHistoryDeletedRange: [number, number] | undefined,
+	) {
+		await providerRef.deref()?.updateTaskHistory({
+			id: taskId,
+			ts: lastRelevantMessage.ts,
+			task: taskMessage.text ?? "",
+			tokensIn: apiMetrics.totalTokensIn,
+			tokensOut: apiMetrics.totalTokensOut,
+			cacheWrites: apiMetrics.totalCacheWrites,
+			cacheReads: apiMetrics.totalCacheReads,
+			totalCost: apiMetrics.totalCost,
+			size: taskDirSize,
+			shadowGitConfigWorkTree: await checkpointTracker?.getShadowGitConfigWorkTree(),
+			conversationHistoryDeletedRange: conversationHistoryDeletedRange,
+		})
+	}
+
+	private async processAndSaveClineMessages(
+		providerRef: WeakRef<ClineProvider>,
+		globalStoragePath: string | undefined,
+		taskId: string,
+		clineMessages: ClineMessage[],
+		checkpointTracker: CheckpointTracker | undefined,
+		conversationHistoryDeletedRange: [number, number] | undefined,
+	) {
+		try {
+			const taskDir = await saveClineMessages(globalStoragePath, taskId, clineMessages)
+			const { apiMetrics, taskMessage, lastRelevantMessage } = this.extractTaskMetricsAndMessages(clineMessages)
+			const taskDirSize = await this.getTaskDirectorySize(taskDir)
+			await this.updateTaskHistoryData(
+				providerRef,
+				taskId,
+				lastRelevantMessage,
+				taskMessage,
+				apiMetrics,
+				taskDirSize,
+				checkpointTracker,
+				conversationHistoryDeletedRange,
+			)
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)
 		}
@@ -288,7 +325,14 @@ export class Cline {
 					const newClineMessages = this.clineMessages.slice(0, messageIndex + 1)
 
 					this.clineMessages = newClineMessages
-					await this.saveClineMessages()
+					await this.processAndSaveClineMessages(
+						this.providerRef,
+						this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						this.taskId,
+						newClineMessages,
+						this.checkpointTracker,
+						this.conversationHistoryDeletedRange,
+					)
 
 					await this.say(
 						"deleted_api_reqs",
@@ -329,7 +373,14 @@ export class Cline {
 				})
 			}
 
-			await this.saveClineMessages()
+			await this.processAndSaveClineMessages(
+				this.providerRef,
+				this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				this.taskId,
+				this.clineMessages,
+				this.checkpointTracker,
+				this.conversationHistoryDeletedRange,
+			)
 
 			await this.providerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
 
@@ -550,7 +601,7 @@ export class Cline {
 					lastMessage.text = text
 					lastMessage.partial = partial
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
-					// await this.saveClineMessages()
+					// await this.processAndSaveClineMessages()
 					// await this.providerRef.deref()?.postStateToWebview()
 					await this.providerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
@@ -578,8 +629,14 @@ export class Cline {
 					}
 
 					this.clineMessages.push(message)
-					await this.saveClineMessages()
-
+					await this.processAndSaveClineMessages(
+						this.providerRef,
+						this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						this.taskId,
+						this.clineMessages,
+						this.checkpointTracker,
+						this.conversationHistoryDeletedRange,
+					)
 					await this.providerRef.deref()?.postStateToWebview()
 					throw new Error("Current ask promise was ignored 2")
 				}
@@ -602,7 +659,14 @@ export class Cline {
 					// lastMessage.ts = askTs
 					lastMessage.text = text
 					lastMessage.partial = false
-					await this.saveClineMessages()
+					await this.processAndSaveClineMessages(
+						this.providerRef,
+						this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						this.taskId,
+						this.clineMessages,
+						this.checkpointTracker,
+						this.conversationHistoryDeletedRange,
+					)
 					// await this.providerRef.deref()?.postStateToWebview()
 					await this.providerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
@@ -625,7 +689,14 @@ export class Cline {
 					}
 
 					this.clineMessages.push(message)
-					await this.saveClineMessages()
+					await this.processAndSaveClineMessages(
+						this.providerRef,
+						this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						this.taskId,
+						this.clineMessages,
+						this.checkpointTracker,
+						this.conversationHistoryDeletedRange,
+					)
 
 					await this.providerRef.deref()?.postStateToWebview()
 				}
@@ -649,8 +720,14 @@ export class Cline {
 			}
 
 			this.clineMessages.push(message)
-			await this.saveClineMessages()
-
+			await this.processAndSaveClineMessages(
+				this.providerRef,
+				this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				this.taskId,
+				this.clineMessages,
+				this.checkpointTracker,
+				this.conversationHistoryDeletedRange,
+			)
 			await this.providerRef.deref()?.postStateToWebview()
 		}
 
@@ -709,7 +786,14 @@ export class Cline {
 						conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
 					}
 					this.clineMessages.push(message)
-					await this.saveClineMessages()
+					await this.processAndSaveClineMessages(
+						this.providerRef,
+						this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						this.taskId,
+						this.clineMessages,
+						this.checkpointTracker,
+						this.conversationHistoryDeletedRange,
+					)
 
 					await this.providerRef.deref()?.postStateToWebview()
 				}
@@ -724,7 +808,14 @@ export class Cline {
 					lastMessage.partial = false
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
-					await this.saveClineMessages()
+					await this.processAndSaveClineMessages(
+						this.providerRef,
+						this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						this.taskId,
+						this.clineMessages,
+						this.checkpointTracker,
+						this.conversationHistoryDeletedRange,
+					)
 					// await this.providerRef.deref()?.postStateToWebview()
 					await this.providerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
@@ -745,7 +836,14 @@ export class Cline {
 					}
 
 					this.clineMessages.push(message)
-					await this.saveClineMessages()
+					await this.processAndSaveClineMessages(
+						this.providerRef,
+						this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						this.taskId,
+						this.clineMessages,
+						this.checkpointTracker,
+						this.conversationHistoryDeletedRange,
+					)
 
 					await this.providerRef.deref()?.postStateToWebview()
 				}
@@ -766,7 +864,14 @@ export class Cline {
 			}
 
 			this.clineMessages.push(message)
-			await this.saveClineMessages()
+			await this.processAndSaveClineMessages(
+				this.providerRef,
+				this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				this.taskId,
+				this.clineMessages,
+				this.checkpointTracker,
+				this.conversationHistoryDeletedRange,
+			)
 
 			await this.providerRef.deref()?.postStateToWebview()
 		}
@@ -786,7 +891,14 @@ export class Cline {
 		const lastMessage = this.clineMessages.at(-1)
 		if (lastMessage?.partial && lastMessage.type === type && (lastMessage.ask === askOrSay || lastMessage.say === askOrSay)) {
 			this.clineMessages.pop()
-			await this.saveClineMessages()
+			await this.processAndSaveClineMessages(
+				this.providerRef,
+				this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				this.taskId,
+				this.clineMessages,
+				this.checkpointTracker,
+				this.conversationHistoryDeletedRange,
+			)
 			await this.providerRef.deref()?.postStateToWebview()
 		}
 	}
@@ -852,7 +964,14 @@ export class Cline {
 		}
 
 		this.clineMessages = modifiedClineMessages
-		await this.saveClineMessages()
+		await this.processAndSaveClineMessages(
+			this.providerRef,
+			this.providerRef.deref()?.context.globalStorageUri.fsPath,
+			this.taskId,
+			this.clineMessages,
+			this.checkpointTracker,
+			this.conversationHistoryDeletedRange,
+		)
 
 		this.clineMessages = await getSavedClineMessages(globalStoragePath, taskId)
 
@@ -1097,7 +1216,14 @@ export class Cline {
 				const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
 				if (lastCheckpointMessage) {
 					lastCheckpointMessage.lastCheckpointHash = commitHash
-					await this.saveClineMessages()
+					await this.processAndSaveClineMessages(
+						this.providerRef,
+						this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						this.taskId,
+						this.clineMessages,
+						this.checkpointTracker,
+						this.conversationHistoryDeletedRange,
+					)
 				}
 			}) // silently fails for now
 
@@ -1112,7 +1238,14 @@ export class Cline {
 			)
 			if (lastCompletionResultMessage) {
 				lastCompletionResultMessage.lastCheckpointHash = commitHash
-				await this.saveClineMessages()
+				await this.processAndSaveClineMessages(
+					this.providerRef,
+					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+					this.taskId,
+					this.clineMessages,
+					this.checkpointTracker,
+					this.conversationHistoryDeletedRange,
+				)
 			}
 		}
 
@@ -1149,7 +1282,7 @@ export class Cline {
 		// 	}
 		// }
 		// // Save the updated messages
-		// await this.saveClineMessages()
+		// await this.processAndSaveClineMessages()
 		// }
 	}
 
@@ -1382,7 +1515,14 @@ export class Cline {
 						this.conversationHistoryDeletedRange,
 						keep,
 					)
-					await this.saveClineMessages() // saves task history item which we use to keep track of conversation history deleted range
+					await this.processAndSaveClineMessages(
+						this.providerRef,
+						this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						this.taskId,
+						this.clineMessages,
+						this.checkpointTracker,
+						this.conversationHistoryDeletedRange,
+					) // saves task history item which we use to keep track of conversation history deleted range
 				}
 			}
 		}
@@ -2753,7 +2893,14 @@ export class Cline {
 											...sharedMessage,
 											selected: text,
 										} satisfies ClineAskQuestion)
-										await this.saveClineMessages()
+										await this.processAndSaveClineMessages(
+											this.providerRef,
+											this.providerRef.deref()?.context.globalStorageUri.fsPath,
+											this.taskId,
+											this.clineMessages,
+											this.checkpointTracker,
+											this.conversationHistoryDeletedRange,
+										)
 									}
 								} else {
 									// Option not selected, send user feedback
@@ -2816,7 +2963,14 @@ export class Cline {
 											...sharedMessage,
 											selected: text,
 										} satisfies ClinePlanModeResponse)
-										await this.saveClineMessages()
+										await this.processAndSaveClineMessages(
+											this.providerRef,
+											this.providerRef.deref()?.context.globalStorageUri.fsPath,
+											this.taskId,
+											this.clineMessages,
+											this.checkpointTracker,
+											this.conversationHistoryDeletedRange,
+										)
 									}
 								} else {
 									// Option not selected, send user feedback
@@ -2885,7 +3039,14 @@ export class Cline {
 							) {
 								lastCompletionResultMessage.text += COMPLETION_RESULT_CHANGES_FLAG
 							}
-							await this.saveClineMessages()
+							await this.processAndSaveClineMessages(
+								this.providerRef,
+								this.providerRef.deref()?.context.globalStorageUri.fsPath,
+								this.taskId,
+								this.clineMessages,
+								this.checkpointTracker,
+								this.conversationHistoryDeletedRange,
+							)
 						}
 
 						try {
@@ -3132,7 +3293,7 @@ export class Cline {
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
-				this.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
+				this.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we processAndSaveClineMessages next which posts state to webview
 			}
 		}
 
@@ -3142,7 +3303,14 @@ export class Cline {
 			const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
 			if (lastCheckpointMessage) {
 				lastCheckpointMessage.lastCheckpointHash = commitHash
-				await this.saveClineMessages()
+				await this.processAndSaveClineMessages(
+					this.providerRef,
+					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+					this.taskId,
+					this.clineMessages,
+					this.checkpointTracker,
+					this.conversationHistoryDeletedRange,
+				)
 			}
 		}
 
@@ -3166,7 +3334,14 @@ export class Cline {
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
 			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClineApiReqInfo)
-		await this.saveClineMessages()
+		await this.processAndSaveClineMessages(
+			this.providerRef,
+			this.providerRef.deref()?.context.globalStorageUri.fsPath,
+			this.taskId,
+			this.clineMessages,
+			this.checkpointTracker,
+			this.conversationHistoryDeletedRange,
+		)
 		await this.providerRef.deref()?.postStateToWebview()
 
 		try {
@@ -3212,7 +3387,7 @@ export class Cline {
 					lastMessage.partial = false
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					console.log("updating partial message", lastMessage)
-					// await this.saveClineMessages()
+					// await this.processAndSaveClineMessages()
 				}
 
 				// Let assistant know their response was interrupted for when task is resumed
@@ -3236,8 +3411,14 @@ export class Cline {
 
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
 				updateApiReqMsg(cancelReason, streamingFailedMessage)
-				await this.saveClineMessages()
-
+				await this.processAndSaveClineMessages(
+					this.providerRef,
+					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+					this.taskId,
+					this.clineMessages,
+					this.checkpointTracker,
+					this.conversationHistoryDeletedRange,
+				)
 				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
@@ -3351,8 +3532,14 @@ export class Cline {
 						totalCost = apiStreamUsage.totalCost
 					}
 					updateApiReqMsg()
-					await this.saveClineMessages()
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.processAndSaveClineMessages(
+						this.providerRef,
+						this.providerRef.deref()?.context.globalStorageUri.fsPath,
+						this.taskId,
+						this.clineMessages,
+						this.checkpointTracker,
+						this.conversationHistoryDeletedRange,
+					)
 				})
 			}
 
@@ -3375,7 +3562,14 @@ export class Cline {
 			}
 
 			updateApiReqMsg()
-			await this.saveClineMessages()
+			await this.processAndSaveClineMessages(
+				this.providerRef,
+				this.providerRef.deref()?.context.globalStorageUri.fsPath,
+				this.taskId,
+				this.clineMessages,
+				this.checkpointTracker,
+				this.conversationHistoryDeletedRange,
+			)
 			await this.providerRef.deref()?.postStateToWebview()
 
 			// now add to apiconversationhistory
