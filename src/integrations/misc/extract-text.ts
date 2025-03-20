@@ -11,7 +11,7 @@ export async function extractTextFromFile(filePath: string | vscode.Uri): Promis
 	try {
 		fileSizeInKB = (await vscode.workspace.fs.stat(filePath)).size / 1000
 	} catch (error) {
-		throw new Error(`File not found: ${filePath}`)
+		throw new Error(`File not found`)
 	}
 	const fileExtension = path.extname(filePath.fsPath).toLowerCase()
 	switch (fileExtension) {
