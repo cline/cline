@@ -66,7 +66,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey
 import { telemetryService } from "../services/telemetry/TelemetryService"
 import pTimeout from "p-timeout"
 import { GlobalFileNames } from "../global-constants"
-import { ensureTaskDirectoryExists, saveApiConversationHistory } from "./messages-io"
+import { ensureTaskDirectoryExists, getSavedApiConversationHistory, saveApiConversationHistory } from "./messages-io"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -178,20 +178,6 @@ export class Cline {
 	}
 
 	// Storing task to disk for history
-
-	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
-		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-		const taskId = this.taskId
-		const filePath = path.join(
-			await ensureTaskDirectoryExists(globalStoragePath, taskId),
-			GlobalFileNames.apiConversationHistory,
-		)
-		const fileExists = await fileExistsAtPath(filePath)
-		if (fileExists) {
-			return JSON.parse(await fs.readFile(filePath, "utf8"))
-		}
-		return []
-	}
 
 	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
 		this.apiConversationHistory.push(message)
@@ -864,7 +850,10 @@ export class Cline {
 
 		// Now present the cline messages to the user and ask if they want to resume (NOTE: we ran into a bug before where the apiconversationhistory wouldnt be initialized when opening a old task, and it was because we were waiting for resume)
 		// This is important in case the user deletes messages without resuming the task first
-		this.apiConversationHistory = await this.getSavedApiConversationHistory()
+
+		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
+		const taskId = this.taskId
+		this.apiConversationHistory = await getSavedApiConversationHistory(globalStoragePath, taskId)
 
 		const lastClineMessage = this.clineMessages
 			.slice()
@@ -901,7 +890,10 @@ export class Cline {
 
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
-		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] = await this.getSavedApiConversationHistory()
+		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] = await getSavedApiConversationHistory(
+			globalStoragePath,
+			taskId,
+		)
 
 		// if the last message is an assistant message, we need to check if there's tool use since every tool use has to have a tool response
 		// if there's no tool use and only a text block, then we can just add a user message
