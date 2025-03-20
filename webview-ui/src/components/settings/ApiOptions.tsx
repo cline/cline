@@ -1314,7 +1314,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
-
 			{selectedProvider === "bitdeerai" && (
 				<div>
 					<VSCodeTextField
@@ -1331,27 +1330,21 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						This key is stored locally and only used to make API requests from this extension.  
+						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.bitdeeraiApiKey && (
 							<VSCodeLink
-								href="https://www.bitdeer.ai" 
+								href="https://www.bitdeer.ai"
 								style={{
 									display: "inline",
 									fontSize: "inherit",
-								}}>                
+								}}>
 								You can get a Bitdeer AI API key by signing up here.
 							</VSCodeLink>
 						)}
 					</p>
-					{/*<VSCodeTextField
-                        value={apiConfiguration?.bitdeeraiBaseUrl || bitdeeraiDefaultURL}
-                        style={{ width: "100%" }}
-                        type="url"
-                        onInput={handleInputChange("bitdeeraiBaseUrl")}
-                        placeholder="Enter Bitdeer AI Base URL...">
-                        <span style={{ fontWeight: 500 }}>Bitdeer AI BASE URL</span>
-                    </VSCodeTextField>*/}
-                
+				</div>
+			)}
+
 			{selectedProvider === "sambanova" && (
 				<div>
 					<VSCodeTextField
@@ -1379,7 +1372,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								You can get a SambaNova API key by signing up here.
 							</VSCodeLink>
 						)}
-					</p>                
+					</p>
 				</div>
 			)}
 
