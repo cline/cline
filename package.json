@@ -186,7 +186,7 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Skip the animation when applying diffs in the editor. Useful for faster updates, especially with remote repositories."
-        },
+				},
 				"cline.preferredLanguage": {
 					"type": "string",
 					"enum": [
