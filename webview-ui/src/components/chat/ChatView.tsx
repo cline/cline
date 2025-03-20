@@ -1013,6 +1013,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					isLast={index === groupedMessages.length - 1}
 					onHeightChange={handleRowHeightChange}
 					isStreaming={isStreaming}
+					onSuggestionClick={(answer: string) => {
+						handleSendMessage(answer, [])
+					}}
 				/>
 			)
 		},
@@ -1023,6 +1026,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			handleRowHeightChange,
 			isStreaming,
 			toggleRowExpansion,
+			handleSendMessage,
 		],
 	)
 

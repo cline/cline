@@ -185,14 +185,28 @@ Example: Requesting to execute ls in a specific directory if directed
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -311,7 +325,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -633,14 +647,28 @@ Example: Requesting to execute ls in a specific directory if directed
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -763,7 +791,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -1050,14 +1078,28 @@ Example: Requesting to execute ls in a specific directory if directed
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -1179,7 +1221,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -1416,14 +1458,28 @@ Example: Requesting to execute ls in a specific directory if directed
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -1542,7 +1598,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -1779,14 +1835,28 @@ Example: Requesting to execute ls in a specific directory if directed
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -1905,7 +1975,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -2142,14 +2212,28 @@ Example: Requesting to execute ls in a specific directory if directed
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -2268,7 +2352,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -2551,14 +2635,28 @@ Example: Requesting to execute ls in a specific directory if directed
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -2679,7 +2777,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -2966,14 +3064,28 @@ Example: Requesting to access an MCP resource
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -3497,7 +3609,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -3780,14 +3892,28 @@ Example: Requesting to execute ls in a specific directory if directed
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -3908,7 +4034,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -4206,14 +4332,28 @@ Example: Requesting to execute ls in a specific directory if directed
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -4334,7 +4474,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -4571,14 +4711,28 @@ Example: Requesting to execute ls in a specific directory if directed
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -4697,7 +4851,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -5110,14 +5264,28 @@ Example: Requesting to access an MCP resource
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -5249,7 +5417,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -5564,14 +5732,28 @@ Example: Replace all occurrences of "old" with "new" using regex
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -5690,7 +5872,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -5881,14 +6063,28 @@ Example: Requesting to list all top level source code definitions in the current
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -6007,7 +6203,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
@@ -6411,14 +6607,28 @@ Example: Requesting to access an MCP resource
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
+  1. Be provided in its own <suggest> tag
+  2. Be specific, actionable, and directly related to the completed task
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<follow_up>
+<suggest>
+Your suggested answer here
+</suggest>
+</follow_up>
 </ask_followup_question>
 
 Example: Requesting to ask the user for the path to the frontend-config.json file
 <ask_followup_question>
 <question>What is the path to the frontend-config.json file?</question>
+<follow_up>
+<suggest>./src/frontend-config.json</suggest>
+<suggest>./config/frontend-config.json</suggest>
+<suggest>./frontend-config.json</suggest>
+</follow_up>
 </ask_followup_question>
 
 ## attempt_completion
@@ -6942,7 +7152,7 @@ RULES
   * For example, in architect mode trying to edit app.js would be rejected because architect mode can only edit files matching "\\.md$"
 - When making changes to code, always consider the context in which the code is being used. Ensure that your changes are compatible with the existing codebase and that they follow the project's coding standards and best practices.
 - Do not ask for more information than necessary. Use the tools provided to accomplish the user's request efficiently and effectively. When you've completed your task, you must use the attempt_completion tool to present the result to the user. The user may provide feedback, which you can use to make improvements and try again.
-- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
+- You are only allowed to ask the user questions using the ask_followup_question tool. Use this tool only when you need additional details to complete a task, and be sure to use a clear and concise question that will help you move forward with the task. When you ask a question, provide the user with 2-4 suggested answers based on your question so they don't need to do so much typing. The suggestions should be specific, actionable, and directly related to the completed task. They should be ordered by priority or logical sequence. However if you can use the available tools to avoid having to ask the user questions, you should do so. For example, if the user mentions a file that may be in an outside directory like the Desktop, you should use the list_files tool to list the files in the Desktop and check if the file they are talking about is there, rather than asking the user to provide the file path themselves.
 - When executing commands, if you don't see the expected output, assume the terminal executed the command successfully and proceed with the task. The user's terminal may be unable to stream the output back properly. If you absolutely need to see the actual terminal output, use the ask_followup_question tool to request the user to copy and paste it back to you.
 - The user may provide a file's contents directly in their message, in which case you shouldn't use the read_file tool to get the file contents again since you already have it.
 - Your goal is to try to accomplish the user's task, NOT engage in a back and forth conversation.
