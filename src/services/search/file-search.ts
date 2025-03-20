@@ -3,7 +3,7 @@ import * as path from "path"
 import * as fs from "fs"
 import * as childProcess from "child_process"
 import * as readline from "readline"
-import { Fzf } from "fzf"
+import { byLengthAsc, Fzf } from "fzf"
 import { getBinPath } from "../ripgrep"
 
 async function executeRipgrepForFiles(
@@ -123,22 +123,16 @@ export async function searchWorkspaceFiles(
 		// Run fzf search on all items
 		const fzf = new Fzf(searchItems, {
 			selector: (item) => item.searchStr,
+			tiebreakers: [byLengthAsc],
+			limit: limit,
 		})
 
 		// Get all matching results from fzf
-		const fzfResults = fzf.find(query)
-
-		// First, sort all results by path length (shortest first)
-		fzfResults.sort((a, b) => {
-			return a.item.original.path.length - b.item.original.path.length
-		})
-
-		// Take the top N (limit) shortest results
-		const shortestResults = fzfResults.slice(0, limit).map((result) => result.item.original)
+		const fzfResults = fzf.find(query).map((result) => result.item.original)
 
 		// Verify types of the shortest results
 		const verifiedResults = await Promise.all(
-			shortestResults.map(async (result) => {
+			fzfResults.map(async (result) => {
 				const fullPath = path.join(workspacePath, result.path)
 				// Verify if the path exists and is actually a directory
 				if (fs.existsSync(fullPath)) {
@@ -152,17 +146,6 @@ export async function searchWorkspaceFiles(
 				return result
 			}),
 		)
-
-		// Final sort to put directories first within the shortest results
-		verifiedResults.sort((a, b) => {
-			if (a.type === "folder" && b.type !== "folder") {
-				return -1
-			}
-			if (a.type !== "folder" && b.type === "folder") {
-				return 1
-			}
-			return 0 // Keep original sorting by path length
-		})
 
 		return verifiedResults
 	} catch (error) {
