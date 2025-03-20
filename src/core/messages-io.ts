@@ -3,6 +3,7 @@ import path from "path"
 import { GlobalFileNames } from "../global-constants"
 import Anthropic from "@anthropic-ai/sdk"
 import { fileExistsAtPath } from "../utils/fs"
+import { ClineMessage } from "../shared/ExtensionMessage"
 
 export async function ensureTaskDirectoryExists(globalStoragePath: string | undefined, taskId: string): Promise<string> {
 	if (!globalStoragePath) {
@@ -38,6 +39,22 @@ export async function getSavedApiConversationHistory(
 	const fileExists = await fileExistsAtPath(filePath)
 	if (fileExists) {
 		return JSON.parse(await fs.readFile(filePath, "utf8"))
+	}
+	return []
+}
+
+export async function getSavedClineMessages(globalStoragePath: string | undefined, taskId: string): Promise<ClineMessage[]> {
+	const filePath = path.join(await ensureTaskDirectoryExists(globalStoragePath, taskId), GlobalFileNames.uiMessages)
+	if (await fileExistsAtPath(filePath)) {
+		return JSON.parse(await fs.readFile(filePath, "utf8"))
+	} else {
+		// check old location
+		const oldPath = path.join(await ensureTaskDirectoryExists(globalStoragePath, taskId), "claude_messages.json")
+		if (await fileExistsAtPath(oldPath)) {
+			const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
+			await fs.unlink(oldPath) // remove old file
+			return data
+		}
 	}
 	return []
 }
