@@ -254,6 +254,7 @@ export type GlobalStateKey =
 	| "showRooIgnoredFiles"
 	| "remoteBrowserEnabled"
 	| "language"
+	| "fakeAi"
 
 export type ConfigurationKey = GlobalStateKey | SecretKey
 

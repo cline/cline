@@ -4,8 +4,8 @@ import { SECRET_KEYS } from "./globalState"
 export function checkExistKey(config: ApiConfiguration | undefined) {
 	if (!config) return false
 
-	// Special case for human-relay provider which doesn't need any configuration
-	if (config.apiProvider === "human-relay") {
+	// Special case for human-relay and fake-ai providers which don't need any configuration
+	if (config.apiProvider === "human-relay" || config.apiProvider === "fake-ai") {
 		return true
 	}
 
