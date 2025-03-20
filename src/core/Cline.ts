@@ -184,15 +184,6 @@ export class Cline {
 
 	// Storing task to disk for history
 
-	private async addToClineMessages(message: ClineMessage) {
-		// these values allow us to reconstruct the conversation history at the time this cline message was created
-		// it's important that apiConversationHistory is initialized before we add cline messages
-		message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
-		message.conversationHistoryDeletedRange = this.conversationHistoryDeletedRange
-		this.clineMessages.push(message)
-		await this.saveClineMessages()
-	}
-
 	private async overwriteClineMessages(newMessages: ClineMessage[]) {
 		this.clineMessages = newMessages
 		await this.saveClineMessages()
@@ -576,13 +567,22 @@ export class Cline {
 					// this.askResponseImages = undefined
 					askTs = Date.now()
 					this.lastMessageTs = askTs
-					await this.addToClineMessages({
+
+					// conversationHistoryIndex and conversationHistoryDeletedRange allow us to reconstruct the conversation history at the time this cline message was created
+					// it's important that apiConversationHistory is initialized before we add cline messages
+					const message: ClineMessage = {
 						ts: askTs,
 						type: "ask",
 						ask: type,
 						text,
 						partial,
-					})
+						conversationHistoryIndex: this.apiConversationHistory.length - 1, // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
+						conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
+					}
+
+					this.clineMessages.push(message)
+					await this.saveClineMessages()
+
 					await this.providerRef.deref()?.postStateToWebview()
 					throw new Error("Current ask promise was ignored 2")
 				}
@@ -618,12 +618,18 @@ export class Cline {
 					this.askResponseImages = undefined
 					askTs = Date.now()
 					this.lastMessageTs = askTs
-					await this.addToClineMessages({
+					const message: ClineMessage = {
 						ts: askTs,
 						type: "ask",
 						ask: type,
 						text,
-					})
+						conversationHistoryIndex: this.apiConversationHistory.length - 1,
+						conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
+					}
+
+					this.clineMessages.push(message)
+					await this.saveClineMessages()
+
 					await this.providerRef.deref()?.postStateToWebview()
 				}
 			}
@@ -635,12 +641,19 @@ export class Cline {
 			this.askResponseImages = undefined
 			askTs = Date.now()
 			this.lastMessageTs = askTs
-			await this.addToClineMessages({
+
+			const message: ClineMessage = {
 				ts: askTs,
 				type: "ask",
 				ask: type,
 				text,
-			})
+				conversationHistoryIndex: this.apiConversationHistory.length - 1,
+				conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
+			}
+
+			this.clineMessages.push(message)
+			await this.saveClineMessages()
+
 			await this.providerRef.deref()?.postStateToWebview()
 		}
 
@@ -688,14 +701,19 @@ export class Cline {
 					// this is a new partial message, so add it with partial state
 					const sayTs = Date.now()
 					this.lastMessageTs = sayTs
-					await this.addToClineMessages({
+					const message: ClineMessage = {
 						ts: sayTs,
 						type: "say",
 						say: type,
 						text,
 						images,
 						partial,
-					})
+						conversationHistoryIndex: this.apiConversationHistory.length - 1,
+						conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
+					}
+					this.clineMessages.push(message)
+					await this.saveClineMessages()
+
 					await this.providerRef.deref()?.postStateToWebview()
 				}
 			} else {
@@ -719,13 +737,19 @@ export class Cline {
 					// this is a new partial=false message, so add it like normal
 					const sayTs = Date.now()
 					this.lastMessageTs = sayTs
-					await this.addToClineMessages({
+					const message: ClineMessage = {
 						ts: sayTs,
 						type: "say",
 						say: type,
 						text,
 						images,
-					})
+						conversationHistoryIndex: this.apiConversationHistory.length - 1,
+						conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
+					}
+
+					this.clineMessages.push(message)
+					await this.saveClineMessages()
+
 					await this.providerRef.deref()?.postStateToWebview()
 				}
 			}
@@ -733,13 +757,20 @@ export class Cline {
 			// this is a new non-partial message, so add it like normal
 			const sayTs = Date.now()
 			this.lastMessageTs = sayTs
-			await this.addToClineMessages({
+
+			const message: ClineMessage = {
 				ts: sayTs,
 				type: "say",
 				say: type,
 				text,
 				images,
-			})
+				conversationHistoryIndex: this.apiConversationHistory.length - 1,
+				conversationHistoryDeletedRange: this.conversationHistoryDeletedRange,
+			}
+
+			this.clineMessages.push(message)
+			await this.saveClineMessages()
+
 			await this.providerRef.deref()?.postStateToWebview()
 		}
 	}
