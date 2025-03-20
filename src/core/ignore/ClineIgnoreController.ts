@@ -3,6 +3,7 @@ import { fileExistsAtPath } from "../../utils/fs"
 import fs from "fs/promises"
 import ignore, { Ignore } from "ignore"
 import * as vscode from "vscode"
+import { Uri } from "vscode"
 
 export const LOCK_TEXT_SYMBOL = "\u{1F512}"
 
@@ -12,13 +13,13 @@ export const LOCK_TEXT_SYMBOL = "\u{1F512}"
  * Uses the 'ignore' library to support standard .gitignore syntax in .clineignore files.
  */
 export class ClineIgnoreController {
-	private cwd: string
+	private cwd: Uri
 	private ignoreInstance: Ignore
 	private disposables: vscode.Disposable[] = []
 	clineIgnoreContent: string | undefined
 
-	constructor(cwd: string) {
-		this.cwd = cwd
+	constructor(cwd: string | Uri) {
+		this.cwd = cwd instanceof vscode.Uri ? cwd : vscode.Uri.parse(cwd)
 		this.ignoreInstance = ignore()
 		this.clineIgnoreContent = undefined
 		// Set up file watcher for .clineignore
@@ -64,9 +65,9 @@ export class ClineIgnoreController {
 		try {
 			// Reset ignore instance to prevent duplicate patterns
 			this.ignoreInstance = ignore()
-			const ignorePath = path.join(this.cwd, ".clineignore")
+			const ignorePath = Uri.joinPath(this.cwd, ".clineignore")
 			if (await fileExistsAtPath(ignorePath)) {
-				const content = await fs.readFile(ignorePath, "utf8")
+				const content = new TextDecoder("utf8").decode(await vscode.workspace.fs.readFile(ignorePath))
 				this.clineIgnoreContent = content
 				this.ignoreInstance.add(content)
 				this.ignoreInstance.add(".clineignore")
@@ -91,8 +92,8 @@ export class ClineIgnoreController {
 		}
 		try {
 			// Normalize path to be relative to cwd and use forward slashes
-			const absolutePath = path.resolve(this.cwd, filePath)
-			const relativePath = path.relative(this.cwd, absolutePath).toPosix()
+			const absolutePath = Uri.joinPath(this.cwd, filePath)
+			const relativePath = path.relative(this.cwd.fsPath, absolutePath.fsPath).toPosix()
 
 			// Ignore expects paths to be path.relative()'d
 			return !this.ignoreInstance.ignores(relativePath)

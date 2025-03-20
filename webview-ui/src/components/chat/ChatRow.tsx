@@ -417,7 +417,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								onClick={() => {
 									vscode.postMessage({
 										type: "openFile",
-										text: tool.content,
+										text: tool.path ?? tool.content,
 									})
 								}}>
 								{tool.path?.startsWith(".") && <span>.</span>}
@@ -430,7 +430,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										direction: "rtl",
 										textAlign: "left",
 									}}>
-									{cleanPathPrefix(tool.path ?? "") + "\u200E"}
+									{cleanPathPrefix(tool.content ?? tool.path ?? "") + "\u200E"}
 								</span>
 								<div style={{ flexGrow: 1 }}></div>
 								<span

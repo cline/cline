@@ -20,7 +20,7 @@ export async function selectImages(): Promise<string[]> {
 	return await Promise.all(
 		fileUris.map(async (uri) => {
 			const imagePath = uri.fsPath
-			const buffer = await fs.readFile(imagePath)
+			const buffer = Buffer.from(await vscode.workspace.fs.readFile(uri))
 			const base64 = buffer.toString("base64")
 			const mimeType = getMimeType(imagePath)
 			const dataUrl = `data:${mimeType};base64,${base64}`
