@@ -13,10 +13,11 @@ interface TooltipProps {
 	hintText: string
 	tipText: string
 	children: React.ReactNode
+	style?: React.CSSProperties
 }
 
 // add styled component for tooltip
-const TooltipBody = styled.div`
+const TooltipBody = styled.div<Pick<TooltipProps, "style">>`
 	position: absolute;
 	background-color: ${getAsVar(VSC_SIDEBAR_BACKGROUND)};
 	color: ${getAsVar(VSC_DESCRIPTION_FOREGROUND)};
@@ -24,7 +25,7 @@ const TooltipBody = styled.div`
 	border-radius: 5px;
 	bottom: 100%;
 	left: -180%;
-	z-index: 10;
+	z-index: ${(props) => props.style?.zIndex ?? 10};
 	white-space: wrap;
 	max-width: 200px;
 	border: 1px solid ${getAsVar(VSC_INPUT_BORDER)};
@@ -39,12 +40,12 @@ const Hint = styled.div`
 	margin-top: 2px;
 `
 
-const Tooltip: React.FC<TooltipProps> = ({ visible, tipText, hintText, children }) => {
+const Tooltip: React.FC<TooltipProps> = ({ visible, tipText, hintText, children, style }) => {
 	return (
 		<div style={{ position: "relative", display: "inline-block" }}>
 			{children}
 			{visible && (
-				<TooltipBody>
+				<TooltipBody style={style}>
 					{tipText}
 					{hintText && <Hint>{hintText}</Hint>}
 				</TooltipBody>

@@ -24,6 +24,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
+	setPlanActSeparateModelsSetting: (value: boolean) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -39,10 +40,10 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
-		isLoggedIn: false,
 		platform: DEFAULT_PLATFORM,
 		telemetrySetting: "unset",
 		vscMachineId: "",
+		planActSeparateModelsSetting: true,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -79,8 +80,10 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.qwenApiKey,
 							config.mistralApiKey,
 							config.vsCodeLmModelSelector,
+							config.clineApiKey,
 							config.asksageApiKey,
 							config.xaiApiKey,
+							config.sambanovaApiKey,
 						].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)
@@ -167,6 +170,11 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				telemetrySetting: value,
+			})),
+		setPlanActSeparateModelsSetting: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				planActSeparateModelsSetting: value,
 			})),
 		setShowAnnouncement: (value) =>
 			setState((prevState) => ({

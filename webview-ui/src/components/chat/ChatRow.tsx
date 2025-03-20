@@ -5,8 +5,10 @@ import { useEvent, useSize } from "react-use"
 import styled from "styled-components"
 import {
 	ClineApiReqInfo,
+	ClineAskQuestion,
 	ClineAskUseMcpServer,
 	ClineMessage,
+	ClinePlanModeResponse,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 	ExtensionMessage,
@@ -15,17 +17,18 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "../../../../src/s
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
+import { CheckmarkControl } from "../common/CheckmarkControl"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
-import SuccessButton from "../common/SuccessButton"
 import Thumbnails from "../common/Thumbnails"
 import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
+import CreditLimitError from "./CreditLimitError"
+import { OptionsButtons } from "./OptionsButtons"
 import { highlightMentions } from "./TaskHeader"
-import { CheckmarkControl } from "../common/CheckmarkControl"
-import McpResponseDisplay from "../mcp/McpResponseDisplay"
+import SuccessButton from "../common/SuccessButton"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -283,31 +286,25 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					) : (
 						<ProgressIndicator />
 					),
-					apiReqCancelReason != null ? (
-						apiReqCancelReason === "user_cancelled" ? (
-							<span
-								style={{
-									color: normalColor,
-									fontWeight: "bold",
-								}}>
-								API Request Cancelled
-							</span>
-						) : (
-							<span
-								style={{
-									color: errorColor,
-									fontWeight: "bold",
-								}}>
-								API Streaming Failed
-							</span>
-						)
-					) : cost != null ? (
-						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
-					) : apiRequestFailedMessage ? (
-						<span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
-					) : (
-						<span style={{ color: normalColor, fontWeight: "bold" }}>API Request...</span>
-					),
+					(() => {
+						if (apiReqCancelReason != null) {
+							return apiReqCancelReason === "user_cancelled" ? (
+								<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
+							) : (
+								<span style={{ color: errorColor, fontWeight: "bold" }}>API Streaming Failed</span>
+							)
+						}
+
+						if (cost != null) {
+							return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
+						}
+
+						if (apiRequestFailedMessage) {
+							return <span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
+						}
+
+						return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request...</span>
+					})(),
 				]
 			case "followup":
 				return [
@@ -729,62 +726,55 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							</div>
 							{((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
 								<>
-									<p
-										style={{
-											...pStyle,
-											color: "var(--vscode-errorForeground)",
-										}}>
-										{apiRequestFailedMessage || apiReqStreamingFailedMessage}
+									{(() => {
+										// Try to parse the error message as JSON for credit limit error
+										const errorData = parseErrorText(apiRequestFailedMessage)
+										if (errorData) {
+											if (
+												errorData.code === "insufficient_credits" &&
+												typeof errorData.current_balance === "number" &&
+												typeof errorData.total_spent === "number" &&
+												typeof errorData.total_promotions === "number" &&
+												typeof errorData.message === "string"
+											) {
+												return (
+													<CreditLimitError
+														currentBalance={errorData.current_balance}
+														totalSpent={errorData.total_spent}
+														totalPromotions={errorData.total_promotions}
+														message={errorData.message}
+													/>
+												)
+											}
+										}
 
-										{/* {apiProvider === "" && (
-												<div
-													style={{
-														display: "flex",
-														alignItems: "center",
-														backgroundColor:
-															"color-mix(in srgb, var(--vscode-errorForeground) 20%, transparent)",
-														color: "var(--vscode-editor-foreground)",
-														padding: "6px 8px",
-														borderRadius: "3px",
-														margin: "10px 0 0 0",
-														fontSize: "12px",
-													}}>
-													<i
-														className="codicon codicon-warning"
-														style={{
-															marginRight: 6,
-															fontSize: 16,
-															color: "var(--vscode-errorForeground)",
-														}}></i>
-													<span>
-														Uh-oh this could be a problem on end. We've been alerted and
-														will resolve this ASAP. You can also{" "}
+										// Default error display
+										return (
+											<p
+												style={{
+													...pStyle,
+													color: "var(--vscode-errorForeground)",
+												}}>
+												{apiRequestFailedMessage || apiReqStreamingFailedMessage}
+												{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
+													<>
+														<br />
+														<br />
+														It seems like you're having Windows PowerShell issues, please see this{" "}
 														<a
-															href=""
-															style={{ color: "inherit", textDecoration: "underline" }}>
-															contact us
+															href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
+															style={{
+																color: "inherit",
+																textDecoration: "underline",
+															}}>
+															troubleshooting guide
 														</a>
 														.
-													</span>
-												</div>
-											)} */}
-										{apiRequestFailedMessage?.toLowerCase().includes("powershell") && (
-											<>
-												<br />
-												<br />
-												It seems like you're having Windows PowerShell issues, please see this{" "}
-												<a
-													href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22"
-													style={{
-														color: "inherit",
-														textDecoration: "underline",
-													}}>
-													troubleshooting guide
-												</a>
-												.
-											</>
-										)}
-									</p>
+													</>
+												)}
+											</p>
+										)
+									})()}
 								</>
 							)}
 
@@ -802,8 +792,30 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					)
 				case "api_req_finished":
 					return null // we should never see this message type
+				// case "mcp_server_response":
+				// 	return <McpResponseDisplay responseText={message.text || ""} />
 				case "mcp_server_response":
-					return <McpResponseDisplay responseText={message.text || ""} />
+					return (
+						<>
+							<div style={{ paddingTop: 0 }}>
+								<div
+									style={{
+										marginBottom: "4px",
+										opacity: 0.8,
+										fontSize: "12px",
+										textTransform: "uppercase",
+									}}>
+									Response
+								</div>
+								<CodeAccordian
+									code={message.text}
+									language="json"
+									isExpanded={true}
+									onToggleExpand={onToggleExpand}
+								/>
+							</div>
+						</>
+					)
 				case "text":
 					return (
 						<div>
@@ -827,7 +839,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									{isExpanded ? (
 										<div style={{ marginTop: -3 }}>
 											<span style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
-												Reasoning
+												Thinking
 												<span
 													className="codicon codicon-chevron-down"
 													style={{
@@ -924,10 +936,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								style={{
 									display: "flex",
 									flexDirection: "column",
-									backgroundColor: "rgba(255, 191, 0, 0.1)",
+									backgroundColor: "var(--vscode-textBlockQuote-background)",
 									padding: 8,
 									borderRadius: 3,
 									fontSize: 12,
+									color: "var(--vscode-foreground)",
+									opacity: 0.8,
 								}}>
 								<div
 									style={{
@@ -936,24 +950,15 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										marginBottom: 4,
 									}}>
 									<i
-										className="codicon codicon-error"
+										className="codicon codicon-warning"
 										style={{
 											marginRight: 8,
-											fontSize: 18,
-											color: "#FFA500",
+											fontSize: 14,
+											color: "var(--vscode-descriptionForeground)",
 										}}></i>
-									<span
-										style={{
-											fontWeight: 500,
-											color: "#FFA500",
-										}}>
-										Diff Edit Failed
-									</span>
+									<span style={{ fontWeight: 500 }}>Diff Edit Mismatch</span>
 								</div>
-								<div>
-									This usually happens when the model uses search patterns that don't match anything in the
-									file. Retrying...
-								</div>
+								<div>The model used search patterns that don't match anything in the file. Retrying...</div>
 							</div>
 						</>
 					)
@@ -1036,8 +1041,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 											})
 										}}
 										style={{
-											width: "100%",
 											cursor: seeNewChangesDisabled ? "wait" : "pointer",
+											width: "100%",
 										}}>
 										<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
 										See new changes
@@ -1195,6 +1200,19 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						return null // Don't render anything when we get a completion_result ask without text
 					}
 				case "followup":
+					let question: string | undefined
+					let options: string[] | undefined
+					let selected: string | undefined
+					try {
+						const parsedMessage = JSON.parse(message.text || "{}") as ClineAskQuestion
+						question = parsedMessage.question
+						options = parsedMessage.options
+						selected = parsedMessage.selected
+					} catch (e) {
+						// legacy messages would pass question directly
+						question = message.text
+					}
+
 					return (
 						<>
 							{title && (
@@ -1204,18 +1222,58 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								</div>
 							)}
 							<div style={{ paddingTop: 10 }}>
-								<Markdown markdown={message.text} />
+								<Markdown markdown={question} />
+								<OptionsButtons
+									options={options}
+									selected={selected}
+									isActive={isLast && lastModifiedMessage?.ask === "followup"}
+								/>
 							</div>
 						</>
 					)
-				case "plan_mode_response":
+				case "plan_mode_response": {
+					let response: string | undefined
+					let options: string[] | undefined
+					let selected: string | undefined
+					try {
+						const parsedMessage = JSON.parse(message.text || "{}") as ClinePlanModeResponse
+						response = parsedMessage.response
+						options = parsedMessage.options
+						selected = parsedMessage.selected
+					} catch (e) {
+						// legacy messages would pass response directly
+						response = message.text
+					}
 					return (
 						<div style={{}}>
-							<Markdown markdown={message.text} />
+							<Markdown markdown={response} />
+							<OptionsButtons
+								options={options}
+								selected={selected}
+								isActive={isLast && lastModifiedMessage?.ask === "plan_mode_response"}
+							/>
 						</div>
 					)
+				}
 				default:
 					return null
 			}
+	}
+}
+
+function parseErrorText(text: string | undefined) {
+	if (!text) {
+		return undefined
+	}
+	try {
+		const startIndex = text.indexOf("{")
+		const endIndex = text.lastIndexOf("}")
+		if (startIndex !== -1 && endIndex !== -1) {
+			const jsonStr = text.substring(startIndex, endIndex + 1)
+			const errorObject = JSON.parse(jsonStr)
+			return errorObject
+		}
+	} catch (e) {
+		// Not JSON or missing required fields
 	}
 }

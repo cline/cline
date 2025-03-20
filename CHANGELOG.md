@@ -1,5 +1,49 @@
 # Changelog
 
+## [3.7.1]
+
+-   Fix issue with 'See more' button in task header not showing when starting new tasks
+-   Fix issue with checkpoints using local git commit hooks
+
+## [3.7.0]
+
+-   Cline now displays selectable options when asking questions or presenting a plan, saving you from having to type out responses!
+-   Add support for a `.clinerules/` directory to load multiple files at once (thanks @ryo-ma!)
+-   Prevent Cline from reading extremely large files into context that would overload context window
+-   Improve checkpoints loading performance and display warning for large projects not suited for checkpoints
+-   Add SambaNova API provider (thanks @saad-noodleseed!)
+-   Add VPC endpoint option for AWS Bedrock profiles (thanks @minorunara!)
+-   Add DeepSeek-R1 to AWS Bedrock (thanks @watany-dev!)
+
+## [3.6.5]
+
+-   Add 'Delete all Task History' button to History view
+-   Add toggle to disable model switching between Plan/Act modes in Settings (new users default to disabled)
+-   Add temperature option to OpenAI Compatible
+-   Add Kotlin support to tree-sitter parser (thanks @fumiya-kume!)
+
+## [3.6.3]
+
+-   Improve QwQ support for Alibaba (thanks @meglinge!) and OpenRouter
+-   Improve diff edit prompting to prevent immediately reverting to write_to_file when a model uses search patterns that don't match anything in the file
+-   Fix bug where new checkpoints system would revert file changes when switching between tasks
+-   Fix issue with incorrect token count for some OpenAI compatible providers
+
+## [3.6.0]
+
+-   Add Cline API as a provider option, allowing new users to sign up and get started with Cline for free
+-   Optimize checkpoints with branch-per-task strategy, reducing storage required and first task load times
+-   Fix problem with Plan/Act toggle keyboard shortcut not working in Windows (thanks @yt3trees!)
+-   Add new Gemini models to GCP Vertex (thanks @shohei-ihaya!) and Claude models AskSage (thanks @swhite24!)
+-   Improve OpenRouter/Cline error reporting
+
+## [3.5.1]
+
+-   Add timeout option to MCP servers
+-   Add Gemini Flash models to Vertex provider (thanks @jpaodev!)
+-   Add prompt caching support for AWS Bedrock provider (thanks @buger!)
+-   Add AskSage provider (thanks @swhite24!)
+
 ## [3.5.0]
 
 -   Add 'Enable extended thinking' option for Claude 3.7 Sonnet, with ability to set different budgets for Plan and Act modes

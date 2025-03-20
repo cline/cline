@@ -27,12 +27,13 @@ export interface ExtensionMessage {
 		| "relinquishControl"
 		| "vsCodeLmModels"
 		| "requestVsCodeLmModels"
-		| "emailSubscribed"
+		| "authCallback"
 		| "mcpMarketplaceCatalog"
 		| "mcpDownloadDetails"
 		| "commitSearchResults"
 		| "openGraphData"
 		| "isImageUrlResult"
+		| "didUpdateSettings"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -42,7 +43,7 @@ export interface ExtensionMessage {
 		| "didBecomeVisible"
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
-	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
+	invoke?: Invoke
 	state?: ExtensionState
 	images?: string[]
 	ollamaModels?: string[]
@@ -53,6 +54,7 @@ export interface ExtensionMessage {
 	openRouterModels?: Record<string, ModelInfo>
 	openAiModels?: string[]
 	mcpServers?: McpServer[]
+	customToken?: string
 	mcpMarketplaceCatalog?: McpMarketplaceCatalog
 	error?: string
 	mcpDownloadDetails?: McpDownloadResponse
@@ -68,6 +70,8 @@ export interface ExtensionMessage {
 	url?: string
 	isImage?: boolean
 }
+
+export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
 
 export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" | "win32" | "unknown"
 
@@ -86,7 +90,6 @@ export interface ExtensionState {
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
-	isLoggedIn: boolean
 	platform: Platform
 	userInfo?: {
 		displayName: string | null
@@ -95,6 +98,7 @@ export interface ExtensionState {
 	}
 	mcpMarketplaceEnabled?: boolean
 	telemetrySetting: TelemetrySetting
+	planActSeparateModelsSetting: boolean
 	vscMachineId: string
 }
 
@@ -193,6 +197,18 @@ export interface ClineAskUseMcpServer {
 	toolName?: string
 	arguments?: string
 	uri?: string
+}
+
+export interface ClinePlanModeResponse {
+	response: string
+	options?: string[]
+	selected?: string
+}
+
+export interface ClineAskQuestion {
+	question: string
+	options?: string[]
+	selected?: string
 }
 
 export interface ClineApiReqInfo {
