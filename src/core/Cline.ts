@@ -66,7 +66,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey
 import { telemetryService } from "../services/telemetry/TelemetryService"
 import pTimeout from "p-timeout"
 import { GlobalFileNames } from "../global-constants"
-import { ensureTaskDirectoryExists } from "./messages-io"
+import { ensureTaskDirectoryExists, saveApiConversationHistory } from "./messages-io"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -195,27 +195,16 @@ export class Cline {
 
 	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
 		this.apiConversationHistory.push(message)
-		await this.saveApiConversationHistory()
+		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
+		const taskId = this.taskId
+		await saveApiConversationHistory(globalStoragePath, taskId, this.apiConversationHistory)
 	}
 
 	private async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
 		this.apiConversationHistory = newHistory
-		await this.saveApiConversationHistory()
-	}
-
-	private async saveApiConversationHistory() {
-		try {
-			const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-			const taskId = this.taskId
-			const filePath = path.join(
-				await ensureTaskDirectoryExists(globalStoragePath, taskId),
-				GlobalFileNames.apiConversationHistory,
-			)
-			await fs.writeFile(filePath, JSON.stringify(this.apiConversationHistory))
-		} catch (error) {
-			// in the off chance this fails, we don't want to stop the task
-			console.error("Failed to save API conversation history:", error)
-		}
+		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
+		const taskId = this.taskId
+		await saveApiConversationHistory(globalStoragePath, taskId, this.apiConversationHistory)
 	}
 
 	private async getSavedClineMessages(): Promise<ClineMessage[]> {
