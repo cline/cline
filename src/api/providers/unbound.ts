@@ -25,6 +25,10 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 		this.client = new OpenAI({ baseURL, apiKey })
 	}
 
+	private supportsTemperature(): boolean {
+		return !this.getModel().id.startsWith("openai/o3-mini")
+	}
+
 	override async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// Convert Anthropic messages to OpenAI format
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -78,28 +82,30 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 			maxTokens = this.getModel().info.maxTokens
 		}
 
+		const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
+			model: this.getModel().id.split("/")[1],
+			max_tokens: maxTokens,
+			messages: openAiMessages,
+			stream: true,
+		}
+
+		if (this.supportsTemperature()) {
+			requestOptions.temperature = this.options.modelTemperature ?? 0
+		}
+
 		const { data: completion, response } = await this.client.chat.completions
-			.create(
-				{
-					model: this.getModel().id.split("/")[1],
-					max_tokens: maxTokens,
-					temperature: this.options.modelTemperature ?? 0,
-					messages: openAiMessages,
-					stream: true,
+			.create(requestOptions, {
+				headers: {
+					"X-Unbound-Metadata": JSON.stringify({
+						labels: [
+							{
+								key: "app",
+								value: "roo-code",
+							},
+						],
+					}),
 				},
-				{
-					headers: {
-						"X-Unbound-Metadata": JSON.stringify({
-							labels: [
-								{
-									key: "app",
-									value: "roo-code",
-								},
-							],
-						}),
-					},
-				},
-			)
+			})
 			.withResponse()
 
 		for await (const chunk of completion) {
@@ -150,7 +156,10 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 			const requestOptions: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
 				model: this.getModel().id.split("/")[1],
 				messages: [{ role: "user", content: prompt }],
-				temperature: this.options.modelTemperature ?? 0,
+			}
+
+			if (this.supportsTemperature()) {
+				requestOptions.temperature = this.options.modelTemperature ?? 0
 			}
 
 			if (this.getModel().id.startsWith("anthropic/")) {
