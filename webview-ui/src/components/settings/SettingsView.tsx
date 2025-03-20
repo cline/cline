@@ -73,7 +73,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			planActSeparateModelsSetting,
 			customInstructionsSetting: customInstructions,
 			telemetrySetting,
-			apiConfiguration: apiConfiguration,
+			apiConfiguration: apiConfigurationToSubmit,
 		})
 
 		if (!withoutDone) {
