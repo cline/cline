@@ -1,6 +1,6 @@
 import { ClineMessage } from "./ExtensionMessage"
 
-interface ApiMetrics {
+export interface ApiMetrics {
 	totalTokensIn: number
 	totalTokensOut: number
 	totalCacheWrites?: number
