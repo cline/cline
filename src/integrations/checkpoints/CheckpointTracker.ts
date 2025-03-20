@@ -157,7 +157,10 @@ class CheckpointTracker {
 
 			console.info(`Using shadow git at: ${gitPath}`)
 
-			await this.gitOperations.addCheckpointFiles(git)
+			const addFilesResult = await this.gitOperations.addCheckpointFiles(git)
+			if (!addFilesResult.success) {
+				console.error("Encountered permissions error when creating checkpoint, checkpoint not created")
+			}
 
 			const commitMessage = "checkpoint-" + this.cwdHash + "-" + this.taskId
 
