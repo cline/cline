@@ -1,9 +1,25 @@
 /**
- * Reflection filter for API responses.
+ * Reflection Filter: Improving Response Quality and Privacy
  *
- * This module provides filtering capabilities to detect and prevent the reflection
- * of environment details in model responses. It can be applied to any API stream
- * as a higher-order function.
+ * This module provides a filtering layer that prevents language models from
+ * "reflecting" or echoing back environment details in their responses.
+ *
+ * Purpose:
+ * - Reduces noise and clutter in model responses by removing irrelevant environment details
+ * - Improves workflow efficiency by eliminating the need to manually clean up reflected content
+ * - Provides modest privacy benefits by filtering out file paths and environment information
+ * - Maintains response focus on the actual task rather than contextual details
+ *
+ * Integration points:
+ * - Applied to all API providers in buildApiHandler() (src/api/index.ts)
+ * - Works alongside system prompt instructions as a complementary approach
+ * - Provider-agnostic implementation that works with all LLM endpoints
+ *
+ * This module is designed to be:
+ * - Efficient: Only processes text chunks, bypassing non-text content
+ * - Configurable: Supports different filtering modes (remove or replace)
+ * - Maintainable: Pattern-based approach makes it easy to extend with new patterns
+ * - Transparent: Provides optional logging of detected reflections
  */
 import { ApiStream, ApiStreamChunk, ApiStreamTextChunk } from "./stream"
 
@@ -11,6 +27,18 @@ import { ApiStream, ApiStreamChunk, ApiStreamTextChunk } from "./stream"
  * Patterns that may indicate reflection of environment details.
  * These patterns are checked against text chunks to identify
  * potential reflections.
+ *
+ * The patterns cover:
+ * 1. Environment details section headers (e.g., "# VSCode Open Tabs")
+ * 2. System information (OS, shell, directories)
+ * 3. File and terminal output markers
+ * 4. Lists that might be file listings (5+ items)
+ *
+ * When adding new patterns:
+ * - Use case-insensitive patterns (/pattern/i) for better coverage
+ * - Balance specificity vs. false positives
+ * - Group related patterns with comments for maintainability
+ * - Test thoroughly with reflection-filter.test.ts
  */
 const REFLECTION_PATTERNS = [
 	// Section headers from environment_details
@@ -35,13 +63,30 @@ const REFLECTION_PATTERNS = [
 ]
 
 /**
- * Wraps an API stream with reflection filtering.
- * This function processes each text chunk in the stream,
- * checking for patterns that might indicate reflection of environment details.
+ * Filters an API stream to detect and remove environment detail reflections.
  *
- * @param stream - The original API stream
- * @param options - Optional configuration for the filter
- * @returns A filtered API stream
+ * This function helps maintain cleaner, more focused responses by:
+ * 1. Processes each chunk in the stream
+ * 2. For text chunks, checks against REFLECTION_PATTERNS
+ * 3. Handles matches according to the specified filtering mode
+ * 4. Passes through non-matching chunks unchanged
+ *
+ * @param stream - The original API stream to be filtered
+ * @param options - Configuration options for filtering behavior
+ * @param options.logWarnings - Whether to log reflection detections to console (default: true)
+ * @param options.filterMode - How to handle reflections: "remove" (skip) or "replace" (with warning) (default: "replace")
+ * @returns A filtered stream with reflections handled according to the specified mode
+ *
+ * @example
+ * // Basic usage with default options (replace with warning)
+ * const filteredStream = filterReflections(originalStream);
+ *
+ * @example
+ * // Silent removal of reflections
+ * const filteredStream = filterReflections(originalStream, {
+ *   logWarnings: false,
+ *   filterMode: "remove"
+ * });
  */
 export async function* filterReflections(
 	stream: ApiStream,
@@ -76,7 +121,7 @@ export async function* filterReflections(
 					// Replace with a warning message
 					yield {
 						type: "text",
-						text: "[Note: Some content was filtered to prevent reflection of environment details]",
+						text: "[Note: Some content was filtered to remove environment details]",
 					} as ApiStreamTextChunk
 					continue
 				}
@@ -89,12 +134,22 @@ export async function* filterReflections(
 }
 
 /**
- * Creates a wrapped version of an ApiHandler that applies reflection filtering
- * to all responses. This function can be used to create a provider-agnostic
- * solution for preventing reflections.
+ * Higher-order function that wraps an API handler's createMessage method
+ * with reflection filtering capabilities.
  *
- * @param createMessageFn - The original createMessage function from an ApiHandler
- * @returns A wrapped function that applies reflection filtering
+ * This is the primary integration point used in buildApiHandler() to apply
+ * reflection filtering to all API providers in a consistent way.
+ *
+ * The returned function maintains the same signature as the original,
+ * making it a drop-in replacement that improves response quality.
+ *
+ * @param createMessageFn - The original createMessage generator function from an ApiHandler
+ * @returns A wrapped function with identical signature that applies reflection filtering
+ *
+ * @example
+ * // In buildApiHandler():
+ * const originalCreateMessage = handler.createMessage.bind(handler);
+ * handler.createMessage = createMessageWithReflectionFilter(originalCreateMessage);
  */
 export function createMessageWithReflectionFilter(
 	createMessageFn: (systemPrompt: string, messages: any[]) => ApiStream,
