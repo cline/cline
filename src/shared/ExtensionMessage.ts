@@ -94,16 +94,13 @@ export interface ExtensionState {
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
+	conversationDataSetting?: ConversationDataSetting
 	uriScheme?: string
 	userInfo?: {
 		displayName: string | null
 		email: string | null
 		photoURL: string | null
 	}
-	mcpMarketplaceEnabled?: boolean
-	telemetrySetting: TelemetrySetting
-	conversationDataSetting?: ConversationDataSetting
-	planActSeparateModelsSetting: boolean
 	version: string
 	vscMachineId: string
 }
