@@ -1080,6 +1080,7 @@ export class Cline {
 		this.urlContentFetcher.closeBrowser()
 		this.browserSession.closeBrowser()
 		this.clineIgnoreController.dispose()
+		this.diffViewProvider.disposeAll()
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
 	}
 

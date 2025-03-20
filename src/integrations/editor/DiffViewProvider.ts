@@ -21,10 +21,22 @@ export class DiffViewProvider {
 	private activeDiffEditor?: vscode.TextEditor
 	private fadedOverlayController?: DecorationController
 	private activeLineController?: DecorationController
+	private skipAnimation: boolean
 	private streamedLines: string[] = []
 	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
+	private configWatcher: vscode.Disposable
 
-	constructor(private cwd: string) {}
+	constructor(private cwd: string) {
+		// Initialize skipAnimation from configuration
+		this.skipAnimation = vscode.workspace.getConfiguration("cline.editor").get("skipDiffAnimation", false)
+
+		// Add configuration watcher
+		this.configWatcher = vscode.workspace.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration("cline.editor.skipDiffAnimation")) {
+				this.skipAnimation = vscode.workspace.getConfiguration("cline.editor").get("skipDiffAnimation", false)
+			}
+		})
+	}
 
 	async open(relPath: string): Promise<void> {
 		this.relPath = relPath
@@ -95,6 +107,10 @@ export class DiffViewProvider {
 		// Place cursor at the beginning of the diff editor to keep it out of the way of the stream animation
 		const beginningOfDocument = new vscode.Position(0, 0)
 		diffEditor.selection = new vscode.Selection(beginningOfDocument, beginningOfDocument)
+
+		// Stub for skip Animation
+		if (this.skipAnimation) {
+		}
 
 		for (let i = 0; i < diffLines.length; i++) {
 			const currentLine = this.streamedLines.length + i
@@ -373,5 +389,9 @@ export class DiffViewProvider {
 		this.activeLineController = undefined
 		this.streamedLines = []
 		this.preDiagnostics = []
+	}
+
+	disposeAll() {
+		this.configWatcher.dispose()
 	}
 }
