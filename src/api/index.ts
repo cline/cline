@@ -28,6 +28,7 @@ import { LiteLlmHandler } from "./providers/litellm"
 import { AskSageHandler } from "./providers/asksage"
 import { XAIHandler } from "./providers/xai"
 import { SambanovaHandler } from "./providers/sambanova"
+import { createMessageWithReflectionFilter } from "./transform/reflection-filter"
 
 /**
  * Core interface that all LLM API handlers must implement.
@@ -74,48 +75,77 @@ export interface SingleCompletionHandler {
  */
 export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 	const { apiProvider, ...options } = configuration
+
+	// Create the appropriate handler based on the provider
+	let handler: ApiHandler
 	switch (apiProvider) {
 		case "anthropic":
-			return new AnthropicHandler(options)
+			handler = new AnthropicHandler(options)
+			break
 		case "openrouter":
-			return new OpenRouterHandler(options)
+			handler = new OpenRouterHandler(options)
+			break
 		case "bedrock":
-			return new AwsBedrockHandler(options)
+			handler = new AwsBedrockHandler(options)
+			break
 		case "vertex":
-			return new VertexHandler(options)
+			handler = new VertexHandler(options)
+			break
 		case "openai":
-			return new OpenAiHandler(options)
+			handler = new OpenAiHandler(options)
+			break
 		case "ollama":
-			return new OllamaHandler(options)
+			handler = new OllamaHandler(options)
+			break
 		case "lmstudio":
-			return new LmStudioHandler(options)
+			handler = new LmStudioHandler(options)
+			break
 		case "gemini":
-			return new GeminiHandler(options)
+			handler = new GeminiHandler(options)
+			break
 		case "openai-native":
-			return new OpenAiNativeHandler(options)
+			handler = new OpenAiNativeHandler(options)
+			break
 		case "deepseek":
-			return new DeepSeekHandler(options)
+			handler = new DeepSeekHandler(options)
+			break
 		case "requesty":
-			return new RequestyHandler(options)
+			handler = new RequestyHandler(options)
+			break
 		case "together":
-			return new TogetherHandler(options)
+			handler = new TogetherHandler(options)
+			break
 		case "qwen":
-			return new QwenHandler(options)
+			handler = new QwenHandler(options)
+			break
 		case "mistral":
-			return new MistralHandler(options)
+			handler = new MistralHandler(options)
+			break
 		case "vscode-lm":
-			return new VsCodeLmHandler(options)
+			handler = new VsCodeLmHandler(options)
+			break
 		case "cline":
-			return new ClineHandler(options)
+			handler = new ClineHandler(options)
+			break
 		case "litellm":
-			return new LiteLlmHandler(options)
+			handler = new LiteLlmHandler(options)
+			break
 		case "asksage":
-			return new AskSageHandler(options)
+			handler = new AskSageHandler(options)
+			break
 		case "xai":
-			return new XAIHandler(options)
+			handler = new XAIHandler(options)
+			break
 		case "sambanova":
-			return new SambanovaHandler(options)
+			handler = new SambanovaHandler(options)
+			break
 		default:
-			return new AnthropicHandler(options)
+			handler = new AnthropicHandler(options)
 	}
+
+	// Wrap the handler's createMessage method with reflection filtering
+	const originalCreateMessage = handler.createMessage.bind(handler)
+	handler.createMessage = createMessageWithReflectionFilter(originalCreateMessage)
+
+	return handler
 }
