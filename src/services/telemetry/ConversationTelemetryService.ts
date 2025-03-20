@@ -1,11 +1,12 @@
-import { trace, context, SpanKind, SpanStatusCode } from "@opentelemetry/api"
+import { context, SpanKind, trace } from "@opentelemetry/api"
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http"
 import { Resource } from "@opentelemetry/resources"
 import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base"
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
-
 import { Anthropic } from "@anthropic-ai/sdk"
+import * as vscode from "vscode"
+import { ClineProvider } from "../../core/webview/ClineProvider"
 
 export type TelemetryChatMessage = {
 	role: "user" | "assistant" | "system"
@@ -13,13 +14,11 @@ export type TelemetryChatMessage = {
 	content: Anthropic.Messages.MessageParam["content"]
 }
 
-import * as vscode from "vscode"
-
 const { IS_DEV } = process.env
 
 interface ConversationMetadata {
-	apiProvider: string
-	model: string
+	apiProvider?: string
+	model?: string
 	tokensIn: number
 	tokensOut: number
 }
@@ -28,40 +27,43 @@ interface ConversationMetadata {
  * Service for collecting conversation data using OpenTelemetry
  */
 export class ConversationTelemetryService {
-	private static instance: ConversationTelemetryService
-	private enabled: boolean = false
-	private distinctId: string
-	private clineApiKey?: string
+	private providerRef: WeakRef<ClineProvider>
+	private distinctId: string = vscode.env.machineId
 	private apiEndpoint: string = "https://api.cline.bot/v1/traces"
 	private tracerProvider: NodeTracerProvider | undefined
 	private tracer: any
 	private messageIndices: Map<string, number> = new Map()
 
-	private constructor(distinctId: string) {
-		this.distinctId = distinctId
+	constructor(provider: ClineProvider) {
+		this.providerRef = new WeakRef(provider)
+		this.initializeTracer()
 	}
 
-	public static getInstance(distinctId: string): ConversationTelemetryService {
-		if (!ConversationTelemetryService.instance) {
-			ConversationTelemetryService.instance = new ConversationTelemetryService(distinctId)
+	private async getClineApiKey(): Promise<string | undefined> {
+		const provider = this.providerRef.deref()
+		if (!provider) {
+			return undefined
 		}
-		return ConversationTelemetryService.instance
+		const { apiConfiguration } = await provider.getStateToPostToWebview()
+		return apiConfiguration?.clineApiKey
 	}
 
-	public updateTelemetryState(enabled: boolean, clineApiKey?: string): void {
-		console.log("[ConversationTelemetry] Updating telemetry state...", { enabled, clineApiKey })
+	public isOptedInToConversationTelemetry(): boolean {
+		// First check global telemetry level - telemetry should only be enabled when level is "all"
+		const telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
+		const isGlobalTelemetryEnabled = telemetryLevel === "all"
 
-		// First update the state variables
-		this.enabled = enabled
-		this.clineApiKey = clineApiKey
+		// User has to manually opt in to conversation telemetry in Advanced Settings
+		const isConversationTelemetryEnabled =
+			vscode.workspace.getConfiguration("cline").get<boolean>("conversationTelemetry") ?? false
 
-		// Then initialize the tracer if needed
-		if (this.enabled && !this.tracer && IS_DEV) {
-			this.initializeTracer()
-		}
+		// Currently only enabled in dev environment
+		const isDevEnvironment = !!IS_DEV
+
+		return isDevEnvironment && isGlobalTelemetryEnabled && isConversationTelemetryEnabled
 	}
 
-	private initializeTracer(): void {
+	private async initializeTracer() {
 		try {
 			// Create a resource that identifies our service
 			const resource = new Resource({
@@ -69,7 +71,9 @@ export class ConversationTelemetryService {
 				[ATTR_SERVICE_VERSION]: "1.0.0",
 			})
 
-			console.log("[ConversationTelemetry] Initializing OpenTelemetry tracer...", { "this.clineApiKey": this.clineApiKey })
+			const clineApiKey = await this.getClineApiKey()
+
+			console.log("[ConversationTelemetry] Initializing OpenTelemetry tracer...", { "this.clineApiKey": clineApiKey })
 
 			// Configure the OTLP exporter
 			const headers: Record<string, string> = {
@@ -77,8 +81,8 @@ export class ConversationTelemetryService {
 			}
 
 			// Add API key to headers if available
-			if (this.clineApiKey) {
-				headers["Authorization"] = `Bearer ${this.clineApiKey}`
+			if (clineApiKey) {
+				headers["Authorization"] = `Bearer ${clineApiKey}`
 			}
 
 			const exporter = new OTLPTraceExporter({
@@ -111,9 +115,13 @@ export class ConversationTelemetryService {
 	 * Captures a message in the conversation as an OpenTelemetry span
 	 * ONLY HAPPENS IF USER IS OPTED INTO CONVERSATION TELEMETRY IN ADVANCED SETTINGS
 	 */
-	public captureMessage(taskId: string, message: TelemetryChatMessage, metadata: ConversationMetadata): void {
+	public async captureMessage(taskId: string, message: TelemetryChatMessage, metadata: ConversationMetadata) {
 		// Do NOT capture message if user has not explicitly opted in
-		if (!this.enabled || !this.tracer || !IS_DEV) {
+		if (!this.isOptedInToConversationTelemetry()) {
+			return
+		}
+
+		if (!this.tracer) {
 			return
 		}
 
@@ -243,7 +251,12 @@ export class ConversationTelemetryService {
 	 */
 	public async cleanupTask(taskId: string, conversationData: any): Promise<void> {
 		// Do NOT send data if user has not explicitly opted in
-		if (!this.enabled || !this.clineApiKey) {
+		if (!this.isOptedInToConversationTelemetry()) {
+			return
+		}
+
+		const clineApiKey = await this.getClineApiKey()
+		if (!clineApiKey) {
 			return
 		}
 
@@ -254,7 +267,7 @@ export class ConversationTelemetryService {
 			}
 
 			// Add API key to headers
-			headers["Authorization"] = `Bearer ${this.clineApiKey}`
+			headers["Authorization"] = `Bearer ${clineApiKey}`
 
 			// Send the data to the cleanup endpoint
 			const cleanupEndpoint = `${this.apiEndpoint.replace("/traces", "/traces/cleanup")}`
@@ -289,5 +302,3 @@ export class ConversationTelemetryService {
 		}
 	}
 }
-
-export const conversationTelemetryService = ConversationTelemetryService.getInstance(vscode.env.machineId)

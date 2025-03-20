@@ -64,7 +64,7 @@ import { ClineHandler } from "../api/providers/cline"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 import { telemetryService } from "../services/telemetry/TelemetryService"
-import { conversationTelemetryService, TelemetryChatMessage } from "../services/telemetry/ConversationTelemetryService"
+import { ConversationTelemetryService, TelemetryChatMessage } from "../services/telemetry/ConversationTelemetryService"
 import pTimeout from "p-timeout"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1349,14 +1349,7 @@ export class Cline {
 
 		// Capture system prompt for telemetry,
 		// ONLY if user is opted in, in advanced settings
-		if (this.apiProvider && this.api.getModel().id) {
-			const metadata = {
-				apiProvider: this.apiProvider,
-				model: this.api.getModel().id,
-				tokensIn: 0,
-				tokensOut: 0,
-			}
-
+		if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
 			const systemMessage: TelemetryChatMessage = {
 				role: "system",
 				content: systemPrompt,
@@ -1364,7 +1357,12 @@ export class Cline {
 			}
 
 			// no need for timeout here, as there's no timestamp to compare to
-			conversationTelemetryService.captureMessage(this.taskId, systemMessage, metadata)
+			this.providerRef.deref()?.conversationTelemetryService.captureMessage(this.taskId, systemMessage, {
+				apiProvider: this.apiProvider,
+				model: this.api.getModel().id,
+				tokensIn: 0,
+				tokensOut: 0,
+			})
 		}
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
@@ -3185,39 +3183,36 @@ export class Cline {
 
 		// Capture message data for telemetry,
 		// ONLY if user is opted in, in advanced settings
-		// This is done after a timeout to ensure the message is added to the conversation history
-		setTimeout(() => {
-			if (this.apiProvider && this.api.getModel().id) {
-				const metadata = {
+		if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
+			// Get the last message from apiConversationHistory
+			const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+
+			// Get the corresponding timestamp from clineMessages
+			// The last message in clineMessages should be the one we just added
+
+			const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
+			const ts = lastClineMessage.ts
+
+			// Send individual message to telemetry
+			this.providerRef.deref()?.conversationTelemetryService.captureMessage(
+				this.taskId,
+				// Add the timestamp to the message object for telemetry
+				{
+					...lastMessage,
+					ts,
+				},
+				{
 					apiProvider: this.apiProvider,
 					model: this.api.getModel().id,
 					tokensIn: 0,
 					tokensOut: 0,
-				}
+				},
+			)
 
-				// Get the last message from apiConversationHistory
-				const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
-
-				// Get the corresponding timestamp from clineMessages
-				// The last message in clineMessages should be the one we just added
-
-				const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
-				const ts = lastClineMessage.ts
-
-				// Add the timestamp to the message object for telemetry
-				const messageWithTs = {
-					...lastMessage,
-					ts,
-				}
-
-				// Send individual message to telemetry
-				conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
-
-				// Send entire conversation history to cleanup endpoint
-				// This ensures deleted messages are properly handled in telemetry
-				conversationTelemetryService.cleanupTask(this.taskId, this.clineMessages)
-			}
-		}, 5)
+			// Send entire conversation history to cleanup endpoint
+			// This ensures deleted messages are properly handled in telemetry
+			this.providerRef.deref()?.conversationTelemetryService.cleanupTask(this.taskId, this.clineMessages)
+		}
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
@@ -3298,14 +3293,7 @@ export class Cline {
 
 				// Capture message data for telemetry after assistant response
 				// ONLY if user is opted in, in advanced settings
-				if (this.apiProvider && this.api.getModel().id) {
-					const metadata = {
-						apiProvider: this.apiProvider,
-						model: this.api.getModel().id,
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-					}
-
+				if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
 					// Get the last message from apiConversationHistory
 					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
 
@@ -3317,14 +3305,19 @@ export class Cline {
 					if (!lastTextMessage) {
 						console.error("No text message found in clineMessages")
 					} else {
-						const messageWithTs = {
-							...lastMessage,
-							ts: lastTextMessage.ts,
-						}
-
-						setTimeout(() => {
-							conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
-						}, 5)
+						this.providerRef.deref()?.conversationTelemetryService.captureMessage(
+							this.taskId,
+							{
+								...lastMessage,
+								ts: lastTextMessage.ts,
+							},
+							{
+								apiProvider: this.apiProvider,
+								model: this.api.getModel().id,
+								tokensIn: inputTokens,
+								tokensOut: outputTokens,
+							},
+						)
 					}
 				}
 
@@ -3479,29 +3472,27 @@ export class Cline {
 
 				// Capture message data for telemetry after assistant response,
 				// ONLY if user is opted in, in advanced settings
-				if (this.apiProvider && this.api.getModel().id) {
-					const metadata = {
-						apiProvider: this.apiProvider,
-						model: this.api.getModel().id,
-						tokensIn: inputTokens,
-						tokensOut: outputTokens,
-					}
-
+				if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
 					// Get the last message from apiConversationHistory
 					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
 
 					// Find the corresponding timestamp from clineMessages
-					const lastTextMessage = findLast(this.clineMessages, (m) => m.say === "text")
+					const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
 
-					if (lastTextMessage) {
-						const messageWithTs = {
-							...lastMessage,
-							ts: lastTextMessage.ts,
-						}
-
-						setTimeout(() => {
-							conversationTelemetryService.captureMessage(this.taskId, messageWithTs, metadata)
-						})
+					if (lastClineMessage) {
+						this.providerRef.deref()?.conversationTelemetryService.captureMessage(
+							this.taskId,
+							{
+								...lastMessage,
+								ts: lastClineMessage.ts,
+							},
+							{
+								apiProvider: this.apiProvider,
+								model: this.api.getModel().id,
+								tokensIn: inputTokens,
+								tokensOut: outputTokens,
+							},
+						)
 					}
 				}
 

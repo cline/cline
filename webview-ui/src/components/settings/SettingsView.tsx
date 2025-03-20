@@ -31,7 +31,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		openRouterModels,
 		telemetrySetting,
 		setTelemetrySetting,
-		conversationDataSetting,
 		chatSettings,
 		planActSeparateModelsSetting,
 		setPlanActSeparateModelsSetting,
