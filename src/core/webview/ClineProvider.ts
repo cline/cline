@@ -34,7 +34,7 @@ import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { conversationTelemetryService } from "../../services/telemetry/ConversationTelemetryService"
-import { TelemetrySetting, ConversationDataSetting } from "../../shared/TelemetrySetting"
+import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { getTotalTasksSize } from "../../utils/storage"
@@ -107,7 +107,6 @@ type GlobalStateKey =
 	| "togetherModelId"
 	| "mcpMarketplaceCatalog"
 	| "telemetrySetting"
-	| "conversationDataSetting"
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
@@ -532,14 +531,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 						// If user already opted in to telemetry, enable telemetry service
 						this.getStateToPostToWebview().then(async (state) => {
-							const { telemetrySetting, conversationDataSetting, apiConfiguration } = state
-							const clineApiKey = apiConfiguration?.clineApiKey
+							const { telemetrySetting } = state
 							const isOptedIn = telemetrySetting === "enabled"
 							telemetryService.updateTelemetryState(isOptedIn)
-
-							// conversation telemetry is only enabled if user has opted in to conversation data telemetry
-							const isConversationDataEnabled = conversationDataSetting === "enabled"
-							conversationTelemetryService.updateTelemetryState(isConversationDataEnabled, clineApiKey)
 						})
 						break
 					case "newTask":
@@ -1883,11 +1877,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			planActSeparateModelsSetting,
 		} = await this.getState()
 
-		// Get conversationDataSetting separately
-		const conversationDataSetting = (await this.getGlobalState("conversationDataSetting")) as
-			| ConversationDataSetting
-			| undefined
-
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
@@ -1908,7 +1897,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			userInfo,
 			mcpMarketplaceEnabled,
 			telemetrySetting,
-			conversationDataSetting: conversationDataSetting || "unset",
 			planActSeparateModelsSetting,
 			vscMachineId: vscode.env.machineId,
 		}
