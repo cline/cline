@@ -6,7 +6,7 @@ Parameters:
 - follow_up: (required) A list of 2-4 suggested answers that logically follow from the question, ordered by priority or logical sequence. Each suggestion must:
   1. Be provided in its own <suggest> tag
   2. Be specific, actionable, and directly related to the completed task
-  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details
+  3. Be a complete answer to the question - the user should not need to provide additional information or fill in any missing details. DO NOT include placeholders with brackets or parentheses.
 Usage:
 <ask_followup_question>
 <question>Your question here</question>

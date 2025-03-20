@@ -1006,7 +1006,9 @@ export const ChatRowContent = ({
 								</div>
 							)}
 							<div style={{ paddingTop: 10, paddingBottom: 15 }}>
-								<Markdown markdown={followUpData?.question} />
+								<Markdown
+									markdown={message.partial === true ? message?.text : followUpData?.question}
+								/>
 							</div>
 							<FollowUpSuggest
 								suggestions={followUpData?.suggest}
