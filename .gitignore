@@ -1,13 +1,49 @@
-out
-dist
-node_modules
-tmp
+# Build and output directories
+out/
+dist/
+node_modules/
+tmp/
 .vscode-test/
 *.vsix
 
-.DS_Store
+# Test-related files
+coverage/
+.nyc_output/
+**/test-results.xml
+**/*.cpuprofile
+# Test discovery reference files
+src/test/suite/*-*
+src/test/suite/test-helper.js
 
+# Environment and config files
+.env
+.env.*
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Package management
+yarn.lock
+package-lock.json
 pnpm-lock.yaml
 
+# Project specific
 .clineignore
 .qodo
+
+# Cache directories
+.cache/
+.npm/
+.eslintcache
