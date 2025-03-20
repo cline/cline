@@ -4,7 +4,7 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
-import { TelemetrySetting, ConversationDataSetting } from "./TelemetrySetting"
+import { TelemetrySetting } from "./TelemetrySetting"
 
 export interface WebviewMessage {
 	type:

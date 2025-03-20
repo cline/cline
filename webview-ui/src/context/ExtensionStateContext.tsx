@@ -9,7 +9,7 @@ import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
-import { TelemetrySetting, ConversationDataSetting } from "../../../src/shared/TelemetrySetting"
+import { TelemetrySetting } from "../../../src/shared/TelemetrySetting"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
