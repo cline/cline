@@ -300,13 +300,11 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
 
 	const textAfterAt = beforeCursor.slice(atIndex + 1)
 
+	// Check if there's any whitespace after the '@'
+	if (/\s/.test(textAfterAt)) return false
+
 	// Don't show the menu if it's clearly a URL
 	if (textAfterAt.toLowerCase().startsWith("http")) {
-		return false
-	}
-
-	// If there's a space after @, don't show the menu (normal @ mention)
-	if (textAfterAt.indexOf(" ") === 0) {
 		return false
 	}
 
