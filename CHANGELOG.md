@@ -1,5 +1,18 @@
 # Roo Code Changelog
 
+## [3.10.0] - 2025-03-20
+
+- Suggested responses to questions (thanks samhvw8!)
+- Support for reading large files in chunks (thanks samhvw8!)
+- More consistent @-mention lookups of files and folders
+- Consolidate code actions into a submenu (thanks samhvw8!)
+- Fix MCP error logging (thanks aheizi!)
+- Improvements to search_files tool formatting and logic (thanks KJ7LNW!)
+- Fix changelog formatting in GitHub Releases (thanks pdecat!)
+- Add fake provider for integration tests (thanks franekp!)
+- Reflect Cross-region inference option in ap-xx region (thanks Yoshino-Yukitaro!)
+- Fix bug that was causing task history to be lost when using WSL
+
 ## [3.9.2] - 2025-03-19
 
 - Update GitHub Actions workflow to automatically create GitHub Releases (thanks @pdecat!)
