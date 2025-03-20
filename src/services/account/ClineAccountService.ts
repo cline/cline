@@ -1,5 +1,5 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
-import { ClineProvider } from "../../core/webview/ClineProvider"
+import type { ClineProvider } from "../../core/webview/ClineProvider"
 
 export interface BalanceResponse {
 	currentBalance: number

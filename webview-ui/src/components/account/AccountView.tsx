@@ -3,7 +3,7 @@ import { memo, useEffect, useState } from "react"
 import { useFirebaseAuth } from "../../context/FirebaseAuthContext"
 import { vscode } from "../../utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import clineLogoWhite from "../../assets/cline-logo-white.svg"
+import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
 import type { PaymentTransaction, UsageTransaction } from "../../../../src/services/account/ClineAccountService"
@@ -141,7 +141,7 @@ export const ClineAccountView = () => {
 				</div>
 			) : (
 				<div className="flex flex-col items-center p-5 max-w-[400px]">
-					<img src={clineLogoWhite} alt="Cline Logo" className="size-16 mb-4" />
+					<ClineLogoWhite className="size-16 mb-4" />
 
 					<h2 className="text-[var(--vscode-foreground)] m-0 mb-6 text-2xl font-normal">Sign up with Cline</h2>
 
