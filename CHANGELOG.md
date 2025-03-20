@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.7.1]
+
+-   Fix issue with 'See more' button in task header not showing when starting new tasks
+-   Fix issue with checkpoints using local git commit hooks
+
 ## [3.7.0]
 
 -   Cline now displays selectable options when asking questions or presenting a plan, saving you from having to type out responses!

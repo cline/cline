@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Upgrade MCP SDK
+Add saito-sv as CodeOwner

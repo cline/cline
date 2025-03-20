@@ -17,7 +17,7 @@ type HistoryViewProps = {
 type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
-	const { taskHistory } = useExtensionState()
+	const { taskHistory, totalTasksSize } = useExtensionState()
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
@@ -28,8 +28,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			setDeleteAllDisabled(false)
 		}
 	}, [])
-
 	useEvent("message", handleMessage)
+
+	// Request total tasks size when component mounts
+	useEffect(() => {
+		vscode.postMessage({ type: "requestTotalTasksSize" })
+	}, [])
 
 	useEffect(() => {
 		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
@@ -471,7 +475,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							setDeleteAllDisabled(true)
 							vscode.postMessage({ type: "clearAllTaskHistory" })
 						}}>
-						Delete All History
+						Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
 					</DangerButton>
 				</div>
 			</div>
