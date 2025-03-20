@@ -47,7 +47,7 @@ export class DiffViewProvider {
 
 		if (fileExists) {
 			const fileBuffer = await fs.readFile(absolutePath)
-			const detected = chardet.detect(fileBuffer)
+			const detected: chardet.IDetectedMap | null = chardet.detect(fileBuffer)
 			this.fileEncoding =
 				typeof detected === "string"
 					? detected
@@ -236,7 +236,7 @@ export class DiffViewProvider {
 
 		if (this.fileEncoding.toLowerCase() !== "utf8") {
 			const encodedBuffer = iconv.encode(normalizedPostSaveContent, this.fileEncoding)
-			await fs.writeFile(absolutePath, encodedBuffer as unknown as Uint8Array)
+			await fs.writeFile(absolutePath, encodedBuffer)
 		}
 
 		return {
