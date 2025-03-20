@@ -2883,45 +2883,39 @@ export class Cline extends EventEmitter<ClineEvents> {
 									break
 								}
 
-								if (!follow_up) {
-									this.consecutiveMistakeCount++
-									pushToolResult(
-										await this.sayAndCreateMissingParamError("ask_followup_question", "follow_up"),
-									)
-									break
-								}
-
-								let normalizedSuggest = null
-
 								type Suggest = {
 									answer: string
 								}
 
-								let parsedSuggest: {
-									suggest: Suggest[] | Suggest
+								let follow_up_json = {
+									question,
+									suggest: [] as Suggest[],
 								}
 
-								try {
-									parsedSuggest = parseXml(follow_up, ["suggest"]) as {
+								if (follow_up) {
+									let parsedSuggest: {
 										suggest: Suggest[] | Suggest
 									}
-								} catch (error) {
-									this.consecutiveMistakeCount++
-									await this.say("error", `Failed to parse operations: ${error.message}`)
-									pushToolResult(formatResponse.toolError("Invalid operations xml format"))
-									break
+
+									try {
+										parsedSuggest = parseXml(follow_up, ["suggest"]) as {
+											suggest: Suggest[] | Suggest
+										}
+									} catch (error) {
+										this.consecutiveMistakeCount++
+										await this.say("error", `Failed to parse operations: ${error.message}`)
+										pushToolResult(formatResponse.toolError("Invalid operations xml format"))
+										break
+									}
+
+									const normalizedSuggest = Array.isArray(parsedSuggest?.suggest)
+										? parsedSuggest.suggest
+										: [parsedSuggest?.suggest].filter((sug): sug is Suggest => sug !== undefined)
+
+									follow_up_json.suggest = normalizedSuggest
 								}
 
 								this.consecutiveMistakeCount = 0
-
-								normalizedSuggest = Array.isArray(parsedSuggest?.suggest)
-									? parsedSuggest.suggest
-									: [parsedSuggest?.suggest].filter((sug): sug is Suggest => sug !== undefined)
-
-								const follow_up_json = {
-									question,
-									suggest: normalizedSuggest,
-								}
 
 								const { text, images } = await this.ask(
 									"followup",
