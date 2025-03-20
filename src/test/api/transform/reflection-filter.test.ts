@@ -11,7 +11,7 @@ const { describe, it } = mocha
 const chai = require("chai")
 const { expect } = chai
 import { filterReflections, createMessageWithReflectionFilter } from "../../../api/transform/reflection-filter"
-import { ApiStreamChunk } from "../../../api/transform/stream"
+import { ApiStream, ApiStreamChunk, ApiStreamTextChunk, ApiStreamUsageChunk } from "../../../api/transform/stream"
 import { createMockApiStream } from "../../utils/gemini-mocks"
 
 describe("Reflection Filter", () => {
@@ -128,24 +128,36 @@ describe("Reflection Filter", () => {
 	describe("createMessageWithReflectionFilter", () => {
 		it("should wrap a createMessage function with reflection filtering", async () => {
 			// Arrange
-			const mockCreateMessage = async function* (systemPrompt: string, messages: any[]) {
-				yield { type: "text", text: "Normal response" }
-				yield { type: "text", text: "# System Information\nOS: Linux" }
-				yield { type: "usage", inputTokens: 10, outputTokens: 5 }
+			// Explicitly type the mock function to return ApiStream
+			const mockCreateMessage = async function* (systemPrompt: string, messages: any[]): ApiStream {
+				yield { type: "text", text: "Normal response" } as ApiStreamTextChunk
+				yield { type: "text", text: "# System Information\nOS: Linux" } as ApiStreamTextChunk
+				yield { type: "usage", inputTokens: 10, outputTokens: 5 } as ApiStreamUsageChunk
 			}
 
 			// Act
 			const wrappedCreateMessage = createMessageWithReflectionFilter(mockCreateMessage)
-			const filteredChunks = []
+			const filteredChunks: ApiStreamChunk[] = []
 			for await (const chunk of wrappedCreateMessage("test prompt", [])) {
 				filteredChunks.push(chunk)
 			}
 
 			// Assert
-			expect(filteredChunks).to.have.lengthOf(2) // One normal text + usage, but not the system info
+			expect(filteredChunks).to.have.lengthOf(3) // Normal text + warning + usage
 			expect(filteredChunks[0]).to.deep.equal({ type: "text", text: "Normal response" })
-			expect(filteredChunks[1].type).to.equal("text") // Either warning or filtered content
-			expect(filteredChunks[1].text).to.include("[Note:") // Should be replaced with warning
+
+			// Check the second chunk (should be the warning)
+			expect(filteredChunks[1].type).to.equal("text") // Warning message
+
+			// Add type check before accessing text property
+			if (filteredChunks[1].type === "text") {
+				expect(filteredChunks[1].text).to.include("[Note:") // Should be replaced with warning
+			} else {
+				expect.fail("Second chunk should be a text chunk")
+			}
+
+			// Third chunk should be usage
+			expect(filteredChunks[2].type).to.equal("usage")
 		})
 	})
 })
