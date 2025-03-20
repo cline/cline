@@ -230,7 +230,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			awsSecretKey: credentials.secretAccessKey,
 			awsSessionToken: credentials.sessionToken,
 			awsRegion: this.getRegion(),
-			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
+			...(this.options.awsBedrockEndpoint && { baseURL: this.options.awsBedrockEndpoint }),
 		})
 	}
 
