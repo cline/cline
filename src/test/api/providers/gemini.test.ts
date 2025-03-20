@@ -96,46 +96,72 @@ describe("GeminiHandler", () => {
 			})
 		})
 
-		it.skip("should correctly pass the system prompt to model initialization", () => {
-			// Create stubs controlled by sandbox
-			const generateContentStub = sandbox.stub().returns(createMockGeminiStream({}))
-			const modelStub = { generateContentStream: generateContentStub }
-			const getModelStub = sandbox.stub().returns(modelStub)
-
-			// Set up handler
+		it("should correctly pass the system prompt to model initialization", () => {
+			// Create a handler directly
 			const handler = new GeminiHandler({ geminiApiKey: "test-key" })
-			handler["client"] = { getGenerativeModel: getModelStub } as any
 
-			// Act
-			handler.createMessage("This is a system prompt", [{ role: "user", content: "Hi" }])
+			// Create a mock for the GoogleGenerativeAI client
+			const getGenerativeModelMock = sandbox.stub()
 
-			// Assert
-			expect(getModelStub.calledOnce).to.be.true
-			const modelParams = getModelStub.firstCall.args[0]
-			expect(modelParams).to.have.property("systemInstruction", "This is a system prompt")
+			// Set up expected arguments
+			const expectedSystemPrompt = "This is a system prompt"
+
+			// Replace the client with our stubbed version
+			handler["client"] = {
+				getGenerativeModel: getGenerativeModelMock,
+			} as any
+
+			// Set up the stub to return a mock model when called
+			const mockModel = createMockGeminiModel({})
+			getGenerativeModelMock.returns(mockModel)
+
+			// Call the method being tested (but don't consume the generator)
+			const messageGenerator = handler.createMessage(expectedSystemPrompt, [{ role: "user", content: "Hi" }])
+
+			// We just need to start the generator to trigger the function
+			messageGenerator.next().catch(() => {
+				/* Ignore errors */
+			})
+
+			// Verify the system prompt is passed correctly
+			sinon.assert.calledOnce(getGenerativeModelMock)
+			const actualArgs = getGenerativeModelMock.firstCall.args[0]
+			expect(actualArgs).to.have.property("systemInstruction", expectedSystemPrompt)
 		})
 
-		it.skip("should apply maxTokens from model configuration", () => {
-			// Create stubs controlled by sandbox
-			const generateContentStub = sandbox.stub().returns(createMockGeminiStream({}))
-			const modelStub = { generateContentStream: generateContentStub }
-			const getModelStub = sandbox.stub().returns(modelStub)
-
-			// Set up handler with a specific model configuration that has maxTokens
+		it("should apply maxTokens from model configuration", () => {
+			// Create a handler with a specific model that has maxTokens defined
+			const specificModelId = "gemini-1.5-pro-002"
 			const handler = new GeminiHandler({
 				geminiApiKey: "test-key",
-				apiModelId: "gemini-1.5-pro-002", // This model has a defined maxTokens value
+				apiModelId: specificModelId,
 			})
-			handler["client"] = { getGenerativeModel: getModelStub } as any
 
-			// Act
-			handler.createMessage("System prompt", [{ role: "user", content: "Hi" }])
+			// Set up mocks
+			const generateContentStreamMock = sandbox.stub().returns(createMockGeminiStream({}))
+			const mockModel = {
+				generateContentStream: generateContentStreamMock,
+			}
+			const getGenerativeModelMock = sandbox.stub().returns(mockModel)
 
-			// Assert
-			expect(generateContentStub.calledOnce).to.be.true
-			const params = generateContentStub.firstCall.args[0]
-			expect(params).to.have.property("generationConfig")
-			expect(params.generationConfig).to.have.property("maxOutputTokens", geminiModels["gemini-1.5-pro-002"].maxTokens)
+			// Replace the client
+			handler["client"] = {
+				getGenerativeModel: getGenerativeModelMock,
+			} as any
+
+			// Call the method being tested
+			const messageGenerator = handler.createMessage("System prompt", [{ role: "user", content: "Hi" }])
+
+			// Start the generator to trigger the function
+			messageGenerator.next().catch(() => {
+				/* Ignore errors */
+			})
+
+			// Verify maxTokens is set correctly
+			sinon.assert.calledOnce(generateContentStreamMock)
+			const generationArgs = generateContentStreamMock.firstCall.args[0]
+			expect(generationArgs).to.have.property("generationConfig")
+			expect(generationArgs.generationConfig).to.have.property("maxOutputTokens", geminiModels[specificModelId].maxTokens)
 		})
 	})
 
@@ -202,47 +228,35 @@ describe("GeminiHandler", () => {
 			expect(args).to.have.property("contents").that.is.an("array")
 		})
 
-		it.skip("should pass system prompt to model initialization", () => {
-			// Create stubs controlled by sandbox
-			const generateContentStub = sandbox.stub().returns(createMockGeminiStream({}))
-			const modelStub = { generateContentStream: generateContentStub }
-			const getModelStub = sandbox.stub().returns(modelStub)
-
-			// Set up handler
+		it("should pass system prompt to model initialization", () => {
+			// Create a handler
 			const handler = new GeminiHandler({ geminiApiKey: "test-key" })
-			handler["client"] = { getGenerativeModel: getModelStub } as any
 
-			// Act
+			// Create mocks
+			const generateContentStreamMock = sandbox.stub().returns(createMockGeminiStream({}))
+			const mockModel = {
+				generateContentStream: generateContentStreamMock,
+			}
+			const getGenerativeModelMock = sandbox.stub().returns(mockModel)
+
+			// Replace the client
+			handler["client"] = {
+				getGenerativeModel: getGenerativeModelMock,
+			} as any
+
+			// Set up expected system prompt
 			const systemPrompt = "Act as a helpful assistant"
-			handler.createMessage(systemPrompt, [{ role: "user", content: "Hi" }])
 
-			// Assert
-			expect(getModelStub.called).to.be.true
-			const modelParams = getModelStub.firstCall.args[0]
-			expect(modelParams).to.have.property("systemInstruction", systemPrompt)
-		})
-
-		it.skip("should apply maxTokens from model configuration", () => {
-			// Create stubs controlled by sandbox
-			const generateContentStub = sandbox.stub().returns(createMockGeminiStream({}))
-			const modelStub = { generateContentStream: generateContentStub }
-			const getModelStub = sandbox.stub().returns(modelStub)
-
-			// Set up handler with a specific model configuration that has maxTokens
-			const handler = new GeminiHandler({
-				geminiApiKey: "test-key",
-				apiModelId: "gemini-1.5-pro-002", // This model has a defined maxTokens value
+			// Call the method
+			const messageGenerator = handler.createMessage(systemPrompt, [{ role: "user", content: "Hi" }])
+			messageGenerator.next().catch(() => {
+				/* Ignore errors */
 			})
-			handler["client"] = { getGenerativeModel: getModelStub } as any
 
-			// Act
-			handler.createMessage("System prompt", [{ role: "user", content: "Hi" }])
-
-			// Assert
-			expect(generateContentStub.called).to.be.true
-			const params = generateContentStub.firstCall.args[0]
-			expect(params).to.have.property("generationConfig")
-			expect(params.generationConfig).to.have.property("maxOutputTokens", geminiModels["gemini-1.5-pro-002"].maxTokens)
+			// Verify system prompt is passed correctly
+			sinon.assert.calledOnce(getGenerativeModelMock)
+			const modelParams = getGenerativeModelMock.firstCall.args[0]
+			expect(modelParams).to.have.property("systemInstruction", systemPrompt)
 		})
 
 		it("should properly unescape content", async () => {
@@ -375,52 +389,6 @@ describe("GeminiHandler", () => {
 	})
 
 	describe("Image Handling", () => {
-		it.skip("should correctly process a base64 encoded image", () => {
-			// Create stubs controlled by sandbox
-			const generateContentStub = sandbox.stub().returns(createMockGeminiStream({}))
-			const modelStub = { generateContentStream: generateContentStub }
-			const getModelStub = sandbox.stub().returns(modelStub)
-
-			// Set up handler
-			const handler = new GeminiHandler({ geminiApiKey: "test-key" })
-			handler["client"] = { getGenerativeModel: getModelStub } as any
-
-			const imageMessage = {
-				role: "user",
-				content: [
-					{ type: "text", text: "What's in this image?" },
-					{
-						type: "image",
-						source: {
-							type: "base64",
-							media_type: "image/jpeg",
-							data: "SGVsbG8gV29ybGQ=",
-						},
-					},
-				],
-			} as Anthropic.Messages.MessageParam
-
-			// Act
-			handler.createMessage("System prompt", [imageMessage])
-
-			// Assert - verify that the generateContentStream was called with an object
-			// containing a part with inlineData matching our image
-			expect(generateContentStub.calledOnce).to.be.true
-
-			// Get the contents array from the first argument passed to generateContentStream
-			const params = generateContentStub.firstCall.args[0]
-			expect(params).to.have.property("contents").that.is.an("array")
-
-			// Check if any content item has a part with our image data
-			const contentWithImage = params.contents.find(
-				(content: any) =>
-					content.parts &&
-					content.parts.some((part: any) => part.inlineData && part.inlineData.data === "SGVsbG8gV29ybGQ="),
-			)
-
-			expect(contentWithImage).to.exist
-		})
-
 		it("should correctly process a base64 encoded image", () => {
 			// Create stubs with sinon sandbox for proper cleanup
 			const generateContentStreamMock = sandbox.stub().returns(createMockGeminiStream({}))

@@ -1,6 +1,19 @@
 /**
  * Manual Test Script for GeminiHandler
  *
+ * ========= IMPORTANT NOTICE =========
+ * This manual testing script is DEPRECATED and maintained only for reference.
+ *
+ * The Gemini integration now has complete automated test coverage in:
+ * - src/test/api/providers/gemini.test.ts (handler tests)
+ * - src/test/api/transform/gemini-format.test.ts (format conversion tests)
+ * - src/test/utils/gemini-mocks.test.ts (mock utilities tests)
+ *
+ * Please use the automated tests for development and regression testing.
+ * Run all tests with: npm run test
+ * Run only Gemini tests with: npm run test out/test/api/providers/gemini.test.js
+ * ===================================
+ *
  * This script provides a simple way to test the GeminiHandler functionality
  * interactively without needing to run the full extension.
  *
