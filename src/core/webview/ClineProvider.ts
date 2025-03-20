@@ -33,7 +33,6 @@ import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
-import { conversationTelemetryService } from "../../services/telemetry/ConversationTelemetryService"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
@@ -530,7 +529,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						})
 
 						// If user already opted in to telemetry, enable telemetry service
-						this.getStateToPostToWebview().then(async (state) => {
+						this.getStateToPostToWebview().then((state) => {
 							const { telemetrySetting } = state
 							const isOptedIn = telemetrySetting === "enabled"
 							telemetryService.updateTelemetryState(isOptedIn)
@@ -882,6 +881,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					// telemetry
 					case "openSettings": {
 						await this.postMessageToWebview({
 							type: "action",
@@ -934,6 +934,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.disposables,
 		)
 	}
+
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting) {
 		await this.updateGlobalState("telemetrySetting", telemetrySetting)
 		const isOptedIn = telemetrySetting === "enabled"
