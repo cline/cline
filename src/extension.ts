@@ -64,11 +64,6 @@ export function activate(context: vscode.ExtensionContext) {
 	const provider = new ClineProvider(context, outputChannel, "sidebar")
 	telemetryService.setProvider(provider)
 
-	// Validate task history on extension activation
-	provider.validateTaskHistory().catch((error) => {
-		outputChannel.appendLine(`Failed to validate task history: ${error}`)
-	})
-
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, provider, {
 			webviewOptions: { retainContextWhenHidden: true },
