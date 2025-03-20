@@ -1,11 +1,3 @@
-/**
- * Implementation of ApiHandler for Google Cloud Vertex AI platform.
- * This handler provides access to both Claude and Gemini models hosted on Vertex AI,
- * supporting advanced features like prompt caching and extended reasoning for Claude models.
- *
- * @see https://docs.anthropic.com/en/api/claude-on-vertex-ai
- * @see https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
- */
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { withRetry } from "../retry"
@@ -14,26 +6,12 @@ import { ApiHandlerOptions, ModelInfo, vertexDefaultModelId, VertexModelId, vert
 import { ApiStream } from "../transform/stream"
 import { VertexAI } from "@google-cloud/vertexai"
 
-/**
- * Handler for interacting with models hosted on Google Cloud Vertex AI.
- * Implements the ApiHandler interface with support for:
- * - Claude models via the AnthropicVertex client
- * - Gemini models via the VertexAI client
- *
- * The handler automatically determines which client to use based on the model ID.
- */
+// https://docs.anthropic.com/en/api/claude-on-vertex-ai
 export class VertexHandler implements ApiHandler {
 	private options: ApiHandlerOptions
 	private clientAnthropic: AnthropicVertex
 	private clientVertex: VertexAI
 
-	/**
-	 * Creates a new VertexHandler instance.
-	 * Initializes both the AnthropicVertex client for Claude models
-	 * and the VertexAI client for Gemini models.
-	 *
-	 * @param options - Configuration options including Google Cloud project ID and region
-	 */
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.clientAnthropic = new AnthropicVertex({
@@ -47,29 +25,17 @@ export class VertexHandler implements ApiHandler {
 		})
 	}
 
-	/**
-	 * Generates content using either Claude or Gemini models on Vertex AI.
-	 * Uses model ID to determine which client to use:
-	 * - For Claude models: Supports advanced features like prompt caching and reasoning
-	 * - For Gemini models: Handles format conversion and basic streaming
-	 *
-	 * @param systemPrompt - Instructions to guide the model's behavior
-	 * @param messages - Array of messages in Anthropic format
-	 * @yields Various types of streaming content (text, reasoning, usage) depending on the model
-	 */
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
 		const modelId = model.id
 
 		if (modelId.includes("claude")) {
-			// Handle Claude models via AnthropicVertex client
 			let budget_tokens = this.options.thinkingBudgetTokens || 0
 			const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
 			let stream
 			switch (modelId) {
-				// Models that support cache control and advanced features
 				case "claude-3-7-sonnet@20250219":
 				case "claude-3-5-sonnet-v2@20241022":
 				case "claude-3-5-sonnet@20240620":
@@ -145,7 +111,6 @@ export class VertexHandler implements ApiHandler {
 					)
 					break
 				}
-				// Default Claude models without cache control
 				default: {
 					stream = await this.clientAnthropic.beta.messages.create({
 						model: modelId,
@@ -174,8 +139,6 @@ export class VertexHandler implements ApiHandler {
 					break
 				}
 			}
-
-			// Process Claude stream events
 			for await (const chunk of stream) {
 				switch (chunk.type) {
 					case "message_start":
@@ -249,7 +212,7 @@ export class VertexHandler implements ApiHandler {
 				}
 			}
 		} else {
-			// Handle Gemini models via VertexAI client
+			// gemini
 			const generativeModel = this.clientVertex.getGenerativeModel({
 				model: this.getModel().id,
 				systemInstruction: {
@@ -257,8 +220,6 @@ export class VertexHandler implements ApiHandler {
 					parts: [{ text: systemPrompt }],
 				},
 			})
-
-			// Convert Anthropic message format to Gemini format
 			const request = {
 				contents: [
 					{
@@ -288,8 +249,6 @@ export class VertexHandler implements ApiHandler {
 					},
 				],
 			}
-
-			// Process Gemini stream events
 			const streamingResult = await generativeModel.generateContentStream(request)
 			for await (const chunk of streamingResult.stream) {
 				// If usage data is available, yield it similarly:
@@ -310,12 +269,6 @@ export class VertexHandler implements ApiHandler {
 		}
 	}
 
-	/**
-	 * Determines which Vertex AI model to use based on configuration or defaults.
-	 * Includes both Claude and Gemini models available on Vertex AI.
-	 *
-	 * @returns Object containing the model ID and associated model information
-	 */
 	getModel(): { id: VertexModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in vertexModels) {

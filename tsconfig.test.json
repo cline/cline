@@ -6,17 +6,13 @@
 	// compiled to make them compatible with VS Code's test runner.
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
-		"module": "NodeNext",
-		"moduleResolution": "nodenext",
-		"noEmitOnError": false,
-		"skipLibCheck": true,
+		"module": "commonjs",
+		"moduleResolution": "node",
+		"types": ["node", "mocha", "should", "vscode", "chai"],
+		"typeRoots": ["./node_modules/@types", "./src/test/types"],
 		"outDir": "out",
-		"rootDir": "src",
-		"lib": ["ES2020"],
-		"sourceMap": true,
-		"strict": true,
-		"types": ["node", "mocha", "chai", "should"]
+		"rootDir": "src"
 	},
-	"include": ["src/test/**/*.ts", "src/utils/**/*.test.ts"],
-	"exclude": ["node_modules", "**/*.d.ts"]
+	"include": ["src/**/*.test.ts"],
+	"exclude": ["src/test/**/*.js"]
 }

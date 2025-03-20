@@ -9,31 +9,5 @@
 		"dist": true // set this to false to include "dist" folder in search results
 	},
 	// Turn off tsc task auto detection since we have the necessary tasks as npm scripts
-	"typescript.tsc.autoDetect": "off",
-	"mochaExplorer.files": ["out/**/*.test.js", "src/**/*.test.js"],
-	"mochaExplorer.require": ["src/test/test-helper.js", "src/test/set-test-mode.js"],
-	"mochaExplorer.ui": "bdd",
-	"mochaExplorer.timeout": 10000,
-	"mochaExplorer.fullTrace": true,
-	"mochaExplorer.env": {
-		"TEST_MODE": "true"
-	},
-	"mochaExplorer.nodeArgv": ["--require", "./src/test/test-helper.js"],
-	"mochaExplorer.showCollapseButton": true,
-	"mochaExplorer.mergeSuites": true,
-	"testExplorer.codeLens": true,
-	"testExplorer.gutterDecoration": true,
-	"testExplorer.errorDecoration": true,
-	"testExplorer.errorDecorationHover": true,
-	"testExplorer.onStart": "reset",
-	"testExplorer.onReload": "reset",
-	"testExplorer.showCollapseButton": true,
-	"testExplorer.mergeSuites": true,
-	"testExplorer.useNativeTesting": false,
-	"editor.formatOnSave": true,
-	"editor.codeActionsOnSave": {
-		"source.fixAll.eslint": "explicit"
-	},
-	"editor.defaultFormatter": "esbenp.prettier-vscode",
-	"typescript.preferences.importModuleSpecifier": "relative"
+	"typescript.tsc.autoDetect": "off"
 }

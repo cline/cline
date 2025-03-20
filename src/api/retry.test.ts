@@ -1,15 +1,6 @@
-/**
- * Test suite for the retry decorator functionality.
- *
- * NOTE: We're using CommonJS-style imports for Mocha (require) due to VS Code's test runner
- * compatibility requirements. This is necessary because VS Code's test infrastructure
- * requires CommonJS modules even when using nodenext module resolution. The rest of the
- * codebase uses ESM imports, but tests need CommonJS for compatibility with VS Code testing.
- */
-const mocha = require("mocha")
-const { describe, it } = mocha
+import { describe, it } from "mocha"
 import "should"
-import { withRetry } from "../../api/retry"
+import { withRetry } from "./retry"
 
 describe("Retry Decorator", () => {
 	describe("withRetry", () => {
@@ -193,8 +184,7 @@ describe("Retry Decorator", () => {
 
 			const duration = Date.now() - startTime
 			// Both retries should be capped at maxDelay (10ms each)
-			// Increased variance from 20ms to 21ms to accommodate slight timing differences
-			duration.should.be.approximately(20, 21)
+			duration.should.be.approximately(20, 20)
 			callCount.should.equal(3)
 			result.should.deepEqual(["success after retries"])
 		})

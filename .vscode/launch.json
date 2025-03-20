@@ -14,57 +14,7 @@
 			"preLaunchTask": "${defaultBuildTask}",
 			"env": {
 				"IS_DEV": "true",
-				// Use absolute path to avoid issues with spaces
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}"
-			}
-		},
-		{
-			"name": "Extension Tests",
-			"type": "extensionHost",
-			"request": "launch",
-			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--extensionTestsPath=${workspaceFolder}/out/test/suite/index"
-			],
-			"outFiles": ["${workspaceFolder}/out/**/*.js"],
-			"preLaunchTask": "npm: compile-tests",
-			"env": {
-				"TEST_MODE": "true"
-			}
-		},
-		{
-			"name": "Debug Current Test File",
-			"type": "node",
-			"request": "launch",
-			"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
-			"args": ["-u", "bdd", "--timeout", "10000", "--colors", "${file}"],
-			"internalConsoleOptions": "openOnSessionStart",
-			"skipFiles": ["<node_internals>/**"],
-			"preLaunchTask": "npm: compile-tests",
-			"env": {
-				"TEST_MODE": "true"
-			}
-		},
-		{
-			"name": "Run Path Tests",
-			"type": "node",
-			"request": "launch",
-			"program": "${workspaceFolder}/src/test/run-path-tests.js",
-			"skipFiles": ["<node_internals>/**"],
-			"preLaunchTask": "npm: compile-tests",
-			"env": {
-				"TEST_MODE": "true"
-			}
-		},
-		{
-			"name": "Run All Tests",
-			"type": "node",
-			"request": "launch",
-			"program": "${workspaceFolder}/src/test/run-all-tests.js",
-			"skipFiles": ["<node_internals>/**"],
-			"preLaunchTask": "npm: compile-tests",
-			"env": {
-				"TEST_MODE": "true"
 			}
 		}
 	]

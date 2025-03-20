@@ -1,21 +1,3 @@
-/**
- * Shared API type definitions for LLM provider integration.
- *
- * This module defines the core types, interfaces, and constants used throughout the application
- * for interacting with various Large Language Model (LLM) providers. It includes:
- *
- * - Common type definitions for API configuration and model information
- * - Provider-specific model configurations and defaults
- * - Pricing information and capability flags for each model
- *
- * This type system enables the application to support multiple providers with a consistent
- * interface while maintaining type safety and provider-specific configuration options.
- */
-
-/**
- * Supported LLM API providers.
- * The application can connect to any of these services to generate text.
- */
 export type ApiProvider =
 	| "anthropic"
 	| "openrouter"
@@ -38,60 +20,6 @@ export type ApiProvider =
 	| "xai"
 	| "sambanova"
 
-/**
- * Configuration options for API handlers.
- * Contains all possible options for all providers, with each provider using
- * a relevant subset of these options.
- *
- * @property apiModelId - The specific model ID to use (if not using the default model)
- * @property apiKey - API key for authentication (primarily for Anthropic)
- * @property clineApiKey - API key for Cline provider
- * @property liteLlmBaseUrl - Base URL for LiteLLM deployment
- * @property liteLlmModelId - Model ID for LiteLLM
- * @property liteLlmApiKey - API key for LiteLLM
- * @property anthropicBaseUrl - Custom base URL for Anthropic API
- * @property openRouterApiKey - API key for OpenRouter
- * @property openRouterModelId - Model ID for OpenRouter
- * @property openRouterModelInfo - Custom model information for OpenRouter
- * @property awsAccessKey - AWS access key for Bedrock
- * @property awsSecretKey - AWS secret key for Bedrock
- * @property awsSessionToken - AWS session token for temporary credentials
- * @property awsRegion - AWS region for Bedrock
- * @property awsUseCrossRegionInference - Whether to allow cross-region inference in AWS
- * @property awsBedrockUsePromptCache - Whether to use prompt caching with Bedrock
- * @property awsUseProfile - Whether to use AWS profile for authentication
- * @property awsProfile - AWS profile name to use
- * @property awsBedrockEndpoint - Custom endpoint for AWS Bedrock
- * @property vertexProjectId - Google Cloud project ID for Vertex AI
- * @property vertexRegion - Google Cloud region for Vertex AI
- * @property openAiBaseUrl - Custom base URL for OpenAI API
- * @property openAiApiKey - API key for OpenAI
- * @property openAiModelId - Model ID for OpenAI
- * @property openAiModelInfo - Custom model information for OpenAI
- * @property ollamaModelId - Model ID for Ollama
- * @property ollamaBaseUrl - Base URL for Ollama server
- * @property ollamaApiOptionsCtxNum - Context size for Ollama
- * @property lmStudioModelId - Model ID for LM Studio
- * @property lmStudioBaseUrl - Base URL for LM Studio
- * @property geminiApiKey - API key for Google Gemini
- * @property openAiNativeApiKey - API key for OpenAI native integration
- * @property deepSeekApiKey - API key for DeepSeek
- * @property requestyApiKey - API key for Requesty
- * @property requestyModelId - Model ID for Requesty
- * @property togetherApiKey - API key for Together AI
- * @property togetherModelId - Model ID for Together AI
- * @property qwenApiKey - API key for Qwen
- * @property mistralApiKey - API key for Mistral AI
- * @property azureApiVersion - API version for Azure OpenAI
- * @property vsCodeLmModelSelector - Model selector for VS Code LM
- * @property o3MiniReasoningEffort - Reasoning effort for O3 Mini model
- * @property qwenApiLine - API line for Qwen
- * @property asksageApiUrl - API URL for AskSage
- * @property asksageApiKey - API key for AskSage
- * @property xaiApiKey - API key for X AI
- * @property thinkingBudgetTokens - Budget for thinking tokens
- * @property sambanovaApiKey - API key for SambaNova
- */
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
@@ -143,31 +71,12 @@ export interface ApiHandlerOptions {
 	sambanovaApiKey?: string
 }
 
-/**
- * Complete API configuration including provider selection.
- * Extends the ApiHandlerOptions with the specific provider to use.
- *
- * @property apiProvider - The LLM provider to use
- */
 export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
 }
 
-/**
- * Model information and capabilities.
- * Defines the properties and capabilities of a specific LLM model.
- *
- * @property maxTokens - Maximum tokens the model can generate in a single completion
- * @property contextWindow - Maximum context window size (total tokens including prompt)
- * @property supportsImages - Whether the model supports image inputs
- * @property supportsComputerUse - Whether the model supports computer use/tool calls
- * @property supportsPromptCache - Whether the model supports prompt caching
- * @property inputPrice - Price per million tokens for input/prompt (in USD)
- * @property outputPrice - Price per million tokens for output/completion (in USD)
- * @property cacheWritesPrice - Price per million tokens for cache writes (in USD)
- * @property cacheReadsPrice - Price per million tokens for cache reads (in USD)
- * @property description - Human-readable description of the model
- */
+// Models
+
 export interface ModelInfo {
 	maxTokens?: number
 	contextWindow?: number
@@ -181,22 +90,12 @@ export interface ModelInfo {
 	description?: string
 }
 
-/**
- * Extended model information for OpenAI-compatible providers.
- * Adds OpenAI-specific configurations to the base ModelInfo.
- *
- * @property temperature - Temperature setting for controlling randomness
- */
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
 }
 
-/**
- * Anthropic Claude Models
- * @see https://docs.anthropic.com/en/docs/about-claude/models
- *
- * Pricing updated: 2025-01-02
- */
+// Anthropic
+// https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-3-7-sonnet-20250219"
 export const anthropicModels = {
@@ -254,10 +153,8 @@ export const anthropicModels = {
 	},
 } as const satisfies Record<string, ModelInfo> // as const assertion makes the object deeply readonly
 
-/**
- * AWS Bedrock Models
- * @see https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
- */
+// AWS Bedrock
+// https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0"
 export const bedrockModels = {
@@ -335,10 +232,8 @@ export const bedrockModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-/**
- * OpenRouter Models
- * @see https://openrouter.ai/models?order=newest&supported_parameters=tools
- */
+// OpenRouter
+// https://openrouter.ai/models?order=newest&supported_parameters=tools
 export const openRouterDefaultModelId = "anthropic/claude-3.7-sonnet" // will always exist in openRouterModels
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
@@ -353,12 +248,9 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	description:
 		"Claude 3.7 Sonnet is an advanced large language model with improved reasoning, coding, and problem-solving capabilities. It introduces a hybrid reasoning approach, allowing users to choose between rapid responses and extended, step-by-step processing for complex tasks. The model demonstrates notable improvements in coding, particularly in front-end development and full-stack updates, and excels in agentic workflows, where it can autonomously navigate multi-step processes. \n\nClaude 3.7 Sonnet maintains performance parity with its predecessor in standard mode while offering an extended reasoning mode for enhanced accuracy in math, coding, and instruction-following tasks.\n\nRead more at the [blog post here](https://www.anthropic.com/news/claude-3-7-sonnet)",
 }
-
-/**
- * Google Vertex AI Models
- * @see https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
- * @see https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
- */
+// Vertex AI
+// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
+// https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
 export type VertexModelId = keyof typeof vertexModels
 export const vertexDefaultModelId: VertexModelId = "claude-3-7-sonnet@20250219"
 export const vertexModels = {
@@ -512,13 +404,121 @@ export const vertexModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-// Update default model to latest
-export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash"
+export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
+	maxTokens: -1,
+	contextWindow: 128_000,
+	supportsImages: true,
+	supportsPromptCache: false,
+	inputPrice: 0,
+	outputPrice: 0,
+	temperature: 0,
+}
 
-/**
- * OpenAI Native Models
- * @see https://openai.com/api/pricing/
- */
+// Gemini
+// https://ai.google.dev/gemini-api/docs/models/gemini
+export type GeminiModelId = keyof typeof geminiModels
+export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-001"
+export const geminiModels = {
+	"gemini-2.0-flash-001": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-flash-lite-preview-02-05": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-pro-exp-02-05": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-flash-thinking-exp-01-21": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-flash-thinking-exp-1219": {
+		maxTokens: 8192,
+		contextWindow: 32_767,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.0-flash-exp": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-flash-002": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-flash-exp-0827": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-flash-8b-exp-0827": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-pro-002": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-pro-exp-0827": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-exp-1206": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// OpenAI Native
+// https://openai.com/api/pricing/
 export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-4o"
 export const openAiNativeModels = {
@@ -587,17 +587,13 @@ export const openAiNativeModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-/**
- * Azure OpenAI API Versions
- * @see https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
- * @see https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
- */
+// Azure OpenAI
+// https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
+// https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#api-specs
 export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
 
-/**
- * DeepSeek Models
- * @see https://api-docs.deepseek.com/quick_start/pricing
- */
+// DeepSeek
+// https://api-docs.deepseek.com/quick_start/pricing
 export type DeepSeekModelId = keyof typeof deepSeekModels
 export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-chat"
 export const deepSeekModels = {
@@ -623,10 +619,8 @@ export const deepSeekModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-/**
- * Qwen Models (Alibaba Cloud)
- * @see https://bailian.console.aliyun.com/
- */
+// Qwen
+// https://bailian.console.aliyun.com/
 export type MainlandQwenModelId = keyof typeof mainlandQwenModels
 export type InternationalQwenModelId = keyof typeof internationalQwenModels
 export const internationalQwenDefaultModelId: InternationalQwenModelId = "qwen-coder-plus-latest"
@@ -1057,10 +1051,8 @@ export const mainlandQwenModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-/**
- * Mistral AI Models
- * @see https://docs.mistral.ai/getting-started/models/models_overview/
- */
+// Mistral
+// https://docs.mistral.ai/getting-started/models/models_overview/
 export type MistralModelId = keyof typeof mistralModels
 export const mistralDefaultModelId: MistralModelId = "codestral-2501"
 export const mistralModels = {
@@ -1146,10 +1138,8 @@ export const mistralModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-/**
- * LiteLLM Models
- * @see https://docs.litellm.ai/docs/
- */
+// LiteLLM
+// https://docs.litellm.ai/docs/
 export type LiteLLMModelId = string
 export const liteLlmDefaultModelId = "gpt-3.5-turbo"
 export const liteLlmModelInfoSaneDefaults: ModelInfo = {
@@ -1161,10 +1151,8 @@ export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	outputPrice: 0,
 }
 
-/**
- * AskSage Models
- * @see https://docs.asksage.ai/
- */
+// AskSage Models
+// https://docs.asksage.ai/
 export type AskSageModelId = keyof typeof askSageModels
 export const askSageDefaultModelId: AskSageModelId = "claude-35-sonnet"
 export const askSageDefaultURL: string = "https://api.asksage.ai/server"
@@ -1211,10 +1199,8 @@ export const askSageModels = {
 	},
 }
 
-/**
- * X AI (formerly Twitter) Models
- * @see https://docs.x.ai/docs/api-reference
- */
+// X AI
+// https://docs.x.ai/docs/api-reference
 export type XAIModelId = keyof typeof xaiModels
 export const xaiDefaultModelId: XAIModelId = "grok-2-latest"
 export const xaiModels = {
@@ -1292,10 +1278,8 @@ export const xaiModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-/**
- * SambaNova Models
- * @see https://docs.sambanova.ai/cloud/docs/get-started/supported-models
- */
+// SambaNova
+// https://docs.sambanova.ai/cloud/docs/get-started/supported-models
 export type SambanovaModelId = keyof typeof sambanovaModels
 export const sambanovaDefaultModelId: SambanovaModelId = "Meta-Llama-3.3-70B-Instruct"
 export const sambanovaModels = {
@@ -1380,125 +1364,3 @@ export const sambanovaModels = {
 		outputPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>
-
-/**
- * Default model information for OpenAI-compatible providers.
- * Used when specific model information is not available.
- */
-export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
-	maxTokens: -1,
-	contextWindow: 128_000,
-	supportsImages: true,
-	supportsPromptCache: false,
-	inputPrice: 0,
-	outputPrice: 0,
-	temperature: 0,
-}
-
-/**
- * Google Gemini Models
- * @see https://ai.google.dev/gemini-api/docs/models/gemini
- */
-export type GeminiModelId =
-	| "gemini-2.0-flash"
-	| "gemini-2.0-flash-001"
-	| "gemini-1.5-pro"
-	| "gemini-1.5-pro-002"
-	| "gemini-1.5-flash"
-	| "gemini-1.0-pro"
-	| "gemini-1.0-pro-001"
-	| "gemini-1.0-pro-latest"
-	| "gemini-1.0-pro-vision-latest"
-
-export const geminiModels: Record<GeminiModelId, ModelInfo> = {
-	"gemini-2.0-flash": {
-		description: "Gemini 2.0 Flash",
-		contextWindow: 1048576, // 1M tokens
-		maxTokens: 8192,
-		supportsImages: true,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0.0000007,
-		outputPrice: 0.0000014,
-	},
-	"gemini-2.0-flash-001": {
-		description: "Gemini 2.0 Flash 001",
-		contextWindow: 1048576, // 1M tokens
-		maxTokens: 8192,
-		supportsImages: true,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0.0000007,
-		outputPrice: 0.0000014,
-	},
-	"gemini-1.5-pro": {
-		description: "Gemini 1.5 Pro",
-		contextWindow: 2097152, // 2M tokens
-		maxTokens: 8192,
-		supportsImages: true,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0.000003,
-		outputPrice: 0.00001,
-	},
-	"gemini-1.5-pro-002": {
-		description: "Gemini 1.5 Pro 002",
-		contextWindow: 2097152, // 2M tokens
-		maxTokens: 8192,
-		supportsImages: true,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0.000003,
-		outputPrice: 0.00001,
-	},
-	"gemini-1.5-flash": {
-		description: "Gemini 1.5 Flash",
-		contextWindow: 1048576, // 1M tokens
-		maxTokens: 8192,
-		supportsImages: true,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0.0000005,
-		outputPrice: 0.0000015,
-	},
-	"gemini-1.0-pro": {
-		description: "Gemini 1.0 Pro",
-		contextWindow: 32768, // 32k tokens
-		maxTokens: 8192,
-		supportsImages: false,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0.000000375,
-		outputPrice: 0.00000125,
-	},
-	"gemini-1.0-pro-001": {
-		description: "Gemini 1.0 Pro 001",
-		contextWindow: 32768, // 32k tokens
-		maxTokens: 8192,
-		supportsImages: false,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0.000000375,
-		outputPrice: 0.00000125,
-	},
-	"gemini-1.0-pro-latest": {
-		description: "Gemini 1.0 Pro Latest",
-		contextWindow: 32768, // 32k tokens
-		maxTokens: 8192,
-		supportsImages: false,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0.000000375,
-		outputPrice: 0.00000125,
-	},
-	"gemini-1.0-pro-vision-latest": {
-		description: "Gemini 1.0 Pro Vision Latest",
-		contextWindow: 32768, // 32k tokens
-		maxTokens: 8192,
-		supportsImages: true,
-		supportsComputerUse: false,
-		supportsPromptCache: false,
-		inputPrice: 0.000000375,
-		outputPrice: 0.00000125,
-	},
-}
