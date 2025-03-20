@@ -7,7 +7,7 @@ import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
-import { ConversationDataSetting, TelemetrySetting } from "./TelemetrySetting"
+import { TelemetrySetting } from "./TelemetrySetting"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -94,7 +94,6 @@ export interface ExtensionState {
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
-	conversationDataSetting?: ConversationDataSetting
 	uriScheme?: string
 	userInfo?: {
 		displayName: string | null
