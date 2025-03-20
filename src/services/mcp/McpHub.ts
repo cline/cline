@@ -351,15 +351,22 @@ export class McpHub {
 				const stderrStream = transport.stderr
 				if (stderrStream) {
 					stderrStream.on("data", async (data: Buffer) => {
-						const errorOutput = data.toString()
-						console.error(`Server "${name}" stderr:`, errorOutput)
-						const connection = this.connections.find((conn) => conn.server.name === name)
-						if (connection) {
-							// NOTE: we do not set server status to "disconnected" because stderr logs do not necessarily mean the server crashed or disconnected, it could just be informational. In fact when the server first starts up, it immediately logs "<name> server running on stdio" to stderr.
-							this.appendErrorMessage(connection, errorOutput)
-							// Only need to update webview right away if it's already disconnected
-							if (connection.server.status === "disconnected") {
-								await this.notifyWebviewOfServerChanges()
+						const output = data.toString()
+						// Check if output contains INFO level log
+						const isInfoLog = /INFO/i.test(output)
+
+						if (isInfoLog) {
+							// Log normal informational messages
+							console.log(`Server "${name}" info:`, output)
+						} else {
+							// Treat as error log
+							console.error(`Server "${name}" stderr:`, output)
+							const connection = this.connections.find((conn) => conn.server.name === name)
+							if (connection) {
+								this.appendErrorMessage(connection, output)
+								if (connection.server.status === "disconnected") {
+									await this.notifyWebviewOfServerChanges()
+								}
 							}
 						}
 					})
