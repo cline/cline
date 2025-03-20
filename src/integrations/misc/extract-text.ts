@@ -8,6 +8,23 @@ import { getFileSizeInKB } from "../../utils/fs"
 import * as chardet from "jschardet"
 import * as iconv from "iconv-lite"
 
+async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
+	const detected = chardet.detect(fileBuffer)
+	if (typeof detected === "string") {
+		return detected
+	} else if (detected && (detected as any).encoding) {
+		return (detected as any).encoding
+	} else {
+		if (fileExtension) {
+			const isBinary = await isBinaryFile(fileBuffer).catch(() => false)
+			if (isBinary) {
+				throw new Error(`Cannot read text for file type: ${fileExtension}`)
+			}
+		}
+		return "utf8"
+	}
+}
+
 export async function extractTextFromFile(filePath: string): Promise<string> {
 	try {
 		await fs.access(filePath)
@@ -27,19 +44,7 @@ export async function extractTextFromFile(filePath: string): Promise<string> {
 			if (fileBuffer.byteLength > 300 * 1024) {
 				throw new Error(`File is too large to read into context.`)
 			}
-			const detected = chardet.detect(fileBuffer)
-			let encoding: string
-			if (typeof detected === "string") {
-				encoding = detected
-			} else if (detected && (detected as any).encoding) {
-				encoding = (detected as any).encoding
-			} else {
-				const isBinary = await isBinaryFile(fileBuffer).catch(() => false)
-				if (isBinary) {
-					throw new Error(`Cannot read text for file type: ${fileExtension}`)
-				}
-				encoding = "utf8"
-			}
+			const encoding = await detectEncoding(fileBuffer, fileExtension)
 			return iconv.decode(fileBuffer, encoding)
 	}
 }
@@ -57,9 +62,7 @@ async function extractTextFromDOCX(filePath: string): Promise<string> {
 
 async function extractTextFromIPYNB(filePath: string): Promise<string> {
 	const fileBuffer = await fs.readFile(filePath)
-	const detected = chardet.detect(fileBuffer)
-	const encoding =
-		typeof detected === "string" ? detected : detected && (detected as any).encoding ? (detected as any).encoding : "utf8"
+	const encoding = await detectEncoding(fileBuffer)
 	const data = iconv.decode(fileBuffer, encoding)
 	const notebook = JSON.parse(data)
 	let extractedText = ""
