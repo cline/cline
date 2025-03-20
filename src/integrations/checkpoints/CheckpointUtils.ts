@@ -33,7 +33,8 @@ export async function getShadowGitPath(globalStoragePath: string, taskId: string
  * Gets the current working directory from the VS Code workspace.
  * Validates that checkpoints are not being used in protected directories
  * like home, Desktop, Documents, or Downloads. Checks to confirm that the workspace
- * is accessible and that we will not encoutner permissions issues when creating checkpoints.
+ * is accessible and that we will not encounter breaking permissions issues when
+ * creating checkpoints.
  *
  * Protected directories:
  * - User's home directory
@@ -50,12 +51,12 @@ export async function getWorkingDirectory(): Promise<string> {
 		throw new Error("No workspace detected. Please open Cline in a workspace to use checkpoints.")
 	}
 
-	// Check if directory exists and we have read/write permissions
+	// Check if directory exists and we have read permissions
 	try {
 		await access(cwd, constants.R_OK)
 	} catch (error) {
 		throw new Error(
-			`Cannot access workspace directory. Please ensure VS Code has and write permissions to your workspace. Error: ${error.message}`,
+			`Cannot access workspace directory. Please ensure VS Code has permission to access your workspace. Error: ${error.message}`,
 		)
 	}
 

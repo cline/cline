@@ -195,6 +195,8 @@ export class GitOperations {
 			await this.renameNestedGitRepos(true)
 			console.info("Starting checkpoint add operation...")
 
+			// Attempt to add all files. Any files with permissions errors will not be added,
+			// but the process will proceed and add the rest (--ignore-errors).
 			try {
 				await git.add([".", "--ignore-errors"])
 				const durationMs = Math.round(performance.now() - startTime)
