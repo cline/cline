@@ -82,6 +82,7 @@ import { validateToolUse, isToolAllowedForMode, ToolName } from "./mode-validato
 import { parseXml } from "../utils/xml"
 import { readLines } from "../integrations/misc/read-lines"
 import { getWorkspacePath } from "../utils/path"
+import { isBinaryFile } from "isbinaryfile"
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.Messages.ContentBlockParam>
@@ -2324,6 +2325,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 								let isFileTruncated = false
 								let sourceCodeDef = ""
 
+								const isBinary = await isBinaryFile(absolutePath).catch(() => false)
+
 								if (isRangeRead) {
 									if (startLine === undefined) {
 										content = addLineNumbers(await readLines(absolutePath, endLine, startLine))
@@ -2333,7 +2336,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 											startLine,
 										)
 									}
-								} else if (totalLines > maxReadFileLine) {
+								} else if (!isBinary && totalLines > maxReadFileLine) {
 									// If file is too large, only read the first maxReadFileLine lines
 									isFileTruncated = true
 
