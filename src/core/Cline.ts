@@ -67,7 +67,6 @@ import { telemetryService } from "../services/telemetry/TelemetryService"
 import { ConversationTelemetryService, TelemetryChatMessage } from "../services/telemetry/ConversationTelemetryService"
 import pTimeout from "p-timeout"
 import { GlobalFileNames } from "../global-constants"
-import { ensureTaskDirectoryExists } from "./messages-io"
 import { checkIsOpenRouterContextWindowError } from "./context-management/context-error-handling"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -181,13 +180,18 @@ export class Cline {
 
 	// Storing task to disk for history
 
-	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
+	private async ensureTaskDirectoryExists(): Promise<string> {
 		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-		const taskId = this.taskId
-		const filePath = path.join(
-			await ensureTaskDirectoryExists(globalStoragePath, taskId),
-			GlobalFileNames.apiConversationHistory,
-		)
+		if (!globalStoragePath) {
+			throw new Error("Global storage uri is invalid")
+		}
+		const taskDir = path.join(globalStoragePath, "tasks", this.taskId)
+		await fs.mkdir(taskDir, { recursive: true })
+		return taskDir
+	}
+
+	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
+		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
 		const fileExists = await fileExistsAtPath(filePath)
 		if (fileExists) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
@@ -207,12 +211,7 @@ export class Cline {
 
 	private async saveApiConversationHistory() {
 		try {
-			const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-			const taskId = this.taskId
-			const filePath = path.join(
-				await ensureTaskDirectoryExists(globalStoragePath, taskId),
-				GlobalFileNames.apiConversationHistory,
-			)
+			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
 			await fs.writeFile(filePath, JSON.stringify(this.apiConversationHistory))
 		} catch (error) {
 			// in the off chance this fails, we don't want to stop the task
@@ -221,14 +220,12 @@ export class Cline {
 	}
 
 	private async getSavedClineMessages(): Promise<ClineMessage[]> {
-		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-		const taskId = this.taskId
-		const filePath = path.join(await ensureTaskDirectoryExists(globalStoragePath, taskId), GlobalFileNames.uiMessages)
+		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages)
 		if (await fileExistsAtPath(filePath)) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
 		} else {
 			// check old location
-			const oldPath = path.join(await ensureTaskDirectoryExists(globalStoragePath, taskId), "claude_messages.json")
+			const oldPath = path.join(await this.ensureTaskDirectoryExists(), "claude_messages.json")
 			if (await fileExistsAtPath(oldPath)) {
 				const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
 				await fs.unlink(oldPath) // remove old file
@@ -254,9 +251,7 @@ export class Cline {
 
 	private async saveClineMessages() {
 		try {
-			const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-			const taskId = this.taskId
-			const taskDir = await ensureTaskDirectoryExists(globalStoragePath, taskId)
+			const taskDir = await this.ensureTaskDirectoryExists()
 			const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
 			await fs.writeFile(filePath, JSON.stringify(this.clineMessages))
 			// combined as they are in ChatView
