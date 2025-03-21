@@ -13,6 +13,7 @@ export async function createOpenRouterStream(
 	model: { id: string; info: ModelInfo },
 	o3MiniReasoningEffort?: string,
 	thinkingBudgetTokens?: number,
+	openRouterProviderSorting?: string,
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -145,6 +146,7 @@ export async function createOpenRouterStream(
 		include_reasoning: true,
 		...(model.id === "openai/o3-mini" ? { reasoning_effort: o3MiniReasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
+		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
 	})
 
 	return stream
