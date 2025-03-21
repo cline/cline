@@ -8,10 +8,18 @@ import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
+import { AwsCredentialIdentity } from "@aws-sdk/types"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
 	private options: ApiHandlerOptions
+	// Cache for AWS credentials with expiration time
+	private cachedCredentials?: {
+		credentials: AwsCredentialIdentity & { expiration?: Date }
+		timestamp: number
+	}
+	// Refresh credentials 5 minutes before they expire to avoid any issues
+	private static readonly CREDENTIAL_REFRESH_BUFFER_MS = 5 * 60 * 1000
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
@@ -172,17 +180,51 @@ export class AwsBedrockHandler implements ApiHandler {
 	private static readonly DEFAULT_REGION = "us-east-1"
 
 	/**
+	 * Checks if the cached credentials are expired or about to expire
+	 */
+	private areCredentialsExpired(): boolean {
+		if (!this.cachedCredentials) {
+			return true
+		}
+
+		// If using AWS profile, check if credentials have an expiration
+		if (this.options.awsUseProfile && this.cachedCredentials.credentials.expiration) {
+			const now = Date.now()
+			const expirationTime = this.cachedCredentials.credentials.expiration.getTime()
+			
+			// Return true if credentials will expire within the buffer time
+			return now + AwsBedrockHandler.CREDENTIAL_REFRESH_BUFFER_MS >= expirationTime
+		}
+
+		// If using direct credentials (not a profile), or if the profile credentials don't have an expiration,
+		// we assume they're static and don't expire
+		if (!this.options.awsUseProfile) {
+			return false
+		}
+
+		// For profiles without explicit expiration, we'll refresh after 50 minutes to be safe
+		// This handles cases where the AWS SDK doesn't provide expiration info but credentials might still expire
+		const MAX_CREDENTIAL_AGE_MS = 50 * 60 * 1000 // 50 minutes
+		const now = Date.now()
+		const credentialAge = now - this.cachedCredentials.timestamp
+		
+		return credentialAge >= MAX_CREDENTIAL_AGE_MS
+	}
+
+	/**
 	 * Gets AWS credentials using the provider chain
 	 * Centralizes credential retrieval logic for all AWS services
+	 * Implements caching and automatic refresh of credentials
 	 */
-	private async getAwsCredentials(): Promise<{
-		accessKeyId: string
-		secretAccessKey: string
-		sessionToken?: string
-	}> {
+	private async getAwsCredentials(): Promise<AwsCredentialIdentity> {
+		// Use cached credentials if they're still valid
+		if (this.cachedCredentials && !this.areCredentialsExpired()) {
+			return this.cachedCredentials.credentials
+		}
+
 		// Create AWS credentials by executing an AWS provider chain
 		const providerChain = fromNodeProviderChain()
-		return await AwsBedrockHandler.withTempEnv(
+		const credentials = await AwsBedrockHandler.withTempEnv(
 			() => {
 				AwsBedrockHandler.setEnv("AWS_REGION", this.options.awsRegion)
 				AwsBedrockHandler.setEnv("AWS_ACCESS_KEY_ID", this.options.awsAccessKey)
@@ -192,6 +234,22 @@ export class AwsBedrockHandler implements ApiHandler {
 			},
 			() => providerChain(),
 		)
+
+		// Cache the new credentials with current timestamp
+		this.cachedCredentials = {
+			credentials,
+			timestamp: Date.now()
+		}
+
+		// Log credential refresh for debugging
+		if (this.options.awsUseProfile) {
+			const expirationInfo = credentials.expiration 
+				? `expires at ${credentials.expiration.toISOString()}` 
+				: 'no expiration provided';
+			console.log(`AWS credentials refreshed using profile '${this.options.awsProfile || 'default'}' (${expirationInfo})`);
+		}
+
+		return credentials
 	}
 
 	/**
@@ -209,11 +267,7 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		return new BedrockRuntimeClient({
 			region: this.getRegion(),
-			credentials: {
-				accessKeyId: credentials.accessKeyId,
-				secretAccessKey: credentials.secretAccessKey,
-				sessionToken: credentials.sessionToken,
-			},
+			credentials,
 			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
 		})
 	}
