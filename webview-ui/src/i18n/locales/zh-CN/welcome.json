@@ -5,7 +5,7 @@
 	"start": "开始吧！",
 	"telemetry": {
 		"title": "帮助改进 Roo 代码",
-		"changeSettings": "可以随时在设置页面底部更改此设置",
+		"changeSettings": "可以随时在<settingsLink>设置</settingsLink>页面底部更改此设置",
 		"settings": "设置",
 		"anonymousTelemetry": "发送匿名的错误和使用数据，以帮助我们修复错误并改进扩展程序。不会发送任何代码、提示或个人信息。",
 		"allow": "允许",

@@ -6,7 +6,7 @@
 	"telemetry": {
 		"title": "Hilf, Roo Code zu verbessern",
 		"anonymousTelemetry": "Sende anonyme Fehler- und Nutzungsdaten, um uns bei der Fehlerbehebung und Verbesserung der Erweiterung zu helfen. Es werden niemals Code, Texte oder persönliche Informationen gesendet.",
-		"changeSettings": "Du kannst dies jederzeit unten in den Einstellungen ändern",
+		"changeSettings": "Du kannst dies jederzeit unten in den <settingsLink>Einstellungen</settingsLink> ändern",
 		"settings": "Einstellungen",
 		"allow": "Erlauben",
 		"deny": "Ablehnen"

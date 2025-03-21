@@ -4,6 +4,7 @@ import styled from "styled-components"
 import { vscode } from "../../utils/vscode"
 import { TelemetrySetting } from "../../../../src/shared/TelemetrySetting"
 import { useAppTranslation } from "../../i18n/TranslationContext"
+import { Trans } from "react-i18next"
 
 const BannerContainer = styled.div`
 	background-color: var(--vscode-banner-background);
@@ -49,10 +50,12 @@ const TelemetryBanner = () => {
 				<div className="mt-1">
 					{t("welcome:telemetry.anonymousTelemetry")}
 					<div className="mt-1">
-						{t("welcome:telemetry.changeSettings")}{" "}
-						<VSCodeLink href="#" onClick={handleOpenSettings}>
-							{t("welcome:telemetry.settings")}
-						</VSCodeLink>
+						<Trans
+							i18nKey="welcome:telemetry.changeSettings"
+							components={{
+								settingsLink: <VSCodeLink href="#" onClick={handleOpenSettings} />,
+							}}
+						/>
 						.
 					</div>
 				</div>
