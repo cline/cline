@@ -66,7 +66,12 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey
 import { telemetryService } from "../services/telemetry/TelemetryService"
 import pTimeout from "p-timeout"
 import { GlobalFileNames } from "../global-constants"
-import { ensureTaskDirectoryExists, getSavedApiConversationHistory, saveApiConversationHistory } from "./messages-io"
+import {
+	ensureTaskDirectoryExists,
+	getSavedApiConversationHistory,
+	getSavedClineMessages,
+	saveApiConversationHistory,
+} from "./messages-io"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -191,24 +196,6 @@ export class Cline {
 		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
 		const taskId = this.taskId
 		await saveApiConversationHistory(globalStoragePath, taskId, this.apiConversationHistory)
-	}
-
-	private async getSavedClineMessages(): Promise<ClineMessage[]> {
-		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-		const taskId = this.taskId
-		const filePath = path.join(await ensureTaskDirectoryExists(globalStoragePath, taskId), GlobalFileNames.uiMessages)
-		if (await fileExistsAtPath(filePath)) {
-			return JSON.parse(await fs.readFile(filePath, "utf8"))
-		} else {
-			// check old location
-			const oldPath = path.join(await ensureTaskDirectoryExists(globalStoragePath, taskId), "claude_messages.json")
-			if (await fileExistsAtPath(oldPath)) {
-				const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
-				await fs.unlink(oldPath) // remove old file
-				return data
-			}
-		}
-		return []
 	}
 
 	private async addToClineMessages(message: ClineMessage) {
@@ -820,8 +807,9 @@ export class Cline {
 		// if (!doesShadowGitExist) {
 		// 	this.checkpointTrackerErrorMessage = "Checkpoints are only available for new tasks"
 		// }
-
-		const modifiedClineMessages = await this.getSavedClineMessages()
+		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
+		const taskId = this.taskId
+		const modifiedClineMessages = await getSavedClineMessages(globalStoragePath, taskId)
 
 		// Remove any resume messages that may have been added before
 		const lastRelevantMessageIndex = findLastIndex(
@@ -846,13 +834,11 @@ export class Cline {
 		}
 
 		await this.overwriteClineMessages(modifiedClineMessages)
-		this.clineMessages = await this.getSavedClineMessages()
+		this.clineMessages = await getSavedClineMessages(globalStoragePath, taskId)
 
 		// Now present the cline messages to the user and ask if they want to resume (NOTE: we ran into a bug before where the apiconversationhistory wouldnt be initialized when opening a old task, and it was because we were waiting for resume)
 		// This is important in case the user deletes messages without resuming the task first
 
-		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-		const taskId = this.taskId
 		this.apiConversationHistory = await getSavedApiConversationHistory(globalStoragePath, taskId)
 
 		const lastClineMessage = this.clineMessages
