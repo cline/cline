@@ -19,6 +19,7 @@ export type ApiProvider =
 	| "asksage"
 	| "xai"
 	| "sambanova"
+	| "targon"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -69,6 +70,10 @@ export interface ApiHandlerOptions {
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
 	sambanovaApiKey?: string
+	// targon
+	targonApiKey?: string
+	targonModelId?: string
+	targonModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -234,7 +239,7 @@ export const bedrockModels = {
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export const openRouterDefaultModelId = "anthropic/claude-3.7-sonnet" // will always exist in openRouterModels
+export const openRouterDefaultModelId = "deepseek/deepseek-r1:free"
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
@@ -1362,5 +1367,27 @@ export const sambanovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Targon
+export type TargonModelId = keyof typeof targonModels
+export const targonDefaultModelId: TargonModelId = "claude-3-opus"
+export const targonModels = {
+	"claude-3-opus": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+	},
+	"mixtral-8x7b": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.4,
+		outputPrice: 1.2,
 	},
 } as const satisfies Record<string, ModelInfo>

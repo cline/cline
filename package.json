@@ -306,7 +306,7 @@
 		"monaco-vscode-textmate-theme-converter": "^0.1.7",
 		"ollama": "^0.5.13",
 		"open-graph-scraper": "^6.9.0",
-		"openai": "^4.83.0",
+		"openai": "^4.89.0",
 		"os-name": "^6.0.0",
 		"p-timeout": "^6.1.4",
 		"p-wait-for": "^5.0.2",
