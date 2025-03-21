@@ -182,6 +182,15 @@ export class Cline {
 		this.chatSettings = chatSettings
 	}
 
+	// Storing task to disk for history
+
+	private async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
+		this.apiConversationHistory = newHistory
+		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
+		const taskId = this.taskId
+		await saveApiConversationHistory(globalStoragePath, taskId, this.apiConversationHistory)
+	}
+
 	private async addToClineMessages(message: ClineMessage) {
 		// these values allow us to reconstruct the conversation history at the time this cline message was created
 		// it's important that apiConversationHistory is initialized before we add cline messages
@@ -287,11 +296,7 @@ export class Cline {
 						0,
 						(message.conversationHistoryIndex || 0) + 2,
 					) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
-
-					this.apiConversationHistory = newConversationHistory
-					const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-					const taskId = this.taskId
-					await saveApiConversationHistory(globalStoragePath, taskId, this.apiConversationHistory)
+					await this.overwriteApiConversationHistory(newConversationHistory)
 
 					// aggregate deleted api reqs info so we don't lose costs/tokens
 					const deletedMessages = this.clineMessages.slice(messageIndex + 1)
@@ -1002,9 +1007,7 @@ export class Cline {
 			newUserContent.push(...formatResponse.imageBlocks(responseImages))
 		}
 
-		this.apiConversationHistory = modifiedApiConversationHistory
-		await saveApiConversationHistory(globalStoragePath, taskId, this.apiConversationHistory)
-
+		await this.overwriteApiConversationHistory(modifiedApiConversationHistory)
 		await this.initiateTaskLoop(newUserContent, false)
 	}
 
@@ -1351,6 +1354,7 @@ export class Cline {
 						keep,
 					)
 					await this.saveClineMessages() // saves task history item which we use to keep track of conversation history deleted range
+					// await this.overwriteApiConversationHistory(truncatedMessages)
 				}
 			}
 		}
