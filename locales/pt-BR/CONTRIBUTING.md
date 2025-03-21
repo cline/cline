@@ -26,7 +26,68 @@ Procurando uma boa primeira contribuição? Verifique as issues na seção "Issu
 
 Também damos as boas-vindas a contribuições para nossa [documentação](https://docs.roocode.com/)! Seja corrigindo erros de digitação, melhorando guias existentes ou criando novo conteúdo educacional - adoraríamos construir um repositório de recursos impulsionado pela comunidade que ajude todos a obter o máximo do Roo Code. Você pode clicar em "Edit this page" em qualquer página para ir rapidamente ao local certo no Github para editar o arquivo, ou pode mergulhar diretamente em https://github.com/RooVetGit/Roo-Code-Docs.
 
-Se você está planejando trabalhar em um recurso maior, por favor crie primeiro uma [solicitação de recurso](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) para que possamos discutir se está alinhado com a visão do Roo Code.
+Se você está planejando trabalhar em um recurso maior, por favor crie primeiro uma [solicitação de recurso](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) para que possamos discutir se está alinhado com a visão do Roo Code. Você também pode verificar nosso [Roteiro do Projeto](#roteiro-do-projeto) abaixo para ver se sua ideia se encaixa em nossa direção estratégica.
+
+## Roteiro do Projeto
+
+O Roo Code possui um roteiro de desenvolvimento claro que orienta nossas prioridades e direção futura. Entender nosso roteiro pode ajudar você a:
+
+- Alinhar suas contribuições com os objetivos do projeto
+- Identificar áreas onde sua expertise seria mais valiosa
+- Entender o contexto por trás de certas decisões de design
+- Encontrar inspiração para novos recursos que apoiem nossa visão
+
+Nosso roteiro atual se concentra em seis pilares principais:
+
+### Suporte a Provedores
+
+Nosso objetivo é oferecer suporte a tantos provedores quanto possível:
+
+- Suporte mais versátil para "OpenAI Compatible"
+- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
+- Suporte aprimorado para Ollama e LM Studio
+
+### Suporte a Modelos
+
+Queremos que o Roo funcione bem em tantos modelos quanto possível, incluindo modelos locais:
+
+- Suporte a modelos locais através de prompts de sistema personalizados e fluxos de trabalho
+- Avaliações de benchmark e casos de teste
+
+### Suporte a Sistemas
+
+Queremos que o Roo funcione bem no computador de todos:
+
+- Integração de terminal multiplataforma
+- Suporte forte e consistente para Mac, Windows e Linux
+
+### Documentação
+
+Queremos documentação abrangente e acessível para todos os usuários e colaboradores:
+
+- Guias de usuário e tutoriais expandidos
+- Documentação clara da API
+- Melhor orientação para colaboradores
+- Recursos de documentação multilíngues
+- Exemplos interativos e amostras de código
+
+### Estabilidade
+
+Queremos diminuir significativamente o número de bugs e aumentar os testes automatizados:
+
+- Interruptor de registro de depuração
+- Botão de cópia "Informações de Máquina/Tarefa" para enviar com solicitações de suporte/bug
+
+### Internacionalização
+
+Queremos que o Roo fale o idioma de todos:
+
+- 我们希望 Roo Code 说每个人的语言
+- Queremos que Roo Code hable el idioma de todos
+- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
+- نريد أن يتحدث Roo Code لغة الجميع
+
+Damos especialmente as boas-vindas a contribuições que avançam os objetivos do nosso roteiro. Se você estiver trabalhando em algo que se alinha com esses pilares, por favor mencione isso na descrição do seu PR.
 
 ## Configuração de Desenvolvimento
 

@@ -26,7 +26,68 @@ Tìm kiếm đóng góp đầu tiên tốt? Kiểm tra các vấn đề trong ph
 
 Chúng tôi cũng hoan nghênh đóng góp cho [tài liệu](https://docs.roocode.com/) của chúng tôi! Dù là sửa lỗi chính tả, cải thiện hướng dẫn hiện có, hay tạo nội dung giáo dục mới - chúng tôi muốn xây dựng một kho tài nguyên do cộng đồng thúc đẩy giúp mọi người tận dụng tối đa Roo Code. Bạn có thể nhấp vào "Edit this page" trên bất kỳ trang nào để nhanh chóng đến đúng vị trí trong Github để chỉnh sửa tệp, hoặc bạn có thể đi trực tiếp vào https://github.com/RooVetGit/Roo-Code-Docs.
 
-Nếu bạn đang lên kế hoạch làm việc trên một tính năng lớn hơn, vui lòng tạo [yêu cầu tính năng](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) trước để chúng tôi có thể thảo luận xem nó có phù hợp với tầm nhìn của Roo Code không.
+Nếu bạn đang lên kế hoạch làm việc trên một tính năng lớn hơn, vui lòng tạo [yêu cầu tính năng](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) trước để chúng tôi có thể thảo luận xem nó có phù hợp với tầm nhìn của Roo Code không. Bạn cũng có thể kiểm tra [Lộ Trình Dự Án](#lộ-trình-dự-án) bên dưới để xem liệu ý tưởng của bạn có phù hợp với định hướng chiến lược của chúng tôi không.
+
+## Lộ Trình Dự Án
+
+Roo Code có một lộ trình phát triển rõ ràng hướng dẫn các ưu tiên và định hướng tương lai của chúng tôi. Hiểu lộ trình của chúng tôi có thể giúp bạn:
+
+- Điều chỉnh đóng góp của bạn với mục tiêu của dự án
+- Xác định các lĩnh vực mà chuyên môn của bạn sẽ có giá trị nhất
+- Hiểu bối cảnh đằng sau một số quyết định thiết kế
+- Tìm cảm hứng cho các tính năng mới hỗ trợ tầm nhìn của chúng tôi
+
+Lộ trình hiện tại của chúng tôi tập trung vào sáu trụ cột chính:
+
+### Hỗ Trợ Nhà Cung Cấp
+
+Chúng tôi hướng đến việc hỗ trợ càng nhiều nhà cung cấp càng tốt:
+
+- Hỗ trợ "OpenAI Compatible" linh hoạt hơn
+- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
+- Hỗ trợ nâng cao cho Ollama và LM Studio
+
+### Hỗ Trợ Mô Hình
+
+Chúng tôi muốn Roo hoạt động tốt trên càng nhiều mô hình càng tốt, bao gồm cả mô hình cục bộ:
+
+- Hỗ trợ mô hình cục bộ thông qua prompting hệ thống tùy chỉnh và quy trình làm việc
+- Đánh giá hiệu suất và các trường hợp thử nghiệm
+
+### Hỗ Trợ Hệ Thống
+
+Chúng tôi muốn Roo chạy tốt trên máy tính của mọi người:
+
+- Tích hợp terminal đa nền tảng
+- Hỗ trợ mạnh mẽ và nhất quán cho Mac, Windows và Linux
+
+### Tài Liệu
+
+Chúng tôi muốn tài liệu toàn diện, dễ tiếp cận cho tất cả người dùng và người đóng góp:
+
+- Hướng dẫn người dùng và hướng dẫn mở rộng
+- Tài liệu API rõ ràng
+- Hướng dẫn tốt hơn cho người đóng góp
+- Tài nguyên tài liệu đa ngôn ngữ
+- Ví dụ tương tác và mẫu mã
+
+### Ổn Định
+
+Chúng tôi muốn giảm đáng kể số lượng lỗi và tăng kiểm tra tự động:
+
+- Công tắc ghi nhật ký gỡ lỗi
+- Nút sao chép "Thông Tin Máy/Nhiệm Vụ" để gửi kèm với yêu cầu hỗ trợ/lỗi
+
+### Quốc Tế Hóa
+
+Chúng tôi muốn Roo nói ngôn ngữ của mọi người:
+
+- 我们希望 Roo Code 说每个人的语言
+- Queremos que Roo Code hable el idioma de todos
+- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
+- نريد أن يتحدث Roo Code لغة الجميع
+
+Chúng tôi đặc biệt hoan nghênh những đóng góp thúc đẩy mục tiêu lộ trình của chúng tôi. Nếu bạn đang làm việc trên điều gì đó phù hợp với những trụ cột này, vui lòng đề cập đến điều đó trong mô tả PR của bạn.
 
 ## Thiết Lập Phát Triển
 

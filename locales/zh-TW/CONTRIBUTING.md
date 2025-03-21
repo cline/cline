@@ -26,7 +26,68 @@
 
 我們也歡迎對我們的[文檔](https://docs.roocode.com/)進行貢獻！無論是修正錯別字、改進現有指南，還是創建新的教育內容 - 我們希望建立一個社區驅動的資源庫，幫助每個人充分利用 Roo Code。您可以點擊任何頁面上的 "Edit this page" 快速進入 Github 中編輯文件的正確位置，或者您可以直接進入 https://github.com/RooVetGit/Roo-Code-Docs。
 
-如果您計劃從事更大的功能開發，請先創建一個[功能請求](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)，這樣我們可以討論它是否符合 Roo Code 的願景。
+如果您計劃從事更大的功能開發，請先創建一個[功能請求](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)，這樣我們可以討論它是否符合 Roo Code 的願景。您也可以查看下方的[專案路線圖](#專案路線圖)，看看您的想法是否符合我們的策略方向。
+
+## 專案路線圖
+
+Roo Code 有一個明確的開發路線圖，指導我們的優先事項和未來方向。了解我們的路線圖可以幫助您：
+
+- 使您的貢獻與專案目標保持一致
+- 識別您的專業知識最有價值的領域
+- 理解某些設計決策背後的背景
+- 為支持我們願景的新功能找到靈感
+
+我們當前的路線圖專注於六個關鍵支柱：
+
+### 提供商支援
+
+我們的目標是支援儘可能多的提供商：
+
+- 更加多功能的 "OpenAI Compatible" 支援
+- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
+- 增強對 Ollama 和 LM Studio 的支援
+
+### 模型支援
+
+我們希望 Roo 在儘可能多的模型上運行良好，包括本地模型：
+
+- 透過自訂系統提示和工作流程支援本地模型
+- 基準評估和測試案例
+
+### 系統支援
+
+我們希望 Roo 在每個人的電腦上都能良好運行：
+
+- 跨平台終端整合
+- 對 Mac、Windows 和 Linux 的強大一致支援
+
+### 文檔
+
+我們希望為所有用戶和貢獻者提供全面、易於存取的文檔：
+
+- 擴展的用戶指南和教程
+- 清晰的 API 文檔
+- 更好的貢獻者指導
+- 多語言文檔資源
+- 互動式示例和代碼示例
+
+### 穩定性
+
+我們希望顯著減少錯誤數量並增加自動化測試：
+
+- 調試日誌開關
+- 用於發送錯誤/支援請求的「機器/任務資訊」複製按鈕
+
+### 國際化
+
+我們希望 Roo 能說每個人的語言：
+
+- 我們希望 Roo Code 說每個人的語言
+- Queremos que Roo Code hable el idioma de todos
+- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
+- نريد أن يتحدث Roo Code لغة الجميع
+
+我們特別歡迎推進我們路線圖目標的貢獻。如果您正在處理符合這些支柱的內容，請在您的 PR 描述中提及。
 
 ## 開發設置
 

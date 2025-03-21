@@ -26,7 +26,68 @@ Buscant una bona primera contribució? Consulteu les incidències a la secció "
 
 També donem la benvinguda a contribucions a la nostra [documentació](https://docs.roocode.com/)! Ja sigui corregint errors tipogràfics, millorant guies existents o creant nou contingut educatiu - ens encantaria construir un repositori de recursos impulsat per la comunitat que ajudi a tothom a aprofitar al màxim Roo Code. Podeu fer clic a "Editar aquesta pàgina" a qualsevol pàgina per arribar ràpidament al lloc correcte a Github per editar el fitxer, o podeu anar directament a https://github.com/RooVetGit/Roo-Code-Docs.
 
-Si esteu planejant treballar en una funcionalitat més gran, si us plau creeu primer una [sol·licitud de funcionalitat](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) perquè puguem discutir si s'alinea amb la visió de Roo Code.
+Si esteu planejant treballar en una funcionalitat més gran, si us plau creeu primer una [sol·licitud de funcionalitat](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) perquè puguem discutir si s'alinea amb la visió de Roo Code. També podeu consultar el nostre [Full de Ruta del Projecte](#full-de-ruta-del-projecte) a continuació per veure si la vostra idea s'ajusta a la nostra direcció estratègica.
+
+## Full de Ruta del Projecte
+
+Roo Code té un full de ruta de desenvolupament clar que guia les nostres prioritats i direcció futura. Entendre el nostre full de ruta us pot ajudar a:
+
+- Alinear les vostres contribucions amb els objectius del projecte
+- Identificar àrees on la vostra experiència seria més valuosa
+- Entendre el context darrere de certes decisions de disseny
+- Trobar inspiració per a noves funcionalitats que donin suport a la nostra visió
+
+El nostre full de ruta actual se centra en sis pilars clau:
+
+### Suport de Proveïdors
+
+Aspirem a donar suport a tants proveïdors com sigui possible:
+
+- Suport més versàtil per a "OpenAI Compatible"
+- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
+- Suport millorat per a Ollama i LM Studio
+
+### Suport de Models
+
+Volem que Roo funcioni tan bé com sigui possible amb tants models com sigui possible, inclosos els models locals:
+
+- Suport de models locals a través de prompts de sistema personalitzats i fluxos de treball
+- Avaluacions de rendiment i casos de prova
+
+### Suport de Sistemes
+
+Volem que Roo funcioni bé a l'ordinador de tothom:
+
+- Integració de terminal multiplataforma
+- Suport sòlid i consistent per a Mac, Windows i Linux
+
+### Documentació
+
+Volem documentació completa i accessible per a tots els usuaris i col·laboradors:
+
+- Guies d'usuari i tutorials ampliats
+- Documentació clara de l'API
+- Millor orientació per als col·laboradors
+- Recursos de documentació multilingües
+- Exemples interactius i mostres de codi
+
+### Estabilitat
+
+Volem reduir significativament el nombre d'errors i augmentar les proves automatitzades:
+
+- Interruptor de registre de depuració
+- Botó de còpia "Informació de Màquina/Tasca" per enviar amb sol·licituds d'error/suport
+
+### Internacionalització
+
+Volem que Roo parli l'idioma de tothom:
+
+- 我们希望 Roo Code 说每个人的语言
+- Queremos que Roo Code hable el idioma de todos
+- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
+- نريد أن يتحدث Roo Code لغة الجميع
+
+Donem especialment la benvinguda a contribucions que avancin els nostres objectius del full de ruta. Si esteu treballant en alguna cosa que s'alinea amb aquests pilars, si us plau mencioneu-ho a la descripció del vostre PR.
 
 ## Configuració de desenvolupament
 

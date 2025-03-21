@@ -26,7 +26,68 @@ Vous cherchez une bonne première contribution ? Consultez les issues dans la se
 
 Nous accueillons également les contributions à notre [documentation](https://docs.roocode.com/) ! Qu'il s'agisse de corriger des fautes de frappe, d'améliorer les guides existants ou de créer du nouveau contenu éducatif - nous aimerions construire un référentiel de ressources guidé par la communauté qui aide chacun à tirer le meilleur parti de Roo Code. Vous pouvez cliquer sur "Edit this page" sur n'importe quelle page pour accéder rapidement au bon endroit dans Github pour éditer le fichier, ou vous pouvez plonger directement dans https://github.com/RooVetGit/Roo-Code-Docs.
 
-Si vous prévoyez de travailler sur une fonctionnalité plus importante, veuillez d'abord créer une [demande de fonctionnalité](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) afin que nous puissions discuter si elle s'aligne avec la vision de Roo Code.
+Si vous prévoyez de travailler sur une fonctionnalité plus importante, veuillez d'abord créer une [demande de fonctionnalité](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) afin que nous puissions discuter si elle s'aligne avec la vision de Roo Code. Vous pouvez également consulter notre [Feuille de route du projet](#feuille-de-route-du-projet) ci-dessous pour voir si votre idée s'inscrit dans notre orientation stratégique.
+
+## Feuille de route du projet
+
+Roo Code dispose d'une feuille de route de développement claire qui guide nos priorités et notre orientation future. Comprendre notre feuille de route peut vous aider à :
+
+- Aligner vos contributions avec les objectifs du projet
+- Identifier les domaines où votre expertise serait la plus précieuse
+- Comprendre le contexte derrière certaines décisions de conception
+- Trouver de l'inspiration pour de nouvelles fonctionnalités qui soutiennent notre vision
+
+Notre feuille de route actuelle se concentre sur six piliers clés :
+
+### Support des fournisseurs
+
+Nous visons à prendre en charge autant de fournisseurs que possible :
+
+- Support plus polyvalent pour "OpenAI Compatible"
+- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
+- Support amélioré pour Ollama et LM Studio
+
+### Support des modèles
+
+Nous voulons que Roo fonctionne aussi bien que possible avec autant de modèles que possible, y compris les modèles locaux :
+
+- Support des modèles locaux via des prompts système personnalisés et des flux de travail
+- Évaluations de benchmarking et cas de test
+
+### Support des systèmes
+
+Nous voulons que Roo fonctionne bien sur l'ordinateur de chacun :
+
+- Intégration de terminal multiplateforme
+- Support solide et cohérent pour Mac, Windows et Linux
+
+### Documentation
+
+Nous voulons une documentation complète et accessible pour tous les utilisateurs et contributeurs :
+
+- Guides utilisateur et tutoriels étendus
+- Documentation API claire
+- Meilleure orientation pour les contributeurs
+- Ressources de documentation multilingues
+- Exemples interactifs et échantillons de code
+
+### Stabilité
+
+Nous voulons réduire considérablement le nombre de bugs et augmenter les tests automatisés :
+
+- Interrupteur de journalisation de débogage
+- Bouton de copie "Informations machine/tâche" pour l'envoi avec les demandes de support/bug
+
+### Internationalisation
+
+Nous voulons que Roo parle la langue de tous :
+
+- 我们希望 Roo Code 说每个人的语言
+- Queremos que Roo Code hable el idioma de todos
+- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
+- نريد أن يتحدث Roo Code لغة الجميع
+
+Nous accueillons particulièrement les contributions qui font progresser nos objectifs de feuille de route. Si vous travaillez sur quelque chose qui s'aligne avec ces piliers, veuillez le mentionner dans la description de votre PR.
 
 ## Configuration de Développement
 

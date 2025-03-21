@@ -26,7 +26,68 @@ Szukasz dobrego pierwszego wkładu? Sprawdź problemy w sekcji "Issue [Unassigne
 
 Cieszymy się również z wkładu do naszej [dokumentacji](https://docs.roocode.com/)! Czy to poprawianie literówek, ulepszanie istniejących przewodników, czy tworzenie nowych treści edukacyjnych - chcielibyśmy zbudować repozytorium zasobów napędzane przez społeczność, które pomaga każdemu czerpać maksimum z Roo Code. Możesz kliknąć "Edit this page" na dowolnej stronie, aby szybko przejść do odpowiedniego miejsca w Github, aby edytować plik, lub możesz przejść bezpośrednio do https://github.com/RooVetGit/Roo-Code-Docs.
 
-Jeśli planujesz pracować nad większą funkcją, proszę najpierw utwórz [prośbę o funkcję](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop), abyśmy mogli przedyskutować, czy jest ona zgodna z wizją Roo Code.
+Jeśli planujesz pracować nad większą funkcją, proszę najpierw utwórz [prośbę o funkcję](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop), abyśmy mogli przedyskutować, czy jest ona zgodna z wizją Roo Code. Możesz również sprawdzić naszą [Mapę Drogową Projektu](#mapa-drogowa-projektu) poniżej, aby zobaczyć, czy Twój pomysł pasuje do naszego strategicznego kierunku.
+
+## Mapa Drogowa Projektu
+
+Roo Code posiada jasną mapę drogową rozwoju, która kieruje naszymi priorytetami i przyszłym kierunkiem. Zrozumienie naszej mapy drogowej może pomóc Ci:
+
+- Dostosować swoje wkłady do celów projektu
+- Zidentyfikować obszary, w których Twoja wiedza byłaby najbardziej wartościowa
+- Zrozumieć kontekst stojący za pewnymi decyzjami projektowymi
+- Znaleźć inspirację dla nowych funkcji, które wspierają naszą wizję
+
+Nasza obecna mapa drogowa koncentruje się na sześciu kluczowych filarach:
+
+### Wsparcie dla Dostawców
+
+Dążymy do wspierania jak największej liczby dostawców:
+
+- Bardziej wszechstronne wsparcie dla "OpenAI Compatible"
+- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
+- Ulepszone wsparcie dla Ollama i LM Studio
+
+### Wsparcie dla Modeli
+
+Chcemy, aby Roo działał jak najlepiej na jak największej liczbie modeli, w tym modeli lokalnych:
+
+- Wsparcie dla modeli lokalnych poprzez niestandardowe promptowanie systemowe i przepływy pracy
+- Benchmarki ewaluacyjne i przypadki testowe
+
+### Wsparcie dla Systemów
+
+Chcemy, aby Roo działał dobrze na komputerze każdego:
+
+- Integracja terminala międzyplatformowego
+- Silne i spójne wsparcie dla Mac, Windows i Linux
+
+### Dokumentacja
+
+Chcemy kompleksowej, dostępnej dokumentacji dla wszystkich użytkowników i współtwórców:
+
+- Rozszerzone przewodniki użytkownika i tutoriale
+- Jasna dokumentacja API
+- Lepsze wskazówki dla współtwórców
+- Wielojęzyczne zasoby dokumentacji
+- Interaktywne przykłady i próbki kodu
+
+### Stabilność
+
+Chcemy znacznie zmniejszyć liczbę błędów i zwiększyć zautomatyzowane testowanie:
+
+- Przełącznik rejestrowania debugowania
+- Przycisk kopiowania "Informacji o Maszynie/Zadaniu" do wysyłania z prośbami o pomoc/zgłoszeniami błędów
+
+### Internacjonalizacja
+
+Chcemy, aby Roo mówił językiem każdego:
+
+- 我们希望 Roo Code 说每个人的语言
+- Queremos que Roo Code hable el idioma de todos
+- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
+- نريد أن يتحدث Roo Code لغة الجميع
+
+Szczególnie witamy wkłady, które przyspieszają realizację celów naszej mapy drogowej. Jeśli pracujesz nad czymś, co jest zgodne z tymi filarami, proszę wspomnij o tym w opisie swojego PR.
 
 ## Konfiguracja rozwojowa
 

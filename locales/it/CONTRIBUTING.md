@@ -26,7 +26,68 @@ Cerchi un buon primo contributo? Controlla i problemi nella sezione "Issue [Unas
 
 Accogliamo anche contributi alla nostra [documentazione](https://docs.roocode.com/)! Che si tratti di correggere errori di battitura, migliorare guide esistenti o creare nuovi contenuti educativi - ci piacerebbe costruire un repository di risorse guidato dalla comunità che aiuti tutti a ottenere il massimo da Roo Code. Puoi cliccare su "Edit this page" su qualsiasi pagina per arrivare rapidamente al punto giusto in Github per modificare il file, oppure puoi andare direttamente a https://github.com/RooVetGit/Roo-Code-Docs.
 
-Se stai pianificando di lavorare su una funzionalità più grande, per favore crea prima una [richiesta di funzionalità](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) così possiamo discutere se si allinea con la visione di Roo Code.
+Se stai pianificando di lavorare su una funzionalità più grande, per favore crea prima una [richiesta di funzionalità](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) così possiamo discutere se si allinea con la visione di Roo Code. Puoi anche consultare la nostra [Roadmap del Progetto](#roadmap-del-progetto) qui sotto per vedere se la tua idea si adatta alla nostra direzione strategica.
+
+## Roadmap del Progetto
+
+Roo Code ha una chiara roadmap di sviluppo che guida le nostre priorità e la direzione futura. Comprendere la nostra roadmap può aiutarti a:
+
+- Allineare i tuoi contributi con gli obiettivi del progetto
+- Identificare aree in cui la tua esperienza sarebbe più preziosa
+- Comprendere il contesto dietro certe decisioni di design
+- Trovare ispirazione per nuove funzionalità che supportino la nostra visione
+
+La nostra roadmap attuale si concentra su sei pilastri chiave:
+
+### Supporto Provider
+
+Miriamo a supportare quanti più provider possibile:
+
+- Supporto più versatile per "OpenAI Compatible"
+- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
+- Supporto migliorato per Ollama e LM Studio
+
+### Supporto Modelli
+
+Vogliamo che Roo funzioni al meglio su quanti più modelli possibile, inclusi i modelli locali:
+
+- Supporto per modelli locali attraverso prompt di sistema personalizzati e flussi di lavoro
+- Valutazioni di benchmark e casi di test
+
+### Supporto Sistemi
+
+Vogliamo che Roo funzioni bene sul computer di tutti:
+
+- Integrazione del terminale multipiattaforma
+- Supporto forte e coerente per Mac, Windows e Linux
+
+### Documentazione
+
+Vogliamo una documentazione completa e accessibile per tutti gli utenti e contributori:
+
+- Guide utente e tutorial ampliati
+- Documentazione API chiara
+- Migliore orientamento per i contributori
+- Risorse di documentazione multilingue
+- Esempi interattivi e campioni di codice
+
+### Stabilità
+
+Vogliamo ridurre significativamente il numero di bug e aumentare i test automatizzati:
+
+- Interruttore di registrazione debug
+- Pulsante di copia "Informazioni Macchina/Attività" per l'invio con richieste di supporto/bug
+
+### Internazionalizzazione
+
+Vogliamo che Roo parli la lingua di tutti:
+
+- 我们希望 Roo Code 说每个人的语言
+- Queremos que Roo Code hable el idioma de todos
+- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
+- نريد أن يتحدث Roo Code لغة الجميع
+
+Accogliamo particolarmente i contributi che fanno progredire gli obiettivi della nostra roadmap. Se stai lavorando su qualcosa che si allinea con questi pilastri, per favore menzionalo nella descrizione della tua PR.
 
 ## Configurazione per lo Sviluppo
 

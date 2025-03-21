@@ -27,7 +27,68 @@ Roo Code에 기여하는 데 관심을 가져주셔서 기쁩니다. 버그를 �
 우리는 [문서](https://docs.roocode.com/)에 대한 기여도 환영합니다! 오타 수정, 기존 가이드 개선 또는 새로운 교육 콘텐츠 생성 등 - 모든 사람이 Roo Code를 최대한 활용할 수 있도록 도와주는 커뮤니티 기반 리소스 저장소를 구축하고 싶습니다. 모든
 페이지에서 "Edit this page"를 클릭하여 파일을 편집할 수 있는 Github의 적절한 위치로 빠르게 이동하거나, https://github.com/RooVetGit/Roo-Code-Docs에 직접 접근할 수 있습니다.
 
-더 큰 기능 작업을 계획하고 있다면, Roo Code의 비전과 일치하는지 논의할 수 있도록 먼저 [기능 요청](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)을 생성해주세요.
+더 큰 기능 작업을 계획하고 있다면, Roo Code의 비전과 일치하는지 논의할 수 있도록 먼저 [기능 요청](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop)을 생성해주세요. 또한 아이디어가 우리의 전략적 방향과 일치하는지 확인하기 위해 아래의 [프로젝트 로드맵](#프로젝트-로드맵)을 확인할 수도 있습니다.
+
+## 프로젝트 로드맵
+
+Roo Code는 우리의 우선순위와 미래 방향을 안내하는 명확한 개발 로드맵을 가지고 있습니다. 우리의 로드맵을 이해하면 다음과 같은 도움을 받을 수 있습니다:
+
+- 프로젝트 목표에 맞게 기여 조정
+- 당신의 전문 지식이 가장 가치 있는 영역 식별
+- 특정 디자인 결정 배경 이해
+- 우리의 비전을 지원하는 새로운 기능에 대한 영감 찾기
+
+현재 로드맵은 여섯 가지 주요 기둥에 초점을 맞추고 있습니다:
+
+### 제공업체 지원
+
+가능한 한 많은 제공업체를 지원하는 것을 목표로 합니다:
+
+- 더 다재다능한 "OpenAI 호환" 지원
+- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
+- Ollama와 LM Studio에 대한 향상된 지원
+
+### 모델 지원
+
+로컬 모델을 포함하여 가능한 한 많은 모델에서 Roo가 잘 작동하기를 원합니다:
+
+- 사용자 정의 시스템 프롬프팅 및 워크플로우를 통한 로컬 모델 지원
+- 벤치마킹 평가 및 테스트 케이스
+
+### 시스템 지원
+
+Roo가 모든 사람의 컴퓨터에서 잘 작동하기를 원합니다:
+
+- 크로스 플랫폼 터미널 통합
+- Mac, Windows 및 Linux에 대한 강력하고 일관된 지원
+
+### 문서화
+
+모든 사용자와 기여자를 위한 포괄적이고 접근 가능한 문서를 원합니다:
+
+- 확장된 사용자 가이드 및 튜토리얼
+- 명확한 API 문서
+- 기여자를 위한 더 나은 가이드
+- 다국어 문서 리소스
+- 대화형 예제 및 코드 샘플
+
+### 안정성
+
+버그 수를 크게 줄이고 자동화된 테스트를 증가시키고자 합니다:
+
+- 디버그 로깅 스위치
+- 버그/지원 요청과 함께 보낼 수 있는 "기기/작업 정보" 복사 버튼
+
+### 국제화
+
+Roo가 모든 사람의 언어를 말하기를 원합니다:
+
+- 我们希望 Roo Code 说每个人的语言
+- Queremos que Roo Code hable el idioma de todos
+- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
+- نريد أن يتحدث Roo Code لغة الجميع
+
+우리는 특히 로드맵 목표를 발전시키는 기여를 환영합니다. 이러한 기둥에 맞는 작업을 하고 있다면, PR 설명에서 이를 언급해 주세요.
 
 ## 개발 설정
 

@@ -26,7 +26,68 @@ Hata raporları Roo Code'u herkes için daha iyi hale getirmeye yardımcı olur!
 
 [Belgelerimize](https://docs.roocode.com/) katkıları da memnuniyetle karşılıyoruz! İster yazım hatalarını düzeltmek, mevcut kılavuzları geliştirmek veya yeni eğitim içeriği oluşturmak olsun - herkesin Roo Code'dan en iyi şekilde yararlanmasına yardımcı olan topluluk odaklı bir kaynak deposu oluşturmak istiyoruz. Dosyayı düzenlemek için Github'daki doğru yere hızlıca gitmek için herhangi bir sayfada "Edit this page" düğmesine tıklayabilir veya doğrudan https://github.com/RooVetGit/Roo-Code-Docs adresine dalabilirsiniz.
 
-Daha büyük bir özellik üzerinde çalışmayı planlıyorsanız, lütfen önce bir [özellik isteği](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) oluşturun, böylece Roo Code'un vizyonuyla uyumlu olup olmadığını tartışabiliriz.
+Daha büyük bir özellik üzerinde çalışmayı planlıyorsanız, lütfen önce bir [özellik isteği](https://github.com/RooVetGit/Roo-Code/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) oluşturun, böylece Roo Code'un vizyonuyla uyumlu olup olmadığını tartışabiliriz. Ayrıca, fikrinizin stratejik yönümüze uyup uymadığını görmek için aşağıdaki [Proje Yol Haritası](#proje-yol-haritası)'nı kontrol edebilirsiniz.
+
+## Proje Yol Haritası
+
+Roo Code, önceliklerimizi ve gelecekteki yönümüzü yönlendiren net bir geliştirme yol haritasına sahiptir. Yol haritamızı anlamak size şu konularda yardımcı olabilir:
+
+- Katkılarınızı proje hedefleriyle uyumlu hale getirmek
+- Uzmanlığınızın en değerli olacağı alanları belirlemek
+- Belirli tasarım kararlarının arkasındaki bağlamı anlamak
+- Vizyonumuzu destekleyen yeni özellikler için ilham bulmak
+
+Mevcut yol haritamız altı temel sütun üzerine odaklanmaktadır:
+
+### Sağlayıcı Desteği
+
+Mümkün olduğunca çok sağlayıcıyı desteklemeyi hedefliyoruz:
+
+- Daha çok yönlü "OpenAI Uyumlu" destek
+- xAI, Microsoft Azure AI, Alibaba Cloud Qwen, IBM Watsonx, Together AI, DeepInfra, Fireworks AI, Cohere, Perplexity AI, FriendliAI, Replicate
+- Ollama ve LM Studio için geliştirilmiş destek
+
+### Model Desteği
+
+Roo'nun yerel modeller de dahil olmak üzere mümkün olduğunca çok modelde iyi çalışmasını istiyoruz:
+
+- Özel sistem yönlendirmesi ve iş akışları aracılığıyla yerel model desteği
+- Kıyaslama değerlendirmeleri ve test vakaları
+
+### Sistem Desteği
+
+Roo'nun herkesin bilgisayarında iyi çalışmasını istiyoruz:
+
+- Çapraz platform terminal entegrasyonu
+- Mac, Windows ve Linux için güçlü ve tutarlı destek
+
+### Dokümantasyon
+
+Tüm kullanıcılar ve katkıda bulunanlar için kapsamlı, erişilebilir dokümantasyon istiyoruz:
+
+- Genişletilmiş kullanıcı kılavuzları ve öğreticiler
+- Net API dokümantasyonu
+- Katkıda bulunanlar için daha iyi rehberlik
+- Çok dilli dokümantasyon kaynakları
+- Etkileşimli örnekler ve kod örnekleri
+
+### Kararlılık
+
+Hata sayısını önemli ölçüde azaltmak ve otomatik testleri artırmak istiyoruz:
+
+- Hata ayıklama günlüğü anahtarı
+- Hata/destek istekleriyle birlikte göndermek için "Makine/Görev Bilgisi" kopyalama düğmesi
+
+### Uluslararasılaştırma
+
+Roo'nun herkesin dilini konuşmasını istiyoruz:
+
+- 我们希望 Roo Code 说每个人的语言
+- Queremos que Roo Code hable el idioma de todos
+- हम चाहते हैं कि Roo Code हर किसी की भाषा बोले
+- نريد أن يتحدث Roo Code لغة الجميع
+
+Özellikle yol haritamızın hedeflerini ileriye taşıyan katkıları memnuniyetle karşılıyoruz. Bu sütunlarla uyumlu bir şey üzerinde çalışıyorsanız, lütfen PR açıklamanızda bundan bahsedin.
 
 ## Geliştirme Kurulumu
 
