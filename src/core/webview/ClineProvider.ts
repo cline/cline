@@ -38,6 +38,7 @@ import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { getTotalTasksSize } from "../../utils/storage"
+import { ConversationTelemetryService } from "../../services/telemetry/ConversationTelemetryService"
 import { GlobalFileNames } from "../../global-constants"
 
 /*
@@ -123,6 +124,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	mcpHub?: McpHub
 	accountService?: ClineAccountService
 	private latestAnnouncementId = "feb-19-2025" // update to some unique identifier when we add a new announcement
+	conversationTelemetryService: ConversationTelemetryService
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -133,6 +135,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.mcpHub = new McpHub(this)
 		this.accountService = new ClineAccountService(this)
+		this.conversationTelemetryService = new ConversationTelemetryService(this)
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
@@ -164,6 +167,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.mcpHub?.dispose()
 		this.mcpHub = undefined
 		this.accountService = undefined
+		this.conversationTelemetryService.shutdown()
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 	}

@@ -12,11 +12,17 @@ export class ContextManager {
 
 		let messagesToRemove: number
 		if (keep === "half") {
-			// Remove half of user-assistant pairs
+			// Remove half of remaining user-assistant pairs
+			// We first calculate half of the messages then divide by 2 to get the number of pairs.
+			// After flooring, we multiply by 2 to get the number of messages.
+			// Note that this will also always be an even number.
 			messagesToRemove = Math.floor((messages.length - startOfRest) / 4) * 2 // Keep even number
 		} else {
-			// Remove 3/4 of user-assistant pairs
-			messagesToRemove = Math.floor((messages.length - startOfRest) / 8) * 3 * 2
+			// Remove 3/4 of remaining user-assistant pairs
+			// We calculate 3/4ths of the messages then divide by 2 to get the number of pairs.
+			// After flooring, we multiply by 2 to get the number of messages.
+			// Note that this will also always be an even number.
+			messagesToRemove = Math.floor(((messages.length - startOfRest) * 3) / 4 / 2) * 2
 		}
 
 		let rangeEndIndex = startOfRest + messagesToRemove - 1
