@@ -29,12 +29,12 @@ const TelemetryBanner = () => {
 
 	const handleAllow = () => {
 		setHasChosen(true)
-		vscode.postMessage({ type: "telemetrySetting", text: "enabled" satisfies TelemetrySetting })
+		vscode.postMessage({ type: "telemetrySetting", telemetrySetting: "enabled" satisfies TelemetrySetting })
 	}
 
 	const handleDeny = () => {
 		setHasChosen(true)
-		vscode.postMessage({ type: "telemetrySetting", text: "disabled" satisfies TelemetrySetting })
+		vscode.postMessage({ type: "telemetrySetting", telemetrySetting: "disabled" satisfies TelemetrySetting })
 	}
 
 	const handleOpenSettings = () => {

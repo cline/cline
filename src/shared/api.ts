@@ -18,6 +18,7 @@ export type ApiProvider =
 	| "litellm"
 	| "asksage"
 	| "xai"
+	| "sambanova"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -38,12 +39,13 @@ export interface ApiHandlerOptions {
 	awsBedrockUsePromptCache?: boolean
 	awsUseProfile?: boolean
 	awsProfile?: string
+	awsBedrockEndpoint?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
 	openAiApiKey?: string
 	openAiModelId?: string
-	openAiModelInfo?: ModelInfo
+	openAiModelInfo?: OpenAiCompatibleModelInfo
 	ollamaModelId?: string
 	ollamaBaseUrl?: string
 	ollamaApiOptionsCtxNum?: string
@@ -66,6 +68,7 @@ export interface ApiHandlerOptions {
 	asksageApiKey?: string
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
+	sambanovaApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -85,6 +88,10 @@ export interface ModelInfo {
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
+}
+
+export interface OpenAiCompatibleModelInfo extends ModelInfo {
+	temperature?: number
 }
 
 // Anthropic
@@ -214,6 +221,14 @@ export const bedrockModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.25,
 		outputPrice: 1.25,
+	},
+	"deepseek.r1-v1:0": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.35,
+		outputPrice: 5.4,
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -389,13 +404,14 @@ export const vertexModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-export const openAiModelInfoSaneDefaults: ModelInfo = {
+export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,
 	supportsPromptCache: false,
 	inputPrice: 0,
 	outputPrice: 0,
+	temperature: 0,
 }
 
 // Gemini
@@ -605,9 +621,11 @@ export const deepSeekModels = {
 
 // Qwen
 // https://bailian.console.aliyun.com/
-export type QwenModelId = keyof typeof qwenModels
-export const qwenDefaultModelId: QwenModelId = "qwen-coder-plus-latest"
-export const qwenModels = {
+export type MainlandQwenModelId = keyof typeof mainlandQwenModels
+export type InternationalQwenModelId = keyof typeof internationalQwenModels
+export const internationalQwenDefaultModelId: InternationalQwenModelId = "qwen-coder-plus-latest"
+export const mainlandQwenDefaultModelId: MainlandQwenModelId = "qwen-coder-plus-latest"
+export const internationalQwenModels = {
 	"qwen2.5-coder-32b-instruct": {
 		maxTokens: 8_192,
 		contextWindow: 131_072,
@@ -810,6 +828,229 @@ export const qwenModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
+export const mainlandQwenModels = {
+	"qwen2.5-coder-32b-instruct": {
+		maxTokens: 8_192,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.002,
+		outputPrice: 0.006,
+		cacheWritesPrice: 0.002,
+		cacheReadsPrice: 0.006,
+	},
+	"qwen2.5-coder-14b-instruct": {
+		maxTokens: 8_192,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.002,
+		outputPrice: 0.006,
+		cacheWritesPrice: 0.002,
+		cacheReadsPrice: 0.006,
+	},
+	"qwen2.5-coder-7b-instruct": {
+		maxTokens: 8_192,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.001,
+		outputPrice: 0.002,
+		cacheWritesPrice: 0.001,
+		cacheReadsPrice: 0.002,
+	},
+	"qwen2.5-coder-3b-instruct": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		cacheWritesPrice: 0.0,
+		cacheReadsPrice: 0.0,
+	},
+	"qwen2.5-coder-1.5b-instruct": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		cacheWritesPrice: 0.0,
+		cacheReadsPrice: 0.0,
+	},
+	"qwen2.5-coder-0.5b-instruct": {
+		maxTokens: 8_192,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		cacheWritesPrice: 0.0,
+		cacheReadsPrice: 0.0,
+	},
+	"qwen-coder-plus-latest": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.5,
+		outputPrice: 7,
+		cacheWritesPrice: 3.5,
+		cacheReadsPrice: 7,
+	},
+	"qwen-plus-latest": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 2,
+		cacheWritesPrice: 0.8,
+		cacheReadsPrice: 0.2,
+	},
+	"qwen-turbo-latest": {
+		maxTokens: 1_000_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 2,
+		cacheWritesPrice: 0.8,
+		cacheReadsPrice: 2,
+	},
+	"qwen-max-latest": {
+		maxTokens: 30_720,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.4,
+		outputPrice: 9.6,
+		cacheWritesPrice: 2.4,
+		cacheReadsPrice: 9.6,
+	},
+	"qwq-plus-latest": {
+		maxTokens: 8_192,
+		contextWindow: 131_071,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		cacheWritesPrice: 0.0,
+		cacheReadsPrice: 0.0,
+	},
+	"qwq-plus": {
+		maxTokens: 8_192,
+		contextWindow: 131_071,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+		cacheWritesPrice: 0.0,
+		cacheReadsPrice: 0.0,
+	},
+	"qwen-coder-plus": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.5,
+		outputPrice: 7,
+		cacheWritesPrice: 3.5,
+		cacheReadsPrice: 7,
+	},
+	"qwen-plus": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 2,
+		cacheWritesPrice: 0.8,
+		cacheReadsPrice: 0.2,
+	},
+	"qwen-turbo": {
+		maxTokens: 1_000_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 0.6,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.6,
+	},
+	"qwen-max": {
+		maxTokens: 30_720,
+		contextWindow: 32_768,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.4,
+		outputPrice: 9.6,
+		cacheWritesPrice: 2.4,
+		cacheReadsPrice: 9.6,
+	},
+	"deepseek-v3": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0.28,
+		cacheWritesPrice: 0.14,
+		cacheReadsPrice: 0.014,
+	},
+	"deepseek-r1": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 2.19,
+		cacheWritesPrice: 0.55,
+		cacheReadsPrice: 0.14,
+	},
+	"qwen-vl-max": {
+		maxTokens: 30_720,
+		contextWindow: 32_768,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3,
+		outputPrice: 9,
+		cacheWritesPrice: 3,
+		cacheReadsPrice: 9,
+	},
+	"qwen-vl-max-latest": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 3,
+		outputPrice: 9,
+		cacheWritesPrice: 3,
+		cacheReadsPrice: 9,
+	},
+	"qwen-vl-plus": {
+		maxTokens: 6_000,
+		contextWindow: 8_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 1.5,
+		outputPrice: 4.5,
+		cacheWritesPrice: 1.5,
+		cacheReadsPrice: 4.5,
+	},
+	"qwen-vl-plus-latest": {
+		maxTokens: 129_024,
+		contextWindow: 131_072,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 1.5,
+		outputPrice: 4.5,
+		cacheWritesPrice: 1.5,
+		cacheReadsPrice: 4.5,
+	},
+} as const satisfies Record<string, ModelInfo>
+
 // Mistral
 // https://docs.mistral.ai/getting-started/models/models_overview/
 export type MistralModelId = keyof typeof mistralModels
@@ -846,6 +1087,14 @@ export const mistralModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.1,
 		outputPrice: 0.1,
+	},
+	"mistral-small-latest": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
 	},
 	"mistral-small-2501": {
 		maxTokens: 32_000,
@@ -1026,5 +1275,92 @@ export const xaiModels = {
 		inputPrice: 5.0,
 		outputPrice: 15.0,
 		description: "X AI's Grok Beta model (legacy) with 131K context window",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// SambaNova
+// https://docs.sambanova.ai/cloud/docs/get-started/supported-models
+export type SambanovaModelId = keyof typeof sambanovaModels
+export const sambanovaDefaultModelId: SambanovaModelId = "Meta-Llama-3.3-70B-Instruct"
+export const sambanovaModels = {
+	"Meta-Llama-3.3-70B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"DeepSeek-R1-Distill-Llama-70B": {
+		maxTokens: 4096,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Llama-3.1-Swallow-70B-Instruct-v0.3": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Llama-3.1-Swallow-8B-Instruct-v0.3": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Meta-Llama-3.1-405B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Meta-Llama-3.1-8B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Meta-Llama-3.2-1B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Qwen2.5-72B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"Qwen2.5-Coder-32B-Instruct": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"QwQ-32B-Preview": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>

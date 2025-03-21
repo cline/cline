@@ -20,3 +20,37 @@ export function findLast<T>(array: Array<T>, predicate: (value: T, index: number
 	const index = findLastIndex(array, predicate)
 	return index === -1 ? undefined : array[index]
 }
+
+/**
+ * Converts a partial or complete stringified array into an actual array.
+ * Handles both complete JSON strings and incomplete array strings.
+ * Splits on the specific tokens: ["  ", "  "]
+ * @param arrayString A string representation of an array, which may be incomplete
+ * @returns Array of strings parsed from the input
+ */
+export function parsePartialArrayString(arrayString: string): string[] {
+	try {
+		// Try parsing as complete JSON first
+		return JSON.parse(arrayString)
+	} catch {
+		// If JSON parsing fails, handle as partial string
+		const trimmed = arrayString.trim()
+		if (!trimmed.startsWith('["')) {
+			return []
+		}
+
+		// Remove leading ["
+		let content = trimmed.slice(2)
+		// Remove trailing "] if it exists
+		content = content.replace(/"]$/, "")
+		if (!content) {
+			return []
+		}
+
+		// Split on ", " token and handle the parts
+		return content
+			.split('", "')
+			.map((item) => item.trim())
+			.filter(Boolean)
+	}
+}
