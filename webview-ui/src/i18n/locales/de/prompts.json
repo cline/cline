@@ -7,11 +7,11 @@
 		"editModesConfig": "Moduskonfiguration bearbeiten",
 		"editGlobalModes": "Globale Modi bearbeiten",
 		"editProjectModes": "Projektmodi bearbeiten (.roomodes)",
-		"createModeHelpText": "Klicken Sie auf +, um einen neuen benutzerdefinierten Modus zu erstellen, oder bitten Sie Roo einfach im Chat, einen für Sie zu erstellen!"
+		"createModeHelpText": "Klicke auf +, um einen neuen benutzerdefinierten Modus zu erstellen, oder bitte Roo einfach im Chat, einen für dich zu erstellen!"
 	},
 	"apiConfiguration": {
 		"title": "API-Konfiguration",
-		"select": "Wählen Sie, welche API-Konfiguration für diesen Modus verwendet werden soll"
+		"select": "Wähle, welche API-Konfiguration für diesen Modus verwendet werden soll"
 	},
 	"tools": {
 		"title": "Verfügbare Werkzeuge",
@@ -30,18 +30,18 @@
 	"roleDefinition": {
 		"title": "Rollendefinition",
 		"resetToDefault": "Auf Standardwerte zurücksetzen",
-		"description": "Definieren Sie Roos Expertise und Persönlichkeit für diesen Modus. Diese Beschreibung prägt, wie Roo sich präsentiert und an Aufgaben herangeht."
+		"description": "Definiere Roos Expertise und Persönlichkeit für diesen Modus. Diese Beschreibung prägt, wie Roo sich präsentiert und an Aufgaben herangeht."
 	},
 	"customInstructions": {
 		"title": "Modusspezifische benutzerdefinierte Anweisungen (optional)",
 		"resetToDefault": "Auf Standardwerte zurücksetzen",
 		"description": "Fügen Sie verhaltensspezifische Richtlinien für den Modus {{modeName}} hinzu.",
-		"loadFromFile": "Benutzerdefinierte Anweisungen für den Modus {{mode}} können auch aus <span>.clinerules-{{slug}}</span> in Ihrem Arbeitsbereich geladen werden."
+		"loadFromFile": "Benutzerdefinierte Anweisungen für den Modus {{mode}} können auch aus <span>.clinerules-{{slug}}</span> in deinem Arbeitsbereich geladen werden."
 	},
 	"globalCustomInstructions": {
 		"title": "Benutzerdefinierte Anweisungen für alle Modi",
-		"description": "Diese Anweisungen gelten für alle Modi. Sie bieten einen grundlegenden Satz von Verhaltensweisen, die durch modusspezifische Anweisungen unten erweitert werden können.\nWenn Sie möchten, dass Roo in einer anderen Sprache als Ihrer Editor-Anzeigesprache ({{language}}) denkt und spricht, können Sie das hier angeben.",
-		"loadFromFile": "Anweisungen können auch aus <span>.clinerules</span> in Ihrem Arbeitsbereich geladen werden."
+		"description": "Diese Anweisungen gelten für alle Modi. Sie bieten einen grundlegenden Satz von Verhaltensweisen, die durch modusspezifische Anweisungen unten erweitert werden können.\nWenn du möchtest, dass Roo in einer anderen Sprache als deiner Editor-Anzeigesprache ({{language}}) denkt und spricht, kannst du das hier angeben.",
+		"loadFromFile": "Anweisungen können auch aus <span>.clinerules</span> in deinem Arbeitsbereich geladen werden."
 	},
 	"systemPrompt": {
 		"preview": "System-Prompt Vorschau",
@@ -54,9 +54,9 @@
 		"prompt": "Prompt",
 		"enhance": {
 			"apiConfiguration": "API-Konfiguration",
-			"apiConfigDescription": "Sie können eine API-Konfiguration auswählen, die immer zur Verbesserung von Prompts verwendet wird, oder einfach die aktuell ausgewählte verwenden",
+			"apiConfigDescription": "Du kannst eine API-Konfiguration auswählen, die immer zur Verbesserung von Prompts verwendet wird, oder einfach die aktuell ausgewählte verwenden",
 			"useCurrentConfig": "Aktuell ausgewählte API-Konfiguration verwenden",
-			"testPromptPlaceholder": "Geben Sie einen Prompt ein, um die Verbesserung zu testen",
+			"testPromptPlaceholder": "Gib einen Prompt ein, um die Verbesserung zu testen",
 			"previewButton": "Vorschau der Prompt-Verbesserung"
 		},
 		"types": {
@@ -96,11 +96,11 @@
 	},
 	"customModeCreation": {
 		"enableTitle": "Erstellung benutzerdefinierter Modi über Prompts aktivieren",
-		"description": "Wenn aktiviert, ermöglicht Roo Ihnen, benutzerdefinierte Modi mit Prompts wie 'Erstelle mir einen benutzerdefinierten Modus, der...' zu erstellen. Die Deaktivierung reduziert Ihren System-Prompt um etwa 700 Tokens, wenn diese Funktion nicht benötigt wird. Bei Deaktivierung können Sie immer noch manuell benutzerdefinierte Modi mit der +-Schaltfläche oben erstellen oder durch Bearbeiten der zugehörigen Konfigurations-JSON."
+		"description": "Wenn aktiviert, ermöglicht Roo dir, benutzerdefinierte Modi mit Prompts wie 'Erstelle mir einen benutzerdefinierten Modus, der...' zu erstellen. Die Deaktivierung reduziert deinen System-Prompt um etwa 700 Tokens, wenn diese Funktion nicht benötigt wird. Bei Deaktivierung kannst du immer noch manuell benutzerdefinierte Modi mit der +-Schaltfläche oben erstellen oder durch Bearbeiten der zugehörigen Konfigurations-JSON."
 	},
 	"advancedSystemPrompt": {
 		"title": "Erweitert: System-Prompt überschreiben",
-		"description": "Sie können den System-Prompt für diesen Modus vollständig ersetzen (abgesehen von der Rollendefinition und benutzerdefinierten Anweisungen), indem Sie eine Datei unter <span>.roo/system-prompt-{{slug}}</span> in Ihrem Arbeitsbereich erstellen. Dies ist eine sehr fortgeschrittene Funktion, die eingebaute Schutzmaßnahmen und Konsistenzprüfungen umgeht (besonders bei der Werkzeugnutzung), also seien Sie vorsichtig!"
+		"description": "Du kannst den System-Prompt für diesen Modus vollständig ersetzen (abgesehen von der Rollendefinition und benutzerdefinierten Anweisungen), indem du eine Datei unter <span>.roo/system-prompt-{{slug}}</span> in deinem Arbeitsbereich erstellst. Dies ist eine sehr fortgeschrittene Funktion, die eingebaute Schutzmaßnahmen und Konsistenzprüfungen umgeht (besonders bei der Werkzeugnutzung), also sei vorsichtig!"
 	},
 	"createModeDialog": {
 		"title": "Neuen Modus erstellen",
@@ -115,7 +115,7 @@
 		},
 		"saveLocation": {
 			"label": "Speicherort",
-			"description": "Wählen Sie, wo dieser Modus gespeichert werden soll. Projektspezifische Modi haben Vorrang vor globalen Modi.",
+			"description": "Wähle, wo dieser Modus gespeichert werden soll. Projektspezifische Modi haben Vorrang vor globalen Modi.",
 			"global": {
 				"label": "Global",
 				"description": "Verfügbar in allen Arbeitsbereichen"
@@ -127,11 +127,11 @@
 		},
 		"roleDefinition": {
 			"label": "Rollendefinition",
-			"description": "Definieren Sie Roos Expertise und Persönlichkeit für diesen Modus."
+			"description": "Definiere Roos Expertise und Persönlichkeit für diesen Modus."
 		},
 		"tools": {
 			"label": "Verfügbare Werkzeuge",
-			"description": "Wählen Sie, welche Werkzeuge dieser Modus verwenden kann."
+			"description": "Wähle, welche Werkzeuge dieser Modus verwenden kann."
 		},
 		"customInstructions": {
 			"label": "Benutzerdefinierte Anweisungen (optional)",

@@ -1,9 +1,9 @@
 {
-	"dialogTitle": "Menschliche Weiterleitung - Bitte helfen Sie beim Kopieren/Einfügen von Informationen",
-	"dialogDescription": "Bitte kopieren Sie den folgenden Prompt in die Web-KI und fügen Sie dann die Antwort der KI in das Eingabefeld unten ein.",
+	"dialogTitle": "Menschliche Weiterleitung - Bitte hilf beim Kopieren/Einfügen von Informationen",
+	"dialogDescription": "Bitte kopiere den folgenden Prompt in die Web-KI und füge dann die Antwort der KI in das Eingabefeld unten ein.",
 	"copiedToClipboard": "In die Zwischenablage kopiert",
 	"aiResponse": {
-		"label": "Bitte geben Sie die KI-Antwort ein:",
+		"label": "Bitte gib die KI-Antwort ein:",
 		"placeholder": "KI-Antwort hier einfügen..."
 	},
 	"actions": {

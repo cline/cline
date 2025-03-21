@@ -15,23 +15,23 @@
 		"other": "{{count}} Elemente"
 	},
 	"confirmation": {
-		"reset_state": "Möchten Sie wirklich alle Zustände und geheimen Speicher in der Erweiterung zurücksetzen? Dies kann nicht rückgängig gemacht werden.",
-		"delete_config_profile": "Möchten Sie dieses Konfigurationsprofil wirklich löschen?",
-		"delete_custom_mode": "Möchten Sie diesen benutzerdefinierten Modus wirklich löschen?",
-		"delete_message": "Was möchten Sie löschen?",
+		"reset_state": "Möchtest du wirklich alle Zustände und geheimen Speicher in der Erweiterung zurücksetzen? Dies kann nicht rückgängig gemacht werden.",
+		"delete_config_profile": "Möchtest du dieses Konfigurationsprofil wirklich löschen?",
+		"delete_custom_mode": "Möchtest du diesen benutzerdefinierten Modus wirklich löschen?",
+		"delete_message": "Was möchtest du löschen?",
 		"just_this_message": "Nur diese Nachricht",
 		"this_and_subsequent": "Diese und alle nachfolgenden Nachrichten"
 	},
 	"errors": {
 		"invalid_mcp_config": "Ungültiges MCP-Projekt-Konfigurationsformat",
-		"invalid_mcp_settings_format": "Ungültiges MCP-Einstellungen-JSON-Format. Bitte stellen Sie sicher, dass Ihre Einstellungen dem korrekten JSON-Format entsprechen.",
-		"invalid_mcp_settings_syntax": "Ungültiges MCP-Einstellungen-JSON-Format. Bitte überprüfen Sie Ihre Einstellungsdatei auf Syntaxfehler.",
+		"invalid_mcp_settings_format": "Ungültiges MCP-Einstellungen-JSON-Format. Bitte stelle sicher, dass deine Einstellungen dem korrekten JSON-Format entsprechen.",
+		"invalid_mcp_settings_syntax": "Ungültiges MCP-Einstellungen-JSON-Format. Bitte überprüfe deine Einstellungsdatei auf Syntaxfehler.",
 		"invalid_mcp_settings_validation": "Ungültiges MCP-Einstellungen-Format: {{errorMessages}}",
 		"failed_initialize_project_mcp": "Fehler beim Initialisieren des Projekt-MCP-Servers: {{error}}",
 		"invalid_data_uri": "Ungültiges Daten-URI-Format",
 		"checkpoint_timeout": "Zeitüberschreitung beim Versuch, den Checkpoint wiederherzustellen.",
 		"checkpoint_failed": "Fehler beim Wiederherstellen des Checkpoints.",
-		"no_workspace": "Bitte öffnen Sie zuerst einen Projektordner",
+		"no_workspace": "Bitte öffne zuerst einen Projektordner",
 		"update_support_prompt": "Fehler beim Aktualisieren der Support-Nachricht",
 		"reset_support_prompt": "Fehler beim Zurücksetzen der Support-Nachricht",
 		"enhance_prompt": "Fehler beim Verbessern der Nachricht",
@@ -52,7 +52,7 @@
 	},
 	"warnings": {
 		"no_terminal_content": "Kein Terminal-Inhalt ausgewählt",
-		"missing_task_files": "Die Dateien dieser Aufgabe fehlen. Möchten Sie sie aus der Aufgabenliste entfernen?"
+		"missing_task_files": "Die Dateien dieser Aufgabe fehlen. Möchtest du sie aus der Aufgabenliste entfernen?"
 	},
 	"info": {
 		"no_changes": "Keine Änderungen gefunden.",
@@ -71,7 +71,7 @@
 		"keep": "Behalten"
 	},
 	"tasks": {
-		"canceled": "Aufgabenfehler: Sie wurde vom Benutzer gestoppt und abgebrochen.",
-		"deleted": "Aufgabenfehler: Sie wurde vom Benutzer gestoppt und gelöscht."
+		"canceled": "Aufgabenfehler: Die Aufgabe wurde vom Benutzer gestoppt und abgebrochen.",
+		"deleted": "Aufgabenfehler: Die Aufgabe wurde vom Benutzer gestoppt und gelöscht."
 	}
 }

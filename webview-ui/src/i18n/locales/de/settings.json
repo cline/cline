@@ -14,7 +14,7 @@
 	},
 	"unsavedChangesDialog": {
 		"title": "Ungespeicherte Änderungen",
-		"description": "Möchten Sie die Änderungen verwerfen und fortfahren?",
+		"description": "Möchtest du die Änderungen verwerfen und fortfahren?",
 		"cancelButton": "Abbrechen",
 		"discardButton": "Änderungen verwerfen"
 	},
@@ -32,10 +32,10 @@
 		"about": "Über Roo Code"
 	},
 	"autoApprove": {
-		"description": "Erlaubt Roo, Operationen automatisch ohne Genehmigung durchzuführen. Aktivieren Sie diese Einstellungen nur, wenn Sie der KI vollständig vertrauen und die damit verbundenen Sicherheitsrisiken verstehen.",
+		"description": "Erlaubt Roo, Operationen automatisch ohne Genehmigung durchzuführen. Aktiviere diese Einstellungen nur, wenn du der KI vollständig vertraust und die damit verbundenen Sicherheitsrisiken verstehst.",
 		"readOnly": {
 			"label": "Schreibgeschützte Operationen immer genehmigen",
-			"description": "Wenn aktiviert, wird Roo automatisch Verzeichnisinhalte anzeigen und Dateien lesen, ohne dass Sie auf die Genehmigen-Schaltfläche klicken müssen."
+			"description": "Wenn aktiviert, wird Roo automatisch Verzeichnisinhalte anzeigen und Dateien lesen, ohne dass du auf die Genehmigen-Schaltfläche klicken musst."
 		},
 		"write": {
 			"label": "Schreiboperationen immer genehmigen",
@@ -141,30 +141,30 @@
 			"draftModelId": "Entwurfsmodell-ID",
 			"draftModelDesc": "Das Entwurfsmodell muss aus derselben Modellfamilie stammen, damit das spekulative Dekodieren korrekt funktioniert.",
 			"selectDraftModel": "Entwurfsmodell auswählen",
-			"noModelsFound": "Keine Entwurfsmodelle gefunden. Bitte stellen Sie sicher, dass LM Studio mit aktiviertem Servermodus läuft.",
-			"description": "LM Studio ermöglicht es Ihnen, Modelle lokal auf Ihrem Computer auszuführen. Eine Anleitung zum Einstieg finden Sie in ihrem <a>Schnellstart-Guide</a>. Sie müssen auch die <b>lokale Server</b>-Funktion von LM Studio starten, um es mit dieser Erweiterung zu verwenden. <span>Hinweis:</span> Roo Code verwendet komplexe Prompts und funktioniert am besten mit Claude-Modellen. Weniger leistungsfähige Modelle funktionieren möglicherweise nicht wie erwartet."
+			"noModelsFound": "Keine Entwurfsmodelle gefunden. Bitte stelle sicher, dass LM Studio mit aktiviertem Servermodus läuft.",
+			"description": "LM Studio ermöglicht es dir, Modelle lokal auf deinem Computer auszuführen. Eine Anleitung zum Einstieg findest du in ihrem <a>Schnellstart-Guide</a>. Du musst auch die <b>lokale Server</b>-Funktion von LM Studio starten, um es mit dieser Erweiterung zu verwenden. <span>Hinweis:</span> Roo Code verwendet komplexe Prompts und funktioniert am besten mit Claude-Modellen. Weniger leistungsfähige Modelle funktionieren möglicherweise nicht wie erwartet."
 		},
 		"ollama": {
 			"baseUrl": "Basis-URL (optional)",
 			"modelId": "Modell-ID",
-			"description": "Ollama ermöglicht es Ihnen, Modelle lokal auf Ihrem Computer auszuführen. Eine Anleitung zum Einstieg finden Sie im Schnellstart-Guide.",
+			"description": "Ollama ermöglicht es dir, Modelle lokal auf deinem Computer auszuführen. Eine Anleitung zum Einstieg findest du im Schnellstart-Guide.",
 			"warning": "Hinweis: Roo Code verwendet komplexe Prompts und funktioniert am besten mit Claude-Modellen. Weniger leistungsfähige Modelle funktionieren möglicherweise nicht wie erwartet."
 		},
 		"unboundApiKey": "Unbound API-Schlüssel",
 		"getUnboundApiKey": "Unbound API-Schlüssel erhalten",
 		"humanRelay": {
 			"description": "Es ist kein API-Schlüssel erforderlich, aber der Benutzer muss beim Kopieren und Einfügen der Informationen in den Web-Chat-KI helfen.",
-			"instructions": "Während der Verwendung wird ein Dialogfeld angezeigt und die aktuelle Nachricht wird automatisch in die Zwischenablage kopiert. Sie müssen diese in Web-Versionen von KI (wie ChatGPT oder Claude) einfügen, dann die Antwort der KI zurück in das Dialogfeld kopieren und auf die Bestätigungsschaltfläche klicken."
+			"instructions": "Während der Verwendung wird ein Dialogfeld angezeigt und die aktuelle Nachricht wird automatisch in die Zwischenablage kopiert. Du musst diese in Web-Versionen von KI (wie ChatGPT oder Claude) einfügen, dann die Antwort der KI zurück in das Dialogfeld kopieren und auf die Bestätigungsschaltfläche klicken."
 		},
 		"openRouter": {
 			"providerRouting": {
 				"title": "OpenRouter Anbieter-Routing",
-				"description": "OpenRouter leitet Anfragen an die besten verfügbaren Anbieter für Ihr Modell weiter. Standardmäßig werden Anfragen über die Top-Anbieter lastverteilt, um maximale Verfügbarkeit zu gewährleisten. Sie können jedoch einen bestimmten Anbieter für dieses Modell auswählen.",
+				"description": "OpenRouter leitet Anfragen an die besten verfügbaren Anbieter für dein Modell weiter. Standardmäßig werden Anfragen über die Top-Anbieter lastverteilt, um maximale Verfügbarkeit zu gewährleisten. Du kannst jedoch einen bestimmten Anbieter für dieses Modell auswählen.",
 				"learnMore": "Mehr über Anbieter-Routing erfahren"
 			}
 		},
 		"customModel": {
-			"capabilities": "Konfigurieren Sie die Fähigkeiten und Preise für Ihr benutzerdefiniertes OpenAI-kompatibles Modell. Seien Sie vorsichtig bei der Angabe der Modellfähigkeiten, da diese beeinflussen können, wie Roo Code funktioniert.",
+			"capabilities": "Konfiguriere die Fähigkeiten und Preise für dein benutzerdefiniertes OpenAI-kompatibles Modell. Sei vorsichtig bei der Angabe der Modellfähigkeiten, da diese beeinflussen können, wie Roo Code funktioniert.",
 			"maxTokens": {
 				"label": "Maximale Ausgabe-Tokens",
 				"description": "Maximale Anzahl von Tokens, die das Modell in einer Antwort generieren kann. (Geben Sie -1 an, damit der Server die maximalen Tokens festlegt.)"
@@ -304,7 +304,7 @@
 			},
 			"matchPrecision": {
 				"label": "Übereinstimmungsgenauigkeit",
-				"description": "Dieser Schieberegler steuert, wie genau Codeabschnitte beim Anwenden von Diffs übereinstimmen müssen. Niedrigere Werte ermöglichen flexiblere Übereinstimmungen, erhöhen aber das Risiko falscher Ersetzungen. Verwenden Sie Werte unter 100% mit äußerster Vorsicht."
+				"description": "Dieser Schieberegler steuert, wie genau Codeabschnitte beim Anwenden von Diffs übereinstimmen müssen. Niedrigere Werte ermöglichen flexiblere Übereinstimmungen, erhöhen aber das Risiko falscher Ersetzungen. Verwende Werte unter 100% mit äußerster Vorsicht."
 			}
 		}
 	},
@@ -312,7 +312,7 @@
 		"warning": "⚠️",
 		"DIFF_STRATEGY": {
 			"name": "Experimentelle einheitliche Diff-Strategie verwenden",
-			"description": "Aktiviert die experimentelle einheitliche Diff-Strategie. Diese Strategie könnte die Anzahl der durch Modellfehler verursachten Wiederholungen reduzieren, kann aber unerwartetes Verhalten oder falsche Bearbeitungen verursachen. Nur aktivieren, wenn Sie die Risiken verstehen und bereit sind, alle Änderungen sorgfältig zu überprüfen."
+			"description": "Aktiviert die experimentelle einheitliche Diff-Strategie. Diese Strategie könnte die Anzahl der durch Modellfehler verursachten Wiederholungen reduzieren, kann aber unerwartetes Verhalten oder falsche Bearbeitungen verursachen. Nur aktivieren, wenn du die Risiken verstehst und bereit bist, alle Änderungen sorgfältig zu überprüfen."
 		},
 		"SEARCH_AND_REPLACE": {
 			"name": "Experimentelles Such- und Ersetzungswerkzeug verwenden",
@@ -357,21 +357,21 @@
 		}
 	},
 	"modelPicker": {
-		"automaticFetch": "Die Erweiterung ruft automatisch die neueste Liste der verfügbaren Modelle von <serviceLink>{{serviceName}}</serviceLink> ab. Wenn Sie sich nicht sicher sind, welches Modell Sie wählen sollen, funktioniert Roo Code am besten mit <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Sie können auch nach \"free\" suchen, um derzeit verfügbare kostenlose Optionen zu finden.",
+		"automaticFetch": "Die Erweiterung ruft automatisch die neueste Liste der verfügbaren Modelle von <serviceLink>{{serviceName}}</serviceLink> ab. Wenn du dir nicht sicher bist, welches Modell du wählen sollst, funktioniert Roo Code am besten mit <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Du kannst auch nach \"free\" suchen, um derzeit verfügbare kostenlose Optionen zu finden.",
 		"label": "Modell",
 		"searchPlaceholder": "Suchen",
 		"noMatchFound": "Keine Übereinstimmung gefunden",
 		"useCustomModel": "Benutzerdefiniert verwenden: {{modelId}}"
 	},
 	"footer": {
-		"feedback": "Wenn Sie Fragen oder Feedback haben, können Sie gerne ein Issue auf <githubLink>github.com/RooVetGit/Roo-Code</githubLink> öffnen oder <redditLink>reddit.com/r/RooCode</redditLink> oder <discordLink>discord.gg/roocode</discordLink> beitreten",
+		"feedback": "Wenn du Fragen oder Feedback hast, kannst du gerne ein Issue auf <githubLink>github.com/RooVetGit/Roo-Code</githubLink> öffnen oder <redditLink>reddit.com/r/RooCode</redditLink> oder <discordLink>discord.gg/roocode</discordLink> beitreten",
 		"version": "Roo Code v{{version}}",
 		"telemetry": {
 			"label": "Anonyme Fehler- und Nutzungsberichte zulassen",
 			"description": "Helfen Sie, Roo Code zu verbessern, indem Sie anonyme Nutzungsdaten und Fehlerberichte senden. Es werden niemals Code, Prompts oder persönliche Informationen gesendet. Weitere Details finden Sie in unserer Datenschutzrichtlinie."
 		},
 		"reset": {
-			"description": "Setzen Sie alle globalen Zustände und geheimen Speicher in der Erweiterung zurück.",
+			"description": "Setze alle globalen Zustände und geheimen Speicher in der Erweiterung zurück.",
 			"button": "Zurücksetzen"
 		}
 	},
@@ -380,17 +380,17 @@
 		"maxThinkingTokens": "Maximale Thinking-Tokens"
 	},
 	"validation": {
-		"apiKey": "Sie müssen einen gültigen API-Schlüssel angeben.",
-		"awsRegion": "Sie müssen eine Region für AWS Bedrock auswählen.",
-		"googleCloud": "Sie müssen eine gültige Google Cloud Projekt-ID und Region angeben.",
-		"modelId": "Sie müssen eine gültige Modell-ID angeben.",
-		"modelSelector": "Sie müssen einen gültigen Modell-Selektor angeben.",
-		"openAi": "Sie müssen eine gültige Basis-URL, API-Schlüssel und Modell-ID angeben.",
+		"apiKey": "Du musst einen gültigen API-Schlüssel angeben.",
+		"awsRegion": "Du musst eine Region für AWS Bedrock auswählen.",
+		"googleCloud": "Du musst eine gültige Google Cloud Projekt-ID und Region angeben.",
+		"modelId": "Du musst eine gültige Modell-ID angeben.",
+		"modelSelector": "Du musst einen gültigen Modell-Selektor angeben.",
+		"openAi": "Du musst eine gültige Basis-URL, API-Schlüssel und Modell-ID angeben.",
 		"arn": {
 			"invalidFormat": "Ungültiges ARN-Format. Bitte überprüfen Sie die Formatanforderungen.",
-			"regionMismatch": "Warnung: Die Region in Ihrer ARN ({{arnRegion}}) stimmt nicht mit Ihrer ausgewählten Region ({{region}}) überein. Dies kann zu Zugriffsproblemen führen. Der Provider wird die Region aus der ARN verwenden."
+			"regionMismatch": "Warnung: Die Region in deiner ARN ({{arnRegion}}) stimmt nicht mit deiner ausgewählten Region ({{region}}) überein. Dies kann zu Zugriffsproblemen führen. Der Provider wird die Region aus der ARN verwenden."
 		},
-		"modelAvailability": "Die von Ihnen angegebene Modell-ID ({{modelId}}) ist nicht verfügbar. Bitte wählen Sie ein anderes Modell."
+		"modelAvailability": "Die von dir angegebene Modell-ID ({{modelId}}) ist nicht verfügbar. Bitte wähle ein anderes Modell."
 	},
 	"placeholders": {
 		"apiKey": "API-Schlüssel eingeben...",

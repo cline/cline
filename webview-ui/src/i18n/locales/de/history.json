@@ -21,7 +21,7 @@
 	"copyPrompt": "Prompt kopieren",
 	"exportTask": "Aufgabe exportieren",
 	"deleteTask": "Aufgabe löschen",
-	"deleteTaskMessage": "Sind Sie sicher, dass Sie diese Aufgabe löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
+	"deleteTaskMessage": "Bist du sicher, dass du diese Aufgabe löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden.",
 	"cancel": "Abbrechen",
 	"delete": "Löschen",
 	"exitSelection": "Auswahl beenden",
@@ -32,7 +32,7 @@
 	"clearSelection": "Auswahl aufheben",
 	"deleteSelected": "Ausgewählte löschen",
 	"deleteTasks": "Aufgaben löschen",
-	"confirmDeleteTasks": "Sind Sie sicher, dass Sie {{count}} Aufgaben löschen möchten?",
-	"deleteTasksWarning": "Gelöschte Aufgaben können nicht wiederhergestellt werden. Bitte vergewissern Sie sich, dass Sie fortfahren möchten.",
+	"confirmDeleteTasks": "Bist du sicher, dass du {{count}} Aufgaben löschen möchtest?",
+	"deleteTasksWarning": "Gelöschte Aufgaben können nicht wiederhergestellt werden. Bitte vergewissere dich, dass du fortfahren möchtest.",
 	"deleteItems": "{{count}} Elemente löschen"
 }
