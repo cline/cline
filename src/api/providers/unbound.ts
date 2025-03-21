@@ -211,9 +211,6 @@ export async function getUnboundModels() {
 				}
 
 				switch (true) {
-					case modelId.startsWith("anthropic/claude-3-7-sonnet"):
-						modelInfo.maxTokens = 16384
-						break
 					case modelId.startsWith("anthropic/"):
 						modelInfo.maxTokens = 8192
 						break

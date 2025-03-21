@@ -261,7 +261,7 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions) {
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 3.75
 					modelInfo.cacheReadsPrice = 0.3
-					modelInfo.maxTokens = rawModel.id === "anthropic/claude-3.7-sonnet:thinking" ? 128_000 : 16_384
+					modelInfo.maxTokens = rawModel.id === "anthropic/claude-3.7-sonnet:thinking" ? 128_000 : 8192
 					break
 				case rawModel.id.startsWith("anthropic/claude-3.5-sonnet-20240620"):
 					modelInfo.supportsPromptCache = true

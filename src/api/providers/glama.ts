@@ -217,9 +217,6 @@ export async function getGlamaModels() {
 			}
 
 			switch (rawModel.id) {
-				case rawModel.id.startsWith("anthropic/claude-3-7-sonnet"):
-					modelInfo.maxTokens = 16384
-					break
 				case rawModel.id.startsWith("anthropic/"):
 					modelInfo.maxTokens = 8192
 					break

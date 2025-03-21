@@ -15,7 +15,7 @@ describe("Model utility functions", () => {
 		/**
 		 * Testing the specific fix in commit cc79178f:
 		 * For thinking models, use apiConfig.modelMaxTokens if available,
-		 * otherwise fall back to 16_384 (not modelInfo.maxTokens)
+		 * otherwise fall back to 8192 (not modelInfo.maxTokens)
 		 */
 
 		it("should return apiConfig.modelMaxTokens for thinking models when provided", () => {

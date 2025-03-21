@@ -174,7 +174,7 @@ export const anthropicModels = {
 		thinking: true,
 	},
 	"claude-3-7-sonnet-20250219": {
-		maxTokens: 16_384,
+		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,
@@ -667,7 +667,7 @@ export const vertexModels = {
 		thinking: true,
 	},
 	"claude-3-7-sonnet@20250219": {
-		maxTokens: 16_384,
+		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsComputerUse: true,

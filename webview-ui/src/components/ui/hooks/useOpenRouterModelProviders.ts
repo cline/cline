@@ -75,7 +75,7 @@ async function getOpenRouterProvidersForModel(modelId: string) {
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 3.75
 					modelInfo.cacheReadsPrice = 0.3
-					modelInfo.maxTokens = id === "anthropic/claude-3.7-sonnet:thinking" ? 64_000 : 16_384
+					modelInfo.maxTokens = id === "anthropic/claude-3.7-sonnet:thinking" ? 64_000 : 8192
 					break
 				case modelId.startsWith("anthropic/claude-3.5-sonnet-20240620"):
 					modelInfo.supportsPromptCache = true
