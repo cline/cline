@@ -182,8 +182,6 @@ export class Cline {
 		this.chatSettings = chatSettings
 	}
 
-	// Storing task to disk for history
-
 	private async addToClineMessages(message: ClineMessage) {
 		// these values allow us to reconstruct the conversation history at the time this cline message was created
 		// it's important that apiConversationHistory is initialized before we add cline messages
