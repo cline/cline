@@ -73,7 +73,7 @@ export class ConversationTelemetryService {
 
 			const clineApiKey = await this.getClineApiKey()
 
-			console.log("[ConversationTelemetry] Initializing OpenTelemetry tracer...", { "this.clineApiKey": clineApiKey })
+			console.log("[ConversationTelemetry] Initializing OpenTelemetry tracer...")
 
 			// Configure the OTLP exporter
 			const headers: Record<string, string> = {
