@@ -6,7 +6,7 @@ import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
-import type { PaymentTransaction, UsageTransaction } from "../../../../src/services/account/ClineAccountService"
+import { UsageTransaction, PaymentTransaction } from "../../../../src/shared/ClineAccount"
 
 type AccountViewProps = {
 	onDone: () => void

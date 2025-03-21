@@ -1,24 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { ClineProvider } from "../../core/webview/ClineProvider"
-
-export interface BalanceResponse {
-	currentBalance: number
-}
-
-export interface UsageTransaction {
-	spentAt: string
-	credits: string
-	modelProvider: string
-	model: string
-	promptTokens: string
-	completionTokens: string
-}
-
-export interface PaymentTransaction {
-	paidAt: string
-	amountCents: string
-	credits: string
-}
+import type { BalanceResponse, PaymentTransaction, UsageTransaction } from "../../shared/ClineAccount"
 
 export class ClineAccountService {
 	private readonly baseUrl = "https://api.cline.bot/v1"
