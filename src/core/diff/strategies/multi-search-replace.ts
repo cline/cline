@@ -275,6 +275,19 @@ Only use a single line of '=======' between search and replacement content, beca
 				replaceContent = stripLineNumbers(replaceContent)
 			}
 
+			// Validate that search and replace content are not identical
+			if (searchContent === replaceContent) {
+				diffResults.push({
+					success: false,
+					error:
+						`Search and replace content are identical - no changes would be made\n\n` +
+						`Debug Info:\n` +
+						`- Search and replace must be different to make changes\n` +
+						`- Use read_file to verify the content you want to change`,
+				})
+				continue
+			}
+
 			// Split content into lines, handling both \n and \r\n
 			const searchLines = searchContent === "" ? [] : searchContent.split(/\r?\n/)
 			const replaceLines = replaceContent === "" ? [] : replaceContent.split(/\r?\n/)
