@@ -73,6 +73,7 @@ Diff format:
 
 \`\`\`
 
+
 Example:
 
 Original file:
@@ -128,6 +129,7 @@ def calculate_sum(items):
 >>>>>>> REPLACE
 \`\`\`
 
+
 Usage:
 <apply_diff>
 <path>File path here</path>
@@ -139,15 +141,102 @@ Only use a single line of '=======' between search and replacement content, beca
 </apply_diff>`
 	}
 
+	private unescapeMarkers(content: string): string {
+		return content
+			.replace(/^\\<<<<<<< SEARCH/gm, "<<<<<<< SEARCH")
+			.replace(/^\\=======/gm, "=======")
+			.replace(/^\\>>>>>>> REPLACE/gm, ">>>>>>> REPLACE")
+			.replace(/^\\-------/gm, "-------")
+			.replace(/^\\:end_line:/gm, ":end_line:")
+			.replace(/^\\:start_line:/gm, ":start_line:")
+	}
+
+	private validateMarkerSequencing(diffContent: string): { success: boolean; error?: string } {
+		enum State {
+			START,
+			AFTER_SEARCH,
+			AFTER_SEPARATOR,
+		}
+		const state = { current: State.START, line: 0 }
+
+		const SEARCH = "<<<<<<< SEARCH"
+		const SEP = "======="
+		const REPLACE = ">>>>>>> REPLACE"
+
+		const reportError = (found: string, expected: string) => ({
+			success: false,
+			error:
+				`ERROR: Special marker '${found}' found in your diff content at line ${state.line}:\n` +
+				"\n" +
+				`When removing merge conflict markers like '${found}' from files, you MUST escape them\n` +
+				"in your SEARCH section by prepending a backslash (\\) at the beginning of the line:\n" +
+				"\n" +
+				"CORRECT FORMAT:\n\n" +
+				"<<<<<<< SEARCH\n" +
+				"content before\n" +
+				`\\${found}    <-- Note the backslash here in this example\n` +
+				"content after\n" +
+				"=======\n" +
+				"replacement content\n" +
+				">>>>>>> REPLACE\n" +
+				"\n" +
+				"Without escaping, the system confuses your content with diff syntax markers.\n" +
+				"You may use multiple diff blocks in a single diff request, but ANY of ONLY the following separators that occur within SEARCH or REPLACE content must be escaped, as follows:\n" +
+				`\\${SEARCH}\n` +
+				`\\${SEP}\n` +
+				`\\${REPLACE}\n`,
+		})
+
+		for (const line of diffContent.split("\n")) {
+			state.line++
+			const marker = line.trim()
+
+			switch (state.current) {
+				case State.START:
+					if (marker === SEP) return reportError(SEP, SEARCH)
+					if (marker === REPLACE) return reportError(REPLACE, SEARCH)
+					if (marker === SEARCH) state.current = State.AFTER_SEARCH
+					break
+
+				case State.AFTER_SEARCH:
+					if (marker === SEARCH) return reportError(SEARCH, SEP)
+					if (marker === REPLACE) return reportError(REPLACE, SEP)
+					if (marker === SEP) state.current = State.AFTER_SEPARATOR
+					break
+
+				case State.AFTER_SEPARATOR:
+					if (marker === SEARCH) return reportError(SEARCH, REPLACE)
+					if (marker === SEP) return reportError(SEP, REPLACE)
+					if (marker === REPLACE) state.current = State.START
+					break
+			}
+		}
+
+		return state.current === State.START
+			? { success: true }
+			: {
+					success: false,
+					error: `ERROR: Unexpected end of sequence: Expected '${state.current === State.AFTER_SEARCH ? SEP : REPLACE}' was not found.`,
+				}
+	}
+
 	async applyDiff(
 		originalContent: string,
 		diffContent: string,
 		_paramStartLine?: number,
 		_paramEndLine?: number,
 	): Promise<DiffResult> {
+		const validseq = this.validateMarkerSequencing(diffContent)
+		if (!validseq.success) {
+			return {
+				success: false,
+				error: validseq.error!,
+			}
+		}
+
 		let matches = [
 			...diffContent.matchAll(
-				/<<<<<<< SEARCH\n(:start_line:\s*(\d+)\n){0,1}(:end_line:\s*(\d+)\n){0,1}(-------\n){0,1}([\s\S]*?)\n?=======\n([\s\S]*?)\n?>>>>>>> REPLACE/g,
+				/(?<!\\)<<<<<<< SEARCH\n(:start_line:\s*(\d+)\n){0,1}(:end_line:\s*(\d+)\n){0,1}((?<!\\)-------\n){0,1}([\s\S]*?)\n?(?<!\\)=======\n([\s\S]*?)\n?(?<!\\)>>>>>>> REPLACE/g,
 			),
 		]
 
@@ -175,6 +264,10 @@ Only use a single line of '=======' between search and replacement content, beca
 		for (let { searchContent, replaceContent, startLine, endLine } of replacements) {
 			startLine += startLine === 0 ? 0 : delta
 			endLine += delta
+
+			// First unescape any escaped markers in the content
+			searchContent = this.unescapeMarkers(searchContent)
+			replaceContent = this.unescapeMarkers(replaceContent)
 
 			// Strip line numbers from search and replace content if every line starts with a line number
 			if (everyLineHasLineNumbers(searchContent) && everyLineHasLineNumbers(replaceContent)) {
