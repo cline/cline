@@ -22,13 +22,14 @@ import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointContr
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
-import SuccessButton from "../common/SuccessButton"
 import Thumbnails from "../common/Thumbnails"
 import McpResourceRow from "../mcp/McpResourceRow"
 import McpToolRow from "../mcp/McpToolRow"
+import McpResponseDisplay from "../mcp/McpResponseDisplay"
 import CreditLimitError from "./CreditLimitError"
 import { OptionsButtons } from "./OptionsButtons"
 import { highlightMentions } from "./TaskHeader"
+import SuccessButton from "../common/SuccessButton"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -792,30 +793,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					)
 				case "api_req_finished":
 					return null // we should never see this message type
-				// case "mcp_server_response":
-				// 	return <McpResponseDisplay responseText={message.text || ""} />
 				case "mcp_server_response":
-					return (
-						<>
-							<div style={{ paddingTop: 0 }}>
-								<div
-									style={{
-										marginBottom: "4px",
-										opacity: 0.8,
-										fontSize: "12px",
-										textTransform: "uppercase",
-									}}>
-									Response
-								</div>
-								<CodeAccordian
-									code={message.text}
-									language="json"
-									isExpanded={true}
-									onToggleExpand={onToggleExpand}
-								/>
-							</div>
-						</>
-					)
+					return <McpResponseDisplay responseText={message.text || ""} />
 				case "text":
 					return (
 						<div>
@@ -1041,8 +1020,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 											})
 										}}
 										style={{
-											width: "100%",
 											cursor: seeNewChangesDisabled ? "wait" : "pointer",
+											width: "100%",
 										}}>
 										<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
 										See new changes
