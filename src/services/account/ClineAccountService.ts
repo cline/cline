@@ -1,5 +1,5 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
-import type { ClineProvider } from "../../core/webview/ClineProvider"
+import { ClineProvider } from "../../core/webview/ClineProvider"
 
 export interface BalanceResponse {
 	currentBalance: number
@@ -22,8 +22,24 @@ export interface PaymentTransaction {
 
 export class ClineAccountService {
 	private readonly baseUrl = "https://api.cline.bot/v1"
+	private providerRef: WeakRef<ClineProvider>
 
-	constructor(private provider: ClineProvider) {}
+	constructor(provider: ClineProvider) {
+		this.providerRef = new WeakRef(provider)
+	}
+
+	/**
+	 * Get the user's Cline Account key from the apiConfiguration
+	 */
+	private async getClineApiKey(): Promise<string | undefined> {
+		const provider = this.providerRef.deref()
+		if (!provider) {
+			return undefined
+		}
+
+		const { apiConfiguration } = await provider.getStateToPostToWebview()
+		return apiConfiguration?.clineApiKey
+	}
 
 	/**
 	 * Helper function to make authenticated requests to the Cline API
@@ -33,7 +49,8 @@ export class ClineAccountService {
 	 * @throws Error if the API key is not found or the request fails
 	 */
 	private async authenticatedRequest<T>(endpoint: string, config: AxiosRequestConfig = {}): Promise<T> {
-		const clineApiKey = await this.provider.getSecret("clineApiKey")
+		const clineApiKey = await this.getClineApiKey()
+
 		if (!clineApiKey) {
 			throw new Error("Cline API key not found")
 		}
@@ -65,7 +82,7 @@ export class ClineAccountService {
 			const data = await this.authenticatedRequest<BalanceResponse>("/user/credits/balance")
 
 			// Post to webview
-			await this.provider.postMessageToWebview({
+			await this.providerRef.deref()?.postMessageToWebview({
 				type: "userCreditsBalance",
 				userCreditsBalance: data,
 			})
@@ -85,7 +102,7 @@ export class ClineAccountService {
 			const data = await this.authenticatedRequest<UsageTransaction[]>("/user/credits/usage")
 
 			// Post to webview
-			await this.provider.postMessageToWebview({
+			await this.providerRef.deref()?.postMessageToWebview({
 				type: "userCreditsUsage",
 				userCreditsUsage: data,
 			})
@@ -105,7 +122,7 @@ export class ClineAccountService {
 			const data = await this.authenticatedRequest<PaymentTransaction[]>("/user/credits/payments")
 
 			// Post to webview
-			await this.provider.postMessageToWebview({
+			await this.providerRef.deref()?.postMessageToWebview({
 				type: "userCreditsPayments",
 				userCreditsPayments: data,
 			})
