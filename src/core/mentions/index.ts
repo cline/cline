@@ -152,12 +152,12 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 		const stats = await fs.stat(absPath)
 
 		if (stats.isFile()) {
-			const isBinary = await isBinaryFile(absPath).catch(() => false)
-			if (isBinary) {
-				return "(Binary file, unable to display content)"
+			try {
+				const content = await extractTextFromFile(absPath)
+				return content
+			} catch (error) {
+				return `(Failed to read contents of ${mentionPath}): ${error.message}`
 			}
-			const content = await extractTextFromFile(absPath)
-			return content
 		} else if (stats.isDirectory()) {
 			const entries = await fs.readdir(absPath, { withFileTypes: true })
 			let folderContent = ""
