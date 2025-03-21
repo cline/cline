@@ -6,7 +6,8 @@ import { ApiHandler } from "../index"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
-import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions.mjs"
+import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
+import { OPENAI_HEADER_TEMPLATES, processHeaderTemplate } from "../../shared/header-templates"
 
 export class OpenAiHandler implements ApiHandler {
 	private options: ApiHandlerOptions
@@ -14,6 +15,30 @@ export class OpenAiHandler implements ApiHandler {
 
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
+
+		// Process custom headers
+		let defaultHeaders: Record<string, string> = {}
+
+		// Apply template if specified
+		if (this.options.openAiHeaderTemplate && OPENAI_HEADER_TEMPLATES[this.options.openAiHeaderTemplate]) {
+			const template = OPENAI_HEADER_TEMPLATES[this.options.openAiHeaderTemplate]
+			// Process template variables (simple implementation with just apiKey for now)
+			const variables: Record<string, string> = {
+				apiKey: this.options.openAiApiKey || "",
+				// Add more variables as needed, e.g.:
+				subscriptionKey: "", // Would need to be added to ApiHandlerOptions
+			}
+			defaultHeaders = processHeaderTemplate(template, variables)
+		}
+
+		// Apply custom headers (overrides templates)
+		if (this.options.openAiCustomHeaders) {
+			defaultHeaders = {
+				...defaultHeaders,
+				...this.options.openAiCustomHeaders,
+			}
+		}
+
 		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
 		// Use azureApiVersion to determine if this is an Azure endpoint, since the URL may not always contain 'azure.com'
 		if (this.options.azureApiVersion || this.options.openAiBaseUrl?.toLowerCase().includes("azure.com")) {
@@ -21,11 +46,13 @@ export class OpenAiHandler implements ApiHandler {
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
 				apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
+				defaultHeaders: defaultHeaders,
 			})
 		} else {
 			this.client = new OpenAI({
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
+				defaultHeaders: defaultHeaders,
 			})
 		}
 	}
