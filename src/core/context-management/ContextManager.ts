@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ClineApiReqInfo, ClineMessage } from "../../shared/ExtensionMessage"
 import { ApiHandler } from "../../api"
 import { OpenAiHandler } from "../../api/providers/openai"
+import { formatResponse } from "../prompts/responses"
 
 export class ContextManager {
 	getNewContextMessagesAndMetadata(
@@ -59,7 +60,10 @@ export class ContextManager {
 		}
 
 		// conversationHistoryDeletedRange is updated only when we're close to hitting the context window, so we don't continuously break the prompt cache
-		const truncatedConversationHistory = this.getTruncatedMessages(apiConversationHistory, conversationHistoryDeletedRange)
+		const truncatedConversationHistory = this.getAndAlterTruncatedMessages(
+			apiConversationHistory,
+			conversationHistoryDeletedRange,
+		)
 
 		return {
 			conversationHistoryDeletedRange: conversationHistoryDeletedRange,
@@ -73,9 +77,9 @@ export class ContextManager {
 		currentDeletedRange: [number, number] | undefined,
 		keep: "half" | "quarter",
 	): [number, number] {
-		// Since we always keep the first message, currentDeletedRange[0] will always be 1 (for now until we have a smarter truncation algorithm)
-		const rangeStartIndex = 1
-		const startOfRest = currentDeletedRange ? currentDeletedRange[1] + 1 : 1
+		// We always keep the first user-assistant pairing, and truncate an even number of messages from there
+		const rangeStartIndex = 2 // index 0 and 1 are kept
+		const startOfRest = currentDeletedRange ? currentDeletedRange[1] + 1 : 2 // inclusive starting index
 
 		let messagesToRemove: number
 		if (keep === "half") {
@@ -86,11 +90,11 @@ export class ContextManager {
 			messagesToRemove = Math.floor((apiMessages.length - startOfRest) / 8) * 3 * 2
 		}
 
-		let rangeEndIndex = startOfRest + messagesToRemove - 1
+		let rangeEndIndex = startOfRest + messagesToRemove - 1 // inclusive ending index
 
-		// Make sure the last message being removed is a user message, so that the next message after the initial task message is an assistant message. This preservers the user-assistant-user-assistant structure.
+		// Make sure that the last message being removed is a assistant message, so the next message after the initial user-assistant pair is an assistant message. This preservers the user-assistant-user-assistant structure.
 		// NOTE: anthropic format messages are always user-assistant-user-assistant, while openai format messages can have multiple user messages in a row (we use anthropic format throughout cline)
-		if (apiMessages[rangeEndIndex].role !== "user") {
+		if (apiMessages[rangeEndIndex].role !== "assistant") {
 			rangeEndIndex -= 1
 		}
 
@@ -98,7 +102,7 @@ export class ContextManager {
 		return [rangeStartIndex, rangeEndIndex]
 	}
 
-	private getTruncatedMessages(
+	private getAndAlterTruncatedMessages(
 		messages: Anthropic.Messages.MessageParam[],
 		deletedRange: [number, number] | undefined,
 	): Anthropic.Messages.MessageParam[] {
@@ -106,9 +110,17 @@ export class ContextManager {
 			return messages
 		}
 
-		const [start, end] = deletedRange
+		const [start, end] = deletedRange // inclusive range to ignore
+
+		// need a deep copy
+		const firstMessageChunk = JSON.parse(JSON.stringify(messages.slice(0, start)))
+		if (Array.isArray(firstMessageChunk[1].content)) {
+			// should always be the case
+			firstMessageChunk[1].content[0].text = formatResponse.contextTruncationNotice()
+		}
+
 		// the range is inclusive - both start and end indices and everything in between will be removed from the final result.
 		// NOTE: if you try to console log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
-		return [...messages.slice(0, start), ...messages.slice(end + 1)]
+		return [...firstMessageChunk, ...messages.slice(end + 1)]
 	}
 }
