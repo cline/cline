@@ -184,13 +184,6 @@ export class Cline {
 
 	// Storing task to disk for history
 
-	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
-		this.apiConversationHistory.push(message)
-		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-		const taskId = this.taskId
-		await saveApiConversationHistory(globalStoragePath, taskId, this.apiConversationHistory)
-	}
-
 	private async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
 		this.apiConversationHistory = newHistory
 		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
@@ -3130,10 +3123,13 @@ export class Cline {
 		// add environment details as its own text block, separate from tool results
 		userContent.push({ type: "text", text: environmentDetails })
 
-		await this.addToApiConversationHistory({
+		this.apiConversationHistory.push({
 			role: "user",
 			content: userContent,
 		})
+		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
+		const taskId = this.taskId
+		await saveApiConversationHistory(globalStoragePath, taskId, this.apiConversationHistory)
 
 		telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "user")
 
@@ -3192,7 +3188,8 @@ export class Cline {
 				}
 
 				// Let assistant know their response was interrupted for when task is resumed
-				await this.addToApiConversationHistory({
+
+				this.apiConversationHistory.push({
 					role: "assistant",
 					content: [
 						{
@@ -3207,6 +3204,7 @@ export class Cline {
 						},
 					],
 				})
+				await saveApiConversationHistory(globalStoragePath, taskId, this.apiConversationHistory)
 
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
 				updateApiReqMsg(cancelReason, streamingFailedMessage)
@@ -3358,10 +3356,11 @@ export class Cline {
 			if (assistantMessage.length > 0) {
 				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
 
-				await this.addToApiConversationHistory({
+				this.apiConversationHistory.push({
 					role: "assistant",
 					content: [{ type: "text", text: assistantMessage }],
 				})
+				await saveApiConversationHistory(globalStoragePath, taskId, this.apiConversationHistory)
 
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished
@@ -3393,15 +3392,12 @@ export class Cline {
 					"error",
 					"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output.",
 				)
-				await this.addToApiConversationHistory({
+
+				this.apiConversationHistory.push({
 					role: "assistant",
-					content: [
-						{
-							type: "text",
-							text: "Failure: I did not provide a response.",
-						},
-					],
+					content: [{ type: "text", text: "Failure: I did not provide a response." }],
 				})
+				await saveApiConversationHistory(globalStoragePath, taskId, this.apiConversationHistory)
 			}
 
 			return didEndLoop // will always be false for now
