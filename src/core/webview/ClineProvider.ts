@@ -92,6 +92,7 @@ type GlobalStateKey =
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
+	| "openRouterProviderSorting"
 	| "autoApprovalSettings"
 	| "browserSettings"
 	| "chatSettings"
@@ -1141,6 +1142,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
+			openRouterProviderSorting,
 			vsCodeLmModelSelector,
 			liteLlmBaseUrl,
 			liteLlmModelId,
@@ -1190,6 +1192,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("azureApiVersion", azureApiVersion)
 		await this.updateGlobalState("openRouterModelId", openRouterModelId)
 		await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+		await this.updateGlobalState("openRouterProviderSorting", openRouterProviderSorting)
 		await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
 		await this.updateGlobalState("liteLlmBaseUrl", liteLlmBaseUrl)
 		await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
@@ -1991,6 +1994,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
+			openRouterProviderSorting,
 			lastShownAnnouncementId,
 			customInstructions,
 			taskHistory,
@@ -2053,6 +2057,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("openRouterProviderSorting") as Promise<string | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
@@ -2157,6 +2162,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				azureApiVersion,
 				openRouterModelId,
 				openRouterModelInfo,
+				openRouterProviderSorting,
 				vsCodeLmModelSelector,
 				o3MiniReasoningEffort,
 				thinkingBudgetTokens,
