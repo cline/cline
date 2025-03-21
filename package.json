@@ -230,13 +230,15 @@
 					"default": 900,
 					"minimum": 320,
 					"maximum": 7680,
-					"description": "Custom width for browser viewport in pixels (only used when defaultBrowserViewport is set to 'Custom')."},
+					"description": "Custom width for browser viewport in pixels (only used when defaultBrowserViewport is set to 'Custom')."
+				},
 				"cline.defaultBrowserViewportHeight": {
 					"type": "number",
 					"default": 600,
 					"minimum": 240,
 					"maximum": 4320,
-					"description": "Custom height for browser viewport in pixels (only used when defaultBrowserViewport is set to 'Custom')."}
+					"description": "Custom height for browser viewport in pixels (only used when defaultBrowserViewport is set to 'Custom')."
+				}
 			}
 		}
 	},
