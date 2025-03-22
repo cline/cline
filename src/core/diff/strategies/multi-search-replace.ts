@@ -234,16 +234,47 @@ Only use a single line of '=======' between search and replacement content, beca
 			}
 		}
 
+		/*
+			Regex parts:
+			
+			1. (?:^|\n)  
+			  Ensures the first marker starts at the beginning of the file or right after a newline.
+
+			2. (?<!\\)<<<<<<< SEARCH\s*\n  
+			  Matches the line “<<<<<<< SEARCH” (ignoring any trailing spaces) – the negative lookbehind makes sure it isn’t escaped.
+
+			3. ((?:\:start_line:\s*(\d+)\s*\n))?  
+			  Optionally matches a “:start_line:” line. The outer capturing group is group 1 and the inner (\d+) is group 2.
+
+			4. ((?:\:end_line:\s*(\d+)\s*\n))?  
+			  Optionally matches a “:end_line:” line. Group 3 is the whole match and group 4 is the digits.
+
+			5. ((?<!\\)-------\s*\n)?  
+			  Optionally matches the “-------” marker line (group 5).
+
+			6. ([\s\S]*?)(?:\n)?  
+			  Non‐greedy match for the “search content” (group 6) up to the next marker.
+
+			7. (?:(?<=\n)(?<!\\)=======\s*\n)  
+			  Matches the “=======” marker on its own line.
+
+			8. ([\s\S]*?)(?:\n)?  
+			  Non‐greedy match for the “replace content” (group 7).
+
+			9. (?:(?<=\n)(?<!\\)>>>>>>> REPLACE)(?=\n|$)  
+			  Matches the final “>>>>>>> REPLACE” marker on its own line (and requires a following newline or the end of file).
+		*/
+
 		let matches = [
 			...diffContent.matchAll(
-				/(?<!\\)<<<<<<< SEARCH\n(:start_line:\s*(\d+)\n){0,1}(:end_line:\s*(\d+)\n){0,1}((?<!\\)-------\n){0,1}([\s\S]*?)\n?(?<!\\)=======\n([\s\S]*?)\n?(?<!\\)>>>>>>> REPLACE/g,
+				/(?:^|\n)(?<!\\)<<<<<<< SEARCH\s*\n((?:\:start_line:\s*(\d+)\s*\n))?((?:\:end_line:\s*(\d+)\s*\n))?((?<!\\)-------\s*\n)?([\s\S]*?)(?:\n)?(?:(?<=\n)(?<!\\)=======\s*\n)([\s\S]*?)(?:\n)?(?:(?<=\n)(?<!\\)>>>>>>> REPLACE)(?=\n|$)/g,
 			),
 		]
 
 		if (matches.length === 0) {
 			return {
 				success: false,
-				error: `Invalid diff format - missing required sections\n\nDebug Info:\n- Expected Format: <<<<<<< SEARCH\\n:start_line: start line\\n:end_line: end line\\n-------\\n[search content]\\n=======\\n[replace content]\\n>>>>>>> REPLACE\n- Tip: Make sure to include start_line/end_line/SEARCH/REPLACE sections with correct markers`,
+				error: `Invalid diff format - missing required sections\n\nDebug Info:\n- Expected Format: <<<<<<< SEARCH\\n:start_line: start line\\n:end_line: end line\\n-------\\n[search content]\\n=======\\n[replace content]\\n>>>>>>> REPLACE\n- Tip: Make sure to include start_line/end_line/SEARCH/=======/REPLACE sections with correct markers on new lines`,
 			}
 		}
 		// Detect line ending from original content

@@ -980,7 +980,6 @@ function test() {
 :end_line:4
 -------
 =======
-
 // End of file
 >>>>>>> REPLACE`
 
@@ -990,7 +989,6 @@ function test() {
 					expect(result.content).toBe(`function test() {
     return true;
 }
-
 // End of file`)
 				}
 			})
