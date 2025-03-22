@@ -72,7 +72,10 @@ export async function parseMentions(text: string, cwd: string, urlContentFetcher
 		}
 	}
 
-	for (const mention of mentions) {
+	// Filter out duplicate mentions while preserving order
+	const uniqueMentions = Array.from(new Set(mentions))
+
+	for (const mention of uniqueMentions) {
 		if (mention.startsWith("http")) {
 			let result: string
 			if (launchBrowserError) {

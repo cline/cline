@@ -104,6 +104,21 @@
 				"command": "cline.openDocumentation",
 				"title": "Documentation",
 				"icon": "$(book)"
+			},
+			{
+				"command": "cline.addToChat",
+				"title": "Add to Cline",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.addTerminalOutputToChat",
+				"title": "Add to Cline",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.fixWithCline",
+				"title": "Fix with Cline",
+				"category": "Cline"
 			}
 		],
 		"menus": {
@@ -142,6 +157,19 @@
 					"command": "cline.settingsButtonClicked",
 					"group": "navigation@7",
 					"when": "view == claude-dev.SidebarProvider"
+				}
+			],
+			"editor/context": [
+				{
+					"command": "cline.addToChat",
+					"group": "navigation",
+					"when": "editorHasSelection"
+				}
+			],
+			"terminal/context": [
+				{
+					"command": "cline.addTerminalOutputToChat",
+					"group": "navigation"
 				}
 			]
 		},
