@@ -812,6 +812,543 @@ function five() {
 					expect(result.error).toContain("'<<<<<<< SEARCH' found in your diff content")
 				})
 
+				it("allows escaped search marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					const result = strategy["validateMarkerSequencing"](diff)
+					expect(result.success).toBe(true)
+				})
+
+				it("allows escaped separator in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					const result = strategy["validateMarkerSequencing"](diff)
+					expect(result.success).toBe(true)
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped separator in content", async () => {
+					const originalContent = "before\n=======\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped separator in content", async () => {
+					const originalContent = "before\n=======\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"test.ts\n" +
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"test.ts\n" +
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped separator in content", async () => {
+					const originalContent = "before\n=======\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped separator in content", async () => {
+					const originalContent = "before\n=======\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("allows escaped search marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped separator in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped search marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped search marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped separator in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped replace marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped separator in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped replace marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped replace marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"replaced content\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("replaced content\n")
+					}
+				})
+
+				it("processes escaped replace marker in content", async () => {
+					const originalContent = "before\n>>>>>>> REPLACE\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes multiple escaped markers in content", async () => {
+					const originalContent = "<<<<<<< SEARCH\n=======\n>>>>>>> REPLACE\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"\\=======\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped separator in content", async () => {
+					const originalContent = "before\n=======\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped replace marker in content", async () => {
+					const originalContent = "before\n>>>>>>> REPLACE\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped separator in content", async () => {
+					const originalContent = "before\n=======\nafter\n"
+					const diffContent =
+						"test.ts\n" +
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped replace marker in content", async () => {
+					const originalContent = "before\n>>>>>>> REPLACE\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes multiple escaped markers in content", async () => {
+					const originalContent = "<<<<<<< SEARCH\n=======\n>>>>>>> REPLACE\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"\\=======\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped replace marker in content", async () => {
+					const originalContent = "before\n>>>>>>> REPLACE\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes multiple escaped markers in content", async () => {
+					const originalContent = "<<<<<<< SEARCH\n=======\n>>>>>>> REPLACE\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"\\=======\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("allows escaped replace marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					const result = strategy["validateMarkerSequencing"](diff)
+					expect(result.success).toBe(true)
+				})
+
+				it("allows multiple escaped markers in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"\\=======\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					const result = strategy["validateMarkerSequencing"](diff)
+					expect(result.success).toBe(true)
+				})
+
 				it("detects separator when expecting replace", () => {
 					const diff = "<<<<<<< SEARCH\n" + "content\n" + "=======\n" + "new content\n" + "======="
 					const result = strategy["validateMarkerSequencing"](diff)
