@@ -49,6 +49,7 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 type SecretKey =
 	| "apiKey"
+	| "arceeAiApiKey"
 	| "clineApiKey"
 	| "openRouterApiKey"
 	| "awsAccessKey"
@@ -1120,6 +1121,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			apiProvider,
 			apiModelId,
 			apiKey,
+			arceeAiApiKey,
 			openRouterApiKey,
 			awsAccessKey,
 			awsSecretKey,
@@ -1170,6 +1172,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("apiProvider", apiProvider)
 		await this.updateGlobalState("apiModelId", apiModelId)
 		await this.storeSecret("apiKey", apiKey)
+		await this.storeSecret("arceeAiApiKey", arceeAiApiKey)
 		await this.storeSecret("openRouterApiKey", openRouterApiKey)
 		await this.storeSecret("awsAccessKey", awsAccessKey)
 		await this.storeSecret("awsSecretKey", awsSecretKey)
@@ -1985,6 +1988,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			storedApiProvider,
 			apiModelId,
 			apiKey,
+			arceeAiApiKey,
 			openRouterApiKey,
 			clineApiKey,
 			awsAccessKey,
@@ -2048,6 +2052,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
 			this.getSecret("apiKey") as Promise<string | undefined>,
+			this.getSecret("arceeAiApiKey") as Promise<string | undefined>,
 			this.getSecret("openRouterApiKey") as Promise<string | undefined>,
 			this.getSecret("clineApiKey") as Promise<string | undefined>,
 			this.getSecret("awsAccessKey") as Promise<string | undefined>,
@@ -2152,6 +2157,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				apiProvider,
 				apiModelId,
 				apiKey,
+				arceeAiApiKey,
 				openRouterApiKey,
 				clineApiKey,
 				awsAccessKey,
@@ -2330,6 +2336,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		const secretKeys: SecretKey[] = [
 			"apiKey",
 			"openRouterApiKey",
+			"arceeAiApiKey",
 			"awsAccessKey",
 			"awsSecretKey",
 			"awsSessionToken",
