@@ -49,6 +49,7 @@ interface ChatRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	inputValue?: string
 }
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
@@ -84,7 +85,7 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message, lastModifiedMessage } = props
+		const { isLast, onHeightChange, message, lastModifiedMessage, inputValue } = props
 		// Store the previous height to compare with the current height
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
@@ -117,7 +118,14 @@ const ChatRow = memo(
 
 export default ChatRow
 
-export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
+export const ChatRowContent = ({
+	message,
+	isExpanded,
+	onToggleExpand,
+	lastModifiedMessage,
+	isLast,
+	inputValue,
+}: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
@@ -1248,6 +1256,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									options={options}
 									selected={selected}
 									isActive={isLast && lastModifiedMessage?.ask === "followup"}
+									inputValue={inputValue}
 								/>
 							</div>
 						</>
@@ -1286,7 +1295,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							<OptionsButtons
 								options={options}
 								selected={selected}
+<<<<<<< HEAD
 								isActive={isLast && lastModifiedMessage?.ask === "plan_mode_respond"}
+=======
+								isActive={isLast && lastModifiedMessage?.ask === "plan_mode_response"}
+								inputValue={inputValue}
+>>>>>>> 31f8a323 (- add ability to send context with an options selection)
 							/>
 						</div>
 					)

@@ -789,10 +789,11 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					lastModifiedMessage={modifiedMessages.at(-1)}
 					isLast={index === groupedMessages.length - 1}
 					onHeightChange={handleRowHeightChange}
+					inputValue={inputValue}
 				/>
 			)
 		},
-		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange],
+		[expandedRows, modifiedMessages, groupedMessages.length, toggleRowExpansion, handleRowHeightChange, inputValue],
 	)
 
 	return (
