@@ -14,6 +14,7 @@ import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-pre
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
+import { ClineAccountService } from "../../services/account/ClineAccountService"
 import { McpHub } from "../../services/mcp/McpHub"
 import { UserInfo } from "../../shared/UserInfo"
 import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
@@ -122,6 +123,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private cline?: Cline
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
+	accountService?: ClineAccountService
 	private latestAnnouncementId = "feb-19-2025" // update to some unique identifier when we add a new announcement
 	conversationTelemetryService: ConversationTelemetryService
 
@@ -133,6 +135,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.mcpHub = new McpHub(this)
+		this.accountService = new ClineAccountService(this)
 		this.conversationTelemetryService = new ConversationTelemetryService(this)
 
 		// Clean up legacy checkpoints
@@ -164,6 +167,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.workspaceTracker = undefined
 		this.mcpHub?.dispose()
 		this.mcpHub = undefined
+		this.accountService = undefined
 		this.conversationTelemetryService.shutdown()
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
@@ -723,6 +727,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 					case "accountLogoutClicked": {
 						await this.handleSignOut()
+						break
+					}
+					case "showAccountViewClicked": {
+						await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
+						break
+					}
+					case "fetchUserCreditsData": {
+						await this.fetchUserCreditsData()
 						break
 					}
 					case "showMcpView": {
@@ -1311,6 +1323,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			return models
 		} catch (error) {
 			return []
+		}
+	}
+
+	// Account
+
+	async fetchUserCreditsData() {
+		try {
+			await Promise.all([
+				this.accountService?.fetchBalance(),
+				this.accountService?.fetchUsageTransactions(),
+				this.accountService?.fetchPaymentTransactions(),
+			])
+		} catch (error) {
+			console.error("Failed to fetch user credits data:", error)
 		}
 	}
 

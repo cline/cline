@@ -115,10 +115,10 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.accountLoginClicked", () => {
+		vscode.commands.registerCommand("cline.accountButtonClicked", () => {
 			sidebarProvider.postMessageToWebview({
 				type: "action",
-				action: "accountLoginClicked",
+				action: "accountButtonClicked",
 			})
 		}),
 	)

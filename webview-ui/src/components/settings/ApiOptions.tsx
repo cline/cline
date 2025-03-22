@@ -52,7 +52,7 @@ import { vscode } from "../../utils/vscode"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
-import AccountView, { ClineAccountView } from "../account/AccountView"
+import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -216,7 +216,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{selectedProvider === "cline" && (
 				<div style={{ marginBottom: 8, marginTop: 4 }}>
-					<ClineAccountView />
+					<ClineAccountInfoCard />
 				</div>
 			)}
 
