@@ -357,6 +357,18 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 						marginLeft: "8px",
 					}}
 				/>
+				<VSCodeButton
+					appearance="secondary"
+					style={{
+						marginLeft: "8px",
+					}}
+					onClick={(e) => {
+						e.stopPropagation()
+						handleRestart()
+					}}
+					disabled={server.status === "connecting"}>
+					{server.status === "connecting" ? "Restarting..." : "Restart"}
+				</VSCodeButton>
 			</div>
 
 			{server.error ? (
