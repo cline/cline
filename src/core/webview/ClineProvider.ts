@@ -96,7 +96,6 @@ type GlobalStateKey =
 	| "openRouterProviderSorting"
 	| "autoApprovalSettings"
 	| "browserSettings"
-	| "chatSettings"
 	| "vsCodeLmModelSelector"
 	| "userInfo"
 	| "previousModeApiProvider"
@@ -126,6 +125,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	accountService?: ClineAccountService
 	private latestAnnouncementId = "feb-19-2025" // update to some unique identifier when we add a new announcement
 	conversationTelemetryService: ConversationTelemetryService
+	private globalChatSettings: ChatSettings = DEFAULT_CHAT_SETTINGS
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -142,6 +142,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+	}
+
+	private getInitialChatSettings(): ChatSettings {
+		return {
+			...this.globalChatSettings, // carry over the state of the plan/act toggle into the new Cline instance
+		}
 	}
 
 	/*
@@ -285,8 +291,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
-			await this.getState()
+		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings } = await this.getState()
+
+		const chatSettings = this.getInitialChatSettings()
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
@@ -301,8 +308,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
-			await this.getState()
+		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings } = await this.getState()
+
+		const chatSettings = this.getInitialChatSettings()
 		this.cline = new Cline(
 			this,
 			apiConfiguration,
@@ -1058,7 +1066,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
-		await this.updateGlobalState("chatSettings", chatSettings)
 		await this.postStateToWebview()
 
 		if (this.cline) {
@@ -1076,6 +1083,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				this.cancelTask()
 			}
 		}
+
+		// Independent of the cline instance: Always toggle the "global" state
+		this.globalChatSettings = chatSettings
 	}
 
 	async cancelTask() {
@@ -1897,7 +1907,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
 			telemetrySetting,
@@ -1920,7 +1929,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			platform: process.platform as Platform,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
+			chatSettings: this.cline ? this.cline.getChatSettings() : this.getInitialChatSettings(),
 			userInfo,
 			mcpMarketplaceEnabled,
 			telemetrySetting,
@@ -2026,7 +2035,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			taskHistory,
 			autoApprovalSettings,
 			browserSettings,
-			chatSettings,
 			vsCodeLmModelSelector,
 			liteLlmBaseUrl,
 			liteLlmModelId,
@@ -2089,7 +2097,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
-			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 			this.getGlobalState("liteLlmBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("liteLlmModelId") as Promise<string | undefined>,
@@ -2205,7 +2212,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			taskHistory,
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
-			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 			userInfo,
 			previousModeApiProvider,
 			previousModeModelId,
