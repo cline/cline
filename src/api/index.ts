@@ -9,7 +9,7 @@ import { OllamaHandler } from "./providers/ollama"
 import { LmStudioHandler } from "./providers/lmstudio"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
-import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
+import { ApiStream } from "./transform/stream"
 import { DeepSeekHandler } from "./providers/deepseek"
 import { RequestyHandler } from "./providers/requesty"
 import { TogetherHandler } from "./providers/together"
@@ -25,7 +25,6 @@ import { SambanovaHandler } from "./providers/sambanova"
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
 	getModel(): { id: string; info: ModelInfo }
-	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
 }
 
 export interface SingleCompletionHandler {
