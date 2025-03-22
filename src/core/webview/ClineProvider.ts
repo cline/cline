@@ -36,6 +36,9 @@ import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
+import { getTotalTasksSize } from "../../utils/storage"
+import { ConversationTelemetryService } from "../../services/telemetry/ConversationTelemetryService"
+import { GlobalFileNames } from "../../global-constants"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -90,6 +93,7 @@ type GlobalStateKey =
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
+	| "openRouterProviderSorting"
 	| "autoApprovalSettings"
 	| "browserSettings"
 	| "chatSettings"
@@ -110,14 +114,6 @@ type GlobalStateKey =
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
 
-export const GlobalFileNames = {
-	apiConversationHistory: "api_conversation_history.json",
-	uiMessages: "ui_messages.json",
-	openRouterModels: "openrouter_models.json",
-	mcpSettings: "cline_mcp_settings.json",
-	clineRules: ".clinerules",
-}
-
 export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
@@ -128,6 +124,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	private latestAnnouncementId = "feb-19-2025" // update to some unique identifier when we add a new announcement
+	conversationTelemetryService: ConversationTelemetryService
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -137,6 +134,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.mcpHub = new McpHub(this)
+		this.conversationTelemetryService = new ConversationTelemetryService(this)
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
@@ -167,6 +165,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.workspaceTracker = undefined
 		this.mcpHub?.dispose()
 		this.mcpHub = undefined
+		this.conversationTelemetryService.shutdown()
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 	}
@@ -817,6 +816,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "requestTotalTasksSize": {
+						this.refreshTotalTasksSize()
+						break
+					}
 					case "restartMcpServer": {
 						try {
 							await this.mcpHub?.restartConnection(message.text!)
@@ -918,6 +921,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "clearAllTaskHistory": {
 						await this.deleteAllTaskHistory()
 						await this.postStateToWebview()
+						this.refreshTotalTasksSize()
 						this.postMessageToWebview({ type: "relinquishControl" })
 						break
 					}
@@ -1140,6 +1144,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
+			openRouterProviderSorting,
 			vsCodeLmModelSelector,
 			liteLlmBaseUrl,
 			liteLlmModelId,
@@ -1190,6 +1195,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("azureApiVersion", azureApiVersion)
 		await this.updateGlobalState("openRouterModelId", openRouterModelId)
 		await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+		await this.updateGlobalState("openRouterProviderSorting", openRouterProviderSorting)
 		await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
 		await this.updateGlobalState("liteLlmBaseUrl", liteLlmBaseUrl)
 		await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
@@ -1791,46 +1797,56 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		// await this.postStateToWebview()
 	}
 
+	async refreshTotalTasksSize() {
+		getTotalTasksSize(this.context.globalStorageUri.fsPath)
+			.then((newTotalSize) => {
+				this.postMessageToWebview({
+					type: "totalTasksSize",
+					totalTasksSize: newTotalSize,
+				})
+			})
+			.catch((error) => {
+				console.error("Error calculating total tasks size:", error)
+			})
+	}
+
 	async deleteTaskWithId(id: string) {
 		console.info("deleteTaskWithId: ", id)
 
-		if (id === this.cline?.taskId) {
-			await this.clearTask()
-			console.debug("cleared task")
+		try {
+			if (id === this.cline?.taskId) {
+				await this.clearTask()
+				console.debug("cleared task")
+			}
+
+			const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
+
+			const updatedTaskHistory = await this.deleteTaskFromState(id)
+
+			// Delete the task files
+			const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
+			if (apiConversationHistoryFileExists) {
+				await fs.unlink(apiConversationHistoryFilePath)
+			}
+			const uiMessagesFileExists = await fileExistsAtPath(uiMessagesFilePath)
+			if (uiMessagesFileExists) {
+				await fs.unlink(uiMessagesFilePath)
+			}
+			const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
+			if (await fileExistsAtPath(legacyMessagesFilePath)) {
+				await fs.unlink(legacyMessagesFilePath)
+			}
+
+			await fs.rmdir(taskDirPath) // succeeds if the dir is empty
+
+			if (updatedTaskHistory.length === 0) {
+				await this.deleteAllTaskHistory()
+			}
+		} catch (error) {
+			console.debug(`Error deleting task:`, error)
 		}
 
-		const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath } = await this.getTaskWithId(id)
-
-		// Delete checkpoints
-		console.info("deleting checkpoints")
-		const taskHistory = ((await this.getGlobalState("taskHistory")) as HistoryItem[] | undefined) || []
-		const historyItem = taskHistory.find((item) => item.id === id)
-		//console.log("historyItem: ", historyItem)
-		// if (historyItem) {
-		// 	try {
-		// 		await CheckpointTracker.deleteCheckpoints(id, historyItem, this.context.globalStorageUri.fsPath)
-		// 	} catch (error) {
-		// 		console.error(`Failed to delete checkpoints for task ${id}:`, error)
-		// 	}
-		// }
-
-		await this.deleteTaskFromState(id)
-
-		// Delete the task files
-		const apiConversationHistoryFileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
-		if (apiConversationHistoryFileExists) {
-			await fs.unlink(apiConversationHistoryFilePath)
-		}
-		const uiMessagesFileExists = await fileExistsAtPath(uiMessagesFilePath)
-		if (uiMessagesFileExists) {
-			await fs.unlink(uiMessagesFilePath)
-		}
-		const legacyMessagesFilePath = path.join(taskDirPath, "claude_messages.json")
-		if (await fileExistsAtPath(legacyMessagesFilePath)) {
-			await fs.unlink(legacyMessagesFilePath)
-		}
-
-		await fs.rmdir(taskDirPath) // succeeds if the dir is empty
+		this.refreshTotalTasksSize()
 	}
 
 	async deleteTaskFromState(id: string) {
@@ -1841,6 +1857,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		// Notify the webview that the task has been deleted
 		await this.postStateToWebview()
+
+		return updatedTaskHistory
 	}
 
 	async postStateToWebview() {
@@ -1980,6 +1998,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
+			openRouterProviderSorting,
 			lastShownAnnouncementId,
 			customInstructions,
 			taskHistory,
@@ -2043,6 +2062,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("openRouterProviderSorting") as Promise<string | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
@@ -2148,6 +2168,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				azureApiVersion,
 				openRouterModelId,
 				openRouterModelInfo,
+				openRouterProviderSorting,
 				vsCodeLmModelSelector,
 				o3MiniReasoningEffort,
 				thinkingBudgetTokens,
