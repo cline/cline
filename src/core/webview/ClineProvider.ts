@@ -2186,7 +2186,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				qwenApiLine,
 				mistralApiKey,
 				azureApiVersion,
-				openRouterModelId,
+				// Fixes bug where switching to plan/act would result in setting this model id to previousModeModelId which may have been a non-string value by default, causing a type error in the webview when calling .toLowerCase() on it.
+				openRouterModelId: openRouterModelId ? String(openRouterModelId) : undefined,
 				openRouterModelInfo,
 				openRouterProviderSorting,
 				vsCodeLmModelSelector,
@@ -2208,7 +2209,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 			userInfo,
 			previousModeApiProvider,
-			previousModeModelId,
+			previousModeModelId: previousModeModelId ? String(previousModeModelId) : undefined,
 			previousModeModelInfo,
 			previousModeThinkingBudgetTokens,
 			mcpMarketplaceEnabled,
