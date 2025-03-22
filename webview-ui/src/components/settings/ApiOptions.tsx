@@ -52,7 +52,7 @@ import { vscode } from "../../utils/vscode"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
-import AccountView, { ClineAccountView } from "../account/AccountView"
+import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -64,7 +64,7 @@ interface ApiOptionsProps {
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
 const DROPDOWN_Z_INDEX = 1001 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
 
-const DropdownContainer = styled.div<{ zIndex?: number }>`
+export const DropdownContainer = styled.div<{ zIndex?: number }>`
 	position: relative;
 	z-index: ${(props) => props.zIndex || DROPDOWN_Z_INDEX};
 
@@ -216,7 +216,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{selectedProvider === "cline" && (
 				<div style={{ marginBottom: 8, marginTop: 4 }}>
-					<ClineAccountView />
+					<ClineAccountInfoCard />
 				</div>
 			)}
 

@@ -14,6 +14,7 @@ import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-pre
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
+import { ClineAccountService } from "../../services/account/ClineAccountService"
 import { McpHub } from "../../services/mcp/McpHub"
 import { UserInfo } from "../../shared/UserInfo"
 import { ApiConfiguration, ApiProvider, ModelInfo } from "../../shared/api"
@@ -37,6 +38,8 @@ import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { getTotalTasksSize } from "../../utils/storage"
+import { ConversationTelemetryService } from "../../services/telemetry/ConversationTelemetryService"
+import { GlobalFileNames } from "../../global-constants"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -90,6 +93,7 @@ type GlobalStateKey =
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
+	| "openRouterProviderSorting"
 	| "autoApprovalSettings"
 	| "browserSettings"
 	| "chatSettings"
@@ -110,14 +114,6 @@ type GlobalStateKey =
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
 
-export const GlobalFileNames = {
-	apiConversationHistory: "api_conversation_history.json",
-	uiMessages: "ui_messages.json",
-	openRouterModels: "openrouter_models.json",
-	mcpSettings: "cline_mcp_settings.json",
-	clineRules: ".clinerules",
-}
-
 export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
@@ -127,7 +123,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	private cline?: Cline
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
+	accountService?: ClineAccountService
 	private latestAnnouncementId = "feb-19-2025" // update to some unique identifier when we add a new announcement
+	conversationTelemetryService: ConversationTelemetryService
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -137,6 +135,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.mcpHub = new McpHub(this)
+		this.accountService = new ClineAccountService(this)
+		this.conversationTelemetryService = new ConversationTelemetryService(this)
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
@@ -167,6 +167,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.workspaceTracker = undefined
 		this.mcpHub?.dispose()
 		this.mcpHub = undefined
+		this.accountService = undefined
+		this.conversationTelemetryService.shutdown()
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 	}
@@ -727,6 +729,14 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.handleSignOut()
 						break
 					}
+					case "showAccountViewClicked": {
+						await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
+						break
+					}
+					case "fetchUserCreditsData": {
+						await this.fetchUserCreditsData()
+						break
+					}
 					case "showMcpView": {
 						await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked" })
 						break
@@ -1144,6 +1154,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
+			openRouterProviderSorting,
 			vsCodeLmModelSelector,
 			liteLlmBaseUrl,
 			liteLlmModelId,
@@ -1193,6 +1204,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("azureApiVersion", azureApiVersion)
 		await this.updateGlobalState("openRouterModelId", openRouterModelId)
 		await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+		await this.updateGlobalState("openRouterProviderSorting", openRouterProviderSorting)
 		await this.updateGlobalState("vsCodeLmModelSelector", vsCodeLmModelSelector)
 		await this.updateGlobalState("liteLlmBaseUrl", liteLlmBaseUrl)
 		await this.updateGlobalState("liteLlmModelId", liteLlmModelId)
@@ -1314,6 +1326,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 	}
 
+	// Account
+
+	async fetchUserCreditsData() {
+		try {
+			await Promise.all([
+				this.accountService?.fetchBalance(),
+				this.accountService?.fetchUsageTransactions(),
+				this.accountService?.fetchPaymentTransactions(),
+			])
+		} catch (error) {
+			console.error("Failed to fetch user credits data:", error)
+		}
+	}
+
 	// Auth
 
 	public async validateAuthState(state: string | null): Promise<boolean> {
@@ -1352,7 +1378,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 
 			await this.postStateToWebview()
-			vscode.window.showInformationMessage("Successfully logged in to Cline")
+			// vscode.window.showInformationMessage("Successfully logged in to Cline")
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
 			vscode.window.showErrorMessage("Failed to log in to Cline")
@@ -1994,6 +2020,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			azureApiVersion,
 			openRouterModelId,
 			openRouterModelInfo,
+			openRouterProviderSorting,
 			lastShownAnnouncementId,
 			customInstructions,
 			taskHistory,
@@ -2056,6 +2083,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("azureApiVersion") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelId") as Promise<string | undefined>,
 			this.getGlobalState("openRouterModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("openRouterProviderSorting") as Promise<string | undefined>,
 			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
@@ -2160,6 +2188,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				azureApiVersion,
 				openRouterModelId,
 				openRouterModelInfo,
+				openRouterProviderSorting,
 				vsCodeLmModelSelector,
 				o3MiniReasoningEffort,
 				thinkingBudgetTokens,
