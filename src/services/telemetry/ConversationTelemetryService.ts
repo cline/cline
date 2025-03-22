@@ -14,8 +14,6 @@ export type TelemetryChatMessage = {
 	content: Anthropic.Messages.MessageParam["content"]
 }
 
-const { IS_DEV } = process.env
-
 interface ConversationMetadata {
 	apiProvider?: string
 	model?: string
@@ -57,10 +55,7 @@ export class ConversationTelemetryService {
 		const isConversationTelemetryEnabled =
 			vscode.workspace.getConfiguration("cline").get<boolean>("conversationTelemetry") ?? false
 
-		// Currently only enabled in dev environment
-		const isDevEnvironment = !!IS_DEV
-
-		return isDevEnvironment && isGlobalTelemetryEnabled && isConversationTelemetryEnabled
+		return isGlobalTelemetryEnabled && isConversationTelemetryEnabled
 	}
 
 	private async initializeTracer() {
