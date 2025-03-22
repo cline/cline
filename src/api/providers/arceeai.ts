@@ -27,9 +27,6 @@ export class ArceeAiHandler implements ApiHandler {
 			...convertToOpenAiMessages(messages),
 		]
 
-		// print modelId
-		console.log("modelId", model.id)
-
 		const stream = await this.client.chat.completions.create({
 			model: model.id,
 			messages: openAiMessages,
