@@ -64,8 +64,10 @@ import { ClineHandler } from "../api/providers/cline"
 import { ClineProvider } from "./webview/ClineProvider"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 import { telemetryService } from "../services/telemetry/TelemetryService"
+import { ConversationTelemetryService, TelemetryChatMessage } from "../services/telemetry/ConversationTelemetryService"
 import pTimeout from "p-timeout"
 import { GlobalFileNames } from "../global-constants"
+import { checkIsOpenRouterContextWindowError } from "./context-management/context-error-handling"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1349,6 +1351,24 @@ export class Cline {
 			)
 		}
 
+		// Capture system prompt for telemetry,
+		// ONLY if user is opted in, in advanced settings
+		if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
+			const systemMessage: TelemetryChatMessage = {
+				role: "system",
+				content: systemPrompt,
+				ts: Date.now(), // we dont uniquely identify system messages, so we use the timestamp as the id
+			}
+
+			// no need for timeout here, as there's no timestamp to compare to
+			this.providerRef.deref()?.conversationTelemetryService.captureMessage(this.taskId, systemMessage, {
+				apiProvider: this.apiProvider,
+				model: this.api.getModel().id,
+				tokensIn: 0,
+				tokensOut: 0,
+			})
+		}
+
 		const contextManagementMetadata = this.contextManager.getNewContextMessagesAndMetadata(
 			this.apiConversationHistory,
 			this.clineMessages,
@@ -1374,20 +1394,48 @@ export class Cline {
 			this.isWaitingForFirstChunk = false
 		} catch (error) {
 			const isOpenRouter = this.api instanceof OpenRouterHandler || this.api instanceof ClineHandler
+			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
+
 			if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
+				if (isOpenRouterContextWindowError) {
+					this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+						this.apiConversationHistory,
+						this.conversationHistoryDeletedRange,
+						"quarter", // Force aggressive truncation
+					)
+					await this.saveClineMessages()
+				}
+
 				console.log("first chunk failed, waiting 1 second before retrying")
 				await delay(1000)
 				this.didAutomaticallyRetryFailedApiRequest = true
 			} else {
 				// request failed after retrying automatically once, ask user if they want to retry again
 				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
+
+				if (isOpenRouterContextWindowError) {
+					const truncatedConversationHistory = this.contextManager.getTruncatedMessages(
+						this.apiConversationHistory,
+						this.conversationHistoryDeletedRange,
+					)
+
+					// If the conversation has more than 3 messages, we can truncate again. If not, then the conversation is bricked.
+					// ToDo: Allow the user to change their input if this is the case.
+					if (truncatedConversationHistory.length > 3) {
+						error = new Error("Context window exceeded. Click retry to truncate the conversation and try again.")
+						this.didAutomaticallyRetryFailedApiRequest = false
+					}
+				}
+
 				const errorMessage = this.formatErrorWithStatusCode(error)
 
 				const { response } = await this.ask("api_req_failed", errorMessage)
+
 				if (response !== "yesButtonClicked") {
 					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
 					throw new Error("API request failed")
 				}
+
 				await this.say("api_req_retried")
 			}
 			// delegate generator output from the recursive call
@@ -3127,6 +3175,39 @@ export class Cline {
 
 		telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "user")
 
+		// Capture message data for telemetry,
+		// ONLY if user is opted in, in advanced settings
+		if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
+			// Get the last message from apiConversationHistory
+			const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+
+			// Get the corresponding timestamp from clineMessages
+			// The last message in clineMessages should be the one we just added
+
+			const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
+			const ts = lastClineMessage.ts
+
+			// Send individual message to telemetry
+			this.providerRef.deref()?.conversationTelemetryService.captureMessage(
+				this.taskId,
+				// Add the timestamp to the message object for telemetry
+				{
+					...lastMessage,
+					ts,
+				},
+				{
+					apiProvider: this.apiProvider,
+					model: this.api.getModel().id,
+					tokensIn: 0,
+					tokensOut: 0,
+				},
+			)
+
+			// Send entire conversation history to cleanup endpoint
+			// This ensures deleted messages are properly handled in telemetry
+			this.providerRef.deref()?.conversationTelemetryService.cleanupTask(this.taskId, this.clineMessages)
+		}
+
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
@@ -3203,6 +3284,36 @@ export class Cline {
 				await this.saveClineMessages()
 
 				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
+
+				// Capture message data for telemetry after assistant response
+				// ONLY if user is opted in, in advanced settings
+				if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
+					// Get the last message from apiConversationHistory
+					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+
+					// Find the corresponding timestamp from clineMessages
+					// For assistant messages, we need to find the most recent "text" message
+					const lastTextMessage = findLast(this.clineMessages, (m) => m.say === "text")
+
+					// Add the timestamp to the message object for telemetry
+					if (!lastTextMessage) {
+						console.error("No text message found in clineMessages")
+					} else {
+						this.providerRef.deref()?.conversationTelemetryService.captureMessage(
+							this.taskId,
+							{
+								...lastMessage,
+								ts: lastTextMessage.ts,
+							},
+							{
+								apiProvider: this.apiProvider,
+								model: this.api.getModel().id,
+								tokensIn: inputTokens,
+								tokensOut: outputTokens,
+							},
+						)
+					}
+				}
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.didFinishAbortingStream = true
@@ -3352,6 +3463,32 @@ export class Cline {
 					role: "assistant",
 					content: [{ type: "text", text: assistantMessage }],
 				})
+
+				// Capture message data for telemetry after assistant response,
+				// ONLY if user is opted in, in advanced settings
+				if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
+					// Get the last message from apiConversationHistory
+					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
+
+					// Find the corresponding timestamp from clineMessages
+					const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
+
+					if (lastClineMessage) {
+						this.providerRef.deref()?.conversationTelemetryService.captureMessage(
+							this.taskId,
+							{
+								...lastMessage,
+								ts: lastClineMessage.ts,
+							},
+							{
+								apiProvider: this.apiProvider,
+								model: this.api.getModel().id,
+								tokensIn: inputTokens,
+								tokensOut: outputTokens,
+							},
+						)
+					}
+				}
 
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished

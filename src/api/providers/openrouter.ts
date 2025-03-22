@@ -37,6 +37,7 @@ export class OpenRouterHandler implements ApiHandler {
 			this.getModel(),
 			this.options.o3MiniReasoningEffort,
 			this.options.thinkingBudgetTokens,
+			this.options.openRouterProviderSorting,
 		)
 
 		for await (const chunk of stream) {

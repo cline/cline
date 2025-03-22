@@ -86,6 +86,11 @@
 				"icon": "$(link-external)"
 			},
 			{
+				"command": "cline.accountButtonClicked",
+				"title": "Account",
+				"icon": "$(account)"
+			},
+			{
 				"command": "cline.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
@@ -119,8 +124,13 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "cline.accountButtonClicked",
 					"group": "navigation@5",
+					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
+					"command": "cline.settingsButtonClicked",
+					"group": "navigation@6",
 					"when": "view == claude-dev.SidebarProvider"
 				}
 			]
@@ -211,6 +221,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
+				},
+				"cline.conversationTelemetry": {
+					"type": "boolean",
+					"default": false,
+					"description": "Share message data,  code, and more extensive telemetry. This data may be used to improve prompts used in Cline, train models, and understand failure states more accurately."
 				}
 			}
 		}
@@ -272,6 +287,12 @@
 		"@google/generative-ai": "^0.18.0",
 		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.7.0",
+		"@opentelemetry/api": "^1.4.1",
+		"@opentelemetry/exporter-trace-otlp-http": "^0.39.1",
+		"@opentelemetry/resources": "^1.30.1",
+		"@opentelemetry/sdk-node": "^0.39.1",
+		"@opentelemetry/sdk-trace-node": "^1.30.1",
+		"@opentelemetry/semantic-conventions": "^1.30.0",
 		"@types/clone-deep": "^4.0.4",
 		"@types/get-folder-size": "^3.0.4",
 		"@types/pdf-parse": "^1.1.4",
