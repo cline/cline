@@ -37,6 +37,7 @@ import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
+import { MemoryBankSettings, DEFAULT_MEMORY_BANK_SETTINGS } from "../../shared/MemoryBankSettings"
 import { getTotalTasksSize } from "../../utils/storage"
 import { ConversationTelemetryService } from "../../services/telemetry/ConversationTelemetryService"
 import { GlobalFileNames } from "../../global-constants"
@@ -97,6 +98,7 @@ type GlobalStateKey =
 	| "autoApprovalSettings"
 	| "browserSettings"
 	| "chatSettings"
+	| "memoryBankSettings"
 	| "vsCodeLmModelSelector"
 	| "userInfo"
 	| "previousModeApiProvider"
@@ -285,7 +287,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
+		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings, memoryBankSettings } =
 			await this.getState()
 		this.cline = new Cline(
 			this,
@@ -293,6 +295,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			memoryBankSettings,
 			customInstructions,
 			task,
 			images,
@@ -301,7 +304,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
+		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings, memoryBankSettings } =
 			await this.getState()
 		this.cline = new Cline(
 			this,
@@ -309,6 +312,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			memoryBankSettings,
 			customInstructions,
 			undefined,
 			undefined,
@@ -583,6 +587,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							invoke: "sendMessage",
 							text: message.text,
 						})
+						break
+					case "memoryBankSettings":
+						if (message.memoryBankSettings) {
+							await this.updateGlobalState("memoryBankSettings", message.memoryBankSettings)
+							if (this.cline) {
+								this.cline.memoryBankSettings = message.memoryBankSettings
+							}
+							await this.postStateToWebview()
+						}
 						break
 					// case "relaunchChromeDebugMode":
 					// 	if (this.cline) {
@@ -1898,6 +1911,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			memoryBankSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
 			telemetrySetting,
@@ -1921,6 +1935,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			memoryBankSettings,
 			userInfo,
 			mcpMarketplaceEnabled,
 			telemetrySetting,
@@ -2027,6 +2042,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			autoApprovalSettings,
 			browserSettings,
 			chatSettings,
+			memoryBankSettings,
 			vsCodeLmModelSelector,
 			liteLlmBaseUrl,
 			liteLlmModelId,
@@ -2090,6 +2106,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
 			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
+			this.getGlobalState("memoryBankSettings") as Promise<MemoryBankSettings | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 			this.getGlobalState("liteLlmBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("liteLlmModelId") as Promise<string | undefined>,
@@ -2206,6 +2223,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
 			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
+			memoryBankSettings: memoryBankSettings || DEFAULT_MEMORY_BANK_SETTINGS,
 			userInfo,
 			previousModeApiProvider,
 			previousModeModelId,
