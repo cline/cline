@@ -8,7 +8,7 @@ import { getFileSizeInKB } from "../../utils/fs"
 import * as chardet from "jschardet"
 import * as iconv from "iconv-lite"
 
-async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
+export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string): Promise<string> {
 	const detected = chardet.detect(fileBuffer)
 	if (typeof detected === "string") {
 		return detected

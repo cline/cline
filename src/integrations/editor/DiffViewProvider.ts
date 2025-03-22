@@ -7,6 +7,7 @@ import { formatResponse } from "../../core/prompts/responses"
 import { DecorationController } from "./DecorationController"
 import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
+import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
 import * as chardet from "jschardet"
 
@@ -47,13 +48,7 @@ export class DiffViewProvider {
 
 		if (fileExists) {
 			const fileBuffer = await fs.readFile(absolutePath)
-			const detected: chardet.IDetectedMap | null = chardet.detect(fileBuffer)
-			this.fileEncoding =
-				typeof detected === "string"
-					? detected
-					: detected && (detected as any).encoding
-						? (detected as any).encoding
-						: "utf8"
+			this.fileEncoding = await detectEncoding(fileBuffer)
 			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
 		} else {
 			this.originalContent = ""
