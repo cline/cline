@@ -58,17 +58,41 @@ export class ClineIgnoreController {
 	}
 
 	/**
-	 * Load custom patterns from .clineignore if it exists
+	 * Load custom patterns from .clineignore if it exists.
+	 * Supports "!include <filename>" to load additional ignore patterns from other files.
 	 */
 	private async loadClineIgnore(): Promise<void> {
 		try {
 			// Reset ignore instance to prevent duplicate patterns
 			this.ignoreInstance = ignore()
 			const ignorePath = path.join(this.cwd, ".clineignore")
+
 			if (await fileExistsAtPath(ignorePath)) {
-				const content = await fs.readFile(ignorePath, "utf8")
-				this.clineIgnoreContent = content
-				this.ignoreInstance.add(content)
+				const rawContent = await fs.readFile(ignorePath, "utf8")
+				this.clineIgnoreContent = rawContent
+
+				let combinedContent = ""
+
+				const lines = rawContent.split(/\r?\n/)
+				for (const line of lines) {
+					const trimmedLine = line.trim()
+
+					if (trimmedLine.startsWith("!include ")) {
+						const includePath = trimmedLine.substring("!include ".length).trim()
+						const resolvedIncludePath = path.join(this.cwd, includePath)
+
+						if (await fileExistsAtPath(resolvedIncludePath)) {
+							const includedContent = await fs.readFile(resolvedIncludePath, "utf8")
+							combinedContent += "\n" + includedContent
+						} else {
+							console.debug(`[ClineIgnore] Included file not found: ${resolvedIncludePath}`)
+						}
+					} else {
+						combinedContent += "\n" + line
+					}
+				}
+
+				this.ignoreInstance.add(combinedContent)
 				this.ignoreInstance.add(".clineignore")
 			} else {
 				this.clineIgnoreContent = undefined
