@@ -1378,7 +1378,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 
 			await this.postStateToWebview()
-			vscode.window.showInformationMessage("Successfully logged in to Cline")
+			// vscode.window.showInformationMessage("Successfully logged in to Cline")
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
 			vscode.window.showErrorMessage("Failed to log in to Cline")
