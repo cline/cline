@@ -60,7 +60,7 @@ export const OptionsButtons = ({
 						}
 						vscode.postMessage({
 							type: "optionsResponse",
-							text: `${option}: ${inputValue?.trim()}`,
+							text: option + (inputValue ? `: ${inputValue?.trim()}` : ""),
 						})
 					}}>
 					{option}
