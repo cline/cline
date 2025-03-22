@@ -45,7 +45,6 @@ export class ConversationTelemetryService {
 
 	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
-		this.initializeTracer()
 	}
 
 	private async getClineApiKey(): Promise<string | undefined> {
@@ -131,7 +130,7 @@ export class ConversationTelemetryService {
 		}
 
 		if (!this.tracer) {
-			return
+			await this.initializeTracer()
 		}
 
 		try {
