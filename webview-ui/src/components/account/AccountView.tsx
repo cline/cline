@@ -19,8 +19,8 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 				<h3 className="text-[var(--vscode-foreground)] m-0">Cline Account</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
-			<div className="flex-grow overflow-y-scroll pr-[8px] flex flex-col">
-				<div className="mb-[5px]">
+			<div className="flex-grow overflow-hidden pr-[8px] flex flex-col">
+				<div className="h-full mb-[5px]">
 					<ClineAccountView />
 				</div>
 			</div>
@@ -73,9 +73,9 @@ export const ClineAccountView = () => {
 		handleSignOut()
 	}
 	return (
-		<div className="">
+		<div className="h-full flex flex-col">
 			{user ? (
-				<div className="flex flex-col p-4">
+				<div className="flex flex-col p-4 h-full">
 					<div className="flex flex-col w-full">
 						<div className="flex items-center mb-6 flex-wrap gap-y-4">
 							{user.photoURL ? (
@@ -136,7 +136,9 @@ export const ClineAccountView = () => {
 
 					<VSCodeDivider className="mt-6 mb-10 w-full" />
 
-					<CreditsHistoryTable isLoading={isLoading} usageData={usageData} paymentsData={paymentsData} />
+					<div className="flex-grow flex flex-col min-h-0 pb-[20px]">
+						<CreditsHistoryTable isLoading={isLoading} usageData={usageData} paymentsData={paymentsData} />
+					</div>
 				</div>
 			) : (
 				<div className="flex flex-col items-center p-5 max-w-[400px]">
