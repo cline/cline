@@ -53,9 +53,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					// if you print this data you might see something like "eecho hello worldo hello world;5ba85d14-e92a-40c4-b2fd-71525581eeb0]633;C" but this is actually just a bunch of escape sequences, ignore up to the first ;C
 					/* ddateb15026-6a64-40db-b21f-2a621a9830f0]633;CTue Sep 17 06:37:04 EDT 2024 % ]633;D;0]633;P;Cwd=/Users/saoud/Repositories/test */
 					// Gets output between ]633;C (command start) and ]633;D (command end)
-					const outputBetweenSequences = this.removeLastLineArtifacts(
-						data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || "",
-					).trim()
+					const rawMatch = data.match(/\]633;C([\s\S]*?)\]633;D/)?.[1] || ""
+					const outputBetweenSequences = this.removeLastLineArtifacts(rawMatch).trim()
 
 					// Once we've retrieved any potential output between sequences, we can remove everything up to end of the last sequence
 					// https://code.visualstudio.com/docs/terminal/shell-integration#_vs-code-custom-sequences-osc-633-st
@@ -94,24 +93,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					data = stripAnsi(data)
 				}
 
-				// first few chunks could be the command being echoed back, so we must ignore
-				// note this means that 'echo' commands wont work
-				if (!didOutputNonCommand) {
-					const lines = data.split("\n")
-					for (let i = 0; i < lines.length; i++) {
-						if (command.includes(lines[i].trim())) {
-							lines.splice(i, 1)
-							i-- // Adjust index after removal
-						} else {
-							didOutputNonCommand = true
-							break
-						}
-					}
-					data = lines.join("\n")
-				}
-
-				// FIXME: right now it seems that data chunks returned to us from the shell integration stream contains random commas, which from what I can tell is not the expected behavior. There has to be a better solution here than just removing all commas.
-				data = data.replace(/,/g, "")
+				// Process data
+				data = data.trim()
 
 				// 2. Set isHot depending on the command
 				// Set to hot to stall API requests until terminal is cool again
