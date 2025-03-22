@@ -16,7 +16,11 @@ export class OpenAiHandler implements ApiHandler {
 		this.options = options
 		// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
 		// Use azureApiVersion to determine if this is an Azure endpoint, since the URL may not always contain 'azure.com'
-		if (this.options.azureApiVersion || this.options.openAiBaseUrl?.toLowerCase().includes("azure.com")) {
+		if (
+			this.options.azureApiVersion ||
+			(this.options.openAiBaseUrl?.toLowerCase().includes("azure.com") &&
+				!this.options.openAiModelId?.toLowerCase().includes("deepseek"))
+		) {
 			this.client = new AzureOpenAI({
 				baseURL: this.options.openAiBaseUrl,
 				apiKey: this.options.openAiApiKey,
@@ -33,7 +37,7 @@ export class OpenAiHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelId = this.options.openAiModelId ?? ""
-		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
+		const isDeepseekReasoner = modelId.includes("deepseek-reasoner") || modelId.includes("deepseek-r1")
 		const isO3Mini = modelId.includes("o3-mini")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
