@@ -99,6 +99,11 @@
 				"command": "cline.openInNewTab",
 				"title": "Open In New Tab",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.openDocumentation",
+				"title": "Documentation",
+				"icon": "$(book)"
 			}
 		],
 		"menus": {
@@ -124,13 +129,18 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "cline.openDocumentation",
 					"group": "navigation@5",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "cline.accountButtonClicked",
 					"group": "navigation@6",
+					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
+					"command": "cline.settingsButtonClicked",
+					"group": "navigation@7",
 					"when": "view == claude-dev.SidebarProvider"
 				}
 			]
