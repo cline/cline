@@ -74,9 +74,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						<div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
 							<VSCodeCheckbox
 								checked={memoryBankSettings.enabled}
-								onChange={(e) => {
-									const isChecked = (e.target as HTMLInputElement).checked
-									updateMemoryBank(isChecked)
+								onChange={() => {
+									updateMemoryBank(!memoryBankSettings.enabled)
 								}}
 								title="Enable Memory Bank"
 								aria-label="Enable Memory Bank"
