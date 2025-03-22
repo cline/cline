@@ -100,14 +100,13 @@ export const ClineAccountView = () => {
 						</div>
 					</div>
 
-					<div className="flex flex-col min-[280px]:flex-row gap-2">
-						<VSCodeButtonLink
-							href="https://app.cline.bot/credits"
-							appearance="primary"
-							className="w-full min-[280px]:w-24">
-							Account
-						</VSCodeButtonLink>
-						<VSCodeButton appearance="secondary" onClick={handleLogout} className="w-full min-[280px]:w-24">
+					<div className="w-full flex gap-2 flex-col w- min-[225px]:flex-row">
+						<div className="w-full min-[225px]:w-1/2">
+							<VSCodeButtonLink href="https://app.cline.bot/credits" appearance="primary" className="w-full">
+								Account
+							</VSCodeButtonLink>
+						</div>
+						<VSCodeButton appearance="secondary" onClick={handleLogout} className="w-full min-[225px]:w-1/2">
 							Log out
 						</VSCodeButton>
 					</div>
@@ -128,7 +127,7 @@ export const ClineAccountView = () => {
 							)}
 						</div>
 
-						<div className="w-full max-w-3xs">
+						<div className="w-full">
 							<VSCodeButtonLink href="https://app.cline.bot/credits/#buy" className="w-full">
 								Add Credits
 							</VSCodeButtonLink>
