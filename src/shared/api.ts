@@ -70,6 +70,8 @@ export interface ApiHandlerOptions {
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
 	sambanovaApiKey?: string
+	openAiCustomHeaders?: Record<string, string> // Custom headers for OpenAI compatible endpoints
+	openAiHeaderTemplate?: string // Template identifier for predefined headers
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

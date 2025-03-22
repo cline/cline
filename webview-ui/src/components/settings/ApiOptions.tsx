@@ -177,6 +177,23 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		)
 	}
 
+	const formatCustomHeaders = (headers?: Record<string, string>) => {
+		if (!headers) return ""
+		return JSON.stringify(headers, null, 2)
+	}
+
+	const handleCustomHeadersChange = (event: any) => {
+		try {
+			const headers = JSON.parse(event.target.value)
+			setApiConfiguration({
+				...apiConfiguration,
+				openAiCustomHeaders: headers,
+			})
+		} catch (error) {
+			console.error("Error parsing custom headers:", error)
+		}
+	}
+
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
 			<DropdownContainer className="dropdown-container">
@@ -769,6 +786,39 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={"Enter Model ID..."}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+					<VSCodeDropdown
+						value={apiConfiguration?.openAiHeaderTemplate || ""}
+						onChange={(e: any) => handleInputChange("openAiHeaderTemplate")(e)}>
+						<span slot="label" style={{ fontWeight: 500 }}>
+							Header Template
+						</span>
+						<VSCodeOption value="">No template</VSCodeOption>
+						<VSCodeOption value="openWebUI">Open WebUI</VSCodeOption>
+						<VSCodeOption value="azureApiGateway">Azure API Gateway</VSCodeOption>
+					</VSCodeDropdown>
+					<details style={{ marginTop: "8px" }}>
+						<summary style={{ cursor: "pointer", fontWeight: 500 }}>Advanced: Custom Headers</summary>
+						<div style={{ padding: "8px 0" }}>
+							<textarea
+								value={formatCustomHeaders(apiConfiguration?.openAiCustomHeaders)}
+								style={{
+									width: "100%",
+									minHeight: "100px",
+									backgroundColor: "var(--vscode-input-background)",
+									color: "var(--vscode-input-foreground)",
+									border: "1px solid var(--vscode-input-border)",
+									padding: "8px",
+									fontFamily: "var(--vscode-editor-font-family)",
+									fontSize: "var(--vscode-editor-font-size)",
+								}}
+								onChange={handleCustomHeadersChange}
+								placeholder={`{\n  "header-name": "header-value"\n}`}
+							/>
+							<small style={{ display: "block", marginTop: "4px", color: "var(--vscode-descriptionForeground)" }}>
+								Enter custom headers as a JSON object. These will override any template headers.
+							</small>
+						</div>
+					</details>
 					<VSCodeCheckbox
 						checked={azureApiVersionSelected}
 						onChange={(e: any) => {
