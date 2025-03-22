@@ -44,10 +44,10 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 											<VSCodeDataGridCell cell-type="columnheader" grid-column="2">
 												Model
 											</VSCodeDataGridCell>
-											<VSCodeDataGridCell cell-type="columnheader" grid-column="3">
+											{/* <VSCodeDataGridCell cell-type="columnheader" grid-column="3">
 												Tokens Used
-											</VSCodeDataGridCell>
-											<VSCodeDataGridCell cell-type="columnheader" grid-column="4">
+											</VSCodeDataGridCell> */}
+											<VSCodeDataGridCell cell-type="columnheader" grid-column="3">
 												Credits Used
 											</VSCodeDataGridCell>
 										</VSCodeDataGridRow>
@@ -58,8 +58,8 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 													{formatTimestamp(row.spentAt)}
 												</VSCodeDataGridCell>
 												<VSCodeDataGridCell grid-column="2">{`${row.modelProvider}/${row.model}`}</VSCodeDataGridCell>
-												<VSCodeDataGridCell grid-column="3">{`${row.promptTokens} → ${row.completionTokens}`}</VSCodeDataGridCell>
-												<VSCodeDataGridCell grid-column="4">{`$${Number(row.credits).toFixed(7)}`}</VSCodeDataGridCell>
+												{/* <VSCodeDataGridCell grid-column="3">{`${row.promptTokens} → ${row.completionTokens}`}</VSCodeDataGridCell> */}
+												<VSCodeDataGridCell grid-column="3">{`$${Number(row.credits).toFixed(7)}`}</VSCodeDataGridCell>
 											</VSCodeDataGridRow>
 										))}
 									</VSCodeDataGrid>

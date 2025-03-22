@@ -147,7 +147,7 @@ export const ClineAccountView = () => {
 					</div>
 				</div>
 			) : (
-				<div className="flex flex-col items-center p-5 max-w-[400px]">
+				<div className="flex flex-col items-center pr-3 max-w-[400px]">
 					<ClineLogoWhite className="size-16 mb-4" />
 
 					<p style={{}}>
@@ -161,7 +161,7 @@ export const ClineAccountView = () => {
 
 					<p className="text-[var(--vscode-descriptionForeground)] text-xs text-center m-0">
 						By continuing, you agree to the <VSCodeLink href="https://cline.bot/tos">Terms of Service</VSCodeLink> and{" "}
-						<VSCodeLink href="https://cline.bot/privacy">Privacy Policy</VSCodeLink>.
+						<VSCodeLink href="https://cline.bot/privacy">Privacy Policy.</VSCodeLink>
 					</p>
 				</div>
 			)}
