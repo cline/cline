@@ -1,5 +1,6 @@
 export type ApiProvider =
 	| "anthropic"
+	| "arceeai"
 	| "openrouter"
 	| "bedrock"
 	| "vertex"
@@ -23,6 +24,7 @@ export type ApiProvider =
 export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
+	arceeAiApiKey?: string
 	clineApiKey?: string
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
@@ -1358,6 +1360,29 @@ export const sambanovaModels = {
 	"QwQ-32B-Preview": {
 		maxTokens: 4096,
 		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Arcee AI Models
+// https://docs.arcee.ai/arcee-conductor/pricing
+export type ArceeAiModelId = keyof typeof arceeAiModels
+export const arceeAiDefaultModelId: ArceeAiModelId = "coder"
+export const arceeAiModels = {
+	auto: {
+		maxTokens: 4096,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	coder: {
+		maxTokens: 4096,
+		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,

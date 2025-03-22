@@ -65,6 +65,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				const hasKey = config
 					? [
 							config.apiKey,
+							config.arceeAiApiKey,
 							config.openRouterApiKey,
 							config.awsRegion,
 							config.vertexProjectId,

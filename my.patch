@@ -1,0 +1,17 @@
+diff --git a/src/shared/api.ts b/src/shared/api.ts
+index 95da5b0..ac2bdec 100644
+--- a/src/shared/api.ts
++++ b/src/shared/api.ts
+@@ -1364,3 +1364,11 @@ export const sambanovaModels = {
+ 		outputPrice: 0,
+ 	},
+ } as const satisfies Record<string, ModelInfo>
++
++// Arcee AI Models
++// https://docs.arcee.ai/arcee-conductor/pricing
++export type ArceeAiModelId = keyof typeof arceeAiModels
++export const arceeAiModels = {
++	"auto": {
++		
++}
+\ No newline at end of file

@@ -17,6 +17,8 @@ import {
 	anthropicModels,
 	ApiConfiguration,
 	ApiProvider,
+	arceeAiDefaultModelId,
+	arceeAiModels,
 	azureOpenAiDefaultApiVersion,
 	bedrockDefaultModelId,
 	bedrockModels,
@@ -194,6 +196,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
+					<VSCodeOption value="arceeai">Arcee AI</VSCodeOption>
 					<VSCodeOption value="bedrock">AWS Bedrock</VSCodeOption>
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="vertex">GCP Vertex AI</VSCodeOption>
@@ -217,6 +220,37 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{selectedProvider === "cline" && (
 				<div style={{ marginBottom: 8, marginTop: 4 }}>
 					<ClineAccountView />
+				</div>
+			)}
+
+			{selectedProvider === "arceeai" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.arceeAiApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("arceeAiApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Arcee AI API Key</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						This key is stored locally and only used to make API requests from this extension.
+					</p>
+					{!apiConfiguration?.arceeAiApiKey && (
+						<VSCodeLink
+							href="https://conductor.arcee.ai/"
+							style={{
+								display: "inline",
+								fontSize: "inherit",
+							}}>
+							You can get an Arcee AI API key by signing up here.
+						</VSCodeLink>
+					)}
 				</div>
 			)}
 
@@ -1368,6 +1402,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
 							{selectedProvider === "anthropic" && createDropdown(anthropicModels)}
+							{selectedProvider === "arceeai" && createDropdown(arceeAiModels)}
 							{selectedProvider === "bedrock" && createDropdown(bedrockModels)}
 							{selectedProvider === "vertex" && createDropdown(vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
@@ -1585,6 +1620,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 	switch (provider) {
 		case "anthropic":
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
+		case "arceeai":
+			return getProviderData(arceeAiModels, arceeAiDefaultModelId)
 		case "bedrock":
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
 		case "vertex":

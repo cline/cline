@@ -8,6 +8,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "arceeai":
+				if (!apiConfiguration.arceeAiApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "bedrock":
 				if (!apiConfiguration.awsRegion) {
 					return "You must choose a region to use with AWS Bedrock."
