@@ -67,7 +67,7 @@ import { telemetryService } from "../services/telemetry/TelemetryService"
 import { ConversationTelemetryService, TelemetryChatMessage } from "../services/telemetry/ConversationTelemetryService"
 import pTimeout from "p-timeout"
 import { GlobalFileNames } from "../global-constants"
-import { ensureTaskDirectoryExists } from "./messages-io"
+import { checkIsOpenRouterContextWindowError } from "./context-management/context-error-handling"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -180,13 +180,18 @@ export class Cline {
 
 	// Storing task to disk for history
 
-	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
+	private async ensureTaskDirectoryExists(): Promise<string> {
 		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-		const taskId = this.taskId
-		const filePath = path.join(
-			await ensureTaskDirectoryExists(globalStoragePath, taskId),
-			GlobalFileNames.apiConversationHistory,
-		)
+		if (!globalStoragePath) {
+			throw new Error("Global storage uri is invalid")
+		}
+		const taskDir = path.join(globalStoragePath, "tasks", this.taskId)
+		await fs.mkdir(taskDir, { recursive: true })
+		return taskDir
+	}
+
+	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
+		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
 		const fileExists = await fileExistsAtPath(filePath)
 		if (fileExists) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
@@ -206,12 +211,7 @@ export class Cline {
 
 	private async saveApiConversationHistory() {
 		try {
-			const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-			const taskId = this.taskId
-			const filePath = path.join(
-				await ensureTaskDirectoryExists(globalStoragePath, taskId),
-				GlobalFileNames.apiConversationHistory,
-			)
+			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
 			await fs.writeFile(filePath, JSON.stringify(this.apiConversationHistory))
 		} catch (error) {
 			// in the off chance this fails, we don't want to stop the task
@@ -220,14 +220,12 @@ export class Cline {
 	}
 
 	private async getSavedClineMessages(): Promise<ClineMessage[]> {
-		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-		const taskId = this.taskId
-		const filePath = path.join(await ensureTaskDirectoryExists(globalStoragePath, taskId), GlobalFileNames.uiMessages)
+		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages)
 		if (await fileExistsAtPath(filePath)) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
 		} else {
 			// check old location
-			const oldPath = path.join(await ensureTaskDirectoryExists(globalStoragePath, taskId), "claude_messages.json")
+			const oldPath = path.join(await this.ensureTaskDirectoryExists(), "claude_messages.json")
 			if (await fileExistsAtPath(oldPath)) {
 				const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
 				await fs.unlink(oldPath) // remove old file
@@ -253,9 +251,7 @@ export class Cline {
 
 	private async saveClineMessages() {
 		try {
-			const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
-			const taskId = this.taskId
-			const taskDir = await ensureTaskDirectoryExists(globalStoragePath, taskId)
+			const taskDir = await this.ensureTaskDirectoryExists()
 			const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
 			await fs.writeFile(filePath, JSON.stringify(this.clineMessages))
 			// combined as they are in ChatView
@@ -1436,20 +1432,48 @@ export class Cline {
 			this.isWaitingForFirstChunk = false
 		} catch (error) {
 			const isOpenRouter = this.api instanceof OpenRouterHandler || this.api instanceof ClineHandler
+			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
+
 			if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
+				if (isOpenRouterContextWindowError) {
+					this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+						this.apiConversationHistory,
+						this.conversationHistoryDeletedRange,
+						"quarter", // Force aggressive truncation
+					)
+					await this.saveClineMessages()
+				}
+
 				console.log("first chunk failed, waiting 1 second before retrying")
 				await delay(1000)
 				this.didAutomaticallyRetryFailedApiRequest = true
 			} else {
 				// request failed after retrying automatically once, ask user if they want to retry again
 				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
+
+				if (isOpenRouterContextWindowError) {
+					const truncatedConversationHistory = this.contextManager.getTruncatedMessages(
+						this.apiConversationHistory,
+						this.conversationHistoryDeletedRange,
+					)
+
+					// If the conversation has more than 3 messages, we can truncate again. If not, then the conversation is bricked.
+					// ToDo: Allow the user to change their input if this is the case.
+					if (truncatedConversationHistory.length > 3) {
+						error = new Error("Context window exceeded. Click retry to truncate the conversation and try again.")
+						this.didAutomaticallyRetryFailedApiRequest = false
+					}
+				}
+
 				const errorMessage = this.formatErrorWithStatusCode(error)
 
 				const { response } = await this.ask("api_req_failed", errorMessage)
+
 				if (response !== "yesButtonClicked") {
 					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
 					throw new Error("API request failed")
 				}
+
 				await this.say("api_req_retried")
 			}
 			// delegate generator output from the recursive call

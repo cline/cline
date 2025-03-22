@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.8.0]
+
+-   Add Account view to display billing and usage history for Cline account users. You can now keep track of credits used and transaction history right in the extension!
+-   Add 'Sort underling provider routing' setting to allow you to sort provider used by Cline/OpenRouter by throughput, price, latency, or the default (combination of price and uptime)
+-   Display total space Cline takes on disk next to "Delete all Tasks" button in History view
+-   Fix "Context Window Exceeded" error for OpenRouter/Cline Accounts (additional support coming soon)
+-   Improve rich MCP display with dynamic image loading and support for GIFs
+
 ## [3.7.1]
 
 -   Fix issue with 'See more' button in task header not showing when starting new tasks
