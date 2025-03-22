@@ -4,7 +4,6 @@
 
 -   Add Account view to display billing and usage history for Cline account users. You can now keep track of credits used and transaction history right in the extension!
 -   Add 'Sort underling provider routing' setting to allow you to sort provider used by Cline/OpenRouter by throughput, price, latency, or the default (combination of price and uptime)
--   Add Advanced Setting to opt-in to LLM observability, allowing you to share message data, code, and more extensive telemetry to help improve prompts used in Cline, train our models, and understand failure states more accurately.
 -   Display total space Cline takes on disk next to "Delete all Tasks" button in History view
 -   Fix "Context Window Exceeded" error for OpenRouter/Cline Accounts (additional support coming soon)
 -   Improve rich MCP display with dynamic image loading and support for GIFs

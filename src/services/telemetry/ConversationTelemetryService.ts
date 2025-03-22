@@ -21,9 +21,20 @@ interface ConversationMetadata {
 	tokensOut: number
 }
 
+const { IS_DEV } = process.env
+
 /**
- * Service for collecting conversation data using OpenTelemetry
+Cline Telemetry (currently only available in DEV builds)
+
+Advanced Setting to opt-in to LLM observability, allowing you to share message data, code, and more extensive telemetry to help improve prompts used in Cline, train our models, and understand failure states more accurately.
+
+"cline.conversationTelemetry": {
+	"type": "boolean",
+	"default": false,
+	"markdownDescription": "Share message data, code, and more extensive telemetry. This data may be used to improve prompts used in Cline, train models, and understand failure states more accurately. [Learn more](https://docs.cline.bot/more-info/llm-observability)"
+}
  */
+
 export class ConversationTelemetryService {
 	private providerRef: WeakRef<ClineProvider>
 	private distinctId: string = vscode.env.machineId
@@ -55,7 +66,10 @@ export class ConversationTelemetryService {
 		const isConversationTelemetryEnabled =
 			vscode.workspace.getConfiguration("cline").get<boolean>("conversationTelemetry") ?? false
 
-		return isGlobalTelemetryEnabled && isConversationTelemetryEnabled
+		// Currently only enabled in dev environment
+		const isDevEnvironment = !!IS_DEV
+
+		return isDevEnvironment && isGlobalTelemetryEnabled && isConversationTelemetryEnabled
 	}
 
 	private async initializeTracer() {
