@@ -9,7 +9,6 @@ import * as diff from "diff"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "../diagnostics"
 import { detectEncoding } from "../misc/extract-text"
 import * as iconv from "iconv-lite"
-import * as chardet from "jschardet"
 
 export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
