@@ -178,6 +178,11 @@ export class Cline {
 		this.chatSettings = chatSettings
 	}
 
+	getChatSettings() {
+		return {
+			...this.chatSettings,
+		}
+	}
 	// Storing task to disk for history
 
 	private async ensureTaskDirectoryExists(): Promise<string> {
@@ -249,6 +254,11 @@ export class Cline {
 		await this.saveClineMessages()
 	}
 
+	private async persistChatHistory() {
+		await this.saveClineMessages()
+		await this.saveChatSettings()
+	}
+
 	private async saveClineMessages() {
 		try {
 			const taskDir = await this.ensureTaskDirectoryExists()
@@ -284,6 +294,16 @@ export class Cline {
 			})
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)
+		}
+	}
+
+	private async saveChatSettings() {
+		try {
+			const taskDir = await this.ensureTaskDirectoryExists()
+			const chatSettingsFilePath = path.join(taskDir, GlobalFileNames.chatSettings)
+			await fs.writeFile(chatSettingsFilePath, JSON.stringify(this.chatSettings))
+		} catch (error) {
+			console.error("Failed to save chat settings:", error)
 		}
 	}
 
@@ -386,7 +406,7 @@ export class Cline {
 				})
 			}
 
-			await this.saveClineMessages()
+			await this.persistChatHistory()
 
 			await this.providerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
 
@@ -1105,7 +1125,7 @@ export class Cline {
 				const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
 				if (lastCheckpointMessage) {
 					lastCheckpointMessage.lastCheckpointHash = commitHash
-					await this.saveClineMessages()
+					await this.persistChatHistory()
 				}
 			}) // silently fails for now
 
@@ -1120,7 +1140,7 @@ export class Cline {
 			)
 			if (lastCompletionResultMessage) {
 				lastCompletionResultMessage.lastCheckpointHash = commitHash
-				await this.saveClineMessages()
+				await this.persistChatHistory()
 			}
 		}
 
@@ -1408,7 +1428,7 @@ export class Cline {
 						this.conversationHistoryDeletedRange,
 						keep,
 					)
-					await this.saveClineMessages() // saves task history item which we use to keep track of conversation history deleted range
+					await this.persistChatHistory() // saves task history item which we use to keep track of conversation history deleted range
 					// await this.overwriteApiConversationHistory(truncatedMessages)
 				}
 			}
@@ -1473,7 +1493,6 @@ export class Cline {
 					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
 					throw new Error("API request failed")
 				}
-
 				await this.say("api_req_retried")
 			}
 			// delegate generator output from the recursive call
@@ -2940,7 +2959,7 @@ export class Cline {
 							) {
 								lastCompletionResultMessage.text += COMPLETION_RESULT_CHANGES_FLAG
 							}
-							await this.saveClineMessages()
+							await this.persistChatHistory()
 						}
 
 						try {
@@ -3197,7 +3216,7 @@ export class Cline {
 			const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
 			if (lastCheckpointMessage) {
 				lastCheckpointMessage.lastCheckpointHash = commitHash
-				await this.saveClineMessages()
+				await this.persistChatHistory()
 			}
 		}
 
@@ -3251,7 +3270,7 @@ export class Cline {
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
 			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClineApiReqInfo)
-		await this.saveClineMessages()
+		await this.persistChatHistory()
 		await this.providerRef.deref()?.postStateToWebview()
 
 		try {
@@ -3319,7 +3338,7 @@ export class Cline {
 
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
 				updateApiReqMsg(cancelReason, streamingFailedMessage)
-				await this.saveClineMessages()
+				await this.persistChatHistory()
 
 				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
 
@@ -3488,7 +3507,7 @@ export class Cline {
 			}
 
 			updateApiReqMsg()
-			await this.saveClineMessages()
+			await this.persistChatHistory()
 			await this.providerRef.deref()?.postStateToWebview()
 
 			// now add to apiconversationhistory
