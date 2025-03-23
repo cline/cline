@@ -1357,7 +1357,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
 				<>
 					<VSCodeCheckbox
-						style={{ marginTop: -10 }}
+						style={{ marginTop: -8 }}
 						checked={providerSortingSelected}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true

@@ -1761,16 +1761,23 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	}
 
 	// 'Add to Cline' context menu in editor and code action
-	async addSelectedCodeToChat(code: string, filePath: string, languageId: string) {
+	async addSelectedCodeToChat(code: string, filePath: string, languageId: string, diagnostics?: vscode.Diagnostic[]) {
 		// Ensure the sidebar view is visible
 		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
 		await delay(100)
 
 		// Post message to webview with the selected code
 		const fileMention = this.getFileMentionFromPath(filePath)
+
+		let input = `${fileMention}\n\`\`\`\n${code}\n\`\`\``
+		if (diagnostics) {
+			const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
+			input += `\nProblems:\n${problemsString}`
+		}
+
 		await this.postMessageToWebview({
 			type: "addToInput",
-			text: `${fileMention}\n\`\`\`\n${code}\n\`\`\``,
+			text: input,
 		})
 
 		console.log("addSelectedCodeToChat", code, filePath, languageId)
@@ -1804,7 +1811,15 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		await delay(100)
 
 		const fileMention = this.getFileMentionFromPath(filePath)
+		const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
+		await this.initClineWithTask(
+			`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`,
+		)
 
+		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
+	}
+
+	convertDiagnosticsToProblemsString(diagnostics: vscode.Diagnostic[]) {
 		let problemsString = ""
 		for (const diagnostic of diagnostics) {
 			let label: string
@@ -1828,12 +1843,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			const source = diagnostic.source ? `${diagnostic.source} ` : ""
 			problemsString += `\n- [${source}${label}] Line ${line}: ${diagnostic.message}`
 		}
-
-		await this.initClineWithTask(
-			`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString.trim()}`,
-		)
-
-		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
+		problemsString = problemsString.trim()
+		return problemsString
 	}
 
 	// Task history

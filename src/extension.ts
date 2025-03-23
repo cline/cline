@@ -194,7 +194,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.addToChat", async (range?: vscode.Range) => {
+		vscode.commands.registerCommand("cline.addToChat", async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
 			const editor = vscode.window.activeTextEditor
 			if (!editor) {
 				return
@@ -214,7 +214,12 @@ export function activate(context: vscode.ExtensionContext) {
 			const languageId = editor.document.languageId
 
 			// Send to sidebar provider
-			await sidebarProvider.addSelectedCodeToChat(selectedText, filePath, languageId)
+			await sidebarProvider.addSelectedCodeToChat(
+				selectedText,
+				filePath,
+				languageId,
+				Array.isArray(diagnostics) ? diagnostics : undefined,
+			)
 		}),
 	)
 
@@ -280,19 +285,26 @@ export function activate(context: vscode.ExtensionContext) {
 					range: vscode.Range,
 					context: vscode.CodeActionContext,
 				): vscode.CodeAction[] {
-					// Always offer both actions
+					// Expand range to include surrounding 3 lines
+					const expandedRange = new vscode.Range(
+						Math.max(0, range.start.line - 3),
+						0,
+						Math.min(document.lineCount - 1, range.end.line + 3),
+						document.lineAt(Math.min(document.lineCount - 1, range.end.line + 3)).text.length,
+					)
+
 					const addAction = new vscode.CodeAction("Add to Cline", vscode.CodeActionKind.QuickFix)
 					addAction.command = {
 						command: "cline.addToChat",
 						title: "Add to Cline",
-						arguments: [range],
+						arguments: [expandedRange, context.diagnostics],
 					}
 
 					const fixAction = new vscode.CodeAction("Fix with Cline", vscode.CodeActionKind.QuickFix)
 					fixAction.command = {
 						command: "cline.fixWithCline",
 						title: "Fix with Cline",
-						arguments: [range, context.diagnostics],
+						arguments: [expandedRange, context.diagnostics],
 					}
 
 					// Only show actions when there are errors
