@@ -3,6 +3,18 @@
 	"introduction": "Ich kann alle Arten von Aufgaben erledigen, dank der neuesten Durchbrüche in agentenbasierten Codierungsfähigkeiten und dem Zugang zu Tools, die es mir ermöglichen, Dateien zu erstellen und zu bearbeiten, komplexe Projekte zu erkunden, den Browser zu verwenden und Terminalbefehle auszuführen (natürlich mit deiner Erlaubnis). Ich kann sogar MCP verwenden, um neue Tools zu erstellen und meine eigenen Fähigkeiten zu erweitern.",
 	"notice": "Um loszulegen, benötigt diese Erweiterung einen API-Anbieter.",
 	"start": "Los geht's!",
+	"chooseProvider": "Wähle einen API-Anbieter, um zu beginnen:",
+	"routers": {
+		"requesty": {
+			"description": "Dein optimierter LLM-Router",
+			"incentive": "$1 Guthaben gratis"
+		},
+		"openrouter": {
+			"description": "Eine einheitliche Schnittstelle für LLMs"
+		}
+	},
+	"startRouter": "Express-Einrichtung über einen Router",
+	"startCustom": "Eigenen API-Schlüssel verwenden",
 	"telemetry": {
 		"title": "Hilf, Roo Code zu verbessern",
 		"anonymousTelemetry": "Sende anonyme Fehler- und Nutzungsdaten, um uns bei der Fehlerbehebung und Verbesserung der Erweiterung zu helfen. Es werden niemals Code, Texte oder persönliche Informationen gesendet.",
@@ -10,5 +22,6 @@
 		"settings": "Einstellungen",
 		"allow": "Erlauben",
 		"deny": "Ablehnen"
-	}
+	},
+	"or": "oder"
 }

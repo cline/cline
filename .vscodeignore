@@ -48,8 +48,9 @@ webview-ui/node_modules/**
 # Include default themes JSON files used in getTheme
 !src/integrations/theme/default-themes/**
 
-# Include icons
+# Include icons and images
 !assets/icons/**
+!assets/images/**
 
 # Include .env file for telemetry
 !.env

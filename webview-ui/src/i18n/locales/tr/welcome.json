@@ -1,14 +1,27 @@
 {
 	"greeting": "Merhaba, ben Roo!",
-	"introduction": "Ajan tabanlı kodlama yeteneklerindeki son gelişmeler ve dosya oluşturma ve düzenleme, karmaşık projeleri keşfetme, tarayıcı kullanma ve terminal komutları çalıştırma (tabii ki sizin izninizle) gibi işlemleri yapmamı sağlayan araçlara erişim sayesinde her türlü görevi gerçekleştirebilirim. Hatta MCP'yi kullanarak yeni araçlar oluşturabilir ve kendi yeteneklerimi genişletebilirim.",
+	"introduction": "Ajan tabanlı kodlama yeteneklerindeki son gelişmeler ve dosya oluşturma ve düzenleme, karmaşık projeleri keşfetme, tarayıcı kullanma ve terminal komutları çalıştırma (tabii ki senin izninle) gibi işlemleri yapmamı sağlayan araçlara erişim sayesinde her türlü görevi gerçekleştirebilirim. Hatta MCP'yi kullanarak yeni araçlar oluşturabilir ve kendi yeteneklerimi genişletebilirim.",
 	"notice": "Başlamak için bu eklentinin bir API sağlayıcısına ihtiyacı var.",
 	"start": "Hadi başlayalım!",
+	"chooseProvider": "Başlamak için bir API sağlayıcısı seç:",
+	"routers": {
+		"requesty": {
+			"description": "Optimize edilmiş LLM yönlendiricin",
+			"incentive": "$1 ücretsiz kredi"
+		},
+		"openrouter": {
+			"description": "LLM'ler için birleşik bir arayüz"
+		}
+	},
+	"startRouter": "Yönlendirici Üzerinden Hızlı Kurulum",
+	"startCustom": "Kendi API Anahtarını Kullan",
 	"telemetry": {
-		"title": "Roo Code'u Geliştirmeye Yardım Edin",
-		"anonymousTelemetry": "Hataları düzeltmemize ve eklentiyi geliştirmemize yardımcı olmak için anonim hata ve kullanım verileri gönderin. Hiçbir zaman kod, metin veya kişisel bilgi gönderilmez.",
-		"changeSettings": "Bunu her zaman <settingsLink>ayarlar</settingsLink>ın altından değiştirebilirsiniz",
+		"title": "Roo Code'u Geliştirmeye Yardım Et",
+		"anonymousTelemetry": "Hataları düzeltmemize ve eklentiyi geliştirmemize yardımcı olmak için anonim hata ve kullanım verileri gönder. Hiçbir zaman kod, metin veya kişisel bilgi gönderilmez.",
+		"changeSettings": "Bunu her zaman <settingsLink>ayarlar</settingsLink>ın altından değiştirebilirsin",
 		"settings": "ayarlar",
 		"allow": "İzin Ver",
 		"deny": "Reddet"
-	}
+	},
+	"or": "veya"
 }

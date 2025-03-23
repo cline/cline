@@ -3,6 +3,18 @@
 	"introduction": "得益于最新的代理编码能力突破和对各种工具的访问权限，我可以完成各种任务。我可以创建和编辑文件、探索复杂项目、使用浏览器，以及执行终端命令（当然，需要你的许可）。我甚至可以使用 MCP 创建新工具并扩展自己的能力。",
 	"notice": "首先，请配置一个大模型 API 服务商。",
 	"start": "开始吧！",
+	"chooseProvider": "选择一个 API 服务商开始：",
+	"routers": {
+		"requesty": {
+			"description": "你的优化 LLM 路由器",
+			"incentive": "$1 免费额度"
+		},
+		"openrouter": {
+			"description": "LLM 的统一接口"
+		}
+	},
+	"startRouter": "通过路由器快速设置",
+	"startCustom": "使用你自己的 API 密钥",
 	"telemetry": {
 		"title": "帮助改进 Roo 代码",
 		"changeSettings": "可以随时在<settingsLink>设置</settingsLink>页面底部更改此设置",
@@ -10,5 +22,6 @@
 		"anonymousTelemetry": "发送匿名的错误和使用数据，以帮助我们修复错误并改进扩展程序。不会发送任何代码、提示或个人信息。",
 		"allow": "允许",
 		"deny": "拒绝"
-	}
+	},
+	"or": "或"
 }

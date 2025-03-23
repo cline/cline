@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ApiHandlerOptions, ModelInfo, requestyModelInfoSaneDefaults } from "../../../shared/api"
+import { ApiHandlerOptions, ModelInfo, requestyDefaultModelInfo } from "../../../shared/api"
 import { RequestyHandler } from "../requesty"
 import { convertToOpenAiMessages } from "../../transform/openai-format"
 import { convertToR1Format } from "../../transform/r1-format"
@@ -18,14 +18,17 @@ describe("RequestyHandler", () => {
 		requestyApiKey: "test-key",
 		requestyModelId: "test-model",
 		requestyModelInfo: {
-			maxTokens: 1000,
-			contextWindow: 4000,
-			supportsPromptCache: false,
+			maxTokens: 8192,
+			contextWindow: 200_000,
 			supportsImages: true,
-			inputPrice: 1,
-			outputPrice: 10,
-			cacheReadsPrice: 0.1,
-			cacheWritesPrice: 1.5,
+			supportsComputerUse: true,
+			supportsPromptCache: true,
+			inputPrice: 3.0,
+			outputPrice: 15.0,
+			cacheWritesPrice: 3.75,
+			cacheReadsPrice: 0.3,
+			description:
+				"Claude 3.7 Sonnet is an advanced large language model with improved reasoning, coding, and problem-solving capabilities. It introduces a hybrid reasoning approach, allowing users to choose between rapid responses and extended, step-by-step processing for complex tasks. The model demonstrates notable improvements in coding, particularly in front-end development and full-stack updates, and excels in agentic workflows, where it can autonomously navigate multi-step processes. Claude 3.7 Sonnet maintains performance parity with its predecessor in standard mode while offering an extended reasoning mode for enhanced accuracy in math, coding, and instruction-following tasks. Read more at the [blog post here](https://www.anthropic.com/news/claude-3-7-sonnet)",
 		},
 		openAiStreamingEnabled: true,
 		includeMaxTokens: true, // Add this to match the implementation
@@ -115,7 +118,7 @@ describe("RequestyHandler", () => {
 						outputTokens: 10,
 						cacheWriteTokens: 5,
 						cacheReadTokens: 15,
-						totalCost: 0.000119, // (10 * 1 / 1,000,000) + (5 * 1.5 / 1,000,000) + (15 * 0.1 / 1,000,000) + (10 * 10 / 1,000,000)
+						totalCost: 0.00020325000000000003, // (10 * 3 / 1,000,000) + (5 * 3.75 / 1,000,000) + (15 * 0.3 / 1,000,000) + (10 * 15 / 1,000,000) (the ...0 is a fp skew)
 					},
 				])
 
@@ -123,8 +126,30 @@ describe("RequestyHandler", () => {
 					model: defaultOptions.requestyModelId,
 					temperature: 0,
 					messages: [
-						{ role: "system", content: systemPrompt },
-						{ role: "user", content: "Hello" },
+						{
+							role: "system",
+							content: [
+								{
+									cache_control: {
+										type: "ephemeral",
+									},
+									text: systemPrompt,
+									type: "text",
+								},
+							],
+						},
+						{
+							role: "user",
+							content: [
+								{
+									cache_control: {
+										type: "ephemeral",
+									},
+									text: "Hello",
+									type: "text",
+								},
+							],
+						},
 					],
 					stream: true,
 					stream_options: { include_usage: true },
@@ -191,7 +216,7 @@ describe("RequestyHandler", () => {
 						outputTokens: 5,
 						cacheWriteTokens: 0,
 						cacheReadTokens: 0,
-						totalCost: 0.00006, // (10 * 1 / 1,000,000) + (5 * 10 / 1,000,000)
+						totalCost: 0.000105, // (10 * 3 / 1,000,000) + (5 * 15 / 1,000,000)
 					},
 				])
 
@@ -199,7 +224,18 @@ describe("RequestyHandler", () => {
 					model: defaultOptions.requestyModelId,
 					messages: [
 						{ role: "user", content: systemPrompt },
-						{ role: "user", content: "Hello" },
+						{
+							role: "user",
+							content: [
+								{
+									cache_control: {
+										type: "ephemeral",
+									},
+									text: "Hello",
+									type: "text",
+								},
+							],
+						},
 					],
 				})
 			})
@@ -224,7 +260,7 @@ describe("RequestyHandler", () => {
 			const result = handler.getModel()
 			expect(result).toEqual({
 				id: defaultOptions.requestyModelId,
-				info: requestyModelInfoSaneDefaults,
+				info: defaultOptions.requestyModelInfo,
 			})
 		})
 	})

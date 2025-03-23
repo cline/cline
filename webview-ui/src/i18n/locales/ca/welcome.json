@@ -3,6 +3,18 @@
 	"introduction": "Puc fer tot tipus de tasques gràcies als últims avenços en capacitats de codificació agent i accés a eines que em permeten crear i editar fitxers, explorar projectes complexos, utilitzar el navegador i executar ordres de terminal (amb el teu permís, és clar). Fins i tot puc utilitzar MCP per crear noves eines i ampliar les meves pròpies capacitats.",
 	"notice": "Per començar, aquesta extensió necessita un proveïdor d'API.",
 	"start": "Som-hi!",
+	"chooseProvider": "Tria un proveïdor d'API per començar:",
+	"routers": {
+		"requesty": {
+			"description": "El teu router LLM optimitzat",
+			"incentive": "$1 de crèdit gratuït"
+		},
+		"openrouter": {
+			"description": "Una interfície unificada per a LLMs"
+		}
+	},
+	"startRouter": "Configuració ràpida a través d'un router",
+	"startCustom": "Utilitza la teva pròpia clau API",
 	"telemetry": {
 		"title": "Ajuda a millorar Roo Code",
 		"anonymousTelemetry": "Envia dades d'ús i errors anònims per ajudar-nos a corregir errors i millorar l'extensió. No s'envia mai cap codi, text o informació personal.",
@@ -10,5 +22,6 @@
 		"settings": "configuració",
 		"allow": "Permetre",
 		"deny": "Denegar"
-	}
+	},
+	"or": "o"
 }

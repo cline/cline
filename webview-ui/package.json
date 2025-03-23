@@ -41,6 +41,7 @@
 		"fzf": "^0.5.2",
 		"i18next": "^24.2.2",
 		"i18next-http-backend": "^3.0.2",
+		"knuth-shuffle-seeded": "^1.0.6",
 		"lucide-react": "^0.475.0",
 		"mermaid": "^11.4.1",
 		"posthog-js": "^1.227.2",

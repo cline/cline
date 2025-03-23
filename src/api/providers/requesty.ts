@@ -1,6 +1,6 @@
 import axios from "axios"
 
-import { ModelInfo, requestyModelInfoSaneDefaults, requestyDefaultModelId } from "../../shared/api"
+import { ModelInfo, requestyDefaultModelInfo, requestyDefaultModelId } from "../../shared/api"
 import { calculateApiCostOpenAI, parseApiPrice } from "../../utils/cost"
 import { ApiStreamUsageChunk } from "../transform/stream"
 import { OpenAiHandler, OpenAiHandlerOptions } from "./openai"
@@ -26,7 +26,7 @@ export class RequestyHandler extends OpenAiHandler {
 			openAiApiKey: options.requestyApiKey,
 			openAiModelId: options.requestyModelId ?? requestyDefaultModelId,
 			openAiBaseUrl: "https://router.requesty.ai/v1",
-			openAiCustomModelInfo: options.requestyModelInfo ?? requestyModelInfoSaneDefaults,
+			openAiCustomModelInfo: options.requestyModelInfo ?? requestyDefaultModelInfo,
 		})
 	}
 
@@ -34,7 +34,7 @@ export class RequestyHandler extends OpenAiHandler {
 		const modelId = this.options.requestyModelId ?? requestyDefaultModelId
 		return {
 			id: modelId,
-			info: this.options.requestyModelInfo ?? requestyModelInfoSaneDefaults,
+			info: this.options.requestyModelInfo ?? requestyDefaultModelInfo,
 		}
 	}
 
