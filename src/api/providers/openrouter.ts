@@ -24,11 +24,6 @@ type OpenRouterChatCompletionParams = OpenAI.Chat.ChatCompletionCreateParams & {
 	thinking?: BetaThinkingConfigParam
 }
 
-// Add custom interface for OpenRouter usage chunk.
-interface OpenRouterApiStreamUsageChunk extends ApiStreamUsageChunk {
-	fullResponseText: string
-}
-
 export class OpenRouterHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: ApiHandlerOptions
 	private client: OpenAI
@@ -110,7 +105,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			top_p: topP,
 			messages: openAiMessages,
 			stream: true,
-			include_reasoning: true,
+			stream_options: { include_usage: true },
 			// Only include provider if openRouterSpecificProvider is not "[default]".
 			...(this.options.openRouterSpecificProvider &&
 				this.options.openRouterSpecificProvider !== OPENROUTER_DEFAULT_PROVIDER_NAME && {
@@ -122,7 +117,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 
 		const stream = await this.client.chat.completions.create(completionParams)
 
-		let genId: string | undefined
+		let lastUsage
 
 		for await (const chunk of stream as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>) {
 			// OpenRouter returns an error object instead of the OpenAI SDK throwing an error.
@@ -130,10 +125,6 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 				const error = chunk.error as { message?: string; code?: number }
 				console.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
 				throw new Error(`OpenRouter API Error ${error?.code}: ${error?.message}`)
-			}
-
-			if (!genId && chunk.id) {
-				genId = chunk.id
 			}
 
 			const delta = chunk.choices[0]?.delta
@@ -146,47 +137,23 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 				fullResponseText += delta.content
 				yield { type: "text", text: delta.content } as ApiStreamChunk
 			}
-		}
 
-		const endpoint = `${this.client.baseURL}/generation?id=${genId}`
-
-		const config: AxiosRequestConfig = {
-			headers: { Authorization: `Bearer ${this.options.openRouterApiKey}` },
-			timeout: 3_000,
-		}
-
-		let attempt = 0
-		let lastError: Error | undefined
-		const startTime = Date.now()
-
-		while (attempt++ < 10) {
-			await delay(attempt * 100) // Give OpenRouter some time to produce the generation metadata.
-
-			try {
-				const response = await axios.get(endpoint, config)
-				const generation = response.data?.data
-
-				yield {
-					type: "usage",
-					inputTokens: generation?.native_tokens_prompt || 0,
-					outputTokens: generation?.native_tokens_completion || 0,
-					totalCost: generation?.total_cost || 0,
-					fullResponseText,
-				} as OpenRouterApiStreamUsageChunk
-
-				break
-			} catch (error: unknown) {
-				if (error instanceof Error) {
-					lastError = error
-				}
+			if (chunk.usage) {
+				lastUsage = chunk.usage
 			}
 		}
 
-		if (lastError) {
-			console.error(
-				`Failed to fetch OpenRouter generation details after attempt #${attempt} (${Date.now() - startTime}ms) [${genId}]`,
-				lastError,
-			)
+		if (lastUsage) {
+			yield this.processUsageMetrics(lastUsage)
+		}
+	}
+
+	processUsageMetrics(usage: any): ApiStreamUsageChunk {
+		return {
+			type: "usage",
+			inputTokens: usage?.prompt_tokens || 0,
+			outputTokens: usage?.completion_tokens || 0,
+			totalCost: usage?.cost || 0,
 		}
 	}
 

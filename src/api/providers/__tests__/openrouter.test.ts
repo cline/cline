@@ -112,6 +112,16 @@ describe("OpenRouterHandler", () => {
 						},
 					],
 				}
+				// Add usage information in the stream response
+				yield {
+					id: "test-id",
+					choices: [{ delta: {} }],
+					usage: {
+						prompt_tokens: 10,
+						completion_tokens: 20,
+						cost: 0.001,
+					},
+				}
 			},
 		}
 
@@ -120,17 +130,6 @@ describe("OpenRouterHandler", () => {
 		;(OpenAI as jest.MockedClass<typeof OpenAI>).prototype.chat = {
 			completions: { create: mockCreate },
 		} as any
-
-		// Mock axios.get for generation details
-		;(axios.get as jest.Mock).mockResolvedValue({
-			data: {
-				data: {
-					native_tokens_prompt: 10,
-					native_tokens_completion: 20,
-					total_cost: 0.001,
-				},
-			},
-		})
 
 		const systemPrompt = "test system prompt"
 		const messages: Anthropic.Messages.MessageParam[] = [{ role: "user" as const, content: "test message" }]
@@ -153,7 +152,6 @@ describe("OpenRouterHandler", () => {
 			inputTokens: 10,
 			outputTokens: 20,
 			totalCost: 0.001,
-			fullResponseText: "test response",
 		})
 
 		// Verify OpenAI client was called with correct parameters
