@@ -31,6 +31,7 @@ export interface ApiHandlerOptions {
 	openRouterApiKey?: string
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
+	openRouterProviderSorting?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
 	awsSessionToken?: string
@@ -1089,6 +1090,14 @@ export const mistralModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.1,
 		outputPrice: 0.1,
+	},
+	"mistral-small-latest": {
+		maxTokens: 131_000,
+		contextWindow: 131_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.3,
 	},
 	"mistral-small-2501": {
 		maxTokens: 32_000,
