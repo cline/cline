@@ -387,6 +387,15 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 						}}>
 						{server.status === "connecting" ? "Retrying..." : "Retry Connection"}
 					</VSCodeButton>
+					<DangerButton
+						onClick={handleDelete}
+						disabled={isDeleting}
+						style={{
+							width: "calc(100% - 20px)",
+							margin: "0 10px 10px 10px",
+						}}>
+						{isDeleting ? "Deleting..." : "Delete Server"}
+					</DangerButton>
 				</div>
 			) : (
 				isExpanded && (

@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.8.0]
+
+-   Add 'Add to Cline' as an option when you right-click in a file or the terminal, making it easier to add context to your current task
+-   Add 'Fix with Cline' code action - when you see a lightbulb icon in your editor, you can now select 'Fix with Cline' to send the  code and associated errors for Cline to fix. (Cursor users can also use the 'Quick Fix (CMD + .)' menu to see this option)
+-   Add Account view to display billing and usage history for Cline account users. You can now keep track of credits used and transaction history right in the extension!
+-   Add 'Sort underling provider routing' setting to Cline/OpenRouter allowing you to sort provider used by throughput, price, latency, or the default (combination of price and uptime)
+-   Improve rich MCP display with dynamic image loading and support for GIFs
+-   Add 'Documentation' menu item to easily access Cline's docs
+-   Add OpenRouter's new usage_details feature for more reliable cost reporting 
+-   Display total space Cline takes on disk next to 'Delete all Tasks' button in History view
+-   Fix 'Context Window Exceeded' error for OpenRouter/Cline Accounts (additional support coming soon)
+-   Fix bug where OpenRouter model ID would be set to invalid value
+-   Add button to delete MCP servers in a failure state
+
 ## [3.7.1]
 
 -   Fix issue with 'See more' button in task header not showing when starting new tasks

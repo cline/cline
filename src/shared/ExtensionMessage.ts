@@ -39,6 +39,7 @@ export interface ExtensionMessage {
 		| "userCreditsUsage"
 		| "userCreditsPayments"
 		| "totalTasksSize"
+		| "addToInput"
 	text?: string
 	action?:
 		| "chatButtonClicked"
