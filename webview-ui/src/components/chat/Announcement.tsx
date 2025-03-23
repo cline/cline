@@ -31,8 +31,8 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>Add to Cline:</b> Right-click in any file or terminal to quickly add context to your current task! Plus,
-					when you see a lightbulb icon, select 'Fix with Cline' to have Cline fix errors in your code.
+					<b>Add to Cline:</b> Right-click selected text in any file or terminal to quickly add context to your current
+					task! Plus, when you see a lightbulb icon, select 'Fix with Cline' to have Cline fix errors in your code.
 				</li>
 				<li>
 					<b>Billing Dashboard:</b> Track your remaining credits and transaction history right in the extension with a{" "}
