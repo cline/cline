@@ -142,6 +142,7 @@ export async function createOpenRouterStream(
 		top_p: topP,
 		messages: openAiMessages,
 		stream: true,
+		stream_options: { include_usage: true },
 		transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		include_reasoning: true,
 		...(model.id === "openai/o3-mini" ? { reasoning_effort: o3MiniReasoningEffort || "medium" } : {}),
