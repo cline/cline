@@ -216,7 +216,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			</DropdownContainer>
 
 			{selectedProvider === "cline" && (
-				<div style={{ marginBottom: 8, marginTop: 4 }}>
+				<div style={{ marginBottom: 14, marginTop: 4 }}>
 					<ClineAccountInfoCard />
 				</div>
 			)}
@@ -1357,7 +1357,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
 				<>
 					<VSCodeCheckbox
-						style={{ marginTop: -8 }}
+						style={{ marginTop: -10 }}
 						checked={providerSortingSelected}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
