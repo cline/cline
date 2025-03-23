@@ -2333,7 +2333,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 									} else {
 										content = addLineNumbers(
 											await readLines(absolutePath, endLine, startLine),
-											startLine,
+											startLine + 1,
 										)
 									}
 								} else if (!isBinary && totalLines > maxReadFileLine) {
