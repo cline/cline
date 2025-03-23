@@ -256,11 +256,12 @@ export async function getOpenRouterModels(options?: ApiHandlerOptions) {
 					modelInfo.maxTokens = 8192
 					break
 				case rawModel.id.startsWith("anthropic/claude-3-haiku"):
-				default:
 					modelInfo.supportsPromptCache = true
 					modelInfo.cacheWritesPrice = 0.3
 					modelInfo.cacheReadsPrice = 0.03
 					modelInfo.maxTokens = 8192
+					break
+				default:
 					break
 			}
 

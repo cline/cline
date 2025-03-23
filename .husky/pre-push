@@ -5,7 +5,14 @@ if [ "$branch" = "main" ]; then
   exit 1
 fi
 
-npm run compile
+# Detect if running on Windows and use npm.cmd, otherwise use npm
+if [ "$OS" = "Windows_NT" ]; then
+  npm_cmd="npm.cmd"
+else
+  npm_cmd="npm"
+fi
+
+"$npm_cmd" run compile
 
 # Check for new changesets.
 NEW_CHANGESETS=$(find .changeset -name "*.md" ! -name "README.md" | wc -l | tr -d ' ')

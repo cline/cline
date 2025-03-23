@@ -5,4 +5,11 @@ if [ "$branch" = "main" ]; then
   exit 1
 fi
 
-npx lint-staged
+# Detect if running on Windows and use npx.cmd, otherwise use npx
+if [ "$OS" = "Windows_NT" ]; then
+  npx_cmd="npx.cmd"
+else
+  npx_cmd="npx"
+fi
+
+"$npx_cmd" lint-staged
