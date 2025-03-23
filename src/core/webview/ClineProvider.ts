@@ -2046,6 +2046,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				apiConfiguration.apiModelId || apiConfiguration.openRouterModelId || "",
 				fuzzyMatchThreshold,
 				Experiments.isEnabled(experiments, EXPERIMENT_IDS.DIFF_STRATEGY),
+				Experiments.isEnabled(experiments, EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE),
 			)
 			const cwd = this.cwd
 

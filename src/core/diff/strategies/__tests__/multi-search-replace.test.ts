@@ -1,16 +1,64 @@
 import { MultiSearchReplaceDiffStrategy } from "../multi-search-replace"
 
 describe("MultiSearchReplaceDiffStrategy", () => {
-	describe("exact matching", () => {
+	describe("validateMarkerSequencing", () => {
 		let strategy: MultiSearchReplaceDiffStrategy
 
 		beforeEach(() => {
-			strategy = new MultiSearchReplaceDiffStrategy(1.0, 5) // Default 1.0 threshold for exact matching, 5 line buffer for tests
+			strategy = new MultiSearchReplaceDiffStrategy()
 		})
 
-		it("should replace matching content", async () => {
-			const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
-			const diffContent = `test.ts
+		it("validates correct marker sequence", () => {
+			const diff = "<<<<<<< SEARCH\n" + "some content\n" + "=======\n" + "new content\n" + ">>>>>>> REPLACE"
+			expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+		})
+
+		it("validates multiple correct marker sequences", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" +
+				"content1\n" +
+				"=======\n" +
+				"new1\n" +
+				">>>>>>> REPLACE\n\n" +
+				"<<<<<<< SEARCH\n" +
+				"content2\n" +
+				"=======\n" +
+				"new2\n" +
+				">>>>>>> REPLACE"
+			expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+		})
+
+		it("detects separator before search", () => {
+			const diff = "=======\n" + "content\n" + ">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(false)
+			expect(result.error).toContain("'=======' found in your diff content")
+		})
+
+		it("detects replace before separator", () => {
+			const diff = "<<<<<<< SEARCH\n" + "content\n" + ">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(false)
+			expect(result.error).toContain("'>>>>>>> REPLACE' found in your diff content")
+		})
+
+		it("detects incomplete sequence", () => {
+			const diff = "<<<<<<< SEARCH\n" + "content\n" + "=======\n" + "new content"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(false)
+			expect(result.error).toContain("Expected '>>>>>>> REPLACE' was not found")
+		})
+
+		describe("exact matching", () => {
+			let strategy: MultiSearchReplaceDiffStrategy
+
+			beforeEach(() => {
+				strategy = new MultiSearchReplaceDiffStrategy(1.0, 5) // Default 1.0 threshold for exact matching, 5 line buffer for tests
+			})
+
+			it("should replace matching content", async () => {
+				const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
+				const diffContent = `test.ts
 <<<<<<< SEARCH
 function hello() {
     console.log("hello")
@@ -21,16 +69,16 @@ function hello() {
 }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe('function hello() {\n    console.log("hello world")\n}\n')
-			}
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe('function hello() {\n    console.log("hello world")\n}\n')
+				}
+			})
 
-		it("should match content with different surrounding whitespace", async () => {
-			const originalContent = "\nfunction example() {\n    return 42;\n}\n\n"
-			const diffContent = `test.ts
+			it("should match content with different surrounding whitespace", async () => {
+				const originalContent = "\nfunction example() {\n    return 42;\n}\n\n"
+				const diffContent = `test.ts
 <<<<<<< SEARCH
 function example() {
     return 42;
@@ -41,16 +89,16 @@ function example() {
 }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe("\nfunction example() {\n    return 43;\n}\n\n")
-			}
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe("\nfunction example() {\n    return 43;\n}\n\n")
+				}
+			})
 
-		it("should match content with different indentation in search block", async () => {
-			const originalContent = "    function test() {\n        return true;\n    }\n"
-			const diffContent = `test.ts
+			it("should match content with different indentation in search block", async () => {
+				const originalContent = "    function test() {\n        return true;\n    }\n"
+				const diffContent = `test.ts
 <<<<<<< SEARCH
 function test() {
     return true;
@@ -61,16 +109,16 @@ function test() {
 }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe("    function test() {\n        return false;\n    }\n")
-			}
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe("    function test() {\n        return false;\n    }\n")
+				}
+			})
 
-		it("should handle tab-based indentation", async () => {
-			const originalContent = "function test() {\n\treturn true;\n}\n"
-			const diffContent = `test.ts
+			it("should handle tab-based indentation", async () => {
+				const originalContent = "function test() {\n\treturn true;\n}\n"
+				const diffContent = `test.ts
 <<<<<<< SEARCH
 function test() {
 \treturn true;
@@ -81,16 +129,16 @@ function test() {
 }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe("function test() {\n\treturn false;\n}\n")
-			}
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe("function test() {\n\treturn false;\n}\n")
+				}
+			})
 
-		it("should preserve mixed tabs and spaces", async () => {
-			const originalContent = "\tclass Example {\n\t    constructor() {\n\t\tthis.value = 0;\n\t    }\n\t}"
-			const diffContent = `test.ts
+			it("should preserve mixed tabs and spaces", async () => {
+				const originalContent = "\tclass Example {\n\t    constructor() {\n\t\tthis.value = 0;\n\t    }\n\t}"
+				const diffContent = `test.ts
 <<<<<<< SEARCH
 \tclass Example {
 \t    constructor() {
@@ -105,18 +153,18 @@ function test() {
 \t}
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(
-					"\tclass Example {\n\t    constructor() {\n\t\tthis.value = 1;\n\t    }\n\t}",
-				)
-			}
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(
+						"\tclass Example {\n\t    constructor() {\n\t\tthis.value = 1;\n\t    }\n\t}",
+					)
+				}
+			})
 
-		it("should handle additional indentation with tabs", async () => {
-			const originalContent = "\tfunction test() {\n\t\treturn true;\n\t}"
-			const diffContent = `test.ts
+			it("should handle additional indentation with tabs", async () => {
+				const originalContent = "\tfunction test() {\n\t\treturn true;\n\t}"
+				const diffContent = `test.ts
 <<<<<<< SEARCH
 function test() {
 \treturn true;
@@ -128,16 +176,16 @@ function test() {
 }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe("\tfunction test() {\n\t\t// Add comment\n\t\treturn false;\n\t}")
-			}
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe("\tfunction test() {\n\t\t// Add comment\n\t\treturn false;\n\t}")
+				}
+			})
 
-		it("should preserve exact indentation characters when adding lines", async () => {
-			const originalContent = "\tfunction test() {\n\t\treturn true;\n\t}"
-			const diffContent = `test.ts
+			it("should preserve exact indentation characters when adding lines", async () => {
+				const originalContent = "\tfunction test() {\n\t\treturn true;\n\t}"
+				const diffContent = `test.ts
 <<<<<<< SEARCH
 \tfunction test() {
 \t\treturn true;
@@ -150,18 +198,18 @@ function test() {
 \t}
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(
-					"\tfunction test() {\n\t\t// First comment\n\t\t// Second comment\n\t\treturn true;\n\t}",
-				)
-			}
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(
+						"\tfunction test() {\n\t\t// First comment\n\t\t// Second comment\n\t\treturn true;\n\t}",
+					)
+				}
+			})
 
-		it("should handle Windows-style CRLF line endings", async () => {
-			const originalContent = "function test() {\r\n    return true;\r\n}\r\n"
-			const diffContent = `test.ts
+			it("should handle Windows-style CRLF line endings", async () => {
+				const originalContent = "function test() {\r\n    return true;\r\n}\r\n"
+				const diffContent = `test.ts
 <<<<<<< SEARCH
 function test() {
     return true;
@@ -172,16 +220,16 @@ function test() {
 }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe("function test() {\r\n    return false;\r\n}\r\n")
-			}
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe("function test() {\r\n    return false;\r\n}\r\n")
+				}
+			})
 
-		it("should return false if search content does not match", async () => {
-			const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
-			const diffContent = `test.ts
+			it("should return false if search content does not match", async () => {
+				const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
+				const diffContent = `test.ts
 <<<<<<< SEARCH
 function hello() {
     console.log("wrong")
@@ -192,22 +240,22 @@ function hello() {
 }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(false)
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(false)
+			})
 
-		it("should return false if diff format is invalid", async () => {
-			const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
-			const diffContent = `test.ts\nInvalid diff format`
+			it("should return false if diff format is invalid", async () => {
+				const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
+				const diffContent = `test.ts\nInvalid diff format`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(false)
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(false)
+			})
 
-		it("should handle multiple lines with proper indentation", async () => {
-			const originalContent =
-				"class Example {\n    constructor() {\n        this.value = 0\n    }\n\n    getValue() {\n        return this.value\n    }\n}\n"
-			const diffContent = `test.ts
+			it("should handle multiple lines with proper indentation", async () => {
+				const originalContent =
+					"class Example {\n    constructor() {\n        this.value = 0\n    }\n\n    getValue() {\n        return this.value\n    }\n}\n"
+				const diffContent = `test.ts
 <<<<<<< SEARCH
     getValue() {
         return this.value
@@ -220,18 +268,18 @@ function hello() {
     }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(
-					'class Example {\n    constructor() {\n        this.value = 0\n    }\n\n    getValue() {\n        // Add logging\n        console.log("Getting value")\n        return this.value\n    }\n}\n',
-				)
-			}
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(
+						'class Example {\n    constructor() {\n        this.value = 0\n    }\n\n    getValue() {\n        // Add logging\n        console.log("Getting value")\n        return this.value\n    }\n}\n',
+					)
+				}
+			})
 
-		it("should preserve whitespace exactly in the output", async () => {
-			const originalContent = "    indented\n        more indented\n    back\n"
-			const diffContent = `test.ts
+			it("should preserve whitespace exactly in the output", async () => {
+				const originalContent = "    indented\n        more indented\n    back\n"
+				const diffContent = `test.ts
 <<<<<<< SEARCH
     indented
         more indented
@@ -242,16 +290,16 @@ function hello() {
     end
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe("    modified\n        still indented\n    end\n")
-			}
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe("    modified\n        still indented\n    end\n")
+				}
+			})
 
-		it("should preserve indentation when adding new lines after existing content", async () => {
-			const originalContent = "				onScroll={() => updateHighlights()}"
-			const diffContent = `test.ts
+			it("should preserve indentation when adding new lines after existing content", async () => {
+				const originalContent = "				onScroll={() => updateHighlights()}"
+				const diffContent = `test.ts
 <<<<<<< SEARCH
 				onScroll={() => updateHighlights()}
 =======
@@ -262,17 +310,17 @@ function hello() {
 				}}
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(
-					"				onScroll={() => updateHighlights()}\n				onDragOver={(e) => {\n					e.preventDefault()\n					e.stopPropagation()\n				}}",
-				)
-			}
-		})
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(
+						"				onScroll={() => updateHighlights()}\n				onDragOver={(e) => {\n					e.preventDefault()\n					e.stopPropagation()\n				}}",
+					)
+				}
+			})
 
-		it("should handle varying indentation levels correctly", async () => {
-			const originalContent = `
+			it("should handle varying indentation levels correctly", async () => {
+				const originalContent = `
 class Example {
     constructor() {
         this.value = 0;
@@ -282,7 +330,7 @@ class Example {
     }
 }`.trim()
 
-			const diffContent = `test.ts
+				const diffContent = `test.ts
 <<<<<<< SEARCH
     class Example {
         constructor() {
@@ -305,11 +353,11 @@ class Example {
     }
 >>>>>>> REPLACE`.trim()
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(
-					`
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(
+						`
 class Example {
     constructor() {
         this.value = 1;
@@ -320,12 +368,12 @@ class Example {
         }
     }
 }`.trim(),
-				)
-			}
-		})
+					)
+				}
+			})
 
-		it("should handle mixed indentation styles in the same file", async () => {
-			const originalContent = `class Example {
+			it("should handle mixed indentation styles in the same file", async () => {
+				const originalContent = `class Example {
     constructor() {
         this.value = 0;
         if (true) {
@@ -333,7 +381,7 @@ class Example {
         }
     }
 }`.trim()
-			const diffContent = `test.ts
+				const diffContent = `test.ts
 <<<<<<< SEARCH
     constructor() {
         this.value = 0;
@@ -351,10 +399,10 @@ class Example {
     }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(`class Example {
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(`class Example {
     constructor() {
         this.value = 1;
         if (true) {
@@ -363,17 +411,17 @@ class Example {
         }
     }
 }`)
-			}
-		})
+				}
+			})
 
-		it("should handle Python-style significant whitespace", async () => {
-			const originalContent = `def example():
+			it("should handle Python-style significant whitespace", async () => {
+				const originalContent = `def example():
     if condition:
         do_something()
         for item in items:
             process(item)
     return True`.trim()
-			const diffContent = `test.ts
+				const diffContent = `test.ts
 <<<<<<< SEARCH
     if condition:
         do_something()
@@ -387,28 +435,28 @@ class Example {
             process(item)
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(`def example():
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(`def example():
     if condition:
         do_something()
         while items:
             item = items.pop()
             process(item)
     return True`)
-			}
-		})
+				}
+			})
 
-		it("should preserve empty lines with indentation", async () => {
-			const originalContent = `function test() {
+			it("should preserve empty lines with indentation", async () => {
+				const originalContent = `function test() {
     const x = 1;
     
     if (x) {
         return true;
     }
 }`.trim()
-			const diffContent = `test.ts
+				const diffContent = `test.ts
 <<<<<<< SEARCH
     const x = 1;
     
@@ -420,10 +468,10 @@ class Example {
     if (x) {
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(`function test() {
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(`function test() {
     const x = 1;
     
     // Check x
@@ -431,18 +479,18 @@ class Example {
         return true;
     }
 }`)
-			}
-		})
+				}
+			})
 
-		it("should handle indentation when replacing entire blocks", async () => {
-			const originalContent = `class Test {
+			it("should handle indentation when replacing entire blocks", async () => {
+				const originalContent = `class Test {
     method() {
         if (true) {
             console.log("test");
         }
     }
 }`.trim()
-			const diffContent = `test.ts
+				const diffContent = `test.ts
 <<<<<<< SEARCH
     method() {
         if (true) {
@@ -461,10 +509,10 @@ class Example {
     }
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(`class Test {
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(`class Test {
     method() {
         try {
             if (true) {
@@ -475,11 +523,11 @@ class Example {
         }
     }
 }`)
-			}
-		})
+				}
+			})
 
-		it("should handle negative indentation relative to search content", async () => {
-			const originalContent = `class Example {
+			it("should handle negative indentation relative to search content", async () => {
+				const originalContent = `class Example {
     constructor() {
         if (true) {
             this.init();
@@ -487,7 +535,7 @@ class Example {
         }
     }
 }`.trim()
-			const diffContent = `test.ts
+				const diffContent = `test.ts
 <<<<<<< SEARCH
             this.init();
             this.setup();
@@ -496,10 +544,10 @@ class Example {
         this.setup();
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(`class Example {
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(`class Example {
     constructor() {
         if (true) {
         this.init();
@@ -507,39 +555,39 @@ class Example {
         }
     }
 }`)
-			}
-		})
+				}
+			})
 
-		it("should handle extreme negative indentation (no indent)", async () => {
-			const originalContent = `class Example {
+			it("should handle extreme negative indentation (no indent)", async () => {
+				const originalContent = `class Example {
     constructor() {
         if (true) {
             this.init();
         }
     }
 }`.trim()
-			const diffContent = `test.ts
+				const diffContent = `test.ts
 <<<<<<< SEARCH
             this.init();
 =======
 this.init();
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(`class Example {
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(`class Example {
     constructor() {
         if (true) {
 this.init();
         }
     }
 }`)
-			}
-		})
+				}
+			})
 
-		it("should handle mixed indentation changes in replace block", async () => {
-			const originalContent = `class Example {
+			it("should handle mixed indentation changes in replace block", async () => {
+				const originalContent = `class Example {
     constructor() {
         if (true) {
             this.init();
@@ -548,7 +596,7 @@ this.init();
         }
     }
 }`.trim()
-			const diffContent = `test.ts
+				const diffContent = `test.ts
 <<<<<<< SEARCH
             this.init();
             this.setup();
@@ -559,10 +607,10 @@ this.init();
     this.validate();
 >>>>>>> REPLACE`
 
-			const result = await strategy.applyDiff(originalContent, diffContent)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(`class Example {
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(`class Example {
     constructor() {
         if (true) {
         this.init();
@@ -571,11 +619,11 @@ this.init();
         }
     }
 }`)
-			}
-		})
+				}
+			})
 
-		it("should find matches from middle out", async () => {
-			const originalContent = `
+			it("should find matches from middle out", async () => {
+				const originalContent = `
 function one() {
     return "target";
 }
@@ -596,20 +644,20 @@ function five() {
     return "target";
 }`.trim()
 
-			const diffContent = `test.ts
+				const diffContent = `test.ts
 <<<<<<< SEARCH
     return "target";
 =======
     return "updated";
 >>>>>>> REPLACE`
 
-			// Search around the middle (function three)
-			// Even though all functions contain the target text,
-			// it should match the one closest to line 9 first
-			const result = await strategy.applyDiff(originalContent, diffContent, 9, 9)
-			expect(result.success).toBe(true)
-			if (result.success) {
-				expect(result.content).toBe(`function one() {
+				// Search around the middle (function three)
+				// Even though all functions contain the target text,
+				// it should match the one closest to line 9 first
+				const result = await strategy.applyDiff(originalContent, diffContent, 9, 9)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe(`function one() {
     return "target";
 }
 
@@ -628,21 +676,21 @@ function four() {
 function five() {
     return "target";
 }`)
-			}
-		})
-	})
-
-	describe("line number stripping", () => {
-		describe("line number stripping", () => {
-			let strategy: MultiSearchReplaceDiffStrategy
-
-			beforeEach(() => {
-				strategy = new MultiSearchReplaceDiffStrategy()
+				}
 			})
+		})
 
-			it("should strip line numbers from both search and replace sections", async () => {
-				const originalContent = "function test() {\n    return true;\n}\n"
-				const diffContent = `test.ts
+		describe("line number stripping", () => {
+			describe("line number stripping", () => {
+				let strategy: MultiSearchReplaceDiffStrategy
+
+				beforeEach(() => {
+					strategy = new MultiSearchReplaceDiffStrategy()
+				})
+
+				it("should strip line numbers from both search and replace sections", async () => {
+					const originalContent = "function test() {\n    return true;\n}\n"
+					const diffContent = `test.ts
 <<<<<<< SEARCH
 1 | function test() {
 2 |     return true;
@@ -653,16 +701,16 @@ function five() {
 3 | }
 >>>>>>> REPLACE`
 
-				const result = await strategy.applyDiff(originalContent, diffContent)
-				expect(result.success).toBe(true)
-				if (result.success) {
-					expect(result.content).toBe("function test() {\n    return false;\n}\n")
-				}
-			})
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("function test() {\n    return false;\n}\n")
+					}
+				})
 
-			it("should strip line numbers with leading spaces", async () => {
-				const originalContent = "function test() {\n    return true;\n}\n"
-				const diffContent = `test.ts
+				it("should strip line numbers with leading spaces", async () => {
+					const originalContent = "function test() {\n    return true;\n}\n"
+					const diffContent = `test.ts
 <<<<<<< SEARCH
  1 | function test() {
  2 |     return true;
@@ -673,16 +721,16 @@ function five() {
  3 | }
 >>>>>>> REPLACE`
 
-				const result = await strategy.applyDiff(originalContent, diffContent)
-				expect(result.success).toBe(true)
-				if (result.success) {
-					expect(result.content).toBe("function test() {\n    return false;\n}\n")
-				}
-			})
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("function test() {\n    return false;\n}\n")
+					}
+				})
 
-			it("should not strip when not all lines have numbers in either section", async () => {
-				const originalContent = "function test() {\n    return true;\n}\n"
-				const diffContent = `test.ts
+				it("should not strip when not all lines have numbers in either section", async () => {
+					const originalContent = "function test() {\n    return true;\n}\n"
+					const diffContent = `test.ts
 <<<<<<< SEARCH
 1 | function test() {
 2 |     return true;
@@ -693,13 +741,13 @@ function five() {
 3 | }
 >>>>>>> REPLACE`
 
-				const result = await strategy.applyDiff(originalContent, diffContent)
-				expect(result.success).toBe(false)
-			})
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(false)
+				})
 
-			it("should preserve content that naturally starts with pipe", async () => {
-				const originalContent = "|header|another|\n|---|---|\n|data|more|\n"
-				const diffContent = `test.ts
+				it("should preserve content that naturally starts with pipe", async () => {
+					const originalContent = "|header|another|\n|---|---|\n|data|more|\n"
+					const diffContent = `test.ts
 <<<<<<< SEARCH
 1 | |header|another|
 2 | |---|---|
@@ -710,16 +758,16 @@ function five() {
 3 | |data|updated|
 >>>>>>> REPLACE`
 
-				const result = await strategy.applyDiff(originalContent, diffContent)
-				expect(result.success).toBe(true)
-				if (result.success) {
-					expect(result.content).toBe("|header|another|\n|---|---|\n|data|updated|\n")
-				}
-			})
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("|header|another|\n|---|---|\n|data|updated|\n")
+					}
+				})
 
-			it("should preserve indentation when stripping line numbers", async () => {
-				const originalContent = "    function test() {\n        return true;\n    }\n"
-				const diffContent = `test.ts
+				it("should preserve indentation when stripping line numbers", async () => {
+					const originalContent = "    function test() {\n        return true;\n    }\n"
+					const diffContent = `test.ts
 <<<<<<< SEARCH
 1 |     function test() {
 2 |         return true;
@@ -730,16 +778,16 @@ function five() {
 3 |     }
 >>>>>>> REPLACE`
 
-				const result = await strategy.applyDiff(originalContent, diffContent)
-				expect(result.success).toBe(true)
-				if (result.success) {
-					expect(result.content).toBe("    function test() {\n        return false;\n    }\n")
-				}
-			})
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("    function test() {\n        return false;\n    }\n")
+					}
+				})
 
-			it("should handle different line numbers between sections", async () => {
-				const originalContent = "function test() {\n    return true;\n}\n"
-				const diffContent = `test.ts
+				it("should handle different line numbers between sections", async () => {
+					const originalContent = "function test() {\n    return true;\n}\n"
+					const diffContent = `test.ts
 <<<<<<< SEARCH
 10 | function test() {
 11 |     return true;
@@ -750,11 +798,563 @@ function five() {
 22 | }
 >>>>>>> REPLACE`
 
-				const result = await strategy.applyDiff(originalContent, diffContent)
-				expect(result.success).toBe(true)
-				if (result.success) {
-					expect(result.content).toBe("function test() {\n    return false;\n}\n")
-				}
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("function test() {\n    return false;\n}\n")
+					}
+				})
+
+				it("detects search marker when expecting replace", () => {
+					const diff = "<<<<<<< SEARCH\n" + "content\n" + "=======\n" + "new content\n" + "<<<<<<< SEARCH"
+					const result = strategy["validateMarkerSequencing"](diff)
+					expect(result.success).toBe(false)
+					expect(result.error).toContain("'<<<<<<< SEARCH' found in your diff content")
+				})
+
+				it("allows escaped search marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					const result = strategy["validateMarkerSequencing"](diff)
+					expect(result.success).toBe(true)
+				})
+
+				it("allows escaped separator in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					const result = strategy["validateMarkerSequencing"](diff)
+					expect(result.success).toBe(true)
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped separator in content", async () => {
+					const originalContent = "before\n=======\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped separator in content", async () => {
+					const originalContent = "before\n=======\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"test.ts\n" +
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"test.ts\n" +
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped separator in content", async () => {
+					const originalContent = "before\n=======\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped separator in content", async () => {
+					const originalContent = "before\n=======\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("allows escaped search marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped separator in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped search marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped search marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped separator in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped replace marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped separator in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped replace marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("allows escaped replace marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"replaced content\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("replaced content\n")
+					}
+				})
+
+				it("processes escaped replace marker in content", async () => {
+					const originalContent = "before\n>>>>>>> REPLACE\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes multiple escaped markers in content", async () => {
+					const originalContent = "<<<<<<< SEARCH\n=======\n>>>>>>> REPLACE\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"\\=======\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped separator in content", async () => {
+					const originalContent = "before\n=======\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped search marker in content", async () => {
+					const originalContent = "before\n<<<<<<< SEARCH\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped replace marker in content", async () => {
+					const originalContent = "before\n>>>>>>> REPLACE\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped separator in content", async () => {
+					const originalContent = "before\n=======\nafter\n"
+					const diffContent =
+						"test.ts\n" +
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\=======\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped replace marker in content", async () => {
+					const originalContent = "before\n>>>>>>> REPLACE\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes multiple escaped markers in content", async () => {
+					const originalContent = "<<<<<<< SEARCH\n=======\n>>>>>>> REPLACE\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"\\=======\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes escaped replace marker in content", async () => {
+					const originalContent = "before\n>>>>>>> REPLACE\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("processes multiple escaped markers in content", async () => {
+					const originalContent = "<<<<<<< SEARCH\n=======\n>>>>>>> REPLACE\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"\\=======\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"=======\n" +
+						"unchanged\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("unchanged\n")
+					}
+				})
+
+				it("allows escaped replace marker in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"after\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					const result = strategy["validateMarkerSequencing"](diff)
+					expect(result.success).toBe(true)
+				})
+
+				it("allows multiple escaped markers in content", () => {
+					const diff =
+						"<<<<<<< SEARCH\n" +
+						"\\<<<<<<< SEARCH\n" +
+						"\\=======\n" +
+						"\\>>>>>>> REPLACE\n" +
+						"=======\n" +
+						"new content\n" +
+						">>>>>>> REPLACE"
+					const result = strategy["validateMarkerSequencing"](diff)
+					expect(result.success).toBe(true)
+				})
+
+				it("detects separator when expecting replace", () => {
+					const diff = "<<<<<<< SEARCH\n" + "content\n" + "=======\n" + "new content\n" + "======="
+					const result = strategy["validateMarkerSequencing"](diff)
+					expect(result.success).toBe(false)
+					expect(result.error).toContain("'=======' found in your diff content")
+				})
 			})
 
 			it("should not strip content that starts with pipe but no line number", async () => {
@@ -980,7 +1580,6 @@ function test() {
 :end_line:4
 -------
 =======
-
 // End of file
 >>>>>>> REPLACE`
 
@@ -990,7 +1589,6 @@ function test() {
 					expect(result.content).toBe(`function test() {
     return true;
 }
-
 // End of file`)
 				}
 			})
