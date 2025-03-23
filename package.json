@@ -73,7 +73,7 @@
 			{
 				"command": "cline.mcpButtonClicked",
 				"title": "MCP Servers",
-				"icon": "$(extensions)"
+				"icon": "$(server)"
 			},
 			{
 				"command": "cline.historyButtonClicked",

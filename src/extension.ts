@@ -295,7 +295,12 @@ export function activate(context: vscode.ExtensionContext) {
 						arguments: [range, context.diagnostics],
 					}
 
-					return [addAction, fixAction]
+					// Only show actions when there are errors
+					if (context.diagnostics.length > 0) {
+						return [addAction, fixAction]
+					} else {
+						return []
+					}
 				}
 			})(),
 			{
