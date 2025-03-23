@@ -20,7 +20,7 @@ export class ClineHandler implements ApiHandler {
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const model = this.getModel()
-		yield* streamOpenRouterFormatRequest(
+		const genId = yield* streamOpenRouterFormatRequest(
 			this.client,
 			systemPrompt,
 			messages,
@@ -29,6 +29,27 @@ export class ClineHandler implements ApiHandler {
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 		)
+
+		try {
+			const response = await axios.get(`https://api.cline.bot/v1/generation?id=${genId}`, {
+				headers: {
+					Authorization: `Bearer ${this.options.clineApiKey}`,
+				},
+				timeout: 5_000, // this request hangs sometimes
+			})
+
+			const generation = response.data
+			console.log("cline generation details:", generation)
+			yield {
+				type: "usage",
+				inputTokens: generation?.native_tokens_prompt || 0,
+				outputTokens: generation?.native_tokens_completion || 0,
+				totalCost: generation?.total_cost || 0,
+			}
+		} catch (error) {
+			// ignore if fails
+			console.error("Error fetching cline generation details:", error)
+		}
 	}
 
 	getModel(): { id: string; info: ModelInfo } {

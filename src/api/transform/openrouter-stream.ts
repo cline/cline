@@ -14,7 +14,7 @@ export async function* streamOpenRouterFormatRequest(
 	o3MiniReasoningEffort?: string,
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
-): AsyncGenerator<ApiStreamChunk, undefined, unknown> {
+): AsyncGenerator<ApiStreamChunk, string | undefined, unknown> {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 		{ role: "system", content: systemPrompt },
@@ -144,14 +144,12 @@ export async function* streamOpenRouterFormatRequest(
 		stream: true,
 		transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		include_reasoning: true,
-		stream_options: { include_usage: true },
 		...(model.id === "openai/o3-mini" ? { reasoning_effort: o3MiniReasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
 	})
 
-	// let genId: string | undefined
-	let didOutputUsage: boolean = false
+	let genId: string | undefined
 
 	for await (const chunk of stream) {
 		// openrouter returns an error object instead of the openai sdk throwing an error
@@ -163,15 +161,8 @@ export async function* streamOpenRouterFormatRequest(
 			throw new Error(`OpenRouter API Error ${error.code}: ${error.message}${metadataStr}`)
 		}
 
-		if (chunk.usage && !didOutputUsage) {
-			yield {
-				type: "usage",
-				inputTokens: chunk.usage.prompt_tokens || 0,
-				outputTokens: chunk.usage.completion_tokens || 0,
-				// @ts-ignore-next-line
-				totalCost: chunk.usage.cost || 0,
-			}
-			didOutputUsage = true
+		if (!genId && chunk.id) {
+			genId = chunk.id
 		}
 
 		const delta = chunk.choices[0]?.delta
@@ -191,4 +182,6 @@ export async function* streamOpenRouterFormatRequest(
 			}
 		}
 	}
+
+	return genId
 }
