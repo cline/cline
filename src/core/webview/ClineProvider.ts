@@ -40,6 +40,7 @@ import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { getTotalTasksSize } from "../../utils/storage"
 import { ConversationTelemetryService } from "../../services/telemetry/ConversationTelemetryService"
 import { GlobalFileNames } from "../../global-constants"
+import delay from "delay"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -124,7 +125,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	accountService?: ClineAccountService
-	private latestAnnouncementId = "feb-19-2025" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "march-22-2025" // update to some unique identifier when we add a new announcement
 	conversationTelemetryService: ConversationTelemetryService
 
 	constructor(
@@ -1748,6 +1749,104 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		return models
 	}
 
+	// Context menus and code actions
+
+	getFileMentionFromPath(filePath: string) {
+		const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+		if (!cwd) {
+			return "@/" + filePath
+		}
+		const relativePath = path.relative(cwd, filePath)
+		return "@/" + relativePath
+	}
+
+	// 'Add to Cline' context menu in editor and code action
+	async addSelectedCodeToChat(code: string, filePath: string, languageId: string, diagnostics?: vscode.Diagnostic[]) {
+		// Ensure the sidebar view is visible
+		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await delay(100)
+
+		// Post message to webview with the selected code
+		const fileMention = this.getFileMentionFromPath(filePath)
+
+		let input = `${fileMention}\n\`\`\`\n${code}\n\`\`\``
+		if (diagnostics) {
+			const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
+			input += `\nProblems:\n${problemsString}`
+		}
+
+		await this.postMessageToWebview({
+			type: "addToInput",
+			text: input,
+		})
+
+		console.log("addSelectedCodeToChat", code, filePath, languageId)
+	}
+
+	// 'Add to Cline' context menu in Terminal
+	async addSelectedTerminalOutputToChat(output: string, terminalName: string) {
+		// Ensure the sidebar view is visible
+		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await delay(100)
+
+		// Post message to webview with the selected terminal output
+		// await this.postMessageToWebview({
+		//     type: "addSelectedTerminalOutput",
+		//     output,
+		//     terminalName
+		// })
+
+		await this.postMessageToWebview({
+			type: "addToInput",
+			text: `Terminal output:\n\`\`\`\n${output}\n\`\`\``,
+		})
+
+		console.log("addSelectedTerminalOutputToChat", output, terminalName)
+	}
+
+	// 'Fix with Cline' in code actions
+	async fixWithCline(code: string, filePath: string, languageId: string, diagnostics: vscode.Diagnostic[]) {
+		// Ensure the sidebar view is visible
+		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await delay(100)
+
+		const fileMention = this.getFileMentionFromPath(filePath)
+		const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
+		await this.initClineWithTask(
+			`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`,
+		)
+
+		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
+	}
+
+	convertDiagnosticsToProblemsString(diagnostics: vscode.Diagnostic[]) {
+		let problemsString = ""
+		for (const diagnostic of diagnostics) {
+			let label: string
+			switch (diagnostic.severity) {
+				case vscode.DiagnosticSeverity.Error:
+					label = "Error"
+					break
+				case vscode.DiagnosticSeverity.Warning:
+					label = "Warning"
+					break
+				case vscode.DiagnosticSeverity.Information:
+					label = "Information"
+					break
+				case vscode.DiagnosticSeverity.Hint:
+					label = "Hint"
+					break
+				default:
+					label = "Diagnostic"
+			}
+			const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
+			const source = diagnostic.source ? `${diagnostic.source} ` : ""
+			problemsString += `\n- [${source}${label}] Line ${line}: ${diagnostic.message}`
+		}
+		problemsString = problemsString.trim()
+		return problemsString
+	}
+
 	// Task history
 
 	async getTaskWithId(id: string): Promise<{
@@ -2186,7 +2285,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				qwenApiLine,
 				mistralApiKey,
 				azureApiVersion,
-				openRouterModelId,
+				// Fixes bug where switching to plan/act would result in setting this model id to previousModeModelId which may have been a non-string value by default, causing a type error in the webview when calling .toLowerCase() on it.
+				openRouterModelId: openRouterModelId ? String(openRouterModelId) : undefined,
 				openRouterModelInfo,
 				openRouterProviderSorting,
 				vsCodeLmModelSelector,
@@ -2208,7 +2308,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 			userInfo,
 			previousModeApiProvider,
-			previousModeModelId,
+			previousModeModelId: previousModeModelId ? String(previousModeModelId) : undefined,
 			previousModeModelInfo,
 			previousModeThinkingBudgetTokens,
 			mcpMarketplaceEnabled,

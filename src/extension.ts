@@ -123,6 +123,12 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.openDocumentation", () => {
+			vscode.env.openExternal(vscode.Uri.parse("https://docs.cline.bot/"))
+		}),
+	)
+
 	/*
 	We use the text document content provider API to show the left side for diff view by creating a virtual document for the original content. This makes it readonly so users know to edit the right side if they want to keep their changes.
 
@@ -186,6 +192,151 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.addToChat", async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
+			const editor = vscode.window.activeTextEditor
+			if (!editor) {
+				return
+			}
+
+			// Use provided range if available, otherwise use current selection
+			// (vscode command passes an argument in the first param by default, so we need to ensure it's a Range object)
+			const textRange = range instanceof vscode.Range ? range : editor.selection
+			const selectedText = editor.document.getText(textRange)
+
+			if (!selectedText) {
+				return
+			}
+
+			// Get the file path and language ID
+			const filePath = editor.document.uri.fsPath
+			const languageId = editor.document.languageId
+
+			// Send to sidebar provider
+			await sidebarProvider.addSelectedCodeToChat(
+				selectedText,
+				filePath,
+				languageId,
+				Array.isArray(diagnostics) ? diagnostics : undefined,
+			)
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.addTerminalOutputToChat", async () => {
+			const terminal = vscode.window.activeTerminal
+			if (!terminal) {
+				return
+			}
+
+			// Save current clipboard content
+			const tempCopyBuffer = await vscode.env.clipboard.readText()
+
+			try {
+				// Copy the *existing* terminal selection (without selecting all)
+				await vscode.commands.executeCommand("workbench.action.terminal.copySelection")
+
+				// Get copied content
+				let terminalContents = (await vscode.env.clipboard.readText()).trim()
+
+				// Restore original clipboard content
+				await vscode.env.clipboard.writeText(tempCopyBuffer)
+
+				if (!terminalContents) {
+					// No terminal content was copied (either nothing selected or some error)
+					return
+				}
+
+				// [Optional] Any additional logic to process multi-line content can remain here
+				// For example:
+				/*
+				const lines = terminalContents.split("\n")
+				const lastLine = lines.pop()?.trim()
+				if (lastLine) {
+					let i = lines.length - 1
+					while (i >= 0 && !lines[i].trim().startsWith(lastLine)) {
+						i--
+					}
+					terminalContents = lines.slice(Math.max(i, 0)).join("\n")
+				}
+				*/
+
+				// Send to sidebar provider
+				await sidebarProvider.addSelectedTerminalOutputToChat(terminalContents, terminal.name)
+			} catch (error) {
+				// Ensure clipboard is restored even if an error occurs
+				await vscode.env.clipboard.writeText(tempCopyBuffer)
+				console.error("Error getting terminal contents:", error)
+				vscode.window.showErrorMessage("Failed to get terminal contents")
+			}
+		}),
+	)
+
+	// Register code action provider
+	context.subscriptions.push(
+		vscode.languages.registerCodeActionsProvider(
+			"*",
+			new (class implements vscode.CodeActionProvider {
+				public static readonly providedCodeActionKinds = [vscode.CodeActionKind.QuickFix]
+
+				provideCodeActions(
+					document: vscode.TextDocument,
+					range: vscode.Range,
+					context: vscode.CodeActionContext,
+				): vscode.CodeAction[] {
+					// Expand range to include surrounding 3 lines
+					const expandedRange = new vscode.Range(
+						Math.max(0, range.start.line - 3),
+						0,
+						Math.min(document.lineCount - 1, range.end.line + 3),
+						document.lineAt(Math.min(document.lineCount - 1, range.end.line + 3)).text.length,
+					)
+
+					const addAction = new vscode.CodeAction("Add to Cline", vscode.CodeActionKind.QuickFix)
+					addAction.command = {
+						command: "cline.addToChat",
+						title: "Add to Cline",
+						arguments: [expandedRange, context.diagnostics],
+					}
+
+					const fixAction = new vscode.CodeAction("Fix with Cline", vscode.CodeActionKind.QuickFix)
+					fixAction.command = {
+						command: "cline.fixWithCline",
+						title: "Fix with Cline",
+						arguments: [expandedRange, context.diagnostics],
+					}
+
+					// Only show actions when there are errors
+					if (context.diagnostics.length > 0) {
+						return [addAction, fixAction]
+					} else {
+						return []
+					}
+				}
+			})(),
+			{
+				providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
+			},
+		),
+	)
+
+	// Register the command handler
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.fixWithCline", async (range: vscode.Range, diagnostics: any[]) => {
+			const editor = vscode.window.activeTextEditor
+			if (!editor) {
+				return
+			}
+
+			const selectedText = editor.document.getText(range)
+			const filePath = editor.document.uri.fsPath
+			const languageId = editor.document.languageId
+
+			// Send to sidebar provider with diagnostics
+			await sidebarProvider.fixWithCline(selectedText, filePath, languageId, diagnostics)
+		}),
+	)
 
 	return createClineAPI(outputChannel, sidebarProvider)
 }

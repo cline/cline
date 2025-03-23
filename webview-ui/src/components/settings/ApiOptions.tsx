@@ -51,7 +51,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
-import OpenRouterModelPicker, { ModelDescriptionMarkdown } from "./OpenRouterModelPicker"
+import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 
 interface ApiOptionsProps {
@@ -62,7 +62,7 @@ interface ApiOptionsProps {
 }
 
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
-const DROPDOWN_Z_INDEX = 1001 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
+const DROPDOWN_Z_INDEX = OPENROUTER_MODEL_PICKER_Z_INDEX + 2 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
 
 export const DropdownContainer = styled.div<{ zIndex?: number }>`
 	position: relative;
@@ -95,6 +95,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const [awsEndpointSelected, setAwsEndpointSelected] = useState(!!apiConfiguration?.awsBedrockEndpoint)
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
 
 	const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
 		setApiConfiguration({
@@ -215,7 +216,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			</DropdownContainer>
 
 			{selectedProvider === "cline" && (
-				<div style={{ marginBottom: 8, marginTop: 4 }}>
+				<div style={{ marginBottom: 14, marginTop: 4 }}>
 					<ClineAccountInfoCard />
 				</div>
 			)}
@@ -675,7 +676,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder="Enter Project ID...">
 						<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
 					</VSCodeTextField>
-					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
+					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 1} className="dropdown-container">
 						<label htmlFor="vertex-region-dropdown">
 							<span style={{ fontWeight: 500 }}>Google Cloud Region</span>
 						</label>
@@ -1351,6 +1352,57 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					}}>
 					{apiErrorMessage}
 				</p>
+			)}
+
+			{(selectedProvider === "openrouter" || selectedProvider === "cline") && showModelOptions && (
+				<>
+					<VSCodeCheckbox
+						style={{ marginTop: -10 }}
+						checked={providerSortingSelected}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							setProviderSortingSelected(isChecked)
+							if (!isChecked) {
+								setApiConfiguration({
+									...apiConfiguration,
+									openRouterProviderSorting: "",
+								})
+							}
+						}}>
+						Sort underlying provider routing
+					</VSCodeCheckbox>
+
+					{providerSortingSelected && (
+						<div style={{ marginBottom: -6 }}>
+							<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 1}>
+								<VSCodeDropdown
+									style={{ width: "100%", marginTop: 3 }}
+									value={apiConfiguration?.openRouterProviderSorting}
+									onChange={(e: any) => {
+										setApiConfiguration({
+											...apiConfiguration,
+											openRouterProviderSorting: e.target.value,
+										})
+									}}>
+									<VSCodeOption value="">Default</VSCodeOption>
+									<VSCodeOption value="price">Price</VSCodeOption>
+									<VSCodeOption value="throughput">Throughput</VSCodeOption>
+									<VSCodeOption value="latency">Latency</VSCodeOption>
+								</VSCodeDropdown>
+							</DropdownContainer>
+							<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
+								{!apiConfiguration?.openRouterProviderSorting &&
+									"Default behavior is to load balance requests across providers (like AWS, Google Vertex, Anthropic), prioritizing price while considering provider uptime"}
+								{apiConfiguration?.openRouterProviderSorting === "price" &&
+									"Sort providers by price, prioritizing the lowest cost provider"}
+								{apiConfiguration?.openRouterProviderSorting === "throughput" &&
+									"Sort providers by throughput, prioritizing the provider with the highest throughput (may increase cost)"}
+								{apiConfiguration?.openRouterProviderSorting === "latency" &&
+									"Sort providers by response time, prioritizing the provider with the lowest latency"}
+							</p>
+						</div>
+					)}
+				</>
 			)}
 
 			{selectedProvider !== "openrouter" &&
