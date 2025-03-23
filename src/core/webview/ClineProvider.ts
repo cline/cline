@@ -125,7 +125,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	accountService?: ClineAccountService
-	private latestAnnouncementId = "feb-19-2025" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "march-22-2025" // update to some unique identifier when we add a new announcement
 	conversationTelemetryService: ConversationTelemetryService
 
 	constructor(
