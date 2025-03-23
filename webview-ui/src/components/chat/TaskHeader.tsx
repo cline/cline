@@ -114,7 +114,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 					setShowSeeMore(isOverflowing)
 				}
-			});
+			})
 		}
 	}, [task.text, windowWidth, isTaskExpanded])
 
