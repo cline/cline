@@ -1391,4 +1391,12 @@ export const sambanovaModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
+	"QwQ-32B": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.0,
+	},
 } as const satisfies Record<string, ModelInfo>
