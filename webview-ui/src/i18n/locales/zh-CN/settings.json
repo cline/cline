@@ -350,6 +350,8 @@
 		"cacheReadsPrice": "缓存读取价格",
 		"cacheWritesPrice": "缓存写入价格",
 		"enableStreaming": "启用流式传输",
+		"enableR1Format": "启用R1模型传参",
+		"enableR1FormatTips": "当使用QWQ等类R1模型时需启用，防止报400错误",
 		"useAzure": "使用 Azure 服务",
 		"azureApiVersion": "设置 Azure API 版本",
 		"gemini": {

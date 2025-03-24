@@ -2142,7 +2142,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				await this.configManager.setModeConfig(mode, config.id)
 			}
 		}
-
 		await this.contextProxy.setApiConfiguration(apiConfiguration)
 
 		if (this.getCurrentCline()) {

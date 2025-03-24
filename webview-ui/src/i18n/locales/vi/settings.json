@@ -350,6 +350,8 @@
 		"cacheReadsPrice": "Giá đọc bộ nhớ đệm",
 		"cacheWritesPrice": "Giá ghi bộ nhớ đệm",
 		"enableStreaming": "Bật streaming",
+		"enableR1Format": "Kích hoạt tham số mô hình R1",
+		"enableR1FormatTips": "Cần kích hoạt khi sử dụng các mô hình R1 như QWQ, để tránh lỗi 400",
 		"useAzure": "Sử dụng Azure",
 		"azureApiVersion": "Đặt phiên bản API Azure",
 		"gemini": {

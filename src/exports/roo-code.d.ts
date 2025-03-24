@@ -200,6 +200,7 @@ export type GlobalStateKey =
 	| "modelMaxThinkingTokens"
 	| "azureApiVersion"
 	| "openAiStreamingEnabled"
+	| "openAiR1FormatEnabled"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
 	| "openRouterBaseUrl"

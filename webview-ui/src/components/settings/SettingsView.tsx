@@ -136,7 +136,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 
 	// Make sure apiConfiguration is initialized and managed by SettingsView.
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
-
 	useEffect(() => {
 		// Update only when currentApiConfigName is changed.
 		// Expected to be triggered by loadApiConfiguration/upsertApiConfiguration.
@@ -168,7 +167,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 				}
 
 				setChangeDetected(true)
-
 				return { ...prevState, apiConfiguration: { ...prevState.apiConfiguration, [field]: value } }
 			})
 		},

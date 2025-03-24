@@ -349,13 +349,15 @@
 		"outputPrice": "Preu de sortida",
 		"cacheReadsPrice": "Preu de lectures de caché",
 		"cacheWritesPrice": "Preu d'escriptures de caché",
+		"enableStreaming": "Habilitar streaming",
+		"enableR1Format": "Activar els paràmetres del model R1",
+		"enableR1FormatTips": "S'ha d'activat quan s'utilitzen models R1 com el QWQ per evitar errors 400",
+		"useAzure": "Utilitzar Azure",
+		"azureApiVersion": "Establir versió de l'API d'Azure",
 		"gemini": {
 			"freeRequests": "* Gratuït fins a {{count}} sol·licituds per minut. Després d'això, la facturació depèn de la mida del prompt.",
 			"pricingDetails": "Per a més informació, consulteu els detalls de preus."
-		},
-		"enableStreaming": "Habilitar streaming",
-		"useAzure": "Utilitzar Azure",
-		"azureApiVersion": "Establir versió de l'API d'Azure"
+		}
 	},
 	"modelPicker": {
 		"automaticFetch": "L'extensió obté automàticament la llista més recent de models disponibles a <serviceLink>{{serviceName}}</serviceLink>. Si no esteu segur de quin model triar, Roo Code funciona millor amb <defaultModelLink>{{defaultModelId}}</defaultModelLink>. També podeu cercar \"free\" per a opcions gratuïtes actualment disponibles.",

@@ -68,6 +68,7 @@ export const GLOBAL_STATE_KEYS = [
 	"modelMaxThinkingTokens",
 	"azureApiVersion",
 	"openAiStreamingEnabled",
+	"openAiR1FormatEnabled",
 	"openRouterModelId",
 	"openRouterModelInfo",
 	"openRouterBaseUrl",

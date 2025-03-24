@@ -350,6 +350,8 @@
 		"cacheReadsPrice": "캐시 읽기 가격",
 		"cacheWritesPrice": "캐시 쓰기 가격",
 		"enableStreaming": "스트리밍 활성화",
+		"enableR1Format": "R1 모델 매개변수 활성화",
+		"enableR1FormatTips": "QWQ와 같은 R1 모델을 사용할 때 활성화해야 하며, 400 오류를 방지합니다",
 		"useAzure": "Azure 사용",
 		"azureApiVersion": "Azure API 버전 설정",
 		"gemini": {

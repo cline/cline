@@ -350,6 +350,8 @@
 		"cacheReadsPrice": "Prix des lectures de cache",
 		"cacheWritesPrice": "Prix des écritures de cache",
 		"enableStreaming": "Activer le streaming",
+		"enableR1Format": "Activer les paramètres du modèle R1",
+		"enableR1FormatTips": "Doit être activé lors de l'utilisation de modèles R1 tels que QWQ, pour éviter l'erreur 400",
 		"useAzure": "Utiliser Azure",
 		"azureApiVersion": "Définir la version de l'API Azure",
 		"gemini": {

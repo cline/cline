@@ -48,6 +48,7 @@ export interface ApiHandlerOptions {
 	vertexRegion?: string
 	openAiBaseUrl?: string
 	openAiApiKey?: string
+	openAiR1FormatEnabled?: boolean
 	openAiModelId?: string
 	openAiCustomModelInfo?: ModelInfo
 	openAiUseAzure?: boolean
@@ -127,6 +128,7 @@ export const API_CONFIG_KEYS: GlobalStateKey[] = [
 	"azureApiVersion",
 	"openRouterUseMiddleOutTransform",
 	"openAiStreamingEnabled",
+	"openAiR1FormatEnabled",
 	// "deepSeekBaseUrl", //  not exist on GlobalStateKey
 	// "includeMaxTokens", // not exist on GlobalStateKey
 	"unboundModelId",

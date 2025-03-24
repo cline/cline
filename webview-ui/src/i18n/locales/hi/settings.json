@@ -350,6 +350,8 @@
 		"cacheReadsPrice": "कैश रीड्स मूल्य",
 		"cacheWritesPrice": "कैश राइट्स मूल्य",
 		"enableStreaming": "स्ट्रीमिंग सक्षम करें",
+		"enableR1Format": "R1 मॉडल पैरामीटर सक्षम करें",
+		"enableR1FormatTips": "QWQ जैसी R1 मॉडलों का उपयोग करते समय इसे सक्षम करना आवश्यक है, ताकि 400 त्रुटि से बचा जा सके",
 		"useAzure": "Azure का उपयोग करें",
 		"azureApiVersion": "Azure API संस्करण सेट करें",
 		"gemini": {

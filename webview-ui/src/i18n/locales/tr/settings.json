@@ -350,6 +350,8 @@
 		"cacheReadsPrice": "Önbellek okuma fiyatı",
 		"cacheWritesPrice": "Önbellek yazma fiyatı",
 		"enableStreaming": "Akışı etkinleştir",
+		"enableR1Format": "R1 model parametrelerini etkinleştir",
+		"enableR1FormatTips": "QWQ gibi R1 modelleri kullanıldığında etkinleştirilmelidir, 400 hatası alınmaması için",
 		"useAzure": "Azure kullan",
 		"azureApiVersion": "Azure API sürümünü ayarla",
 		"gemini": {
