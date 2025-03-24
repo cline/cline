@@ -1,4 +1,4 @@
-import React, { memo, useEffect } from "react"
+import React, { memo, useEffect, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
@@ -89,15 +89,44 @@ const remarkPreventBoldFilenames = () => {
 	}
 }
 
+const CopyButton = styled.button`
+	position: absolute;
+	top: 5px;
+	right: 5px;
+	background-color: var(--vscode-button-background, #0e639c);
+	color: var(--vscode-button-foreground, #ffffff);
+	border: none;
+	border-radius: 3px;
+	padding: 4px 8px;
+	font-size: 12px;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.3s;
+	z-index: 1;
+
+	&:hover {
+		background-color: var(--vscode-button-hoverBackground, #1177bb);
+	}
+`
+
+const CodeBlockContainer = styled.div`
+	position: relative;
+
+	&:hover ${CopyButton} {
+		opacity: 1;
+	}
+`
+
 const StyledMarkdown = styled.div`
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
 		border-radius: 3px;
-		margin: 13x 0;
+		margin: 13px 0;
 		padding: 10px 10px;
 		max-width: calc(100vw - 20px);
 		overflow-x: auto;
 		overflow-y: hidden;
+		padding-right: 70px;
 	}
 
 	pre > code {
@@ -195,8 +224,42 @@ const StyledPre = styled.pre<{ theme: any }>`
 			.join("")}
 `
 
+const PreWithCopyButton = ({
+	children,
+	theme,
+	...preProps
+}: { theme: Record<string, string> } & React.HTMLAttributes<HTMLPreElement>) => {
+	const preRef = useRef<HTMLPreElement>(null)
+	const [copied, setCopied] = useState(false)
+
+	const handleCopy = () => {
+		if (preRef.current) {
+			const codeElement = preRef.current.querySelector("code")
+			const textToCopy = codeElement ? codeElement.textContent : preRef.current.textContent
+
+			if (!textToCopy) return
+			navigator.clipboard.writeText(textToCopy).then(() => {
+				setCopied(true)
+				setTimeout(() => setCopied(false), 1500)
+			})
+		}
+	}
+
+	return (
+		<CodeBlockContainer>
+			<CopyButton type="button" onClick={handleCopy}>
+				{copied ? "Copied!" : "Copy"}
+			</CopyButton>
+			<StyledPre {...preProps} theme={theme} ref={preRef}>
+				{children}
+			</StyledPre>
+		</CodeBlockContainer>
+	)
+}
+
 const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	const { theme } = useExtensionState()
+
 	const [reactContent, setMarkdown] = useRemark({
 		remarkPlugins: [
 			remarkPreventBoldFilenames,
@@ -221,7 +284,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 		],
 		rehypeReactOptions: {
 			components: {
-				pre: ({ node, children, ...preProps }: any) => {
+				pre: ({ children, ...preProps }: React.HTMLAttributes<HTMLPreElement>) => {
 					if (Array.isArray(children) && children.length === 1 && React.isValidElement(children[0])) {
 						const child = children[0] as React.ReactElement<{ className?: string }>
 						if (child.props?.className?.includes("language-mermaid")) {
@@ -229,12 +292,12 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 						}
 					}
 					return (
-						<StyledPre {...preProps} theme={theme}>
+						<PreWithCopyButton {...preProps} theme={theme}>
 							{children}
-						</StyledPre>
+						</PreWithCopyButton>
 					)
 				},
-				code: (props: any) => {
+				code: (props: React.HTMLAttributes<HTMLElement>) => {
 					const className = props.className || ""
 					if (className.includes("language-mermaid")) {
 						const codeText = String(props.children || "")
@@ -251,7 +314,7 @@ const MarkdownBlock = memo(({ markdown }: MarkdownBlockProps) => {
 	}, [markdown, setMarkdown, theme])
 
 	return (
-		<div style={{}}>
+		<div>
 			<StyledMarkdown>{reactContent}</StyledMarkdown>
 		</div>
 	)
