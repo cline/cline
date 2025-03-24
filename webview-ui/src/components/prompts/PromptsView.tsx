@@ -462,6 +462,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 													values: {
 														create: true,
 														content: JSON.stringify({ customModes: [] }, null, 2),
+														searchParents: true,
+														startFromWorkspace: true,
 													},
 												})
 												setShowConfigMenu(false)
@@ -808,6 +810,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 													values: {
 														create: true,
 														content: "",
+														searchParents: true,
+														startFromWorkspace: true,
 													},
 												})
 											}}
@@ -915,6 +919,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 														values: {
 															create: true,
 															content: "",
+															searchParents: true,
+															startFromWorkspace: true,
 														},
 													})
 												}}
@@ -970,6 +976,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 												values: {
 													create: true,
 													content: "",
+													searchParents: true,
+													startFromWorkspace: true,
 												},
 											})
 										}

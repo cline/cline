@@ -23,6 +23,23 @@ export async function openImage(dataUri: string) {
 interface OpenFileOptions {
 	create?: boolean
 	content?: string
+	searchParents?: boolean
+	startFromWorkspace?: boolean
+}
+
+async function findFileInParentDirs(searchPath: string, fileName: string): Promise<string | null> {
+	try {
+		const fullPath = path.join(searchPath, fileName)
+		await vscode.workspace.fs.stat(vscode.Uri.file(fullPath))
+		return fullPath
+	} catch {
+		const parentDir = path.dirname(searchPath)
+		if (parentDir === searchPath) {
+			// Hit root
+			return null
+		}
+		return findFileInParentDirs(parentDir, fileName)
+	}
 }
 
 export async function openFile(filePath: string, options: OpenFileOptions = {}) {
@@ -34,7 +51,17 @@ export async function openFile(filePath: string, options: OpenFileOptions = {}) 
 		}
 
 		// If path starts with ./, resolve it relative to workspace root
-		const fullPath = filePath.startsWith("./") ? path.join(workspaceRoot, filePath.slice(2)) : filePath
+		let fullPath = filePath.startsWith("./") ? path.join(workspaceRoot, filePath.slice(2)) : filePath
+
+		// Handle recursive search
+		if (options.searchParents) {
+			const startDir = options.startFromWorkspace ? workspaceRoot : path.dirname(fullPath)
+			const fileName = path.basename(filePath)
+			const foundPath = await findFileInParentDirs(startDir, fileName)
+			if (foundPath) {
+				fullPath = foundPath
+			}
+		}
 
 		const uri = vscode.Uri.file(fullPath)
 

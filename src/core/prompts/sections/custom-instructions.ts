@@ -16,18 +16,47 @@ async function safeReadFile(filePath: string): Promise<string> {
 	}
 }
 
+async function findRuleInDirectory(dir: string, ruleFile: string): Promise<string> {
+	const filePath = path.join(dir, ruleFile)
+	const content = await safeReadFile(filePath)
+
+	if (content) {
+		return content
+	}
+
+	// Check if we've reached the root directory
+	const parentDir = path.dirname(dir)
+	if (parentDir === dir) {
+		return ""
+	}
+
+	// Recursively check parent directory
+	return findRuleInDirectory(parentDir, ruleFile)
+}
+
 export async function loadRuleFiles(cwd: string): Promise<string> {
 	const ruleFiles = [".clinerules", ".cursorrules", ".windsurfrules"]
 	let combinedRules = ""
 
 	for (const file of ruleFiles) {
-		const content = await safeReadFile(path.join(cwd, file))
+		const content = await findRuleInDirectory(cwd, file)
 		if (content) {
 			combinedRules += `\n# Rules from ${file}:\n${content}\n`
 		}
 	}
 
 	return combinedRules
+}
+
+async function findCustomInstructionsFile(dir: string, filePattern: string): Promise<string> {
+	// First try to find as a direct file
+	const content = await findRuleInDirectory(dir, filePattern)
+	if (content) {
+		return content
+	}
+
+	// If not found as a file, check if it's raw content
+	return filePattern.trim()
 }
 
 export async function addCustomInstructions(
@@ -54,14 +83,16 @@ export async function addCustomInstructions(
 		)
 	}
 
-	// Add global instructions first
-	if (typeof globalCustomInstructions === "string" && globalCustomInstructions.trim()) {
-		sections.push(`Global Instructions:\n${globalCustomInstructions.trim()}`)
+	// Add global instructions first - try to find as file or use raw content
+	const globalContent = await findCustomInstructionsFile(cwd, globalCustomInstructions)
+	if (globalContent) {
+		sections.push(`Global Instructions:\n${globalContent}`)
 	}
 
-	// Add mode-specific instructions after
-	if (typeof modeCustomInstructions === "string" && modeCustomInstructions.trim()) {
-		sections.push(`Mode-specific Instructions:\n${modeCustomInstructions.trim()}`)
+	// Add mode-specific instructions - try to find as file or use raw content
+	const modeContent = await findCustomInstructionsFile(cwd, modeCustomInstructions)
+	if (modeContent) {
+		sections.push(`Mode-specific Instructions:\n${modeContent}`)
 	}
 
 	// Add rules - include both mode-specific and generic rules if they exist

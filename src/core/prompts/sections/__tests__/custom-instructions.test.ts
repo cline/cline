@@ -106,7 +106,15 @@ describe("addCustomInstructions", () => {
 	})
 
 	it("should combine all instruction types when provided", async () => {
-		mockedFs.readFile.mockResolvedValue("mode specific rules")
+		// Mock implementation to return different values based on the file path
+		mockedFs.readFile.mockImplementation(((filePath: any) => {
+			// For .clinerules-test-mode, return mode-specific rules
+			if (filePath.toString().includes(".clinerules-test-mode")) {
+				return Promise.resolve("mode specific rules")
+			}
+			// For any other read operation, return empty
+			return Promise.reject({ code: "ENOENT" })
+		}) as any)
 
 		const result = await addCustomInstructions(
 			"mode instructions",
