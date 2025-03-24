@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.8.1]
+
+-   Fix bug where switching to plan/act would result in VS Code LM provider model ID being reset
+
 ## [3.8.0]
 
 -   Add 'Add to Cline' as an option when you right-click in a file or the terminal, making it easier to add context to your current task
