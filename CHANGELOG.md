@@ -1,8 +1,8 @@
 # Changelog
 
-## [3.8.1]
+## [3.8.2]
 
--   Fix bug where switching to plan/act would result in VS Code LM provider model ID being reset
+-   Fix bug where switching to plan/act would result in VS Code LM/OpenRouter model being reset
 
 ## [3.8.0]
 
