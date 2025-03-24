@@ -31,6 +31,16 @@ const mockConvertToMentionPath = pathMentions.convertToMentionPath as jest.Mock
 // Mock ExtensionStateContext
 jest.mock("../../../context/ExtensionStateContext")
 
+// Custom query function to get the enhance prompt button
+const getEnhancePromptButton = () => {
+	return screen.getByRole("button", {
+		name: (_, element) => {
+			// Find the button with the sparkle icon
+			return element.querySelector(".codicon-sparkle") !== null
+		},
+	})
+}
+
 describe("ChatTextArea", () => {
 	const defaultProps = {
 		inputValue: "",
@@ -66,10 +76,9 @@ describe("ChatTextArea", () => {
 				filePaths: [],
 				openedTabs: [],
 			})
-
 			render(<ChatTextArea {...defaultProps} textAreaDisabled={true} />)
-			const enhanceButton = screen.getByRole("button", { name: /enhance prompt/i })
-			expect(enhanceButton).toHaveClass("disabled")
+			const enhanceButton = getEnhancePromptButton()
+			expect(enhanceButton).toHaveClass("cursor-not-allowed")
 		})
 	})
 
@@ -88,7 +97,7 @@ describe("ChatTextArea", () => {
 
 			render(<ChatTextArea {...defaultProps} inputValue="Test prompt" />)
 
-			const enhanceButton = screen.getByRole("button", { name: /enhance prompt/i })
+			const enhanceButton = getEnhancePromptButton()
 			fireEvent.click(enhanceButton)
 
 			expect(mockPostMessage).toHaveBeenCalledWith({
@@ -108,7 +117,7 @@ describe("ChatTextArea", () => {
 
 			render(<ChatTextArea {...defaultProps} inputValue="" />)
 
-			const enhanceButton = screen.getByRole("button", { name: /enhance prompt/i })
+			const enhanceButton = getEnhancePromptButton()
 			fireEvent.click(enhanceButton)
 
 			expect(mockPostMessage).not.toHaveBeenCalled()
@@ -125,7 +134,7 @@ describe("ChatTextArea", () => {
 
 			render(<ChatTextArea {...defaultProps} inputValue="Test prompt" />)
 
-			const enhanceButton = screen.getByRole("button", { name: /enhance prompt/i })
+			const enhanceButton = getEnhancePromptButton()
 			fireEvent.click(enhanceButton)
 
 			const loadingSpinner = screen.getByText("", { selector: ".codicon-loading" })
@@ -150,7 +159,7 @@ describe("ChatTextArea", () => {
 			rerender(<ChatTextArea {...defaultProps} />)
 
 			// Verify the enhance button appears after apiConfiguration changes
-			expect(screen.getByRole("button", { name: /enhance prompt/i })).toBeInTheDocument()
+			expect(getEnhancePromptButton()).toBeInTheDocument()
 		})
 	})
 
