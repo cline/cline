@@ -3,17 +3,14 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { expect } from "chai"
 
 describe("ContextManager", () => {
-	// Helper function to create an array of alternating user-assistant messages
 	function createMessages(count: number): Anthropic.Messages.MessageParam[] {
 		const messages: Anthropic.Messages.MessageParam[] = []
 
-		// First message is always system/user task message
 		messages.push({
 			role: "user",
 			content: "Initial task message",
 		})
 
-		// Create alternating user-assistant messages
 		let role: "user" | "assistant" = "assistant"
 		for (let i = 1; i < count; i++) {
 			messages.push({
@@ -37,7 +34,6 @@ describe("ContextManager", () => {
 			const messages = createMessages(11)
 			const result = contextManager.getNextTruncationRange(messages)
 
-			// Expected to remove indices 1-4
 			expect(result).to.deep.equal([1, 4])
 		})
 
@@ -45,7 +41,6 @@ describe("ContextManager", () => {
 			const messages = createMessages(11)
 			const result = contextManager.getNextTruncationRange(messages, undefined, "quarter")
 
-			// Expected to remove indices 1-6
 			expect(result).to.deep.equal([1, 6])
 		})
 
@@ -144,7 +139,6 @@ describe("ContextManager", () => {
 		it("correctly handles removing a range while preserving alternation pattern", () => {
 			const messages = createMessages(5)
 
-			// This preserves the user-assistant-user alternation
 			const range: [number, number] = [1, 2]
 			const result = contextManager.getTruncatedMessages(messages, range)
 
@@ -153,7 +147,6 @@ describe("ContextManager", () => {
 			expect(result[1]).to.deep.equal(messages[3])
 			expect(result[2]).to.deep.equal(messages[4])
 
-			// Verify alternating pattern is maintained
 			expect(result[0].role).to.equal("user")
 			expect(result[1].role).to.equal("assistant")
 			expect(result[2].role).to.equal("user")
