@@ -57,6 +57,12 @@ describe("getContextMenuOptions", () => {
 			description: "Source file",
 		},
 		{
+			type: ContextMenuOptionType.OpenedFile,
+			value: "src/opened.ts",
+			label: "opened.ts",
+			description: "Currently opened file",
+		},
+		{
 			type: ContextMenuOptionType.Git,
 			value: "abc1234",
 			label: "Initial commit",
@@ -68,6 +74,18 @@ describe("getContextMenuOptions", () => {
 			value: "src",
 			label: "src",
 			description: "Source folder",
+		},
+	]
+
+	const mockDynamicSearchResults = [
+		{
+			path: "search/result1.ts",
+			type: "file" as const,
+			label: "result1.ts",
+		},
+		{
+			path: "search/folder",
+			type: "folder" as const,
 		},
 	]
 
@@ -86,9 +104,11 @@ describe("getContextMenuOptions", () => {
 
 	it("should filter by selected type when query is empty", () => {
 		const result = getContextMenuOptions("", ContextMenuOptionType.File, mockQueryItems)
-		expect(result).toHaveLength(1)
-		expect(result[0].type).toBe(ContextMenuOptionType.File)
-		expect(result[0].value).toBe("src/test.ts")
+		expect(result).toHaveLength(2)
+		expect(result.map((item) => item.type)).toContain(ContextMenuOptionType.File)
+		expect(result.map((item) => item.type)).toContain(ContextMenuOptionType.OpenedFile)
+		expect(result.map((item) => item.value)).toContain("src/test.ts")
+		expect(result.map((item) => item.value)).toContain("src/opened.ts")
 	})
 
 	it("should match git commands", () => {
@@ -107,6 +127,188 @@ describe("getContextMenuOptions", () => {
 		const result = getContextMenuOptions("nonexistent", null, mockQueryItems)
 		expect(result).toHaveLength(1)
 		expect(result[0].type).toBe(ContextMenuOptionType.NoResults)
+	})
+
+	/**
+	 * Tests for the combined handling of open files, git results, and search results
+	 * Added for commit 3cd7dec78faf786e468ae4f66cef0b81a76d9075
+	 */
+	it("should include dynamic search results along with other matches", () => {
+		// Add an opened file that will match the query
+		const testItems = [
+			...mockQueryItems,
+			{
+				type: ContextMenuOptionType.OpenedFile,
+				value: "src/test-opened.ts",
+				label: "test-opened.ts",
+				description: "Opened test file for search test",
+			},
+		]
+
+		const result = getContextMenuOptions("test", null, testItems, mockDynamicSearchResults)
+
+		// Check if opened files and dynamic search results are included
+		expect(result.some((item) => item.type === ContextMenuOptionType.OpenedFile)).toBe(true)
+		expect(result.some((item) => item.value === "/search/result1.ts")).toBe(true)
+	})
+
+	it("should maintain correct result ordering according to implementation", () => {
+		// Add multiple item types to test ordering
+		const result = getContextMenuOptions("t", null, mockQueryItems, mockDynamicSearchResults)
+
+		// Find the different result types
+		const fileResults = result.filter(
+			(item) =>
+				item.type === ContextMenuOptionType.File ||
+				item.type === ContextMenuOptionType.OpenedFile ||
+				item.type === ContextMenuOptionType.Folder,
+		)
+
+		const searchResults = result.filter(
+			(item) => item.type === ContextMenuOptionType.File && item.value?.includes("/search/"),
+		)
+
+		const gitResults = result.filter((item) => item.type === ContextMenuOptionType.Git)
+
+		// Find the indexes of the first item of each type in the results array
+		const firstFileIndex = result.findIndex((item) => fileResults.some((f) => f === item))
+
+		const firstSearchResultIndex = result.findIndex((item) => searchResults.some((s) => s === item))
+
+		const firstGitResultIndex = result.findIndex((item) => gitResults.some((g) => g === item))
+
+		// Verify file results come before search results
+		expect(firstFileIndex).toBeLessThan(firstSearchResultIndex)
+
+		// Verify search results appear before git results
+		expect(firstSearchResultIndex).toBeLessThan(firstGitResultIndex)
+	})
+
+	it("should include opened files when dynamic search results exist", () => {
+		const result = getContextMenuOptions("open", null, mockQueryItems, mockDynamicSearchResults)
+
+		// Verify opened files are included
+		expect(result.some((item) => item.type === ContextMenuOptionType.OpenedFile)).toBe(true)
+		// Verify dynamic search results are also present
+		expect(result.some((item) => item.value === "/search/result1.ts")).toBe(true)
+	})
+
+	it("should include git results when dynamic search results exist", () => {
+		const result = getContextMenuOptions("commit", null, mockQueryItems, mockDynamicSearchResults)
+
+		// Verify git results are included
+		expect(result.some((item) => item.type === ContextMenuOptionType.Git)).toBe(true)
+		// Verify dynamic search results are also present
+		expect(result.some((item) => item.value === "/search/result1.ts")).toBe(true)
+	})
+
+	it("should deduplicate items correctly when combining different result types", () => {
+		// Create duplicate search result with same path as an existing file
+		const duplicateSearchResults = [
+			{
+				path: "src/test.ts", // Duplicate of existing file in mockQueryItems
+				type: "file" as const,
+			},
+			{
+				path: "unique/path.ts",
+				type: "file" as const,
+			},
+		]
+
+		const result = getContextMenuOptions("test", null, mockQueryItems, duplicateSearchResults)
+
+		// Count occurrences of src/test.ts in results
+		const duplicateCount = result.filter(
+			(item) =>
+				(item.value === "src/test.ts" || item.value === "/src/test.ts") &&
+				item.type === ContextMenuOptionType.File,
+		).length
+		// With path normalization, these should be treated as duplicates
+		expect(duplicateCount).toBe(1)
+
+		// Verify the unique item was included (check both path formats)
+		expect(result.some((item) => item.value === "/unique/path.ts" || item.value === "unique/path.ts")).toBe(true)
+	})
+
+	it("should return NoResults when all combined results are empty with dynamic search", () => {
+		// Use a query that won't match anything
+		const result = getContextMenuOptions(
+			"nonexistentquery123456",
+			null,
+			mockQueryItems,
+			[], // Empty dynamic search results
+		)
+
+		expect(result).toHaveLength(1)
+		expect(result[0].type).toBe(ContextMenuOptionType.NoResults)
+	})
+
+	/**
+	 * Tests that opened files appear first in the results, according to the updated implementation
+	 * This test validates the updated ordering where opened files have the highest priority
+	 */
+	it("should place opened files first in result order", () => {
+		// Create test data with multiple types that should match the query
+		const testQuery = "test" // Using "test" as the query to match all items
+
+		const testItems: ContextMenuQueryItem[] = [
+			{
+				type: ContextMenuOptionType.File,
+				value: "src/test-file.ts",
+				label: "test-file.ts",
+				description: "Regular test file",
+			},
+			{
+				type: ContextMenuOptionType.OpenedFile,
+				value: "src/test-opened.ts",
+				label: "test-opened.ts",
+				description: "Opened test file",
+			},
+			{
+				type: ContextMenuOptionType.Git,
+				value: "abctest",
+				label: "Test commit",
+				description: "Git test commit",
+			},
+		]
+
+		const testSearchResults = [
+			{
+				path: "search/test-result.ts",
+				type: "file" as const,
+				label: "test-result.ts",
+			},
+		]
+
+		// Get results for "test" query
+		const result = getContextMenuOptions(testQuery, null, testItems, testSearchResults)
+
+		// Verify we have results
+		expect(result.length).toBeGreaterThan(0)
+
+		// Verify the first item is an opened file type
+		expect(result[0].type).toBe(ContextMenuOptionType.OpenedFile)
+
+		// Verify the remaining items are in the correct order:
+		// suggestions -> openedFiles -> searchResults -> gitResults
+
+		// Get index of first item of each type
+		const firstOpenedFileIndex = result.findIndex((item) => item.type === ContextMenuOptionType.OpenedFile)
+		const firstSearchResultIndex = result.findIndex(
+			(item) => item.type === ContextMenuOptionType.File && item.value?.includes("/search/"),
+		)
+		const firstGitResultIndex = result.findIndex((item) => item.type === ContextMenuOptionType.Git)
+
+		// Verify opened files come first
+		expect(firstOpenedFileIndex).toBe(0)
+
+		// Verify search results come after opened files but before git results
+		expect(firstSearchResultIndex).toBeGreaterThan(firstOpenedFileIndex)
+
+		// Verify git results come after search results
+		if (firstGitResultIndex !== -1 && firstSearchResultIndex !== -1) {
+			expect(firstGitResultIndex).toBeGreaterThan(firstSearchResultIndex)
+		}
 	})
 })
 

@@ -210,34 +210,6 @@ export function getContextMenuOptions(
 		}
 	}
 
-	if (dynamicSearchResults.length > 0) {
-		// Convert search results to queryItems format
-		const searchResultItems = dynamicSearchResults.map((result) => {
-			const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
-
-			return {
-				type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
-				value: formattedPath,
-				label: result.label || path.basename(result.path),
-				description: formattedPath,
-			}
-		})
-
-		const allItems = [...suggestions, ...searchResultItems]
-
-		// Remove duplicates
-		const seen = new Set()
-		const deduped = allItems.filter((item) => {
-			const key = `${item.type}-${item.value}`
-			if (seen.has(key)) return false
-			seen.add(key)
-			return true
-		})
-
-		return deduped
-	}
-
-	// Fallback to original static filtering if no dynamic results
 	const searchableItems = queryItems.map((item) => ({
 		original: item,
 		searchStr: [item.value, item.label, item.description].filter(Boolean).join(" "),
@@ -252,38 +224,36 @@ export function getContextMenuOptions(
 	const matchingItems = query ? fzf.find(query).map((result) => result.item.original) : []
 
 	// Separate matches by type
-	const fileMatches = matchingItems.filter(
-		(item) =>
-			item.type === ContextMenuOptionType.File ||
-			item.type === ContextMenuOptionType.OpenedFile ||
-			item.type === ContextMenuOptionType.Folder,
-	)
+	const openedFileMatches = matchingItems.filter((item) => item.type === ContextMenuOptionType.OpenedFile)
+
 	const gitMatches = matchingItems.filter((item) => item.type === ContextMenuOptionType.Git)
-	const otherMatches = matchingItems.filter(
-		(item) =>
-			item.type !== ContextMenuOptionType.File &&
-			item.type !== ContextMenuOptionType.OpenedFile &&
-			item.type !== ContextMenuOptionType.Folder &&
-			item.type !== ContextMenuOptionType.Git,
-	)
 
-	// Combine suggestions with matching items in the desired order
-	if (suggestions.length > 0 || matchingItems.length > 0) {
-		const allItems = [...suggestions, ...fileMatches, ...gitMatches, ...otherMatches]
+	// Convert search results to queryItems format
+	const searchResultItems = dynamicSearchResults.map((result) => {
+		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
 
-		// Remove duplicates based on type and value
-		const seen = new Set()
-		const deduped = allItems.filter((item) => {
-			const key = `${item.type}-${item.value}`
-			if (seen.has(key)) return false
-			seen.add(key)
-			return true
-		})
+		return {
+			type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
+			value: formattedPath,
+			label: result.label || path.basename(result.path),
+			description: formattedPath,
+		}
+	})
 
-		return deduped
-	}
+	const allItems = [...suggestions, ...openedFileMatches, ...searchResultItems, ...gitMatches]
 
-	return [{ type: ContextMenuOptionType.NoResults }]
+	// Remove duplicates - normalize paths by ensuring all have leading slashes
+	const seen = new Set()
+	const deduped = allItems.filter((item) => {
+		// Normalize paths for deduplication by ensuring leading slashes
+		const normalizedValue = item.value && !item.value.startsWith("/") ? `/${item.value}` : item.value
+		const key = `${item.type}-${normalizedValue}`
+		if (seen.has(key)) return false
+		seen.add(key)
+		return true
+	})
+
+	return deduped.length > 0 ? deduped : [{ type: ContextMenuOptionType.NoResults }]
 }
 
 export function shouldShowContextMenu(text: string, position: number): boolean {
