@@ -30,7 +30,10 @@ export class ClineHandler implements ApiHandler {
 			this.getModel(),
 			this.options.o3MiniReasoningEffort,
 			this.options.thinkingBudgetTokens,
+			this.options.openRouterProviderSorting,
 		)
+
+		let didOutputUsage: boolean = false
 
 		for await (const chunk of stream) {
 			// openrouter returns an error object instead of the openai sdk throwing an error
@@ -62,11 +65,25 @@ export class ClineHandler implements ApiHandler {
 					reasoning: delta.reasoning,
 				}
 			}
+
+			if (!didOutputUsage && chunk.usage) {
+				yield {
+					type: "usage",
+					inputTokens: chunk.usage.prompt_tokens || 0,
+					outputTokens: chunk.usage.completion_tokens || 0,
+					// @ts-ignore-next-line
+					totalCost: chunk.usage.cost || 0,
+				}
+				didOutputUsage = true
+			}
 		}
 
-		const apiStreamUsage = await this.getApiStreamUsage()
-		if (apiStreamUsage) {
-			yield apiStreamUsage
+		// Fallback to generation endpoint if usage chunk not returned
+		if (!didOutputUsage) {
+			const apiStreamUsage = await this.getApiStreamUsage()
+			if (apiStreamUsage) {
+				yield apiStreamUsage
+			}
 		}
 	}
 

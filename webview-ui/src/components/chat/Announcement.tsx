@@ -31,34 +31,22 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>Introducing MCP Marketplace:</b> Discover and install the best MCP servers right from the extension, with
-					new servers added regularly! Get started by going to the{" "}
-					<span className="codicon codicon-extensions" style={{ marginRight: "4px", fontSize: 10 }}></span>
-					<VSCodeLink
-						onClick={() => {
-							vscode.postMessage({ type: "showMcpView" })
-						}}>
-						MCP Servers tab
-					</VSCodeLink>
-					.
+					<b>Add to Cline:</b> Right-click selected text in any file or terminal to quickly add context to your current
+					task! Plus, when you see a lightbulb icon, select 'Fix with Cline' to have Cline fix errors in your code.
 				</li>
 				<li>
-					<b>Mermaid diagrams in Plan mode!</b> Cline can now visualize his plans using flowcharts, sequences,
-					entity-relationships, and more. When he explains his approach using mermaid, you'll see a diagram right in
-					chat that you can click to expand.
+					<b>Billing Dashboard:</b> Track your remaining credits and transaction history right in the extension with a{" "}
+					<span className="codicon codicon-account" style={{ fontSize: 11 }}></span> Cline account!
 				</li>
 				<li>
-					Use <code>@terminal</code> to reference terminal contents, and <code>@git</code> to reference working changes
-					and commits!
+					<b>Faster Inference:</b> Cline/OpenRouter users can sort underlying providers used by throughput, price, and
+					latency. Sorting by throughput will output faster generations (at a higher cost).
 				</li>
 				<li>
-					New visual indicator for checkpoints after edits & commands, and automatic checkpoint at the start of each
-					task.
+					<b>Enhanced MCP Support:</b> Dynamic image loading with GIF support, and a new delete button to clean up
+					failed servers.
 				</li>
 			</ul>
-			<VSCodeLink href="https://x.com/sdrzn/status/1892262424881090721" style={{ display: "inline" }}>
-				See a demo of the changes here!
-			</VSCodeLink>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
 					OpenRouter now supports prompt caching! They also have much higher rate limits than other providers,
