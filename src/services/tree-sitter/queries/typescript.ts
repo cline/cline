@@ -29,4 +29,19 @@ export default `
 
 (class_declaration
   name: (type_identifier) @name.definition.class) @definition.class
+
+(call_expression
+  function: (identifier) @func_name
+  arguments: (arguments
+    (string) @name
+    [(arrow_function) (function_expression)]) @definition.test)
+  (#match? @func_name "^(describe|test|it)$")
+
+(assignment_expression
+  left: (member_expression
+    object: (identifier) @obj
+    property: (property_identifier) @prop)
+  right: [(arrow_function) (function_expression)]) @definition.test
+  (#eq? @obj "exports")
+  (#eq? @prop "test")
 `
