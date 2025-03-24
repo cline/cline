@@ -28,7 +28,7 @@ const FollowUpSuggest = ({ suggestions = [], onSuggestionClick, ts = 1 }: Follow
 					{suggestions.map((suggestion) => (
 						<div key={`${suggestion}-${ts}`} className="w-full">
 							<Button
-								variant="outline"
+								variant="secondary"
 								className="w-full text-left whitespace-normal break-words h-auto min-h-[28px] py-2 justify-start"
 								onClick={() => handleSuggestionClick(suggestion)}
 								aria-label={suggestion}>
