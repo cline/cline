@@ -7,6 +7,7 @@ import { CustomModesManager } from "../CustomModesManager"
 import { ModeConfig } from "../../../shared/modes"
 import { fileExistsAtPath } from "../../../utils/fs"
 import { getWorkspacePath, arePathsEqual } from "../../../utils/path"
+import { GlobalFileNames } from "../../../shared/globalFileNames"
 
 jest.mock("vscode")
 jest.mock("fs/promises")
@@ -21,7 +22,7 @@ describe("CustomModesManager", () => {
 
 	// Use path.sep to ensure correct path separators for the current platform
 	const mockStoragePath = `${path.sep}mock${path.sep}settings`
-	const mockSettingsPath = path.join(mockStoragePath, "settings", "cline_custom_modes.json")
+	const mockSettingsPath = path.join(mockStoragePath, "settings", GlobalFileNames.customModes)
 	const mockRoomodes = `${path.sep}mock${path.sep}workspace${path.sep}.roomodes`
 
 	beforeEach(() => {
@@ -333,17 +334,16 @@ describe("CustomModesManager", () => {
 			expect(mockOnUpdate).toHaveBeenCalled()
 		})
 	})
-
 	describe("File Operations", () => {
 		it("creates settings directory if it doesn't exist", async () => {
-			const configPath = path.join(mockStoragePath, "settings", "cline_custom_modes.json")
+			const settingsPath = path.join(mockStoragePath, "settings", GlobalFileNames.customModes)
 			await manager.getCustomModesFilePath()
 
-			expect(fs.mkdir).toHaveBeenCalledWith(path.dirname(configPath), { recursive: true })
+			expect(fs.mkdir).toHaveBeenCalledWith(path.dirname(settingsPath), { recursive: true })
 		})
 
 		it("creates default config if file doesn't exist", async () => {
-			const configPath = path.join(mockStoragePath, "settings", "cline_custom_modes.json")
+			const settingsPath = path.join(mockStoragePath, "settings", GlobalFileNames.customModes)
 
 			// Mock fileExists to return false first time, then true
 			let firstCall = true
@@ -358,13 +358,13 @@ describe("CustomModesManager", () => {
 			await manager.getCustomModesFilePath()
 
 			expect(fs.writeFile).toHaveBeenCalledWith(
-				configPath,
+				settingsPath,
 				expect.stringMatching(/^\{\s+"customModes":\s+\[\s*\]\s*\}$/),
 			)
 		})
 
 		it("watches file for changes", async () => {
-			const configPath = path.join(mockStoragePath, "settings", "cline_custom_modes.json")
+			const configPath = path.join(mockStoragePath, "settings", GlobalFileNames.customModes)
 
 			;(fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ customModes: [] }))
 			;(arePathsEqual as jest.Mock).mockImplementation((path1: string, path2: string) => {

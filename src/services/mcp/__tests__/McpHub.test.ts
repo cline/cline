@@ -14,7 +14,7 @@ jest.mock("../../../core/webview/ClineProvider")
 describe("McpHub", () => {
 	let mcpHub: McpHubType
 	let mockProvider: Partial<ClineProvider>
-	const mockSettingsPath = "/mock/settings/path/cline_mcp_settings.json"
+	const mockSettingsPath = "/mock/settings/path/mcp_settings.json"
 
 	beforeEach(() => {
 		jest.clearAllMocks()

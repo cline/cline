@@ -1,10 +1,11 @@
 import * as vscode from "vscode"
 import * as dotenvx from "@dotenvx/dotenvx"
+import * as path from "path"
 
 // Load environment variables from .env file
 try {
 	// Specify path to .env file in the project root directory
-	const envPath = __dirname + "/../.env"
+	const envPath = path.join(__dirname, "..", ".env")
 	dotenvx.config({ path: envPath })
 } catch (e) {
 	// Silently handle environment loading errors
@@ -21,6 +22,7 @@ import { McpServerManager } from "./services/mcp/McpServerManager"
 import { telemetryService } from "./services/telemetry/TelemetryService"
 import { TerminalRegistry } from "./integrations/terminal/TerminalRegistry"
 import { API } from "./exports/api"
+import { migrateSettings } from "./utils/migrateSettings"
 
 import { handleUri, registerCommands, registerCodeActions, registerTerminalActions } from "./activate"
 import { formatLanguage } from "./shared/language"
@@ -38,11 +40,14 @@ let extensionContext: vscode.ExtensionContext
 
 // This method is called when your extension is activated.
 // Your extension is activated the very first time the command is executed.
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	extensionContext = context
 	outputChannel = vscode.window.createOutputChannel("Roo-Code")
 	context.subscriptions.push(outputChannel)
 	outputChannel.appendLine("Roo-Code extension activated")
+
+	// Migrate old settings to new
+	await migrateSettings(context, outputChannel)
 
 	// Initialize telemetry service after environment variables are loaded.
 	telemetryService.initialize()
