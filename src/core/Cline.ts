@@ -184,11 +184,6 @@ export class Cline {
 
 	// Storing task to disk for history
 
-	private async overwriteClineMessages(newMessages: ClineMessage[]) {
-		this.clineMessages = newMessages
-		await this.saveClineMessages()
-	}
-
 	private async saveClineMessages() {
 		try {
 			const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
@@ -291,7 +286,9 @@ export class Cline {
 					const deletedApiReqsMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(deletedMessages)))
 
 					const newClineMessages = this.clineMessages.slice(0, messageIndex + 1)
-					await this.overwriteClineMessages(newClineMessages) // calls saveClineMessages which saves historyItem
+
+					this.clineMessages = newClineMessages
+					await this.saveClineMessages()
 
 					await this.say(
 						"deleted_api_reqs",
@@ -854,7 +851,9 @@ export class Cline {
 			}
 		}
 
-		await this.overwriteClineMessages(modifiedClineMessages)
+		this.clineMessages = modifiedClineMessages
+		await this.saveClineMessages()
+
 		this.clineMessages = await getSavedClineMessages(globalStoragePath, taskId)
 
 		// Now present the cline messages to the user and ask if they want to resume (NOTE: we ran into a bug before where the apiconversationhistory wouldnt be initialized when opening a old task, and it was because we were waiting for resume)
