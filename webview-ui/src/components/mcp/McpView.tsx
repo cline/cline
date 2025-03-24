@@ -13,10 +13,10 @@ import { DEFAULT_MCP_TIMEOUT_SECONDS, McpServer } from "../../../../src/shared/m
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { getMcpServerDisplayName } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
-import DangerButton from "../common/DangerButton"
 import McpMarketplaceView from "./marketplace/McpMarketplaceView"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
+import DangerButton from "../common/DangerButton"
 
 type McpViewProps = {
 	onDone: () => void
@@ -387,13 +387,11 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 						}}>
 						{server.status === "connecting" ? "Retrying..." : "Retry Connection"}
 					</VSCodeButton>
+
 					<DangerButton
-						onClick={handleDelete}
+						style={{ width: "calc(100% - 20px)", margin: "0 10px 10px 10px" }}
 						disabled={isDeleting}
-						style={{
-							width: "calc(100% - 20px)",
-							margin: "0 10px 10px 10px",
-						}}>
+						onClick={handleDelete}>
 						{isDeleting ? "Deleting..." : "Delete Server"}
 					</DangerButton>
 				</div>
@@ -487,12 +485,9 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 						</VSCodeButton>
 
 						<DangerButton
-							onClick={handleDelete}
+							style={{ width: "calc(100% - 14px)", margin: "5px 7px 3px 7px" }}
 							disabled={isDeleting}
-							style={{
-								width: "calc(100% - 14px)",
-								margin: "5px 7px 3px 7px",
-							}}>
+							onClick={handleDelete}>
 							{isDeleting ? "Deleting..." : "Delete Server"}
 						</DangerButton>
 					</div>

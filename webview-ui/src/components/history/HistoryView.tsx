@@ -6,9 +6,9 @@ import { memo, useMemo, useState, useEffect, useCallback } from "react"
 import Fuse, { FuseResult } from "fuse.js"
 import { formatLargeNumber } from "../../utils/format"
 import { formatSize } from "../../utils/size"
-import DangerButton from "../common/DangerButton"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useEvent } from "react-use"
+import DangerButton from "../common/DangerButton"
 
 type HistoryViewProps = {
 	onDone: () => void
