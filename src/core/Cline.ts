@@ -3,7 +3,9 @@ import cloneDeep from "clone-deep"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import fs from "fs/promises"
 import getFolderSize from "get-folder-size"
+import { minimatch } from "minimatch"
 import os from "os"
+import parseMD from "parse-md"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
@@ -77,6 +79,15 @@ const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
+type ParsedMD = {
+	metadata: {
+		title: string
+		description: string
+		glob: string
+		[key: string]: string
+	}
+	content: string
+}
 
 export class Cline {
 	readonly taskId: string
@@ -472,7 +483,7 @@ export class Cline {
 					return
 				}
 
-				// Get changed files between current state and commit
+				// Get changed files b etween current state and commit
 				changedFiles = await this.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
 				if (!changedFiles?.length) {
 					vscode.window.showInformationMessage("No changes found")
@@ -1310,16 +1321,32 @@ export class Cline {
 					const ruleFiles = await fs
 						.readdir(clineRulesFilePath, { withFileTypes: true, recursive: true })
 						.then((files) => files.filter((file) => file.isFile()))
-						.then((files) => files.map((file) => path.resolve(file.parentPath, file.name)))
 					const ruleFileContent = await Promise.all(
 						ruleFiles.map(async (file) => {
-							const ruleFilePath = path.resolve(clineRulesFilePath, file)
+							const ruleFilePath = path.resolve(clineRulesFilePath, file.parentPath, file.name)
 							const ruleFilePathRelative = path.relative(cwd, ruleFilePath)
-							return `${ruleFilePathRelative}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
+							if (file.name.endsWith(".mdc") && this.clineMessages.length > 0) {
+								const previousRequest = this.clineMessages[this.clineMessages.length - 1]
+								const fileContent = (await fs.readFile(ruleFilePath, "utf8")).trim()
+								try {
+									const { metadata, content } = parseMD(fileContent) as ParsedMD
+									const fileContentPaths = [
+										...previousRequest.text!.matchAll(/<(file|folder)_content path=\\"(.*?)\\">/g),
+									].map((m) => m[2])
+									if (!fileContentPaths.some((path) => minimatch(path, metadata.glob))) {
+										return ""
+									}
+									return `---\nFilePath:${ruleFilePathRelative}\nTitle:${metadata.title}\nDescription:${metadata.description}\n${content}`
+								} catch (error) {
+									console.error(`Failed to parse .mdc file at ${ruleFilePath}`)
+									return `---\nFilePath:${ruleFilePathRelative}\n${fileContent}`
+								}
+							}
+							return `---\nFilePath:${ruleFilePathRelative}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
 						}),
 					).then((contents) => contents.join("\n\n"))
 					clineRulesFileInstructions = `# .clinerules/\n\nThe following is provided by a root-level .clinerules/ directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${ruleFileContent}`
-				} catch {
+				} catch (error) {
 					console.error(`Failed to read .clinerules directory at ${clineRulesFilePath}`)
 				}
 			} else {
