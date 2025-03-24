@@ -103,6 +103,7 @@ type GlobalStateKey =
 	| "previousModeApiProvider"
 	| "previousModeModelId"
 	| "previousModeThinkingBudgetTokens"
+	| "previousModeVsCodeLmModelSelector"
 	| "previousModeModelInfo"
 	| "liteLlmBaseUrl"
 	| "liteLlmModelId"
@@ -964,6 +965,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			previousModeApiProvider: newApiProvider,
 			previousModeModelId: newModelId,
 			previousModeModelInfo: newModelInfo,
+			previousModeVsCodeLmModelSelector: newVsCodeLmModelSelector,
 			previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
 			planActSeparateModelsSetting,
 		} = await this.getState()
@@ -991,7 +993,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					await this.updateGlobalState("previousModeModelInfo", apiConfiguration.openRouterModelInfo)
 					break
 				case "vscode-lm":
-					await this.updateGlobalState("previousModeModelId", apiConfiguration.vsCodeLmModelSelector)
+					// Important we don't set modelId to this, as it's an object not string (webview expects model id to be a string)
+					await this.updateGlobalState("previousModeVsCodeLmModelSelector", apiConfiguration.vsCodeLmModelSelector)
 					break
 				case "openai":
 					await this.updateGlobalState("previousModeModelId", apiConfiguration.openAiModelId)
@@ -1012,7 +1015,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 
 			// Restore the model used in previous mode
-			if (newApiProvider || newModelId || newThinkingBudgetTokens !== undefined) {
+			if (newApiProvider || newModelId || newThinkingBudgetTokens !== undefined || newVsCodeLmModelSelector) {
 				await this.updateGlobalState("apiProvider", newApiProvider)
 				await this.updateGlobalState("thinkingBudgetTokens", newThinkingBudgetTokens)
 				switch (newApiProvider) {
@@ -1032,7 +1035,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("openRouterModelInfo", newModelInfo)
 						break
 					case "vscode-lm":
-						await this.updateGlobalState("vsCodeLmModelSelector", newModelId)
+						await this.updateGlobalState("vsCodeLmModelSelector", newVsCodeLmModelSelector)
 						break
 					case "openai":
 						await this.updateGlobalState("openAiModelId", newModelId)
@@ -2133,6 +2136,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			previousModeVsCodeLmModelSelector,
 			previousModeThinkingBudgetTokens,
 			qwenApiLine,
 			liteLlmApiKey,
@@ -2196,6 +2200,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("previousModeVsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 			this.getGlobalState("previousModeThinkingBudgetTokens") as Promise<number | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
@@ -2309,6 +2314,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			previousModeVsCodeLmModelSelector,
 			previousModeThinkingBudgetTokens,
 			mcpMarketplaceEnabled,
 			telemetrySetting: telemetrySetting || "unset",
