@@ -112,6 +112,13 @@ export class ContextManager {
 		messages: Anthropic.Messages.MessageParam[],
 		deletedRange: [number, number] | undefined,
 	): Anthropic.Messages.MessageParam[] {
+		return this.getAndAlterTruncatedMessages(messages, deletedRange)
+	}
+
+	private getAndAlterTruncatedMessages(
+		messages: Anthropic.Messages.MessageParam[],
+		deletedRange: [number, number] | undefined,
+	): Anthropic.Messages.MessageParam[] {
 		if (!deletedRange) {
 			return messages
 		}
