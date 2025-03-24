@@ -30,7 +30,7 @@ import { logger } from "../../utils/logging"
 function validateBedrockArn(arn: string, region?: string) {
 	// Validate ARN format
 	const arnRegex =
-		/^arn:aws:bedrock:([^:]+):(\d+):(foundation-model|provisioned-model|default-prompt-router|prompt-router)\/(.+)$/
+		/^arn:aws:bedrock:([^:]+):(\d+):(foundation-model|provisioned-model|default-prompt-router|prompt-router|application-inference-profile)\/(.+)$/
 	const match = arn.match(arnRegex)
 
 	if (!match) {
