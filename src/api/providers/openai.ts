@@ -45,6 +45,10 @@ export class OpenAiHandler implements ApiHandler {
 		let maxTokens: number | undefined =
 			Number(this.options.openAiModelInfo?.maxTokens) ?? openAiModelInfoSaneDefaults.maxTokens
 
+		if (typeof maxTokens === "number" && maxTokens < 0) {
+			maxTokens = undefined
+		}
+
 		if (isDeepseekReasoner) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
