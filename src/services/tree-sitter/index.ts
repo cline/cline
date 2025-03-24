@@ -55,7 +55,7 @@ export async function parseSourceCodeDefinitionsForFile(
 	// Parse the file if we have a parser for it
 	const definitions = await parseFile(filePath, languageParsers, rooIgnoreController)
 	if (definitions) {
-		return `${path.basename(filePath)}\n${definitions}`
+		return `# ${path.basename(filePath)}\n${definitions}`
 	}
 
 	return undefined
@@ -90,7 +90,7 @@ export async function parseSourceCodeForDefinitionsTopLevel(
 	for (const file of allowedFilesToParse) {
 		const definitions = await parseFile(file, languageParsers, rooIgnoreController)
 		if (definitions) {
-			result += `${path.relative(dirPath, file).toPosix()}\n${definitions}\n`
+			result += `# ${path.relative(dirPath, file).toPosix()}\n${definitions}\n`
 		}
 		// else {
 		// 	filesWithoutDefinitions.push(file)
@@ -177,10 +177,6 @@ async function parseFile(
 			return null
 		}
 
-		// Add a header with file information and definition count
-		// Make sure to normalize path separators to forward slashes for consistency
-		formattedOutput += `// File: ${path.basename(filePath).replace(/\\/g, "/")} (${captures.length} definitions)\n`
-
 		// Sort captures by their start position
 		captures.sort((a, b) => a.node.startPosition.row - b.node.startPosition.row)
 
@@ -224,15 +220,10 @@ async function parseFile(
 			const lineKey = `${startLine}-${lines[startLine]}`
 			const nodeLineKey = `${nodeLine}-${lines[nodeLine]}`
 
-			// Add separator if there's a gap between captures
-			if (lastLine !== -1 && startLine > lastLine + 1) {
-				formattedOutput += "||    ||----\n"
-			}
-
 			// Always show the class definition line
 			if (name.includes("class") || (name.includes("name") && name.includes("class"))) {
 				if (!processedLines.has(lineKey)) {
-					formattedOutput += `│| ${startLine} - ${endLine} ||${lines[startLine]}\n`
+					formattedOutput += `${startLine}--${endLine} | ${lines[startLine]}\n`
 					processedLines.add(lineKey)
 				}
 			}
@@ -243,7 +234,7 @@ async function parseFile(
 				// For function definitions, we need to show the actual line with the function/method name
 				// This handles the test case mocks where nodeLine is 2 (for "testMethod()")
 				if (!processedLines.has(nodeLineKey) && lines[nodeLine]) {
-					formattedOutput += `│| ${nodeLine} - ${node.endPosition.row} ||${lines[nodeLine]}\n`
+					formattedOutput += `${nodeLine}--${node.endPosition.row} | ${lines[nodeLine]}\n`
 					processedLines.add(nodeLineKey)
 				}
 			}
@@ -256,7 +247,7 @@ async function parseFile(
 				!name.includes("method")
 			) {
 				if (!processedLines.has(lineKey)) {
-					formattedOutput += `│| ${startLine} - ${endLine} ||${lines[startLine]}\n`
+					formattedOutput += `${startLine}--${endLine} | ${lines[startLine]}\n`
 					processedLines.add(lineKey)
 				}
 			}
@@ -270,22 +261,7 @@ async function parseFile(
 	}
 
 	if (formattedOutput.length > 0) {
-		// Create categorized summary of definitions
-		const classCount = formattedOutput.split("class").length - 1
-		const functionCount =
-			formattedOutput.split("function").length - 1 + (formattedOutput.split("method").length - 1)
-		const variableCount =
-			formattedOutput.split("const").length -
-			1 +
-			formattedOutput.split("let").length -
-			1 +
-			formattedOutput.split("var").length -
-			1
-
-		// Add a footer with a summary of definitions
-		const summary = `// Summary: ${classCount > 0 ? `${classCount} classes, ` : ""}${functionCount > 0 ? `${functionCount} functions/methods, ` : ""}${variableCount > 0 ? `${variableCount} variables` : ""}`
-
-		return `|----\n${formattedOutput}|----\n${summary}\n`
+		return formattedOutput
 	}
 	return null
 }

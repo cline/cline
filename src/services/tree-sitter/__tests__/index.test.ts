@@ -122,7 +122,6 @@ describe("Tree-sitter Service", () => {
 
 			expect(result).toContain("class TestClass")
 			expect(result).toContain("testMethod()")
-			expect(result).toContain("|----")
 		})
 
 		it("should handle parsing errors gracefully", async () => {
