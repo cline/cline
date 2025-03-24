@@ -8,7 +8,7 @@ import { formatLargeNumber } from "../../utils/format"
 import { formatSize } from "../../utils/size"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useEvent } from "react-use"
-import DangerButtonTW from "../common/DangerButtonTW"
+import DangerButton from "../common/DangerButton"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -468,7 +468,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						padding: "10px 10px",
 						borderTop: "1px solid var(--vscode-panel-border)",
 					}}>
-					<DangerButtonTW
+					<DangerButton
 						style={{ width: "100%" }}
 						disabled={deleteAllDisabled || taskHistory.length === 0}
 						onClick={() => {
@@ -476,7 +476,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							vscode.postMessage({ type: "clearAllTaskHistory" })
 						}}>
 						Delete All History{totalTasksSize !== null ? ` (${formatSize(totalTasksSize)})` : ""}
-					</DangerButtonTW>
+					</DangerButton>
 				</div>
 			</div>
 		</>

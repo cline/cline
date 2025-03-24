@@ -16,7 +16,7 @@ import { vscode } from "../../utils/vscode"
 import McpMarketplaceView from "./marketplace/McpMarketplaceView"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
-import DangerButtonTW from "../common/DangerButtonTW"
+import DangerButton from "../common/DangerButton"
 
 type McpViewProps = {
 	onDone: () => void
@@ -388,12 +388,12 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 						{server.status === "connecting" ? "Retrying..." : "Retry Connection"}
 					</VSCodeButton>
 
-					<DangerButtonTW
+					<DangerButton
 						style={{ width: "calc(100% - 20px)", margin: "0 10px 10px 10px" }}
 						disabled={isDeleting}
 						onClick={handleDelete}>
 						{isDeleting ? "Deleting..." : "Delete Server"}
-					</DangerButtonTW>
+					</DangerButton>
 				</div>
 			) : (
 				isExpanded && (
@@ -484,12 +484,12 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							{server.status === "connecting" ? "Restarting..." : "Restart Server"}
 						</VSCodeButton>
 
-						<DangerButtonTW
+						<DangerButton
 							style={{ width: "calc(100% - 14px)", margin: "5px 7px 3px 7px" }}
 							disabled={isDeleting}
 							onClick={handleDelete}>
 							{isDeleting ? "Deleting..." : "Delete Server"}
-						</DangerButtonTW>
+						</DangerButton>
 					</div>
 				)
 			)}
