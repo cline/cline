@@ -870,6 +870,7 @@ describe("ClineProvider", () => {
 			rootTask: undefined,
 			parentTask: undefined,
 			taskNumber: 1,
+			onCreated: expect.any(Function),
 		})
 	})
 
