@@ -605,6 +605,14 @@ export const openAiNativeModels = {
 		outputPrice: 0.6,
 		cacheReadsPrice: 0.075,
 	},
+	"chatgpt-4o-latest": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 5,
+		outputPrice: 15,
+	},
 	"gpt-4.5-preview": {
 		maxTokens: 16_384,
 		contextWindow: 128_000,
