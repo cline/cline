@@ -76,7 +76,7 @@ Roo Code 3.10 mang đến những cải tiến năng suất mạnh mẽ!
 
 ### Nhiều Chế Độ
 
-Roo Code thích ứng với nhu cầu của bạn với các [chế độ](https://docs.roocode.com/basic-usage/modes) chuyên biệt:
+Roo Code thích ứng với nhu cầu của bạn với các [chế độ](https://docs.roocode.com/basic-usage/using-modes) chuyên biệt:
 
 - **Chế độ Code:** Cho các tác vụ lập trình đa dụng
 - **Chế độ Architect:** Cho việc lập kế hoạch và lãnh đạo kỹ thuật
@@ -86,7 +86,7 @@ Roo Code thích ứng với nhu cầu của bạn với các [chế độ](https
 
 ### Công Cụ Thông Minh
 
-Roo Code đi kèm với các [công cụ](https://docs.roocode.com/basic-usage/using-tools) mạnh mẽ có thể:
+Roo Code đi kèm với các [công cụ](https://docs.roocode.com/basic-usage/how-tools-work) mạnh mẽ có thể:
 
 - Đọc và ghi tập tin trong dự án của bạn
 - Thực thi các lệnh trong terminal VS Code của bạn

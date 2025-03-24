@@ -76,7 +76,7 @@ Roo Code 3.10이 강력한 생산성 향상 기능을 제공합니다!
 
 ### 다중 모드
 
-Roo Code는 전문화된 [모드](https://docs.roocode.com/basic-usage/modes)로 사용자의 필요에 맞게 적응합니다:
+Roo Code는 전문화된 [모드](https://docs.roocode.com/basic-usage/using-modes)로 사용자의 필요에 맞게 적응합니다:
 
 - **코드 모드:** 일반적인 코딩 작업용
 - **아키텍트 모드:** 계획 및 기술 리더십용
@@ -86,7 +86,7 @@ Roo Code는 전문화된 [모드](https://docs.roocode.com/basic-usage/modes)로
 
 ### 스마트 도구
 
-Roo Code는 다음과 같은 강력한 [도구](https://docs.roocode.com/basic-usage/using-tools)를 제공합니다:
+Roo Code는 다음과 같은 강력한 [도구](https://docs.roocode.com/basic-usage/how-tools-work)를 제공합니다:
 
 - 프로젝트에서 파일 읽기 및 쓰기
 - VS Code 터미널에서 명령 실행

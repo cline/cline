@@ -76,7 +76,7 @@ Roo Code 3.10 przynosi potężne usprawnienia produktywności!
 
 ### Wiele trybów
 
-Roo Code dostosowuje się do Twoich potrzeb za pomocą wyspecjalizowanych [trybów](https://docs.roocode.com/basic-usage/modes):
+Roo Code dostosowuje się do Twoich potrzeb za pomocą wyspecjalizowanych [trybów](https://docs.roocode.com/basic-usage/using-modes):
 
 - **Tryb Code:** Do ogólnych zadań kodowania
 - **Tryb Architect:** Do planowania i przywództwa technicznego
@@ -86,7 +86,7 @@ Roo Code dostosowuje się do Twoich potrzeb za pomocą wyspecjalizowanych [tryb�
 
 ### Inteligentne narzędzia
 
-Roo Code jest wyposażony w potężne [narzędzia](https://docs.roocode.com/basic-usage/using-tools), które mogą:
+Roo Code jest wyposażony w potężne [narzędzia](https://docs.roocode.com/basic-usage/how-tools-work), które mogą:
 
 - Czytać i zapisywać pliki w Twoim projekcie
 - Wykonywać polecenia w terminalu VS Code

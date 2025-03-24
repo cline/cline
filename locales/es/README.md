@@ -76,7 +76,7 @@ Consulta el [CHANGELOG](../CHANGELOG.md) para ver actualizaciones detalladas y c
 
 ### Múltiples modos
 
-Roo Code se adapta a tus necesidades con [modos](https://docs.roocode.com/basic-usage/modes) especializados:
+Roo Code se adapta a tus necesidades con [modos](https://docs.roocode.com/basic-usage/using-modes) especializados:
 
 - **Modo Código:** Para tareas generales de programación
 - **Modo Arquitecto:** Para planificación y liderazgo técnico
@@ -86,7 +86,7 @@ Roo Code se adapta a tus necesidades con [modos](https://docs.roocode.com/basic-
 
 ### Herramientas inteligentes
 
-Roo Code viene con potentes [herramientas](https://docs.roocode.com/basic-usage/using-tools) que pueden:
+Roo Code viene con potentes [herramientas](https://docs.roocode.com/basic-usage/how-tools-work) que pueden:
 
 - Leer y escribir archivos en tu proyecto
 - Ejecutar comandos en tu terminal de VS Code

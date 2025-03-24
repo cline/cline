@@ -76,7 +76,7 @@ Roo Code 3.10 帶來強大的生產力提升！
 
 ### 多種模式
 
-Roo Code 通過專業化的[模式](https://docs.roocode.com/basic-usage/modes)適應您的需求：
+Roo Code 通過專業化的[模式](https://docs.roocode.com/basic-usage/using-modes)適應您的需求：
 
 - **代碼模式：** 用於通用編碼任務
 - **架構師模式：** 用於規劃和技術領導
@@ -86,7 +86,7 @@ Roo Code 通過專業化的[模式](https://docs.roocode.com/basic-usage/modes)�
 
 ### 智能工具
 
-Roo Code 配備強大的[工具](https://docs.roocode.com/basic-usage/using-tools)，可以：
+Roo Code 配備強大的[工具](https://docs.roocode.com/basic-usage/how-tools-work)，可以：
 
 - 讀寫您項目中的文件
 - 在您的 VS Code 終端中執行命令

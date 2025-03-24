@@ -76,7 +76,7 @@ Roo Code 3.10 güçlü üretkenlik iyileştirmeleri getiriyor!
 
 ### Çoklu Modlar
 
-Roo Code, özelleştirilmiş [modlar](https://docs.roocode.com/basic-usage/modes) ile ihtiyaçlarınıza uyum sağlar:
+Roo Code, özelleştirilmiş [modlar](https://docs.roocode.com/basic-usage/using-modes) ile ihtiyaçlarınıza uyum sağlar:
 
 - **Kod Modu:** Genel kodlama görevleri için
 - **Mimar Modu:** Planlama ve teknik liderlik için
@@ -86,7 +86,7 @@ Roo Code, özelleştirilmiş [modlar](https://docs.roocode.com/basic-usage/modes
 
 ### Akıllı Araçlar
 
-Roo Code, şunları yapabilen güçlü [araçlar](https://docs.roocode.com/basic-usage/using-tools) ile gelir:
+Roo Code, şunları yapabilen güçlü [araçlar](https://docs.roocode.com/basic-usage/how-tools-work) ile gelir:
 
 - Projenizde dosyaları okuma ve yazma
 - VS Code terminalinizde komutları çalıştırma

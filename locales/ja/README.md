@@ -76,7 +76,7 @@ Roo Code 3.10は強力な生産性向上機能をもたらします！
 
 ### 複数のモード
 
-Roo Codeは専門化された[モード](https://docs.roocode.com/basic-usage/modes)であなたのニーズに適応します：
+Roo Codeは専門化された[モード](https://docs.roocode.com/basic-usage/using-modes)であなたのニーズに適応します：
 
 - **コードモード：** 汎用的なコーディングタスク向け
 - **アーキテクトモード：** 計画と技術的リーダーシップ向け
@@ -86,7 +86,7 @@ Roo Codeは専門化された[モード](https://docs.roocode.com/basic-usage/mo
 
 ### スマートツール
 
-Roo Codeには強力な[ツール](https://docs.roocode.com/basic-usage/using-tools)が付属しています：
+Roo Codeには強力な[ツール](https://docs.roocode.com/basic-usage/how-tools-work)が付属しています：
 
 - プロジェクト内のファイルの読み書き
 - VS Codeターミナルでコマンドを実行

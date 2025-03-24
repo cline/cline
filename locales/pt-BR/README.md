@@ -76,7 +76,7 @@ O Roo Code 3.10 traz poderosas melhorias de produtividade!
 
 ### Múltiplos Modos
 
-O Roo Code se adapta às suas necessidades com [modos](https://docs.roocode.com/basic-usage/modes) especializados:
+O Roo Code se adapta às suas necessidades com [modos](https://docs.roocode.com/basic-usage/using-modes) especializados:
 
 - **Modo Code:** Para tarefas gerais de codificação
 - **Modo Architect:** Para planejamento e liderança técnica
@@ -86,7 +86,7 @@ O Roo Code se adapta às suas necessidades com [modos](https://docs.roocode.com/
 
 ### Ferramentas Inteligentes
 
-O Roo Code vem com poderosas [ferramentas](https://docs.roocode.com/basic-usage/using-tools) que podem:
+O Roo Code vem com poderosas [ferramentas](https://docs.roocode.com/basic-usage/how-tools-work) que podem:
 
 - Ler e escrever arquivos em seu projeto
 - Executar comandos no seu terminal VS Code
