@@ -2,12 +2,8 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.7.1",
+	"version": "3.8.0",
 	"icon": "assets/icons/icon.png",
-	"galleryBanner": {
-		"color": "#617A91",
-		"theme": "dark"
-	},
 	"engines": {
 		"vscode": "^1.84.0"
 	},
@@ -73,7 +69,7 @@
 			{
 				"command": "cline.mcpButtonClicked",
 				"title": "MCP Servers",
-				"icon": "$(extensions)"
+				"icon": "$(server)"
 			},
 			{
 				"command": "cline.historyButtonClicked",
@@ -86,6 +82,11 @@
 				"icon": "$(link-external)"
 			},
 			{
+				"command": "cline.accountButtonClicked",
+				"title": "Account",
+				"icon": "$(account)"
+			},
+			{
 				"command": "cline.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
@@ -93,6 +94,26 @@
 			{
 				"command": "cline.openInNewTab",
 				"title": "Open In New Tab",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.openDocumentation",
+				"title": "Documentation",
+				"icon": "$(book)"
+			},
+			{
+				"command": "cline.addToChat",
+				"title": "Add to Cline",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.addTerminalOutputToChat",
+				"title": "Add to Cline",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.fixWithCline",
+				"title": "Fix with Cline",
 				"category": "Cline"
 			}
 		],
@@ -119,9 +140,32 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "cline.openDocumentation",
 					"group": "navigation@5",
 					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
+					"command": "cline.accountButtonClicked",
+					"group": "navigation@6",
+					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
+					"command": "cline.settingsButtonClicked",
+					"group": "navigation@7",
+					"when": "view == claude-dev.SidebarProvider"
+				}
+			],
+			"editor/context": [
+				{
+					"command": "cline.addToChat",
+					"group": "navigation",
+					"when": "editorHasSelection"
+				}
+			],
+			"terminal/context": [
+				{
+					"command": "cline.addTerminalOutputToChat",
+					"group": "navigation"
 				}
 			]
 		},
@@ -211,11 +255,6 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
-				},
-				"cline.conversationTelemetry": {
-					"type": "boolean",
-					"default": false,
-					"description": "Share message data,  code, and more extensive telemetry. This data may be used to improve prompts used in Cline, train models, and understand failure states more accurately."
 				}
 			}
 		}
