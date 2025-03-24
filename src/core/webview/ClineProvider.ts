@@ -40,7 +40,7 @@ import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { getTotalTasksSize } from "../../utils/storage"
 import { ConversationTelemetryService } from "../../services/telemetry/ConversationTelemetryService"
 import { GlobalFileNames } from "../../global-constants"
-import delay from "delay"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -1764,7 +1764,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	async addSelectedCodeToChat(code: string, filePath: string, languageId: string, diagnostics?: vscode.Diagnostic[]) {
 		// Ensure the sidebar view is visible
 		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-		await delay(100)
+		await setTimeoutPromise(100)
 
 		// Post message to webview with the selected code
 		const fileMention = this.getFileMentionFromPath(filePath)
@@ -1787,7 +1787,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	async addSelectedTerminalOutputToChat(output: string, terminalName: string) {
 		// Ensure the sidebar view is visible
 		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-		await delay(100)
+		await setTimeoutPromise(100)
 
 		// Post message to webview with the selected terminal output
 		// await this.postMessageToWebview({
@@ -1808,7 +1808,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	async fixWithCline(code: string, filePath: string, languageId: string, diagnostics: vscode.Diagnostic[]) {
 		// Ensure the sidebar view is visible
 		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-		await delay(100)
+		await setTimeoutPromise(100)
 
 		const fileMention = this.getFileMentionFromPath(filePath)
 		const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)

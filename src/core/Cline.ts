@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
-import delay from "delay"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import fs from "fs/promises"
 import getFolderSize from "get-folder-size"
 import os from "os"
@@ -1211,7 +1211,7 @@ export class Cline {
 		// for their associated messages to be sent to the webview, maintaining
 		// the correct order of messages (although the webview is smart about
 		// grouping command_output messages despite any gaps anyways)
-		await delay(50)
+		await setTimeoutPromise(50)
 
 		result = result.trim()
 
@@ -1445,7 +1445,7 @@ export class Cline {
 				}
 
 				console.log("first chunk failed, waiting 1 second before retrying")
-				await delay(1000)
+				await setTimeoutPromise(1000)
 				this.didAutomaticallyRetryFailedApiRequest = true
 			} else {
 				// request failed after retrying automatically once, ask user if they want to retry again
@@ -1887,7 +1887,7 @@ export class Cline {
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(newContent, true)
-								await delay(300) // wait for diff view to update
+								await setTimeoutPromise(300) // wait for diff view to update
 								this.diffViewProvider.scrollToFirstDiff()
 								// showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
 
@@ -1909,7 +1909,7 @@ export class Cline {
 									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
 
 									// we need an artificial delay to let the diagnostics catch up to the changes
-									await delay(3_500)
+									await setTimeoutPromise(3_500)
 								} else {
 									// If auto-approval is enabled but this tool wasn't auto-approved, send notification
 									showNotificationForApprovalIfAutoApprovalEnabled(
@@ -3651,7 +3651,7 @@ export class Cline {
 
 		if (busyTerminals.length > 0 && this.didEditFile) {
 			//  || this.didEditFile
-			await delay(300) // delay after saving file to let terminals catch up
+			await setTimeoutPromise(300) // delay after saving file to let terminals catch up
 		}
 
 		// let terminalWasBusy = false

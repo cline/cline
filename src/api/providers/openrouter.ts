@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
-import delay from "delay"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import OpenAI from "openai"
 import { ApiHandler } from "../"
 import { ApiHandlerOptions, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../shared/api"
@@ -96,7 +96,7 @@ export class OpenRouterHandler implements ApiHandler {
 
 	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
 		if (this.lastGenerationId) {
-			await delay(500) // FIXME: necessary delay to ensure generation endpoint is ready
+			await setTimeoutPromise(500) // FIXME: necessary delay to ensure generation endpoint is ready
 			try {
 				const generationIterator = this.fetchGenerationDetails(this.lastGenerationId)
 				const generation = (await generationIterator.next()).value
