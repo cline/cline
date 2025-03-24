@@ -1,5 +1,19 @@
 # Roo Code Changelog
 
+## [3.10.3] - 2025-03-23
+
+- Update the welcome page to provide 1-click OAuth flows with LLM routers (thanks @dtrugman!)
+- Switch to a more direct method of tracking OpenRouter tokens/spend
+- Make partial file reads backwards-compatible with custom system prompts and give users more control over the chunk size
+- Fix issues where questions and suggestions weren’t showing up for non-streaming models and were hard to read in some themes
+- A variety of fixes and improvements to experimental multi-block diff (thanks @KJ7LNW!)
+- Fix opacity of drop-down menus in settings (thanks @KJ7LNW!)
+- Fix bugs with reading and mentioning binary files like PDFs
+- Fix the pricing information for OpenRouter free models (thanks @Jdo300!)
+- Fix an issue with our unit tests on Windows (thanks @diarmidmackenzie!)
+- Fix a maxTokens issue for the Outbound provider (thanks @pugazhendhi-m!)
+- Fix a line number issue with partial file reads (thanks @samhvw8!)
+
 ## [3.10.2] - 2025-03-21
 
 - Fixes to context mentions on Windows
