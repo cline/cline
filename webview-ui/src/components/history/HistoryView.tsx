@@ -9,7 +9,6 @@ import { formatSize } from "../../utils/size"
 import DangerButton from "../common/DangerButton"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useEvent } from "react-use"
-import DangerButtonTW from "../common/DangerButtonTW"
 
 type HistoryViewProps = {
 	onDone: () => void
