@@ -4,9 +4,9 @@
 		"description": "Ein komplettes Entwicklerteam mit KI in deinem Editor."
 	},
 	"number_format": {
-		"thousand_suffix": "T",
-		"million_suffix": "Mio.",
-		"billion_suffix": "Mrd."
+		"thousand_suffix": "k",
+		"million_suffix": "m",
+		"billion_suffix": "b"
 	},
 	"welcome": "Willkommen, {{name}}! Du hast {{count}} Benachrichtigungen.",
 	"items": {

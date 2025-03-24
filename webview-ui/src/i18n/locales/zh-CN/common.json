@@ -1,7 +1,7 @@
 {
 	"number_format": {
-		"thousand_suffix": "千",
-		"million_suffix": "百万",
-		"billion_suffix": "十亿"
+		"thousand_suffix": "k",
+		"million_suffix": "m",
+		"billion_suffix": "b"
 	}
 }

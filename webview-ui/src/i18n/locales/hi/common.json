@@ -1,7 +1,7 @@
 {
 	"number_format": {
-		"thousand_suffix": "ह",
-		"million_suffix": "लाख",
-		"billion_suffix": "अरब"
+		"thousand_suffix": "k",
+		"million_suffix": "m",
+		"billion_suffix": "b"
 	}
 }

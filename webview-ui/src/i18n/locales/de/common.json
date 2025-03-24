@@ -1,7 +1,7 @@
 {
 	"number_format": {
-		"thousand_suffix": "Tsd.",
-		"million_suffix": "Mio.",
-		"billion_suffix": "Mrd."
+		"thousand_suffix": "k",
+		"million_suffix": "m",
+		"billion_suffix": "b"
 	}
 }

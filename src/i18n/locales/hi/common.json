@@ -4,9 +4,9 @@
 		"description": "आपके एडिटर में AI डेवलपर्स की पूरी टीम।"
 	},
 	"number_format": {
-		"thousand_suffix": "हज़ार",
-		"million_suffix": "लाख",
-		"billion_suffix": "अरब"
+		"thousand_suffix": "k",
+		"million_suffix": "m",
+		"billion_suffix": "b"
 	},
 	"welcome": "स्वागत है, {{name}}! आपके पास {{count}} सूचनाएँ हैं।",
 	"items": {

@@ -4,9 +4,9 @@
 		"description": "Düzenleyicinizde tam bir AI geliştirici ekibi."
 	},
 	"number_format": {
-		"thousand_suffix": "B",
-		"million_suffix": "M",
-		"billion_suffix": "Mr"
+		"thousand_suffix": "k",
+		"million_suffix": "m",
+		"billion_suffix": "b"
 	},
 	"welcome": "Hoş geldiniz, {{name}}! {{count}} bildiriminiz var.",
 	"items": {

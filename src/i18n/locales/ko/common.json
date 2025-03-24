@@ -4,9 +4,9 @@
 		"description": "에디터 내에서 동작하는 AI 개발팀 전체입니다."
 	},
 	"number_format": {
-		"thousand_suffix": "천",
-		"million_suffix": "백만",
-		"billion_suffix": "십억"
+		"thousand_suffix": "k",
+		"million_suffix": "m",
+		"billion_suffix": "b"
 	},
 	"welcome": "안녕하세요, {{name}}님! {{count}}개의 알림이 있습니다.",
 	"items": {

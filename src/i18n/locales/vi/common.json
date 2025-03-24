@@ -5,8 +5,8 @@
 	},
 	"number_format": {
 		"thousand_suffix": "k",
-		"million_suffix": "tr",
-		"billion_suffix": "tỷ"
+		"million_suffix": "m",
+		"billion_suffix": "b"
 	},
 	"welcome": "Chào mừng, {{name}}! Bạn có {{count}} thông báo.",
 	"items": {
