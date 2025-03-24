@@ -1412,7 +1412,6 @@ export class Cline {
 						this.conversationHistoryDeletedRange,
 						keep,
 					)
-					Logger.log(`Conversation truncated: ${this.conversationHistoryDeletedRange}`)
 					await this.saveClineMessages() // saves task history item which we use to keep track of conversation history deleted range
 					// await this.overwriteApiConversationHistory(truncatedMessages)
 				}
