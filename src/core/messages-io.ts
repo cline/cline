@@ -58,3 +58,14 @@ export async function getSavedClineMessages(globalStoragePath: string | undefine
 	}
 	return []
 }
+
+export async function saveClineMessages(
+	globalStoragePath: string | undefined,
+	taskId: string,
+	clineMessages: ClineMessage[],
+): Promise<string> {
+	const taskDir = await ensureTaskDirectoryExists(globalStoragePath, taskId)
+	const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
+	await fs.writeFile(filePath, JSON.stringify(clineMessages))
+	return taskDir
+}
