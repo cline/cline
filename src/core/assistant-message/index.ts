@@ -51,6 +51,7 @@ export const toolParamNames = [
 	"diff",
 	"start_line",
 	"end_line",
+	"auto_truncate",
 	"mode_slug",
 	"reason",
 	"operations",

@@ -267,8 +267,9 @@
 			"description": "Quando abilitato, i file che corrispondono ai pattern in .rooignore verranno mostrati negli elenchi con un simbolo di blocco. Quando disabilitato, questi file saranno completamente nascosti dagli elenchi di file e dalle ricerche."
 		},
 		"maxReadFile": {
-			"label": "Numero massimo di righe da leggere da un file",
-			"description": "Numero massimo di righe da leggere da un file alla volta. Valori più bassi riducono l'utilizzo di contesto/risorse ma potrebbero richiedere più letture per file di grandi dimensioni."
+			"label": "Soglia di auto-troncamento lettura file",
+			"description": "Il numero predefinito di righe da leggere da un file in un singolo batch. Valori più bassi riducono l'utilizzo di contesto/risorse ma potrebbero richiedere più letture per file di grandi dimensioni.",
+			"lines": "righe"
 		}
 	},
 	"terminal": {

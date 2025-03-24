@@ -96,18 +96,24 @@ export const ContextManagementSettings = ({
 					<div className="flex flex-col gap-2">
 						<span className="font-medium">{t("settings:contextManagement.maxReadFile.label")}</span>
 						<div className="flex items-center gap-2">
-							<Slider
+							<input
+								type="number"
+								className="w-24 bg-vscode-input-background text-vscode-input-foreground border border-vscode-input-border px-2 py-1 rounded text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+								value={maxReadFileLine ?? 500}
 								min={0}
-								max={2000}
-								step={10}
-								value={[maxReadFileLine ?? 450]}
-								onValueChange={([value]) => setCachedStateField("maxReadFileLine", value)}
-								data-testid="max-read-file-line-slider"
+								onChange={(e) => {
+									const newValue = parseInt(e.target.value, 10)
+									if (!isNaN(newValue) && newValue >= 0) {
+										setCachedStateField("maxReadFileLine", newValue)
+									}
+								}}
+								onClick={(e) => e.currentTarget.select()}
+								data-testid="max-read-file-line-input"
 							/>
-							<span className="w-10">{maxReadFileLine ?? 450}</span>
+							<span>{t("settings:contextManagement.maxReadFile.lines")}</span>
 						</div>
 					</div>
-					<div className="text-vscode-descriptionForeground text-sm mt-0">
+					<div className="text-vscode-descriptionForeground text-sm mt-2">
 						{t("settings:contextManagement.maxReadFile.description")}
 					</div>
 				</div>

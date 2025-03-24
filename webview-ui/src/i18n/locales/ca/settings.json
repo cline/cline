@@ -267,8 +267,9 @@
 			"description": "Quan està habilitat, els fitxers que coincideixen amb els patrons a .rooignore es mostraran en llistes amb un símbol de cadenat. Quan està deshabilitat, aquests fitxers s'ocultaran completament de les llistes de fitxers i cerques."
 		},
 		"maxReadFile": {
-			"label": "Nombre màxim de línies per llegir d'un fitxer",
-			"description": "Nombre màxim de línies per llegir d'un fitxer a la vegada. Valors més baixos redueixen l'ús de context/recursos però poden requerir més lectures per a fitxers grans."
+			"label": "Llindar d'auto-truncament de lectura de fitxers",
+			"description": "El nombre predeterminat de línies per llegir d'un fitxer en un lot. Valors més baixos redueixen l'ús de context/recursos però poden requerir més lectures per a fitxers grans.",
+			"lines": "línies"
 		}
 	},
 	"terminal": {

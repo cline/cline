@@ -267,8 +267,9 @@
 			"description": "Cuando está habilitado, los archivos que coinciden con los patrones en .rooignore se mostrarán en listas con un símbolo de candado. Cuando está deshabilitado, estos archivos se ocultarán completamente de las listas de archivos y búsquedas."
 		},
 		"maxReadFile": {
-			"label": "Número máximo de líneas para leer de un archivo",
-			"description": "Número máximo de líneas para leer de un archivo a la vez. Valores más bajos reducen el uso de contexto/recursos pero pueden requerir más lecturas para archivos grandes."
+			"label": "Umbral de auto-truncado de lectura de archivos",
+			"description": "El número predeterminado de líneas para leer de un archivo en un lote. Valores más bajos reducen el uso de contexto/recursos pero pueden requerir más lecturas para archivos grandes.",
+			"lines": "líneas"
 		}
 	},
 	"terminal": {

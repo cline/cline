@@ -267,8 +267,9 @@
 			"description": "Etkinleştirildiğinde, .rooignore'daki desenlerle eşleşen dosyalar kilit sembolü ile listelerde gösterilecektir. Devre dışı bırakıldığında, bu dosyalar dosya listelerinden ve aramalardan tamamen gizlenecektir."
 		},
 		"maxReadFile": {
-			"label": "Bir dosyadan okunacak maksimum satır sayısı",
-			"description": "Bir dosyadan bir kerede okunacak maksimum satır sayısı. Daha düşük değerler bağlam/kaynak kullanımını azaltır ancak büyük dosyalar için daha fazla okuma gerektirebilir."
+			"label": "Dosya okuma otomatik kısaltma eşiği",
+			"description": "Bir dosyadan bir partide okunacak varsayılan satır sayısı. Daha düşük değerler bağlam/kaynak kullanımını azaltır ancak büyük dosyalar için daha fazla okuma gerektirebilir.",
+			"lines": "satır"
 		}
 	},
 	"terminal": {
