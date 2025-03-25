@@ -50,7 +50,7 @@ import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessa
 import { calculateApiCostAnthropic } from "../utils/cost"
 import { fileExistsAtPath, isDirectory } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
-import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
+import { fixModelHtmlEscaping, removeInvalidChars, shouldFixModelHtmlEscaping } from "../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { constructNewFileContent } from "./assistant-message/diff"
 import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "./ignore/ClineIgnoreController"
@@ -1748,10 +1748,7 @@ export class Cline {
 							// Construct newContent from diff
 							let newContent: string
 							if (diff) {
-								if (
-									!this.api.getModel().id.includes("claude") &&
-									!this.api.getModel().id.includes("gemini-2.0")
-								) {
+								if (shouldFixModelHtmlEscaping(this.api.getModel())) {
 									// deepseek models tend to use unescaped html entities in diffs
 									diff = fixModelHtmlEscaping(diff)
 									diff = removeInvalidChars(diff)
@@ -1796,10 +1793,7 @@ export class Cline {
 									newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 								}
 
-								if (
-									!this.api.getModel().id.includes("claude") &&
-									!this.api.getModel().id.includes("gemini-2.0")
-								) {
+								if (shouldFixModelHtmlEscaping(this.api.getModel())) {
 									// it seems not just llama models are doing this, but also gemini and potentially others
 									newContent = fixModelHtmlEscaping(newContent)
 									newContent = removeInvalidChars(newContent)
