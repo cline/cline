@@ -2874,8 +2874,16 @@ export class Cline extends EventEmitter<ClineEvents> {
 										})
 										.filter(Boolean)
 										.join("\n\n") || "(Empty response)"
-								await this.say("mcp_server_response", resourceResultPretty)
-								pushToolResult(formatResponse.toolResult(resourceResultPretty))
+
+								// handle images (image must contain mimetype and blob)
+								let images: string[] = []
+								resourceResult?.contents.forEach((item) => {
+									if (item.mimeType?.startsWith("image") && item.blob) {
+										images.push(item.blob)
+									}
+								});
+								await this.say("mcp_server_response", resourceResultPretty, images)
+								pushToolResult(formatResponse.toolResult(resourceResultPretty, images))
 								break
 							}
 						} catch (error) {
