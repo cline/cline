@@ -113,6 +113,9 @@
 		"wantsToEditOutsideWorkspace": "Roo veut éditer ce fichier en dehors de l'espace de travail :",
 		"wantsToCreate": "Roo veut créer un nouveau fichier :"
 	},
+	"instructions": {
+		"wantsToFetch": "Roo veut récupérer des instructions détaillées pour aider à la tâche actuelle"
+	},
 	"directoryOperations": {
 		"wantsToViewTopLevel": "Roo veut voir les fichiers de premier niveau dans ce répertoire :",
 		"didViewTopLevel": "Roo a vu les fichiers de premier niveau dans ce répertoire :",

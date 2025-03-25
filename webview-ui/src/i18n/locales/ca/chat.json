@@ -105,6 +105,9 @@
 		},
 		"current": "Actual"
 	},
+	"instructions": {
+		"wantsToFetch": "Roo vol obtenir instruccions detallades per ajudar amb la tasca actual."
+	},
 	"fileOperations": {
 		"wantsToRead": "Roo vol llegir aquest fitxer:",
 		"wantsToReadOutsideWorkspace": "Roo vol llegir aquest fitxer fora de l'espai de treball:",

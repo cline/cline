@@ -25,6 +25,7 @@ export const toolUseNames = [
 	"attempt_completion",
 	"switch_mode",
 	"new_task",
+	"fetch_instructions",
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)
@@ -59,6 +60,7 @@ export const toolParamNames = [
 	"message",
 	"cwd",
 	"follow_up",
+	"task",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -80,6 +82,11 @@ export interface ExecuteCommandToolUse extends ToolUse {
 export interface ReadFileToolUse extends ToolUse {
 	name: "read_file"
 	params: Partial<Pick<Record<ToolParamName, string>, "path" | "start_line" | "end_line">>
+}
+
+export interface FetchInstructionsToolUse extends ToolUse {
+	name: "fetch_instructions"
+	params: Partial<Pick<Record<ToolParamName, string>, "task">>
 }
 
 export interface WriteToFileToolUse extends ToolUse {

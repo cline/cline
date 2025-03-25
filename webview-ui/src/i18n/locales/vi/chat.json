@@ -105,6 +105,9 @@
 		},
 		"current": "Hiện tại"
 	},
+	"instructions": {
+		"wantsToFetch": "Roo muốn lấy hướng dẫn chi tiết để hỗ trợ nhiệm vụ hiện tại"
+	},
 	"fileOperations": {
 		"wantsToRead": "Roo muốn đọc tệp này:",
 		"wantsToReadOutsideWorkspace": "Roo muốn đọc tệp này bên ngoài không gian làm việc:",

@@ -80,6 +80,9 @@
 	"separator": "Separatore",
 	"edit": "Modifica...",
 	"forNextMode": "per la prossima modalità",
+	"instructions": {
+		"wantsToFetch": "Roo vuole recuperare istruzioni dettagliate per aiutare con l'attività corrente"
+	},
 	"error": "Errore",
 	"troubleMessage": "Roo sta avendo problemi...",
 	"apiRequest": {

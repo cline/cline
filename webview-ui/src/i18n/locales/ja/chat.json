@@ -105,6 +105,9 @@
 		},
 		"current": "現在"
 	},
+	"instructions": {
+		"wantsToFetch": "Rooは現在のタスクを支援するための詳細な指示を取得したい"
+	},
 	"fileOperations": {
 		"wantsToRead": "Rooはこのファイルを読みたい:",
 		"wantsToReadOutsideWorkspace": "Rooはワークスペース外のこのファイルを読みたい:",

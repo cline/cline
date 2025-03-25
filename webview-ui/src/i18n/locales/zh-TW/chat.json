@@ -105,6 +105,9 @@
 		},
 		"current": "當前"
 	},
+	"instructions": {
+		"wantsToFetch": "Roo想要獲取詳細指示以協助目前任務"
+	},
 	"fileOperations": {
 		"wantsToRead": "Roo想讀取此檔案:",
 		"wantsToReadOutsideWorkspace": "Roo想讀取此工作區外的檔案:",

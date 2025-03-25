@@ -30,6 +30,7 @@ import {
 	everyLineHasLineNumbers,
 } from "../integrations/misc/extract-text"
 import { countFileLines } from "../integrations/misc/line-counter"
+import { fetchInstructions } from "./prompts/instructions/instructions"
 import { ExitCodeDetails } from "../integrations/terminal/TerminalProcess"
 import { Terminal } from "../integrations/terminal/Terminal"
 import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
@@ -1371,6 +1372,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 							return `[${block.name} for '${block.params.command}']`
 						case "read_file":
 							return `[${block.name} for '${block.params.path}']`
+						case "fetch_instructions":
+							return `[${block.name} for '${block.params.task}']`
 						case "write_to_file":
 							return `[${block.name} for '${block.params.path}']`
 						case "apply_diff":
@@ -2392,6 +2395,62 @@ export class Cline extends EventEmitter<ClineEvents> {
 							}
 						} catch (error) {
 							await handleError("reading file", error)
+							break
+						}
+					}
+
+					case "fetch_instructions": {
+						const task: string | undefined = block.params.task
+						const sharedMessageProps: ClineSayTool = {
+							tool: "fetchInstructions",
+							content: task,
+						}
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: undefined,
+								} satisfies ClineSayTool)
+								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								break
+							} else {
+								if (!task) {
+									this.consecutiveMistakeCount++
+									pushToolResult(
+										await this.sayAndCreateMissingParamError("fetch_instructions", "task"),
+									)
+									break
+								}
+
+								this.consecutiveMistakeCount = 0
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: task,
+								} satisfies ClineSayTool)
+
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									break
+								}
+
+								// now fetch the content and provide it to the agent.
+								const provider = this.providerRef.deref()
+								const mcpHub = provider?.getMcpHub()
+								if (!mcpHub) {
+									throw new Error("MCP hub not available")
+								}
+								const diffStrategy = this.diffStrategy
+								const context = provider?.context
+								const content = await fetchInstructions(task, { mcpHub, diffStrategy, context })
+								if (!content) {
+									pushToolResult(formatResponse.toolError(`Invalid instructions request: ${task}`))
+									break
+								}
+								pushToolResult(content)
+								break
+							}
+						} catch (error) {
+							await handleError("fetch instructions", error)
 							break
 						}
 					}
