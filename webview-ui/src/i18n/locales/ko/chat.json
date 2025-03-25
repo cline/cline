@@ -107,8 +107,10 @@
 	},
 	"fileOperations": {
 		"wantsToRead": "Roo가 이 파일을 읽고 싶어합니다:",
+		"wantsToReadOutsideWorkspace": "Roo가 워크스페이스 외부의 이 파일을 읽고 싶어합니다:",
 		"didRead": "Roo가 이 파일을 읽었습니다:",
 		"wantsToEdit": "Roo가 이 파일을 편집하고 싶어합니다:",
+		"wantsToEditOutsideWorkspace": "Roo가 워크스페이스 외부의 이 파일을 편집하고 싶어합니다:",
 		"wantsToCreate": "Roo가 새 파일을 만들고 싶어합니다:"
 	},
 	"directoryOperations": {

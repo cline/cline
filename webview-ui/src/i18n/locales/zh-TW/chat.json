@@ -107,8 +107,10 @@
 	},
 	"fileOperations": {
 		"wantsToRead": "Roo想讀取此檔案:",
+		"wantsToReadOutsideWorkspace": "Roo想讀取此工作區外的檔案:",
 		"didRead": "Roo已讀取此檔案:",
 		"wantsToEdit": "Roo想編輯此檔案:",
+		"wantsToEditOutsideWorkspace": "Roo想編輯此工作區外的檔案:",
 		"wantsToCreate": "Roo想創建新檔案:"
 	},
 	"directoryOperations": {

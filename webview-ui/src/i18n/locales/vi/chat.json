@@ -107,8 +107,10 @@
 	},
 	"fileOperations": {
 		"wantsToRead": "Roo muốn đọc tệp này:",
+		"wantsToReadOutsideWorkspace": "Roo muốn đọc tệp này bên ngoài không gian làm việc:",
 		"didRead": "Roo đã đọc tệp này:",
 		"wantsToEdit": "Roo muốn chỉnh sửa tệp này:",
+		"wantsToEditOutsideWorkspace": "Roo muốn chỉnh sửa tệp này bên ngoài không gian làm việc:",
 		"wantsToCreate": "Roo muốn tạo một tệp mới:"
 	},
 	"directoryOperations": {

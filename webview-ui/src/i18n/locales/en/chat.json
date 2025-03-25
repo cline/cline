@@ -105,8 +105,10 @@
 	},
 	"fileOperations": {
 		"wantsToRead": "Roo wants to read this file:",
+		"wantsToReadOutsideWorkspace": "Roo wants to read this file outside of the workspace:",
 		"didRead": "Roo read this file:",
 		"wantsToEdit": "Roo wants to edit this file:",
+		"wantsToEditOutsideWorkspace": "Roo wants to edit this file outside of the workspace:",
 		"wantsToCreate": "Roo wants to create a new file:"
 	},
 	"directoryOperations": {
