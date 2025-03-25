@@ -17,6 +17,7 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 	const [showMenu, setShowMenu] = useState(false)
 	const [hasMouseEntered, setHasMouseEntered] = useState(false)
 	const [testingConnection, setTestingConnection] = useState(false)
+	const [debugMode, usedebugMode] = useState(false)
 	const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const menuRef = useRef<HTMLDivElement>(null)
@@ -150,11 +151,11 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 	// 	})
 	// }
 
-	// const relaunchChromeDebugMode = () => {
-	// 	vscode.postMessage({
-	// 		type: "relaunchChromeDebugMode",
-	// 	})
-	// }
+	const relaunchChromeDebugMode = () => {
+		vscode.postMessage({
+			type: "relaunchChromeDebugMode",
+		})
+	}
 
 	return (
 		<div ref={containerRef} style={{ position: "relative", marginTop: "-1px" }} onMouseLeave={handleControlsMouseLeave}>
@@ -207,6 +208,13 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 										disabled={testingConnection}
 										onClick={browserSettings.remoteBrowserHost ? testConnection : discoverBrowser}>
 										{testingConnection ? "Testing..." : "Test Connection"}
+									</VSCodeButton>
+									<VSCodeButton
+										disabled={debugMode}
+										onClick={
+											browserSettings.remoteBrowserHost ? relaunchChromeDebugMode : relaunchChromeDebugMode
+										}>
+										{debugMode ? "Relaunching Browser..." : "Relaunch Browser in Debug Mode"}
 									</VSCodeButton>
 								</div>
 

@@ -691,11 +691,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							text: message.text,
 						})
 						break
-					// case "relaunchChromeDebugMode":
-					// 	if (this.cline) {
-					// 		this.cline.browserSession.relaunchChromeDebugMode()
-					// 	}
-					// 	break
+					case "relaunchChromeDebugMode":
+						const { browserSettings } = await this.getState()
+						const browserSession = new BrowserSession(this.context, browserSettings)
+						await browserSession.relaunchChromeDebugMode(webview)
+						break
 					case "askResponse":
 						this.cline?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 						break

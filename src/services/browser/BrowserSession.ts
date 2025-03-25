@@ -11,7 +11,7 @@ import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
 import { BrowserSettings } from "../../shared/BrowserSettings"
 import { discoverChromeInstances, testBrowserConnection } from "./browserDiscovery"
-// import * as chromeLauncher from "chrome-launcher"
+import * as chromeLauncher from "chrome-launcher"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -64,43 +64,58 @@ export class BrowserSession {
 		return stats
 	}
 
-	// async relaunchChromeDebugMode() {
-	// 	const result = await vscode.window.showWarningMessage(
-	// 		"This will close your existing Chrome tabs and relaunch Chrome in debug mode. Are you sure?",
-	// 		{ modal: true },
-	// 		"Yes",
-	// 	)
+	async relaunchChromeDebugMode(webview?: vscode.Webview) {
+		const result = await vscode.window.showWarningMessage(
+			"This will close your existing Chrome tabs and relaunch Chrome in debug mode. Are you sure?",
+			{ modal: true },
+			"Yes",
+		)
 
-	// 	if (result !== "Yes") {
-	// 		return
-	// 	}
+		if (result !== "Yes") {
+			webview?.postMessage({ type: "browserRelaunchResult", success: false, text: "Operation cancelled by user" })
+			return
+		}
 
-	// 	// // Kill any existing Chrome instances
-	// 	// await chromeLauncher.killAll()
+		try {
+			// Kill any existing Chrome instances
+			await chromeLauncher.killAll()
 
-	// 	// // Launch Chrome with debug port
-	// 	// const launcher = new chromeLauncher.Launcher({
-	// 	// 	port: DEBUG_PORT,
-	// 	// 	chromeFlags: ["--remote-debugging-port=" + DEBUG_PORT, "--no-first-run", "--no-default-browser-check"],
-	// 	// })
+			// Launch Chrome with debug port
+			const launcher = new chromeLauncher.Launcher({
+				port: DEBUG_PORT,
+				chromeFlags: ["--remote-debugging-port=" + DEBUG_PORT, "--no-first-run", "--no-default-browser-check"],
+			})
 
-	// 	// await launcher.launch()
-	// 	const installation = chromeLauncher.Launcher.getFirstInstallation()
-	// 	if (!installation) {
-	// 		throw new Error("Could not find Chrome installation on this system")
-	// 	}
-	// 	console.log("chrome installation", installation)
-	// }
+			await launcher.launch()
+			const installation = chromeLauncher.Launcher.getFirstInstallation()
+			if (!installation) {
+				throw new Error("Could not find Chrome installation on this system")
+			}
+			console.log("chrome installation", installation)
 
-	// private async getSystemChromeExecutablePath(): Promise<string> {
-	// 	// Find installed Chrome
-	// 	const installation = chromeLauncher.Launcher.getFirstInstallation()
-	// 	if (!installation) {
-	// 		throw new Error("Could not find Chrome installation on this system")
-	// 	}
-	// 	console.log("chrome installation", installation)
-	// 	return installation
-	// }
+			webview?.postMessage({
+				type: "browserRelaunchResult",
+				success: true,
+				text: "Browser successfully launched in debug mode",
+			})
+		} catch (error) {
+			webview?.postMessage({
+				type: "browserRelaunchResult",
+				success: false,
+				text: `Failed to relaunch Chrome: ${error.message}`,
+			})
+		}
+	}
+
+	//private async getSystemChromeExecutablePath(): Promise<string> {
+	//	// Find installed Chrome
+	//	const installation = chromeLauncher.Launcher.getFirstInstallation()
+	//	if (!installation) {
+	//		throw new Error("Could not find Chrome installation on this system")
+	//	}
+	//	console.log("chrome installation", installation)
+	//	return installation
+	//}
 
 	async launchBrowser() {
 		if (this.browser) {
