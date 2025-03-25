@@ -149,6 +149,48 @@ All files under the `.clinerules/` directory are recursively loaded, and their c
     └── .jest-clinerules
 ```
 
+### Automatically select the clinerules to load using the `.mdc` file.
+Previously, the .clinerules directory supported only simple text-based rule files. However, as the project scales, there is an increasing demand for more flexible and detailed rule specifications.
+
+* Conditional rule application using glob patterns
+* Improved readability and manageability through metadata, including titles and descriptions
+
+#### Usage Example
+
+Below is a practical example of an `.mdc` file:
+
+backend-guidelines.mdc
+
+```md
+---
+title: Backend Development Guidelines
+description: Rules for writing backend code
+glob: "backend/**/*.js"
+---
+
+## Coding Rules
+
+- All functions must use async/await syntax.
+- Use camelCase for variable naming.
+- Remove unnecessary console.log statements.
+- API responses must include HTTP status codes.
+- Load environment variables from a .env file.
+- Limit function arguments to five or fewer.
+- Use shared modules for database connection handling.
+- Implement detailed error handling with try-catch blocks.
+- Add comments only to complex code sections.
+- Immediately remove unused code.
+```
+
+The above .mdc file applies only to requests targeting JavaScript files within the backend/ directory.
+
+#### Notes
+
+If a parsing error occurs, the original file content will be returned to maintain usability.
+
+Existing text-based rule files will continue to function as befor
+
+
 ## Prompting Cline 💬
 
 **Prompting is how you communicate your needs for a given task in the back-and-forth chat with Cline.** Cline understands natural language, so write conversationally.

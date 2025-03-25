@@ -1333,7 +1333,10 @@ export class Cline {
 									const fileContentPaths = [
 										...previousRequest.text!.matchAll(/<(file|folder)_content path=\\"(.*?)\\">/g),
 									].map((m) => m[2])
-									if (!fileContentPaths.some((path) => minimatch(path, metadata.glob))) {
+									if (
+										fileContentPaths.length !== 0 &&
+										!fileContentPaths.some((path) => minimatch(path, metadata.glob))
+									) {
 										return ""
 									}
 									return `---\nFilePath:${ruleFilePathRelative}\nTitle:${metadata.title}\nDescription:${metadata.description}\n${content}`
