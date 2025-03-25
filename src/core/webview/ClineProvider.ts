@@ -1664,13 +1664,22 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			*/
 			if (response.data?.data) {
 				const rawModels = response.data.data
+
+				const { apiConfiguration } = await this.getState()
+				const isClineProvider = apiConfiguration?.apiProvider === "cline"
+
+				const availableModels = isClineProvider
+					? rawModels.filter((model: any) => !model.id.includes(":free"))
+					: rawModels
+
 				const parsePrice = (price: any) => {
 					if (price) {
 						return parseFloat(price) * 1_000_000
 					}
 					return undefined
 				}
-				for (const rawModel of rawModels) {
+
+				for (const rawModel of availableModels) {
 					const modelInfo: ModelInfo = {
 						maxTokens: rawModel.top_provider?.max_completion_tokens,
 						contextWindow: rawModel.context_length,
