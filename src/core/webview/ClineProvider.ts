@@ -1009,7 +1009,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "scrollToSettings": {
 						await this.postMessageToWebview({
 							type: "scrollToSettings",
-							text: message.text
+							text: message.text,
 						})
 						break
 					}

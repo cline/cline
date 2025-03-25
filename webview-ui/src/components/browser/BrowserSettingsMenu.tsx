@@ -14,14 +14,14 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWid
 	const openBrowserSettings = () => {
 		// First open the settings panel
 		vscode.postMessage({
-			type: "openSettings"
+			type: "openSettings",
 		})
-		
+
 		// After a short delay, send a message to scroll to browser settings
 		setTimeout(() => {
 			vscode.postMessage({
 				type: "scrollToSettings",
-				text: "browser-settings-section"
+				text: "browser-settings-section",
 			})
 		}, 300) // Give the settings panel time to open
 	}
