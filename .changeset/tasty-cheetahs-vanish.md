@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Add saito-sv as CodeOwner
+DangerButton.tsx to Tailwind

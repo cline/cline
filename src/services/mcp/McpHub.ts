@@ -8,13 +8,13 @@ import {
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import chokidar, { FSWatcher } from "chokidar"
-import delay from "delay"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
-import { ClineProvider, GlobalFileNames } from "../../core/webview/ClineProvider"
+import { ClineProvider } from "../../core/webview/ClineProvider"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpMode,
@@ -29,6 +29,7 @@ import {
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
 import { secondsToMs } from "../../utils/time"
+import { GlobalFileNames } from "../../global-constants"
 export type McpConnection = {
 	server: McpServer
 	client: Client
@@ -414,7 +415,7 @@ export class McpHub {
 			connection.server.status = "connecting"
 			connection.server.error = ""
 			await this.notifyWebviewOfServerChanges()
-			await delay(500) // artificial delay to show user that server is restarting
+			await setTimeoutPromise(500) // artificial delay to show user that server is restarting
 			try {
 				await this.deleteConnection(serverName)
 				// Try to connect again using existing config
