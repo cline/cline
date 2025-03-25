@@ -42,10 +42,11 @@ export class OpenAiHandler implements ApiHandler {
 		]
 		let temperature: number | undefined = this.options.openAiModelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined = undefined
-		let maxTokens: number | undefined =
-			Number(this.options.openAiModelInfo?.maxTokens) ?? openAiModelInfoSaneDefaults.maxTokens
+		let maxTokens: number | undefined
 
-		if (typeof maxTokens === "number" && maxTokens < 0) {
+		if (this.options.openAiModelInfo?.maxTokens && this.options.openAiModelInfo.maxTokens > 0) {
+			maxTokens = Number(this.options.openAiModelInfo.maxTokens)
+		} else {
 			maxTokens = undefined
 		}
 
