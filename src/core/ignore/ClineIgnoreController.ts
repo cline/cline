@@ -66,11 +66,10 @@ export class ClineIgnoreController {
 			// Reset ignore instance to prevent duplicate patterns
 			this.ignoreInstance = ignore()
 			const ignorePath = path.join(this.cwd, ".clineignore")
-
 			if (await fileExistsAtPath(ignorePath)) {
-				const rawContent = await fs.readFile(ignorePath, "utf8")
-				this.clineIgnoreContent = rawContent
-				await this.processIgnoreContent(rawContent)
+				const content = await fs.readFile(ignorePath, "utf8")
+				this.clineIgnoreContent = content
+				await this.processIgnoreContent(content)
 				this.ignoreInstance.add(".clineignore")
 			} else {
 				this.clineIgnoreContent = undefined
