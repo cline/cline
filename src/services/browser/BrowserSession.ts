@@ -140,6 +140,8 @@ export class BrowserSession {
 			console.log("launch browser called -- remote host mode")
 			try {
 				await this.launchRemoteBrowser()
+				// Don't create a new page here, as we'll create it in launchRemoteBrowser
+				return
 			} catch (error) {
 				console.error("Failed to launch remote browser, falling back to headless:", error)
 				await this.launchHeadlessBrowser()
@@ -195,6 +197,21 @@ export class BrowserSession {
 			return { width, height }
 		}
 
+		// First try auto-discovery if no host is provided
+		if (!remoteBrowserHost) {
+			try {
+				console.log("No remote browser host provided, trying auto-discovery")
+				const discoveredHost = await discoverChromeInstances()
+
+				if (discoveredHost) {
+					console.log(`Auto-discovered Chrome at ${discoveredHost}`)
+					remoteBrowserHost = discoveredHost
+				}
+			} catch (error) {
+				console.log(`Auto-discovery failed: ${error}`)
+			}
+		}
+
 		// Try to connect with cached endpoint first if it exists and is recent (less than 1 hour old)
 		if (browserWSEndpoint && Date.now() - this.lastConnectionAttempt < 3600000) {
 			try {
@@ -216,7 +233,7 @@ export class BrowserSession {
 			}
 		}
 
-		// Try to connect with user-provided host
+		// Try to connect with host (either user-provided or auto-discovered)
 		if (remoteBrowserHost) {
 			try {
 				// Fetch the WebSocket endpoint from the Chrome DevTools Protocol
@@ -240,43 +257,11 @@ export class BrowserSession {
 					browserWSEndpoint,
 					defaultViewport: getViewport(),
 				})
+				this.page = await this.browser?.newPage()
 				return
 			} catch (error) {
-				console.log(`Failed to connect to remote browser, trying auto-discovery: ${error}`)
+				console.log(`Failed to connect to remote browser: ${error}`)
 			}
-		} else {
-			console.log("No remote browser host provided, trying auto-discovery")
-		}
-
-		// Always try auto-discovery if no custom URL is specified or if connection failed
-		try {
-			console.log("Attempting auto-discovery...")
-			const discoveredHost = await discoverChromeInstances()
-
-			if (discoveredHost) {
-				console.log(`Auto-discovered Chrome at ${discoveredHost}`)
-
-				// Don't save the discovered host to global state to avoid overriding user preference
-				// We'll just use it for this session
-
-				// Try to connect to the discovered host
-				const testResult = await testBrowserConnection(discoveredHost)
-
-				if (testResult.success && testResult.endpoint) {
-					// Cache the successful endpoint
-					this.cachedWebSocketEndpoint = testResult.endpoint
-					this.lastConnectionAttempt = Date.now()
-
-					this.browser = await connect({
-						browserWSEndpoint: testResult.endpoint,
-						defaultViewport: getViewport(),
-					})
-					this.page = await this.browser?.newPage()
-					return
-				}
-			}
-		} catch (error) {
-			console.log(`Auto-discovery failed: ${error}`)
 		}
 		
 		// If we get here, all connection attempts failed
