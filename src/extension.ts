@@ -32,6 +32,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const sidebarProvider = new ClineProvider(context, outputChannel)
 
+	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
+
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, sidebarProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
@@ -192,6 +194,20 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
+
+	// Register size testing commands in development mode
+	if (IS_DEV && IS_DEV === "true") {
+		// Use dynamic import to avoid loading the module in production
+		import("./dev/commands/tasks")
+			.then((module) => {
+				const devTaskCommands = module.registerTaskCommands(context, sidebarProvider)
+				context.subscriptions.push(...devTaskCommands)
+				Logger.log("Cline dev task commands registered")
+			})
+			.catch((error) => {
+				Logger.log("Failed to register dev task commands: " + error)
+			})
+	}
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.addToChat", async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
