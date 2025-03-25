@@ -676,6 +676,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					return false
 				}
 
+				if (tool?.tool === "fetchInstructions") {
+					if (tool.content === "create_mode") {
+						return alwaysAllowModeSwitch
+					}
+					if (tool.content === "create_mcp_server") {
+						return alwaysAllowMcp
+					}
+				}
+
 				if (tool?.tool === "switchMode") {
 					return alwaysAllowModeSwitch
 				}

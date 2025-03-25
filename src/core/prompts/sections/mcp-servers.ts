@@ -69,9 +69,7 @@ ${connectedServers}`
 		`
 ## Creating an MCP Server
 
-The user may ask you something along the lines of "add a tool" that does some function, in other words to create an MCP server that provides tools and resources that may connect to external APIs for example.  You have the ability to create an MCP server and add it to a configuration file that will then expose the tools and resources for you to use with \`use_mcp_tool\` and \`access_mcp_resource\`.
-
-You can obtain detailed instructions on this topic using the fetch_instructions tool, like this:
+The user may ask you something along the lines of "add a tool" that does some function, in other words to create an MCP server that provides tools and resources that may connect to external APIs for example. If they do, you should obtain detailed instructions on this topic using the fetch_instructions tool, like this:
 <fetch_instructions>
 <task>create_mcp_server</task>
 </fetch_instructions>`
