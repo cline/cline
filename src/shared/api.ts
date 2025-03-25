@@ -1207,7 +1207,7 @@ export const askSageModels = {
 // https://docs.nebius.com/studio/inference/models
 export type nebiusModelId = keyof typeof nebiusModels
 export const nebiusDefaultModelId: nebiusModelId = "Qwen/Qwen2.5-32B-Instruct-fast"
-export const nebiusDefaultURL: string = " https://api.studio.nebius.ai/v1"
+export const nebiusDefaultURL: string = "https://api.studio.nebius.ai/v1"
 export const nebiusModels = {
 	"deepseek-ai/DeepSeek-V3": {
 		maxTokens: 32_000,
