@@ -91,6 +91,10 @@
 			"TERMINAL_EXPLAIN": {
 				"label": "Explain Terminal Command",
 				"description": "Get detailed explanations of terminal commands and their outputs. Available in the terminal context menu (right-click on selected terminal content)."
+			},
+			"NEW_TASK": {
+				"label": "Start New Task",
+				"description": "Start a new task with user input. Available in the Command Palette."
 			}
 		}
 	},

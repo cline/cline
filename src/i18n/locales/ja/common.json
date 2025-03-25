@@ -83,5 +83,9 @@
 		"path_placeholder": "D:\\RooCodeStorage",
 		"enter_absolute_path": "絶対パスを入力してください（例：D:\\RooCodeStorage または /home/user/storage）",
 		"enter_valid_path": "有効なパスを入力してください"
+	},
+	"input": {
+		"task_prompt": "Rooにどんなことをさせますか？",
+		"task_placeholder": "タスクをここに入力してください"
 	}
 }

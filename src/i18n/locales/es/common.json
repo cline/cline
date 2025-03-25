@@ -83,5 +83,9 @@
 		"path_placeholder": "D:\\RooCodeStorage",
 		"enter_absolute_path": "Por favor, ingresa una ruta absoluta (por ejemplo, D:\\RooCodeStorage o /home/user/storage)",
 		"enter_valid_path": "Por favor, ingresa una ruta válida"
+	},
+	"input": {
+		"task_prompt": "¿Qué debe hacer Roo?",
+		"task_placeholder": "Escribe tu tarea aquí"
 	}
 }

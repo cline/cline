@@ -2893,7 +2893,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 									if (item.mimeType?.startsWith("image") && item.blob) {
 										images.push(item.blob)
 									}
-								});
+								})
 								await this.say("mcp_server_response", resourceResultPretty, images)
 								pushToolResult(formatResponse.toolResult(resourceResultPretty, images))
 								break

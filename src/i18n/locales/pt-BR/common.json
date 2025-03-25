@@ -1,4 +1,8 @@
 {
+	"input": {
+		"task_prompt": "O que você quer que o Roo faça?",
+		"task_placeholder": "Digite sua tarefa aqui"
+	},
 	"extension": {
 		"name": "Roo Code",
 		"description": "Uma equipe completa de desenvolvedores com IA em seu editor."

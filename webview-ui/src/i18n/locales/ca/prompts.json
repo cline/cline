@@ -91,6 +91,10 @@
 			"TERMINAL_EXPLAIN": {
 				"label": "Explicar comanda del terminal",
 				"description": "Obtingueu explicacions detallades de les comandes del terminal i les seves sortides. Disponible al menú contextual del terminal (clic dret al contingut seleccionat del terminal)."
+			},
+			"NEW_TASK": {
+				"label": "Iniciar nova tasca",
+				"description": "Inicieu una nova tasca amb l'entrada proporcionada. Disponible a la paleta de comandes."
 			}
 		}
 	},

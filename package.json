@@ -141,6 +141,11 @@
 				"category": "Roo Code"
 			},
 			{
+				"command": "roo-cline.newTask",
+				"title": "New Task",
+				"category": "Roo Code"
+			},
+			{
 				"command": "roo-cline.terminalAddToContext",
 				"title": "Add Terminal Content to Context",
 				"category": "Terminal"

@@ -83,5 +83,9 @@
 		"path_placeholder": "D:\\RooCodeStorage",
 		"enter_absolute_path": "Vui lòng nhập đường dẫn tuyệt đối (ví dụ: D:\\RooCodeStorage hoặc /home/user/storage)",
 		"enter_valid_path": "Vui lòng nhập đường dẫn hợp lệ"
+	},
+	"input": {
+		"task_prompt": "Bạn muốn Roo làm gì?",
+		"task_placeholder": "Nhập nhiệm vụ của bạn ở đây"
 	}
 }

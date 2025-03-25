@@ -7,6 +7,7 @@ export const ACTION_NAMES = {
 	FIX_LOGIC: "Roo Code: Fix Logic",
 	IMPROVE: "Roo Code: Improve Code",
 	ADD_TO_CONTEXT: "Roo Code: Add to Context",
+	NEW_TASK: "Roo Code: New Task",
 } as const
 
 export const COMMAND_IDS = {
@@ -14,6 +15,7 @@ export const COMMAND_IDS = {
 	FIX: "roo-cline.fixCode",
 	IMPROVE: "roo-cline.improveCode",
 	ADD_TO_CONTEXT: "roo-cline.addToContext",
+	NEW_TASK: "roo-cline.newTask",
 } as const
 
 export class CodeActionProvider implements vscode.CodeActionProvider {

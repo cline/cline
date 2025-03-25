@@ -83,5 +83,9 @@
 		"path_placeholder": "D:\\RooCodeStorage",
 		"enter_absolute_path": "请输入绝对路径（例如 D:\\RooCodeStorage 或 /home/user/storage）",
 		"enter_valid_path": "请输入有效的路径"
+	},
+	"input": {
+		"task_prompt": "让Roo做什么？",
+		"task_placeholder": "在这里输入任务"
 	}
 }

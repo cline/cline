@@ -91,6 +91,10 @@
 			"TERMINAL_EXPLAIN": {
 				"label": "Terminal-Befehl erklären",
 				"description": "Erhalten Sie detaillierte Erklärungen zu Terminal-Befehlen und deren Ausgaben. Verfügbar im Kontextmenü des Terminals (Rechtsklick auf ausgewählten Terminal-Inhalt)."
+			},
+			"NEW_TASK": {
+				"label": "Neue Aufgabe starten",
+				"description": "Starte eine neue Aufgabe mit deiner Eingabe. Verfügbar in der Befehlspalette."
 			}
 		}
 	},

@@ -83,5 +83,9 @@
 		"path_placeholder": "D:\\RooCodeStorage",
 		"enter_absolute_path": "절대 경로를 입력하세요 (예: D:\\RooCodeStorage 또는 /home/user/storage)",
 		"enter_valid_path": "유효한 경로를 입력하세요"
+	},
+	"input": {
+		"task_prompt": "Roo에게 무엇을 시킬까요?",
+		"task_placeholder": "여기에 작업을 입력하세요"
 	}
 }

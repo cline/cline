@@ -167,6 +167,10 @@ jest.mock("vscode", () => ({
 		joinPath: jest.fn(),
 		file: jest.fn(),
 	},
+	CodeActionKind: {
+		QuickFix: { value: "quickfix" },
+		RefactorRewrite: { value: "refactor.rewrite" },
+	},
 	window: {
 		showInformationMessage: jest.fn(),
 		showErrorMessage: jest.fn(),
