@@ -67,21 +67,14 @@ export class ClineIgnoreController {
 			this.ignoreInstance = ignore()
 			const ignorePath = path.join(this.cwd, ".clineignore")
 
-			// Early return: file does not exist
-			if (!(await fileExistsAtPath(ignorePath))) {
+			if (await fileExistsAtPath(ignorePath)) {
+				const rawContent = await fs.readFile(ignorePath, "utf8")
+				this.clineIgnoreContent = rawContent
+				await this.processIgnoreContent(rawContent)
+				this.ignoreInstance.add(".clineignore")
+			} else {
 				this.clineIgnoreContent = undefined
-				return
 			}
-
-			// Read file content
-			const rawContent = await fs.readFile(ignorePath, "utf8")
-			this.clineIgnoreContent = rawContent
-
-			// Process content and add to ignore instance
-			await this.processIgnoreContent(rawContent)
-
-			// Always ignore the .clineignore file itself
-			this.ignoreInstance.add(".clineignore")
 		} catch (error) {
 			// Should never happen: reading file failed even though it exists
 			console.error("Unexpected error loading .clineignore:", error)
