@@ -93,6 +93,7 @@ export interface ModelInfo {
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
+	isR1FormatRequired?: boolean
 }
 
 // Anthropic
@@ -437,6 +438,7 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	contextWindow: 128_000,
 	supportsImages: true,
 	supportsPromptCache: false,
+	isR1FormatRequired: false,
 	inputPrice: 0,
 	outputPrice: 0,
 	temperature: 0,
