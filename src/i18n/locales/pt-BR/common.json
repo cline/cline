@@ -48,7 +48,9 @@
 		"hmr_not_running": "O servidor de desenvolvimento local não está em execução, o HMR não funcionará. Por favor, execute 'npm run dev' antes de iniciar a extensão para habilitar o HMR.",
 		"retrieve_current_mode": "Erro ao recuperar o modo atual do estado.",
 		"failed_delete_repo": "Falha ao excluir o repositório ou ramificação associada: {{error}}",
-		"failed_remove_directory": "Falha ao remover o diretório de tarefas: {{error}}"
+		"failed_remove_directory": "Falha ao remover o diretório de tarefas: {{error}}",
+		"custom_storage_path_unusable": "O caminho de armazenamento personalizado \"{{path}}\" não pode ser usado, será usado o caminho padrão",
+		"cannot_access_path": "Não é possível acessar o caminho {{path}}: {{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "Nenhum conteúdo do terminal selecionado",
@@ -61,7 +63,9 @@
 		"mcp_server_restarting": "Reiniciando o servidor MCP {{serverName}}...",
 		"mcp_server_connected": "Servidor MCP {{serverName}} conectado",
 		"mcp_server_deleted": "Servidor MCP excluído: {{serverName}}",
-		"mcp_server_not_found": "Servidor \"{{serverName}}\" não encontrado na configuração"
+		"mcp_server_not_found": "Servidor \"{{serverName}}\" não encontrado na configuração",
+		"custom_storage_path_set": "Caminho de armazenamento personalizado definido: {{path}}",
+		"default_storage_path": "Retornado ao caminho de armazenamento padrão"
 	},
 	"answers": {
 		"yes": "Sim",
@@ -73,5 +77,11 @@
 	"tasks": {
 		"canceled": "Erro na tarefa: Foi interrompida e cancelada pelo usuário.",
 		"deleted": "Falha na tarefa: Foi interrompida e excluída pelo usuário."
+	},
+	"storage": {
+		"prompt_custom_path": "Digite o caminho de armazenamento personalizado para o histórico de conversas, deixe em branco para usar o local padrão",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "Por favor, digite um caminho absoluto (ex: D:\\RooCodeStorage ou /home/user/storage)",
+		"enter_valid_path": "Por favor, digite um caminho válido"
 	}
 }

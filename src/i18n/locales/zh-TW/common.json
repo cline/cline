@@ -48,7 +48,9 @@
 		"hmr_not_running": "本地開發服務器未運行，HMR將不起作用。請在啟動擴展前運行'npm run dev'以啟用HMR。",
 		"retrieve_current_mode": "從狀態中檢索當前模式失敗。",
 		"failed_delete_repo": "刪除關聯的影子倉庫或分支失敗：{{error}}",
-		"failed_remove_directory": "刪除任務目錄失敗：{{error}}"
+		"failed_remove_directory": "刪除任務目錄失敗：{{error}}",
+		"custom_storage_path_unusable": "自定義存儲路徑 \"{{path}}\" 不可用，將使用默認路徑",
+		"cannot_access_path": "無法訪問路徑 {{path}}：{{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "沒有選擇終端內容",
@@ -61,7 +63,9 @@
 		"mcp_server_restarting": "正在重啟{{serverName}}MCP服務器...",
 		"mcp_server_connected": "{{serverName}}MCP服務器已連接",
 		"mcp_server_deleted": "已刪除MCP服務器：{{serverName}}",
-		"mcp_server_not_found": "在配置中未找到服務器\"{{serverName}}\""
+		"mcp_server_not_found": "在配置中未找到服務器\"{{serverName}}\"",
+		"custom_storage_path_set": "自定義存儲路徑已設置：{{path}}",
+		"default_storage_path": "已恢復使用默認存儲路徑"
 	},
 	"answers": {
 		"yes": "是",
@@ -73,5 +77,11 @@
 	"tasks": {
 		"canceled": "任務錯誤：它已被用戶停止並取消。",
 		"deleted": "任務失敗：它已被用戶停止並刪除。"
+	},
+	"storage": {
+		"prompt_custom_path": "輸入自定義會話歷史存儲路徑，留空以使用默認位置",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "請輸入絕對路徑（例如 D:\\RooCodeStorage 或 /home/user/storage）",
+		"enter_valid_path": "請輸入有效的路徑"
 	}
 }

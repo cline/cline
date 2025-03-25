@@ -48,7 +48,9 @@
 		"hmr_not_running": "本地开发服务器未运行，HMR将不起作用。请在启动扩展前运行'npm run dev'以启用HMR。",
 		"retrieve_current_mode": "从状态中检索当前模式失败。",
 		"failed_delete_repo": "删除关联的影子仓库或分支失败：{{error}}",
-		"failed_remove_directory": "删除任务目录失败：{{error}}"
+		"failed_remove_directory": "删除任务目录失败：{{error}}",
+		"custom_storage_path_unusable": "自定义存储路径 \"{{path}}\" 不可用，将使用默认路径",
+		"cannot_access_path": "无法访问路径 {{path}}：{{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "没有选择终端内容",
@@ -61,7 +63,9 @@
 		"mcp_server_restarting": "正在重启{{serverName}}MCP服务器...",
 		"mcp_server_connected": "{{serverName}}MCP服务器已连接",
 		"mcp_server_deleted": "已删除MCP服务器：{{serverName}}",
-		"mcp_server_not_found": "在配置中未找到服务器\"{{serverName}}\""
+		"mcp_server_not_found": "在配置中未找到服务器\"{{serverName}}\"",
+		"custom_storage_path_set": "自定义存储路径已设置：{{path}}",
+		"default_storage_path": "已恢复使用默认存储路径"
 	},
 	"answers": {
 		"yes": "是",
@@ -73,5 +77,11 @@
 	"tasks": {
 		"canceled": "任务错误：它已被用户停止并取消。",
 		"deleted": "任务失败：它已被用户停止并删除。"
+	},
+	"storage": {
+		"prompt_custom_path": "输入自定义会话历史存储路径，留空以使用默认位置",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "请输入绝对路径（例如 D:\\RooCodeStorage 或 /home/user/storage）",
+		"enter_valid_path": "请输入有效的路径"
 	}
 }

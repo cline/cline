@@ -48,7 +48,9 @@
 		"hmr_not_running": "Local development server is not running, HMR will not work. Please run 'npm run dev' before launching the extension to enable HMR.",
 		"retrieve_current_mode": "Error: failed to retrieve current mode from state.",
 		"failed_delete_repo": "Failed to delete associated shadow repository or branch: {{error}}",
-		"failed_remove_directory": "Failed to remove task directory: {{error}}"
+		"failed_remove_directory": "Failed to remove task directory: {{error}}",
+		"custom_storage_path_unusable": "Custom storage path \"{{path}}\" is unusable, will use default path",
+		"cannot_access_path": "Cannot access path {{path}}: {{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "No terminal content selected",
@@ -61,7 +63,9 @@
 		"mcp_server_restarting": "Restarting {{serverName}} MCP server...",
 		"mcp_server_connected": "{{serverName}} MCP server connected",
 		"mcp_server_deleted": "Deleted MCP server: {{serverName}}",
-		"mcp_server_not_found": "Server \"{{serverName}}\" not found in configuration"
+		"mcp_server_not_found": "Server \"{{serverName}}\" not found in configuration",
+		"custom_storage_path_set": "Custom storage path set: {{path}}",
+		"default_storage_path": "Reverted to using default storage path"
 	},
 	"answers": {
 		"yes": "Yes",
@@ -73,5 +77,11 @@
 	"tasks": {
 		"canceled": "Task error: It was stopped and canceled by the user.",
 		"deleted": "Task failure: It was stopped and deleted by the user."
+	},
+	"storage": {
+		"prompt_custom_path": "Enter custom conversation history storage path, leave empty to use default location",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "Please enter an absolute path (e.g. D:\\RooCodeStorage or /home/user/storage)",
+		"enter_valid_path": "Please enter a valid path"
 	}
 }

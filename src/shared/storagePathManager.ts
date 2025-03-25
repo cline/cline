@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
+import { t } from "../i18n"
 
 /**
  * Gets the base storage path for conversations
@@ -39,9 +40,7 @@ export async function getStorageBasePath(defaultPath: string): Promise<string> {
 		// If path is unusable, report error and fall back to default path
 		console.error(`Custom storage path is unusable: ${error instanceof Error ? error.message : String(error)}`)
 		if (vscode.window) {
-			vscode.window.showErrorMessage(
-				`Custom storage path "${customStoragePath}" is unusable, will use default path`,
-			)
+			vscode.window.showErrorMessage(t("common:errors.custom_storage_path_unusable", { path: customStoragePath }))
 		}
 		return defaultPath
 	}
@@ -98,8 +97,8 @@ export async function promptForCustomStoragePath(): Promise<void> {
 
 	const result = await vscode.window.showInputBox({
 		value: currentPath,
-		placeHolder: "D:\\RooCodeStorage",
-		prompt: "Enter custom conversation history storage path, leave empty to use default location",
+		placeHolder: t("common:storage.path_placeholder"),
+		prompt: t("common:storage.prompt_custom_path"),
 		validateInput: (input) => {
 			if (!input) {
 				return null // Allow empty value (use default path)
@@ -111,12 +110,12 @@ export async function promptForCustomStoragePath(): Promise<void> {
 
 				// Check if path is absolute
 				if (!path.isAbsolute(input)) {
-					return "Please enter an absolute path (e.g. D:\\RooCodeStorage or /home/user/storage)"
+					return t("common:storage.enter_absolute_path")
 				}
 
 				return null // Path format is valid
 			} catch (e) {
-				return "Please enter a valid path"
+				return t("common:storage.enter_valid_path")
 			}
 		},
 	})
@@ -131,14 +130,17 @@ export async function promptForCustomStoragePath(): Promise<void> {
 				try {
 					// Test if path is accessible
 					await fs.mkdir(result, { recursive: true })
-					vscode.window.showInformationMessage(`Custom storage path set: ${result}`)
+					vscode.window.showInformationMessage(t("common:info.custom_storage_path_set", { path: result }))
 				} catch (error) {
 					vscode.window.showErrorMessage(
-						`Cannot access path ${result}: ${error instanceof Error ? error.message : String(error)}`,
+						t("common:errors.cannot_access_path", {
+							path: result,
+							error: error instanceof Error ? error.message : String(error),
+						}),
 					)
 				}
 			} else {
-				vscode.window.showInformationMessage("Reverted to using default storage path")
+				vscode.window.showInformationMessage(t("common:info.default_storage_path"))
 			}
 		} catch (error) {
 			console.error("Failed to update configuration", error)

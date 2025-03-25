@@ -48,7 +48,9 @@
 		"hmr_not_running": "Il server di sviluppo locale non è in esecuzione, l'HMR non funzionerà. Esegui 'npm run dev' prima di avviare l'estensione per abilitare l'HMR.",
 		"retrieve_current_mode": "Errore durante il recupero della modalità corrente dallo stato.",
 		"failed_delete_repo": "Impossibile eliminare il repository o il ramo associato: {{error}}",
-		"failed_remove_directory": "Impossibile rimuovere la directory delle attività: {{error}}"
+		"failed_remove_directory": "Impossibile rimuovere la directory delle attività: {{error}}",
+		"custom_storage_path_unusable": "Il percorso di archiviazione personalizzato \"{{path}}\" non è utilizzabile, verrà utilizzato il percorso predefinito",
+		"cannot_access_path": "Impossibile accedere al percorso {{path}}: {{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "Nessun contenuto del terminale selezionato",
@@ -61,7 +63,9 @@
 		"mcp_server_restarting": "Riavvio del server MCP {{serverName}}...",
 		"mcp_server_connected": "Server MCP {{serverName}} connesso",
 		"mcp_server_deleted": "Server MCP eliminato: {{serverName}}",
-		"mcp_server_not_found": "Server \"{{serverName}}\" non trovato nella configurazione"
+		"mcp_server_not_found": "Server \"{{serverName}}\" non trovato nella configurazione",
+		"custom_storage_path_set": "Percorso di archiviazione personalizzato impostato: {{path}}",
+		"default_storage_path": "Tornato al percorso di archiviazione predefinito"
 	},
 	"answers": {
 		"yes": "Sì",
@@ -73,5 +77,11 @@
 	"tasks": {
 		"canceled": "Errore attività: È stata interrotta e annullata dall'utente.",
 		"deleted": "Fallimento attività: È stata interrotta ed eliminata dall'utente."
+	},
+	"storage": {
+		"prompt_custom_path": "Inserisci il percorso di archiviazione personalizzato per la cronologia delle conversazioni, lascia vuoto per utilizzare la posizione predefinita",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "Inserisci un percorso assoluto (ad esempio D:\\RooCodeStorage o /home/user/storage)",
+		"enter_valid_path": "Inserisci un percorso valido"
 	}
 }

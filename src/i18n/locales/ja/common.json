@@ -48,7 +48,9 @@
 		"hmr_not_running": "ローカル開発サーバーが実行されていないため、HMRは機能しません。HMRを有効にするには、拡張機能を起動する前に'npm run dev'を実行してください。",
 		"retrieve_current_mode": "現在のモードを状態から取得する際にエラーが発生しました。",
 		"failed_delete_repo": "関連するシャドウリポジトリまたはブランチの削除に失敗しました：{{error}}",
-		"failed_remove_directory": "タスクディレクトリの削除に失敗しました：{{error}}"
+		"failed_remove_directory": "タスクディレクトリの削除に失敗しました：{{error}}",
+		"custom_storage_path_unusable": "カスタムストレージパス \"{{path}}\" が使用できないため、デフォルトパスを使用します",
+		"cannot_access_path": "パス {{path}} にアクセスできません：{{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "選択されたターミナルコンテンツがありません",
@@ -61,7 +63,9 @@
 		"mcp_server_restarting": "MCPサーバー{{serverName}}を再起動中...",
 		"mcp_server_connected": "MCPサーバー{{serverName}}が接続されました",
 		"mcp_server_deleted": "MCPサーバーが削除されました：{{serverName}}",
-		"mcp_server_not_found": "サーバー\"{{serverName}}\"が設定内に見つかりません"
+		"mcp_server_not_found": "サーバー\"{{serverName}}\"が設定内に見つかりません",
+		"custom_storage_path_set": "カスタムストレージパスが設定されました：{{path}}",
+		"default_storage_path": "デフォルトのストレージパスに戻りました"
 	},
 	"answers": {
 		"yes": "はい",
@@ -73,5 +77,11 @@
 	"tasks": {
 		"canceled": "タスクエラー：ユーザーによって停止およびキャンセルされました。",
 		"deleted": "タスク失敗：ユーザーによって停止および削除されました。"
+	},
+	"storage": {
+		"prompt_custom_path": "会話履歴のカスタムストレージパスを入力してください。デフォルトの場所を使用する場合は空のままにしてください",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "絶対パスを入力してください（例：D:\\RooCodeStorage または /home/user/storage）",
+		"enter_valid_path": "有効なパスを入力してください"
 	}
 }

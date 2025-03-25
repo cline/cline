@@ -48,7 +48,9 @@
 		"hmr_not_running": "Máy chủ phát triển cục bộ không chạy, HMR sẽ không hoạt động. Vui lòng chạy 'npm run dev' trước khi khởi chạy tiện ích mở rộng để bật HMR.",
 		"retrieve_current_mode": "Lỗi không thể truy xuất chế độ hiện tại từ trạng thái.",
 		"failed_delete_repo": "Không thể xóa kho lưu trữ hoặc nhánh liên quan: {{error}}",
-		"failed_remove_directory": "Không thể xóa thư mục nhiệm vụ: {{error}}"
+		"failed_remove_directory": "Không thể xóa thư mục nhiệm vụ: {{error}}",
+		"custom_storage_path_unusable": "Đường dẫn lưu trữ tùy chỉnh \"{{path}}\" không thể sử dụng được, sẽ sử dụng đường dẫn mặc định",
+		"cannot_access_path": "Không thể truy cập đường dẫn {{path}}: {{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "Không có nội dung terminal được chọn",
@@ -61,7 +63,9 @@
 		"mcp_server_restarting": "Đang khởi động lại máy chủ MCP {{serverName}}...",
 		"mcp_server_connected": "Máy chủ MCP {{serverName}} đã kết nối",
 		"mcp_server_deleted": "Đã xóa máy chủ MCP: {{serverName}}",
-		"mcp_server_not_found": "Không tìm thấy máy chủ \"{{serverName}}\" trong cấu hình"
+		"mcp_server_not_found": "Không tìm thấy máy chủ \"{{serverName}}\" trong cấu hình",
+		"custom_storage_path_set": "Đã thiết lập đường dẫn lưu trữ tùy chỉnh: {{path}}",
+		"default_storage_path": "Đã quay lại sử dụng đường dẫn lưu trữ mặc định"
 	},
 	"answers": {
 		"yes": "Có",
@@ -73,5 +77,11 @@
 	"tasks": {
 		"canceled": "Lỗi nhiệm vụ: Nó đã bị dừng và hủy bởi người dùng.",
 		"deleted": "Nhiệm vụ thất bại: Nó đã bị dừng và xóa bởi người dùng."
+	},
+	"storage": {
+		"prompt_custom_path": "Nhập đường dẫn lưu trữ tùy chỉnh cho lịch sử hội thoại, để trống để sử dụng vị trí mặc định",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "Vui lòng nhập đường dẫn tuyệt đối (ví dụ: D:\\RooCodeStorage hoặc /home/user/storage)",
+		"enter_valid_path": "Vui lòng nhập đường dẫn hợp lệ"
 	}
 }

@@ -48,7 +48,9 @@
 		"hmr_not_running": "स्थानीय विकास सर्वर चल नहीं रहा है, HMR काम नहीं करेगा। कृपया HMR सक्षम करने के लिए एक्सटेंशन लॉन्च करने से पहले 'npm run dev' चलाएँ।",
 		"retrieve_current_mode": "स्टेट से वर्तमान मोड प्राप्त करने में त्रुटि।",
 		"failed_delete_repo": "संबंधित शैडो रिपॉजिटरी या ब्रांच हटाने में विफल: {{error}}",
-		"failed_remove_directory": "टास्क डायरेक्टरी हटाने में विफल: {{error}}"
+		"failed_remove_directory": "टास्क डायरेक्टरी हटाने में विफल: {{error}}",
+		"custom_storage_path_unusable": "कस्टम स्टोरेज पाथ \"{{path}}\" उपयोग योग्य नहीं है, डिफ़ॉल्ट पाथ का उपयोग किया जाएगा",
+		"cannot_access_path": "पाथ {{path}} तक पहुंच नहीं पा रहे हैं: {{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "कोई टर्मिनल सामग्री चयनित नहीं",
@@ -61,7 +63,9 @@
 		"mcp_server_restarting": "{{serverName}} MCP सर्वर पुनः प्रारंभ हो रहा है...",
 		"mcp_server_connected": "{{serverName}} MCP सर्वर कनेक्टेड",
 		"mcp_server_deleted": "MCP सर्वर हटाया गया: {{serverName}}",
-		"mcp_server_not_found": "सर्वर \"{{serverName}}\" कॉन्फ़िगरेशन में नहीं मिला"
+		"mcp_server_not_found": "सर्वर \"{{serverName}}\" कॉन्फ़िगरेशन में नहीं मिला",
+		"custom_storage_path_set": "कस्टम स्टोरेज पाथ सेट किया गया: {{path}}",
+		"default_storage_path": "डिफ़ॉल्ट स्टोरेज पाथ का उपयोग पुनः शुरू किया गया"
 	},
 	"answers": {
 		"yes": "हां",
@@ -73,5 +77,11 @@
 	"tasks": {
 		"canceled": "टास्क त्रुटि: इसे उपयोगकर्ता द्वारा रोका और रद्द किया गया था।",
 		"deleted": "टास्क विफलता: इसे उपयोगकर्ता द्वारा रोका और हटाया गया था।"
+	},
+	"storage": {
+		"prompt_custom_path": "वार्तालाप इतिहास के लिए कस्टम स्टोरेज पाथ दर्ज करें, डिफ़ॉल्ट स्थान का उपयोग करने के लिए खाली छोड़ दें",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "कृपया एक पूर्ण पाथ दर्ज करें (उदाहरण: D:\\RooCodeStorage या /home/user/storage)",
+		"enter_valid_path": "कृपया एक वैध पाथ दर्ज करें"
 	}
 }

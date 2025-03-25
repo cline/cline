@@ -48,7 +48,9 @@
 		"hmr_not_running": "Yerel geliştirme sunucusu çalışmıyor, HMR çalışmayacak. HMR'yi etkinleştirmek için uzantıyı başlatmadan önce lütfen 'npm run dev' komutunu çalıştırın.",
 		"retrieve_current_mode": "Mevcut mod durumdan alınırken hata oluştu.",
 		"failed_delete_repo": "İlişkili gölge depo veya dal silinemedi: {{error}}",
-		"failed_remove_directory": "Görev dizini kaldırılamadı: {{error}}"
+		"failed_remove_directory": "Görev dizini kaldırılamadı: {{error}}",
+		"custom_storage_path_unusable": "Özel depolama yolu \"{{path}}\" kullanılamıyor, varsayılan yol kullanılacak",
+		"cannot_access_path": "{{path}} yoluna erişilemiyor: {{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "Seçili terminal içeriği yok",
@@ -61,7 +63,9 @@
 		"mcp_server_restarting": "{{serverName}} MCP sunucusu yeniden başlatılıyor...",
 		"mcp_server_connected": "{{serverName}} MCP sunucusu bağlandı",
 		"mcp_server_deleted": "MCP sunucusu silindi: {{serverName}}",
-		"mcp_server_not_found": "Yapılandırmada \"{{serverName}}\" sunucusu bulunamadı"
+		"mcp_server_not_found": "Yapılandırmada \"{{serverName}}\" sunucusu bulunamadı",
+		"custom_storage_path_set": "Özel depolama yolu ayarlandı: {{path}}",
+		"default_storage_path": "Varsayılan depolama yoluna geri dönüldü"
 	},
 	"answers": {
 		"yes": "Evet",
@@ -73,5 +77,11 @@
 	"tasks": {
 		"canceled": "Görev hatası: Kullanıcı tarafından durduruldu ve iptal edildi.",
 		"deleted": "Görev başarısız: Kullanıcı tarafından durduruldu ve silindi."
+	},
+	"storage": {
+		"prompt_custom_path": "Konuşma geçmişi için özel depolama yolunu girin, varsayılan konumu kullanmak için boş bırakın",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "Lütfen mutlak bir yol girin (örn. D:\\RooCodeStorage veya /home/user/storage)",
+		"enter_valid_path": "Lütfen geçerli bir yol girin"
 	}
 }

@@ -48,7 +48,9 @@
 		"hmr_not_running": "Der lokale Entwicklungsserver läuft nicht, HMR wird nicht funktionieren. Bitte führen Sie 'npm run dev' vor dem Start der Erweiterung aus, um HMR zu aktivieren.",
 		"retrieve_current_mode": "Fehler beim Abrufen des aktuellen Modus aus dem Zustand.",
 		"failed_delete_repo": "Fehler beim Löschen des zugehörigen Shadow-Repositorys oder -Zweigs: {{error}}",
-		"failed_remove_directory": "Fehler beim Entfernen des Aufgabenverzeichnisses: {{error}}"
+		"failed_remove_directory": "Fehler beim Entfernen des Aufgabenverzeichnisses: {{error}}",
+		"custom_storage_path_unusable": "Benutzerdefinierter Speicherpfad \"{{path}}\" ist nicht verwendbar, Standardpfad wird verwendet",
+		"cannot_access_path": "Zugriff auf Pfad {{path}} nicht möglich: {{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "Kein Terminal-Inhalt ausgewählt",
@@ -61,7 +63,9 @@
 		"mcp_server_restarting": "MCP-Server {{serverName}} wird neu gestartet...",
 		"mcp_server_connected": "MCP-Server {{serverName}} verbunden",
 		"mcp_server_deleted": "MCP-Server gelöscht: {{serverName}}",
-		"mcp_server_not_found": "Server \"{{serverName}}\" nicht in der Konfiguration gefunden"
+		"mcp_server_not_found": "Server \"{{serverName}}\" nicht in der Konfiguration gefunden",
+		"custom_storage_path_set": "Benutzerdefinierter Speicherpfad festgelegt: {{path}}",
+		"default_storage_path": "Auf Standardspeicherpfad zurückgesetzt"
 	},
 	"answers": {
 		"yes": "Ja",
@@ -73,5 +77,11 @@
 	"tasks": {
 		"canceled": "Aufgabenfehler: Die Aufgabe wurde vom Benutzer gestoppt und abgebrochen.",
 		"deleted": "Aufgabenfehler: Die Aufgabe wurde vom Benutzer gestoppt und gelöscht."
+	},
+	"storage": {
+		"prompt_custom_path": "Gib den benutzerdefinierten Speicherpfad für den Gesprächsverlauf ein, leer lassen für Standardspeicherort",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "Bitte gib einen absoluten Pfad ein (z.B. D:\\RooCodeStorage oder /home/user/storage)",
+		"enter_valid_path": "Bitte gib einen gültigen Pfad ein"
 	}
 }

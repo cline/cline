@@ -48,7 +48,9 @@
 		"hmr_not_running": "Lokalny serwer deweloperski nie jest uruchomiony, HMR nie będzie działać. Uruchom 'npm run dev' przed uruchomieniem rozszerzenia, aby włączyć HMR.",
 		"retrieve_current_mode": "Błąd podczas pobierania bieżącego trybu ze stanu.",
 		"failed_delete_repo": "Nie udało się usunąć powiązanego repozytorium lub gałęzi pomocniczej: {{error}}",
-		"failed_remove_directory": "Nie udało się usunąć katalogu zadania: {{error}}"
+		"failed_remove_directory": "Nie udało się usunąć katalogu zadania: {{error}}",
+		"custom_storage_path_unusable": "Niestandardowa ścieżka przechowywania \"{{path}}\" nie jest użyteczna, zostanie użyta domyślna ścieżka",
+		"cannot_access_path": "Nie można uzyskać dostępu do ścieżki {{path}}: {{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "Nie wybrano zawartości terminala",
@@ -61,7 +63,9 @@
 		"mcp_server_restarting": "Ponowne uruchamianie serwera MCP {{serverName}}...",
 		"mcp_server_connected": "Serwer MCP {{serverName}} połączony",
 		"mcp_server_deleted": "Usunięto serwer MCP: {{serverName}}",
-		"mcp_server_not_found": "Serwer \"{{serverName}}\" nie znaleziony w konfiguracji"
+		"mcp_server_not_found": "Serwer \"{{serverName}}\" nie znaleziony w konfiguracji",
+		"custom_storage_path_set": "Ustawiono niestandardową ścieżkę przechowywania: {{path}}",
+		"default_storage_path": "Wznowiono używanie domyślnej ścieżki przechowywania"
 	},
 	"answers": {
 		"yes": "Tak",
@@ -73,5 +77,11 @@
 	"tasks": {
 		"canceled": "Błąd zadania: Zostało zatrzymane i anulowane przez użytkownika.",
 		"deleted": "Niepowodzenie zadania: Zostało zatrzymane i usunięte przez użytkownika."
+	},
+	"storage": {
+		"prompt_custom_path": "Wprowadź niestandardową ścieżkę przechowywania dla historii konwersacji lub pozostaw puste, aby użyć lokalizacji domyślnej",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "Wprowadź pełną ścieżkę (np. D:\\RooCodeStorage lub /home/user/storage)",
+		"enter_valid_path": "Wprowadź prawidłową ścieżkę"
 	}
 }

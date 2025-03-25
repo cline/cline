@@ -48,7 +48,9 @@
 		"hmr_not_running": "Le serveur de développement local n'est pas en cours d'exécution, HMR ne fonctionnera pas. Veuillez exécuter 'npm run dev' avant de lancer l'extension pour activer l'HMR.",
 		"retrieve_current_mode": "Erreur lors de la récupération du mode actuel à partir du state.",
 		"failed_delete_repo": "Échec de la suppression du repo fantôme ou de la branche associée : {{error}}",
-		"failed_remove_directory": "Échec de la suppression du répertoire de tâches : {{error}}"
+		"failed_remove_directory": "Échec de la suppression du répertoire de tâches : {{error}}",
+		"custom_storage_path_unusable": "Le chemin de stockage personnalisé \"{{path}}\" est inutilisable, le chemin par défaut sera utilisé",
+		"cannot_access_path": "Impossible d'accéder au chemin {{path}} : {{error}}"
 	},
 	"warnings": {
 		"no_terminal_content": "Aucun contenu de terminal sélectionné",
@@ -61,7 +63,9 @@
 		"mcp_server_restarting": "Redémarrage du serveur MCP {{serverName}}...",
 		"mcp_server_connected": "Serveur MCP {{serverName}} connecté",
 		"mcp_server_deleted": "Serveur MCP supprimé : {{serverName}}",
-		"mcp_server_not_found": "Serveur \"{{serverName}}\" introuvable dans la configuration"
+		"mcp_server_not_found": "Serveur \"{{serverName}}\" introuvable dans la configuration",
+		"custom_storage_path_set": "Chemin de stockage personnalisé défini : {{path}}",
+		"default_storage_path": "Retour au chemin de stockage par défaut"
 	},
 	"answers": {
 		"yes": "Oui",
@@ -73,5 +77,11 @@
 	"tasks": {
 		"canceled": "Erreur de tâche : Elle a été arrêtée et annulée par l'utilisateur.",
 		"deleted": "Échec de la tâche : Elle a été arrêtée et supprimée par l'utilisateur."
+	},
+	"storage": {
+		"prompt_custom_path": "Entrez le chemin de stockage personnalisé pour l'historique des conversations, laissez vide pour utiliser l'emplacement par défaut",
+		"path_placeholder": "D:\\RooCodeStorage",
+		"enter_absolute_path": "Veuillez entrer un chemin absolu (ex. D:\\RooCodeStorage ou /home/user/storage)",
+		"enter_valid_path": "Veuillez entrer un chemin valide"
 	}
 }
