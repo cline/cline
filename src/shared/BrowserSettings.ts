@@ -9,9 +9,7 @@ export interface BrowserSettings {
 	// Chrome installation to use
 	// chromeType: "chromium" | "system"
 	remoteBrowserHost?: string
-	setCachedStateField: SetCachedStateField<
-		"browserToolEnabled" | "browserViewportSize" | "screenshotQuality" | "remoteBrowserHost"
-	>
+	remoteBrowserEnabled?: boolean
 }
 
 export const DEFAULT_BROWSER_SETTINGS: BrowserSettings = {
@@ -20,7 +18,8 @@ export const DEFAULT_BROWSER_SETTINGS: BrowserSettings = {
 		height: 600,
 	},
 	headless: true,
-	remoteBrowserHost,
+	remoteBrowserEnabled: false,
+	remoteBrowserHost: undefined,
 	// chromeType: "chromium",
 }
 
@@ -30,32 +29,3 @@ export const BROWSER_VIEWPORT_PRESETS = {
 	"Tablet (768x1024)": { width: 768, height: 1024 },
 	"Mobile (360x640)": { width: 360, height: 640 },
 } as const
-
-const testConnection = async () => {
-	try {
-		// Send a message to the extension to test the connection
-		vscode.postMessage({
-			type: "testBrowserConnection",
-			text: remoteBrowserHost,
-		})
-	} catch (error) {
-		setTestResult({
-			success: false,
-			message: `Error: ${error instanceof Error ? error.message : String(error)}`,
-		})
-	}
-}
-
-const discoverBrowser = async () => {
-	try {
-		// Send a message to the extension to discover Chrome instances
-		vscode.postMessage({
-			type: "discoverBrowser",
-		})
-	} catch (error) {
-		setTestResult({
-			success: false,
-			message: `Error: ${error instanceof Error ? error.message : String(error)}`,
-		})
-	}
-}

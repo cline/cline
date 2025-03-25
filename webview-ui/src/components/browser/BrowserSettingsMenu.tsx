@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import React, { useRef, useState } from "react"
+import React, { useRef, useState, useEffect } from "react"
 import { useClickAway } from "react-use"
 import styled from "styled-components"
 import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
@@ -16,8 +16,27 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 	const { browserSettings } = useExtensionState()
 	const [showMenu, setShowMenu] = useState(false)
 	const [hasMouseEntered, setHasMouseEntered] = useState(false)
+	const [testingConnection, setTestingConnection] = useState(false)
+	const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const menuRef = useRef<HTMLDivElement>(null)
+
+	// Listen for browser connection test results
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			const message = event.data
+			if (message.type === "browserConnectionResult") {
+				setTestResult({
+					success: message.success,
+					message: message.text,
+				})
+				setTestingConnection(false)
+			}
+		}
+
+		window.addEventListener("message", handleMessage)
+		return () => window.removeEventListener("message", handleMessage)
+	}, [])
 
 	useClickAway(containerRef, () => {
 		if (showMenu) {
@@ -82,6 +101,45 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 		})
 	}
 
+	const updateRemoteBrowserEnabled = (enabled: boolean) => {
+		vscode.postMessage({
+			type: "remoteBrowserEnabled",
+			bool: enabled,
+		})
+		
+		// If disabling, clear the host
+		if (!enabled) {
+			vscode.postMessage({
+				type: "remoteBrowserHost",
+				text: undefined,
+			})
+		}
+	}
+
+	const updateRemoteBrowserHost = (host: string | undefined) => {
+		vscode.postMessage({
+			type: "remoteBrowserHost",
+			text: host,
+		})
+	}
+
+	const testConnection = () => {
+		setTestingConnection(true)
+		setTestResult(null)
+		vscode.postMessage({
+			type: "testBrowserConnection",
+			text: browserSettings.remoteBrowserHost,
+		})
+	}
+
+	const discoverBrowser = () => {
+		setTestingConnection(true)
+		setTestResult(null)
+		vscode.postMessage({
+			type: "discoverBrowser",
+		})
+	}
+
 	// const updateChromeType = (chromeType: BrowserSettings["chromeType"]) => {
 	// 	vscode.postMessage({
 	// 		type: "browserSettings",
@@ -116,31 +174,66 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 						<SettingsDescription>When enabled, Chrome will run in the background.</SettingsDescription>
 					</SettingsGroup>
 
-					{/* update this to SettingsGroup style code */}
-					<div className="mt-4">
-						<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
-							Remote Chrome DevTools Host (optional)
-						</label>
-						<input
-							type="text"
-							value={remoteBrowserHost ?? ""}
-							placeholder="http://localhost:9222"
-							style={{
-								width: "100%",
-								padding: "4px 8px",
-								backgroundColor: "var(--vscode-input-background)",
-								color: "var(--vscode-input-foreground)",
-								border: "1px solid var(--vscode-input-border)",
-								borderRadius: "2px",
-							}}
-							onChange={(e) => setCachedStateField("remoteBrowserHost", e.target.value || undefined)}
-						/>
-						<p className="text-vscode-descriptionForeground text-sm mt-0">
-							Connect to a remote Chrome browser by providing the DevTools Protocol host address. Roo will
-							automatically fetch the WebSocket endpoint from this address. If provided, Roo will use this browser
-							instead of launching a local one. Leave empty to use the built-in browser.
-						</p>
-					</div>
+					<SettingsGroup>
+						<SettingsHeader>Remote Browser Connection</SettingsHeader>
+						<VSCodeCheckbox
+							style={{ marginBottom: "8px" }}
+							checked={browserSettings.remoteBrowserEnabled}
+							onChange={(e) => updateRemoteBrowserEnabled((e.target as HTMLInputElement).checked)}>
+							Use remote browser connection
+						</VSCodeCheckbox>
+						<SettingsDescription>
+							Connect to a Chrome browser running with remote debugging enabled (--remote-debugging-port=9222).
+						</SettingsDescription>
+
+						{browserSettings.remoteBrowserEnabled && (
+							<>
+								<div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
+									<input
+										type="text"
+										value={browserSettings.remoteBrowserHost || ""}
+										placeholder="http://localhost:9222"
+										style={{
+											flexGrow: 1,
+											padding: "4px 8px",
+											backgroundColor: "var(--vscode-input-background)",
+											color: "var(--vscode-input-foreground)",
+											border: "1px solid var(--vscode-input-border)",
+											borderRadius: "2px",
+										}}
+										onChange={(e) => updateRemoteBrowserHost(e.target.value || undefined)}
+									/>
+									<VSCodeButton
+										disabled={testingConnection}
+										onClick={browserSettings.remoteBrowserHost ? testConnection : discoverBrowser}>
+										{testingConnection ? "Testing..." : "Test Connection"}
+									</VSCodeButton>
+								</div>
+
+								{testResult && (
+									<div
+										style={{
+											padding: "8px",
+											marginTop: "8px",
+											backgroundColor: testResult.success
+												? "rgba(0, 128, 0, 0.1)"
+												: "rgba(255, 0, 0, 0.1)",
+											color: testResult.success
+												? "var(--vscode-terminal-ansiGreen)"
+												: "var(--vscode-terminal-ansiRed)",
+											borderRadius: "3px",
+											fontSize: "11px",
+										}}>
+										{testResult.message}
+									</div>
+								)}
+
+								<SettingsDescription isLast={true} style={{ marginTop: "8px" }}>
+									Enter the DevTools Protocol host address or leave empty to auto-discover Chrome instances.
+								</SettingsDescription>
+							</>
+						)}
+					</SettingsGroup>
 
 					{/* <SettingsGroup>
 						<SettingsHeader>Chrome Executable</SettingsHeader>

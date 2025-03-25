@@ -113,7 +113,7 @@ export class BrowserSession {
 	// }
 
 	// /**
-	//  * Helper to detect user’s default Chrome data dir.
+	//  * Helper to detect user's default Chrome data dir.
 	//  * Adjust for OS if needed.
 	//  */
 	// private getDefaultChromeUserDataDir(): string {
@@ -129,18 +129,24 @@ export class BrowserSession {
 	// }
 
 	async launchBrowser() {
-		const remoteBrowserHost = this.context.globalState.get("remoteBrowserHost") as string | undefined
-
 		if (this.browser) {
 			await this.closeBrowser() // this may happen when the model launches a browser again after having used it already before
 		}
 
-		if (remoteBrowserHost) {
+		// Check if remote browser connection is enabled
+		if (this.browserSettings.remoteBrowserEnabled) {
+			// Set headless to false when using remote browser
+			this.browserSettings.headless = false
 			console.log("launch browser called -- remote host mode")
-			await launchRemoteBrowser()
+			try {
+				await this.launchRemoteBrowser()
+			} catch (error) {
+				console.error("Failed to launch remote browser, falling back to headless:", error)
+				await this.launchHeadlessBrowser()
+			}
 		} else {
 			console.log("launch browser called -- headless mode")
-			await launchHeadlessBrowser()
+			await this.launchHeadlessBrowser()
 		}
 
 		// (latest version of puppeteer does not add headless to user agent)
@@ -179,7 +185,7 @@ export class BrowserSession {
 	}
 
 	async launchRemoteBrowser() {
-		let remoteBrowserHost = this.context.globalState.get("remoteBrowserHost") as string | undefined
+		let remoteBrowserHost = this.browserSettings.remoteBrowserHost
 		let browserWSEndpoint: string | undefined = this.cachedWebSocketEndpoint
 		let reconnectionAttempted = false
 
@@ -210,31 +216,36 @@ export class BrowserSession {
 			}
 		}
 
-		try {
-			// Fetch the WebSocket endpoint from the Chrome DevTools Protocol
-			const versionUrl = `${remoteBrowserHost.replace(/\/$/, "")}/json/version`
-			console.log(`Fetching WebSocket endpoint from ${versionUrl}`)
+		// Try to connect with user-provided host
+		if (remoteBrowserHost) {
+			try {
+				// Fetch the WebSocket endpoint from the Chrome DevTools Protocol
+				const versionUrl = `${remoteBrowserHost.replace(/\/$/, "")}/json/version`
+				console.log(`Fetching WebSocket endpoint from ${versionUrl}`)
 
-			const response = await axios.get(versionUrl)
-			browserWSEndpoint = response.data.webSocketDebuggerUrl
+				const response = await axios.get(versionUrl)
+				browserWSEndpoint = response.data.webSocketDebuggerUrl
 
-			if (!browserWSEndpoint) {
-				throw new Error("Could not find webSocketDebuggerUrl in the response")
+				if (!browserWSEndpoint) {
+					throw new Error("Could not find webSocketDebuggerUrl in the response")
+				}
+
+				console.log(`Found WebSocket browser endpoint: ${browserWSEndpoint}`)
+
+				// Cache the successful endpoint
+				this.cachedWebSocketEndpoint = browserWSEndpoint
+				this.lastConnectionAttempt = Date.now()
+
+				this.browser = await connect({
+					browserWSEndpoint,
+					defaultViewport: getViewport(),
+				})
+				return
+			} catch (error) {
+				console.log(`Failed to connect to remote browser, trying auto-discovery: ${error}`)
 			}
-
-			console.log(`Found WebSocket browser endpoint: ${browserWSEndpoint}`)
-
-			// Cache the successful endpoint
-			this.cachedWebSocketEndpoint = browserWSEndpoint
-			this.lastConnectionAttempt = Date.now()
-
-			this.browser = await connect({
-				browserWSEndpoint,
-				defaultViewport: getViewport(),
-			})
-			return
-		} catch (error) {
-			console.log(`Failed to connect to remote browser, trying auto-discovery: ${error}`)
+		} else {
+			console.log("No remote browser host provided, trying auto-discovery")
 		}
 
 		// Always try auto-discovery if no custom URL is specified or if connection failed
@@ -265,14 +276,16 @@ export class BrowserSession {
 				}
 			}
 		} catch (error) {
-			console.log(`Auto-discovery failed, falling back to headless: ${error}`)
+			console.log(`Auto-discovery failed: ${error}`)
 		}
+		
+		// If we get here, all connection attempts failed
+		throw new Error("Failed to connect to remote browser. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).")
 	}
 
 	async closeBrowser(): Promise<BrowserActionResult> {
 		if (this.browser || this.page) {
-			const remoteBrowserHost = this.context.globalState.get("remoteBrowserHost") as string | undefined
-			if (remoteBrowserHost && this.browser) {
+			if (this.browserSettings.remoteBrowserEnabled && this.browser) {
 				await this.browser.disconnect().catch(() => {})
 				console.log("disconnected from remote browser...")
 			} else {

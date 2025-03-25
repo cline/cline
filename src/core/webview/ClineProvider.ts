@@ -117,6 +117,8 @@ type GlobalStateKey =
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
+	| "remoteBrowserHost"
+	| "remoteBrowserEnabled"
 
 export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -592,7 +594,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "testBrowserConnection":
 						try {
-							const browserSession = new BrowserSession(this.context)
+							const { browserSettings } = await this.getState()
+							const browserSession = new BrowserSession(this.context, browserSettings)
 							// If no text is provided, try auto-discovery
 							if (!message.text) {
 								try {
@@ -650,7 +653,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								// This way we don't override the user's preference
 
 								// Test the connection to get the endpoint
-								const browserSession = new BrowserSession(this.context)
+								const { browserSettings } = await this.getState()
+								const browserSession = new BrowserSession(this.context, browserSettings)
 								const result = await browserSession.testConnection(discoveredHost)
 
 								// Send the result back to the webview
@@ -2184,6 +2188,11 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	*/
 
 	async getState() {
+		// Read settings from VSCode configuration
+		const config = vscode.workspace.getConfiguration("cline")
+		const configRemoteBrowserEnabled = config.get<boolean>("remoteBrowserEnabled")
+		const configRemoteBrowserHost = config.get<string>("remoteBrowserHost")
+
 		const [
 			storedApiProvider,
 			apiModelId,
@@ -2248,6 +2257,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			thinkingBudgetTokens,
 			sambanovaApiKey,
 			planActSeparateModelsSettingRaw,
+			remoteBrowserEnabled,
+			remoteBrowserHost,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -2312,6 +2323,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("thinkingBudgetTokens") as Promise<number | undefined>,
 			this.getSecret("sambanovaApiKey") as Promise<string | undefined>,
 			this.getGlobalState("planActSeparateModelsSetting") as Promise<boolean | undefined>,
+			this.getGlobalState("remoteBrowserEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("remoteBrowserHost") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2350,6 +2363,13 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			// this is a special case where it's a new state, but we want it to default to different values for existing and new users.
 			// persist so next time state is retrieved it's set to the correct value.
 			await this.updateGlobalState("planActSeparateModelsSetting", planActSeparateModelsSetting)
+		}
+
+		// Merge browser settings with configuration values
+		const mergedBrowserSettings = {
+			...(browserSettings || DEFAULT_BROWSER_SETTINGS),
+			remoteBrowserEnabled: remoteBrowserEnabled ?? configRemoteBrowserEnabled ?? false,
+			remoteBrowserHost: remoteBrowserHost ?? configRemoteBrowserHost ?? "http://localhost:9222",
 		}
 
 		return {
@@ -2409,7 +2429,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			customInstructions,
 			taskHistory,
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
-			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
+			browserSettings: mergedBrowserSettings,
 			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 			userInfo,
 			previousModeApiProvider,

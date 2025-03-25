@@ -35,6 +35,7 @@ export interface WebviewMessage {
 		| "autoApprovalSettings"
 		| "browserSettings"
 		| "remoteBrowserHost"
+		| "remoteBrowserEnabled"
 		| "discoverBrowser"
 		| "testBrowserConnection"
 		| "browserConnectionResult"

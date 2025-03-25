@@ -232,6 +232,16 @@
 					"default": null,
 					"description": "Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find or download it automatically."
 				},
+				"cline.remoteBrowserEnabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enable connection to a remote Chrome browser with remote debugging enabled (--remote-debugging-port=9222)."
+				},
+				"cline.remoteBrowserHost": {
+					"type": "string",
+					"default": "http://localhost:9222",
+					"description": "URL of the remote Chrome browser's DevTools Protocol endpoint. Leave empty for auto-discovery."
+				},
 				"cline.preferredLanguage": {
 					"type": "string",
 					"enum": [
