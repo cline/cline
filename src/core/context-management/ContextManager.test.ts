@@ -1,10 +1,11 @@
 import { ContextManager } from "./ContextManager"
-import { Anthropic } from "@anthropic-ai/sdk"
 import { expect } from "chai"
 
+type MessageParam = { role: "user" | "assistant"; content: string }
+
 describe("ContextManager", () => {
-	function createMessages(count: number): Anthropic.Messages.MessageParam[] {
-		const messages: Anthropic.Messages.MessageParam[] = []
+	function createMessages(count: number): MessageParam[] {
+		const messages: MessageParam[] = []
 
 		messages.push({
 			role: "user",
