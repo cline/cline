@@ -113,7 +113,26 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						})
 						setPendingTabChange(null)
 					}
-					break
+					break;
+				case "scrollToBrowserSettings":
+					// Scroll to browser settings section with a slight delay to ensure the settings view is fully rendered
+					setTimeout(() => {
+						const browserSettingsSection = document.getElementById('browser-settings-section');
+						if (browserSettingsSection) {
+							// Scroll to the element
+							browserSettingsSection.scrollIntoView({ behavior: 'smooth' });
+							
+							// Add highlight effect
+							browserSettingsSection.style.transition = 'background-color 0.5s ease';
+							browserSettingsSection.style.backgroundColor = 'rgba(255, 255, 0, 0.2)';
+							
+							// Remove highlight after a delay
+							setTimeout(() => {
+								browserSettingsSection.style.backgroundColor = 'transparent';
+							}, 1500);
+						}
+					}, 300);
+					break;
 			}
 		},
 		[pendingTabChange],
