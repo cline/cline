@@ -153,6 +153,7 @@ All files under the `.clinerules/` directory are recursively loaded, and their c
 Previously, the .clinerules directory supported only simple text-based rule files. However, as the project scales, there is an increasing demand for more flexible and detailed rule specifications.
 
 * Conditional rule application using glob patterns
+  * If the globs match the mentioned file (ex: @src/xx/xx.java), The clinerules file will be loaded.
 * Improved readability and manageability through metadata, including titles and descriptions
 
 #### Usage Example
