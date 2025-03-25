@@ -32,7 +32,7 @@ describe("ContextManager", () => {
 
 		it("first truncation with half keep", () => {
 			const messages = createMessages(11)
-			const result = contextManager.getNextTruncationRange(messages)
+			const result = contextManager.getNextTruncationRange(messages, undefined, "half")
 
 			expect(result).to.deep.equal([1, 4])
 		})
@@ -46,11 +46,11 @@ describe("ContextManager", () => {
 
 		it("sequential truncation with half keep", () => {
 			const messages = createMessages(21)
-			const firstRange = contextManager.getNextTruncationRange(messages)
+			const firstRange = contextManager.getNextTruncationRange(messages, undefined, "half")
 			expect(firstRange).to.deep.equal([1, 10])
 
 			// Pass the previous range for sequential truncation
-			const secondRange = contextManager.getNextTruncationRange(messages, firstRange)
+			const secondRange = contextManager.getNextTruncationRange(messages, firstRange, "half")
 			expect(secondRange).to.deep.equal([1, 14])
 		})
 
@@ -66,7 +66,7 @@ describe("ContextManager", () => {
 
 		it("ensures the last message in range is a user message", () => {
 			const messages = createMessages(14)
-			const result = contextManager.getNextTruncationRange(messages)
+			const result = contextManager.getNextTruncationRange(messages, undefined, "half")
 
 			// Check if the message at the end of range is a user message
 			const lastRemovedMessage = messages[result[1]]
@@ -79,14 +79,14 @@ describe("ContextManager", () => {
 
 		it("handles small message arrays", () => {
 			const messages = createMessages(3)
-			const result = contextManager.getNextTruncationRange(messages)
+			const result = contextManager.getNextTruncationRange(messages, undefined, "half")
 
 			expect(result).to.deep.equal([1, 0])
 		})
 
 		it("preserves the message structure when truncating", () => {
 			const messages = createMessages(20)
-			const result = contextManager.getNextTruncationRange(messages)
+			const result = contextManager.getNextTruncationRange(messages, undefined, "half")
 
 			// Get messages after removing the range
 			const effectiveMessages = [...messages.slice(0, result[0]), ...messages.slice(result[1] + 1)]
