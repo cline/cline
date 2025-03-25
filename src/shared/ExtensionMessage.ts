@@ -41,7 +41,7 @@ export interface ExtensionMessage {
 		| "totalTasksSize"
 		| "addToInput"
 		| "browserConnectionResult"
-		| "scrollToBrowserSettings"
+		| "scrollToSettings"
 	text?: string
 	action?:
 		| "chatButtonClicked"

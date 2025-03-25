@@ -70,7 +70,7 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
-		| "scrollToBrowserSettings"
+		| "scrollToSettings"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
