@@ -4,11 +4,12 @@ import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../src/shared/AutoApproval
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "../../../src/shared/ExtensionMessage"
 import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
-import { McpServer } from "../../../src/shared/mcp"
+import { McpMarketplaceCatalog, McpServer } from "../../../src/shared/mcp"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
 import { DEFAULT_CHAT_SETTINGS } from "../../../src/shared/ChatSettings"
+import { TelemetrySetting } from "../../../src/shared/TelemetrySetting"
 
 interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -17,10 +18,14 @@ interface ExtensionStateContextType extends ExtensionState {
 	openRouterModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	mcpServers: McpServer[]
+	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
+	totalTasksSize: number | null
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
+	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
+	setPlanActSeparateModelsSetting: (value: boolean) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -36,8 +41,10 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoApprovalSettings: DEFAULT_AUTO_APPROVAL_SETTINGS,
 		browserSettings: DEFAULT_BROWSER_SETTINGS,
 		chatSettings: DEFAULT_CHAT_SETTINGS,
-		isLoggedIn: false,
 		platform: DEFAULT_PLATFORM,
+		telemetrySetting: "unset",
+		vscMachineId: "",
+		planActSeparateModelsSetting: true,
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -46,10 +53,11 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
+	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
-
+	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
@@ -74,6 +82,10 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.qwenApiKey,
 							config.mistralApiKey,
 							config.vsCodeLmModelSelector,
+							config.clineApiKey,
+							config.asksageApiKey,
+							config.xaiApiKey,
+							config.sambanovaApiKey,
 						].some((key) => key !== undefined)
 					: false
 				setShowWelcome(!hasKey)
@@ -121,6 +133,16 @@ export const ExtensionStateContextProvider: React.FC<{
 				setMcpServers(message.mcpServers ?? [])
 				break
 			}
+			case "mcpMarketplaceCatalog": {
+				if (message.mcpMarketplaceCatalog) {
+					setMcpMarketplaceCatalog(message.mcpMarketplaceCatalog)
+				}
+				break
+			}
+			case "totalTasksSize": {
+				setTotalTasksSize(message.totalTasksSize ?? null)
+				break
+			}
 		}
 	}, [])
 
@@ -138,7 +160,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		openRouterModels,
 		openAiModels,
 		mcpServers,
+		mcpMarketplaceCatalog,
 		filePaths,
+		totalTasksSize,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -148,6 +172,16 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				customInstructions: value,
+			})),
+		setTelemetrySetting: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				telemetrySetting: value,
+			})),
+		setPlanActSeparateModelsSetting: (value) =>
+			setState((prevState) => ({
+				...prevState,
+				planActSeparateModelsSetting: value,
 			})),
 		setShowAnnouncement: (value) =>
 			setState((prevState) => ({

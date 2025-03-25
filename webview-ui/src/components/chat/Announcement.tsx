@@ -1,6 +1,7 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "../../utils/vscStyles"
+import { vscode } from "../../utils/vscode"
 
 interface AnnouncementProps {
 	version: string
@@ -30,27 +31,20 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>Plan/Act mode toggle:</b> Plan mode turns Cline into an architect that gathers information, asks clarifying
-					questions, and designs a solution. Switch back to Act mode to let him execute the plan!{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1881761978986934582" style={{ display: "inline" }}>
-						See a demo here.
-					</VSCodeLink>
+					<b>Add to Cline:</b> Right-click selected text in any file or terminal to quickly add context to your current
+					task! Plus, when you see a lightbulb icon, select 'Fix with Cline' to have Cline fix errors in your code.
 				</li>
 				<li>
-					<b>Quick API/model switching</b> with a new popup menu under the chat field
+					<b>Billing Dashboard:</b> Track your remaining credits and transaction history right in the extension with a{" "}
+					<span className="codicon codicon-account" style={{ fontSize: 11 }}></span> Cline account!
 				</li>
 				<li>
-					<b>VS Code LM API</b> lets you use models from other extensions like GitHub Copilot
+					<b>Faster Inference:</b> Cline/OpenRouter users can sort underlying providers used by throughput, price, and
+					latency. Sorting by throughput will output faster generations (at a higher cost).
 				</li>
 				<li>
-					<b>MCP server improvements:</b> On/off toggle to disable servers when not in use, and Auto-approve option for
-					individual tools
-				</li>
-				<li>
-					In case you missed it, Cline now supports Checkpoints!{" "}
-					<VSCodeLink href="https://x.com/sdrzn/status/1876378124126236949" style={{ display: "inline" }}>
-						See it in action here.
-					</VSCodeLink>
+					<b>Enhanced MCP Support:</b> Dynamic image loading with GIF support, and a new delete button to clean up
+					failed servers.
 				</li>
 			</ul>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
@@ -109,9 +103,12 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				}}
 			/>
 			<p style={{ margin: "0" }}>
-				Join our{" "}
+				Join us on{" "}
+				<VSCodeLink style={{ display: "inline" }} href="https://x.com/cline">
+					X,
+				</VSCodeLink>{" "}
 				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
-					discord
+					discord,
 				</VSCodeLink>{" "}
 				or{" "}
 				<VSCodeLink style={{ display: "inline" }} href="https://www.reddit.com/r/cline/">

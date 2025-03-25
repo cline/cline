@@ -216,9 +216,13 @@ Usage:
 Description: Ask the user a question to gather additional information needed to complete the task. This tool should be used when you encounter ambiguities, need clarification, or require more details to proceed effectively. It allows for interactive problem-solving by enabling direct communication with the user. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
+- options: (optional) An array of 2-5 options for the user to choose from. Each option should be a string describing a possible answer. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually.
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
+<options>
+Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]
+</options>
 </ask_followup_question>
 
 ## attempt_completion
@@ -239,9 +243,13 @@ Your final result description here
 Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution.
 Parameters:
 - response: (required) The response to provide to the user. Do not try to use tools in this parameter, this is simply a chat response.
+- options: (optional) An array of 2-5 options for the user to choose from. Each option should be a string describing a possible choice or path forward in the planning process. This can help guide the discussion and make it easier for the user to provide input on key decisions. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually. Do NOT present an option to toggle to Act mode, as this will be something you need to direct the user to do manually themselves.
 Usage:
 <plan_mode_response>
 <response>Your response here</response>
+<options>
+Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]
+</options>
 </plan_mode_response>
 
 # Tool Use Examples
@@ -331,7 +339,24 @@ ${
 <access_mcp_resource>
 <server_name>weather-server</server_name>
 <uri>weather://san-francisco/current</uri>
-</access_mcp_resource>`
+</access_mcp_resource>
+
+## Example 6: Another example of using an MCP tool (where the server name is a unique identifier such as a URL)
+
+<use_mcp_tool>
+<server_name>github.com/modelcontextprotocol/servers/tree/main/src/github</server_name>
+<tool_name>create_issue</tool_name>
+<arguments>
+{
+  "owner": "octocat",
+  "repo": "hello-world",
+  "title": "Found a bug",
+  "body": "I'm having a problem with this.",
+  "labels": ["bug", "help wanted"],
+  "assignees": ["octocat"]
+}
+</arguments>
+</use_mcp_tool>`
 		: ""
 }
 
@@ -750,7 +775,7 @@ IMPORTANT: Regardless of what else you see in the MCP settings file, you must de
 
 (Note: the user may also ask you to install the MCP server to the Claude desktop app, in which case you would read then modify \`~/Library/Application\ Support/Claude/claude_desktop_config.json\` on macOS for example. It follows the same format of a top level \`mcpServers\` object.)
 
-6. After you have edited the MCP settings configuration file, the system will automatically run all the servers and expose the available tools and resources in the 'Connected MCP Servers' section.
+6. After you have edited the MCP settings configuration file, the system will automatically run all the servers and expose the available tools and resources in the 'Connected MCP Servers' section. (Note: If you encounter a 'not connected' error when testing a newly installed mcp server, a common cause is an incorrect build path in your MCP settings configuration. Since compiled JavaScript files are commonly output to either 'dist/' or 'build/' directories, double-check that the build path in your MCP settings matches where your files are actually being compiled. E.g. If you assumed 'build' as the folder, check tsconfig.json to see if it's using 'dist' instead.)
 
 7. Now that you have access to these new tools and resources, you may suggest ways the user can command you to invoke them - for example, with this new weather tool now available, you can invite the user to ask "what's the weather in San Francisco?"
 
@@ -796,7 +821,7 @@ You have access to two tools for working with files: **write_to_file** and **rep
 
 ## Important Considerations
 
-- Using write_to_file requires providing the file’s complete final content.  
+- Using write_to_file requires providing the file's complete final content.  
 - If you only need to make small changes to an existing file, consider using replace_in_file instead to avoid unnecessarily rewriting the entire file.
 - While write_to_file should not be your default choice, don't hesitate to use it when the situation truly calls for it.
 
@@ -809,12 +834,12 @@ You have access to two tools for working with files: **write_to_file** and **rep
 ## When to Use
 
 - Small, localized changes like updating a few lines, function implementations, changing variable names, modifying a section of text, etc.
-- Targeted improvements where only specific portions of the file’s content needs to be altered.
+- Targeted improvements where only specific portions of the file's content needs to be altered.
 - Especially useful for long files where much of the file will remain unchanged.
 
 ## Advantages
 
-- More efficient for minor edits, since you don’t need to supply the entire file content.  
+- More efficient for minor edits, since you don't need to supply the entire file content.  
 - Reduces the chance of errors that can occur when overwriting large files.
 
 # Choosing the Appropriate Tool
@@ -865,9 +890,10 @@ In each user message, the environment_details will specify the current mode. The
 ## What is PLAN MODE?
 
 - While you are usually in ACT MODE, the user may switch to PLAN MODE in order to have a back and forth with you to plan how to best accomplish the task. 
-- When starting in PLAN MODE, depending on the user's request, you may need to do some information gathering e.g. using read_file or search_files to get more context about the task. You may also ask the user clarifying questions to get a better understanding of the task.
-- Once you've gained more context about the user's request, you should architect a detailed plan for how you will accomplish the task.
+- When starting in PLAN MODE, depending on the user's request, you may need to do some information gathering e.g. using read_file or search_files to get more context about the task. You may also ask the user clarifying questions to get a better understanding of the task. You may return mermaid diagrams to visually display your understanding.
+- Once you've gained more context about the user's request, you should architect a detailed plan for how you will accomplish the task. Returning mermaid diagrams may be helpful here as well.
 - Then you might ask the user if they are pleased with this plan, or if they would like to make any changes. Think of this as a brainstorming session where you can discuss the task and plan the best way to accomplish it.
+- If at any point a mermaid diagram would make your plan clearer to help the user quickly see the structure, you are encouraged to include a Mermaid code block in the response. (Note: if you use colors in your mermaid diagrams, be sure to use high contrast colors so the text is readable.)
 - Finally once it seems like you've reached a good plan, ask the user to switch you back to ACT MODE to implement the solution.
 
 ====
@@ -961,8 +987,12 @@ export function addUserInstructions(
 	settingsCustomInstructions?: string,
 	clineRulesFileInstructions?: string,
 	clineIgnoreInstructions?: string,
+	preferredLanguageInstructions?: string,
 ) {
 	let customInstructions = ""
+	if (preferredLanguageInstructions) {
+		customInstructions += preferredLanguageInstructions + "\n\n"
+	}
 	if (settingsCustomInstructions) {
 		customInstructions += settingsCustomInstructions + "\n\n"
 	}
