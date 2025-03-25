@@ -98,10 +98,6 @@
 			}
 		}
 	},
-	"customModeCreation": {
-		"enableTitle": "Promptlar aracılığıyla özel mod oluşturmayı etkinleştir",
-		"description": "Etkinleştirildiğinde, Roo 'Bana ... yapabilen özel bir mod oluştur' gibi promptlar kullanarak özel modlar oluşturmanıza olanak tanır. Bu özelliğe ihtiyaç duyulmadığında devre dışı bırakmak, sistem promptunuzu yaklaşık 700 token azaltır. Devre dışı bırakıldığında, yukarıdaki + düğmesini kullanarak veya ilgili yapılandırma JSON'ını düzenleyerek manuel olarak özel modlar oluşturabilirsiniz."
-	},
 	"advancedSystemPrompt": {
 		"title": "Gelişmiş: Sistem Promptunu Geçersiz Kıl",
 		"description": "Çalışma alanınızda <span>.roo/system-prompt-{{slug}}</span> adresinde bir dosya oluşturarak bu mod için sistem istemini tamamen değiştirebilirsiniz (rol tanımı ve özel talimatlar hariç). Bu, yerleşik güvenlik önlemlerini ve tutarlılık kontrollerini (özellikle araç kullanımıyla ilgili) aşan çok gelişmiş bir özelliktir, bu yüzden dikkatli olun!"

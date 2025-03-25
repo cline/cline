@@ -98,10 +98,6 @@
 			}
 		}
 	},
-	"customModeCreation": {
-		"enableTitle": "Abilita creazione di modalità personalizzate tramite prompt",
-		"description": "Quando abilitato, Roo ti permette di creare modalità personalizzate usando prompt come 'Crea una modalità personalizzata che...'. Disabilitarlo riduce il tuo prompt di sistema di circa 700 token quando questa funzionalità non è necessaria. Quando disabilitato, puoi comunque creare manualmente modalità personalizzate usando il pulsante + sopra o modificando il JSON di configurazione correlato."
-	},
 	"advancedSystemPrompt": {
 		"title": "Avanzato: Sovrascrivi prompt di sistema",
 		"description": "Puoi sostituire completamente il prompt di sistema per questa modalità (a parte la definizione del ruolo e le istruzioni personalizzate) creando un file in <span>.roo/system-prompt-{{slug}}</span> nel tuo spazio di lavoro. Questa è una funzionalità molto avanzata che bypassa le protezioni integrate e i controlli di coerenza (specialmente riguardo all'uso degli strumenti), quindi fai attenzione!"

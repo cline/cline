@@ -98,10 +98,6 @@
 			}
 		}
 	},
-	"customModeCreation": {
-		"enableTitle": "Włącz tworzenie niestandardowych trybów przez podpowiedzi",
-		"description": "Gdy włączone, Roo pozwala na tworzenie niestandardowych trybów za pomocą podpowiedzi takich jak 'Stwórz dla mnie niestandardowy tryb, który...'. Wyłączenie tej opcji zmniejsza podpowiedź systemową o około 700 tokenów, gdy ta funkcja nie jest potrzebna. Po wyłączeniu nadal możesz ręcznie tworzyć niestandardowe tryby za pomocą przycisku + powyżej lub edytując powiązany plik konfiguracyjny JSON."
-	},
 	"advancedSystemPrompt": {
 		"title": "Zaawansowane: Zastąp podpowiedź systemową",
 		"description": "Możesz całkowicie zastąpić podpowiedź systemową dla tego trybu (oprócz definicji roli i niestandardowych instrukcji) poprzez utworzenie pliku w .roo/system-prompt-{{modeSlug}} w swoim obszarze roboczym. Jest to bardzo zaawansowana funkcja, która omija wbudowane zabezpieczenia i kontrole spójności (szczególnie wokół używania narzędzi), więc bądź ostrożny!"

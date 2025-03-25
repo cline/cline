@@ -98,10 +98,6 @@
 			}
 		}
 	},
-	"customModeCreation": {
-		"enableTitle": "Habilitar la creación de modos personalizados a través de solicitudes",
-		"description": "Cuando está habilitado, Roo te permite crear modos personalizados usando solicitudes como 'Hazme un modo personalizado que...'. Deshabilitarlo reduce tu solicitud del sistema en aproximadamente 700 tokens cuando esta función no es necesaria. Cuando está deshabilitado, aún puedes crear modos personalizados manualmente usando el botón + de arriba o editando el JSON de configuración relacionado."
-	},
 	"advancedSystemPrompt": {
 		"title": "Avanzado: Anular solicitud del sistema",
 		"description": "Puedes reemplazar completamente la solicitud del sistema para este modo (aparte de la definición de rol e instrucciones personalizadas) creando un archivo en <span>.roo/system-prompt-{{slug}}</span> en tu espacio de trabajo. ¡Esta es una función muy avanzada que omite las salvaguardas integradas y las verificaciones de consistencia (especialmente en torno al uso de herramientas), así que ten cuidado!"

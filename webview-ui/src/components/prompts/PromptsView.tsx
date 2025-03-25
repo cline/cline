@@ -57,8 +57,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		customInstructions,
 		setCustomInstructions,
 		customModes,
-		enableCustomModeCreation,
-		setEnableCustomModeCreation,
 	} = useExtensionState()
 
 	// Memoize modes to preserve array order
@@ -325,17 +323,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		document.addEventListener("click", handleClickOutside)
 		return () => document.removeEventListener("click", handleClickOutside)
 	}, [showConfigMenu])
-
-	// Add effect to sync enableCustomModeCreation with backend
-	useEffect(() => {
-		if (enableCustomModeCreation !== undefined) {
-			// Send the value to the extension's global state
-			vscode.postMessage({
-				type: "enableCustomModeCreation", // Using dedicated message type
-				bool: enableCustomModeCreation,
-			})
-		}
-	}, [enableCustomModeCreation])
 
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
@@ -855,32 +842,6 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 							data-testid="copy-prompt-button">
 							<span className="codicon codicon-copy"></span>
 						</VSCodeButton>
-					</div>
-
-					{/*
-						NOTE: This setting is placed in PromptsView rather than SettingsView since it
-						directly affects the functionality related to modes and custom mode creation,
-						which are managed in this component. This is an intentional deviation from
-						the standard pattern described in cline_docs/settings.md.
-					*/}
-					<div className="mt-12">
-						<VSCodeCheckbox
-							checked={enableCustomModeCreation ?? true}
-							onChange={(e: any) => {
-								// Just update the local state through React context
-								// The React context will update the global state
-								setEnableCustomModeCreation(e.target.checked)
-							}}>
-							<span style={{ fontWeight: "500" }}>{t("prompts:customModeCreation.enableTitle")}</span>
-						</VSCodeCheckbox>
-						<p
-							style={{
-								fontSize: "12px",
-								marginTop: "5px",
-								color: "var(--vscode-descriptionForeground)",
-							}}>
-							{t("prompts:customModeCreation.description")}
-						</p>
 					</div>
 
 					{/* Custom System Prompt Disclosure */}

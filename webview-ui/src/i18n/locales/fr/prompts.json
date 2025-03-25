@@ -98,10 +98,6 @@
 			}
 		}
 	},
-	"customModeCreation": {
-		"enableTitle": "Activer la création de modes personnalisés via les prompts",
-		"description": "Lorsque cette option est activée, Roo vous permet de créer des modes personnalisés en utilisant des prompts comme 'Crée-moi un mode personnalisé qui...'. La désactivation réduit votre prompt système d'environ 700 tokens lorsque cette fonctionnalité n'est pas nécessaire. Lorsqu'elle est désactivée, vous pouvez toujours créer manuellement des modes personnalisés en utilisant le bouton + ci-dessus ou en modifiant le JSON de configuration associé."
-	},
 	"advancedSystemPrompt": {
 		"title": "Avancé : Remplacer le prompt système",
 		"description": "Vous pouvez complètement remplacer le prompt système pour ce mode (en dehors de la définition du rôle et des instructions personnalisées) en créant un fichier à <span>.roo/system-prompt-{{slug}}</span> dans votre espace de travail. Il s'agit d'une fonctionnalité très avancée qui contourne les garanties intégrées et les vérifications de cohérence (notamment concernant l'utilisation des outils), alors soyez prudent !"

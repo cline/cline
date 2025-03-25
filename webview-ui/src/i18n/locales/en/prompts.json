@@ -98,10 +98,6 @@
 			}
 		}
 	},
-	"customModeCreation": {
-		"enableTitle": "Enable Custom Mode Creation Through Prompts",
-		"description": "When enabled, Roo allows you to create custom modes using prompts like 'Make me a custom mode that…'. Disabling this reduces your system prompt by about 700 tokens when this feature isn't needed. When disabled you can still manually create custom modes using the + button above or by editing the related config JSON."
-	},
 	"advancedSystemPrompt": {
 		"title": "Advanced: Override System Prompt",
 		"description": "You can completely replace the system prompt for this mode (aside from the role definition and custom instructions) by creating a file at <span>.roo/system-prompt-{{slug}}</span> in your workspace. This is a very advanced feature that bypasses built-in safeguards and consistency checks (especially around tool usage), so be careful!"

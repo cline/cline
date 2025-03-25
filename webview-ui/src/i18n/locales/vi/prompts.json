@@ -98,10 +98,6 @@
 			}
 		}
 	},
-	"customModeCreation": {
-		"enableTitle": "Bật tạo chế độ tùy chỉnh thông qua lời nhắc",
-		"description": "Khi được bật, Roo cho phép bạn tạo chế độ tùy chỉnh bằng cách sử dụng lời nhắc như 'Tạo cho tôi một chế độ tùy chỉnh mà…'. Việc tắt tính năng này giảm lời nhắc hệ thống của bạn khoảng 700 token khi tính năng này không cần thiết. Khi tắt, bạn vẫn có thể tạo chế độ tùy chỉnh bằng cách sử dụng nút + ở trên hoặc bằng cách chỉnh sửa tệp JSON cấu hình liên quan."
-	},
 	"advancedSystemPrompt": {
 		"title": "Nâng cao: Ghi đè lời nhắc hệ thống",
 		"description": "Bạn có thể hoàn toàn thay thế lời nhắc hệ thống cho chế độ này (ngoài định nghĩa vai trò và hướng dẫn tùy chỉnh) bằng cách tạo một tệp tại .roo/system-prompt-{{modeSlug}} trong không gian làm việc của bạn. Đây là một tính năng rất nâng cao bỏ qua các biện pháp bảo vệ và kiểm tra nhất quán tích hợp sẵn (đặc biệt là xung quanh việc sử dụng công cụ), vì vậy hãy cẩn thận!"
