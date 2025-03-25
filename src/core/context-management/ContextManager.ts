@@ -9,6 +9,7 @@ import * as path from "path"
 import fs from "fs/promises"
 import cloneDeep from "clone-deep"
 
+<<<<<<< HEAD
 enum EditType {
 	UNDEFINED = 0,
 	NO_FILE_READ = 1,
@@ -39,11 +40,28 @@ type SerializedContextHistory = Array<
 		],
 	]
 >
+=======
+// string used for text blocks, string[] used for image blocks
+export type MessageContent = string | string[]
+
+// Type for a single context update
+type ContextUpdate = [number, string, MessageContent] // [timestamp, updateType, update]
+
+// Type for the serialized format of our nested maps
+type SerializedContextHistory = Array<[
+    number, // messageIndex
+    Array<[
+        number, // blockIndex
+        ContextUpdate[] // updates array
+    ]>
+]>
+>>>>>>> 03c07bac (context state base)
 
 export class ContextManager {
 	// mapping from the apiMessages outer index to the inner message index to a list of actual changes, ordered by timestamp
 	// timestamp is required in order to support full checkpointing, where the changes we apply need to be able to be undone when
 	// moving to an earlier conversation history checkpoint - this ordering intuitively allows for binary search on truncation
+<<<<<<< HEAD
 	// there is also a number stored for each (EditType) which defines which message type it is, for custom handling
 
 	// format:  { outerIndex => [EditType, { innerIndex => [[timestamp, updateType, update], ...] }] }
@@ -57,12 +75,28 @@ export class ContextManager {
 
 	/**
 	 * public function for loading contextHistoryUpdates from disk, if it exists
+=======
+
+	// format:  {outerIndex => {innerIndex => [[timestamp, updateType, update], ...]}}
+	// example: { 1 => { 0 => [[<timestamp>, "text", "[NOTE] Some previous conversation history with the user has been removed ..."], ...] } }
+	// the above example would be how we update the first assistant message to indicate we truncated text
+	private contextHistoryUpdates: Map<number, Map<number, [number, string, MessageContent][]>>
+
+    constructor() {
+		this.contextHistoryUpdates = new Map() // defaults to having no keys, so no alterations if file read incorrectly
+    }
+
+	/**
+	 * public function for loading contextHistory from memory, if it exists
+	 * loading can also be done in each call
+>>>>>>> 03c07bac (context state base)
 	 */
 	async initializeContextHistory(taskDirectory: string) {
 		this.contextHistoryUpdates = await this.getSavedContextHistory(taskDirectory)
 	}
 
 	/**
+<<<<<<< HEAD
 	 * get the stored context history updates from disk
 	 */
 	private async getSavedContextHistory(taskDirectory: string): Promise<Map<number, [number, Map<number, ContextUpdate[]>]>> {
@@ -78,6 +112,22 @@ export class ContextManager {
 						messageIndex,
 						[numberValue, new Map(innerMapArray)],
 					]),
+=======
+	 * get the stored context history from disk
+	 */
+	private async getSavedContextHistory(taskDirectory: string): Promise<Map<number, Map<number, ContextUpdate[]>>> {
+		try {
+			const filePath = path.join(taskDirectory, GlobalFileNames.contextHistory)
+			if (await fileExistsAtPath(filePath)) {
+				const data = await fs.readFile(filePath, 'utf8')
+				const serializedUpdates = JSON.parse(data) as SerializedContextHistory
+				
+				return new Map(
+					serializedUpdates.map(([messageIndex, innerMapArray]) => [
+						messageIndex,
+						new Map(innerMapArray)
+					])
+>>>>>>> 03c07bac (context state base)
 				)
 			}
 		} catch (error) {
@@ -87,6 +137,7 @@ export class ContextManager {
 	}
 
 	/**
+<<<<<<< HEAD
 	 * save the context history updates to disk
 	 */
 	private async saveContextHistory(taskDirectory: string) {
@@ -101,12 +152,37 @@ export class ContextManager {
 				"utf8",
 			)
 		} catch (error) {
+=======
+	 * save the context history to disk
+	 */
+	private async saveContextHistory(taskDirectory: string) {
+		try {
+			// Convert Map to our defined serialized format
+			const serializedUpdates: SerializedContextHistory = Array.from(
+				this.contextHistoryUpdates.entries()
+			).map(([messageIndex, innerMap]) => [
+				messageIndex,
+				Array.from(innerMap.entries())
+			])
+			
+			await fs.writeFile(
+				path.join(taskDirectory, GlobalFileNames.contextHistory),
+				JSON.stringify(serializedUpdates),
+				'utf8'
+			)
+		} catch (error) {
+			// in the off chance this fails, we don't want to stop the task
+>>>>>>> 03c07bac (context state base)
 			console.error("Failed to save context history:", error)
 		}
 	}
 
 	/**
+<<<<<<< HEAD
 	 * primary entry point for getting up to date context & truncating when required
+=======
+	 * primary entry point for getting up to date contexxt & truncating when required
+>>>>>>> 03c07bac (context state base)
 	 */
 	async getNewContextMessagesAndMetadata(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
@@ -114,9 +190,15 @@ export class ContextManager {
 		api: ApiHandler,
 		conversationHistoryDeletedRange: [number, number] | undefined,
 		previousApiReqIndex: number,
+<<<<<<< HEAD
 		taskDirectory: string,
+=======
+		taskDirectory: string
+>>>>>>> 03c07bac (context state base)
 	) {
 		let updatedConversationHistoryDeletedRange = false
+
+		// optionally could always load the contextHistory from disk here
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
@@ -151,11 +233,24 @@ export class ContextManager {
 					// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
 					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
 
+<<<<<<< HEAD
 					// we later check how many chars we trim to determine if we should still truncate history
 					let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
 						apiConversationHistory,
 						conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
 						timestamp,
+=======
+					// update the first assistant message if required for narrative integrity
+					this.applyStandardContextTruncationNoticeChangeToConversation(timestamp)
+
+					await this.saveContextHistory(taskDirectory) // could add a check here to determine whether we have changed anything, prior to saving
+
+					// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
+					conversationHistoryDeletedRange = this.getNextTruncationRange(
+						apiConversationHistory,
+						conversationHistoryDeletedRange,
+						keep
+>>>>>>> 03c07bac (context state base)
 					)
 
 					let needToTruncate = true
@@ -211,7 +306,7 @@ export class ContextManager {
 	public getNextTruncationRange(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		currentDeletedRange: [number, number] | undefined,
-		keep: "half" | "quarter",
+		keep: "half" | "quarter"
 	): [number, number] {
 		// We always keep the first user-assistant pairing, and truncate an even number of messages from there
 		const rangeStartIndex = 2 // index 0 and 1 are kept
@@ -254,6 +349,7 @@ export class ContextManager {
 		return this.getAndAlterTruncatedMessages(messages, deletedRange)
 	}
 
+<<<<<<< HEAD
 	/**
 	 * apply all required truncation methods to the messages in context
 	 */
@@ -263,8 +359,111 @@ export class ContextManager {
 	): Anthropic.Messages.MessageParam[] {
 		if (messages.length <= 1) {
 			return messages
-		}
+=======
+    private getAndAlterTruncatedMessages(
+        messages: Anthropic.Messages.MessageParam[],
+        deletedRange: [number, number] | undefined,
+    ): Anthropic.Messages.MessageParam[] {
+        // here we need to apply the changes from the file reads / other changes - this needs to be done by looping over the deleted range
+        ///// or doing nothing if its undefined, this should be another function call
 
+        if (messages.length <= 1) return messages
+
+		const updatedMessages = this.applyContextHistoryUpdates(messages, deletedRange ? deletedRange[1] + 1 : 2)
+
+		// OLD NOTE: if you try to console log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
+		return updatedMessages
+    }
+
+	/**
+	 * applies the correct alterations based on changes set in this.contextHistoryUpdates
+	 */
+    private applyContextHistoryUpdates(
+        messages: Anthropic.Messages.MessageParam[],
+        startFromIndex: number,
+    ): Anthropic.Messages.MessageParam[] {
+		// runtime is linear in length of user messages, if expecting a limited number of alteration, could be more optimal to loop over changes instead
+
+        const firstChunk = messages.slice(0, 2)  // get first user-assistant pair
+        const secondChunk = messages.slice(startFromIndex) // get remaining messages within context
+        const messagesToUpdate = [...firstChunk, ...secondChunk]
+
+		// we need the mapping from the local indices in messagesToUpdate to the global array of updates in this.contextHistoryUpdates
+        const originalIndices = [...Array(2).keys(), ...Array(secondChunk.length).fill(0).map((_, i) => i + startFromIndex)]
+        
+        for (let arrayIndex = 0; arrayIndex < messagesToUpdate.length; arrayIndex++) {
+            const messageIndex = originalIndices[arrayIndex]
+            
+            const innerMap = this.contextHistoryUpdates.get(messageIndex)
+            if (!innerMap) continue
+
+			// because we are altering this, we need a deep copy
+			messagesToUpdate[arrayIndex] = cloneDeep(messagesToUpdate[arrayIndex])
+            
+            // For each block index and its changes array in the inner map
+            for (const [blockIndex, changes] of innerMap) {
+                // apply the latest change among n changes - [timestamp, updateType, update]
+                const latestChange = changes[changes.length - 1]
+                
+                if (latestChange[1] === "text") { // only altering text for now
+                    const message = messagesToUpdate[arrayIndex]
+                    
+                    if (Array.isArray(message.content)) {
+                        const block = message.content[blockIndex]
+                        if (block && block.type === "text") {
+                            block.text = latestChange[2]
+                        }
+                    }
+                }
+            }
+        }
+        
+        return messagesToUpdate
+    }
+
+	/**
+	 * if there is any truncation, and there is no other alteration already set, alter the assistant message to indicate this occured
+	 */
+    private applyStandardContextTruncationNoticeChangeToConversation(timestamp: number) {
+        if (!this.contextHistoryUpdates.has(1)) { // first assistant message always at index 1
+            const innerMap = new Map<number, [number, string, MessageContent][]>()
+            innerMap.set(0, [[timestamp, "text", formatResponse.contextTruncationNotice()]])
+            this.contextHistoryUpdates.set(1, innerMap)
+        }
+    }
+
+	/**
+	 * Helper function that removes all context history updates with timestamps greater than the provided timestamp
+	 * Mutates the input map directly.
+	 * @param contextHistory The context history map to modify
+	 * @param timestamp The cutoff timestamp
+	 */
+	private truncateContextHistoryAtTimestamp(
+		contextHistory: Map<number, Map<number, [number, string, MessageContent][]>>,
+		timestamp: number
+	): void {
+		// Iterate through each message index
+		for (const [messageIndex, innerMap] of contextHistory) {
+			// For each block index
+			for (const [blockIndex, updates] of innerMap) {
+				// Since updates are ordered by timestamp, find cutoff point
+				// by iterating from right to left
+				let cutoffIndex = updates.length - 1
+				while (cutoffIndex >= 0 && updates[cutoffIndex][0] > timestamp) {
+					cutoffIndex--
+				}
+				
+				// If we found updates to remove
+				if (cutoffIndex < updates.length - 1) {
+					// Modify the array in place to keep only updates up to cutoffIndex
+					updates.length = cutoffIndex + 1
+				}
+			}
+>>>>>>> 03c07bac (context state base)
+		}
+	}
+
+<<<<<<< HEAD
 		const updatedMessages = this.applyContextHistoryUpdates(messages, deletedRange ? deletedRange[1] + 1 : 2)
 
 		// OLD NOTE: if you try to console log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
@@ -848,5 +1047,15 @@ export class ContextManager {
 		const percentCharactersSaved = totalCharacters === 0 ? 0 : totalCharactersSaved / totalCharacters
 
 		return percentCharactersSaved
+=======
+	/**
+	 * removes all context history updates that occurred after the specified timestamp and saves to disk
+	 */
+	public async truncateContextHistory(timestamp: number, taskDirectory: string): Promise<void> {
+		this.truncateContextHistoryAtTimestamp(this.contextHistoryUpdates, timestamp)
+		
+		// Save the modified history to disk
+		await this.saveContextHistory(taskDirectory)
+>>>>>>> 03c07bac (context state base)
 	}
 }

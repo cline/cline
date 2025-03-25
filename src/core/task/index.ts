@@ -1261,7 +1261,11 @@ export class Task {
 
 		// Capture system prompt for telemetry,
 		// ONLY if user is opted in, in advanced settings
+<<<<<<< HEAD
 		if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationObservability()) {
+=======
+		if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
+>>>>>>> 03c07bac (context state base)
 			const systemMessage: TelemetryChatMessage = {
 				role: "system",
 				content: systemPrompt,
@@ -1269,7 +1273,11 @@ export class Task {
 			}
 
 			// no need for timeout here, as there's no timestamp to compare to
+<<<<<<< HEAD
 			this.providerRef.deref()?.conversationObservabilityService.captureMessage(this.taskId, systemMessage, {
+=======
+			this.providerRef.deref()?.conversationTelemetryService.captureMessage(this.taskId, systemMessage, {
+>>>>>>> 03c07bac (context state base)
 				apiProvider: this.apiProvider,
 				model: this.api.getModel().id,
 				tokensIn: 0,
