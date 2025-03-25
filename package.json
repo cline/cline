@@ -280,6 +280,7 @@
 		"format": "prettier . --check",
 		"format:fix": "prettier . --write",
 		"test": "vscode-test",
+		"test:ci": "node scripts/test-ci.js",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"dev:webview": "cd webview-ui && npm run dev",
 		"build:webview": "cd webview-ui && npm run build",
