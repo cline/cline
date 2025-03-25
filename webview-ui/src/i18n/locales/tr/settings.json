@@ -35,12 +35,20 @@
 		"description": "Roo'nun onay gerektirmeden otomatik olarak işlemler gerçekleştirmesine izin verin. Bu ayarları yalnızca yapay zekaya tamamen güveniyorsanız ve ilgili güvenlik risklerini anlıyorsanız etkinleştirin.",
 		"readOnly": {
 			"label": "Salt okunur işlemleri her zaman onayla",
-			"description": "Etkinleştirildiğinde, Roo otomatik olarak dizin içeriğini görüntüleyecek ve Onayla düğmesine tıklamanıza gerek kalmadan dosyaları okuyacaktır."
+			"description": "Etkinleştirildiğinde, Roo otomatik olarak dizin içeriğini görüntüleyecek ve Onayla düğmesine tıklamanıza gerek kalmadan dosyaları okuyacaktır.",
+			"outsideWorkspace": {
+				"label": "Çalışma alanı dışındaki dosyaları dahil et",
+				"description": "Roo'nun onay gerektirmeden mevcut çalışma alanı dışındaki dosyaları okumasına izin ver."
+			}
 		},
 		"write": {
 			"label": "Yazma işlemlerini her zaman onayla",
 			"description": "Onay gerektirmeden otomatik olarak dosya oluştur ve düzenle",
-			"delayLabel": "Tanılamanın potansiyel sorunları tespit etmesine izin vermek için yazmalardan sonra gecikme"
+			"delayLabel": "Tanılamanın potansiyel sorunları tespit etmesine izin vermek için yazmalardan sonra gecikme",
+			"outsideWorkspace": {
+				"label": "Çalışma alanı dışındaki dosyaları dahil et",
+				"description": "Roo'nun onay gerektirmeden mevcut çalışma alanı dışında dosya oluşturmasına ve düzenlemesine izin ver."
+			}
 		},
 		"browser": {
 			"label": "Tarayıcı eylemlerini her zaman onayla",

@@ -12,7 +12,9 @@ import { Section } from "./Section"
 
 type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	alwaysAllowReadOnly?: boolean
+	alwaysAllowReadOnlyOutsideWorkspace?: boolean
 	alwaysAllowWrite?: boolean
+	alwaysAllowWriteOutsideWorkspace?: boolean
 	writeDelayMs: number
 	alwaysAllowBrowser?: boolean
 	alwaysApproveResubmit?: boolean
@@ -24,7 +26,9 @@ type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	allowedCommands?: string[]
 	setCachedStateField: SetCachedStateField<
 		| "alwaysAllowReadOnly"
+		| "alwaysAllowReadOnlyOutsideWorkspace"
 		| "alwaysAllowWrite"
+		| "alwaysAllowWriteOutsideWorkspace"
 		| "writeDelayMs"
 		| "alwaysAllowBrowser"
 		| "alwaysApproveResubmit"
@@ -39,7 +43,9 @@ type AutoApproveSettingsProps = HTMLAttributes<HTMLDivElement> & {
 
 export const AutoApproveSettings = ({
 	alwaysAllowReadOnly,
+	alwaysAllowReadOnlyOutsideWorkspace,
 	alwaysAllowWrite,
+	alwaysAllowWriteOutsideWorkspace,
 	writeDelayMs,
 	alwaysAllowBrowser,
 	alwaysApproveResubmit,
@@ -88,6 +94,26 @@ export const AutoApproveSettings = ({
 					</div>
 				</div>
 
+				{alwaysAllowReadOnly && (
+					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div>
+							<VSCodeCheckbox
+								checked={alwaysAllowReadOnlyOutsideWorkspace}
+								onChange={(e: any) =>
+									setCachedStateField("alwaysAllowReadOnlyOutsideWorkspace", e.target.checked)
+								}
+								data-testid="always-allow-readonly-outside-workspace-checkbox">
+								<span className="font-medium">
+									{t("settings:autoApprove.readOnly.outsideWorkspace.label")}
+								</span>
+							</VSCodeCheckbox>
+							<div className="text-vscode-descriptionForeground text-sm mt-1">
+								{t("settings:autoApprove.readOnly.outsideWorkspace.description")}
+							</div>
+						</div>
+					</div>
+				)}
+
 				<div>
 					<VSCodeCheckbox
 						checked={alwaysAllowWrite}
@@ -102,6 +128,21 @@ export const AutoApproveSettings = ({
 
 				{alwaysAllowWrite && (
 					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
+						<div>
+							<VSCodeCheckbox
+								checked={alwaysAllowWriteOutsideWorkspace}
+								onChange={(e: any) =>
+									setCachedStateField("alwaysAllowWriteOutsideWorkspace", e.target.checked)
+								}
+								data-testid="always-allow-write-outside-workspace-checkbox">
+								<span className="font-medium">
+									{t("settings:autoApprove.write.outsideWorkspace.label")}
+								</span>
+							</VSCodeCheckbox>
+							<div className="text-vscode-descriptionForeground text-sm mt-1 mb-3">
+								{t("settings:autoApprove.write.outsideWorkspace.description")}
+							</div>
+						</div>
 						<div>
 							<div className="flex items-center gap-2">
 								<Slider

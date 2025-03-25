@@ -971,8 +971,16 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 						await this.updateGlobalState("alwaysAllowReadOnly", message.bool ?? undefined)
 						await this.postStateToWebview()
 						break
+					case "alwaysAllowReadOnlyOutsideWorkspace":
+						await this.updateGlobalState("alwaysAllowReadOnlyOutsideWorkspace", message.bool ?? undefined)
+						await this.postStateToWebview()
+						break
 					case "alwaysAllowWrite":
 						await this.updateGlobalState("alwaysAllowWrite", message.bool ?? undefined)
+						await this.postStateToWebview()
+						break
+					case "alwaysAllowWriteOutsideWorkspace":
+						await this.updateGlobalState("alwaysAllowWriteOutsideWorkspace", message.bool ?? undefined)
 						await this.postStateToWebview()
 						break
 					case "alwaysAllowExecute":
@@ -2490,7 +2498,9 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			lastShownAnnouncementId,
 			customInstructions,
 			alwaysAllowReadOnly,
+			alwaysAllowReadOnlyOutsideWorkspace,
 			alwaysAllowWrite,
+			alwaysAllowWriteOutsideWorkspace,
 			alwaysAllowExecute,
 			alwaysAllowBrowser,
 			alwaysAllowMcp,
@@ -2544,7 +2554,9 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			apiConfiguration,
 			customInstructions,
 			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
+			alwaysAllowReadOnlyOutsideWorkspace: alwaysAllowReadOnlyOutsideWorkspace ?? false,
 			alwaysAllowWrite: alwaysAllowWrite ?? false,
+			alwaysAllowWriteOutsideWorkspace: alwaysAllowWriteOutsideWorkspace ?? false,
 			alwaysAllowExecute: alwaysAllowExecute ?? false,
 			alwaysAllowBrowser: alwaysAllowBrowser ?? false,
 			alwaysAllowMcp: alwaysAllowMcp ?? false,
@@ -2707,7 +2719,9 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			lastShownAnnouncementId: stateValues.lastShownAnnouncementId,
 			customInstructions: stateValues.customInstructions,
 			alwaysAllowReadOnly: stateValues.alwaysAllowReadOnly ?? false,
+			alwaysAllowReadOnlyOutsideWorkspace: stateValues.alwaysAllowReadOnlyOutsideWorkspace ?? false,
 			alwaysAllowWrite: stateValues.alwaysAllowWrite ?? false,
+			alwaysAllowWriteOutsideWorkspace: stateValues.alwaysAllowWriteOutsideWorkspace ?? false,
 			alwaysAllowExecute: stateValues.alwaysAllowExecute ?? false,
 			alwaysAllowBrowser: stateValues.alwaysAllowBrowser ?? false,
 			alwaysAllowMcp: stateValues.alwaysAllowMcp ?? false,

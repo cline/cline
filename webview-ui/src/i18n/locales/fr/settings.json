@@ -35,12 +35,20 @@
 		"description": "Permettre à Roo d'effectuer automatiquement des opérations sans requérir d'approbation. Activez ces paramètres uniquement si vous faites entièrement confiance à l'IA et que vous comprenez les risques de sécurité associés.",
 		"readOnly": {
 			"label": "Toujours approuver les opérations en lecture seule",
-			"description": "Lorsque cette option est activée, Roo affichera automatiquement le contenu des répertoires et lira les fichiers sans que vous ayez à cliquer sur le bouton Approuver."
+			"description": "Lorsque cette option est activée, Roo affichera automatiquement le contenu des répertoires et lira les fichiers sans que vous ayez à cliquer sur le bouton Approuver.",
+			"outsideWorkspace": {
+				"label": "Inclure les fichiers en dehors de l'espace de travail",
+				"description": "Permettre à Roo de lire des fichiers en dehors de l'espace de travail actuel sans nécessiter d'approbation."
+			}
 		},
 		"write": {
 			"label": "Toujours approuver les opérations d'écriture",
 			"description": "Créer et modifier automatiquement des fichiers sans nécessiter d'approbation",
-			"delayLabel": "Délai après les écritures pour permettre aux diagnostics de détecter les problèmes potentiels"
+			"delayLabel": "Délai après les écritures pour permettre aux diagnostics de détecter les problèmes potentiels",
+			"outsideWorkspace": {
+				"label": "Inclure les fichiers en dehors de l'espace de travail",
+				"description": "Permettre à Roo de créer et modifier des fichiers en dehors de l'espace de travail actuel sans nécessiter d'approbation."
+			}
 		},
 		"browser": {
 			"label": "Toujours approuver les actions du navigateur",

@@ -11,6 +11,7 @@ import pWaitFor from "p-wait-for"
 import getFolderSize from "get-folder-size"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
+import { isPathOutsideWorkspace } from "../utils/pathUtils"
 
 import { TokenUsage } from "../exports/roo-code"
 import { ApiHandler, buildApiHandler } from "../api"
@@ -1606,9 +1607,14 @@ export class Cline extends EventEmitter<ClineEvents> {
 							}
 						}
 
+						// Determine if the path is outside the workspace
+						const fullPath = relPath ? path.resolve(this.cwd, removeClosingTag("path", relPath)) : ""
+						const isOutsideWorkspace = isPathOutsideWorkspace(fullPath)
+
 						const sharedMessageProps: ClineSayTool = {
 							tool: fileExists ? "editedExistingFile" : "newFileCreated",
 							path: getReadablePath(this.cwd, removeClosingTag("path", relPath)),
+							isOutsideWorkspace,
 						}
 						try {
 							if (block.partial) {
@@ -2245,9 +2251,15 @@ export class Cline extends EventEmitter<ClineEvents> {
 						const relPath: string | undefined = block.params.path
 						const startLineStr: string | undefined = block.params.start_line
 						const endLineStr: string | undefined = block.params.end_line
+
+						// Get the full path and determine if it's outside the workspace
+						const fullPath = relPath ? path.resolve(this.cwd, removeClosingTag("path", relPath)) : ""
+						const isOutsideWorkspace = isPathOutsideWorkspace(fullPath)
+
 						const sharedMessageProps: ClineSayTool = {
 							tool: "readFile",
 							path: getReadablePath(this.cwd, removeClosingTag("path", relPath)),
+							isOutsideWorkspace,
 						}
 						try {
 							if (block.partial) {

@@ -35,12 +35,20 @@
 		"description": "Permet que Roo realitzi operacions automàticament sense requerir aprovació. Activeu aquesta configuració només si confieu plenament en la IA i enteneu els riscos de seguretat associats.",
 		"readOnly": {
 			"label": "Aprovar sempre operacions de només lectura",
-			"description": "Quan està activat, Roo veurà automàticament el contingut del directori i llegirà fitxers sense que calgui fer clic al botó Aprovar."
+			"description": "Quan està activat, Roo veurà automàticament el contingut del directori i llegirà fitxers sense que calgui fer clic al botó Aprovar.",
+			"outsideWorkspace": {
+				"label": "Incloure fitxers fora de l'espai de treball",
+				"description": "Permetre a Roo llegir fitxers fora de l'espai de treball actual sense requerir aprovació."
+			}
 		},
 		"write": {
 			"label": "Aprovar sempre operacions d'escriptura",
 			"description": "Crear i editar fitxers automàticament sense requerir aprovació",
-			"delayLabel": "Retard després d'escriptura per permetre que els diagnòstics detectin possibles problemes"
+			"delayLabel": "Retard després d'escriptura per permetre que els diagnòstics detectin possibles problemes",
+			"outsideWorkspace": {
+				"label": "Incloure fitxers fora de l'espai de treball",
+				"description": "Permetre a Roo crear i editar fitxers fora de l'espai de treball actual sense requerir aprovació."
+			}
 		},
 		"browser": {
 			"label": "Aprovar sempre accions del navegador",

@@ -35,12 +35,20 @@
 		"description": "Cho phép Roo tự động thực hiện các hoạt động mà không cần phê duyệt. Chỉ bật những cài đặt này nếu bạn hoàn toàn tin tưởng AI và hiểu rõ các rủi ro bảo mật liên quan.",
 		"readOnly": {
 			"label": "Luôn phê duyệt các hoạt động chỉ đọc",
-			"description": "Khi được bật, Roo sẽ tự động xem nội dung thư mục và đọc tệp mà không yêu cầu bạn nhấp vào nút Phê duyệt."
+			"description": "Khi được bật, Roo sẽ tự động xem nội dung thư mục và đọc tệp mà không yêu cầu bạn nhấp vào nút Phê duyệt.",
+			"outsideWorkspace": {
+				"label": "Bao gồm các tệp ngoài không gian làm việc",
+				"description": "Cho phép Roo đọc các tệp bên ngoài không gian làm việc hiện tại mà không yêu cầu phê duyệt."
+			}
 		},
 		"write": {
 			"label": "Luôn phê duyệt các hoạt động ghi",
 			"description": "Tự động tạo và chỉnh sửa tệp mà không cần phê duyệt",
-			"delayLabel": "Trì hoãn sau khi ghi để cho phép chẩn đoán phát hiện các vấn đề tiềm ẩn"
+			"delayLabel": "Trì hoãn sau khi ghi để cho phép chẩn đoán phát hiện các vấn đề tiềm ẩn",
+			"outsideWorkspace": {
+				"label": "Bao gồm các tệp ngoài không gian làm việc",
+				"description": "Cho phép Roo tạo và chỉnh sửa các tệp bên ngoài không gian làm việc hiện tại mà không yêu cầu phê duyệt."
+			}
 		},
 		"browser": {
 			"label": "Luôn phê duyệt các hành động trình duyệt",

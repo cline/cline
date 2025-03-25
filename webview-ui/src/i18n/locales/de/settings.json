@@ -35,12 +35,20 @@
 		"description": "Erlaubt Roo, Operationen automatisch ohne Genehmigung durchzuführen. Aktiviere diese Einstellungen nur, wenn du der KI vollständig vertraust und die damit verbundenen Sicherheitsrisiken verstehst.",
 		"readOnly": {
 			"label": "Schreibgeschützte Operationen immer genehmigen",
-			"description": "Wenn aktiviert, wird Roo automatisch Verzeichnisinhalte anzeigen und Dateien lesen, ohne dass du auf die Genehmigen-Schaltfläche klicken musst."
+			"description": "Wenn aktiviert, wird Roo automatisch Verzeichnisinhalte anzeigen und Dateien lesen, ohne dass du auf die Genehmigen-Schaltfläche klicken musst.",
+			"outsideWorkspace": {
+				"label": "Dateien außerhalb des Arbeitsbereichs einbeziehen",
+				"description": "Roo erlauben, Dateien außerhalb des aktuellen Arbeitsbereichs ohne Genehmigung zu lesen."
+			}
 		},
 		"write": {
 			"label": "Schreiboperationen immer genehmigen",
 			"description": "Dateien automatisch erstellen und bearbeiten ohne Genehmigung",
-			"delayLabel": "Verzögerung nach Schreibvorgängen, damit Diagnosefunktionen potenzielle Probleme erkennen können"
+			"delayLabel": "Verzögerung nach Schreibvorgängen, damit Diagnosefunktionen potenzielle Probleme erkennen können",
+			"outsideWorkspace": {
+				"label": "Dateien außerhalb des Arbeitsbereichs einbeziehen",
+				"description": "Roo erlauben, Dateien außerhalb des aktuellen Arbeitsbereichs ohne Genehmigung zu erstellen und zu bearbeiten."
+			}
 		},
 		"browser": {
 			"label": "Browser-Aktionen immer genehmigen",

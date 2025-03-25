@@ -35,12 +35,20 @@
 		"description": "Permitir que o Roo realize operações automaticamente sem exigir aprovação. Ative essas configurações apenas se confiar totalmente na IA e compreender os riscos de segurança associados.",
 		"readOnly": {
 			"label": "Aprovar sempre operações somente de leitura",
-			"description": "Quando ativado, o Roo visualizará automaticamente o conteúdo do diretório e lerá arquivos sem que você precise clicar no botão Aprovar."
+			"description": "Quando ativado, o Roo visualizará automaticamente o conteúdo do diretório e lerá arquivos sem que você precise clicar no botão Aprovar.",
+			"outsideWorkspace": {
+				"label": "Incluir arquivos fora do espaço de trabalho",
+				"description": "Permitir que o Roo leia arquivos fora do espaço de trabalho atual sem exigir aprovação."
+			}
 		},
 		"write": {
 			"label": "Aprovar sempre operações de escrita",
 			"description": "Criar e editar arquivos automaticamente sem exigir aprovação",
-			"delayLabel": "Atraso após escritas para permitir que diagnósticos detectem problemas potenciais"
+			"delayLabel": "Atraso após escritas para permitir que diagnósticos detectem problemas potenciais",
+			"outsideWorkspace": {
+				"label": "Incluir arquivos fora do espaço de trabalho",
+				"description": "Permitir que o Roo crie e edite arquivos fora do espaço de trabalho atual sem exigir aprovação."
+			}
 		},
 		"browser": {
 			"label": "Aprovar sempre ações do navegador",

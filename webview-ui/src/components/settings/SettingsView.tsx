@@ -98,6 +98,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 
 	const {
 		alwaysAllowReadOnly,
+		alwaysAllowReadOnlyOutsideWorkspace,
 		allowedCommands,
 		language,
 		alwaysAllowBrowser,
@@ -106,6 +107,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		alwaysAllowModeSwitch,
 		alwaysAllowSubtasks,
 		alwaysAllowWrite,
+		alwaysAllowWriteOutsideWorkspace,
 		alwaysApproveResubmit,
 		browserToolEnabled,
 		browserViewportSize,
@@ -207,7 +209,12 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		if (isSettingValid) {
 			vscode.postMessage({ type: "language", text: language })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
+			vscode.postMessage({
+				type: "alwaysAllowReadOnlyOutsideWorkspace",
+				bool: alwaysAllowReadOnlyOutsideWorkspace,
+			})
 			vscode.postMessage({ type: "alwaysAllowWrite", bool: alwaysAllowWrite })
+			vscode.postMessage({ type: "alwaysAllowWriteOutsideWorkspace", bool: alwaysAllowWriteOutsideWorkspace })
 			vscode.postMessage({ type: "alwaysAllowExecute", bool: alwaysAllowExecute })
 			vscode.postMessage({ type: "alwaysAllowBrowser", bool: alwaysAllowBrowser })
 			vscode.postMessage({ type: "alwaysAllowMcp", bool: alwaysAllowMcp })
@@ -403,7 +410,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 				<div ref={autoApproveRef}>
 					<AutoApproveSettings
 						alwaysAllowReadOnly={alwaysAllowReadOnly}
+						alwaysAllowReadOnlyOutsideWorkspace={alwaysAllowReadOnlyOutsideWorkspace}
 						alwaysAllowWrite={alwaysAllowWrite}
+						alwaysAllowWriteOutsideWorkspace={alwaysAllowWriteOutsideWorkspace}
 						writeDelayMs={writeDelayMs}
 						alwaysAllowBrowser={alwaysAllowBrowser}
 						alwaysApproveResubmit={alwaysApproveResubmit}

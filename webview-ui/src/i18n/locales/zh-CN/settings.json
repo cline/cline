@@ -35,12 +35,20 @@
 		"description": "允许 Roo 自动执行操作而无需批准。只有在您完全信任 AI 并了解相关安全风险的情况下才启用这些设置。",
 		"readOnly": {
 			"label": "始终批准只读操作",
-			"description": "启用后，Roo 将自动查看目录内容并读取文件，无需点击批准按钮。"
+			"description": "启用后，Roo 将自动查看目录内容并读取文件，无需点击批准按钮。",
+			"outsideWorkspace": {
+				"label": "包含工作区外的文件",
+				"description": "允许 Roo 读取当前工作区外的文件，无需批准。"
+			}
 		},
 		"write": {
 			"label": "始终批准写入操作",
 			"description": "自动创建和编辑文件而无需批准",
-			"delayLabel": "写入后延迟以允许诊断检测潜在问题"
+			"delayLabel": "写入后延迟以允许诊断检测潜在问题",
+			"outsideWorkspace": {
+				"label": "包含工作区外的文件",
+				"description": "允许 Roo 创建和编辑当前工作区外的文件，无需批准。"
+			}
 		},
 		"browser": {
 			"label": "始终批准浏览器操作",

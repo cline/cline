@@ -35,12 +35,20 @@
 		"description": "Allow Roo to automatically perform operations without requiring approval. Enable these settings only if you fully trust the AI and understand the associated security risks.",
 		"readOnly": {
 			"label": "Always approve read-only operations",
-			"description": "When enabled, Roo will automatically view directory contents and read files without requiring you to click the Approve button."
+			"description": "When enabled, Roo will automatically view directory contents and read files without requiring you to click the Approve button.",
+			"outsideWorkspace": {
+				"label": "Include files outside workspace",
+				"description": "Allow Roo to read files outside the current workspace without requiring approval."
+			}
 		},
 		"write": {
 			"label": "Always approve write operations",
 			"description": "Automatically create and edit files without requiring approval",
-			"delayLabel": "Delay after writes to allow diagnostics to detect potential problems"
+			"delayLabel": "Delay after writes to allow diagnostics to detect potential problems",
+			"outsideWorkspace": {
+				"label": "Include files outside workspace",
+				"description": "Allow Roo to create and edit files outside the current workspace without requiring approval."
+			}
 		},
 		"browser": {
 			"label": "Always approve browser actions",

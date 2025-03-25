@@ -55,7 +55,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		mcpServers,
 		alwaysAllowBrowser,
 		alwaysAllowReadOnly,
+		alwaysAllowReadOnlyOutsideWorkspace,
 		alwaysAllowWrite,
+		alwaysAllowWriteOutsideWorkspace,
 		alwaysAllowExecute,
 		alwaysAllowMcp,
 		allowedCommands,
@@ -649,26 +651,60 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		(message: ClineMessage | undefined) => {
 			if (!autoApprovalEnabled || !message || message.type !== "ask") return false
 
-			return (
-				(alwaysAllowBrowser && message.ask === "browser_action_launch") ||
-				(alwaysAllowReadOnly && message.ask === "tool" && isReadOnlyToolAction(message)) ||
-				(alwaysAllowWrite && message.ask === "tool" && isWriteToolAction(message)) ||
-				(alwaysAllowExecute && message.ask === "command" && isAllowedCommand(message)) ||
-				(alwaysAllowMcp && message.ask === "use_mcp_server" && isMcpToolAlwaysAllowed(message)) ||
-				(alwaysAllowModeSwitch &&
-					message.ask === "tool" &&
-					JSON.parse(message.text || "{}")?.tool === "switchMode") ||
-				(alwaysAllowSubtasks &&
-					message.ask === "tool" &&
-					["newTask", "finishTask"].includes(JSON.parse(message.text || "{}")?.tool))
-			)
+			if (message.ask === "browser_action_launch") {
+				return alwaysAllowBrowser
+			}
+
+			if (message.ask === "use_mcp_server") {
+				return alwaysAllowMcp && isMcpToolAlwaysAllowed(message)
+			}
+
+			if (message.ask === "command") {
+				return alwaysAllowExecute && isAllowedCommand(message)
+			}
+
+			// For read/write operations, check if it's outside workspace and if we have permission for that
+			if (message.ask === "tool") {
+				let tool: any = {}
+				try {
+					tool = JSON.parse(message.text || "{}")
+				} catch (error) {
+					console.error("Failed to parse tool:", error)
+				}
+
+				if (!tool) {
+					return false
+				}
+
+				if (tool?.tool === "switchMode") {
+					return alwaysAllowModeSwitch
+				}
+
+				if (["newTask", "finishTask"].includes(tool?.tool)) {
+					return alwaysAllowSubtasks
+				}
+
+				const isOutsideWorkspace = !!tool.isOutsideWorkspace
+
+				if (isReadOnlyToolAction(message)) {
+					return alwaysAllowReadOnly && (!isOutsideWorkspace || alwaysAllowReadOnlyOutsideWorkspace)
+				}
+
+				if (isWriteToolAction(message)) {
+					return alwaysAllowWrite && (!isOutsideWorkspace || alwaysAllowWriteOutsideWorkspace)
+				}
+			}
+
+			return false
 		},
 		[
 			autoApprovalEnabled,
 			alwaysAllowBrowser,
 			alwaysAllowReadOnly,
+			alwaysAllowReadOnlyOutsideWorkspace,
 			isReadOnlyToolAction,
 			alwaysAllowWrite,
+			alwaysAllowWriteOutsideWorkspace,
 			isWriteToolAction,
 			alwaysAllowExecute,
 			isAllowedCommand,
@@ -1047,7 +1083,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		handlePrimaryButtonClick,
 		alwaysAllowBrowser,
 		alwaysAllowReadOnly,
+		alwaysAllowReadOnlyOutsideWorkspace,
 		alwaysAllowWrite,
+		alwaysAllowWriteOutsideWorkspace,
 		alwaysAllowExecute,
 		alwaysAllowMcp,
 		messages,

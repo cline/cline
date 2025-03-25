@@ -35,12 +35,20 @@
 		"description": "Pozwól Roo na automatyczne wykonywanie operacji bez wymagania zatwierdzenia. Włącz te ustawienia tylko jeśli w pełni ufasz AI i rozumiesz związane z tym zagrożenia bezpieczeństwa.",
 		"readOnly": {
 			"label": "Zawsze zatwierdzaj operacje tylko do odczytu",
-			"description": "Gdy włączone, Roo automatycznie będzie wyświetlać zawartość katalogów i czytać pliki bez konieczności klikania przycisku Zatwierdź."
+			"description": "Gdy włączone, Roo automatycznie będzie wyświetlać zawartość katalogów i czytać pliki bez konieczności klikania przycisku Zatwierdź.",
+			"outsideWorkspace": {
+				"label": "Uwzględnij pliki poza obszarem roboczym",
+				"description": "Pozwól Roo na odczyt plików poza bieżącym obszarem roboczym bez konieczności zatwierdzania."
+			}
 		},
 		"write": {
 			"label": "Zawsze zatwierdzaj operacje zapisu",
 			"description": "Automatycznie twórz i edytuj pliki bez konieczności zatwierdzania",
-			"delayLabel": "Opóźnienie po zapisach, aby umożliwić diagnostyce wykrycie potencjalnych problemów"
+			"delayLabel": "Opóźnienie po zapisach, aby umożliwić diagnostyce wykrycie potencjalnych problemów",
+			"outsideWorkspace": {
+				"label": "Uwzględnij pliki poza obszarem roboczym",
+				"description": "Pozwól Roo na tworzenie i edycję plików poza bieżącym obszarem roboczym bez konieczności zatwierdzania."
+			}
 		},
 		"browser": {
 			"label": "Zawsze zatwierdzaj akcje przeglądarki",
