@@ -64,16 +64,6 @@ export class BrowserSession {
 		return stats
 	}
 
-	// private async checkExistingChromeDebugger(): Promise<boolean> {
-	// 	try {
-	// 		// Try to connect to existing debugger
-	// 		const response = await fetch(`http://localhost:${DEBUG_PORT}/json/version`)
-	// 		return response.ok
-	// 	} catch {
-	// 		return false
-	// 	}
-	// }
-
 	// async relaunchChromeDebugMode() {
 	// 	const result = await vscode.window.showWarningMessage(
 	// 		"This will close your existing Chrome tabs and relaunch Chrome in debug mode. Are you sure?",
@@ -112,30 +102,12 @@ export class BrowserSession {
 	// 	return installation
 	// }
 
-	// /**
-	//  * Helper to detect user's default Chrome data dir.
-	//  * Adjust for OS if needed.
-	//  */
-	// private getDefaultChromeUserDataDir(): string {
-	// 	const homedir = require("os").homedir()
-	// 	switch (process.platform) {
-	// 		case "win32":
-	// 			return path.join(homedir, "AppData", "Local", "Google", "Chrome", "User Data")
-	// 		case "darwin":
-	// 			return path.join(homedir, "Library", "Application Support", "Google", "Chrome")
-	// 		default:
-	// 			return path.join(homedir, ".config", "google-chrome")
-	// 	}
-	// }
-
 	async launchBrowser() {
 		if (this.browser) {
 			await this.closeBrowser() // this may happen when the model launches a browser again after having used it already before
 		}
 
-		// Check if remote browser connection is enabled
 		if (this.browserSettings.remoteBrowserEnabled) {
-			// Remote browser connections respect the user's headless setting
 			console.log(`launch browser called -- remote host mode (headless: ${this.browserSettings.headless})`)
 			try {
 				await this.launchRemoteBrowser()
@@ -143,18 +115,17 @@ export class BrowserSession {
 				return
 			} catch (error) {
 				console.error("Failed to launch remote browser, falling back to headless:", error)
-				await this.launchHeadlessBrowser()
+				await this.launchLocalBrowser()
 			}
 		} else {
-			console.log(`launch browser called -- headless mode (headless: ${this.browserSettings.headless})`)
-			await this.launchHeadlessBrowser()
+			console.log(`launch browser called -- local mode (headless: ${this.browserSettings.headless})`)
+			await this.launchLocalBrowser()
 		}
 
-		// (latest version of puppeteer does not add headless to user agent)
 		this.page = await this.browser?.newPage()
 	}
 
-	async launchHeadlessBrowser() {
+	async launchLocalBrowser() {
 		const stats = await this.ensureChromiumExists()
 		this.browser = await stats.puppeteer.launch({
 			args: [
@@ -164,25 +135,6 @@ export class BrowserSession {
 			defaultViewport: this.browserSettings.viewport,
 			headless: this.browserSettings.headless,
 		})
-
-		// if (this.browserSettings.chromeType === "system") {
-		// 	const userDataDir = this.getDefaultChromeUserDataDir()
-		// 	this.browser = await stats.puppeteer.launch({
-		// 		args: [`--user-data-dir=${userDataDir}`, "--profile-directory=Default"],
-		// 		executablePath: await this.getSystemChromeExecutablePath(),
-		// 		defaultViewport: this.browserSettings.viewport,
-		// 		headless: this.browserSettings.headless,
-		// 	})
-		// } else {
-		// 	this.browser = await stats.puppeteer.launch({
-		// 		args: [
-		// 			"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-		// 		],
-		// 		executablePath: stats.executablePath,
-		// 		defaultViewport: this.browserSettings.viewport,
-		// 		headless: this.browserSettings.headless,
-		// 	})
-		// }
 	}
 
 	async launchRemoteBrowser() {
@@ -276,7 +228,7 @@ export class BrowserSession {
 				console.log("disconnected from remote browser...")
 			} else {
 				await this.browser?.close().catch(() => {})
-				console.log("closed headless browser...")
+				console.log("closed local browser...")
 			}
 
 			this.browser = undefined

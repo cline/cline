@@ -230,7 +230,7 @@
 				"cline.chromeExecutablePath": {
 					"type": "string",
 					"default": null,
-					"description": "Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find it automatically."
+					"description": "Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find or download it automatically."
 				},
 				"cline.remoteBrowserEnabled": {
 					"type": "boolean",
