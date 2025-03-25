@@ -1346,7 +1346,7 @@ export class Cline {
 						}),
 					).then((contents) => contents.join("\n\n"))
 					clineRulesFileInstructions = `# .clinerules/\n\nThe following is provided by a root-level .clinerules/ directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${ruleFileContent}`
-				} catch (error) {
+				} catch {
 					console.error(`Failed to read .clinerules directory at ${clineRulesFilePath}`)
 				}
 			} else {
