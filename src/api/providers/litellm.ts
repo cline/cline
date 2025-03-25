@@ -17,12 +17,7 @@ export class LiteLlmHandler implements ApiHandler {
 		})
 	}
 
-	async calculateCost(
-		prompt_tokens: number,
-		completion_tokens: number,
-		cache_creation_input_tokens: number,
-		cache_read_input_tokens: number,
-	): Promise<number | undefined> {
+	async calculateCost(prompt_tokens: number, completion_tokens: number): Promise<number | undefined> {
 		// Reference: https://github.com/BerriAI/litellm/blob/122ee634f434014267af104814022af1d9a0882f/litellm/proxy/spend_tracking/spend_management_endpoints.py#L1473
 		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
 		try {
@@ -38,8 +33,6 @@ export class LiteLlmHandler implements ApiHandler {
 						usage: {
 							prompt_tokens,
 							completion_tokens,
-							cache_creation_input_tokens,
-							cache_read_input_tokens,
 						},
 					},
 				}),
@@ -80,6 +73,9 @@ export class LiteLlmHandler implements ApiHandler {
 			stream_options: { include_usage: true },
 		})
 
+		const inputCost = (await this.calculateCost(1e6, 0)) || 0
+		const outputCost = (await this.calculateCost(0, 1e6)) || 0
+
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
@@ -90,19 +86,8 @@ export class LiteLlmHandler implements ApiHandler {
 			}
 
 			if (chunk.usage) {
-				// NOTE: While we wait for LiteLLM to add the cost field to the usage object, we calculate it ourselves
 				const totalCost =
-					// @ts-ignore-next-line
-					chunk.usage.cost ||
-					(await this.calculateCost(
-						chunk.usage.prompt_tokens || 0,
-						chunk.usage.completion_tokens || 0,
-						// @ts-ignore-next-line
-						chunk.usage.cache_creation_input_tokens || 0,
-						// @ts-ignore-next-line
-						chunk.usage.cache_read_input_tokens || 0,
-					)) ||
-					0
+					(inputCost * chunk.usage.prompt_tokens) / 1e6 + (outputCost * chunk.usage.completion_tokens) / 1e6
 				yield {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
