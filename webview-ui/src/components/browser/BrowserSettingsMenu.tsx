@@ -116,6 +116,32 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 						<SettingsDescription>When enabled, Chrome will run in the background.</SettingsDescription>
 					</SettingsGroup>
 
+					{/* update this to SettingsGroup style code */}
+					<div className="mt-4">
+						<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
+							Remote Chrome DevTools Host (optional)
+						</label>
+						<input
+							type="text"
+							value={remoteBrowserHost ?? ""}
+							placeholder="http://localhost:9222"
+							style={{
+								width: "100%",
+								padding: "4px 8px",
+								backgroundColor: "var(--vscode-input-background)",
+								color: "var(--vscode-input-foreground)",
+								border: "1px solid var(--vscode-input-border)",
+								borderRadius: "2px",
+							}}
+							onChange={(e) => setCachedStateField("remoteBrowserHost", e.target.value || undefined)}
+						/>
+						<p className="text-vscode-descriptionForeground text-sm mt-0">
+							Connect to a remote Chrome browser by providing the DevTools Protocol host address. Roo will
+							automatically fetch the WebSocket endpoint from this address. If provided, Roo will use this browser
+							instead of launching a local one. Leave empty to use the built-in browser.
+						</p>
+					</div>
+
 					{/* <SettingsGroup>
 						<SettingsHeader>Chrome Executable</SettingsHeader>
 						<VSCodeDropdown
@@ -156,7 +182,7 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 								Object.entries(BROWSER_VIEWPORT_PRESETS).find(
 									([_, size]) =>
 										size.width === browserSettings.viewport.width &&
-										size.height === browserSettings.viewport.height,
+										size.height === browserSettings.viewport.height
 								)?.[0]
 							}
 							onChange={(event) => handleViewportChange(event as Event)}>

@@ -41,6 +41,8 @@ import { getTotalTasksSize } from "../../utils/storage"
 import { ConversationTelemetryService } from "../../services/telemetry/ConversationTelemetryService"
 import { GlobalFileNames } from "../../global-constants"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import { BrowserSession } from "../../services/browser/BrowserSession"
+import { discoverChromeInstances } from "../../services/browser/browserDiscovery"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -131,7 +133,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		private readonly outputChannel: vscode.OutputChannel,
+		private readonly outputChannel: vscode.OutputChannel
 	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		ClineProvider.activeInstances.add(this)
@@ -232,7 +234,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 				},
 				null,
-				this.disposables,
+				this.disposables
 			)
 		} else if ("onDidChangeVisibility" in webviewView) {
 			// sidebar
@@ -246,7 +248,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 				},
 				null,
-				this.disposables,
+				this.disposables
 			)
 		}
 
@@ -257,7 +259,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				await this.dispose()
 			},
 			null,
-			this.disposables,
+			this.disposables
 		)
 
 		// Listen for configuration changes
@@ -276,7 +278,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 			},
 			null,
-			this.disposables,
+			this.disposables
 		)
 
 		// if the extension is starting a new session, clear previous task state
@@ -297,7 +299,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			chatSettings,
 			customInstructions,
 			task,
-			images,
+			images
 		)
 	}
 
@@ -314,7 +316,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			undefined,
 			undefined,
-			historyItem,
+			historyItem
 		)
 	}
 
@@ -414,7 +416,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await axios.get(`http://${localServerUrl}`)
 		} catch (error) {
 			vscode.window.showErrorMessage(
-				"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
+				"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets."
 			)
 
 			return this.getHtmlContent(webview)
@@ -493,7 +495,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							this.postMessageToWebview({
 								type: "theme",
 								text: JSON.stringify(theme),
-							}),
+							})
 						)
 						// post last cached models in case the call to endpoint fails
 						this.readOpenRouterModels().then((openRouterModels) => {
@@ -525,7 +527,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								if (apiConfiguration.openRouterModelId) {
 									await this.updateGlobalState(
 										"openRouterModelInfo",
-										openRouterModels[apiConfiguration.openRouterModelId],
+										openRouterModels[apiConfiguration.openRouterModelId]
 									)
 									await this.postStateToWebview()
 								}
@@ -572,6 +574,105 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								this.cline.updateBrowserSettings(message.browserSettings)
 							}
 							await this.postStateToWebview()
+						}
+						break
+					case "remoteBrowserHost":
+						await this.updateGlobalState("remoteBrowserHost", message.text)
+						await this.postStateToWebview()
+						break
+					case "remoteBrowserEnabled":
+						// Store the preference in global state
+						// remoteBrowserEnabled now means "enable remote browser connection"
+						await this.updateGlobalState("remoteBrowserEnabled", message.bool ?? false)
+						// If disabling remote browser connection, clear the remoteBrowserHost
+						if (!message.bool) {
+							await this.updateGlobalState("remoteBrowserHost", undefined)
+						}
+						await this.postStateToWebview()
+						break
+					case "testBrowserConnection":
+						try {
+							const browserSession = new BrowserSession(this.context)
+							// If no text is provided, try auto-discovery
+							if (!message.text) {
+								try {
+									const discoveredHost = await discoverChromeInstances()
+									if (discoveredHost) {
+										// Test the connection to the discovered host
+										const result = await browserSession.testConnection(discoveredHost)
+										// Send the result back to the webview
+										await this.postMessageToWebview({
+											type: "browserConnectionResult",
+											success: result.success,
+											text: `Auto-discovered and tested connection to Chrome at ${discoveredHost}: ${result.message}`,
+											values: { endpoint: result.endpoint },
+										})
+									} else {
+										await this.postMessageToWebview({
+											type: "browserConnectionResult",
+											success: false,
+											text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+										})
+									}
+								} catch (error) {
+									await this.postMessageToWebview({
+										type: "browserConnectionResult",
+										success: false,
+										text: `Error during auto-discovery: ${error instanceof Error ? error.message : String(error)}`,
+									})
+								}
+							} else {
+								// Test the provided URL
+								const result = await browserSession.testConnection(message.text)
+
+								// Send the result back to the webview
+								await this.postMessageToWebview({
+									type: "browserConnectionResult",
+									success: result.success,
+									text: result.message,
+									values: { endpoint: result.endpoint },
+								})
+							}
+						} catch (error) {
+							await this.postMessageToWebview({
+								type: "browserConnectionResult",
+								success: false,
+								text: `Error testing connection: ${error instanceof Error ? error.message : String(error)}`,
+							})
+						}
+						break
+					case "discoverBrowser":
+						try {
+							const discoveredHost = await discoverChromeInstances()
+
+							if (discoveredHost) {
+								// Don't update the remoteBrowserHost state when auto-discovering
+								// This way we don't override the user's preference
+
+								// Test the connection to get the endpoint
+								const browserSession = new BrowserSession(this.context)
+								const result = await browserSession.testConnection(discoveredHost)
+
+								// Send the result back to the webview
+								await this.postMessageToWebview({
+									type: "browserConnectionResult",
+									success: true,
+									text: `Successfully discovered and connected to Chrome at ${discoveredHost}`,
+									values: { endpoint: result.endpoint },
+								})
+							} else {
+								await this.postMessageToWebview({
+									type: "browserConnectionResult",
+									success: false,
+									text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+								})
+							}
+						} catch (error) {
+							await this.postMessageToWebview({
+								type: "browserConnectionResult",
+								success: false,
+								text: `Error discovering browser: ${error instanceof Error ? error.message : String(error)}`,
+							})
 						}
 						break
 					case "togglePlanActMode":
@@ -653,7 +754,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const { apiConfiguration } = await this.getState()
 						const openAiModels = await this.getOpenAiModels(
 							apiConfiguration.openAiBaseUrl,
-							apiConfiguration.openAiApiKey,
+							apiConfiguration.openAiApiKey
 						)
 						this.postMessageToWebview({ type: "openAiModels", openAiModels })
 						break
@@ -722,7 +823,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const uriScheme = vscode.env.uriScheme
 
 						const authUrl = vscode.Uri.parse(
-							`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`,
+							`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`
 						)
 						vscode.env.openExternal(authUrl)
 						break
@@ -880,7 +981,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const settingsFilter = message.text || ""
 						await vscode.commands.executeCommand(
 							"workbench.action.openSettings",
-							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
+							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim() // trim whitespace if no settings filter
 						)
 						break
 					}
@@ -943,7 +1044,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 			},
 			null,
-			this.disposables,
+			this.disposables
 		)
 	}
 
@@ -1098,7 +1199,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					this.cline.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
 				{
 					timeout: 3_000,
-				},
+				}
 			).catch(() => {
 				console.error("Failed to abort task")
 			})
@@ -1492,7 +1593,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				{
 					headers: { "Content-Type": "application/json" },
 					timeout: 10000,
-				},
+				}
 			)
 
 			if (!response.data) {
@@ -1816,7 +1917,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		const fileMention = this.getFileMentionFromPath(filePath)
 		const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
 		await this.initClineWithTask(
-			`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`,
+			`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`
 		)
 
 		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
@@ -1916,7 +2017,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			}
 		} catch (error) {
 			vscode.window.showErrorMessage(
-				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
+				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`
 			)
 		}
 		// await this.postStateToWebview()

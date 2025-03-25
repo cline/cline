@@ -32,6 +32,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		telemetrySetting,
 		setTelemetrySetting,
 		chatSettings,
+		remoteBrowserHost,
 		planActSeparateModelsSetting,
 		setPlanActSeparateModelsSetting,
 	} = useExtensionState()
@@ -115,7 +116,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					break
 			}
 		},
-		[pendingTabChange],
+		[pendingTabChange]
 	)
 
 	useEvent("message", handleMessage)

@@ -1,14 +1,16 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
+import { Browser, Page, ScreenshotOptions, TimeoutError, launch, connect } from "puppeteer-core"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import axios from "axios"
 import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
 import { BrowserSettings } from "../../shared/BrowserSettings"
+import { discoverChromeInstances, testBrowserConnection } from "./browserDiscovery"
 // import * as chromeLauncher from "chrome-launcher"
 
 interface PCRStats {
@@ -16,18 +18,25 @@ interface PCRStats {
 	executablePath: string
 }
 
-// const DEBUG_PORT = 9222 // Chrome's default debugging port
+const DEBUG_PORT = 9222 // Chrome's default debugging port
 
 export class BrowserSession {
 	private context: vscode.ExtensionContext
 	private browser?: Browser
 	private page?: Page
 	private currentMousePosition?: string
+	private cachedWebSocketEndpoint?: string
+	private lastConnectionAttempt: number = 0
 	browserSettings: BrowserSettings
 
 	constructor(context: vscode.ExtensionContext, browserSettings: BrowserSettings) {
 		this.context = context
 		this.browserSettings = browserSettings
+	}
+
+	// Tests remote browser connection
+	async testConnection(host: string): Promise<{ success: boolean; message: string; endpoint?: string }> {
+		return testBrowserConnection(host)
 	}
 
 	private async ensureChromiumExists(): Promise<PCRStats> {
@@ -120,12 +129,25 @@ export class BrowserSession {
 	// }
 
 	async launchBrowser() {
-		console.log("launch browser called")
+		const remoteBrowserHost = this.context.globalState.get("remoteBrowserHost") as string | undefined
+
 		if (this.browser) {
-			// throw new Error("Browser already launched")
 			await this.closeBrowser() // this may happen when the model launches a browser again after having used it already before
 		}
 
+		if (remoteBrowserHost) {
+			console.log("launch browser called -- remote host mode")
+			await launchRemoteBrowser()
+		} else {
+			console.log("launch browser called -- headless mode")
+			await launchHeadlessBrowser()
+		}
+
+		// (latest version of puppeteer does not add headless to user agent)
+		this.page = await this.browser?.newPage()
+	}
+
+	async launchHeadlessBrowser() {
 		const stats = await this.ensureChromiumExists()
 		this.browser = await stats.puppeteer.launch({
 			args: [
@@ -154,15 +176,110 @@ export class BrowserSession {
 		// 		headless: this.browserSettings.headless,
 		// 	})
 		// }
+	}
 
-		// (latest version of puppeteer does not add headless to user agent)
-		this.page = await this.browser?.newPage()
+	async launchRemoteBrowser() {
+		let remoteBrowserHost = this.context.globalState.get("remoteBrowserHost") as string | undefined
+		let browserWSEndpoint: string | undefined = this.cachedWebSocketEndpoint
+		let reconnectionAttempted = false
+
+		const getViewport = () => {
+			const size = (this.context.globalState.get("browserViewportSize") as string | undefined) || "900x600"
+			const [width, height] = size.split("x").map(Number)
+			return { width, height }
+		}
+
+		// Try to connect with cached endpoint first if it exists and is recent (less than 1 hour old)
+		if (browserWSEndpoint && Date.now() - this.lastConnectionAttempt < 3600000) {
+			try {
+				console.log(`Attempting to connect using cached WebSocket endpoint: ${browserWSEndpoint}`)
+				this.browser = await connect({
+					browserWSEndpoint,
+					defaultViewport: getViewport(),
+				})
+				this.page = await this.browser?.newPage()
+				return
+			} catch (error) {
+				console.log(`Failed to connect using cached endpoint: ${error}`)
+				// Clear the cached endpoint since it's no longer valid
+				this.cachedWebSocketEndpoint = undefined
+				// User wants to give up after one reconnection attempt
+				if (remoteBrowserHost) {
+					reconnectionAttempted = true
+				}
+			}
+		}
+
+		try {
+			// Fetch the WebSocket endpoint from the Chrome DevTools Protocol
+			const versionUrl = `${remoteBrowserHost.replace(/\/$/, "")}/json/version`
+			console.log(`Fetching WebSocket endpoint from ${versionUrl}`)
+
+			const response = await axios.get(versionUrl)
+			browserWSEndpoint = response.data.webSocketDebuggerUrl
+
+			if (!browserWSEndpoint) {
+				throw new Error("Could not find webSocketDebuggerUrl in the response")
+			}
+
+			console.log(`Found WebSocket browser endpoint: ${browserWSEndpoint}`)
+
+			// Cache the successful endpoint
+			this.cachedWebSocketEndpoint = browserWSEndpoint
+			this.lastConnectionAttempt = Date.now()
+
+			this.browser = await connect({
+				browserWSEndpoint,
+				defaultViewport: getViewport(),
+			})
+			return
+		} catch (error) {
+			console.log(`Failed to connect to remote browser, trying auto-discovery: ${error}`)
+		}
+
+		// Always try auto-discovery if no custom URL is specified or if connection failed
+		try {
+			console.log("Attempting auto-discovery...")
+			const discoveredHost = await discoverChromeInstances()
+
+			if (discoveredHost) {
+				console.log(`Auto-discovered Chrome at ${discoveredHost}`)
+
+				// Don't save the discovered host to global state to avoid overriding user preference
+				// We'll just use it for this session
+
+				// Try to connect to the discovered host
+				const testResult = await testBrowserConnection(discoveredHost)
+
+				if (testResult.success && testResult.endpoint) {
+					// Cache the successful endpoint
+					this.cachedWebSocketEndpoint = testResult.endpoint
+					this.lastConnectionAttempt = Date.now()
+
+					this.browser = await connect({
+						browserWSEndpoint: testResult.endpoint,
+						defaultViewport: getViewport(),
+					})
+					this.page = await this.browser?.newPage()
+					return
+				}
+			}
+		} catch (error) {
+			console.log(`Auto-discovery failed, falling back to headless: ${error}`)
+		}
 	}
 
 	async closeBrowser(): Promise<BrowserActionResult> {
 		if (this.browser || this.page) {
-			console.log("closing browser...")
-			await this.browser?.close().catch(() => {})
+			const remoteBrowserHost = this.context.globalState.get("remoteBrowserHost") as string | undefined
+			if (remoteBrowserHost && this.browser) {
+				await this.browser.disconnect().catch(() => {})
+				console.log("disconnected from remote browser...")
+			} else {
+				await this.browser?.close().catch(() => {})
+				console.log("closed headless browser...")
+			}
+
 			this.browser = undefined
 			this.page = undefined
 			this.currentMousePosition = undefined
@@ -173,7 +290,7 @@ export class BrowserSession {
 	async doAction(action: (page: Page) => Promise<void>): Promise<BrowserActionResult> {
 		if (!this.page) {
 			throw new Error(
-				"Browser is not launched. This may occur if the browser was automatically closed by a non-`browser_action` tool.",
+				"Browser is not launched. This may occur if the browser was automatically closed by a non-`browser_action` tool."
 			)
 		}
 
