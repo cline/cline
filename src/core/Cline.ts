@@ -1748,7 +1748,10 @@ export class Cline {
 							// Construct newContent from diff
 							let newContent: string
 							if (diff) {
-								if (!this.api.getModel().id.includes("claude")) {
+								if (
+									!this.api.getModel().id.includes("claude") &&
+									!this.api.getModel().id.includes("gemini-2.0")
+								) {
 									// deepseek models tend to use unescaped html entities in diffs
 									diff = fixModelHtmlEscaping(diff)
 									diff = removeInvalidChars(diff)
@@ -1793,7 +1796,10 @@ export class Cline {
 									newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 								}
 
-								if (!this.api.getModel().id.includes("claude")) {
+								if (
+									!this.api.getModel().id.includes("claude") &&
+									!this.api.getModel().id.includes("gemini-2.0")
+								) {
 									// it seems not just llama models are doing this, but also gemini and potentially others
 									newContent = fixModelHtmlEscaping(newContent)
 									newContent = removeInvalidChars(newContent)
