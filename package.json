@@ -97,6 +97,12 @@
 				"category": "Cline"
 			},
 			{
+				"command": "cline.dev.createTestTasks",
+				"title": "Create Test Tasks",
+				"category": "Cline",
+				"when": "cline.isDevMode"
+			},
+			{
 				"command": "cline.openDocumentation",
 				"title": "Documentation",
 				"icon": "$(book)"
