@@ -135,7 +135,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		private readonly outputChannel: vscode.OutputChannel
+		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
 		ClineProvider.activeInstances.add(this)
@@ -236,7 +236,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 				},
 				null,
-				this.disposables
+				this.disposables,
 			)
 		} else if ("onDidChangeVisibility" in webviewView) {
 			// sidebar
@@ -250,7 +250,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					}
 				},
 				null,
-				this.disposables
+				this.disposables,
 			)
 		}
 
@@ -261,7 +261,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				await this.dispose()
 			},
 			null,
-			this.disposables
+			this.disposables,
 		)
 
 		// Listen for configuration changes
@@ -280,7 +280,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 			},
 			null,
-			this.disposables
+			this.disposables,
 		)
 
 		// if the extension is starting a new session, clear previous task state
@@ -301,7 +301,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			chatSettings,
 			customInstructions,
 			task,
-			images
+			images,
 		)
 	}
 
@@ -318,7 +318,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			customInstructions,
 			undefined,
 			undefined,
-			historyItem
+			historyItem,
 		)
 	}
 
@@ -418,7 +418,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await axios.get(`http://${localServerUrl}`)
 		} catch (error) {
 			vscode.window.showErrorMessage(
-				"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets."
+				"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
 			)
 
 			return this.getHtmlContent(webview)
@@ -497,7 +497,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							this.postMessageToWebview({
 								type: "theme",
 								text: JSON.stringify(theme),
-							})
+							}),
 						)
 						// post last cached models in case the call to endpoint fails
 						this.readOpenRouterModels().then((openRouterModels) => {
@@ -529,7 +529,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								if (apiConfiguration.openRouterModelId) {
 									await this.updateGlobalState(
 										"openRouterModelInfo",
-										openRouterModels[apiConfiguration.openRouterModelId]
+										openRouterModels[apiConfiguration.openRouterModelId],
 									)
 									await this.postStateToWebview()
 								}
@@ -758,7 +758,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const { apiConfiguration } = await this.getState()
 						const openAiModels = await this.getOpenAiModels(
 							apiConfiguration.openAiBaseUrl,
-							apiConfiguration.openAiApiKey
+							apiConfiguration.openAiApiKey,
 						)
 						this.postMessageToWebview({ type: "openAiModels", openAiModels })
 						break
@@ -827,7 +827,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const uriScheme = vscode.env.uriScheme
 
 						const authUrl = vscode.Uri.parse(
-							`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`
+							`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`,
 						)
 						vscode.env.openExternal(authUrl)
 						break
@@ -985,7 +985,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const settingsFilter = message.text || ""
 						await vscode.commands.executeCommand(
 							"workbench.action.openSettings",
-							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim() // trim whitespace if no settings filter
+							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
 						)
 						break
 					}
@@ -1048,7 +1048,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 			},
 			null,
-			this.disposables
+			this.disposables,
 		)
 	}
 
@@ -1203,7 +1203,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					this.cline.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
 				{
 					timeout: 3_000,
-				}
+				},
 			).catch(() => {
 				console.error("Failed to abort task")
 			})
@@ -1597,7 +1597,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				{
 					headers: { "Content-Type": "application/json" },
 					timeout: 10000,
-				}
+				},
 			)
 
 			if (!response.data) {
@@ -1921,7 +1921,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		const fileMention = this.getFileMentionFromPath(filePath)
 		const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
 		await this.initClineWithTask(
-			`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`
+			`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`,
 		)
 
 		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
@@ -2021,7 +2021,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			}
 		} catch (error) {
 			vscode.window.showErrorMessage(
-				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`
+				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
 		// await this.postStateToWebview()

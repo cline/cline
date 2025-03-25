@@ -55,7 +55,7 @@ export const BrowserSettingsSection: React.FC = () => {
 			type: "remoteBrowserEnabled",
 			bool: enabled,
 		})
-		
+
 		// If disabling, clear the host
 		if (!enabled) {
 			vscode.postMessage({
@@ -92,22 +92,20 @@ export const BrowserSettingsSection: React.FC = () => {
 	return (
 		<div style={{ marginBottom: 20, borderTop: "1px solid var(--vscode-panel-border)", paddingTop: 15 }}>
 			<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 10px 0", fontSize: "14px" }}>Browser Settings</h3>
-			
+
 			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8 }}>
-					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
-						Viewport Size
-					</label>
+					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Viewport Size</label>
 					<VSCodeDropdown
 						style={{ width: "100%" }}
 						value={
-							Object.entries(BROWSER_VIEWPORT_PRESETS).find(
-								([_, size]) => {
-									const typedSize = size as { width: number; height: number };
-									return typedSize.width === browserSettings.viewport.width &&
-										typedSize.height === browserSettings.viewport.height;
-								}
-							)?.[0]
+							Object.entries(BROWSER_VIEWPORT_PRESETS).find(([_, size]) => {
+								const typedSize = size as { width: number; height: number }
+								return (
+									typedSize.width === browserSettings.viewport.width &&
+									typedSize.height === browserSettings.viewport.height
+								)
+							})?.[0]
 						}
 						onChange={(event) => handleViewportChange(event as Event)}>
 						{Object.entries(BROWSER_VIEWPORT_PRESETS).map(([name]) => (
@@ -146,19 +144,17 @@ export const BrowserSettingsSection: React.FC = () => {
 
 			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8 }}>
-					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
-						Chrome Executable Path
-					</label>
+					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Chrome Executable Path</label>
 					<VSCodeTextField
 						style={{ width: "100%" }}
 						placeholder="Path to Chrome executable"
 						onChange={(e: any) => {
-							const value = e.target.value;
+							const value = e.target.value
 							// Update VSCode configuration directly
 							vscode.postMessage({
 								type: "openExtensionSettings",
-								text: "chromeExecutablePath"
-							});
+								text: "chromeExecutablePath",
+							})
 						}}
 					/>
 				</div>
@@ -168,7 +164,8 @@ export const BrowserSettingsSection: React.FC = () => {
 						color: "var(--vscode-descriptionForeground)",
 						margin: 0,
 					}}>
-					Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find it automatically.
+					Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find it
+					automatically.
 				</p>
 			</div>
 
@@ -186,8 +183,8 @@ export const BrowserSettingsSection: React.FC = () => {
 						color: "var(--vscode-descriptionForeground)",
 						margin: "0 0 8px 20px",
 					}}>
-					Connect to a Chrome browser running with remote debugging enabled (--remote-debugging-port=9222).
-					This allows Cline to use your existing browser session with all authentication cookies.
+					Connect to a Chrome browser running with remote debugging enabled (--remote-debugging-port=9222). This allows
+					Cline to use your existing browser session with all authentication cookies.
 				</p>
 
 				{browserSettings.remoteBrowserEnabled && (
@@ -211,9 +208,7 @@ export const BrowserSettingsSection: React.FC = () => {
 								style={{
 									padding: "8px",
 									marginBottom: "8px",
-									backgroundColor: testResult.success
-										? "rgba(0, 128, 0, 0.1)"
-										: "rgba(255, 0, 0, 0.1)",
+									backgroundColor: testResult.success ? "rgba(0, 128, 0, 0.1)" : "rgba(255, 0, 0, 0.1)",
 									color: testResult.success
 										? "var(--vscode-terminal-ansiGreen)"
 										: "var(--vscode-terminal-ansiRed)",

@@ -116,7 +116,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					break
 			}
 		},
-		[pendingTabChange]
+		[pendingTabChange],
 	)
 
 	useEvent("message", handleMessage)

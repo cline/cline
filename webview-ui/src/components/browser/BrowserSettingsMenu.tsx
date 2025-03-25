@@ -106,7 +106,7 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 			type: "remoteBrowserEnabled",
 			bool: enabled,
 		})
-		
+
 		// If disabling, clear the host
 		if (!enabled) {
 			vscode.postMessage({
@@ -215,9 +215,7 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 										style={{
 											padding: "8px",
 											marginTop: "8px",
-											backgroundColor: testResult.success
-												? "rgba(0, 128, 0, 0.1)"
-												: "rgba(255, 0, 0, 0.1)",
+											backgroundColor: testResult.success ? "rgba(0, 128, 0, 0.1)" : "rgba(255, 0, 0, 0.1)",
 											color: testResult.success
 												? "var(--vscode-terminal-ansiGreen)"
 												: "var(--vscode-terminal-ansiRed)",
@@ -275,7 +273,7 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 								Object.entries(BROWSER_VIEWPORT_PRESETS).find(
 									([_, size]) =>
 										size.width === browserSettings.viewport.width &&
-										size.height === browserSettings.viewport.height
+										size.height === browserSettings.viewport.height,
 								)?.[0]
 							}
 							onChange={(event) => handleViewportChange(event as Event)}>
