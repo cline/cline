@@ -20,3 +20,13 @@ export function fixModelHtmlEscaping(text: string): string {
 export function removeInvalidChars(text: string): string {
 	return text.replace(/\uFFFD/g, "")
 }
+
+/**
+ * Determines if a model's output should be fixed for HTML escaping issues
+ * @param model Model object containing the model ID
+ * @returns Boolean indicating if the model's output should be fixed
+ */
+export function shouldFixModelHtmlEscaping(model: { id: string }): boolean {
+	const id = model.id.toLowerCase()
+	return !(id.includes("claude") || id.includes("gemini-2."))
+}
