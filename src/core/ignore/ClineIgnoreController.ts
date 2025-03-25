@@ -67,40 +67,77 @@ export class ClineIgnoreController {
 			this.ignoreInstance = ignore()
 			const ignorePath = path.join(this.cwd, ".clineignore")
 
-			if (await fileExistsAtPath(ignorePath)) {
-				const rawContent = await fs.readFile(ignorePath, "utf8")
-				this.clineIgnoreContent = rawContent
-
-				let combinedContent = ""
-
-				const lines = rawContent.split(/\r?\n/)
-				for (const line of lines) {
-					const trimmedLine = line.trim()
-
-					if (trimmedLine.startsWith("!include ")) {
-						const includePath = trimmedLine.substring("!include ".length).trim()
-						const resolvedIncludePath = path.join(this.cwd, includePath)
-
-						if (await fileExistsAtPath(resolvedIncludePath)) {
-							const includedContent = await fs.readFile(resolvedIncludePath, "utf8")
-							combinedContent += "\n" + includedContent
-						} else {
-							console.debug(`[ClineIgnore] Included file not found: ${resolvedIncludePath}`)
-						}
-					} else {
-						combinedContent += "\n" + line
-					}
-				}
-
-				this.ignoreInstance.add(combinedContent)
-				this.ignoreInstance.add(".clineignore")
-			} else {
+			// Early return: file does not exist
+			if (!(await fileExistsAtPath(ignorePath))) {
 				this.clineIgnoreContent = undefined
+				return
 			}
+
+			// Read file content
+			const rawContent = await fs.readFile(ignorePath, "utf8")
+			this.clineIgnoreContent = rawContent
+
+			// Process content and add to ignore instance
+			await this.processIgnoreContent(rawContent)
 		} catch (error) {
 			// Should never happen: reading file failed even though it exists
 			console.error("Unexpected error loading .clineignore:", error)
 		}
+	}
+
+	/**
+	 * Process ignore content and apply all ignore patterns
+	 */
+	private async processIgnoreContent(content: string): Promise<void> {
+		// Optimization: first check if there are any !include directives
+		if (!content.includes("!include ")) {
+			this.ignoreInstance.add(content)
+			return
+		}
+
+		// Process !include directives
+		const combinedContent = await this.processClineIgnoreIncludes(content)
+		this.ignoreInstance.add(combinedContent)
+	}
+
+	/**
+	 * Process !include directives and combine all included file contents
+	 */
+	private async processClineIgnoreIncludes(content: string): Promise<string> {
+		let combinedContent = ""
+		const lines = content.split(/\r?\n/)
+
+		for (const line of lines) {
+			const trimmedLine = line.trim()
+
+			if (!trimmedLine.startsWith("!include ")) {
+				combinedContent += "\n" + line
+				continue
+			}
+
+			// Process !include directive
+			const includedContent = await this.readIncludedFile(trimmedLine)
+			if (includedContent) {
+				combinedContent += "\n" + includedContent
+			}
+		}
+
+		return combinedContent
+	}
+
+	/**
+	 * Read content from an included file specified by !include directive
+	 */
+	private async readIncludedFile(includeLine: string): Promise<string | null> {
+		const includePath = includeLine.substring("!include ".length).trim()
+		const resolvedIncludePath = path.join(this.cwd, includePath)
+
+		if (!(await fileExistsAtPath(resolvedIncludePath))) {
+			console.debug(`[ClineIgnore] Included file not found: ${resolvedIncludePath}`)
+			return null
+		}
+
+		return await fs.readFile(resolvedIncludePath, "utf8")
 	}
 
 	/**

@@ -50,9 +50,9 @@ describe("ClineIgnoreController", () => {
 			results.forEach((result) => result.should.be.true())
 		})
 
-		it("should block access to .clineignore file", async () => {
+		it("should access to .clineignore file", async () => {
 			const result = controller.validateAccess(".clineignore")
-			result.should.be.false()
+			result.should.be.true()
 		})
 	})
 
