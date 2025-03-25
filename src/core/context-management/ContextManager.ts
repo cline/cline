@@ -80,16 +80,19 @@ export class ContextManager {
 	// format:  {outerIndex => {innerIndex => [[timestamp, updateType, update], ...]}}
 	// example: { 1 => { 0 => [[<timestamp>, "text", "[NOTE] Some previous conversation history with the user has been removed ..."], ...] } }
 	// the above example would be how we update the first assistant message to indicate we truncated text
-	private contextHistoryUpdates: Map<number, Map<number, [number, string, MessageContent][]>>
+	private contextHistoryUpdates: Map<number, Map<number, ContextUpdate[]>>
 
     constructor() {
-		this.contextHistoryUpdates = new Map() // defaults to having no keys, so no alterations if file read incorrectly
+		this.contextHistoryUpdates = new Map()
     }
 
 	/**
 	 * public function for loading contextHistory from memory, if it exists
+<<<<<<< HEAD
 	 * loading can also be done in each call
 >>>>>>> 03c07bac (context state base)
+=======
+>>>>>>> c05cc5c1 (context state base 2)
 	 */
 	async initializeContextHistory(taskDirectory: string) {
 		this.contextHistoryUpdates = await this.getSavedContextHistory(taskDirectory)
@@ -171,18 +174,25 @@ export class ContextManager {
 				'utf8'
 			)
 		} catch (error) {
+<<<<<<< HEAD
 			// in the off chance this fails, we don't want to stop the task
 >>>>>>> 03c07bac (context state base)
+=======
+>>>>>>> c05cc5c1 (context state base 2)
 			console.error("Failed to save context history:", error)
 		}
 	}
 
 	/**
 <<<<<<< HEAD
+<<<<<<< HEAD
 	 * primary entry point for getting up to date context & truncating when required
 =======
 	 * primary entry point for getting up to date contexxt & truncating when required
 >>>>>>> 03c07bac (context state base)
+=======
+	 * primary entry point for getting up to date context & truncating when required
+>>>>>>> c05cc5c1 (context state base 2)
 	 */
 	async getNewContextMessagesAndMetadata(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
@@ -197,8 +207,6 @@ export class ContextManager {
 >>>>>>> 03c07bac (context state base)
 	) {
 		let updatedConversationHistoryDeletedRange = false
-
-		// optionally could always load the contextHistory from disk here
 
 		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
 		if (previousApiReqIndex >= 0) {
@@ -234,16 +242,23 @@ export class ContextManager {
 					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 					// we later check how many chars we trim to determine if we should still truncate history
 					let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
 						apiConversationHistory,
 						conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
 						timestamp,
 =======
+=======
+					let anyUpdates: boolean = false
+>>>>>>> c05cc5c1 (context state base 2)
 					// update the first assistant message if required for narrative integrity
-					this.applyStandardContextTruncationNoticeChangeToConversation(timestamp)
+					anyUpdates = anyUpdates || this.applyStandardContextTruncationNoticeChange(timestamp)
 
-					await this.saveContextHistory(taskDirectory) // could add a check here to determine whether we have changed anything, prior to saving
+					// if we alter the context history, save the updated version to disk
+					if (anyUpdates) {
+						await this.saveContextHistory(taskDirectory)
+					}
 
 					// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
 					conversationHistoryDeletedRange = this.getNextTruncationRange(
@@ -350,6 +365,7 @@ export class ContextManager {
 	}
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 	/**
 	 * apply all required truncation methods to the messages in context
 	 */
@@ -360,13 +376,15 @@ export class ContextManager {
 		if (messages.length <= 1) {
 			return messages
 =======
+=======
+	/**
+	 * apply all required truncation methods to the messages in context
+	 */
+>>>>>>> c05cc5c1 (context state base 2)
     private getAndAlterTruncatedMessages(
         messages: Anthropic.Messages.MessageParam[],
         deletedRange: [number, number] | undefined,
     ): Anthropic.Messages.MessageParam[] {
-        // here we need to apply the changes from the file reads / other changes - this needs to be done by looping over the deleted range
-        ///// or doing nothing if its undefined, this should be another function call
-
         if (messages.length <= 1) return messages
 
 		const updatedMessages = this.applyContextHistoryUpdates(messages, deletedRange ? deletedRange[1] + 1 : 2)
@@ -376,13 +394,13 @@ export class ContextManager {
     }
 
 	/**
-	 * applies the correct alterations based on changes set in this.contextHistoryUpdates
+	 * applies deletedRange truncation and other alterations based on changes in this.contextHistoryUpdates
 	 */
     private applyContextHistoryUpdates(
         messages: Anthropic.Messages.MessageParam[],
         startFromIndex: number,
     ): Anthropic.Messages.MessageParam[] {
-		// runtime is linear in length of user messages, if expecting a limited number of alteration, could be more optimal to loop over changes instead
+		// runtime is linear in length of user messages, if expecting a limited number of alterations, could be more optimal to loop over alterations
 
         const firstChunk = messages.slice(0, 2)  // get first user-assistant pair
         const secondChunk = messages.slice(startFromIndex) // get remaining messages within context
@@ -400,7 +418,6 @@ export class ContextManager {
 			// because we are altering this, we need a deep copy
 			messagesToUpdate[arrayIndex] = cloneDeep(messagesToUpdate[arrayIndex])
             
-            // For each block index and its changes array in the inner map
             for (const [blockIndex, changes] of innerMap) {
                 // apply the latest change among n changes - [timestamp, updateType, update]
                 const latestChange = changes[changes.length - 1]
@@ -422,32 +439,29 @@ export class ContextManager {
     }
 
 	/**
-	 * if there is any truncation, and there is no other alteration already set, alter the assistant message to indicate this occured
+	 * removes all context history updates that occurred after the specified timestamp and saves to disk
 	 */
-    private applyStandardContextTruncationNoticeChangeToConversation(timestamp: number) {
-        if (!this.contextHistoryUpdates.has(1)) { // first assistant message always at index 1
-            const innerMap = new Map<number, [number, string, MessageContent][]>()
-            innerMap.set(0, [[timestamp, "text", formatResponse.contextTruncationNotice()]])
-            this.contextHistoryUpdates.set(1, innerMap)
-        }
-    }
+	async truncateContextHistory(timestamp: number, taskDirectory: string): Promise<void> {
+		this.truncateContextHistoryAtTimestamp(this.contextHistoryUpdates, timestamp)
+		
+		// save the modified context history to disk
+		await this.saveContextHistory(taskDirectory)
+	}	
 
 	/**
-	 * Helper function that removes all context history updates with timestamps greater than the provided timestamp
-	 * Mutates the input map directly.
-	 * @param contextHistory The context history map to modify
-	 * @param timestamp The cutoff timestamp
+	 * alters the context history to remove all alterations after a given timestamp
+	 * removes the index if there are no alterations there anymore, both outer and inner indices
 	 */
 	private truncateContextHistoryAtTimestamp(
-		contextHistory: Map<number, Map<number, [number, string, MessageContent][]>>,
+		contextHistory: Map<number, Map<number, ContextUpdate[]>>,
 		timestamp: number
 	): void {
-		// Iterate through each message index
 		for (const [messageIndex, innerMap] of contextHistory) {
-			// For each block index
+			// rrack which blockIndices to delete
+			const blockIndicesToDelete: number[] = []
+			
 			for (const [blockIndex, updates] of innerMap) {
-				// Since updates are ordered by timestamp, find cutoff point
-				// by iterating from right to left
+				// updates ordered by timestamp, so find cutoff point by interating from right to left
 				let cutoffIndex = updates.length - 1
 				while (cutoffIndex >= 0 && updates[cutoffIndex][0] > timestamp) {
 					cutoffIndex--
@@ -457,9 +471,27 @@ export class ContextManager {
 				if (cutoffIndex < updates.length - 1) {
 					// Modify the array in place to keep only updates up to cutoffIndex
 					updates.length = cutoffIndex + 1
+					
+					// If no updates left after truncation, mark this block for deletion
+					if (updates.length === 0) {
+						blockIndicesToDelete.push(blockIndex)
+					}
 				}
 			}
+<<<<<<< HEAD
 >>>>>>> 03c07bac (context state base)
+=======
+			
+			// Remove empty blocks from inner map
+			for (const blockIndex of blockIndicesToDelete) {
+				innerMap.delete(blockIndex)
+			}
+			
+			// If inner map is now empty, remove the message index from outer map
+			if (innerMap.size === 0) {
+				contextHistory.delete(messageIndex)
+			}
+>>>>>>> c05cc5c1 (context state base 2)
 		}
 	}
 
@@ -1049,8 +1081,9 @@ export class ContextManager {
 		return percentCharactersSaved
 =======
 	/**
-	 * removes all context history updates that occurred after the specified timestamp and saves to disk
+	 * if there is any truncation, and there is no other alteration already set, alter the assistant message to indicate this occured
 	 */
+<<<<<<< HEAD
 	public async truncateContextHistory(timestamp: number, taskDirectory: string): Promise<void> {
 		this.truncateContextHistoryAtTimestamp(this.contextHistoryUpdates, timestamp)
 		
@@ -1058,4 +1091,15 @@ export class ContextManager {
 		await this.saveContextHistory(taskDirectory)
 >>>>>>> 03c07bac (context state base)
 	}
+=======
+    private applyStandardContextTruncationNoticeChange(timestamp: number): boolean {
+        if (!this.contextHistoryUpdates.has(1)) { // first assistant message always at index 1
+            const innerMap = new Map<number, ContextUpdate[]>()
+            innerMap.set(0, [[timestamp, "text", formatResponse.contextTruncationNotice()]]) // alter message text at index 0
+            this.contextHistoryUpdates.set(1, innerMap)
+			return true
+        }
+		return false
+    }	
+>>>>>>> c05cc5c1 (context state base 2)
 }
