@@ -79,6 +79,9 @@ export class ClineIgnoreController {
 
 			// Process content and add to ignore instance
 			await this.processIgnoreContent(rawContent)
+
+			// Always ignore the .clineignore file itself
+			this.ignoreInstance.add(".clineignore")
 		} catch (error) {
 			// Should never happen: reading file failed even though it exists
 			console.error("Unexpected error loading .clineignore:", error)
