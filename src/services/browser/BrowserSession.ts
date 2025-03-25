@@ -135,9 +135,8 @@ export class BrowserSession {
 
 		// Check if remote browser connection is enabled
 		if (this.browserSettings.remoteBrowserEnabled) {
-			// Set headless to false when using remote browser
-			this.browserSettings.headless = false
-			console.log("launch browser called -- remote host mode")
+			// Remote browser connections respect the user's headless setting
+			console.log(`launch browser called -- remote host mode (headless: ${this.browserSettings.headless})`)
 			try {
 				await this.launchRemoteBrowser()
 				// Don't create a new page here, as we'll create it in launchRemoteBrowser
@@ -147,7 +146,7 @@ export class BrowserSession {
 				await this.launchHeadlessBrowser()
 			}
 		} else {
-			console.log("launch browser called -- headless mode")
+			console.log(`launch browser called -- headless mode (headless: ${this.browserSettings.headless})`)
 			await this.launchHeadlessBrowser()
 		}
 
