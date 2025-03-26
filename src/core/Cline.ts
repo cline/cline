@@ -3202,6 +3202,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 											false,
 										)
 
+										telemetryService.captureTaskCompleted(this.taskId)
+										this.emit("taskCompleted", this.taskId, this.getTokenUsage())
+
 										await this.ask(
 											"command",
 											removeClosingTag("command", command),
@@ -3233,9 +3236,10 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 								if (command) {
 									if (lastMessage && lastMessage.ask !== "command") {
-										// Haven't sent a command message yet so
-										// first send completion_result then command.
+										// Haven't sent a command message yet so first send completion_result then command.
 										await this.say("completion_result", result, undefined, false)
+										telemetryService.captureTaskCompleted(this.taskId)
+										this.emit("taskCompleted", this.taskId, this.getTokenUsage())
 									}
 
 									// Complete command message.
@@ -3257,10 +3261,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 									commandResult = execCommandResult
 								} else {
 									await this.say("completion_result", result, undefined, false)
+									telemetryService.captureTaskCompleted(this.taskId)
+									this.emit("taskCompleted", this.taskId, this.getTokenUsage())
 								}
-
-								telemetryService.captureTaskCompleted(this.taskId)
-								this.emit("taskCompleted", this.taskId, this.getTokenUsage())
 
 								if (this.parentTask) {
 									const didApprove = await askFinishSubTaskApproval()

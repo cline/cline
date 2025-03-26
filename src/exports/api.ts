@@ -27,15 +27,13 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 			cline.on("taskUnpaused", () => this.emit("taskUnpaused", cline.taskId))
 			cline.on("taskAskResponded", () => this.emit("taskAskResponded", cline.taskId))
 			cline.on("taskAborted", () => this.emit("taskAborted", cline.taskId))
-			cline.on("taskSpawned", (taskId) => this.emit("taskSpawned", cline.taskId, taskId))
+			cline.on("taskSpawned", (childTaskId) => this.emit("taskSpawned", cline.taskId, childTaskId))
+			cline.on("taskCompleted", (_, usage) => this.emit("taskCompleted", cline.taskId, usage))
+			cline.on("taskTokenUsageUpdated", (_, usage) => this.emit("taskTokenUsageUpdated", cline.taskId, usage))
 			this.emit("taskCreated", cline.taskId)
 		})
 
 		this.on("message", ({ taskId, action, message }) => {
-			// if (message.type === "say") {
-			// 	console.log("message", { taskId, action, message })
-			// }
-
 			if (action === "created") {
 				this.history.add(taskId, message)
 			} else if (action === "updated") {
