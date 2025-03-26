@@ -3,12 +3,59 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { mentionRegexGlobal } from "../../../../src/shared/context-mentions"
 import { ClineMessage } from "../../../../src/shared/ExtensionMessage"
+import { ExternalAdvice } from "../../../../src/shared/WebviewMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { formatLargeNumber } from "../../utils/format"
 import { formatSize } from "../../utils/size"
 import { vscode } from "../../utils/vscode"
+import { NotificationPanel } from "../common/NotificationPanel"
 import Thumbnails from "../common/Thumbnails"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
+import { WaveIcon } from "../icons/WaveIcon"
+
+// Active Conversation Toggle component
+interface ActiveConversationToggleProps {
+  activeLabel: string | null;
+  onClick: () => void;
+}
+
+const ActiveConversationToggle: React.FC<ActiveConversationToggleProps> = ({ activeLabel, onClick }) => {
+  return (
+    <div 
+      className="active-conversation-toggle" 
+      onClick={onClick}
+      style={{
+        marginLeft: 10,
+        backgroundColor: activeLabel 
+          ? (activeLabel === 'A' ? '#22c55e' : '#3b82f6') 
+          : "color-mix(in srgb, var(--vscode-badge-foreground) 40%, transparent)",
+        color: activeLabel 
+          ? "var(--vscode-badge-background)" 
+          : "var(--vscode-badge-foreground)",
+        padding: "2px 8px",
+        borderRadius: "500px",
+        fontSize: "11px",
+        fontWeight: 500,
+        display: "flex",
+        alignItems: "center",
+        gap: "4px",
+        cursor: "pointer",
+        flexShrink: 0,
+      }}
+    >
+      <span className={`hand-icon ${activeLabel ? 'active' : ''}`} style={{ display: "inline-flex", alignItems: "center" }}>
+        <WaveIcon />
+      </span>
+      {activeLabel ? (
+        <span className={`active-label label-${activeLabel.toLowerCase()}`}>
+          {`Active ${activeLabel}`}
+        </span>
+      ) : (
+        <span>Inactive</span>
+      )}
+    </div>
+  );
+};
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -33,12 +80,85 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	lastApiReqTotalTokens,
 	onClose,
 }) => {
-	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage } = useExtensionState()
+	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, activeLabel, chatSettings } = useExtensionState()
 	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
+	
+	// Notification state
+	const [showNotifications, setShowNotifications] = useState(false)
+	const [notifications, setNotifications] = useState<ExternalAdvice[]>([])
+	
+	// Fetch notifications when component mounts
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			const message = event.data
+			if (message.type === 'newExternalAdvice' && message.advice) {
+				setNotifications(prev => {
+					// Replace if exists, otherwise add
+					const exists = prev.some(n => n.id === message.advice.id)
+					if (exists) {
+						return prev.map(n => n.id === message.advice.id ? message.advice : n)
+					} else {
+						return [...prev, message.advice]
+					}
+				})
+			}
+		}
+		
+		window.addEventListener('message', handleMessage)
+		
+		// Request notifications when component mounts
+		vscode.postMessage({ type: 'getExternalAdvice' })
+		
+		return () => {
+			window.removeEventListener('message', handleMessage)
+		}
+	}, [])
+	
+	// Refresh notifications when a notification is restored
+	useEffect(() => {
+		const handleRestoreMessage = (event: MessageEvent) => {
+			const message = event.data
+			if (message.type === 'restoreAdvice') {
+				// Request fresh notifications after a restore operation
+				vscode.postMessage({ type: 'getExternalAdvice' })
+			}
+		}
+		
+		window.addEventListener('message', handleRestoreMessage)
+		
+		return () => {
+			window.removeEventListener('message', handleRestoreMessage)
+		}
+	}, [])
+	
+	// Notification handlers
+	const handleMarkAsRead = (id: string) => {
+		vscode.postMessage({ 
+			type: 'markAdviceAsRead', 
+			adviceId: id 
+		})
+		
+		// Update local state
+		setNotifications(prev => 
+			prev.map(n => n.id === id ? { ...n, read: true } : n)
+		)
+	}
+	
+	const handleDismiss = (id: string) => {
+		vscode.postMessage({ 
+			type: 'dismissAdvice', 
+			adviceId: id 
+		})
+		
+		// Update local state
+		setNotifications(prev => 
+			prev.map(n => n.id === id ? { ...n, dismissed: true } : n)
+		)
+	}
 
 	const { selectedModelInfo } = useMemo(() => normalizeApiConfiguration(apiConfiguration), [apiConfiguration])
 	const contextWindow = selectedModelInfo?.contextWindow
@@ -51,13 +171,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			prevErrorMessageRef.current = checkpointTrackerErrorMessage
 		}
 	}, [checkpointTrackerErrorMessage])
-
-	// Reset isTextExpanded when task is collapsed
-	useEffect(() => {
-		if (!isTaskExpanded) {
-			setIsTextExpanded(false)
-		}
-	}, [isTaskExpanded])
 
 	/*
 	When dealing with event listeners in React components that depend on state variables, we face a challenge. We want our listener to always use the most up-to-date version of a callback function that relies on current state, but we don't want to constantly add and remove event listeners as that function updates. This scenario often arises with resize listeners or other window events. Simply adding the listener in a useEffect with an empty dependency array risks using stale state, while including the callback in the dependencies can lead to unnecessary re-registrations of the listener. There are react hook libraries that provide a elegant solution to this problem by utilizing the useRef hook to maintain a reference to the latest callback function without triggering re-renders or effect re-runs. This approach ensures that our event listener always has access to the most current state while minimizing performance overhead and potential memory leaks from multiple listener registrations. 
@@ -102,19 +215,17 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	useEffect(() => {
 		if (isTaskExpanded && textRef.current && textContainerRef.current) {
-			// Use requestAnimationFrame to ensure DOM is fully updated
-			requestAnimationFrame(() => {
-				// Check if refs are still valid
-				if (textRef.current && textContainerRef.current) {
-					let textContainerHeight = textContainerRef.current.clientHeight
-					if (!textContainerHeight) {
-						textContainerHeight = textContainerRef.current.getBoundingClientRect().height
-					}
-					const isOverflowing = textRef.current.scrollHeight > textContainerHeight
+			let textContainerHeight = textContainerRef.current.clientHeight
+			if (!textContainerHeight) {
+				textContainerHeight = textContainerRef.current.getBoundingClientRect().height
+			}
+			const isOverflowing = textRef.current.scrollHeight > textContainerHeight
 
-					setShowSeeMore(isOverflowing)
-				}
-			})
+			// necessary to show see more button again if user resizes window to expand and then back to collapse
+			if (!isOverflowing) {
+				setIsTextExpanded(false)
+			}
+			setShowSeeMore(isOverflowing)
 		}
 	}, [task.text, windowWidth, isTaskExpanded])
 
@@ -273,6 +384,52 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							${totalCost?.toFixed(4)}
 						</div>
 					)}
+					
+					{/* Only render the Active toggle and notification bell if showHeaderControls is true */}
+					{chatSettings.showHeaderControls !== false && (
+						<>
+							<ActiveConversationToggle activeLabel={activeLabel} onClick={() => vscode.postMessage({ type: "toggleActiveConversation" })} />
+							
+							{/* Notification Bell */}
+							<VSCodeButton 
+								appearance="icon" 
+								onClick={() => {
+									setShowNotifications(!showNotifications);
+								}} 
+								style={{ 
+									marginLeft: 6, 
+									flexShrink: 0,
+									position: 'relative' 
+								}}
+							>
+								<span className="codicon codicon-bell"></span>
+								{notifications.filter(n => !n.read && !n.dismissed).length > 0 && (
+									<span 
+										style={{
+											position: 'absolute',
+											top: '0px',
+											right: '0px',
+											minWidth: '16px',
+											height: '16px',
+											borderRadius: '8px',
+											backgroundColor: 'var(--vscode-notificationsErrorIcon-foreground)',
+											color: 'white',
+											fontSize: '10px',
+											fontWeight: 'bold',
+											display: 'flex',
+											alignItems: 'center',
+											justifyContent: 'center',
+											padding: '0 4px'
+										}}
+									>
+										{notifications.filter(n => !n.read && !n.dismissed).length}
+									</span>
+								)}
+							</VSCodeButton>
+						</>
+					)}
+					
+					{/* Always show the close button */}
 					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
@@ -550,6 +707,17 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 				</div>
 			)} */}
+			
+			{/* Notification Panel */}
+			{showNotifications && (
+				<NotificationPanel
+					notifications={notifications}
+					onMarkAsRead={handleMarkAsRead}
+					onDismiss={handleDismiss}
+					onClose={() => setShowNotifications(false)}
+					taskId={currentTaskItem?.id}
+				/>
+			)}
 		</div>
 	)
 }
