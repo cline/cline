@@ -170,7 +170,9 @@ export async function discoverChromeInstances(): Promise<string | null> {
 	// Add all local IP addresses from network interfaces
 	const localIPs: string[] = []
 	Object.values(networkInterfaces).forEach((interfaces) => {
-		if (!interfaces) return
+		if (!interfaces) {
+			return
+		}
 		interfaces.forEach((iface) => {
 			// Only consider IPv4 addresses
 			if (iface.family === "IPv4" || iface.family === (4 as any)) {
