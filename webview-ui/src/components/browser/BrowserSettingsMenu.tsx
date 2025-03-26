@@ -212,7 +212,7 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 									<VSCodeButton
 										disabled={debugMode}
 										onClick={
-											browserSettings.remoteBrowserHost ? relaunchChromeDebugMode : relaunchChromeDebugMode
+											onClick={relaunchChromeDebugMode}
 										}>
 										{debugMode ? "Relaunching Browser..." : "Relaunch Browser in Debug Mode"}
 									</VSCodeButton>
