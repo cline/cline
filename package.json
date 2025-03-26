@@ -309,12 +309,11 @@
 		"esbuild": "^0.25.0",
 		"eslint": "^8.57.0",
 		"husky": "^9.1.7",
-		"jest": "^29.7.0",
-		"jest-simple-dot-reporter": "^1.0.5",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
 		"should": "^13.2.3",
 		"sinon": "^19.0.2",
+		"ts-node": "^10.9.2",
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
@@ -366,7 +365,6 @@
 		"simple-git": "^3.27.0",
 		"strip-ansi": "^7.1.0",
 		"tree-sitter-wasms": "^0.1.11",
-		"ts-node": "^10.9.2",
 		"turndown": "^7.2.0",
 		"web-tree-sitter": "^0.22.6",
 		"zod": "^3.24.2"

@@ -2,5 +2,5 @@
 "claude-dev": patch
 ---
 
-Fix: Better Windows path support in context-mention, run test directly with mocha
+Chore: Add tests to context-mentions, run tests with mocha and ts-node - `npm run test:unit`
 
