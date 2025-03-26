@@ -72,6 +72,7 @@ export interface WebviewMessage {
 		| "optionsResponse"
 		| "requestTotalTasksSize"
 		| "relaunchChromeDebugMode"
+		| "getBrowserConnectionInfo"
 		| "getDetectedChromePath"
 		| "detectedChromePath"
 		| "scrollToSettings"
