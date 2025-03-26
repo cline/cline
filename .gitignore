@@ -10,3 +10,9 @@ tmp
 pnpm-lock.yaml
 
 .clineignore
+.coverage
+
+# python
+.venv/
+.pytest_cache/
+__pycache__/
