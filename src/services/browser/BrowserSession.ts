@@ -5,7 +5,7 @@ import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppetee
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
-import delay from "delay"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
 import { BrowserSettings } from "../../shared/BrowserSettings"
@@ -295,7 +295,7 @@ export class BrowserSession {
 			}
 
 			lastHTMLSize = currentHTMLSize
-			await delay(checkDurationMsecs)
+			await setTimeoutPromise(checkDurationMsecs)
 		}
 	}
 
@@ -314,7 +314,7 @@ export class BrowserSession {
 			this.currentMousePosition = coordinate
 
 			// Small delay to check if click triggered any network activity
-			await delay(100)
+			await setTimeoutPromise(100)
 
 			if (hasNetworkActivity) {
 				// If we detected network activity, wait for navigation/loading
@@ -346,7 +346,7 @@ export class BrowserSession {
 					behavior: "auto",
 				})
 			})
-			await delay(300)
+			await setTimeoutPromise(300)
 		})
 	}
 
@@ -358,7 +358,7 @@ export class BrowserSession {
 					behavior: "auto",
 				})
 			})
-			await delay(300)
+			await setTimeoutPromise(300)
 		})
 	}
 }

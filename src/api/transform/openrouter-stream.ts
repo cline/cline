@@ -6,14 +6,15 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { OpenRouterErrorResponse } from "../providers/types"
 
-export async function* streamOpenRouterFormatRequest(
+export async function createOpenRouterStream(
 	client: OpenAI,
 	systemPrompt: string,
 	messages: Anthropic.Messages.MessageParam[],
 	model: { id: string; info: ModelInfo },
 	o3MiniReasoningEffort?: string,
 	thinkingBudgetTokens?: number,
-): AsyncGenerator<ApiStreamChunk, string | undefined, unknown> {
+	openRouterProviderSorting?: string,
+) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 		{ role: "system", content: systemPrompt },
@@ -141,45 +142,13 @@ export async function* streamOpenRouterFormatRequest(
 		top_p: topP,
 		messages: openAiMessages,
 		stream: true,
+		stream_options: { include_usage: true },
 		transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		include_reasoning: true,
 		...(model.id === "openai/o3-mini" ? { reasoning_effort: o3MiniReasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
+		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
 	})
 
-	let genId: string | undefined
-
-	for await (const chunk of stream) {
-		// openrouter returns an error object instead of the openai sdk throwing an error
-		if ("error" in chunk) {
-			const error = chunk.error as OpenRouterErrorResponse["error"]
-			console.error(`OpenRouter API Error: ${error?.code} - ${error?.message}`)
-			// Include metadata in the error message if available
-			const metadataStr = error.metadata ? `\nMetadata: ${JSON.stringify(error.metadata, null, 2)}` : ""
-			throw new Error(`OpenRouter API Error ${error.code}: ${error.message}${metadataStr}`)
-		}
-
-		if (!genId && chunk.id) {
-			genId = chunk.id
-		}
-
-		const delta = chunk.choices[0]?.delta
-		if (delta?.content) {
-			yield {
-				type: "text",
-				text: delta.content,
-			}
-		}
-
-		// Reasoning tokens are returned separately from the content
-		if ("reasoning" in delta && delta.reasoning) {
-			yield {
-				type: "reasoning",
-				// @ts-ignore-next-line
-				reasoning: delta.reasoning,
-			}
-		}
-	}
-
-	return genId
+	return stream
 }

@@ -8,13 +8,13 @@ import {
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import chokidar, { FSWatcher } from "chokidar"
-import delay from "delay"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
-import { ClineProvider, GlobalFileNames } from "../../core/webview/ClineProvider"
+import { ClineProvider } from "../../core/webview/ClineProvider"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpMode,
@@ -29,13 +29,48 @@ import {
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
 import { secondsToMs } from "../../utils/time"
+import { GlobalFileNames } from "../../global-constants"
 export type McpConnection = {
 	server: McpServer
 	client: Client
 	transport: StdioClientTransport
 }
 
+export type McpTransportType = "stdio" | "sse"
+
+export type McpServerConfig = {
+	transportType: McpTransportType
+	autoApprove?: string[]
+	disabled?: boolean
+	timeout?: number
+} & (
+	| {
+			// Stdio specific
+			transportType: "stdio"
+			command: string
+			args?: string[]
+			env?: Record<string, string>
+	  }
+	| {
+			// SSE specific
+			transportType: "sse"
+			url: string
+			headers?: Record<string, string>
+			withCredentials?: boolean
+	  }
+)
+
 const AutoApproveSchema = z.array(z.string()).default([])
+
+const SseConfigSchema = z.object({
+	transportType: z.literal("sse"),
+	url: z.string().url(),
+	headers: z.record(z.string()).optional(),
+	withCredentials: z.boolean().optional().default(false),
+	autoApprove: AutoApproveSchema.optional(),
+	disabled: z.boolean().optional(),
+	timeout: z.number().min(MIN_MCP_TIMEOUT_SECONDS).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
+})
 
 const StdioConfigSchema = z.object({
 	command: z.string(),
@@ -46,8 +81,13 @@ const StdioConfigSchema = z.object({
 	timeout: z.number().min(MIN_MCP_TIMEOUT_SECONDS).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
 })
 
+const ServerConfigSchema = z.discriminatedUnion("transportType", [
+	StdioConfigSchema.extend({ transportType: z.literal("stdio") }),
+	SseConfigSchema,
+])
+
 const McpSettingsSchema = z.object({
-	mcpServers: z.record(StdioConfigSchema),
+	mcpServers: z.record(ServerConfigSchema),
 })
 
 export class McpHub {
@@ -414,7 +454,7 @@ export class McpHub {
 			connection.server.status = "connecting"
 			connection.server.error = ""
 			await this.notifyWebviewOfServerChanges()
-			await delay(500) // artificial delay to show user that server is restarting
+			await setTimeoutPromise(500) // artificial delay to show user that server is restarting
 			try {
 				await this.deleteConnection(serverName)
 				// Try to connect again using existing config
