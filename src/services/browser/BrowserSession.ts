@@ -80,6 +80,49 @@ export class BrowserSession {
 		return stats
 	}
 
+	async relaunchChromeDebugMode(webview?: vscode.Webview) {
+		const result = await vscode.window.showWarningMessage(
+			"This will close your existing Chrome tabs and relaunch Chrome in debug mode. Are you sure?",
+			{ modal: true },
+			"Yes",
+		)
+
+		if (result !== "Yes") {
+			webview?.postMessage({ type: "browserRelaunchResult", success: false, text: "Operation cancelled by user" })
+			return
+		}
+
+		try {
+			// Kill any existing Chrome instances
+			await chromeLauncher.killAll()
+
+			// Launch Chrome with debug port
+			const launcher = new chromeLauncher.Launcher({
+				port: DEBUG_PORT,
+				chromeFlags: ["--remote-debugging-port=" + DEBUG_PORT, "--no-first-run", "--no-default-browser-check"],
+			})
+
+			await launcher.launch()
+			const installation = chromeLauncher.Launcher.getFirstInstallation()
+			if (!installation) {
+				throw new Error("Could not find Chrome installation on this system")
+			}
+			console.log("chrome installation", installation)
+
+			webview?.postMessage({
+				type: "browserRelaunchResult",
+				success: true,
+				text: "Browser successfully launched in debug mode",
+			})
+		} catch (error) {
+			webview?.postMessage({
+				type: "browserRelaunchResult",
+				success: false,
+				text: `Failed to relaunch Chrome: ${error instanceof Error ? error.message : String(error)}`,
+			})
+		}
+	}
+
 	async launchBrowser() {
 		if (this.browser) {
 			await this.closeBrowser() // this may happen when the model launches a browser again after having used it already before

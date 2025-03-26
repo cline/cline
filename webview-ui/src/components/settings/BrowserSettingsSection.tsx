@@ -7,11 +7,11 @@ import { vscode } from "../../utils/vscode"
 export const BrowserSettingsSection: React.FC = () => {
 	const { browserSettings } = useExtensionState()
 	const [testingConnection, setTestingConnection] = useState(false)
+	const [debugMode, setDebugMode] = useState(false)
 	const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
-	const [detectedChromePath, setDetectedChromePath] = useState<string>("")
-	const [isBundled, setIsBundled] = useState(false)
+	const [relaunchResult, setRelaunchResult] = useState<{ success: boolean; message: string } | null>(null)
 
-	// Listen for browser connection test results and detected Chrome path
+	// Listen for browser connection test results and relaunch results
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
 			const message = event.data
@@ -21,9 +21,12 @@ export const BrowserSettingsSection: React.FC = () => {
 					message: message.text,
 				})
 				setTestingConnection(false)
-			} else if (message.type === "detectedChromePath") {
-				setDetectedChromePath(message.text || "")
-				setIsBundled(message.isBundled || false)
+			} else if (message.type === "browserRelaunchResult") {
+				setRelaunchResult({
+					success: message.success,
+					message: message.text,
+				})
+				setDebugMode(false)
 			}
 		}
 
@@ -87,6 +90,7 @@ export const BrowserSettingsSection: React.FC = () => {
 	const testConnection = () => {
 		setTestingConnection(true)
 		setTestResult(null)
+		setRelaunchResult(null)
 		vscode.postMessage({
 			type: "testBrowserConnection",
 			text: browserSettings.remoteBrowserHost,
@@ -96,8 +100,18 @@ export const BrowserSettingsSection: React.FC = () => {
 	const discoverBrowser = () => {
 		setTestingConnection(true)
 		setTestResult(null)
+		setRelaunchResult(null)
 		vscode.postMessage({
 			type: "discoverBrowser",
+		})
+	}
+
+	const relaunchChromeDebugMode = () => {
+		setDebugMode(true)
+		setRelaunchResult(null)
+		setTestResult(null)
+		vscode.postMessage({
+			type: "relaunchChromeDebugMode",
 		})
 	}
 
@@ -140,23 +154,6 @@ export const BrowserSettingsSection: React.FC = () => {
 			</div>
 
 			<div style={{ marginBottom: 15 }}>
-				<VSCodeCheckbox
-					style={{ marginBottom: "8px" }}
-					checked={browserSettings.headless}
-					onChange={(e) => updateHeadless((e.target as HTMLInputElement).checked)}>
-					Run in headless mode
-				</VSCodeCheckbox>
-				<p
-					style={{
-						fontSize: "12px",
-						color: "var(--vscode-descriptionForeground)",
-						margin: "0 0 0 20px",
-					}}>
-					When enabled, Chrome will run in the background without a visible window.
-				</p>
-			</div>
-
-			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8 }}>
 					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Chrome Executable Path</label>
 					<VSCodeTextField
@@ -188,6 +185,23 @@ export const BrowserSettingsSection: React.FC = () => {
 			</div>
 
 			<div style={{ marginBottom: 15 }}>
+				<VSCodeCheckbox
+					style={{ marginBottom: "8px" }}
+					checked={browserSettings.headless}
+					onChange={(e) => updateHeadless((e.target as HTMLInputElement).checked)}>
+					Run in headless mode
+				</VSCodeCheckbox>
+				<p
+					style={{
+						fontSize: "12px",
+						color: "var(--vscode-descriptionForeground)",
+						margin: "0 0 8px 0px",
+					}}>
+					When enabled, Chrome will run in the background without a visible window.
+				</p>
+			</div>
+
+			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8 }}>
 					<VSCodeCheckbox
 						checked={browserSettings.remoteBrowserEnabled}
@@ -199,41 +213,50 @@ export const BrowserSettingsSection: React.FC = () => {
 					style={{
 						fontSize: "12px",
 						color: "var(--vscode-descriptionForeground)",
-						margin: "0 0 8px 20px",
+						margin: "0 0 8px 0px",
 					}}>
-					Connect to a Chrome browser running with remote debugging enabled (--remote-debugging-port=9222). This allows
-					Cline to use your existing browser session with all authentication cookies.
+					This allows Cline to use your existing browser session with all authentication cookies. Connect to a Chrome
+					browser running with remote debugging enabled (--remote-debugging-port=9222). Enter the DevTools Protocol host
+					address or leave empty to auto-discover Chrome instances.
 				</p>
 
 				{browserSettings.remoteBrowserEnabled && (
-					<div style={{ marginLeft: 20 }}>
-						<div style={{ display: "flex", gap: "5px", marginBottom: 8 }}>
-							<VSCodeTextField
-								value={browserSettings.remoteBrowserHost || ""}
-								placeholder="http://localhost:9222"
-								style={{ flexGrow: 1 }}
-								onChange={(e: any) => updateRemoteBrowserHost(e.target.value || undefined)}
-							/>
+					<div style={{ marginLeft: 0 }}>
+						<VSCodeTextField
+							value={browserSettings.remoteBrowserHost || ""}
+							placeholder="http://localhost:9222"
+							style={{ width: "100%", marginBottom: 8 }}
+							onChange={(e: any) => updateRemoteBrowserHost(e.target.value || undefined)}
+						/>
+						<div style={{ display: "flex", gap: "10px", marginBottom: 8, justifyContent: "center" }}>
 							<VSCodeButton
+								style={{ flex: 1 }}
 								disabled={testingConnection}
 								onClick={browserSettings.remoteBrowserHost ? testConnection : discoverBrowser}>
 								{testingConnection ? "Testing..." : "Test Connection"}
 							</VSCodeButton>
+							<VSCodeButton style={{ flex: 1 }} disabled={debugMode} onClick={relaunchChromeDebugMode}>
+								{debugMode ? "Relaunching Browser..." : "Relaunch Browser in Debug Mode"}
+							</VSCodeButton>
 						</div>
 
-						{testResult && (
+						{(testResult || relaunchResult) && (
 							<div
 								style={{
 									padding: "8px",
 									marginBottom: "8px",
-									backgroundColor: testResult.success ? "rgba(0, 128, 0, 0.1)" : "rgba(255, 0, 0, 0.1)",
-									color: testResult.success
-										? "var(--vscode-terminal-ansiGreen)"
-										: "var(--vscode-terminal-ansiRed)",
+									backgroundColor:
+										(relaunchResult?.success ?? testResult?.success)
+											? "rgba(0, 128, 0, 0.1)"
+											: "rgba(255, 0, 0, 0.1)",
+									color:
+										testResult?.success || relaunchResult?.success
+											? "var(--vscode-terminal-ansiGreen)"
+											: "var(--vscode-terminal-ansiRed)",
 									borderRadius: "3px",
 									fontSize: "11px",
 								}}>
-								{testResult.message}
+								{testResult?.message || relaunchResult?.message}
 							</div>
 						)}
 
@@ -242,9 +265,7 @@ export const BrowserSettingsSection: React.FC = () => {
 								fontSize: "12px",
 								color: "var(--vscode-descriptionForeground)",
 								margin: 0,
-							}}>
-							Enter the DevTools Protocol host address or leave empty to auto-discover Chrome instances.
-						</p>
+							}}></p>
 					</div>
 				)}
 			</div>

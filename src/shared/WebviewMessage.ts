@@ -39,6 +39,7 @@ export interface WebviewMessage {
 		| "discoverBrowser"
 		| "testBrowserConnection"
 		| "browserConnectionResult"
+		| "browserRelaunchResult"
 		| "togglePlanActMode"
 		| "checkpointDiff"
 		| "checkpointRestore"
@@ -70,10 +71,10 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
+		| "relaunchChromeDebugMode"
 		| "getDetectedChromePath"
 		| "detectedChromePath"
 		| "scrollToSettings"
-	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
