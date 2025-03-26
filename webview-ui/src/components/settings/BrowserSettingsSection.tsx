@@ -8,8 +8,10 @@ export const BrowserSettingsSection: React.FC = () => {
 	const { browserSettings } = useExtensionState()
 	const [testingConnection, setTestingConnection] = useState(false)
 	const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+	const [detectedChromePath, setDetectedChromePath] = useState<string>("")
+	const [isBundled, setIsBundled] = useState(false)
 
-	// Listen for browser connection test results
+	// Listen for browser connection test results and detected Chrome path
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
 			const message = event.data
@@ -19,11 +21,21 @@ export const BrowserSettingsSection: React.FC = () => {
 					message: message.text,
 				})
 				setTestingConnection(false)
+			} else if (message.type === "detectedChromePath") {
+				setDetectedChromePath(message.text || "")
+				setIsBundled(message.isBundled || false)
 			}
 		}
 
 		window.addEventListener("message", handleMessage)
 		return () => window.removeEventListener("message", handleMessage)
+	}, [])
+
+	// Request detected Chrome path on mount
+	useEffect(() => {
+		vscode.postMessage({
+			type: "getDetectedChromePath",
+		})
 	}, [])
 
 	const handleViewportChange = (event: Event) => {
@@ -147,7 +159,11 @@ export const BrowserSettingsSection: React.FC = () => {
 					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Chrome Executable Path</label>
 					<VSCodeTextField
 						style={{ width: "100%" }}
-						placeholder="Path to Chrome executable"
+						placeholder={
+							isBundled
+								? "(Using bundled Chromium)"
+								: detectedChromePath || "Checking for path to Chrome executable..."
+						}
 						onChange={(e: any) => {
 							const value = e.target.value
 							// Update VSCode configuration directly
@@ -164,8 +180,8 @@ export const BrowserSettingsSection: React.FC = () => {
 						color: "var(--vscode-descriptionForeground)",
 						margin: 0,
 					}}>
-					Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find it
-					automatically.
+					Path to Chrome executable for browser use functionality. If not set, Cline will download and use a bundled
+					Chromium instead.
 				</p>
 			</div>
 

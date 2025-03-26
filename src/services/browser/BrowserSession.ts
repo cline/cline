@@ -11,7 +11,7 @@ import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
 import { BrowserSettings } from "../../shared/BrowserSettings"
 import { discoverChromeInstances, testBrowserConnection } from "./browserDiscovery"
-// import * as chromeLauncher from "chrome-launcher"
+import * as chromeLauncher from "chrome-launcher"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -39,7 +39,30 @@ export class BrowserSession {
 		return testBrowserConnection(host)
 	}
 
-	private async ensureChromiumExists(): Promise<PCRStats> {
+	async getDetectedChromePath(): Promise<{ path: string; isBundled: boolean }> {
+		// First check VSCode config
+		const configPath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
+		if (configPath && (await fileExistsAtPath(configPath))) {
+			return { path: configPath, isBundled: false }
+		}
+
+		// Then try to find system Chrome
+		try {
+			const systemPath = chromeLauncher.Launcher.getFirstInstallation()
+			// Add validation to ensure path is not in Trash - This can happen on Mac OS due to the way the chrome-launcher library works
+			if (systemPath && !systemPath.includes(".Trash") && (await fileExistsAtPath(systemPath))) {
+				return { path: systemPath, isBundled: false }
+			}
+		} catch (error) {
+			console.log("Could not find system Chrome:", error)
+		}
+
+		// Finally fall back to PCR's bundled version
+		const stats = await this.ensureChromiumExists()
+		return { path: stats.executablePath, isBundled: true }
+	}
+
+	async ensureChromiumExists(): Promise<PCRStats> {
 		const globalStoragePath = this.context?.globalStorageUri?.fsPath
 		if (!globalStoragePath) {
 			throw new Error("Global storage uri is invalid")
@@ -51,56 +74,11 @@ export class BrowserSession {
 			await fs.mkdir(puppeteerDir, { recursive: true })
 		}
 
-		const chromeExecutablePath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
-		if (chromeExecutablePath && !(await fileExistsAtPath(chromeExecutablePath))) {
-			throw new Error(`Chrome executable not found at path: ${chromeExecutablePath}`)
-		}
-		const stats: PCRStats = chromeExecutablePath
-			? { puppeteer: require("puppeteer-core"), executablePath: chromeExecutablePath }
-			: // if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")
-				// if it does exist it will return the path to existing chromium
-				await PCR({ downloadPath: puppeteerDir })
-
+		// if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")
+		// if it does exist it will return the path to existing chromium
+		const stats = await PCR({ downloadPath: puppeteerDir })
 		return stats
 	}
-
-	// async relaunchChromeDebugMode() {
-	// 	const result = await vscode.window.showWarningMessage(
-	// 		"This will close your existing Chrome tabs and relaunch Chrome in debug mode. Are you sure?",
-	// 		{ modal: true },
-	// 		"Yes",
-	// 	)
-
-	// 	if (result !== "Yes") {
-	// 		return
-	// 	}
-
-	// 	// // Kill any existing Chrome instances
-	// 	// await chromeLauncher.killAll()
-
-	// 	// // Launch Chrome with debug port
-	// 	// const launcher = new chromeLauncher.Launcher({
-	// 	// 	port: DEBUG_PORT,
-	// 	// 	chromeFlags: ["--remote-debugging-port=" + DEBUG_PORT, "--no-first-run", "--no-default-browser-check"],
-	// 	// })
-
-	// 	// await launcher.launch()
-	// 	const installation = chromeLauncher.Launcher.getFirstInstallation()
-	// 	if (!installation) {
-	// 		throw new Error("Could not find Chrome installation on this system")
-	// 	}
-	// 	console.log("chrome installation", installation)
-	// }
-
-	// private async getSystemChromeExecutablePath(): Promise<string> {
-	// 	// Find installed Chrome
-	// 	const installation = chromeLauncher.Launcher.getFirstInstallation()
-	// 	if (!installation) {
-	// 		throw new Error("Could not find Chrome installation on this system")
-	// 	}
-	// 	console.log("chrome installation", installation)
-	// 	return installation
-	// }
 
 	async launchBrowser() {
 		if (this.browser) {
@@ -126,12 +104,12 @@ export class BrowserSession {
 	}
 
 	async launchLocalBrowser() {
-		const stats = await this.ensureChromiumExists()
-		this.browser = await stats.puppeteer.launch({
+		const { path } = await this.getDetectedChromePath()
+		this.browser = await require("puppeteer-core").launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
 			],
-			executablePath: stats.executablePath,
+			executablePath: path,
 			defaultViewport: this.browserSettings.viewport,
 			headless: this.browserSettings.headless,
 		})

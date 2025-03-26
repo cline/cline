@@ -41,6 +41,7 @@ export interface ExtensionMessage {
 		| "totalTasksSize"
 		| "addToInput"
 		| "browserConnectionResult"
+		| "detectedChromePath"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -83,6 +84,7 @@ export interface ExtensionMessage {
 	totalTasksSize?: number | null
 	success?: boolean
 	values?: Record<string, any>
+	isBundled?: boolean
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"

@@ -1043,6 +1043,21 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						this.postMessageToWebview({ type: "relinquishControl" })
 						break
 					}
+					case "getDetectedChromePath": {
+						try {
+							const { browserSettings } = await this.getState()
+							const browserSession = new BrowserSession(this.context, browserSettings)
+							const { path, isBundled } = await browserSession.getDetectedChromePath()
+							await this.postMessageToWebview({
+								type: "detectedChromePath",
+								text: path,
+								isBundled,
+							})
+						} catch (error) {
+							console.error("Error getting detected Chrome path:", error)
+						}
+						break
+					}
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
