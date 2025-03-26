@@ -1381,7 +1381,7 @@ export class Cline {
 			this.api,
 			this.conversationHistoryDeletedRange,
 			previousApiReqIndex,
-			await this.ensureTaskDirectoryExists()
+			await this.ensureTaskDirectoryExists(),
 		)
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
