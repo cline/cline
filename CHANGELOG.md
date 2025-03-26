@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.8.3]
+
+-   Add support for SambaNova QwQ-32B model
+-   Add OpenAI "dynamic" model chatgpt-4o-latest
+-   Add Amazon Nova models to AWS Bedrock
+-   Improve file handling for NextJS folder naming (fixes issues with parentheses in folder names)
+-   Add Gemini 2.5 Pro to Google AI Studio available models
+-   Handle "input too large" errors for Anthropic
+-   Fix "See more" not showing up for tasks after task un-fold
+-   Fix gpt-4.5-preview's supportsPromptCache value to true
+
 ## [3.8.2]
 
 -   Fix bug where switching to plan/act would result in VS Code LM/OpenRouter model being reset
@@ -7,12 +18,12 @@
 ## [3.8.0]
 
 -   Add 'Add to Cline' as an option when you right-click in a file or the terminal, making it easier to add context to your current task
--   Add 'Fix with Cline' code action - when you see a lightbulb icon in your editor, you can now select 'Fix with Cline' to send the  code and associated errors for Cline to fix. (Cursor users can also use the 'Quick Fix (CMD + .)' menu to see this option)
+-   Add 'Fix with Cline' code action - when you see a lightbulb icon in your editor, you can now select 'Fix with Cline' to send the code and associated errors for Cline to fix. (Cursor users can also use the 'Quick Fix (CMD + .)' menu to see this option)
 -   Add Account view to display billing and usage history for Cline account users. You can now keep track of credits used and transaction history right in the extension!
 -   Add 'Sort underling provider routing' setting to Cline/OpenRouter allowing you to sort provider used by throughput, price, latency, or the default (combination of price and uptime)
 -   Improve rich MCP display with dynamic image loading and support for GIFs
 -   Add 'Documentation' menu item to easily access Cline's docs
--   Add OpenRouter's new usage_details feature for more reliable cost reporting 
+-   Add OpenRouter's new usage_details feature for more reliable cost reporting
 -   Display total space Cline takes on disk next to 'Delete all Tasks' button in History view
 -   Fix 'Context Window Exceeded' error for OpenRouter/Cline Accounts (additional support coming soon)
 -   Fix bug where OpenRouter model ID would be set to invalid value
