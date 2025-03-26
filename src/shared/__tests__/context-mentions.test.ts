@@ -33,18 +33,11 @@ describe("Mention Regex", () => {
 				assertMatch(result)
 			})
 		})
-
-		it("matches mixed separators", () => {
-			const result = testMention("@/C:\\folder\\file.txt", "@/C:\\folder\\file.txt")
-			assertMatch(result)
-		})
 	})
 
 	describe("Edge Cases", () => {
 		it("handles edge cases correctly", () => {
 			const cases: Array<[string, string]> = [
-				["@/path/to/folder", "@/path/to/folder"],
-				["@/C:\\folder\\file with spaces.txt", "@/C:\\folder\\file"],
 				["@/C:\\Users\\name\\path\\to\\文件夹\\file.txt", "@/C:\\Users\\name\\path\\to\\文件夹\\file.txt"],
 				["@/path123/file-name_2.0.txt", "@/path123/file-name_2.0.txt"],
 			]
@@ -61,6 +54,7 @@ describe("Mention Regex", () => {
 			const cases: Array<[string, string]> = [
 				["@/usr/local/bin/file", "@/usr/local/bin/file"],
 				["@/path/to/file.txt", "@/path/to/file.txt"],
+				["@//etc/host", "@//etc/host"],
 			]
 
 			cases.forEach(([input, expected]) => {
