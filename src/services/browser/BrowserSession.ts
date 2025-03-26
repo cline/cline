@@ -96,10 +96,16 @@ export class BrowserSession {
 			// Kill any existing Chrome instances
 			await chromeLauncher.killAll()
 
+			const chromeFlags = ["--remote-debugging-port=" + DEBUG_PORT, "--no-first-run", "--no-default-browser-check"]
+
+			if (this.browserSettings.headless) {
+				chromeFlags.push("--headless")
+			}
+
 			// Launch Chrome with debug port
 			const launcher = new chromeLauncher.Launcher({
 				port: DEBUG_PORT,
-				chromeFlags: ["--remote-debugging-port=" + DEBUG_PORT, "--no-first-run", "--no-default-browser-check"],
+				chromeFlags: chromeFlags,
 			})
 
 			await launcher.launch()
@@ -112,7 +118,7 @@ export class BrowserSession {
 			webview?.postMessage({
 				type: "browserRelaunchResult",
 				success: true,
-				text: "Browser successfully launched in debug mode",
+				text: `Browser successfully launched in debug mode${this.browserSettings.headless ? " (headless)" : ""}`,
 			})
 		} catch (error) {
 			webview?.postMessage({
@@ -154,7 +160,7 @@ export class BrowserSession {
 			],
 			executablePath: path,
 			defaultViewport: this.browserSettings.viewport,
-			headless: this.browserSettings.headless,
+			headless: this.browserSettings.headless ? "shell" : false,
 		})
 	}
 
