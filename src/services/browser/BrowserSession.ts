@@ -10,7 +10,7 @@ import axios from "axios"
 import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
 import { BrowserSettings } from "../../shared/BrowserSettings"
-import { discoverChromeInstances, testBrowserConnection } from "./browserDiscovery"
+import { discoverChromeInstances, testBrowserConnection } from "./BrowserDiscovery"
 import * as chromeLauncher from "chrome-launcher"
 
 interface PCRStats {

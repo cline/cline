@@ -42,7 +42,7 @@ import { ConversationTelemetryService } from "../../services/telemetry/Conversat
 import { GlobalFileNames } from "../../global-constants"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { BrowserSession } from "../../services/browser/BrowserSession"
-import { discoverChromeInstances } from "../../services/browser/browserDiscovery"
+import { discoverChromeInstances } from "../../services/browser/BrowserDiscovery"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
