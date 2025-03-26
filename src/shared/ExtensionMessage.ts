@@ -41,6 +41,7 @@ export interface ExtensionMessage {
 		| "totalTasksSize"
 		| "addToInput"
 		| "browserConnectionResult"
+		| "detectedChromePath"
 		| "scrollToSettings"
 	text?: string
 	action?:
@@ -84,6 +85,7 @@ export interface ExtensionMessage {
 	totalTasksSize?: number | null
 	success?: boolean
 	values?: Record<string, any>
+	isBundled?: boolean
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"

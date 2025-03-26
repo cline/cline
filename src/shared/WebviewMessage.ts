@@ -70,6 +70,8 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
+		| "getDetectedChromePath"
+		| "detectedChromePath"
 		| "scrollToSettings"
 	// | "relaunchChromeDebugMode"
 	text?: string
