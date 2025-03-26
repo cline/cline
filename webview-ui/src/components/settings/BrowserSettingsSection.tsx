@@ -30,7 +30,7 @@ export const BrowserSettingsSection: React.FC = () => {
 				})
 				setDebugMode(false)
 			} else if (message.type === "detectedChromePath") {
-				setDetectedChromePath(message.path)
+				setDetectedChromePath(message.text)
 				setIsBundled(message.isBundled)
 			}
 		}
@@ -128,7 +128,7 @@ export const BrowserSettingsSection: React.FC = () => {
 
 			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8 }}>
-					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Viewport Size</label>
+					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Viewport size</label>
 					<VSCodeDropdown
 						style={{ width: "100%" }}
 						value={
@@ -160,7 +160,7 @@ export const BrowserSettingsSection: React.FC = () => {
 
 			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8 }}>
-					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Chrome Executable Path</label>
+					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Chrome executable path</label>
 					<VSCodeTextField
 						style={{ width: "100%" }}
 						placeholder={
@@ -184,8 +184,7 @@ export const BrowserSettingsSection: React.FC = () => {
 						color: "var(--vscode-descriptionForeground)",
 						margin: 0,
 					}}>
-					Path to Chrome executable for browser use functionality. If not set, Cline will download and use a bundled
-					Chromium instead.
+					Detected path shown by default. If not found, Cline will download and use a bundled Chromium instead.
 				</p>
 			</div>
 
@@ -202,7 +201,8 @@ export const BrowserSettingsSection: React.FC = () => {
 						color: "var(--vscode-descriptionForeground)",
 						margin: "0 0 8px 0px",
 					}}>
-					When enabled, Chrome will run in the background without a visible window.
+					When enabled, Chrome will run in the background without a visible window. If disabled, a live Chrome instance
+					will pop up with a new tab. A remote Chrome must be restarted in headless mode
 				</p>
 			</div>
 
@@ -220,9 +220,8 @@ export const BrowserSettingsSection: React.FC = () => {
 						color: "var(--vscode-descriptionForeground)",
 						margin: "0 0 8px 0px",
 					}}>
-					This allows Cline to use your existing browser session with all authentication cookies. Connect to a Chrome
-					browser running with remote debugging enabled (--remote-debugging-port=9222). Enter the DevTools Protocol host
-					address or leave empty to auto-discover Chrome instances.
+					Enable Cline to use your real Chrome. Start Chrome in debug mode manually (--remote-debugging-port=9222) or
+					use the button below. Enter the host address or leave it blank for automatic discovery.
 				</p>
 
 				{browserSettings.remoteBrowserEnabled && (
@@ -241,7 +240,7 @@ export const BrowserSettingsSection: React.FC = () => {
 								{testingConnection ? "Testing..." : "Test Connection"}
 							</VSCodeButton>
 							<VSCodeButton style={{ flex: 1 }} disabled={debugMode} onClick={relaunchChromeDebugMode}>
-								{debugMode ? "Relaunching Browser..." : "Relaunch Browser in Debug Mode"}
+								{debugMode ? "Relaunching Browser..." : "Relaunch Browser with Debug Mode"}
 							</VSCodeButton>
 						</div>
 
