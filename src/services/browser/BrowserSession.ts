@@ -102,7 +102,7 @@ export class BrowserSession {
 			webview?.postMessage({
 				type: "browserRelaunchResult",
 				success: false,
-				text: `Failed to relaunch Chrome: ${error.message}`,
+				text: `Failed to relaunch Chrome: ${error instanceof Error ? error.message : String(error)}`,
 			})
 		}
 	}
