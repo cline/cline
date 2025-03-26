@@ -89,17 +89,23 @@ export class ConfigManager {
 	}
 
 	/**
-	 * Save a config with the given name
+	 * Save a config with the given name.
+	 * Preserves the ID from the input 'config' object if it exists,
+	 * otherwise generates a new one (for creation scenarios).
 	 */
 	async saveConfig(name: string, config: ApiConfiguration): Promise<void> {
 		try {
 			return await this.lock(async () => {
 				const currentConfig = await this.readConfig()
-				const existingConfig = currentConfig.apiConfigs[name]
+
+				// Preserve the existing ID if this is an update to an existing config
+				const existingId = currentConfig.apiConfigs[name]?.id
+
 				currentConfig.apiConfigs[name] = {
 					...config,
-					id: existingConfig?.id || this.generateId(),
+					id: config.id || existingId || this.generateId(),
 				}
+
 				await this.writeConfig(currentConfig)
 			})
 		} catch (error) {
@@ -127,6 +133,34 @@ export class ConfigManager {
 			})
 		} catch (error) {
 			throw new Error(`Failed to load config: ${error}`)
+		}
+	}
+
+	/**
+	 * Load a config by ID
+	 */
+	async loadConfigById(id: string): Promise<{ config: ApiConfiguration; name: string }> {
+		try {
+			return await this.lock(async () => {
+				const config = await this.readConfig()
+
+				// Find the config with the matching ID
+				const entry = Object.entries(config.apiConfigs).find(([_, apiConfig]) => apiConfig.id === id)
+
+				if (!entry) {
+					throw new Error(`Config with ID '${id}' not found`)
+				}
+
+				const [name, apiConfig] = entry
+
+				// Update current config name
+				config.currentApiConfigName = name
+				await this.writeConfig(config)
+
+				return { config: apiConfig, name }
+			})
+		} catch (error) {
+			throw new Error(`Failed to load config by ID: ${error}`)
 		}
 	}
 

@@ -24,7 +24,7 @@ import { SelectDropdown, DropdownOptionType, Button } from "@/components/ui"
 import Thumbnails from "../common/Thumbnails"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
-import { VolumeX } from "lucide-react"
+import { VolumeX, Pin, Check } from "lucide-react"
 import { IconButton } from "./IconButton"
 import { cn } from "@/lib/utils"
 
@@ -64,7 +64,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		ref,
 	) => {
 		const { t } = useAppTranslation()
-		const { filePaths, openedTabs, currentApiConfigName, listApiConfigMeta, customModes, cwd } = useExtensionState()
+		const {
+			filePaths,
+			openedTabs,
+			currentApiConfigName,
+			listApiConfigMeta,
+			customModes,
+			cwd,
+			pinnedApiConfigs,
+			togglePinnedApiConfig,
+		} = useExtensionState()
+
+		// Find the ID and display text for the currently selected API configuration
+		const { currentConfigId, displayName } = useMemo(() => {
+			const currentConfig = listApiConfigMeta?.find((config) => config.name === currentApiConfigName)
+			return {
+				currentConfigId: currentConfig?.id || "",
+				displayName: currentApiConfigName || "", // Use the name directly for display
+			}
+		}, [listApiConfigMeta, currentApiConfigName])
+
 		const [gitCommits, setGitCommits] = useState<any[]>([])
 		const [showDropdown, setShowDropdown] = useState(false)
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
@@ -955,15 +974,45 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						{/* API configuration selector - flexible width */}
 						<div className={cn("flex-1", "min-w-0", "overflow-hidden")}>
 							<SelectDropdown
-								value={currentApiConfigName || ""}
+								value={currentConfigId}
 								disabled={textAreaDisabled}
 								title={t("chat:selectApiConfig")}
+								placeholder={displayName} // Always show the current name
 								options={[
-									...(listApiConfigMeta || []).map((config) => ({
-										value: config.name,
-										label: config.name,
-										type: DropdownOptionType.ITEM,
-									})),
+									// Pinned items first
+									...(listApiConfigMeta || [])
+										.filter((config) => pinnedApiConfigs && pinnedApiConfigs[config.id])
+										.map((config) => ({
+											value: config.id,
+											label: config.name,
+											name: config.name, // Keep name for comparison with currentApiConfigName
+											type: DropdownOptionType.ITEM,
+											pinned: true,
+										}))
+										.sort((a, b) => a.label.localeCompare(b.label)),
+									// If we have pinned items and unpinned items, add a separator
+									...(pinnedApiConfigs &&
+									Object.keys(pinnedApiConfigs).length > 0 &&
+									(listApiConfigMeta || []).some((config) => !pinnedApiConfigs[config.id])
+										? [
+												{
+													value: "sep-pinned",
+													label: t("chat:separator"),
+													type: DropdownOptionType.SEPARATOR,
+												},
+											]
+										: []),
+									// Unpinned items sorted alphabetically
+									...(listApiConfigMeta || [])
+										.filter((config) => !pinnedApiConfigs || !pinnedApiConfigs[config.id])
+										.map((config) => ({
+											value: config.id,
+											label: config.name,
+											name: config.name, // Keep name for comparison with currentApiConfigName
+											type: DropdownOptionType.ITEM,
+											pinned: false,
+										}))
+										.sort((a, b) => a.label.localeCompare(b.label)),
 									{
 										value: "sep-2",
 										label: t("chat:separator"),
@@ -975,9 +1024,44 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										type: DropdownOptionType.ACTION,
 									},
 								]}
-								onChange={(value) => vscode.postMessage({ type: "loadApiConfiguration", text: value })}
+								onChange={(value) => {
+									if (value === "settingsButtonClicked") {
+										vscode.postMessage({ type: "loadApiConfiguration", text: value })
+									} else {
+										vscode.postMessage({ type: "loadApiConfigurationById", text: value })
+									}
+								}}
 								contentClassName="max-h-[300px] overflow-y-auto"
 								triggerClassName="w-full text-ellipsis overflow-hidden"
+								renderItem={({ type, value, label, pinned }) => {
+									if (type !== DropdownOptionType.ITEM) {
+										return label
+									}
+
+									const config = listApiConfigMeta?.find((c) => c.id === value)
+									const isCurrentConfig = config?.name === currentApiConfigName
+
+									return (
+										<div className="flex items-center justify-between gap-2 w-full">
+											<div className={cn({ "font-medium": isCurrentConfig })}>{label}</div>
+											<div className="flex items-center gap-1">
+												<Button
+													variant="ghost"
+													size="icon"
+													title={pinned ? t("chat:unpin") : t("chat:pin")}
+													onClick={(e) => {
+														e.stopPropagation()
+														togglePinnedApiConfig(value)
+														vscode.postMessage({ type: "toggleApiConfigPin", text: value })
+													}}
+													className={cn("w-5 h-5", { "bg-accent": pinned })}>
+													<Pin className="size-3 p-0.5 opacity-50" />
+												</Button>
+												{isCurrentConfig && <Check className="size-3" />}
+											</div>
+										</div>
+									)
+								}}
 							/>
 						</div>
 					</div>

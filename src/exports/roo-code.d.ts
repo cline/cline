@@ -259,6 +259,7 @@ export type GlobalStateKey =
 	| "language"
 	| "maxReadFileLine"
 	| "fakeAi"
+	| "pinnedApiConfigs" // Record of API config names that should be pinned to the top of the API provides dropdown
 
 export type ConfigurationKey = GlobalStateKey | SecretKey
 

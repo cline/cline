@@ -81,6 +81,9 @@ export interface ExtensionStateContextType extends ExtensionState {
 	maxReadFileLine: number
 	setMaxReadFileLine: (value: number) => void
 	machineId?: string
+	pinnedApiConfigs?: Record<string, boolean>
+	setPinnedApiConfigs: (value: Record<string, boolean>) => void
+	togglePinnedApiConfig: (configName: string) => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -155,6 +158,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		showRooIgnoredFiles: true, // Default to showing .rooignore'd files with lock symbol (current behavior).
 		renderContext: "sidebar",
 		maxReadFileLine: 500, // Default max read file line limit
+		pinnedApiConfigs: {}, // Empty object for pinned API configs
 	})
 
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -307,6 +311,22 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		setShowRooIgnoredFiles: (value) => setState((prevState) => ({ ...prevState, showRooIgnoredFiles: value })),
 		setRemoteBrowserEnabled: (value) => setState((prevState) => ({ ...prevState, remoteBrowserEnabled: value })),
 		setMaxReadFileLine: (value) => setState((prevState) => ({ ...prevState, maxReadFileLine: value })),
+		setPinnedApiConfigs: (value) => setState((prevState) => ({ ...prevState, pinnedApiConfigs: value })),
+		togglePinnedApiConfig: (configId) =>
+			setState((prevState) => {
+				const currentPinned = prevState.pinnedApiConfigs || {}
+				const newPinned = {
+					...currentPinned,
+					[configId]: !currentPinned[configId],
+				}
+
+				// If the config is now unpinned, remove it from the object
+				if (!newPinned[configId]) {
+					delete newPinned[configId]
+				}
+
+				return { ...prevState, pinnedApiConfigs: newPinned }
+			}),
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

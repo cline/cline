@@ -58,6 +58,7 @@ export interface ExtensionMessage {
 		| "ttsStop"
 		| "maxReadFileLine"
 		| "fileSearchResults"
+		| "toggleApiConfigPin"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -168,6 +169,7 @@ export interface ExtensionState {
 	machineId?: string
 	showRooIgnoredFiles: boolean // Whether to show .rooignore'd files in listings
 	renderContext: "sidebar" | "editor"
+	pinnedApiConfigs?: Record<string, boolean> // Map of API config names to pinned state
 	maxReadFileLine: number // Maximum number of lines to read from a file before truncating
 }
 
