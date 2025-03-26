@@ -380,9 +380,10 @@
 			"label": "Allow anonymous error and usage reporting",
 			"description": "Help improve Roo Code by sending anonymous usage data and error reports. No code, prompts, or personal information is ever sent. See our privacy policy for more details."
 		},
-		"reset": {
-			"description": "Reset all global state and secret storage in the extension.",
-			"button": "Reset"
+		"settings": {
+			"import": "Import",
+			"export": "Export",
+			"reset": "Reset"
 		}
 	},
 	"thinkingBudget": {

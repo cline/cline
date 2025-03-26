@@ -381,9 +381,10 @@
 			"label": "Autoriser les rapports anonymes d'erreurs et d'utilisation",
 			"description": "Aidez à améliorer Roo Code en envoyant des données d'utilisation anonymes et des rapports d'erreurs. Aucun code, prompt ou information personnelle n'est jamais envoyé. Consultez notre politique de confidentialité pour plus de détails."
 		},
-		"reset": {
-			"description": "Réinitialiser tous les états globaux et le stockage secret dans l'extension.",
-			"button": "Réinitialiser"
+		"settings": {
+			"import": "Importer",
+			"export": "Exporter",
+			"reset": "Réinitialiser"
 		}
 	},
 	"thinkingBudget": {

@@ -1,10 +1,11 @@
+// npx jest src/shared/__tests__/language.test.ts
+
 import { formatLanguage } from "../language"
 
 describe("formatLanguage", () => {
 	it("should uppercase region code in locale string", () => {
-		expect(formatLanguage("en-us")).toBe("en-US")
-		expect(formatLanguage("fr-ca")).toBe("fr-CA")
-		expect(formatLanguage("de-de")).toBe("de-DE")
+		expect(formatLanguage("pt-br")).toBe("pt-BR")
+		expect(formatLanguage("zh-cn")).toBe("zh-CN")
 	})
 
 	it("should return original string if no region code present", () => {

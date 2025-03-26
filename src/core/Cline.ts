@@ -994,7 +994,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 			}
 		}
 
-		const { terminalOutputLineLimit } = (await this.providerRef.deref()?.getState()) ?? {}
+		const { terminalOutputLineLimit = 500 } = (await this.providerRef.deref()?.getState()) ?? {}
 
 		process.on("line", (line) => {
 			if (!didContinue) {
@@ -2339,7 +2339,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 								}
 
 								// Get the maxReadFileLine setting
-								const { maxReadFileLine } = (await this.providerRef.deref()?.getState()) ?? {}
+								const { maxReadFileLine = 500 } = (await this.providerRef.deref()?.getState()) ?? {}
 
 								// Count total lines in the file
 								let totalLines = 0
@@ -2480,13 +2480,14 @@ export class Cline extends EventEmitter<ClineEvents> {
 								this.consecutiveMistakeCount = 0
 								const absolutePath = path.resolve(this.cwd, relDirPath)
 								const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
-								const { showRooIgnoredFiles } = (await this.providerRef.deref()?.getState()) ?? {}
+								const { showRooIgnoredFiles = true } =
+									(await this.providerRef.deref()?.getState()) ?? {}
 								const result = formatResponse.formatFilesList(
 									absolutePath,
 									files,
 									didHitLimit,
 									this.rooIgnoreController,
-									showRooIgnoredFiles ?? true,
+									showRooIgnoredFiles,
 								)
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
@@ -3759,7 +3760,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
 		let details = ""
 
-		const { terminalOutputLineLimit, maxWorkspaceFiles } = (await this.providerRef.deref()?.getState()) ?? {}
+		const { terminalOutputLineLimit = 500, maxWorkspaceFiles = 200 } =
+			(await this.providerRef.deref()?.getState()) ?? {}
 
 		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
 		details += "\n\n# VSCode Visible Files"
@@ -3767,7 +3769,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 			?.map((editor) => editor.document?.uri?.fsPath)
 			.filter(Boolean)
 			.map((absolutePath) => path.relative(this.cwd, absolutePath))
-			.slice(0, maxWorkspaceFiles ?? 200)
+			.slice(0, maxWorkspaceFiles)
 
 		// Filter paths through rooIgnoreController
 		const allowedVisibleFiles = this.rooIgnoreController
@@ -3979,7 +3981,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 			} else {
 				const maxFiles = maxWorkspaceFiles ?? 200
 				const [files, didHitLimit] = await listFiles(this.cwd, true, maxFiles)
-				const { showRooIgnoredFiles } = (await this.providerRef.deref()?.getState()) ?? {}
+				const { showRooIgnoredFiles = true } = (await this.providerRef.deref()?.getState()) ?? {}
 				const result = formatResponse.formatFilesList(
 					this.cwd,
 					files,

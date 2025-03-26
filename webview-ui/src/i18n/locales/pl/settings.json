@@ -381,9 +381,10 @@
 			"label": "Zezwól na anonimowe raportowanie błędów i użycia",
 			"description": "Pomóż ulepszyć Roo Code, wysyłając anonimowe dane o użytkowaniu i raporty o błędach. Nigdy nie są wysyłane kod, podpowiedzi ani informacje osobiste. Zobacz naszą politykę prywatności, aby uzyskać więcej szczegółów."
 		},
-		"reset": {
-			"description": "Zresetuj wszystkie globalne stany i tajne magazyny w rozszerzeniu.",
-			"button": "Resetuj"
+		"settings": {
+			"import": "Importuj",
+			"export": "Eksportuj",
+			"reset": "Resetuj"
 		}
 	},
 	"thinkingBudget": {

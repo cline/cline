@@ -85,7 +85,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 	const { t } = useAppTranslation()
 
 	const extensionState = useExtensionState()
-	const { currentApiConfigName, listApiConfigMeta, uriScheme, version } = extensionState
+	const { currentApiConfigName, listApiConfigMeta, uriScheme, version, settingsImportedAt } = extensionState
 
 	const [isDiscardDialogShow, setDiscardDialogShow] = useState(false)
 	const [isChangeDetected, setChangeDetected] = useState(false)
@@ -138,6 +138,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 
 	// Make sure apiConfiguration is initialized and managed by SettingsView.
 	const apiConfiguration = useMemo(() => cachedState.apiConfiguration ?? {}, [cachedState.apiConfiguration])
+
 	useEffect(() => {
 		// Update only when currentApiConfigName is changed.
 		// Expected to be triggered by loadApiConfiguration/upsertApiConfiguration.
@@ -149,6 +150,14 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 		prevApiConfigName.current = currentApiConfigName
 		setChangeDetected(false)
 	}, [currentApiConfigName, extensionState, isChangeDetected])
+
+	// Bust the cache when settings are imported.
+	useEffect(() => {
+		if (settingsImportedAt) {
+			setCachedState((prevCachedState) => ({ ...prevCachedState, ...extensionState }))
+			setChangeDetected(false)
+		}
+	}, [settingsImportedAt, extensionState])
 
 	const setCachedStateField: SetCachedStateField<keyof ExtensionStateContextType> = useCallback((field, value) => {
 		setCachedState((prevState) => {
@@ -182,11 +191,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			}
 
 			setChangeDetected(true)
-
-			return {
-				...prevState,
-				experiments: { ...prevState.experiments, [id]: enabled },
-			}
+			return { ...prevState, experiments: { ...prevState.experiments, [id]: enabled } }
 		})
 	}, [])
 
@@ -195,11 +200,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 			if (prevState.telemetrySetting === setting) {
 				return prevState
 			}
+
 			setChangeDetected(true)
-			return {
-				...prevState,
-				telemetrySetting: setting,
-			}
+			return { ...prevState, telemetrySetting: setting }
 		})
 	}, [])
 
@@ -460,8 +463,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 						maxOpenTabsContext={maxOpenTabsContext}
 						maxWorkspaceFiles={maxWorkspaceFiles ?? 200}
 						showRooIgnoredFiles={showRooIgnoredFiles}
-						setCachedStateField={setCachedStateField}
 						maxReadFileLine={maxReadFileLine}
+						setCachedStateField={setCachedStateField}
 					/>
 				</div>
 

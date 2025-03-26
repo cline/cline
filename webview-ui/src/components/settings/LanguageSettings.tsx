@@ -4,7 +4,7 @@ import { Globe } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui"
-import { LANGUAGES } from "../../../../src/shared/language"
+import { Language, LANGUAGES } from "../../../../src/shared/language"
 
 import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"
@@ -28,7 +28,7 @@ export const LanguageSettings = ({ language, setCachedStateField, className, ...
 			</SectionHeader>
 
 			<Section>
-				<Select value={language} onValueChange={(value) => setCachedStateField("language", value)}>
+				<Select value={language} onValueChange={(value) => setCachedStateField("language", value as Language)}>
 					<SelectTrigger className="w-full">
 						<SelectValue placeholder={t("settings:common.select")} />
 					</SelectTrigger>

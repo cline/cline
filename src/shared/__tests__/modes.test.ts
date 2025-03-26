@@ -366,7 +366,7 @@ describe("FileRestrictionError", () => {
 		})
 
 		it("applies custom mode overrides", async () => {
-			const customModes = [
+			const customModes: ModeConfig[] = [
 				{
 					slug: "debug",
 					name: "Custom Debug",

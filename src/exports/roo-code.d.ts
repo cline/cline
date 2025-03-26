@@ -1,3 +1,5 @@
+import * as vscode from "vscode"
+
 import { EventEmitter } from "events"
 
 export interface TokenUsage {
@@ -150,7 +152,395 @@ export interface ClineMessage {
 	progressStatus?: ToolProgressStatus
 }
 
-export type SecretKey =
+export interface ModelInfo {
+	maxTokens?: number
+	contextWindow: number
+	supportsImages?: boolean
+	supportsComputerUse?: boolean
+	supportsPromptCache: boolean // This value is hardcoded for now.
+	inputPrice?: number
+	outputPrice?: number
+	cacheWritesPrice?: number
+	cacheReadsPrice?: number
+	description?: string
+	reasoningEffort?: "low" | "medium" | "high"
+	thinking?: boolean
+}
+
+export interface ApiConfigMeta {
+	id: string
+	name: string
+	apiProvider?: ProviderName
+}
+
+export type HistoryItem = {
+	id: string
+	number: number
+	ts: number
+	task: string
+	tokensIn: number
+	tokensOut: number
+	cacheWrites?: number
+	cacheReads?: number
+	totalCost: number
+	size?: number
+}
+
+export type ExperimentId =
+	| "experimentalDiffStrategy"
+	| "search_and_replace"
+	| "insert_content"
+	| "powerSteering"
+	| "multi_search_and_replace"
+
+export type CheckpointStorage = "task" | "workspace"
+
+export type GroupOptions = {
+	fileRegex?: string // Regular expression pattern.
+	description?: string // Human-readable description of the pattern.
+}
+
+export type ToolGroup = "read" | "edit" | "browser" | "command" | "mcp" | "modes"
+
+export type GroupEntry = ToolGroup | readonly [ToolGroup, GroupOptions]
+
+export type ModeConfig = {
+	slug: string
+	name: string
+	roleDefinition: string
+	customInstructions?: string
+	groups: readonly GroupEntry[] // Now supports both simple strings and tuples with options
+	source?: "global" | "project" // Where this mode was loaded from
+}
+
+export type PromptComponent = {
+	roleDefinition?: string
+	customInstructions?: string
+}
+
+export type CustomModePrompts = {
+	[key: string]: PromptComponent | undefined
+}
+
+export type CustomSupportPrompts = {
+	[key: string]: string | undefined
+}
+
+export type TelemetrySetting = "unset" | "enabled" | "disabled"
+
+export type Language =
+	| "ca"
+	| "de"
+	| "en"
+	| "es"
+	| "fr"
+	| "hi"
+	| "it"
+	| "ja"
+	| "ko"
+	| "pl"
+	| "pt-BR"
+	| "tr"
+	| "vi"
+	| "zh-CN"
+	| "zh-TW"
+
+/**
+ * GlobalSettings
+ *
+ * These are settings that apply globally.
+ * They are all stored in the global state.
+ */
+
+export interface GlobalSettings {
+	currentApiConfigName?: string
+	listApiConfigMeta?: ApiConfigMeta[]
+	pinnedApiConfigs?: Record<string, boolean>
+
+	lastShownAnnouncementId?: string
+	customInstructions?: string
+	taskHistory?: HistoryItem[]
+
+	autoApprovalEnabled?: boolean
+	alwaysAllowReadOnly?: boolean
+	alwaysAllowReadOnlyOutsideWorkspace?: boolean
+	alwaysAllowWrite?: boolean
+	alwaysAllowWriteOutsideWorkspace?: boolean
+	writeDelayMs?: number
+	alwaysAllowBrowser?: boolean
+	alwaysApproveResubmit?: boolean
+	requestDelaySeconds?: number
+	alwaysAllowMcp?: boolean
+	alwaysAllowModeSwitch?: boolean
+	alwaysAllowSubtasks?: boolean
+	alwaysAllowExecute?: boolean
+	allowedCommands?: string[]
+
+	browserToolEnabled?: boolean
+	browserViewportSize?: string
+	screenshotQuality?: number
+	remoteBrowserEnabled?: boolean
+	remoteBrowserHost?: string
+
+	enableCheckpoints?: boolean
+	checkpointStorage?: CheckpointStorage
+
+	ttsEnabled?: boolean
+	ttsSpeed?: number
+	soundEnabled?: boolean
+	soundVolume?: number
+
+	maxOpenTabsContext?: number
+	maxWorkspaceFiles?: number
+	showRooIgnoredFiles?: boolean
+	maxReadFileLine?: number
+
+	terminalOutputLineLimit?: number
+	terminalShellIntegrationTimeout?: number
+
+	rateLimitSeconds?: number
+	diffEnabled?: boolean
+	fuzzyMatchThreshold?: number
+	experiments?: Record<ExperimentId, boolean> // Map of experiment IDs to their enabled state.
+
+	language?: Language
+
+	telemetrySetting?: TelemetrySetting
+
+	mcpEnabled?: boolean
+	enableMcpServerCreation?: boolean
+
+	mode?: string
+	modeApiConfigs?: Record<string, string>
+	customModes?: ModeConfig[]
+	customModePrompts?: CustomModePrompts
+	customSupportPrompts?: CustomSupportPrompts
+	enhancementApiConfigId?: string
+}
+
+export type GlobalSettingsKey = keyof GlobalSettings
+
+/**
+ * ProviderSettings
+ *
+ * These are settings that apply on a per-provider basis.
+ * Non-sensitive values  are stored in the global state.
+ * Sensitive values are stored in VSCode secrets.
+ */
+
+/**
+ * DiscriminatedProviderSettings
+ *
+ * NOTE: This is actually how our provider settings should be typed, but it
+ * will take a little elbow grease to move to this shape. For now we're just
+ * using it to generate the `ProviderName`.
+ */
+
+export type DiscriminatedProviderSettings =
+	| {
+			apiProvider: "anthropic"
+			apiKey?: string
+			anthropicBaseUrl?: string
+			apiModelId?: string
+	  }
+	| {
+			apiProvider: "glama"
+			glamaApiKey?: string
+			glamaModelId?: string
+	  }
+	| {
+			apiProvider: "openrouter"
+			openRouterApiKey?: string
+			openRouterModelId?: string
+			openRouterBaseUrl?: string
+			openRouterSpecificProvider?: string
+			openRouterUseMiddleOutTransform?: boolean
+	  }
+	| {
+			apiProvider: "bedrock"
+			awsAccessKey?: string
+			awsSecretKey?: string
+			awsSessionToken?: string
+			awsRegion?: string
+			awsUseCrossRegionInference?: boolean
+			awsUsePromptCache?: boolean
+			awspromptCacheId?: string
+			awsProfile?: string
+			awsUseProfile?: boolean
+			awsCustomArn?: string
+	  }
+	| {
+			apiProvider: "vertex"
+			vertexKeyFile?: string
+			vertexJsonCredentials?: string
+			vertexProjectId?: string
+			vertexRegion?: string
+	  }
+	| {
+			apiProvider: "openai"
+			openAiApiKey?: string
+			openAiBaseUrl?: string
+			openAiR1FormatEnabled?: boolean
+			openAiModelId?: string
+			openAiUseAzure?: boolean
+			azureApiVersion?: string
+			openAiStreamingEnabled?: boolean
+	  }
+	| {
+			apiProvider: "ollama"
+			ollamaModelId?: string
+			ollamaBaseUrl?: string
+	  }
+	| {
+			apiProvider: "vscode-lm"
+			vsCodeLmModelSelector?: vscode.LanguageModelChatSelector
+	  }
+	| {
+			apiProvider: "lmstudio"
+			lmStudioModelId?: string
+			lmStudioBaseUrl?: string
+			lmStudioDraftModelId?: string
+			lmStudioSpeculativeDecodingEnabled?: boolean
+	  }
+	| {
+			apiProvider: "gemini"
+			googleGeminiBaseUrl?: string
+	  }
+	| {
+			apiProvider: "openai-native"
+			openAiNativeApiKey?: string
+	  }
+	| {
+			apiProvider: "mistral"
+			mistralApiKey?: string
+			mistralCodestralUrl?: string
+	  }
+	| {
+			apiProvider: "deepseek"
+			deepSeekApiKey?: string
+			deepSeekBaseUrl?: string
+	  }
+	| {
+			apiProvider: "unbound"
+			unboundApiKey?: string
+			unboundModelId?: string
+	  }
+	| {
+			apiProvider: "requesty"
+			requestyApiKey?: string
+			requestyModelId?: string
+	  }
+	| {
+			apiProvider: "human-relay"
+	  }
+	| {
+			apiProvider: "fake-ai"
+			fakeAi?: unknown
+	  }
+
+export type ProviderName = DiscriminatedProviderSettings["apiProvider"]
+
+export interface ProviderSettings {
+	apiProvider?: ProviderName
+	apiModelId?: string
+	// Anthropic
+	apiKey?: string // secret
+	anthropicBaseUrl?: string
+	// Glama
+	glamaApiKey?: string // secret
+	glamaModelId?: string
+	glamaModelInfo?: ModelInfo
+	// OpenRouter
+	openRouterApiKey?: string // secret
+	openRouterModelId?: string
+	openRouterModelInfo?: ModelInfo
+	openRouterBaseUrl?: string
+	openRouterSpecificProvider?: string
+	openRouterUseMiddleOutTransform?: boolean
+	// AWS Bedrock
+	awsAccessKey?: string // secret
+	awsSecretKey?: string // secret
+	awsSessionToken?: string // secret
+	awsRegion?: string
+	awsUseCrossRegionInference?: boolean
+	awsUsePromptCache?: boolean
+	awspromptCacheId?: string
+	awsProfile?: string
+	awsUseProfile?: boolean
+	awsCustomArn?: string
+	// Google Vertex
+	vertexKeyFile?: string
+	vertexJsonCredentials?: string
+	vertexProjectId?: string
+	vertexRegion?: string
+	// OpenAI
+	openAiApiKey?: string // secret
+	openAiBaseUrl?: string
+	openAiR1FormatEnabled?: boolean
+	openAiModelId?: string
+	openAiCustomModelInfo?: ModelInfo
+	openAiUseAzure?: boolean
+	azureApiVersion?: string
+	openAiStreamingEnabled?: boolean
+	// Ollama
+	ollamaModelId?: string
+	ollamaBaseUrl?: string
+	// VS Code LM
+	vsCodeLmModelSelector?: vscode.LanguageModelChatSelector
+	// LM Studio
+	lmStudioModelId?: string
+	lmStudioBaseUrl?: string
+	lmStudioDraftModelId?: string
+	lmStudioSpeculativeDecodingEnabled?: boolean
+	// Gemini
+	geminiApiKey?: string // secret
+	googleGeminiBaseUrl?: string
+	// OpenAI Native
+	openAiNativeApiKey?: string // secret
+	// Mistral
+	mistralApiKey?: string // secret
+	mistralCodestralUrl?: string // New option for Codestral URL.
+	// DeepSeek
+	deepSeekApiKey?: string // secret
+	deepSeekBaseUrl?: string
+	// Unbound
+	unboundApiKey?: string // secret
+	unboundModelId?: string
+	unboundModelInfo?: ModelInfo
+	// Requesty
+	requestyApiKey?: string
+	requestyModelId?: string
+	requestyModelInfo?: ModelInfo
+	// Claude 3.7 Sonnet Thinking
+	modelTemperature?: number | null
+	modelMaxTokens?: number
+	modelMaxThinkingTokens?: number
+	// Generic (For now though, OpenAI, DeekSeek, Mistral, and Requesty make reference to it.)
+	includeMaxTokens?: boolean
+	// Fake AI
+	fakeAi?: unknown
+}
+
+export type ProviderSettingsKey = keyof ProviderSettings
+
+/**
+ * RooCodeSettings
+ *
+ * All settings, irrespective of scope and storage.
+ */
+
+export type RooCodeSettings = GlobalSettings & ProviderSettings
+
+export type RooCodeSettingsKey = keyof RooCodeSettings
+
+/**
+ * SecretState
+ *
+ * All settings that are stored in VSCode secrets.
+ */
+
+export type SecretState = Pick<
+	RooCodeSettings,
 	| "apiKey"
 	| "glamaApiKey"
 	| "openRouterApiKey"
@@ -164,103 +554,16 @@ export type SecretKey =
 	| "mistralApiKey"
 	| "unboundApiKey"
 	| "requestyApiKey"
+>
 
-export type GlobalStateKey =
-	| "apiProvider"
-	| "apiModelId"
-	| "glamaModelId"
-	| "glamaModelInfo"
-	| "awsRegion"
-	| "awsUseCrossRegionInference"
-	| "awsProfile"
-	| "awsUseProfile"
-	| "awsCustomArn"
-	| "vertexKeyFile"
-	| "vertexJsonCredentials"
-	| "vertexProjectId"
-	| "vertexRegion"
-	| "lastShownAnnouncementId"
-	| "customInstructions"
-	| "alwaysAllowReadOnly"
-	| "alwaysAllowReadOnlyOutsideWorkspace"
-	| "alwaysAllowWrite"
-	| "alwaysAllowWriteOutsideWorkspace"
-	| "alwaysAllowExecute"
-	| "alwaysAllowBrowser"
-	| "alwaysAllowMcp"
-	| "alwaysAllowModeSwitch"
-	| "alwaysAllowSubtasks"
-	| "taskHistory"
-	| "openAiBaseUrl"
-	| "openAiModelId"
-	| "openAiCustomModelInfo"
-	| "openAiUseAzure"
-	| "ollamaModelId"
-	| "ollamaBaseUrl"
-	| "lmStudioModelId"
-	| "lmStudioBaseUrl"
-	| "anthropicBaseUrl"
-	| "modelMaxThinkingTokens"
-	| "azureApiVersion"
-	| "openAiStreamingEnabled"
-	| "openAiR1FormatEnabled"
-	| "openRouterModelId"
-	| "openRouterModelInfo"
-	| "openRouterBaseUrl"
-	| "openRouterSpecificProvider"
-	| "openRouterUseMiddleOutTransform"
-	| "googleGeminiBaseUrl"
-	| "allowedCommands"
-	| "ttsEnabled"
-	| "ttsSpeed"
-	| "soundEnabled"
-	| "soundVolume"
-	| "diffEnabled"
-	| "enableCheckpoints"
-	| "checkpointStorage"
-	| "browserViewportSize"
-	| "screenshotQuality"
-	| "remoteBrowserHost"
-	| "fuzzyMatchThreshold"
-	| "writeDelayMs"
-	| "terminalOutputLineLimit"
-	| "terminalShellIntegrationTimeout"
-	| "mcpEnabled"
-	| "enableMcpServerCreation"
-	| "alwaysApproveResubmit"
-	| "requestDelaySeconds"
-	| "rateLimitSeconds"
-	| "currentApiConfigName"
-	| "listApiConfigMeta"
-	| "vsCodeLmModelSelector"
-	| "mode"
-	| "modeApiConfigs"
-	| "customModePrompts"
-	| "customSupportPrompts"
-	| "enhancementApiConfigId"
-	| "experiments" // Map of experiment IDs to their enabled state
-	| "autoApprovalEnabled"
-	| "customModes" // Array of custom modes
-	| "unboundModelId"
-	| "requestyModelId"
-	| "requestyModelInfo"
-	| "unboundModelInfo"
-	| "modelTemperature"
-	| "modelMaxTokens"
-	| "mistralCodestralUrl"
-	| "maxOpenTabsContext"
-	| "maxWorkspaceFiles"
-	| "browserToolEnabled"
-	| "lmStudioSpeculativeDecodingEnabled"
-	| "lmStudioDraftModelId"
-	| "telemetrySetting"
-	| "showRooIgnoredFiles"
-	| "remoteBrowserEnabled"
-	| "language"
-	| "maxReadFileLine"
-	| "fakeAi"
-	| "pinnedApiConfigs" // Record of API config names that should be pinned to the top of the API provides dropdown
+export type SecretStateKey = keyof SecretState
 
-export type ConfigurationKey = GlobalStateKey | SecretKey
+/**
+ * GlobalState
+ *
+ * All settings that are stored in the global state.
+ */
 
-export type ConfigurationValues = Record<ConfigurationKey, any>
+export type GlobalState = Omit<RooCodeSettings, SecretStateKey>
+
+export type GlobalStateKey = keyof GlobalState

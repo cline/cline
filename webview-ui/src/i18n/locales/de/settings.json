@@ -381,9 +381,10 @@
 			"label": "Anonyme Fehler- und Nutzungsberichte zulassen",
 			"description": "Helfen Sie, Roo Code zu verbessern, indem Sie anonyme Nutzungsdaten und Fehlerberichte senden. Es werden niemals Code, Prompts oder persönliche Informationen gesendet. Weitere Details finden Sie in unserer Datenschutzrichtlinie."
 		},
-		"reset": {
-			"description": "Setze alle globalen Zustände und geheimen Speicher in der Erweiterung zurück.",
-			"button": "Zurücksetzen"
+		"settings": {
+			"import": "Importieren",
+			"export": "Exportieren",
+			"reset": "Zurücksetzen"
 		}
 	},
 	"thinkingBudget": {

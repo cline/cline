@@ -381,9 +381,10 @@
 			"label": "Permitir informes anónimos de errores y uso",
 			"description": "Ayude a mejorar Roo Code enviando datos de uso anónimos e informes de errores. Nunca se envía código, prompts o información personal. Consulte nuestra política de privacidad para más detalles."
 		},
-		"reset": {
-			"description": "Restablecer todo el estado global y almacenamiento secreto en la extensión.",
-			"button": "Restablecer"
+		"settings": {
+			"import": "Importar",
+			"export": "Exportar",
+			"reset": "Restablecer"
 		}
 	},
 	"thinkingBudget": {

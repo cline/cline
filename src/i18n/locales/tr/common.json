@@ -65,7 +65,8 @@
 		"mcp_server_deleted": "MCP sunucusu silindi: {{serverName}}",
 		"mcp_server_not_found": "Yapılandırmada \"{{serverName}}\" sunucusu bulunamadı",
 		"custom_storage_path_set": "Özel depolama yolu ayarlandı: {{path}}",
-		"default_storage_path": "Varsayılan depolama yoluna geri dönüldü"
+		"default_storage_path": "Varsayılan depolama yoluna geri dönüldü",
+		"settings_imported": "Ayarlar başarıyla içe aktarıldı."
 	},
 	"answers": {
 		"yes": "Evet",

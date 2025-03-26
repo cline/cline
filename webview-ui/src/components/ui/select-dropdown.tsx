@@ -36,6 +36,7 @@ export interface SelectDropdownProps {
 	title?: string
 	triggerClassName?: string
 	contentClassName?: string
+	itemClassName?: string
 	sideOffset?: number
 	align?: "start" | "center" | "end"
 	placeholder?: string
@@ -53,6 +54,7 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 			title = "",
 			triggerClassName = "",
 			contentClassName = "",
+			itemClassName = "",
 			sideOffset = 4,
 			align = "start",
 			placeholder = "",
@@ -125,7 +127,8 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 							<DropdownMenuItem
 								key={`item-${option.value}`}
 								disabled={option.disabled}
-								onClick={() => handleSelect(option)}>
+								onClick={() => handleSelect(option)}
+								className={itemClassName}>
 								{renderItem ? (
 									renderItem(option)
 								) : (

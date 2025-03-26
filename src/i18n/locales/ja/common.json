@@ -65,7 +65,8 @@
 		"mcp_server_deleted": "MCPサーバーが削除されました：{{serverName}}",
 		"mcp_server_not_found": "サーバー\"{{serverName}}\"が設定内に見つかりません",
 		"custom_storage_path_set": "カスタムストレージパスが設定されました：{{path}}",
-		"default_storage_path": "デフォルトのストレージパスに戻りました"
+		"default_storage_path": "デフォルトのストレージパスに戻りました",
+		"settings_imported": "設定が正常にインポートされました。"
 	},
 	"answers": {
 		"yes": "はい",

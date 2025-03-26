@@ -65,7 +65,8 @@
 		"mcp_server_deleted": "已刪除MCP服務器：{{serverName}}",
 		"mcp_server_not_found": "在配置中未找到服務器\"{{serverName}}\"",
 		"custom_storage_path_set": "自定義存儲路徑已設置：{{path}}",
-		"default_storage_path": "已恢復使用默認存儲路徑"
+		"default_storage_path": "已恢復使用默認存儲路徑",
+		"settings_imported": "設置已成功導入。"
 	},
 	"answers": {
 		"yes": "是",

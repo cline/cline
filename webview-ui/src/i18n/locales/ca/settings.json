@@ -381,9 +381,10 @@
 			"label": "Permetre informes anònims d'errors i ús",
 			"description": "Ajudeu a millorar Roo Code enviant dades d'ús anònimes i informes d'errors. Mai s'envia codi, prompts o informació personal. Vegeu la nostra política de privacitat per a més detalls."
 		},
-		"reset": {
-			"description": "Restablir tot l'estat global i emmagatzematge secret a l'extensió.",
-			"button": "Restablir"
+		"settings": {
+			"import": "Importar",
+			"export": "Exportar",
+			"reset": "Restablir"
 		}
 	},
 	"thinkingBudget": {

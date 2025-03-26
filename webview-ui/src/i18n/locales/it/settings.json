@@ -381,9 +381,10 @@
 			"label": "Consenti segnalazioni anonime di errori e utilizzo",
 			"description": "Aiuta a migliorare Roo Code inviando dati di utilizzo anonimi e segnalazioni di errori. Non vengono mai inviati codice, prompt o informazioni personali. Consulta la nostra politica sulla privacy per maggiori dettagli."
 		},
-		"reset": {
-			"description": "Reimposta tutti gli stati globali e l'archivio segreto nell'estensione.",
-			"button": "Ripristina"
+		"settings": {
+			"import": "Importa",
+			"export": "Esporta",
+			"reset": "Ripristina"
 		}
 	},
 	"thinkingBudget": {

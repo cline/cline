@@ -1,38 +1,12 @@
 import * as vscode from "vscode"
+
+import { GroupOptions, GroupEntry, ModeConfig, PromptComponent, CustomModePrompts } from "../exports/roo-code"
 import { TOOL_GROUPS, ToolGroup, ALWAYS_AVAILABLE_TOOLS } from "./tool-groups"
 import { addCustomInstructions } from "../core/prompts/sections/custom-instructions"
 
-// Mode types
 export type Mode = string
 
-// Group options type
-export type GroupOptions = {
-	fileRegex?: string // Regular expression pattern
-	description?: string // Human-readable description of the pattern
-}
-
-// Group entry can be either a string or tuple with options
-export type GroupEntry = ToolGroup | readonly [ToolGroup, GroupOptions]
-
-// Mode configuration type
-export type ModeConfig = {
-	slug: string
-	name: string
-	roleDefinition: string
-	customInstructions?: string
-	groups: readonly GroupEntry[] // Now supports both simple strings and tuples with options
-	source?: "global" | "project" // Where this mode was loaded from
-}
-
-// Mode-specific prompts only
-export type PromptComponent = {
-	roleDefinition?: string
-	customInstructions?: string
-}
-
-export type CustomModePrompts = {
-	[key: string]: PromptComponent | undefined
-}
+export type { GroupOptions, GroupEntry, ModeConfig, PromptComponent, CustomModePrompts }
 
 // Helper to extract group name regardless of format
 export function getGroupName(group: GroupEntry): ToolGroup {

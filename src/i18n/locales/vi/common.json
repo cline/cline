@@ -65,7 +65,8 @@
 		"mcp_server_deleted": "Đã xóa máy chủ MCP: {{serverName}}",
 		"mcp_server_not_found": "Không tìm thấy máy chủ \"{{serverName}}\" trong cấu hình",
 		"custom_storage_path_set": "Đã thiết lập đường dẫn lưu trữ tùy chỉnh: {{path}}",
-		"default_storage_path": "Đã quay lại sử dụng đường dẫn lưu trữ mặc định"
+		"default_storage_path": "Đã quay lại sử dụng đường dẫn lưu trữ mặc định",
+		"settings_imported": "Cài đặt đã được nhập thành công."
 	},
 	"answers": {
 		"yes": "Có",

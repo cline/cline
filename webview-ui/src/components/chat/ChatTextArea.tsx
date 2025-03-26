@@ -1033,6 +1033,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								}}
 								contentClassName="max-h-[300px] overflow-y-auto"
 								triggerClassName="w-full text-ellipsis overflow-hidden"
+								itemClassName="group"
 								renderItem={({ type, value, label, pinned }) => {
 									if (type !== DropdownOptionType.ITEM) {
 										return label
@@ -1042,9 +1043,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									const isCurrentConfig = config?.name === currentApiConfigName
 
 									return (
-										<div className="flex items-center justify-between gap-2 w-full">
+										<div className="flex justify-between gap-2 w-full h-5">
 											<div className={cn({ "font-medium": isCurrentConfig })}>{label}</div>
-											<div className="flex items-center gap-1">
+											<div className="flex justify-end w-10">
+												<div
+													className={cn("size-5 p-1", {
+														"block group-hover:hidden": !pinned,
+														hidden: !isCurrentConfig,
+													})}>
+													<Check className="size-3" />
+												</div>
 												<Button
 													variant="ghost"
 													size="icon"
@@ -1054,10 +1062,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 														togglePinnedApiConfig(value)
 														vscode.postMessage({ type: "toggleApiConfigPin", text: value })
 													}}
-													className={cn("w-5 h-5", { "bg-accent": pinned })}>
+													className={cn("size-5", {
+														"hidden group-hover:flex": !pinned,
+														"bg-accent": pinned,
+													})}>
 													<Pin className="size-3 p-0.5 opacity-50" />
 												</Button>
-												{isCurrentConfig && <Check className="size-3" />}
 											</div>
 										</div>
 									)

@@ -69,7 +69,8 @@
 		"mcp_server_deleted": "Servidor MCP eliminat: {{serverName}}",
 		"mcp_server_not_found": "Servidor \"{{serverName}}\" no trobat a la configuració",
 		"custom_storage_path_set": "Ruta d'emmagatzematge personalitzada establerta: {{path}}",
-		"default_storage_path": "S'ha reprès l'ús de la ruta d'emmagatzematge predeterminada"
+		"default_storage_path": "S'ha reprès l'ús de la ruta d'emmagatzematge predeterminada",
+		"settings_imported": "Configuració importada correctament."
 	},
 	"answers": {
 		"yes": "Sí",

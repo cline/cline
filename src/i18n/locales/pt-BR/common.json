@@ -69,7 +69,8 @@
 		"mcp_server_deleted": "Servidor MCP excluído: {{serverName}}",
 		"mcp_server_not_found": "Servidor \"{{serverName}}\" não encontrado na configuração",
 		"custom_storage_path_set": "Caminho de armazenamento personalizado definido: {{path}}",
-		"default_storage_path": "Retornado ao caminho de armazenamento padrão"
+		"default_storage_path": "Retornado ao caminho de armazenamento padrão",
+		"settings_imported": "Configurações importadas com sucesso."
 	},
 	"answers": {
 		"yes": "Sim",

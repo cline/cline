@@ -381,9 +381,10 @@
 			"label": "允许匿名错误和使用情况报告",
 			"description": "通过发送匿名使用数据和错误报告来帮助改进 Roo Code。绝不会发送代码、提示或个人信息。有关更多详细信息，请参阅我们的隐私政策。"
 		},
-		"reset": {
-			"description": "重置扩展中的所有全局状态和密钥存储。",
-			"button": "重置"
+		"settings": {
+			"import": "导入",
+			"export": "导出",
+			"reset": "重置"
 		}
 	},
 	"thinkingBudget": {

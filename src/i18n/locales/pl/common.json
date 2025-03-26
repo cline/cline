@@ -65,7 +65,8 @@
 		"mcp_server_deleted": "Usunięto serwer MCP: {{serverName}}",
 		"mcp_server_not_found": "Serwer \"{{serverName}}\" nie znaleziony w konfiguracji",
 		"custom_storage_path_set": "Ustawiono niestandardową ścieżkę przechowywania: {{path}}",
-		"default_storage_path": "Wznowiono używanie domyślnej ścieżki przechowywania"
+		"default_storage_path": "Wznowiono używanie domyślnej ścieżki przechowywania",
+		"settings_imported": "Ustawienia zaimportowane pomyślnie."
 	},
 	"answers": {
 		"yes": "Tak",

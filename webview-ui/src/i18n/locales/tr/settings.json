@@ -381,9 +381,10 @@
 			"label": "Anonim hata ve kullanım raporlamaya izin ver",
 			"description": "Anonim kullanım verileri ve hata raporları göndererek Roo Code'u geliştirmeye yardımcı olun. Hiçbir kod, istem veya kişisel bilgi asla gönderilmez. Daha fazla ayrıntı için gizlilik politikamıza bakın."
 		},
-		"reset": {
-			"description": "Uzantıdaki tüm global durumu ve gizli depolamayı sıfırlayın.",
-			"button": "Sıfırla"
+		"settings": {
+			"import": "İçe Aktar",
+			"export": "Dışa Aktar",
+			"reset": "Sıfırla"
 		}
 	},
 	"thinkingBudget": {

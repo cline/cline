@@ -381,9 +381,10 @@
 			"label": "允許匿名錯誤和使用報告",
 			"description": "匿名資料協助改善 Roo Code，絕不傳送程式碼或個人資訊"
 		},
-		"reset": {
-			"description": "重設擴充功能的全局狀態和金鑰儲存",
-			"button": "重設"
+		"settings": {
+			"import": "匯入",
+			"export": "匯出",
+			"reset": "重設"
 		}
 	},
 	"thinkingBudget": {

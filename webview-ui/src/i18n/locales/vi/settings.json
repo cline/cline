@@ -381,9 +381,10 @@
 			"label": "Cho phép báo cáo lỗi và sử dụng ẩn danh",
 			"description": "Giúp cải thiện Roo Code bằng cách gửi dữ liệu sử dụng ẩn danh và báo cáo lỗi. Không bao giờ gửi mã, lời nhắc hoặc thông tin cá nhân. Xem chính sách bảo mật của chúng tôi để biết thêm chi tiết."
 		},
-		"reset": {
-			"description": "Đặt lại tất cả trạng thái toàn cầu và lưu trữ bí mật trong tiện ích mở rộng.",
-			"button": "Đặt lại"
+		"settings": {
+			"import": "Nhập",
+			"export": "Xuất",
+			"reset": "Đặt lại"
 		}
 	},
 	"thinkingBudget": {
