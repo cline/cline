@@ -10,6 +10,8 @@ export const BrowserSettingsSection: React.FC = () => {
 	const [debugMode, setDebugMode] = useState(false)
 	const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
 	const [relaunchResult, setRelaunchResult] = useState<{ success: boolean; message: string } | null>(null)
+	const [isBundled, setIsBundled] = useState(false)
+	const [detectedChromePath, setDetectedChromePath] = useState<string | null>(null)
 
 	// Listen for browser connection test results and relaunch results
 	useEffect(() => {
@@ -27,6 +29,9 @@ export const BrowserSettingsSection: React.FC = () => {
 					message: message.text,
 				})
 				setDebugMode(false)
+			} else if (message.type === "detectedChromePath") {
+				setDetectedChromePath(message.path)
+				setIsBundled(message.isBundled)
 			}
 		}
 
