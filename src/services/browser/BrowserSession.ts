@@ -96,7 +96,12 @@ export class BrowserSession {
 			// Kill any existing Chrome instances
 			await chromeLauncher.killAll()
 
-			const chromeFlags = ["--remote-debugging-port=" + DEBUG_PORT, "--no-first-run", "--no-default-browser-check"]
+			const chromeFlags = [
+				"--remote-debugging-port=" + DEBUG_PORT,
+				"--no-first-run",
+				"--no-default-browser-check",
+				"--disable-notifications",
+			]
 
 			if (this.browserSettings.headless) {
 				chromeFlags.push("--headless")
