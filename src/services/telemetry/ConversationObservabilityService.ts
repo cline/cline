@@ -26,14 +26,14 @@ Cline Telemetry (currently only available in DEV builds)
 
 Advanced Setting to opt-in to LLM observability, allowing you to share message data, code, and more extensive telemetry to help improve prompts used in Cline, train our models, and understand failure states more accurately.
 
-"cline.conversationTelemetry": {
+"cline.conversationObservability": {
 	"type": "boolean",
 	"default": false,
 	"markdownDescription": "Share message data, code, and more extensive telemetry. This data may be used to improve prompts used in Cline, train models, and understand failure states more accurately. [Learn more](https://docs.cline.bot/more-info/llm-observability)"
 }
  */
 
-export class ConversationTelemetryService {
+export class ConversationObservabilityService {
 	private providerRef: WeakRef<ClineProvider>
 	private distinctId: string = vscode.env.machineId
 	private apiEndpoint: string = "https://api.cline.bot/v1/traces"
@@ -61,7 +61,7 @@ export class ConversationTelemetryService {
 
 		// User has to manually opt in to conversation telemetry in Advanced Settings
 		const isConversationTelemetryEnabled =
-			vscode.workspace.getConfiguration("cline").get<boolean>("conversationTelemetry") ?? false
+			vscode.workspace.getConfiguration("cline").get<boolean>("conversationObservability") ?? false
 
 		return isGlobalTelemetryEnabled && isConversationTelemetryEnabled
 	}

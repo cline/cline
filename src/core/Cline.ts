@@ -64,7 +64,7 @@ import { ClineHandler } from "../api/providers/cline"
 import { ClineProvider } from "./webview/ClineProvider"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 import { telemetryService } from "../services/telemetry/TelemetryService"
-import { ConversationTelemetryService, TelemetryChatMessage } from "../services/telemetry/ConversationTelemetryService"
+import { ConversationObservabilityService, TelemetryChatMessage } from "../services/telemetry/ConversationObservabilityService"
 import pTimeout from "p-timeout"
 import { GlobalFileNames } from "../global-constants"
 import {
@@ -1357,7 +1357,7 @@ export class Cline {
 
 		// Capture system prompt for telemetry,
 		// ONLY if user is opted in, in advanced settings
-		if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
+		if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationTelemetry()) {
 			const systemMessage: TelemetryChatMessage = {
 				role: "system",
 				content: systemPrompt,
@@ -1365,7 +1365,7 @@ export class Cline {
 			}
 
 			// no need for timeout here, as there's no timestamp to compare to
-			this.providerRef.deref()?.conversationTelemetryService.captureMessage(this.taskId, systemMessage, {
+			this.providerRef.deref()?.conversationObservabilityService.captureMessage(this.taskId, systemMessage, {
 				apiProvider: this.apiProvider,
 				model: this.api.getModel().id,
 				tokensIn: 0,
@@ -3192,7 +3192,7 @@ export class Cline {
 
 		// Capture message data for telemetry,
 		// ONLY if user is opted in, in advanced settings
-		if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
+		if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationTelemetry()) {
 			// Get the last message from apiConversationHistory
 			const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
 
@@ -3203,7 +3203,7 @@ export class Cline {
 			const ts = lastClineMessage.ts
 
 			// Send individual message to telemetry
-			this.providerRef.deref()?.conversationTelemetryService.captureMessage(
+			this.providerRef.deref()?.conversationObservabilityService.captureMessage(
 				this.taskId,
 				// Add the timestamp to the message object for telemetry
 				{
@@ -3220,7 +3220,7 @@ export class Cline {
 
 			// Send entire conversation history to cleanup endpoint
 			// This ensures deleted messages are properly handled in telemetry
-			this.providerRef.deref()?.conversationTelemetryService.cleanupTask(this.taskId, this.clineMessages)
+			this.providerRef.deref()?.conversationObservabilityService.cleanupTask(this.taskId, this.clineMessages)
 		}
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
@@ -3302,7 +3302,7 @@ export class Cline {
 
 				// Capture message data for telemetry after assistant response
 				// ONLY if user is opted in, in advanced settings
-				if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
+				if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationTelemetry()) {
 					// Get the last message from apiConversationHistory
 					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
 
@@ -3314,7 +3314,7 @@ export class Cline {
 					if (!lastTextMessage) {
 						console.error("No text message found in clineMessages")
 					} else {
-						this.providerRef.deref()?.conversationTelemetryService.captureMessage(
+						this.providerRef.deref()?.conversationObservabilityService.captureMessage(
 							this.taskId,
 							{
 								...lastMessage,
@@ -3481,7 +3481,7 @@ export class Cline {
 
 				// Capture message data for telemetry after assistant response,
 				// ONLY if user is opted in, in advanced settings
-				if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
+				if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationTelemetry()) {
 					// Get the last message from apiConversationHistory
 					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
 
@@ -3489,7 +3489,7 @@ export class Cline {
 					const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
 
 					if (lastClineMessage) {
-						this.providerRef.deref()?.conversationTelemetryService.captureMessage(
+						this.providerRef.deref()?.conversationObservabilityService.captureMessage(
 							this.taskId,
 							{
 								...lastMessage,

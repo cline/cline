@@ -262,7 +262,7 @@
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
 				},
-				"cline.conversationTelemetry": {
+				"cline.conversationObservability": {
 					"type": "boolean",
 					"default": false,
 					"markdownDescription": "Share message data, code, and more extensive telemetry. This data may be used to improve prompts used in Cline, train models, and understand failure states more accurately. [Learn more](https://docs.cline.bot/more-info/llm-observability)"
