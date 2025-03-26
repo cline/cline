@@ -92,7 +92,7 @@ export class BrowserSession {
 				// Don't create a new page here, as we'll create it in launchRemoteBrowser
 				return
 			} catch (error) {
-				console.error("Failed to launch remote browser, falling back to headless:", error)
+				console.error("Failed to launch remote browser, falling back to local mode:", error)
 				await this.launchLocalBrowser()
 			}
 		} else {

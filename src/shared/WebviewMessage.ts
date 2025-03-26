@@ -72,6 +72,7 @@ export interface WebviewMessage {
 		| "requestTotalTasksSize"
 		| "getDetectedChromePath"
 		| "detectedChromePath"
+		| "scrollToSettings"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean

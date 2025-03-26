@@ -42,6 +42,7 @@ export interface ExtensionMessage {
 		| "addToInput"
 		| "browserConnectionResult"
 		| "detectedChromePath"
+		| "scrollToSettings"
 	text?: string
 	action?:
 		| "chatButtonClicked"

@@ -1,352 +1,38 @@
-import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import React, { useRef, useState, useEffect } from "react"
-import { useClickAway } from "react-use"
-import styled from "styled-components"
-import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import React, { useRef } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 
 interface BrowserSettingsMenuProps {
-	disabled?: boolean
 	maxWidth?: number
 }
 
-export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabled = false, maxWidth }) => {
+export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWidth }) => {
 	const { browserSettings } = useExtensionState()
-	const [showMenu, setShowMenu] = useState(false)
-	const [hasMouseEntered, setHasMouseEntered] = useState(false)
-	const [testingConnection, setTestingConnection] = useState(false)
-	const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
-	const menuRef = useRef<HTMLDivElement>(null)
 
-	// Listen for browser connection test results
-	useEffect(() => {
-		const handleMessage = (event: MessageEvent) => {
-			const message = event.data
-			if (message.type === "browserConnectionResult") {
-				setTestResult({
-					success: message.success,
-					message: message.text,
-				})
-				setTestingConnection(false)
-			}
-		}
+	const openBrowserSettings = () => {
+		// First open the settings panel
+		vscode.postMessage({
+			type: "openSettings",
+		})
 
-		window.addEventListener("message", handleMessage)
-		return () => window.removeEventListener("message", handleMessage)
-	}, [])
-
-	useClickAway(containerRef, () => {
-		if (showMenu) {
-			setShowMenu(false)
-			setHasMouseEntered(false)
-		}
-	})
-
-	const handleMouseEnter = () => {
-		setHasMouseEntered(true)
-	}
-
-	const handleMouseLeave = () => {
-		if (hasMouseEntered) {
-			setShowMenu(false)
-			setHasMouseEntered(false)
-		}
-	}
-
-	const handleControlsMouseLeave = (e: React.MouseEvent) => {
-		const menuElement = menuRef.current
-
-		if (menuElement && showMenu) {
-			const menuRect = menuElement.getBoundingClientRect()
-
-			// If mouse is moving towards the menu, don't close it
-			if (
-				e.clientY >= menuRect.top &&
-				e.clientY <= menuRect.bottom &&
-				e.clientX >= menuRect.left &&
-				e.clientX <= menuRect.right
-			) {
-				return
-			}
-		}
-
-		setShowMenu(false)
-		setHasMouseEntered(false)
-	}
-
-	const handleViewportChange = (event: Event) => {
-		const target = event.target as HTMLSelectElement
-		const selectedSize = BROWSER_VIEWPORT_PRESETS[target.value as keyof typeof BROWSER_VIEWPORT_PRESETS]
-		if (selectedSize) {
+		// After a short delay, send a message to scroll to browser settings
+		setTimeout(() => {
 			vscode.postMessage({
-				type: "browserSettings",
-				browserSettings: {
-					...browserSettings,
-					viewport: selectedSize,
-				},
+				type: "scrollToSettings",
+				text: "browser-settings-section",
 			})
-		}
+		}, 300) // Give the settings panel time to open
 	}
-
-	const updateHeadless = (headless: boolean) => {
-		vscode.postMessage({
-			type: "browserSettings",
-			browserSettings: {
-				...browserSettings,
-				headless,
-			},
-		})
-	}
-
-	const updateRemoteBrowserEnabled = (enabled: boolean) => {
-		vscode.postMessage({
-			type: "remoteBrowserEnabled",
-			bool: enabled,
-		})
-
-		// If disabling, clear the host
-		if (!enabled) {
-			vscode.postMessage({
-				type: "remoteBrowserHost",
-				text: undefined,
-			})
-		}
-	}
-
-	const updateRemoteBrowserHost = (host: string | undefined) => {
-		vscode.postMessage({
-			type: "remoteBrowserHost",
-			text: host,
-		})
-	}
-
-	const testConnection = () => {
-		setTestingConnection(true)
-		setTestResult(null)
-		vscode.postMessage({
-			type: "testBrowserConnection",
-			text: browserSettings.remoteBrowserHost,
-		})
-	}
-
-	const discoverBrowser = () => {
-		setTestingConnection(true)
-		setTestResult(null)
-		vscode.postMessage({
-			type: "discoverBrowser",
-		})
-	}
-
-	// const updateChromeType = (chromeType: BrowserSettings["chromeType"]) => {
-	// 	vscode.postMessage({
-	// 		type: "browserSettings",
-	// 		browserSettings: {
-	// 			...browserSettings,
-	// 			chromeType,
-	// 		},
-	// 	})
-	// }
-
-	// const relaunchChromeDebugMode = () => {
-	// 	vscode.postMessage({
-	// 		type: "relaunchChromeDebugMode",
-	// 	})
-	// }
 
 	return (
-		<div ref={containerRef} style={{ position: "relative", marginTop: "-1px" }} onMouseLeave={handleControlsMouseLeave}>
-			<VSCodeButton appearance="icon" onClick={() => setShowMenu(!showMenu)} disabled={disabled}>
+		<div ref={containerRef} style={{ position: "relative", marginTop: "-1px" }}>
+			<VSCodeButton appearance="icon" onClick={openBrowserSettings}>
 				<i className="codicon codicon-settings-gear" style={{ fontSize: "14.5px" }} />
 			</VSCodeButton>
-			{showMenu && (
-				<SettingsMenu ref={menuRef} maxWidth={maxWidth} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-					<SettingsGroup>
-						{/* <SettingsHeader>Headless Mode</SettingsHeader> */}
-						<VSCodeCheckbox
-							style={{ marginBottom: "8px", marginTop: -1 }}
-							checked={browserSettings.headless}
-							onChange={(e) => updateHeadless((e.target as HTMLInputElement).checked)}>
-							Run in headless mode
-						</VSCodeCheckbox>
-						<SettingsDescription>When enabled, Chrome will run in the background.</SettingsDescription>
-					</SettingsGroup>
-
-					<SettingsGroup>
-						<SettingsHeader>Remote Browser Connection</SettingsHeader>
-						<VSCodeCheckbox
-							style={{ marginBottom: "8px" }}
-							checked={browserSettings.remoteBrowserEnabled}
-							onChange={(e) => updateRemoteBrowserEnabled((e.target as HTMLInputElement).checked)}>
-							Use remote browser connection
-						</VSCodeCheckbox>
-						<SettingsDescription>
-							Connect to a Chrome browser running with remote debugging enabled (--remote-debugging-port=9222).
-						</SettingsDescription>
-
-						{browserSettings.remoteBrowserEnabled && (
-							<>
-								<div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
-									<input
-										type="text"
-										value={browserSettings.remoteBrowserHost || ""}
-										placeholder="http://localhost:9222"
-										style={{
-											flexGrow: 1,
-											padding: "4px 8px",
-											backgroundColor: "var(--vscode-input-background)",
-											color: "var(--vscode-input-foreground)",
-											border: "1px solid var(--vscode-input-border)",
-											borderRadius: "2px",
-										}}
-										onChange={(e) => updateRemoteBrowserHost(e.target.value || undefined)}
-									/>
-									<VSCodeButton
-										disabled={testingConnection}
-										onClick={browserSettings.remoteBrowserHost ? testConnection : discoverBrowser}>
-										{testingConnection ? "Testing..." : "Test Connection"}
-									</VSCodeButton>
-								</div>
-
-								{testResult && (
-									<div
-										style={{
-											padding: "8px",
-											marginTop: "8px",
-											backgroundColor: testResult.success ? "rgba(0, 128, 0, 0.1)" : "rgba(255, 0, 0, 0.1)",
-											color: testResult.success
-												? "var(--vscode-terminal-ansiGreen)"
-												: "var(--vscode-terminal-ansiRed)",
-											borderRadius: "3px",
-											fontSize: "11px",
-										}}>
-										{testResult.message}
-									</div>
-								)}
-
-								<SettingsDescription isLast={true} style={{ marginTop: "8px" }}>
-									Enter the DevTools Protocol host address or leave empty to auto-discover Chrome instances.
-								</SettingsDescription>
-							</>
-						)}
-					</SettingsGroup>
-
-					{/* <SettingsGroup>
-						<SettingsHeader>Chrome Executable</SettingsHeader>
-						<VSCodeDropdown
-							style={{ width: "100%", marginBottom: "8px" }}
-							value={browserSettings.chromeType}
-							onChange={(e) =>
-								updateChromeType((e.target as HTMLSelectElement).value as BrowserSettings["chromeType"])
-							}>
-							<VSCodeOption value="chromium">Chromium (Auto-downloaded)</VSCodeOption>
-							<VSCodeOption value="system">System Chrome</VSCodeOption>
-						</VSCodeDropdown>
-						<SettingsDescription>
-							{browserSettings.chromeType === "system" ? (
-								<>
-									Cline will use your personal browser. You must{" "}
-									<VSCodeLink
-										href="#"
-										style={{ fontSize: "inherit" }}
-										onClick={(e: React.MouseEvent) => {
-											e.preventDefault()
-											relaunchChromeDebugMode()
-										}}>
-										relaunch Chrome in debug mode
-									</VSCodeLink>{" "}
-									to use this setting.
-								</>
-							) : (
-								"Cline will use a Chromium browser bundled with the extension."
-							)}
-						</SettingsDescription>
-					</SettingsGroup> */}
-
-					<SettingsGroup>
-						<SettingsHeader>Viewport Size</SettingsHeader>
-						<VSCodeDropdown
-							style={{ width: "100%" }}
-							value={
-								Object.entries(BROWSER_VIEWPORT_PRESETS).find(
-									([_, size]) =>
-										size.width === browserSettings.viewport.width &&
-										size.height === browserSettings.viewport.height,
-								)?.[0]
-							}
-							onChange={(event) => handleViewportChange(event as Event)}>
-							{Object.entries(BROWSER_VIEWPORT_PRESETS).map(([name]) => (
-								<VSCodeOption key={name} value={name}>
-									{name}
-								</VSCodeOption>
-							))}
-						</VSCodeDropdown>
-					</SettingsGroup>
-				</SettingsMenu>
-			)}
 		</div>
 	)
 }
-
-const SettingsMenu = styled.div<{ maxWidth?: number }>`
-	position: absolute;
-	top: calc(100% + 8px);
-	right: -2px;
-	background: ${CODE_BLOCK_BG_COLOR};
-	border: 1px solid var(--vscode-editorGroup-border);
-	padding: 8px;
-	border-radius: 3px;
-	z-index: 1000;
-	width: calc(100vw - 57px);
-	min-width: 0px;
-	max-width: ${(props) => (props.maxWidth ? `${props.maxWidth - 23}px` : "100vw")};
-
-	// Add invisible padding to create a safe hover zone
-	&::before {
-		content: "";
-		position: absolute;
-		top: -14px; // Same as margin-top in the parent's top property
-		left: 0;
-		right: -6px;
-		height: 14px;
-	}
-
-	&::after {
-		content: "";
-		position: absolute;
-		top: -6px;
-		right: 6px;
-		width: 10px;
-		height: 10px;
-		background: ${CODE_BLOCK_BG_COLOR};
-		border-left: 1px solid var(--vscode-editorGroup-border);
-		border-top: 1px solid var(--vscode-editorGroup-border);
-		transform: rotate(45deg);
-		z-index: 1; // Ensure arrow stays above the padding
-	}
-`
-
-const SettingsGroup = styled.div`
-	&:not(:last-child) {
-		margin-bottom: 8px;
-		// padding-bottom: 8px;
-		border-bottom: 1px solid var(--vscode-editorGroup-border);
-	}
-`
-
-const SettingsHeader = styled.div`
-	font-size: 11px;
-	font-weight: 600;
-	margin-bottom: 6px;
-	color: var(--vscode-foreground);
-`
-
-const SettingsDescription = styled.div<{ isLast?: boolean }>`
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-	margin-bottom: ${(props) => (props.isLast ? "0" : "8px")};
-`
 
 export default BrowserSettingsMenu
