@@ -72,6 +72,9 @@ export interface WebviewMessage {
 		| "optionsResponse"
 		| "requestTotalTasksSize"
 		| "relaunchChromeDebugMode"
+		| "getDetectedChromePath"
+		| "detectedChromePath"
+		| "scrollToSettings"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse

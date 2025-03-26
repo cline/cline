@@ -34,6 +34,13 @@ export const BrowserSettingsSection: React.FC = () => {
 		return () => window.removeEventListener("message", handleMessage)
 	}, [])
 
+	// Request detected Chrome path on mount
+	useEffect(() => {
+		vscode.postMessage({
+			type: "getDetectedChromePath",
+		})
+	}, [])
+
 	const handleViewportChange = (event: Event) => {
 		const target = event.target as HTMLSelectElement
 		const selectedSize = BROWSER_VIEWPORT_PRESETS[target.value as keyof typeof BROWSER_VIEWPORT_PRESETS]
@@ -109,7 +116,9 @@ export const BrowserSettingsSection: React.FC = () => {
 	}
 
 	return (
-		<div style={{ marginBottom: 20, borderTop: "1px solid var(--vscode-panel-border)", paddingTop: 15 }}>
+		<div
+			id="browser-settings-section"
+			style={{ marginBottom: 20, borderTop: "1px solid var(--vscode-panel-border)", paddingTop: 15 }}>
 			<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 10px 0", fontSize: "14px" }}>Browser Settings</h3>
 
 			<div style={{ marginBottom: 15 }}>
@@ -149,7 +158,11 @@ export const BrowserSettingsSection: React.FC = () => {
 					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Chrome Executable Path</label>
 					<VSCodeTextField
 						style={{ width: "100%" }}
-						placeholder="Path to Chrome executable"
+						placeholder={
+							isBundled
+								? "(Using bundled Chromium)"
+								: detectedChromePath || "Checking for path to Chrome executable..."
+						}
 						onChange={(e: any) => {
 							const value = e.target.value
 							// Update VSCode configuration directly
@@ -166,8 +179,8 @@ export const BrowserSettingsSection: React.FC = () => {
 						color: "var(--vscode-descriptionForeground)",
 						margin: 0,
 					}}>
-					Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find it
-					automatically.
+					Path to Chrome executable for browser use functionality. If not set, Cline will download and use a bundled
+					Chromium instead.
 				</p>
 			</div>
 

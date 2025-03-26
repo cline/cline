@@ -1006,6 +1006,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						})
 						break
 					}
+					case "scrollToSettings": {
+						await this.postMessageToWebview({
+							type: "scrollToSettings",
+							text: message.text,
+						})
+						break
+					}
 					case "telemetrySetting": {
 						if (message.telemetrySetting) {
 							await this.updateTelemetrySetting(message.telemetrySetting)
@@ -1041,6 +1048,21 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.postStateToWebview()
 						this.refreshTotalTasksSize()
 						this.postMessageToWebview({ type: "relinquishControl" })
+						break
+					}
+					case "getDetectedChromePath": {
+						try {
+							const { browserSettings } = await this.getState()
+							const browserSession = new BrowserSession(this.context, browserSettings)
+							const { path, isBundled } = await browserSession.getDetectedChromePath()
+							await this.postMessageToWebview({
+								type: "detectedChromePath",
+								text: path,
+								isBundled,
+							})
+						} catch (error) {
+							console.error("Error getting detected Chrome path:", error)
+						}
 						break
 					}
 					// Add more switch case statements here as more webview message commands

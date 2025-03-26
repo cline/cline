@@ -114,6 +114,24 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						setPendingTabChange(null)
 					}
 					break
+				case "scrollToSettings":
+					setTimeout(() => {
+						const elementId = message.text
+						if (elementId) {
+							const element = document.getElementById(elementId)
+							if (element) {
+								element.scrollIntoView({ behavior: "smooth" })
+
+								element.style.transition = "background-color 0.5s ease"
+								element.style.backgroundColor = "var(--vscode-textPreformat-background)"
+
+								setTimeout(() => {
+									element.style.backgroundColor = "transparent"
+								}, 1200)
+							}
+						}
+					}, 300)
+					break
 			}
 		},
 		[pendingTabChange],

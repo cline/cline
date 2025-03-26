@@ -307,7 +307,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							{displayState.url || "http"}
 						</div>
 					</div>
-					<BrowserSettingsMenu disabled={!shouldShowSettings} maxWidth={maxWidth} />
+					<BrowserSettingsMenu maxWidth={maxWidth} />
 				</div>
 
 				{/* Screenshot Area */}
