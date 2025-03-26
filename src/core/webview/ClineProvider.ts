@@ -596,35 +596,35 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						try {
 							// Get the current browser session from Cline if it exists
 							if (this.cline?.browserSession) {
-								const connectionInfo = this.cline.browserSession.getConnectionInfo();
+								const connectionInfo = this.cline.browserSession.getConnectionInfo()
 								await this.postMessageToWebview({
 									type: "browserConnectionInfo",
 									isConnected: connectionInfo.isConnected,
 									isRemote: connectionInfo.isRemote,
 									host: connectionInfo.host,
-									isHeadless: connectionInfo.isHeadless
-								});
+									isHeadless: connectionInfo.isHeadless,
+								})
 							} else {
 								// If no active browser session, just return the settings
-								const { browserSettings } = await this.getState();
+								const { browserSettings } = await this.getState()
 								await this.postMessageToWebview({
 									type: "browserConnectionInfo",
 									isConnected: false,
 									isRemote: !!browserSettings.remoteBrowserEnabled,
 									host: browserSettings.remoteBrowserHost,
-									isHeadless: !!browserSettings.headless
-								});
+									isHeadless: !!browserSettings.headless,
+								})
 							}
 						} catch (error) {
-							console.error("Error getting browser connection info:", error);
+							console.error("Error getting browser connection info:", error)
 							await this.postMessageToWebview({
 								type: "browserConnectionInfo",
 								isConnected: false,
 								isRemote: false,
-								isHeadless: true
-							});
+								isHeadless: true,
+							})
 						}
-						break;
+						break
 					case "testBrowserConnection":
 						try {
 							const { browserSettings } = await this.getState()
@@ -1082,40 +1082,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						this.refreshTotalTasksSize()
 						this.postMessageToWebview({ type: "relinquishControl" })
 						break
-					}
-					case "getBrowserConnectionInfo": {
-						try {
-							// Get the current browser session from Cline if it exists
-							if (this.cline?.browserSession) {
-								const connectionInfo = this.cline.browserSession.getConnectionInfo();
-								await this.postMessageToWebview({
-									type: "browserConnectionInfo",
-									isConnected: connectionInfo.isConnected,
-									isRemote: connectionInfo.isRemote,
-									host: connectionInfo.host,
-									isHeadless: connectionInfo.isHeadless
-								});
-							} else {
-								// If no active browser session, just return the settings
-								const { browserSettings } = await this.getState();
-								await this.postMessageToWebview({
-									type: "browserConnectionInfo",
-									isConnected: false,
-									isRemote: !!browserSettings.remoteBrowserEnabled,
-									host: browserSettings.remoteBrowserHost,
-									isHeadless: !!browserSettings.headless
-								});
-							}
-						} catch (error) {
-							console.error("Error getting browser connection info:", error);
-							await this.postMessageToWebview({
-								type: "browserConnectionInfo",
-								isConnected: false,
-								isRemote: false,
-								isHeadless: true
-							});
-						}
-						break;
 					}
 					case "getDetectedChromePath": {
 						try {
