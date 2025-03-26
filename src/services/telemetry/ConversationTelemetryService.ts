@@ -21,8 +21,6 @@ interface ConversationMetadata {
 	tokensOut: number
 }
 
-const { IS_DEV } = process.env
-
 /**
 Cline Telemetry (currently only available in DEV builds)
 
@@ -65,10 +63,7 @@ export class ConversationTelemetryService {
 		const isConversationTelemetryEnabled =
 			vscode.workspace.getConfiguration("cline").get<boolean>("conversationTelemetry") ?? false
 
-		// Currently only enabled in dev environment
-		const isDevEnvironment = !!IS_DEV
-
-		return isDevEnvironment && isGlobalTelemetryEnabled && isConversationTelemetryEnabled
+		return isGlobalTelemetryEnabled && isConversationTelemetryEnabled
 	}
 
 	private async initializeTracer() {
