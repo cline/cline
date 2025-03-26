@@ -164,9 +164,7 @@ export class BrowserSession {
 		let reconnectionAttempted = false
 
 		const getViewport = () => {
-			const size = (this.context.globalState.get("browserViewportSize") as string | undefined) || "900x600"
-			const [width, height] = size.split("x").map(Number)
-			return { width, height }
+			return this.browserSettings.viewport
 		}
 
 		// First try auto-discovery if no host is provided
