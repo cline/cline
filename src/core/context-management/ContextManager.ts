@@ -304,7 +304,7 @@ export class ContextManager {
 		timestamp: number,
 	): void {
 		for (const [messageIndex, innerMap] of contextHistory) {
-			// rrack which blockIndices to delete
+			// track which blockIndices to delete
 			const blockIndicesToDelete: number[] = []
 
 			for (const [blockIndex, updates] of innerMap) {
@@ -339,7 +339,7 @@ export class ContextManager {
 	}
 
 	/**
-	 * if there is any truncation, and there is no other alteration already set, alter the assistant message to indicate this occured
+	 * if there is any truncation, and there is no other alteration already set, alter the assistant message to indicate this occurred
 	 */
 	private applyStandardContextTruncationNoticeChange(timestamp: number): boolean {
 		if (!this.contextHistoryUpdates.has(1)) {
