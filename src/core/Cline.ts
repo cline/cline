@@ -340,6 +340,9 @@ export class Cline {
 					) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
 					await this.overwriteApiConversationHistory(newConversationHistory)
 
+					// update the context history state
+					await this.contextManager.truncateContextHistory(message.ts, await this.ensureTaskDirectoryExists())
+
 					// aggregate deleted api reqs info so we don't lose costs/tokens
 					const deletedMessages = this.clineMessages.slice(messageIndex + 1)
 					const deletedApiReqsMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(deletedMessages)))
@@ -873,6 +876,9 @@ export class Cline {
 		// Now present the cline messages to the user and ask if they want to resume (NOTE: we ran into a bug before where the apiconversationhistory wouldnt be initialized when opening a old task, and it was because we were waiting for resume)
 		// This is important in case the user deletes messages without resuming the task first
 		this.apiConversationHistory = await this.getSavedApiConversationHistory()
+
+		// load the context history state
+		await this.contextManager.initializeContextHistory(await this.ensureTaskDirectoryExists())
 
 		const lastClineMessage = this.clineMessages
 			.slice()
