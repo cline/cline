@@ -54,7 +54,7 @@
 		"tailwindcss": "^4.0.12",
 		"typescript": "^5.7.3",
 		"typescript-eslint": "^8.18.2",
-		"vite": "^6.2.1",
+		"vite": "^6.2.3",
 		"vitest": "^3.0.5"
 	}
 }
