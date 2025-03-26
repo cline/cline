@@ -1,4 +1,4 @@
-import { expect } from "@jest/globals"
+import { expect } from "chai"
 
 import { mentionRegex, mentionRegexGlobal } from "../context-mentions"
 
@@ -16,7 +16,7 @@ function testMention(input: string, expected: string | null): TestResult {
 }
 
 function assertMatch(result: TestResult) {
-	expect(result.actual).toEqual(result.expected)
+	expect(result.actual).eq(result.expected)
 	return true
 }
 
@@ -218,7 +218,7 @@ describe("Mention Regex", () => {
 		it("finds all mentions in a string using global regex", () => {
 			const text = "Check @/path/file1.txt and @C:\\folder\\file2.txt and report any @problems to @git-changes"
 			const matches = text.match(mentionRegexGlobal)
-			expect(matches).toEqual(["@/path/file1.txt", "@C:\\folder\\file2.txt", "@problems", "@git-changes"])
+			expect(matches).deep.eq(["@/path/file1.txt", "@C:\\folder\\file2.txt", "@problems", "@git-changes"])
 		})
 	})
 
@@ -242,12 +242,12 @@ describe("Mention Regex", () => {
 		it("correctly identifies the first path in a string with multiple path types", () => {
 			const text = "Check both @/unix/path and @C:\\windows\\path for details."
 			const result = mentionRegex.exec(text) || []
-			expect(result[0]).toEqual("@/unix/path")
+			expect(result[0]).eq("@/unix/path")
 
 			// Test starting from after the first match
 			const secondSearchStart = text.indexOf("@C:")
 			const secondResult = mentionRegex.exec(text.substring(secondSearchStart)) || []
-			expect(secondResult[0]).toEqual("@C:\\windows\\path")
+			expect(secondResult[0]).eq("@C:\\windows\\path")
 		})
 	})
 
