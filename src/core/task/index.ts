@@ -1292,10 +1292,14 @@ export class Task {
 			this.conversationHistoryDeletedRange,
 			previousApiReqIndex,
 <<<<<<< HEAD
+<<<<<<< HEAD
 			await this.ensureTaskDirectoryExists(),
 =======
 			await this.ensureTaskDirectoryExists()
 >>>>>>> c05cc5c1 (context state base 2)
+=======
+			await this.ensureTaskDirectoryExists(),
+>>>>>>> 547ed020 (type change & format)
 		)
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {

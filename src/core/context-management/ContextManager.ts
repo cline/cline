@@ -10,6 +10,7 @@ import fs from "fs/promises"
 import cloneDeep from "clone-deep"
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 enum EditType {
 	UNDEFINED = 0,
 	NO_FILE_READ = 1,
@@ -43,11 +44,16 @@ type SerializedContextHistory = Array<
 =======
 // string used for text blocks, string[] used for image blocks
 export type MessageContent = string | string[]
+=======
+// array of string values allows us to cover all changes currently
+export type MessageContent = string[]
+>>>>>>> 547ed020 (type change & format)
 
 // Type for a single context update
 type ContextUpdate = [number, string, MessageContent] // [timestamp, updateType, update]
 
 // Type for the serialized format of our nested maps
+<<<<<<< HEAD
 type SerializedContextHistory = Array<[
     number, // messageIndex
     Array<[
@@ -56,6 +62,19 @@ type SerializedContextHistory = Array<[
     ]>
 ]>
 >>>>>>> 03c07bac (context state base)
+=======
+type SerializedContextHistory = Array<
+	[
+		number, // messageIndex
+		Array<
+			[
+				number, // blockIndex
+				ContextUpdate[], // updates array
+			]
+		>,
+	]
+>
+>>>>>>> 547ed020 (type change & format)
 
 export class ContextManager {
 	// mapping from the apiMessages outer index to the inner message index to a list of actual changes, ordered by timestamp
@@ -82,9 +101,9 @@ export class ContextManager {
 	// the above example would be how we update the first assistant message to indicate we truncated text
 	private contextHistoryUpdates: Map<number, Map<number, ContextUpdate[]>>
 
-    constructor() {
+	constructor() {
 		this.contextHistoryUpdates = new Map()
-    }
+	}
 
 	/**
 	 * public function for loading contextHistory from memory, if it exists
@@ -122,8 +141,9 @@ export class ContextManager {
 		try {
 			const filePath = path.join(taskDirectory, GlobalFileNames.contextHistory)
 			if (await fileExistsAtPath(filePath)) {
-				const data = await fs.readFile(filePath, 'utf8')
+				const data = await fs.readFile(filePath, "utf8")
 				const serializedUpdates = JSON.parse(data) as SerializedContextHistory
+<<<<<<< HEAD
 				
 				return new Map(
 					serializedUpdates.map(([messageIndex, innerMapArray]) => [
@@ -132,6 +152,10 @@ export class ContextManager {
 					])
 >>>>>>> 03c07bac (context state base)
 				)
+=======
+
+				return new Map(serializedUpdates.map(([messageIndex, innerMapArray]) => [messageIndex, new Map(innerMapArray)]))
+>>>>>>> 547ed020 (type change & format)
 			}
 		} catch (error) {
 			console.error("Failed to load context history:", error)
@@ -161,17 +185,14 @@ export class ContextManager {
 	private async saveContextHistory(taskDirectory: string) {
 		try {
 			// Convert Map to our defined serialized format
-			const serializedUpdates: SerializedContextHistory = Array.from(
-				this.contextHistoryUpdates.entries()
-			).map(([messageIndex, innerMap]) => [
-				messageIndex,
-				Array.from(innerMap.entries())
-			])
-			
+			const serializedUpdates: SerializedContextHistory = Array.from(this.contextHistoryUpdates.entries()).map(
+				([messageIndex, innerMap]) => [messageIndex, Array.from(innerMap.entries())],
+			)
+
 			await fs.writeFile(
 				path.join(taskDirectory, GlobalFileNames.contextHistory),
 				JSON.stringify(serializedUpdates),
-				'utf8'
+				"utf8",
 			)
 		} catch (error) {
 <<<<<<< HEAD
@@ -201,10 +222,14 @@ export class ContextManager {
 		conversationHistoryDeletedRange: [number, number] | undefined,
 		previousApiReqIndex: number,
 <<<<<<< HEAD
+<<<<<<< HEAD
 		taskDirectory: string,
 =======
 		taskDirectory: string
 >>>>>>> 03c07bac (context state base)
+=======
+		taskDirectory: string,
+>>>>>>> 547ed020 (type change & format)
 	) {
 		let updatedConversationHistoryDeletedRange = false
 
@@ -264,8 +289,12 @@ export class ContextManager {
 					conversationHistoryDeletedRange = this.getNextTruncationRange(
 						apiConversationHistory,
 						conversationHistoryDeletedRange,
+<<<<<<< HEAD
 						keep
 >>>>>>> 03c07bac (context state base)
+=======
+						keep,
+>>>>>>> 547ed020 (type change & format)
 					)
 
 					let needToTruncate = true
@@ -321,7 +350,7 @@ export class ContextManager {
 	public getNextTruncationRange(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		currentDeletedRange: [number, number] | undefined,
-		keep: "half" | "quarter"
+		keep: "half" | "quarter",
 	): [number, number] {
 		// We always keep the first user-assistant pairing, and truncate an even number of messages from there
 		const rangeStartIndex = 2 // index 0 and 1 are kept
@@ -375,6 +404,7 @@ export class ContextManager {
 	): Anthropic.Messages.MessageParam[] {
 		if (messages.length <= 1) {
 			return messages
+<<<<<<< HEAD
 =======
 =======
 	/**
@@ -386,67 +416,78 @@ export class ContextManager {
         deletedRange: [number, number] | undefined,
     ): Anthropic.Messages.MessageParam[] {
         if (messages.length <= 1) return messages
+=======
+		}
+>>>>>>> 547ed020 (type change & format)
 
 		const updatedMessages = this.applyContextHistoryUpdates(messages, deletedRange ? deletedRange[1] + 1 : 2)
 
 		// OLD NOTE: if you try to console log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
 		return updatedMessages
-    }
+	}
 
 	/**
 	 * applies deletedRange truncation and other alterations based on changes in this.contextHistoryUpdates
 	 */
-    private applyContextHistoryUpdates(
-        messages: Anthropic.Messages.MessageParam[],
-        startFromIndex: number,
-    ): Anthropic.Messages.MessageParam[] {
+	private applyContextHistoryUpdates(
+		messages: Anthropic.Messages.MessageParam[],
+		startFromIndex: number,
+	): Anthropic.Messages.MessageParam[] {
 		// runtime is linear in length of user messages, if expecting a limited number of alterations, could be more optimal to loop over alterations
 
-        const firstChunk = messages.slice(0, 2)  // get first user-assistant pair
-        const secondChunk = messages.slice(startFromIndex) // get remaining messages within context
-        const messagesToUpdate = [...firstChunk, ...secondChunk]
+		const firstChunk = messages.slice(0, 2) // get first user-assistant pair
+		const secondChunk = messages.slice(startFromIndex) // get remaining messages within context
+		const messagesToUpdate = [...firstChunk, ...secondChunk]
 
 		// we need the mapping from the local indices in messagesToUpdate to the global array of updates in this.contextHistoryUpdates
-        const originalIndices = [...Array(2).keys(), ...Array(secondChunk.length).fill(0).map((_, i) => i + startFromIndex)]
-        
-        for (let arrayIndex = 0; arrayIndex < messagesToUpdate.length; arrayIndex++) {
-            const messageIndex = originalIndices[arrayIndex]
-            
-            const innerMap = this.contextHistoryUpdates.get(messageIndex)
-            if (!innerMap) continue
+		const originalIndices = [
+			...Array(2).keys(),
+			...Array(secondChunk.length)
+				.fill(0)
+				.map((_, i) => i + startFromIndex),
+		]
+
+		for (let arrayIndex = 0; arrayIndex < messagesToUpdate.length; arrayIndex++) {
+			const messageIndex = originalIndices[arrayIndex]
+
+			const innerMap = this.contextHistoryUpdates.get(messageIndex)
+			if (!innerMap) {
+				continue
+			}
 
 			// because we are altering this, we need a deep copy
 			messagesToUpdate[arrayIndex] = cloneDeep(messagesToUpdate[arrayIndex])
-            
-            for (const [blockIndex, changes] of innerMap) {
-                // apply the latest change among n changes - [timestamp, updateType, update]
-                const latestChange = changes[changes.length - 1]
-                
-                if (latestChange[1] === "text") { // only altering text for now
-                    const message = messagesToUpdate[arrayIndex]
-                    
-                    if (Array.isArray(message.content)) {
-                        const block = message.content[blockIndex]
-                        if (block && block.type === "text") {
-                            block.text = latestChange[2]
-                        }
-                    }
-                }
-            }
-        }
-        
-        return messagesToUpdate
-    }
+
+			for (const [blockIndex, changes] of innerMap) {
+				// apply the latest change among n changes - [timestamp, updateType, update]
+				const latestChange = changes[changes.length - 1]
+
+				if (latestChange[1] === "text") {
+					// only altering text for now
+					const message = messagesToUpdate[arrayIndex]
+
+					if (Array.isArray(message.content)) {
+						const block = message.content[blockIndex]
+						if (block && block.type === "text") {
+							block.text = latestChange[2][0]
+						}
+					}
+				}
+			}
+		}
+
+		return messagesToUpdate
+	}
 
 	/**
 	 * removes all context history updates that occurred after the specified timestamp and saves to disk
 	 */
 	async truncateContextHistory(timestamp: number, taskDirectory: string): Promise<void> {
 		this.truncateContextHistoryAtTimestamp(this.contextHistoryUpdates, timestamp)
-		
+
 		// save the modified context history to disk
 		await this.saveContextHistory(taskDirectory)
-	}	
+	}
 
 	/**
 	 * alters the context history to remove all alterations after a given timestamp
@@ -454,24 +495,24 @@ export class ContextManager {
 	 */
 	private truncateContextHistoryAtTimestamp(
 		contextHistory: Map<number, Map<number, ContextUpdate[]>>,
-		timestamp: number
+		timestamp: number,
 	): void {
 		for (const [messageIndex, innerMap] of contextHistory) {
 			// rrack which blockIndices to delete
 			const blockIndicesToDelete: number[] = []
-			
+
 			for (const [blockIndex, updates] of innerMap) {
 				// updates ordered by timestamp, so find cutoff point by interating from right to left
 				let cutoffIndex = updates.length - 1
 				while (cutoffIndex >= 0 && updates[cutoffIndex][0] > timestamp) {
 					cutoffIndex--
 				}
-				
+
 				// If we found updates to remove
 				if (cutoffIndex < updates.length - 1) {
 					// Modify the array in place to keep only updates up to cutoffIndex
 					updates.length = cutoffIndex + 1
-					
+
 					// If no updates left after truncation, mark this block for deletion
 					if (updates.length === 0) {
 						blockIndicesToDelete.push(blockIndex)
@@ -479,14 +520,18 @@ export class ContextManager {
 				}
 			}
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> 03c07bac (context state base)
 =======
 			
+=======
+
+>>>>>>> 547ed020 (type change & format)
 			// Remove empty blocks from inner map
 			for (const blockIndex of blockIndicesToDelete) {
 				innerMap.delete(blockIndex)
 			}
-			
+
 			// If inner map is now empty, remove the message index from outer map
 			if (innerMap.size === 0) {
 				contextHistory.delete(messageIndex)
@@ -1084,6 +1129,7 @@ export class ContextManager {
 	 * if there is any truncation, and there is no other alteration already set, alter the assistant message to indicate this occured
 	 */
 <<<<<<< HEAD
+<<<<<<< HEAD
 	public async truncateContextHistory(timestamp: number, taskDirectory: string): Promise<void> {
 		this.truncateContextHistoryAtTimestamp(this.contextHistoryUpdates, timestamp)
 		
@@ -1097,9 +1143,21 @@ export class ContextManager {
             const innerMap = new Map<number, ContextUpdate[]>()
             innerMap.set(0, [[timestamp, "text", formatResponse.contextTruncationNotice()]]) // alter message text at index 0
             this.contextHistoryUpdates.set(1, innerMap)
+=======
+	private applyStandardContextTruncationNoticeChange(timestamp: number): boolean {
+		if (!this.contextHistoryUpdates.has(1)) {
+			// first assistant message always at index 1
+			const innerMap = new Map<number, ContextUpdate[]>()
+			innerMap.set(0, [[timestamp, "text", [formatResponse.contextTruncationNotice()]]]) // alter message text at index 0
+			this.contextHistoryUpdates.set(1, innerMap)
+>>>>>>> 547ed020 (type change & format)
 			return true
-        }
+		}
 		return false
+<<<<<<< HEAD
     }	
 >>>>>>> c05cc5c1 (context state base 2)
+=======
+	}
+>>>>>>> 547ed020 (type change & format)
 }
