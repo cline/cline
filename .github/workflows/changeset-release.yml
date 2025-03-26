@@ -57,6 +57,8 @@ jobs:
                   commit: "changeset version bump"
                   title: "Changeset version bump"
                   version: npm run version-packages # This performs the changeset version bump
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     # Job 2: Process version bump PR created by R00-B0T
     changeset-pr-edit-approve:
