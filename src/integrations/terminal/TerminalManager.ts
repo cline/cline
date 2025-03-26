@@ -144,7 +144,8 @@ export class TerminalManager {
 			process.run(terminalInfo.terminal, command)
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
-			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: 4000 }).finally(() => {
+			const timeout = vscode.workspace.getConfiguration("terminal").get("shellIntegration.timeout", 4000) as number
+			pWaitFor(() => terminalInfo.terminal.shellIntegration !== undefined, { timeout: timeout }).finally(() => {
 				const existingProcess = this.processes.get(terminalInfo.id)
 				if (existingProcess && existingProcess.waitForShellIntegration) {
 					existingProcess.waitForShellIntegration = false

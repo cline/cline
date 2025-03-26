@@ -217,6 +217,11 @@
 					"default": false,
 					"description": "Disables extension from spawning browser session."
 				},
+				"cline.terminal.shellIntegrationTimeout": {
+					"type": "number",
+					"default": 4000,
+					"description": "Maximum timeout in milliseconds to wait for shell integration to activate"
+				},
 				"cline.modelSettings.o3Mini.reasoningEffort": {
 					"type": "string",
 					"enum": [
