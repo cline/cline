@@ -3,14 +3,100 @@ import { ClineApiReqInfo, ClineMessage } from "../../shared/ExtensionMessage"
 import { ApiHandler } from "../../api"
 import { OpenAiHandler } from "../../api/providers/openai"
 import { formatResponse } from "../prompts/responses"
+import { GlobalFileNames } from "../../global-constants"
+import { fileExistsAtPath } from "../../utils/fs"
+import * as path from "path"
+import fs from "fs/promises"
+import cloneDeep from "clone-deep"
+
+// array of string values allows us to cover all changes currently
+export type MessageContent = string[]
+
+// Type for a single context update
+type ContextUpdate = [number, string, MessageContent] // [timestamp, updateType, update]
+
+// Type for the serialized format of our nested maps
+type SerializedContextHistory = Array<
+	[
+		number, // messageIndex
+		Array<
+			[
+				number, // blockIndex
+				ContextUpdate[], // updates array
+			]
+		>,
+	]
+>
 
 export class ContextManager {
-	getNewContextMessagesAndMetadata(
+	// mapping from the apiMessages outer index to the inner message index to a list of actual changes, ordered by timestamp
+	// timestamp is required in order to support full checkpointing, where the changes we apply need to be able to be undone when
+	// moving to an earlier conversation history checkpoint - this ordering intuitively allows for binary search on truncation
+
+	// format:  {outerIndex => {innerIndex => [[timestamp, updateType, update], ...]}}
+	// example: { 1 => { 0 => [[<timestamp>, "text", "[NOTE] Some previous conversation history with the user has been removed ..."], ...] } }
+	// the above example would be how we update the first assistant message to indicate we truncated text
+	private contextHistoryUpdates: Map<number, Map<number, ContextUpdate[]>>
+
+	constructor() {
+		this.contextHistoryUpdates = new Map()
+	}
+
+	/**
+	 * public function for loading contextHistory from memory, if it exists
+	 */
+	async initializeContextHistory(taskDirectory: string) {
+		this.contextHistoryUpdates = await this.getSavedContextHistory(taskDirectory)
+	}
+
+	/**
+	 * get the stored context history from disk
+	 */
+	private async getSavedContextHistory(taskDirectory: string): Promise<Map<number, Map<number, ContextUpdate[]>>> {
+		try {
+			const filePath = path.join(taskDirectory, GlobalFileNames.contextHistory)
+			if (await fileExistsAtPath(filePath)) {
+				const data = await fs.readFile(filePath, "utf8")
+				const serializedUpdates = JSON.parse(data) as SerializedContextHistory
+
+				return new Map(serializedUpdates.map(([messageIndex, innerMapArray]) => [messageIndex, new Map(innerMapArray)]))
+			}
+		} catch (error) {
+			console.error("Failed to load context history:", error)
+		}
+		return new Map()
+	}
+
+	/**
+	 * save the context history to disk
+	 */
+	private async saveContextHistory(taskDirectory: string) {
+		try {
+			// Convert Map to our defined serialized format
+			const serializedUpdates: SerializedContextHistory = Array.from(this.contextHistoryUpdates.entries()).map(
+				([messageIndex, innerMap]) => [messageIndex, Array.from(innerMap.entries())],
+			)
+
+			await fs.writeFile(
+				path.join(taskDirectory, GlobalFileNames.contextHistory),
+				JSON.stringify(serializedUpdates),
+				"utf8",
+			)
+		} catch (error) {
+			console.error("Failed to save context history:", error)
+		}
+	}
+
+	/**
+	 * primary entry point for getting up to date context & truncating when required
+	 */
+	async getNewContextMessagesAndMetadata(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
 		clineMessages: ClineMessage[],
 		api: ApiHandler,
 		conversationHistoryDeletedRange: [number, number] | undefined,
 		previousApiReqIndex: number,
+		taskDirectory: string,
 	) {
 		let updatedConversationHistoryDeletedRange = false
 
@@ -18,6 +104,7 @@ export class ContextManager {
 		if (previousApiReqIndex >= 0) {
 			const previousRequest = clineMessages[previousApiReqIndex]
 			if (previousRequest && previousRequest.text) {
+				const timestamp = previousRequest.ts
 				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 				let contextWindow = api.getModel().info.contextWindow || 128_000
@@ -44,8 +131,16 @@ export class ContextManager {
 				if (totalTokens >= maxAllowedSize) {
 					// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
 					// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
-					// FIXME: truncating the conversation in a way that is optimal for prompt caching AND takes into account multi-context window complexity is something we need to improve
 					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
+
+					let anyUpdates: boolean = false
+					// update the first assistant message if required for narrative integrity
+					anyUpdates = anyUpdates || this.applyStandardContextTruncationNoticeChange(timestamp)
+
+					// if we alter the context history, save the updated version to disk
+					if (anyUpdates) {
+						await this.saveContextHistory(taskDirectory)
+					}
 
 					// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
 					conversationHistoryDeletedRange = this.getNextTruncationRange(
@@ -59,7 +154,6 @@ export class ContextManager {
 			}
 		}
 
-		// conversationHistoryDeletedRange is updated only when we're close to hitting the context window, so we don't continuously break the prompt cache
 		const truncatedConversationHistory = this.getAndAlterTruncatedMessages(
 			apiConversationHistory,
 			conversationHistoryDeletedRange,
@@ -72,6 +166,9 @@ export class ContextManager {
 		}
 	}
 
+	/**
+	 * get truncation range
+	 */
 	public getNextTruncationRange(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		currentDeletedRange: [number, number] | undefined,
@@ -108,6 +205,9 @@ export class ContextManager {
 		return [rangeStartIndex, rangeEndIndex]
 	}
 
+	/**
+	 * external interface to support old calls
+	 */
 	public getTruncatedMessages(
 		messages: Anthropic.Messages.MessageParam[],
 		deletedRange: [number, number] | undefined,
@@ -115,25 +215,140 @@ export class ContextManager {
 		return this.getAndAlterTruncatedMessages(messages, deletedRange)
 	}
 
+	/**
+	 * apply all required truncation methods to the messages in context
+	 */
 	private getAndAlterTruncatedMessages(
 		messages: Anthropic.Messages.MessageParam[],
 		deletedRange: [number, number] | undefined,
 	): Anthropic.Messages.MessageParam[] {
-		if (!deletedRange) {
+		if (messages.length <= 1) {
 			return messages
 		}
 
-		const [start, end] = deletedRange // inclusive range to ignore
+		const updatedMessages = this.applyContextHistoryUpdates(messages, deletedRange ? deletedRange[1] + 1 : 2)
 
-		// need a deep copy
-		const firstMessageChunk = JSON.parse(JSON.stringify(messages.slice(0, start)))
-		if (Array.isArray(firstMessageChunk[1].content)) {
-			// should always be the case
-			firstMessageChunk[1].content[0].text = formatResponse.contextTruncationNotice()
+		// OLD NOTE: if you try to console log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
+		return updatedMessages
+	}
+
+	/**
+	 * applies deletedRange truncation and other alterations based on changes in this.contextHistoryUpdates
+	 */
+	private applyContextHistoryUpdates(
+		messages: Anthropic.Messages.MessageParam[],
+		startFromIndex: number,
+	): Anthropic.Messages.MessageParam[] {
+		// runtime is linear in length of user messages, if expecting a limited number of alterations, could be more optimal to loop over alterations
+
+		const firstChunk = messages.slice(0, 2) // get first user-assistant pair
+		const secondChunk = messages.slice(startFromIndex) // get remaining messages within context
+		const messagesToUpdate = [...firstChunk, ...secondChunk]
+
+		// we need the mapping from the local indices in messagesToUpdate to the global array of updates in this.contextHistoryUpdates
+		const originalIndices = [
+			...Array(2).keys(),
+			...Array(secondChunk.length)
+				.fill(0)
+				.map((_, i) => i + startFromIndex),
+		]
+
+		for (let arrayIndex = 0; arrayIndex < messagesToUpdate.length; arrayIndex++) {
+			const messageIndex = originalIndices[arrayIndex]
+
+			const innerMap = this.contextHistoryUpdates.get(messageIndex)
+			if (!innerMap) {
+				continue
+			}
+
+			// because we are altering this, we need a deep copy
+			messagesToUpdate[arrayIndex] = cloneDeep(messagesToUpdate[arrayIndex])
+
+			for (const [blockIndex, changes] of innerMap) {
+				// apply the latest change among n changes - [timestamp, updateType, update]
+				const latestChange = changes[changes.length - 1]
+
+				if (latestChange[1] === "text") {
+					// only altering text for now
+					const message = messagesToUpdate[arrayIndex]
+
+					if (Array.isArray(message.content)) {
+						const block = message.content[blockIndex]
+						if (block && block.type === "text") {
+							block.text = latestChange[2][0]
+						}
+					}
+				}
+			}
 		}
 
-		// the range is inclusive - both start and end indices and everything in between will be removed from the final result.
-		// NOTE: if you try to console log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
-		return [...firstMessageChunk, ...messages.slice(end + 1)]
+		return messagesToUpdate
+	}
+
+	/**
+	 * removes all context history updates that occurred after the specified timestamp and saves to disk
+	 */
+	async truncateContextHistory(timestamp: number, taskDirectory: string): Promise<void> {
+		this.truncateContextHistoryAtTimestamp(this.contextHistoryUpdates, timestamp)
+
+		// save the modified context history to disk
+		await this.saveContextHistory(taskDirectory)
+	}
+
+	/**
+	 * alters the context history to remove all alterations after a given timestamp
+	 * removes the index if there are no alterations there anymore, both outer and inner indices
+	 */
+	private truncateContextHistoryAtTimestamp(
+		contextHistory: Map<number, Map<number, ContextUpdate[]>>,
+		timestamp: number,
+	): void {
+		for (const [messageIndex, innerMap] of contextHistory) {
+			// track which blockIndices to delete
+			const blockIndicesToDelete: number[] = []
+
+			for (const [blockIndex, updates] of innerMap) {
+				// updates ordered by timestamp, so find cutoff point by interating from right to left
+				let cutoffIndex = updates.length - 1
+				while (cutoffIndex >= 0 && updates[cutoffIndex][0] > timestamp) {
+					cutoffIndex--
+				}
+
+				// If we found updates to remove
+				if (cutoffIndex < updates.length - 1) {
+					// Modify the array in place to keep only updates up to cutoffIndex
+					updates.length = cutoffIndex + 1
+
+					// If no updates left after truncation, mark this block for deletion
+					if (updates.length === 0) {
+						blockIndicesToDelete.push(blockIndex)
+					}
+				}
+			}
+
+			// Remove empty blocks from inner map
+			for (const blockIndex of blockIndicesToDelete) {
+				innerMap.delete(blockIndex)
+			}
+
+			// If inner map is now empty, remove the message index from outer map
+			if (innerMap.size === 0) {
+				contextHistory.delete(messageIndex)
+			}
+		}
+	}
+
+	/**
+	 * if there is any truncation, and there is no other alteration already set, alter the assistant message to indicate this occurred
+	 */
+	private applyStandardContextTruncationNoticeChange(timestamp: number): boolean {
+		if (!this.contextHistoryUpdates.has(1)) {
+			// first assistant message always at index 1
+			const innerMap = new Map<number, ContextUpdate[]>()
+			innerMap.set(0, [[timestamp, "text", [formatResponse.contextTruncationNotice()]]]) // alter message text at index 0
+			this.contextHistoryUpdates.set(1, innerMap)
+			return true
+		}
+		return false
 	}
 }
