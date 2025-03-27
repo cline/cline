@@ -144,6 +144,7 @@ export const ChatRowContent = ({
 }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
+	const [selectedButton, setSelectedButton] = useState<"yes" | "no" | null>(null)
 
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
@@ -1036,44 +1037,73 @@ export const ChatRowContent = ({
 											See new changes
 										</SuccessButton>
 									)}
-									{!hasMessageBeenSentAfterCompletion && (
-										<div
+									<div style={{ marginBottom: "10px", textAlign: "center" }}>
+										<span style={{ fontSize: "14px" }}>Did I successfully complete your task?</span>
+									</div>
+									<div
+										style={{
+											display: "flex",
+											justifyContent: "space-between",
+											gap: "10px",
+											marginTop: "0",
+										}}>
+										<VSCodeButton
+											appearance="secondary"
 											style={{
-												display: "flex",
-												justifyContent: "space-between",
-												gap: "10px",
-												marginTop: hasChanges ? "10px" : "0",
+												flex: 1,
+												opacity: selectedButton === "yes" ? 0.5 : 1,
+												backgroundColor:
+													selectedButton === "no"
+														? "var(--vscode-button-secondaryHoverBackground)"
+														: undefined,
+												cursor: selectedButton ? "default" : "pointer",
+											}}
+											disabled={selectedButton !== null}
+											onClick={() => {
+												// Set the selected button state
+												setSelectedButton("no")
+
+												// Only dispatch custom event to update task completion status
+												// No message is sent to the extension until the user types and sends one
+												window.dispatchEvent(
+													new CustomEvent("taskCompletionStatus", {
+														detail: { status: "not_completed" },
+													}),
+												)
 											}}>
-											<VSCodeButton
-												appearance="secondary"
-												style={{ flex: 1 }}
-												onClick={() => {
-													// Only dispatch custom event to update task completion status
-													// No message is sent to the extension until the user types and sends one
-													window.dispatchEvent(
-														new CustomEvent("taskCompletionStatus", {
-															detail: { status: "not_completed" },
-														}),
-													)
-												}}>
-												No, let's Talk...
-											</VSCodeButton>
-											<VSCodeButton
-												appearance="primary"
-												style={{ flex: 1 }}
-												onClick={() => {
-													// Only dispatch custom event to update task completion status
-													// No message is sent to the extension until the user types and sends one
-													window.dispatchEvent(
-														new CustomEvent("taskCompletionStatus", {
-															detail: { status: "completed" },
-														}),
-													)
-												}}>
-												Yes!
-											</VSCodeButton>
-										</div>
-									)}
+											{selectedButton === "no" && (
+												<span className="codicon codicon-check" style={{ marginRight: "6px" }}></span>
+											)}
+											No, let's Talk...
+										</VSCodeButton>
+										<VSCodeButton
+											appearance="primary"
+											style={{
+												flex: 1,
+												opacity: selectedButton === "no" ? 0.5 : 1,
+												backgroundColor:
+													selectedButton === "yes" ? "var(--vscode-button-hoverBackground)" : undefined,
+												cursor: selectedButton ? "default" : "pointer",
+											}}
+											disabled={selectedButton !== null}
+											onClick={() => {
+												// Set the selected button state
+												setSelectedButton("yes")
+
+												// Only dispatch custom event to update task completion status
+												// No message is sent to the extension until the user types and sends one
+												window.dispatchEvent(
+													new CustomEvent("taskCompletionStatus", {
+														detail: { status: "completed" },
+													}),
+												)
+											}}>
+											{selectedButton === "yes" && (
+												<span className="codicon codicon-check" style={{ marginRight: "6px" }}></span>
+											)}
+											Yes!
+										</VSCodeButton>
+									</div>
 								</div>
 							)}
 						</>
