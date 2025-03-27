@@ -1,4 +1,4 @@
-import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeBadge, VSCodeButton, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent, useSize } from "react-use"
@@ -47,6 +47,7 @@ interface ChatRowProps {
 	lastModifiedMessage?: ClineMessage
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
+	hasMessageBeenSentAfterCompletion?: boolean
 }
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
@@ -133,7 +134,14 @@ const ChatRow = memo(
 
 export default ChatRow
 
-export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
+export const ChatRowContent = ({
+	message,
+	isExpanded,
+	onToggleExpand,
+	lastModifiedMessage,
+	isLast,
+	hasMessageBeenSentAfterCompletion,
+}: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
@@ -1008,24 +1016,64 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								}}>
 								<Markdown markdown={text} />
 							</div>
-							{message.partial !== true && hasChanges && (
-								<div style={{ paddingTop: 17 }}>
-									<SuccessButton
-										disabled={seeNewChangesDisabled}
-										onClick={() => {
-											setSeeNewChangesDisabled(true)
-											vscode.postMessage({
-												type: "taskCompletionViewChanges",
-												number: message.ts,
-											})
-										}}
-										style={{
-											cursor: seeNewChangesDisabled ? "wait" : "pointer",
-											width: "100%",
-										}}>
-										<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
-										See new changes
-									</SuccessButton>
+							{message.partial !== true && (
+								<div style={{ paddingTop: 17, display: "flex", flexDirection: "column", gap: "10px" }}>
+									{hasChanges && (
+										<SuccessButton
+											disabled={seeNewChangesDisabled}
+											onClick={() => {
+												setSeeNewChangesDisabled(true)
+												vscode.postMessage({
+													type: "taskCompletionViewChanges",
+													number: message.ts,
+												})
+											}}
+											style={{
+												cursor: seeNewChangesDisabled ? "wait" : "pointer",
+												width: "100%",
+											}}>
+											<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
+											See new changes
+										</SuccessButton>
+									)}
+									{!hasMessageBeenSentAfterCompletion && (
+										<div
+											style={{
+												display: "flex",
+												justifyContent: "space-between",
+												gap: "10px",
+												marginTop: hasChanges ? "10px" : "0",
+											}}>
+											<VSCodeButton
+												appearance="secondary"
+												style={{ flex: 1 }}
+												onClick={() => {
+													// Only dispatch custom event to update task completion status
+													// No message is sent to the extension until the user types and sends one
+													window.dispatchEvent(
+														new CustomEvent("taskCompletionStatus", {
+															detail: { status: "not_completed" },
+														}),
+													)
+												}}>
+												No, let's Talk...
+											</VSCodeButton>
+											<VSCodeButton
+												appearance="primary"
+												style={{ flex: 1 }}
+												onClick={() => {
+													// Only dispatch custom event to update task completion status
+													// No message is sent to the extension until the user types and sends one
+													window.dispatchEvent(
+														new CustomEvent("taskCompletionStatus", {
+															detail: { status: "completed" },
+														}),
+													)
+												}}>
+												Yes!
+											</VSCodeButton>
+										</div>
+									)}
 								</div>
 							)}
 						</>

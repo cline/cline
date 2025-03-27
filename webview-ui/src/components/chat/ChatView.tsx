@@ -64,6 +64,8 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const [textAreaDisabled, setTextAreaDisabled] = useState(false)
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
+	const [taskCompletionStatus, setTaskCompletionStatus] = useState<"pending" | "completed" | "not_completed">("pending")
+	const [hasMessageBeenSentAfterCompletion, setHasMessageBeenSentAfterCompletion] = useState(false)
 
 	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
 	const [clineAsk, setClineAsk] = useState<ClineAsk | undefined>(undefined)
@@ -173,7 +175,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							break
 						case "completion_result":
 							// extension waiting for feedback. but we can just present a new task button
-							setTextAreaDisabled(isPartial)
+							setTextAreaDisabled(true) // Always disable text area until user selects Yes or No
 							setClineAsk("completion_result")
 							setEnableButtons(!isPartial)
 							setPrimaryButtonText("Start New Task")
@@ -295,10 +297,23 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "resume_task":
 						case "resume_completed_task":
 						case "mistake_limit_reached":
+							// Add prefix based on task completion status
+							let messageText = text
+							if (taskCompletionStatus === "not_completed") {
+								messageText = `> The user indicated that the task is not completed:\n\n-----\n\n${text}`
+							} else if (taskCompletionStatus === "completed") {
+								messageText = `> The user indicated that the task is completed:\n\n-----\n\n${text}`
+							}
+
+							// Set flag that a message has been sent after completion
+							if (taskCompletionStatus !== "pending") {
+								setHasMessageBeenSentAfterCompletion(true)
+							}
+
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
-								text,
+								text: messageText,
 								images,
 							})
 							break
@@ -310,16 +325,19 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				setSelectedImages([])
 				setClineAsk(undefined)
 				setEnableButtons(false)
+				setTaskCompletionStatus("pending") // Reset task completion status after sending a message
+				setHasMessageBeenSentAfterCompletion(false) // Reset the flag
 				// setPrimaryButtonText(undefined)
 				// setSecondaryButtonText(undefined)
 				disableAutoScrollRef.current = false
 			}
 		},
-		[messages.length, clineAsk],
+		[messages.length, clineAsk, taskCompletionStatus],
 	)
 
 	const startNewTask = useCallback(() => {
 		vscode.postMessage({ type: "clearTask" })
+		setHasMessageBeenSentAfterCompletion(false)
 	}, [])
 
 	/*
@@ -433,6 +451,23 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const shouldDisableImages =
 		!selectedModelInfo.supportsImages || textAreaDisabled || selectedImages.length >= MAX_IMAGES_PER_MESSAGE
+
+	// Listen for task completion status events
+	useEffect(() => {
+		const handleTaskCompletionStatus = (e: CustomEvent<{ status: "completed" | "not_completed" }>) => {
+			setTaskCompletionStatus(e.detail.status)
+			setTextAreaDisabled(false)
+			setTimeout(() => {
+				textAreaRef.current?.focus()
+			}, 100)
+		}
+
+		window.addEventListener("taskCompletionStatus", handleTaskCompletionStatus as EventListener)
+
+		return () => {
+			window.removeEventListener("taskCompletionStatus", handleTaskCompletionStatus as EventListener)
+		}
+	}, [])
 
 	const handleMessage = useCallback(
 		(e: MessageEvent) => {
@@ -762,6 +797,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					lastModifiedMessage={modifiedMessages.at(-1)}
 					isLast={index === groupedMessages.length - 1}
 					onHeightChange={handleRowHeightChange}
+					hasMessageBeenSentAfterCompletion={hasMessageBeenSentAfterCompletion}
 				/>
 			)
 		},
