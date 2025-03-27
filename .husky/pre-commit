@@ -15,3 +15,8 @@ npm run format || {
 }
 
 echo "✅ All checks passed!"
+
+# Exclude package-lock files
+echo "Excluding Package-lock Files"
+(git diff --name-only --cached | grep -q '^package-lock.json$' && git restore --staged package-lock.json && git update-index --skip-worktree package-lock.json) || true
+(git diff --name-only --cached | grep -q '^webview-ui/package-lock.json$' && git restore --staged webview-ui/package-lock.json && git update-index --skip-worktree webview-ui/package-lock.json) || true
