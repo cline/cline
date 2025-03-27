@@ -4,7 +4,7 @@
 	"description": "A whole dev team of AI agents in your editor.",
 	"publisher": "RooVeterinaryInc",
 	"version": "3.10.5",
-	"icon": "assets/icons/rocket.png",
+	"icon": "assets/icons/icon.png",
 	"galleryBanner": {
 		"color": "#617A91",
 		"theme": "dark"
@@ -14,7 +14,7 @@
 		"node": ">=20.18.1"
 	},
 	"author": {
-		"name": "Roo Vet"
+		"name": "Roo Code"
 	},
 	"repository": {
 		"type": "git",
@@ -66,7 +66,7 @@
 				{
 					"id": "roo-cline-ActivityBar",
 					"title": "Roo Code",
-					"icon": "$(rocket)"
+					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
