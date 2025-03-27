@@ -56,7 +56,7 @@ export class BrowserSession {
 			isConnected: !!this.browser,
 			isRemote: this.isConnectedToRemote,
 			host: this.isConnectedToRemote ? this.browserSettings.remoteBrowserHost : undefined,
-			isHeadless: this.browserSettings.headless,
+			isHeadless: this.browserSettings.headless
 		}
 	}
 
