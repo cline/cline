@@ -72,6 +72,7 @@ import {
 	checkIsOpenRouterContextWindowError,
 } from "./context-management/context-error-handling"
 import { AnthropicHandler } from "../api/providers/anthropic"
+// Removed incorrect import for getRandomInt
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -3748,5 +3749,48 @@ export class Cline {
 		}
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
+	}
+
+	async retryFailedRequest(failedMessageTs: number) {
+		console.log(`Attempting to retry request associated with message ts: ${failedMessageTs}`)
+
+		// 1. Find the index of the failed 'api_req_started' or 'api_req_failed' message in clineMessages
+		const failedClineMessageIndex = this.clineMessages.findIndex((msg) => msg.ts === failedMessageTs)
+		if (failedClineMessageIndex === -1) {
+			console.error(`Could not find cline message with ts ${failedMessageTs} to retry.`)
+			return
+		}
+		const failedClineMessage = this.clineMessages[failedClineMessageIndex]
+
+		// 2. Find the index of the corresponding 'user' message in apiConversationHistory
+		// The 'api_req_started' message's conversationHistoryIndex points to the 'user' message that triggered it.
+		const userMessageApiIndex = failedClineMessage.conversationHistoryIndex
+		if (
+			userMessageApiIndex === undefined ||
+			userMessageApiIndex < 0 ||
+			userMessageApiIndex >= this.apiConversationHistory.length
+		) {
+			console.error(`Invalid conversationHistoryIndex (${userMessageApiIndex}) found for message ts ${failedMessageTs}.`)
+			return
+		}
+
+		const userMessage = this.apiConversationHistory[userMessageApiIndex]
+		if (userMessage.role !== "user") {
+			console.error(`Expected user message at index ${userMessageApiIndex}, but found ${userMessage.role}.`)
+			return
+		}
+
+		// 3. Clean up clineMessages: Remove the failed message and any subsequent messages
+		const messagesToKeep = this.clineMessages.slice(0, failedClineMessageIndex)
+		await this.overwriteClineMessages(messagesToKeep)
+
+		// 4. Clean up apiConversationHistory: Remove the user message that caused the failure and any subsequent assistant message
+		const historyToKeep = this.apiConversationHistory.slice(0, userMessageApiIndex)
+		await this.overwriteApiConversationHistory(historyToKeep)
+
+		// 5. Re-initiate the task loop with the user content that caused the failure
+		console.log(`Retrying with user content from index ${userMessageApiIndex}`)
+		await this.say("api_req_retried") // Inform UI about the retry
+		await this.initiateTaskLoop(userMessage.content as UserContent, false) // isNewTask is false
 	}
 }

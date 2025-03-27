@@ -40,6 +40,7 @@ export interface ExtensionMessage {
 		| "userCreditsPayments"
 		| "totalTasksSize"
 		| "addToInput"
+		| "retryApiRequest" // Added for automatic retry
 	text?: string
 	action?:
 		| "chatButtonClicked"
