@@ -330,6 +330,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				setEnableButtons(false)
 				setTaskCompletionStatus("pending") // Reset task completion status after sending a message
 				setHasMessageBeenSentAfterCompletion(false) // Reset the flag
+				setSelectedButton(null) // Reset button selection state
 				// setPrimaryButtonText(undefined)
 				// setSecondaryButtonText(undefined)
 				disableAutoScrollRef.current = false
@@ -341,6 +342,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const startNewTask = useCallback(() => {
 		vscode.postMessage({ type: "clearTask" })
 		setHasMessageBeenSentAfterCompletion(false)
+		setSelectedButton(null) // Reset button selection state
 	}, [])
 
 	/*
@@ -987,7 +989,6 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 											? "2px solid var(--vscode-focusBorder)"
 											: "2px solid transparent",
 										boxShadow: isYesNoButtonsHighlighted ? "0 0 8px var(--vscode-focusBorder)" : "none",
-										padding: isYesNoButtonsHighlighted ? "6px" : "8px 8px",
 										transition: "all 0.3s ease-in-out",
 										alignItems: "center",
 										gap: "10px",
@@ -1000,27 +1001,34 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 											marginTop: "10px",
 											width: "100%",
 											borderRadius: "4px",
+											gap: "10px",
 										}}>
 										<VSCodeButton
-											appearance="secondary"
+											appearance={selectedButton === "no" ? "primary" : "secondary"}
 											style={{
 												flex: 1,
+												border:
+													selectedButton === "no" ? "2px solid var(--vscode-focusBorder)" : undefined,
 											}}
 											onClick={() => {
+												setSelectedButton("no")
 												window.dispatchEvent(
 													new CustomEvent("taskCompletionStatus", {
 														detail: { status: "not_completed" },
 													}),
 												)
 											}}>
-											No, let's Talk...
+											Not really...
 										</VSCodeButton>
 										<VSCodeButton
-											appearance="primary"
+											appearance={selectedButton === "yes" ? "primary" : "secondary"}
 											style={{
 												flex: 1,
+												border:
+													selectedButton === "yes" ? "2px solid var(--vscode-focusBorder)" : undefined,
 											}}
 											onClick={() => {
+												setSelectedButton("yes")
 												window.dispatchEvent(
 													new CustomEvent("taskCompletionStatus", {
 														detail: { status: "completed" },
