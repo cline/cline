@@ -188,23 +188,9 @@ export const BrowserSettingsSection: React.FC = () => {
 				</p>
 			</div>
 
-			<div style={{ marginBottom: 15 }}>
-				<VSCodeCheckbox
-					style={{ marginBottom: "8px" }}
-					checked={browserSettings.headless}
-					onChange={(e) => updateHeadless((e.target as HTMLInputElement).checked)}>
-					Run in headless mode
-				</VSCodeCheckbox>
-				<p
-					style={{
-						fontSize: "12px",
-						color: "var(--vscode-descriptionForeground)",
-						margin: "0 0 8px 0px",
-					}}>
-					When enabled, Chrome will run in the background without a visible window. If disabled, a live Chrome instance
-					will pop up with a new tab. A remote Chrome must be restarted in headless mode
-				</p>
-			</div>
+			{/* Headless mode is now automatically determined: 
+			    - Local connections always use headless mode
+			    - Remote connections always use non-headless mode */}
 
 			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8 }}>

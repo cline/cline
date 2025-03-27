@@ -56,7 +56,7 @@ export class BrowserSession {
 			isConnected: !!this.browser,
 			isRemote: this.isConnectedToRemote,
 			host: this.isConnectedToRemote ? this.browserSettings.remoteBrowserHost : undefined,
-			isHeadless: this.browserSettings.headless
+			isHeadless: !this.isConnectedToRemote // Local is always headless, remote is always non-headless
 		}
 	}
 
@@ -124,9 +124,8 @@ export class BrowserSession {
 				"--disable-notifications",
 			]
 
-			if (this.browserSettings.headless) {
-				chromeFlags.push("--headless")
-			}
+			// Remote connections are always non-headless
+			// Don't add headless flag for remote connections
 
 			// Launch Chrome with debug port
 			const launcher = new chromeLauncher.Launcher({
@@ -144,7 +143,7 @@ export class BrowserSession {
 			webview?.postMessage({
 				type: "browserRelaunchResult",
 				success: true,
-				text: `Browser successfully launched in debug mode${this.browserSettings.headless ? " (headless)" : ""}`,
+				text: `Browser successfully launched in debug mode`,
 			})
 		} catch (error) {
 			webview?.postMessage({
@@ -164,7 +163,7 @@ export class BrowserSession {
 		this.isConnectedToRemote = false
 
 		if (this.browserSettings.remoteBrowserEnabled) {
-			console.log(`launch browser called -- remote host mode (headless: ${this.browserSettings.headless})`)
+			console.log(`launch browser called -- remote host mode (non-headless)`)
 			try {
 				await this.launchRemoteBrowser()
 				// Don't create a new page here, as we'll create it in launchRemoteBrowser
@@ -174,7 +173,7 @@ export class BrowserSession {
 				await this.launchLocalBrowser()
 			}
 		} else {
-			console.log(`launch browser called -- local mode (headless: ${this.browserSettings.headless})`)
+			console.log(`launch browser called -- local mode (headless)`)
 			await this.launchLocalBrowser()
 		}
 
@@ -189,7 +188,7 @@ export class BrowserSession {
 			],
 			executablePath: path,
 			defaultViewport: this.browserSettings.viewport,
-			headless: this.browserSettings.headless ? "shell" : false,
+			headless: "shell", // Always use headless mode for local connections
 		})
 		this.isConnectedToRemote = false
 	}
