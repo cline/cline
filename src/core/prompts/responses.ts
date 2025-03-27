@@ -11,6 +11,13 @@ export const formatResponse = {
 	clineIgnoreError: (path: string) =>
 		`Access to ${path} is blocked by the .clineignore file settings. You must try to continue in the task without using this file, or ask the user to update the .clineignore file.`,
 
+	planModeEditToolError: () =>
+		`This tool cannot be used in PLAN MODE. File editing tools (write_to_file and replace_in_file) are only available in ACT MODE.
+
+Please ask the user to switch to ACT MODE using the toggle button or the keyboard shortcut (Meta+Shift+A) if you need to edit files.
+
+In PLAN MODE, you should focus on information gathering, asking questions, and architecting a solution. Once you have a plan, use the plan_mode_response tool to engage in a conversational back and forth with the user.`,
+
 	noToolsUsed: () =>
 		`[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
 

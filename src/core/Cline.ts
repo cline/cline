@@ -1714,6 +1714,13 @@ export class Cline {
 					await this.browserSession.closeBrowser()
 				}
 
+				// Check if tool is allowed in current mode
+				if (this.chatSettings.mode === "plan" && (block.name === "write_to_file" || block.name === "replace_in_file")) {
+					this.consecutiveMistakeCount++
+					pushToolResult(formatResponse.toolError(formatResponse.planModeEditToolError()))
+					break
+				}
+
 				switch (block.name) {
 					case "write_to_file":
 					case "replace_in_file": {
