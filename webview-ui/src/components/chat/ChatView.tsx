@@ -79,6 +79,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const disableAutoScrollRef = useRef(false)
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
+	const [isYesNoButtonsHighlighted, setIsYesNoButtonsHighlighted] = useState(false) // This will be passed to ChatRow
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -740,6 +741,18 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		[scrollToBottomSmooth, scrollToBottomAuto],
 	)
 
+	const handleDisabledInputClick = useCallback(() => {
+		console.log("handleDisabledInputClick called")
+		console.log("textAreaDisabled:", textAreaDisabled)
+		console.log("taskCompletionStatus:", taskCompletionStatus)
+		setIsYesNoButtonsHighlighted(true)
+
+		// Set a timeout to turn off the highlight after a short duration
+		setTimeout(() => {
+			setIsYesNoButtonsHighlighted(false)
+		}, 1500)
+	}, [textAreaDisabled, setIsYesNoButtonsHighlighted])
+
 	useEffect(() => {
 		if (!disableAutoScrollRef.current) {
 			setTimeout(() => {
@@ -798,6 +811,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					isLast={index === groupedMessages.length - 1}
 					onHeightChange={handleRowHeightChange}
 					hasMessageBeenSentAfterCompletion={hasMessageBeenSentAfterCompletion}
+					isYesNoButtonsHighlighted={isYesNoButtonsHighlighted}
 				/>
 			)
 		},
@@ -808,6 +822,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			toggleRowExpansion,
 			handleRowHeightChange,
 			hasMessageBeenSentAfterCompletion,
+			isYesNoButtonsHighlighted,
 		],
 	)
 
@@ -924,6 +939,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						/>
 					</div>
 					<AutoApproveMenu />
+
 					{showScrollToBottom ? (
 						<div
 							style={{
@@ -940,6 +956,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						</div>
 					) : (
 						<div
+							className="button-container"
 							style={{
 								opacity:
 									primaryButtonText || secondaryButtonText || isStreaming
@@ -978,6 +995,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					)}
 				</>
 			)}
+
 			<ChatTextArea
 				ref={textAreaRef}
 				inputValue={inputValue}
@@ -994,10 +1012,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						scrollToBottomAuto()
 					}
 				}}
+				onDisabledClick={handleDisabledInputClick}
 			/>
 		</div>
 	)
 }
+
+const YesNoButtonContainer = styled.div<{ isHighlighted: boolean }>`
+	display: flex;
+	padding: 10px 15px 0px 15px;
+	opacity: 1;
+	transition: all 0.3s ease-in-out;
+	border: ${(props) => (props.isHighlighted ? "2px solid var(--vscode-focusBorder)" : "2px solid transparent")};
+	box-shadow: ${(props) => (props.isHighlighted ? "0 0 8px var(--vscode-focusBorder)" : "none")};
+	border-radius: 4px;
+`
 
 const ScrollToBottomButton = styled.div`
 	background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 55%, transparent);

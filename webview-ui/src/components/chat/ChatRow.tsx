@@ -48,6 +48,7 @@ interface ChatRowProps {
 	isLast: boolean
 	onHeightChange: (isTaller: boolean) => void
 	hasMessageBeenSentAfterCompletion?: boolean
+	isYesNoButtonsHighlighted?: boolean
 }
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
@@ -141,6 +142,7 @@ export const ChatRowContent = ({
 	lastModifiedMessage,
 	isLast,
 	hasMessageBeenSentAfterCompletion,
+	isYesNoButtonsHighlighted,
 }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
@@ -1046,6 +1048,13 @@ export const ChatRowContent = ({
 											justifyContent: "space-between",
 											gap: "10px",
 											marginTop: "0",
+											transition: "all 0.3s ease-in-out",
+											border: isYesNoButtonsHighlighted
+												? "2px solid var(--vscode-focusBorder)"
+												: "2px solid transparent",
+											boxShadow: isYesNoButtonsHighlighted ? "0 0 8px var(--vscode-focusBorder)" : "none",
+											borderRadius: "4px",
+											padding: isYesNoButtonsHighlighted ? "6px" : "8px 8px",
 										}}>
 										<VSCodeButton
 											appearance="secondary"

@@ -173,3 +173,36 @@ vscode-dropdown::part(listbox) {
 	border-radius: 3px;
 	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 }
+
+/* Flash animation for yes/no buttons */
+@keyframes button-container-flash {
+	0% {
+		background-color: transparent;
+		box-shadow: none;
+	}
+	20% {
+		background-color: color-mix(in srgb, var(--vscode-focusBorder) 50%, transparent);
+		box-shadow: 0 0 8px var(--vscode-focusBorder);
+	}
+	40% {
+		background-color: transparent;
+		box-shadow: none;
+	}
+	60% {
+		background-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
+		box-shadow: 0 0 6px var(--vscode-focusBorder);
+	}
+	100% {
+		background-color: transparent;
+		box-shadow: none;
+	}
+}
+
+.button-container-flash {
+	animation: button-container-flash 1.2s ease-out;
+	border-radius: 3px;
+}
+
+.button-container {
+	position: relative;
+}

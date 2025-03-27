@@ -35,6 +35,7 @@ interface ChatTextAreaProps {
 	onSelectImages: () => void
 	shouldDisableImages: boolean
 	onHeightChange?: (height: number) => void
+	onDisabledClick?: () => void
 }
 
 const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
@@ -211,6 +212,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			onSelectImages,
 			shouldDisableImages,
 			onHeightChange,
+			onDisabledClick,
 		},
 		ref,
 	) => {
@@ -890,6 +892,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}}
 					onDrop={onDrop}
 					onDragOver={onDragOver}>
+					{/* Overlay div that captures clicks when input is disabled */}
+					{textAreaDisabled && onDisabledClick && (
+						<div
+							onClick={() => {
+								console.log("Overlay div clicked")
+								onDisabledClick()
+							}}
+							style={{
+								position: "absolute",
+								top: 0,
+								left: 0,
+								right: 0,
+								bottom: 0,
+								zIndex: 10,
+								cursor: "not-allowed",
+							}}
+						/>
+					)}
 					{showContextMenu && (
 						<div ref={contextMenuContainerRef}>
 							<ContextMenu
@@ -964,6 +984,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						onPaste={handlePaste}
 						onSelect={updateCursorPosition}
 						onMouseUp={updateCursorPosition}
+						onClick={() => {
+							console.log("ChatTextArea clicked")
+							console.log("textAreaDisabled:", textAreaDisabled)
+							console.log("onDisabledClick exists:", !!onDisabledClick)
+
+							if (textAreaDisabled && onDisabledClick) {
+								console.log("Calling onDisabledClick")
+								onDisabledClick()
+							} else {
+								console.log("Not calling onDisabledClick")
+								if (!textAreaDisabled) console.log("Reason: textAreaDisabled is false")
+								if (!onDisabledClick) console.log("Reason: onDisabledClick is undefined")
+							}
+						}}
 						onHeightChange={(height) => {
 							if (textAreaBaseHeight === undefined || height < textAreaBaseHeight) {
 								setTextAreaBaseHeight(height)
