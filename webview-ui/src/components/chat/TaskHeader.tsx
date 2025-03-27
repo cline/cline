@@ -11,8 +11,6 @@ import { vscode } from "../../utils/vscode"
 import { NotificationPanel } from "../common/NotificationPanel"
 import Thumbnails from "../common/Thumbnails"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
-import { WaveIcon } from "../icons/WaveIcon"
-
 // Active Conversation Toggle component
 interface ActiveConversationToggleProps {
   activeLabel: string | null;
@@ -43,8 +41,7 @@ const ActiveConversationToggle: React.FC<ActiveConversationToggleProps> = ({ act
         flexShrink: 0,
       }}
     >
-      <span className={`hand-icon ${activeLabel ? 'active' : ''}`} style={{ display: "inline-flex", alignItems: "center" }}>
-        <WaveIcon />
+      <span className={`codicon codicon-inbox hand-icon ${activeLabel ? 'active' : ''}`} style={{ display: "inline-flex", alignItems: "center" }}>
       </span>
       {activeLabel ? (
         <span className={`active-label label-${activeLabel.toLowerCase()}`}>
@@ -385,49 +382,44 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						</div>
 					)}
 					
-					{/* Only render the Active toggle and notification bell if showHeaderControls is true */}
-					{chatSettings.showHeaderControls !== false && (
-						<>
-							<ActiveConversationToggle activeLabel={activeLabel} onClick={() => vscode.postMessage({ type: "toggleActiveConversation" })} />
-							
-							{/* Notification Bell */}
-							<VSCodeButton 
-								appearance="icon" 
-								onClick={() => {
-									setShowNotifications(!showNotifications);
-								}} 
-								style={{ 
-									marginLeft: 6, 
-									flexShrink: 0,
-									position: 'relative' 
+					<ActiveConversationToggle activeLabel={activeLabel} onClick={() => vscode.postMessage({ type: "toggleActiveConversation" })} />
+					
+					{/* Notification Bell */}
+					<VSCodeButton 
+						appearance="icon" 
+						onClick={() => {
+							setShowNotifications(!showNotifications);
+						}} 
+						style={{ 
+							marginLeft: 6, 
+							flexShrink: 0,
+							position: 'relative' 
+						}}
+					>
+						<span className="codicon codicon-bell"></span>
+						{notifications.filter(n => !n.read && !n.dismissed).length > 0 && (
+							<span 
+								style={{
+									position: 'absolute',
+									top: '0px',
+									right: '0px',
+									minWidth: '16px',
+									height: '16px',
+									borderRadius: '8px',
+									backgroundColor: 'var(--vscode-notificationsErrorIcon-foreground)',
+									color: 'white',
+									fontSize: '10px',
+									fontWeight: 'bold',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									padding: '0 4px'
 								}}
 							>
-								<span className="codicon codicon-bell"></span>
-								{notifications.filter(n => !n.read && !n.dismissed).length > 0 && (
-									<span 
-										style={{
-											position: 'absolute',
-											top: '0px',
-											right: '0px',
-											minWidth: '16px',
-											height: '16px',
-											borderRadius: '8px',
-											backgroundColor: 'var(--vscode-notificationsErrorIcon-foreground)',
-											color: 'white',
-											fontSize: '10px',
-											fontWeight: 'bold',
-											display: 'flex',
-											alignItems: 'center',
-											justifyContent: 'center',
-											padding: '0 4px'
-										}}
-									>
-										{notifications.filter(n => !n.read && !n.dismissed).length}
-									</span>
-								)}
-							</VSCodeButton>
-						</>
-					)}
+								{notifications.filter(n => !n.read && !n.dismissed).length}
+							</span>
+						)}
+					</VSCodeButton>
 					
 					{/* Always show the close button */}
 					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>

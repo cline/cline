@@ -26,8 +26,8 @@ import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
-import { ClineCheckpointRestore, WebviewMessage, ExternalAdvice } from "../../shared/WebviewMessage"
-import { fileExistsAtPath, getExternalAdviceDirectory, getDismissedAdviceDirectory } from "../../utils/fs"
+import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
+import { fileExistsAtPath } from "../../utils/fs"
 import { searchCommits } from "../../utils/git"
 import { Cline } from "../Cline"
 import { openMention } from "../mentions"
@@ -103,6 +103,7 @@ type GlobalStateKey =
 	| "previousModeApiProvider"
 	| "previousModeModelId"
 	| "previousModeThinkingBudgetTokens"
+	| "previousModeVsCodeLmModelSelector"
 	| "previousModeModelInfo"
 	| "liteLlmBaseUrl"
 	| "liteLlmModelId"
@@ -114,7 +115,6 @@ type GlobalStateKey =
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
-	| "previousModeVsCodeLmModelSelector"
 
 export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -128,10 +128,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	accountService?: ClineAccountService
 	private latestAnnouncementId = "march-22-2025" // update to some unique identifier when we add a new announcement
 	conversationTelemetryService: ConversationTelemetryService
-	
-	// Notification polling
-	private notificationPollingInterval: NodeJS.Timeout | undefined;
-	private seenNotificationIds = new Set<string>();
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -148,9 +144,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
-		
-		// Start notification polling
-		this.startNotificationPolling();
 	}
 
 	/*
@@ -160,10 +153,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	*/
 	async dispose() {
 		this.outputChannel.appendLine("Disposing ClineProvider...")
-		
-		// Stop notification polling
-		this.stopNotificationPolling();
-		
 		await this.clearTask()
 		this.outputChannel.appendLine("Cleared task")
 		if (this.view && "dispose" in this.view) {
@@ -184,250 +173,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.conversationTelemetryService.shutdown()
 		this.outputChannel.appendLine("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
-	}
-
-	/**
-	 * Starts polling for new notifications
-	 */
-	private startNotificationPolling() {
-		// Clear any existing interval
-		this.stopNotificationPolling();
-		
-		// Set up polling interval (check every 2 seconds)
-		this.notificationPollingInterval = setInterval(async () => {
-			try {
-				await this.refreshAllNotifications();
-			} catch (error) {
-				console.error('Error in notification polling:', error);
-			}
-		}, 2000); // More frequent polling
-	}
-	
-	/**
-	 * Refreshes all notifications from disk
-	 * This is a complete refresh that clears the cache and re-reads all files
-	 */
-	private async refreshAllNotifications() {
-		// Only check for notifications if there's an active task
-		if (!this.cline?.taskId) {return;}
-		
-		try {
-			// Clear the seen notifications cache to force a complete refresh
-			this.seenNotificationIds.clear();
-			
-			// Re-read all notifications from disk
-			await this.sendExternalAdvice();
-		} catch (error) {
-			console.error('Error refreshing notifications:', error);
-		}
-	}
-	
-	/**
-	 * Stops notification polling
-	 */
-	private stopNotificationPolling() {
-		if (this.notificationPollingInterval) {
-			clearInterval(this.notificationPollingInterval);
-			this.notificationPollingInterval = undefined;
-		}
-	}
-	
-	/**
-	 * Sends external advice notifications to the webview
-	 */
-	private async sendExternalAdvice() {
-		try {
-			// Only check for advice if there's an active task
-			const currentTaskId = this.cline?.taskId;
-			if (!currentTaskId) {return;}
-			
-			const activeAdviceDir = getExternalAdviceDirectory(this.context, currentTaskId);
-			const dismissedAdviceDir = getDismissedAdviceDirectory(this.context, currentTaskId);
-			
-			// Note: We assume the directories already exist (created by MCP team)
-			// We don't create them from our side
-			
-			// Collect advice from both active and dismissed directories
-			let allAdvice: ExternalAdvice[] = [];
-			
-			// Process active advice
-			if (await fileExistsAtPath(activeAdviceDir)) {
-				const activeFiles = await fs.readdir(activeAdviceDir);
-				
-				// Skip the Dismissed directory if it's in the list
-				const jsonFiles = activeFiles
-					.filter(file => file.endsWith('.json') && file !== 'Dismissed');
-				
-				const activeAdvicePromises = jsonFiles.map(async file => {
-					try {
-						const filePath = path.join(activeAdviceDir, file);
-						const content = await fs.readFile(filePath, 'utf8');
-						const advice = JSON.parse(content) as ExternalAdvice;
-						// Ensure dismissed is false for active advice
-						advice.dismissed = false;
-						return advice;
-					} catch (error) {
-						console.error(`Error reading active notification file ${file}:`, error);
-						return null;
-					}
-				});
-				
-				const activeAdvice = (await Promise.all(activeAdvicePromises))
-					.filter(advice => advice !== null) as ExternalAdvice[];
-				
-				allAdvice = [...allAdvice, ...activeAdvice];
-			}
-			
-			// Process dismissed advice
-			if (await fileExistsAtPath(dismissedAdviceDir)) {
-				const dismissedFiles = await fs.readdir(dismissedAdviceDir);
-				
-				const dismissedAdvicePromises = dismissedFiles
-					.filter(file => file.endsWith('.json'))
-					.map(async file => {
-						try {
-							const filePath = path.join(dismissedAdviceDir, file);
-							const content = await fs.readFile(filePath, 'utf8');
-							const advice = JSON.parse(content) as ExternalAdvice;
-							// Ensure dismissed is true for dismissed advice
-							advice.dismissed = true;
-							return advice;
-						} catch (error) {
-							console.error(`Error reading dismissed notification file ${file}:`, error);
-							return null;
-						}
-					});
-				
-				const dismissedAdvice = (await Promise.all(dismissedAdvicePromises))
-					.filter(advice => advice !== null) as ExternalAdvice[];
-				
-				allAdvice = [...allAdvice, ...dismissedAdvice];
-			}
-			
-			// Filter out expired advice
-			const currentTime = Date.now();
-			const validAdvice = allAdvice.filter(advice => 
-				!advice.expiresAt || advice.expiresAt > currentTime
-			);
-			
-			// Send all valid advice to the webview
-			for (const advice of validAdvice) {
-				// Only send advice we haven't seen before
-				if (!this.seenNotificationIds.has(advice.id)) {
-					this.seenNotificationIds.add(advice.id);
-					await this.postMessageToWebview({
-						type: 'newExternalAdvice',
-						advice
-					});
-				}
-			}
-		} catch (error) {
-			console.error('Error sending external advice:', error);
-		}
-	}
-
-	/**
-	 * Marks an advice as read
-	 * @param adviceId - The ID of the advice to mark as read
-	 */
-	private async markAdviceAsRead(adviceId?: string) {
-		if (!adviceId) {return;}
-		
-		try {
-			// Only check for advice if there's an active task
-			const currentTaskId = this.cline?.taskId;
-			if (!currentTaskId) {return;}
-			
-			const adviceDir = getExternalAdviceDirectory(this.context, currentTaskId);
-			let filePath = path.join(adviceDir, `${adviceId}.json`);
-			
-			if (await fileExistsAtPath(filePath)) {
-				const content = await fs.readFile(filePath, 'utf8');
-				const advice = JSON.parse(content) as ExternalAdvice;
-				
-				// Update the read status
-				advice.read = true;
-				
-				// Write back to file
-				await fs.writeFile(filePath, JSON.stringify(advice, null, 2), 'utf8');
-			}
-		} catch (error) {
-			console.error(`Error marking advice ${adviceId} as read:`, error);
-		}
-	}
-
-	/**
-	 * Dismisses an advice by moving it to the Dismissed directory
-	 * @param adviceId - The ID of the advice to dismiss
-	 */
-	private async dismissAdvice(adviceId?: string) {
-		if (!adviceId) {return;}
-		
-		try {
-			// Only check for advice if there's an active task
-			const currentTaskId = this.cline?.taskId;
-			if (!currentTaskId) {return;}
-			
-			const adviceDir = getExternalAdviceDirectory(this.context, currentTaskId);
-			const dismissedDir = getDismissedAdviceDirectory(this.context, currentTaskId);
-			
-			// Note: We assume the dismissed directory already exists (created by MCP team)
-			// We don't create it from our side
-			
-			const sourceFilePath = path.join(adviceDir, `${adviceId}.json`);
-			const targetFilePath = path.join(dismissedDir, `${adviceId}.json`);
-			
-			if (await fileExistsAtPath(sourceFilePath)) {
-				// Move the file to the dismissed directory
-				await fs.rename(sourceFilePath, targetFilePath);
-			}
-			
-			// Force a complete refresh of all notifications
-			await this.refreshAllNotifications();
-		} catch (error) {
-			console.error(`Error dismissing advice ${adviceId}:`, error);
-			// Try to refresh anyway to maintain UI consistency
-			await this.refreshAllNotifications();
-		}
-	}
-	
-	/**
-	 * Restores a previously dismissed advice by moving it back from the Dismissed directory
-	 * @param adviceId - The ID of the advice to restore
-	 */
-	private async restoreAdvice(adviceId?: string) {
-		if (!adviceId) {
-			return;
-		}
-		
-		try {
-			// Only check for advice if there's an active task
-			const currentTaskId = this.cline?.taskId;
-			if (!currentTaskId) {
-				return;
-			}
-			
-			const adviceDir = getExternalAdviceDirectory(this.context, currentTaskId);
-			const dismissedDir = getDismissedAdviceDirectory(this.context, currentTaskId);
-			
-			// Note: We assume the dismissed directory already exists (created by MCP team)
-			// We don't create it from our side
-			
-			const sourceFilePath = path.join(dismissedDir, `${adviceId}.json`);
-			const targetFilePath = path.join(adviceDir, `${adviceId}.json`);
-			
-			if (await fileExistsAtPath(sourceFilePath)) {
-				// Move the file back to the active directory
-				await fs.rename(sourceFilePath, targetFilePath);
-			}
-			
-			// Force a complete refresh of all notifications
-			await this.refreshAllNotifications();
-		} catch (error) {
-			console.error(`Error restoring advice ${adviceId}:`, error);
-			// Try to refresh anyway to maintain UI consistency
-			await this.refreshAllNotifications();
-		}
 	}
 
 	// Auth methods
@@ -525,9 +270,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						text: JSON.stringify(await getTheme()),
 					})
 				}
-				if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled") || 
-				    e && e.affectsConfiguration("cline.ui.showHeaderControls")) {
-					// Update state when marketplace tab setting or showHeaderControls setting changes
+				if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
+					// Update state when marketplace tab setting changes
 					await this.postStateToWebview()
 				}
 			},
@@ -543,10 +287,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		
-		// Reset seen notification IDs when starting a new task
-		this.seenNotificationIds.clear();
-		
 		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
 			await this.getState()
 		this.cline = new Cline(
@@ -563,10 +303,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		
-		// Reset seen notification IDs when loading a task from history
-		this.seenNotificationIds.clear();
-		
 		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
 			await this.getState()
 		this.cline = new Cline(
@@ -1202,41 +938,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						this.postMessageToWebview({ type: "relinquishControl" })
 						break
 					}
-					case "toggleActiveConversation": {
-						await this.toggleActiveConversation();
-						break;
-					}
-					case "getExternalAdvice": {
-						await this.sendExternalAdvice();
-						break;
-					}
-					case "markAdviceAsRead": {
-						await this.markAdviceAsRead(message.adviceId);
-						break;
-					}
-					case "dismissAdvice": {
-						await this.dismissAdvice(message.adviceId);
-						break;
-					}
-					case "restoreAdvice": {
-						await this.restoreAdvice(message.adviceId);
-						break;
-					}
-					case "sendExternalAdviceToChat": {
-						// Send the external advice directly to the chat as a message
-						if (message.advice) {
-							// Mark the advice as read
-							await this.markAdviceAsRead(message.advice.id);
-							
-							// Send the message to the chat
-							await this.postMessageToWebview({
-								type: "invoke",
-								invoke: "sendMessage",
-								text: `[External Advice: ${message.advice.title}]\n\n${message.advice.content}`
-							});
-						}
-						break;
-					}
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
@@ -1250,102 +951,6 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("telemetrySetting", telemetrySetting)
 		const isOptedIn = telemetrySetting === "enabled"
 		telemetryService.updateTelemetryState(isOptedIn)
-	}
-
-	/**
-	 * Toggles the active conversation status for the current task
-	 * Cycles through: inactive -> Active A -> Active B -> inactive
-	 */
-	async toggleActiveConversation() {
-		if (!this.cline?.taskId) {return;}
-		
-		try {
-			const homeDir = os.homedir();
-			
-			const baseDirectories = [
-				path.join(homeDir, 'Library', 'Application Support', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev')
-			];
-			
-			// Read the current active tasks file from the path first (preferred)
-			let activeTasksData: { activeTasks: Array<{ id: string; label: string; lastActivated: number; source: string; extensionType: string; }> } = { activeTasks: [] };
-			const standardPath = path.join(baseDirectories[1], 'active_tasks.json');
-			
-			await fileExistsAtPath(standardPath); {
-				try {
-					const content = await fs.readFile(standardPath, 'utf8');
-					activeTasksData = JSON.parse(content);
-				} catch (error) {
-					console.error('Error reading active tasks file:', error);
-				}
-			}
-			
-			// Check if this task is already active
-			const existingTaskIndex = activeTasksData.activeTasks.findIndex(t => t.id === this.cline?.taskId);
-			let newLabel: string | null = null;
-			
-			if (existingTaskIndex !== -1) {
-				// Task is already active, rotate the label or remove
-				const currentLabel = activeTasksData.activeTasks[existingTaskIndex].label;
-				
-				if (currentLabel === 'A') {
-					newLabel = 'B';
-				} else if (currentLabel === 'B') {
-					newLabel = null; // Deactivate
-				}
-				
-				if (newLabel === null) {
-					// Remove this task from active tasks
-					activeTasksData.activeTasks = activeTasksData.activeTasks.filter(t => t.id !== this.cline?.taskId);
-				} else {
-					// Update the label
-					activeTasksData.activeTasks[existingTaskIndex].label = newLabel;
-					activeTasksData.activeTasks[existingTaskIndex].lastActivated = Date.now();
-				}
-			} else {
-				// Task is not active, make it Active A
-				newLabel = 'A';
-				
-				// If another task has label A, remove it (only one task can be Active A)
-				activeTasksData.activeTasks = activeTasksData.activeTasks.filter(t => t.label !== 'A');
-				
-				// Add this task as Active A
-				activeTasksData.activeTasks.push({
-					id: this.cline.taskId,
-					label: 'A',
-					lastActivated: Date.now(),
-					source: 'cline',
-					extensionType: 'cline'
-				});
-			}
-			
-			// Write the updated data to both locations
-			for (const baseDir of baseDirectories) {
-				const activeTasksPath = path.join(baseDir, 'active_tasks.json');
-				
-				// Ensure the directory exists
-				await fs.mkdir(baseDir, { recursive: true });
-				
-				// Write to the file
-				await fs.writeFile(
-					activeTasksPath,
-					JSON.stringify(activeTasksData, null, 2),
-					'utf8'
-				);
-			}
-			
-			// Update UI state
-			await this.postMessageToWebview({
-				type: 'activeConversationStatus',
-				activeLabel: newLabel
-			});
-			
-			// Log success
-			console.log(`Active conversation set to "${newLabel}" for task ${this.cline.taskId}`);
-			
-		} catch (error) {
-			console.error('Error toggling active conversation:', error);
-			vscode.window.showErrorMessage('Failed to set active conversation status');
-		}
 	}
 
 	async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent) {
@@ -1410,7 +1015,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 
 			// Restore the model used in previous mode
-			if (newApiProvider || newModelId || newThinkingBudgetTokens !== undefined) {
+			if (newApiProvider || newModelId || newThinkingBudgetTokens !== undefined || newVsCodeLmModelSelector) {
 				await this.updateGlobalState("apiProvider", newApiProvider)
 				await this.updateGlobalState("thinkingBudgetTokens", newThinkingBudgetTokens)
 				switch (newApiProvider) {
@@ -1430,7 +1035,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.updateGlobalState("openRouterModelInfo", newModelInfo)
 						break
 					case "vscode-lm":
-						await this.updateGlobalState("vsCodeLmModelSelector", newModelId)
+						await this.updateGlobalState("vsCodeLmModelSelector", newVsCodeLmModelSelector)
 						break
 					case "openai":
 						await this.updateGlobalState("openAiModelId", newModelId)
@@ -2429,9 +2034,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	async clearTask() {
 		this.cline?.abortTask()
 		this.cline = undefined // removes reference to it, so once promises end it will be garbage collected
-		
-		// Clear seen notification IDs when clearing a task
-		this.seenNotificationIds.clear();
 	}
 
 	// Caching mechanism to keep track of webview messages + API conversation history per provider instance
@@ -2534,6 +2136,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			previousModeApiProvider,
 			previousModeModelId,
 			previousModeModelInfo,
+			previousModeVsCodeLmModelSelector,
 			previousModeThinkingBudgetTokens,
 			qwenApiLine,
 			liteLlmApiKey,
@@ -2597,6 +2200,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("previousModeApiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("previousModeModelId") as Promise<string | undefined>,
 			this.getGlobalState("previousModeModelInfo") as Promise<ModelInfo | undefined>,
+			this.getGlobalState("previousModeVsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 			this.getGlobalState("previousModeThinkingBudgetTokens") as Promise<number | undefined>,
 			this.getGlobalState("qwenApiLine") as Promise<string | undefined>,
 			this.getSecret("liteLlmApiKey") as Promise<string | undefined>,
@@ -2628,9 +2232,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			.get("reasoningEffort", "medium")
 
 		const mcpMarketplaceEnabled = vscode.workspace.getConfiguration("cline").get<boolean>("mcpMarketplace.enabled", true)
-		
-		// Read the showHeaderControls setting from VS Code configuration
-		const showHeaderControls = vscode.workspace.getConfiguration("cline.ui").get<boolean>("showHeaderControls", true)
 
 		// Plan/Act separate models setting is a boolean indicating whether the user wants to use different models for plan and act. Existing users expect this to be enabled, while we want new users to opt in to this being disabled by default.
 		// On win11 state sometimes initializes as empty string instead of undefined
@@ -2650,12 +2251,6 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			await this.updateGlobalState("planActSeparateModelsSetting", planActSeparateModelsSetting)
 		}
 
-		// Update chatSettings with the showHeaderControls value from VS Code configuration
-		const updatedChatSettings = {
-			...(chatSettings || DEFAULT_CHAT_SETTINGS),
-			showHeaderControls
-		};
-		
 		return {
 			apiConfiguration: {
 				apiProvider,
@@ -2695,8 +2290,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				qwenApiLine,
 				mistralApiKey,
 				azureApiVersion,
-				// Fixes bug where switching to plan/act would result in setting this model id to previousModeModelId which may have been a non-string value by default, causing a type error in the webview when calling .toLowerCase() on it.
-				openRouterModelId: openRouterModelId ? String(openRouterModelId) : undefined,
+				openRouterModelId,
 				openRouterModelInfo,
 				openRouterProviderSorting,
 				vsCodeLmModelSelector,
@@ -2715,12 +2309,12 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			taskHistory,
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
-			chatSettings: updatedChatSettings,
+			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 			userInfo,
 			previousModeApiProvider,
-			previousModeVsCodeLmModelSelector,
-			previousModeModelId: previousModeModelId ? String(previousModeModelId) : undefined,
+			previousModeModelId,
 			previousModeModelInfo,
+			previousModeVsCodeLmModelSelector,
 			previousModeThinkingBudgetTokens,
 			mcpMarketplaceEnabled,
 			telemetrySetting: telemetrySetting || "unset",
