@@ -6,6 +6,7 @@ import {
 	VSCodePanelView,
 	VSCodeDropdown,
 	VSCodeOption,
+	VSCodeCheckbox,
 } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import styled from "styled-components"
@@ -271,6 +272,17 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		})
 	}
 
+	const handleAutoApproveChange = () => {
+		if (!server.name) return
+
+		vscode.postMessage({
+			type: "toggleToolAutoApprove",
+			serverName: server.name,
+			toolNames: server.tools?.map((tool) => tool.name) || [],
+			autoApprove: !server.tools?.every((tool) => tool.autoApprove),
+		})
+	}
+
 	return (
 		<div style={{ marginBottom: "10px" }}>
 			<div
@@ -299,7 +311,33 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 					}}>
 					{getMcpServerDisplayName(server.name, mcpMarketplaceCatalog)}
 				</span>
-				<div style={{ display: "flex", alignItems: "center", marginRight: "8px" }} onClick={(e) => e.stopPropagation()}>
+				{/* Collapsed view controls */}
+				{!isExpanded && !server.error && (
+					<div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "8px" }}>
+						<VSCodeButton
+							appearance="icon"
+							title="Restart Server"
+							onClick={(e) => {
+								e.stopPropagation()
+								handleRestart()
+							}}
+							disabled={server.status === "connecting"}>
+							<span className="codicon codicon-sync"></span>
+						</VSCodeButton>
+						<VSCodeButton
+							appearance="icon"
+							title="Delete Server"
+							onClick={(e) => {
+								e.stopPropagation()
+								handleDelete()
+							}}
+							disabled={isDeleting}>
+							<span className="codicon codicon-trash"></span>
+						</VSCodeButton>
+					</div>
+				)}
+				{/* Toggle Switch */}
+				<div style={{ display: "flex", alignItems: "center", marginLeft: "8px" }} onClick={(e) => e.stopPropagation()}>
 					<div
 						role="switch"
 						aria-checked={!server.disabled}
@@ -404,6 +442,19 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							fontSize: "13px",
 							borderRadius: "0 0 4px 4px",
 						}}>
+						<div style={{ display: "flex", gap: "8px", margin: "0 7px 3px 7px" }}>
+							<VSCodeButton
+								appearance="secondary"
+								onClick={handleRestart}
+								disabled={server.status === "connecting"}
+								style={{ flex: 1 }}>
+								{server.status === "connecting" ? "Restarting..." : "Restart Server"}
+							</VSCodeButton>
+
+							<DangerButton style={{ flex: 1 }} disabled={isDeleting} onClick={handleDelete}>
+								{isDeleting ? "Deleting..." : "Delete Server"}
+							</DangerButton>
+						</div>
 						<VSCodePanels>
 							<VSCodePanelTab id="tools">Tools ({server.tools?.length || 0})</VSCodePanelTab>
 							<VSCodePanelTab id="resources">
@@ -419,6 +470,13 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 											gap: "8px",
 											width: "100%",
 										}}>
+										<VSCodeCheckbox
+											style={{ alignSelf: "center" }}
+											checked={server.tools.every((tool) => tool.autoApprove)}
+											onChange={handleAutoApproveChange}
+											data-tool="all-tools">
+											Auto-approve all tools
+										</VSCodeCheckbox>
 										{server.tools.map((tool) => (
 											<McpToolRow key={tool.name} tool={tool} serverName={server.name} />
 										))}
@@ -473,23 +531,6 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 								))}
 							</VSCodeDropdown>
 						</div>
-						<VSCodeButton
-							appearance="secondary"
-							onClick={handleRestart}
-							disabled={server.status === "connecting"}
-							style={{
-								width: "calc(100% - 14px)",
-								margin: "0 7px 3px 7px",
-							}}>
-							{server.status === "connecting" ? "Restarting..." : "Restart Server"}
-						</VSCodeButton>
-
-						<DangerButton
-							style={{ width: "calc(100% - 14px)", margin: "5px 7px 3px 7px" }}
-							disabled={isDeleting}
-							onClick={handleDelete}>
-							{isDeleting ? "Deleting..." : "Delete Server"}
-						</DangerButton>
 					</div>
 				)
 			)}

@@ -628,7 +628,7 @@ export class McpHub {
 		)
 	}
 
-	async toggleToolAutoApprove(serverName: string, toolName: string, shouldAllow: boolean): Promise<void> {
+	async toggleToolAutoApprove(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<void> {
 		try {
 			const settingsPath = await this.getMcpSettingsFilePath()
 			const content = await fs.readFile(settingsPath, "utf-8")
@@ -640,14 +640,16 @@ export class McpHub {
 			}
 
 			const autoApprove = config.mcpServers[serverName].autoApprove
-			const toolIndex = autoApprove.indexOf(toolName)
+			for (const toolName of toolNames) {
+				const toolIndex = autoApprove.indexOf(toolName)
 
-			if (shouldAllow && toolIndex === -1) {
-				// Add tool to autoApprove list
-				autoApprove.push(toolName)
-			} else if (!shouldAllow && toolIndex !== -1) {
-				// Remove tool from autoApprove list
-				autoApprove.splice(toolIndex, 1)
+				if (shouldAllow && toolIndex === -1) {
+					// Add tool to autoApprove list
+					autoApprove.push(toolName)
+				} else if (!shouldAllow && toolIndex !== -1) {
+					// Remove tool from autoApprove list
+					autoApprove.splice(toolIndex, 1)
+				}
 			}
 
 			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
