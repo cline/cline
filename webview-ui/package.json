@@ -10,7 +10,7 @@
 		"lint": "eslint .",
 		"test": "vitest run",
 		"test:watch": "vitest dev",
-		"test:coverage": "vitest --coverage"
+		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
 		"@floating-ui/react": "^0.27.4",
