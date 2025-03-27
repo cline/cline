@@ -84,7 +84,7 @@ export async function getFileSizeInKB(filePath: string): Promise<number> {
  */
 export function getExternalAdviceDirectory(context: vscode.ExtensionContext, taskId: string): string {
 	const taskDir = path.join(context.globalStorageUri.fsPath, "tasks", taskId);
-	return path.join(taskDir, "external_advice");
+	return path.join(taskDir, "external-advice");
 }
 
 /**

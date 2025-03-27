@@ -353,8 +353,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			const activeAdviceDir = getExternalAdviceDirectory(this.context, currentTaskId);
 			const dismissedAdviceDir = getDismissedAdviceDirectory(this.context, currentTaskId);
 			
-			// Note: We assume the directories already exist (created by MCP team)
-			// We don't create them from our side
+			// Note: We don't create directories - they should be created by MCP tools
 			
 			// Collect advice from both active and dismissed directories
 			let allAdvice: ExternalAdvice[] = [];
@@ -448,6 +447,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			if (!currentTaskId) {return;}
 			
 			const adviceDir = getExternalAdviceDirectory(this.context, currentTaskId);
+			
+			// Note: We don't create directories - they should be created by MCP tools
+			// Only proceed if the directory exists
+			if (!await fileExistsAtPath(adviceDir)) {return;}
+			
 			let filePath = path.join(adviceDir, `${adviceId}.json`);
 			
 			if (await fileExistsAtPath(filePath)) {
@@ -480,13 +484,20 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			const adviceDir = getExternalAdviceDirectory(this.context, currentTaskId);
 			const dismissedDir = getDismissedAdviceDirectory(this.context, currentTaskId);
 			
-			// Note: We assume the dismissed directory already exists (created by MCP team)
-			// We don't create it from our side
+			// Note: We don't create directories - they should be created by MCP tools
+			// Only proceed if the source directory exists
+			if (!await fileExistsAtPath(adviceDir)) {return;}
 			
 			const sourceFilePath = path.join(adviceDir, `${adviceId}.json`);
 			const targetFilePath = path.join(dismissedDir, `${adviceId}.json`);
 			
 			if (await fileExistsAtPath(sourceFilePath)) {
+				// Check if the target directory exists
+				if (!await fileExistsAtPath(dismissedDir)) {
+					console.error(`Target directory ${dismissedDir} does not exist for dismissing advice ${adviceId}`);
+					return;
+				}
+				
 				// Move the file to the dismissed directory
 				await fs.rename(sourceFilePath, targetFilePath);
 			}
@@ -519,15 +530,22 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			const adviceDir = getExternalAdviceDirectory(this.context, currentTaskId);
 			const dismissedDir = getDismissedAdviceDirectory(this.context, currentTaskId);
 			
-			// Note: We assume the dismissed directory already exists (created by MCP team)
-			// We don't create it from our side
+			// Note: We don't create directories - they should be created by MCP tools
+			// Only proceed if the source directory exists
+			if (!await fileExistsAtPath(dismissedDir)) {return;}
 			
 			const sourceFilePath = path.join(dismissedDir, `${adviceId}.json`);
 			const targetFilePath = path.join(adviceDir, `${adviceId}.json`);
 			
 			if (await fileExistsAtPath(sourceFilePath)) {
-				// Move the file back to the active directory
-				await fs.rename(sourceFilePath, targetFilePath);
+				// Only proceed if the target directory exists
+				if (await fileExistsAtPath(adviceDir)) {
+					// Move the file back to the active directory
+					await fs.rename(sourceFilePath, targetFilePath);
+				} else {
+					console.error(`Target directory ${adviceDir} does not exist for restoring advice ${adviceId}`);
+					return;
+				}
 			}
 			
 			// Force a complete refresh of all notifications
