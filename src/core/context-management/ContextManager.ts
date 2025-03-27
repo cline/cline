@@ -133,23 +133,31 @@ export class ContextManager {
 					// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
 					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
 
-					let anyUpdates: boolean = false
-					// update the first assistant message if required for narrative integrity
-					anyUpdates = anyUpdates || this.applyStandardContextTruncationNoticeChange(timestamp)
-
-					// if we alter the context history, save the updated version to disk
-					if (anyUpdates) {
-						await this.saveContextHistory(taskDirectory)
-					}
-
-					// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
-					conversationHistoryDeletedRange = this.getNextTruncationRange(
+					// currently if we are able to trim context we will optimistically continue
+					let anyContextUpdates = this.applyContextOptimizations(
 						apiConversationHistory,
-						conversationHistoryDeletedRange,
-						keep,
+						conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
+						timestamp,
 					)
 
-					updatedConversationHistoryDeletedRange = true
+					if (!anyContextUpdates) {
+						// go ahead with truncation
+						anyContextUpdates = anyContextUpdates || this.applyStandardContextTruncationNoticeChange(timestamp)
+
+						// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
+						conversationHistoryDeletedRange = this.getNextTruncationRange(
+							apiConversationHistory,
+							conversationHistoryDeletedRange,
+							keep,
+						)
+
+						updatedConversationHistoryDeletedRange = true
+					}
+
+					// if we alter the context history, save the updated version to disk
+					if (anyContextUpdates) {
+						await this.saveContextHistory(taskDirectory)
+					}
 				}
 			}
 		}
@@ -308,7 +316,7 @@ export class ContextManager {
 			const blockIndicesToDelete: number[] = []
 
 			for (const [blockIndex, updates] of innerMap) {
-				// updates ordered by timestamp, so find cutoff point by interating from right to left
+				// updates ordered by timestamp, so find cutoff point by iterating from right to left
 				let cutoffIndex = updates.length - 1
 				while (cutoffIndex >= 0 && updates[cutoffIndex][0] > timestamp) {
 					cutoffIndex--
@@ -339,6 +347,26 @@ export class ContextManager {
 	}
 
 	/**
+	 * applies the context optimization steps and returns whether any changes were made
+	 */
+	private applyContextOptimizations(
+		apiMessages: Anthropic.Messages.MessageParam[],
+		startFromIndex: number,
+		timestamp: number,
+	): boolean {
+		const fileReadUpdatesBool = this.findAndPotentiallySaveFileReadContextHistoryUpdates(
+			apiMessages,
+			startFromIndex,
+			timestamp,
+		)
+
+		// true if any context optimization steps alter state
+		const contextHistoryUpdated = fileReadUpdatesBool
+
+		return contextHistoryUpdated
+	}
+
+	/**
 	 * if there is any truncation, and there is no other alteration already set, alter the assistant message to indicate this occurred
 	 */
 	private applyStandardContextTruncationNoticeChange(timestamp: number): boolean {
@@ -350,5 +378,86 @@ export class ContextManager {
 			return true
 		}
 		return false
+	}
+
+	/**
+	 * wraps the logic for determining file reads to overwrite, and altering state
+	 */
+	private findAndPotentiallySaveFileReadContextHistoryUpdates(
+		apiMessages: Anthropic.Messages.MessageParam[],
+		startFromIndex: number,
+		timestamp: number,
+	): boolean {
+		const fileReadIndices = this.getPossibleDuplicateFileReads(apiMessages, startFromIndex)
+		return this.applyFileReadContextHistoryUpdates(fileReadIndices, timestamp)
+	}
+
+	/**
+	 * generate a mapping from unique files (based on read_file tool) to their outer index position(s)
+	 */
+	private getPossibleDuplicateFileReads(
+		apiMessages: Anthropic.Messages.MessageParam[],
+		startFromIndex: number,
+	): Map<string, number[]> {
+		const fileReadIndices = new Map<string, number[]>() // for a unique file, all outer indices its read at
+
+		for (let i = startFromIndex; i < apiMessages.length; i++) {
+			// for now we assume there's no need to check if we've already adjusted this message
+			if (this.contextHistoryUpdates.has(i)) {
+				continue
+			}
+
+			const message = apiMessages[i]
+			if (message.role === "user" && Array.isArray(message.content) && message.content.length > 0) {
+				const firstBlock = message.content[0]
+				if (firstBlock.type === "text") {
+					const match = firstBlock.text.match(/^\[read_file for '([^']+)'\] Result:$/)
+					if (match) {
+						const filePath = match[1]
+						const indices = fileReadIndices.get(filePath) || []
+						indices.push(i)
+						fileReadIndices.set(filePath, indices)
+					}
+				}
+			}
+		}
+
+		return fileReadIndices
+	}
+
+	/**
+	 * alter all occurences of file read operations to indicate they occured, and latest should be referenced
+	 */
+	private applyFileReadContextHistoryUpdates(fileReadIndices: Map<string, number[]>, timestamp: number): boolean {
+		let didUpdate = false
+
+		for (const indices of fileReadIndices.values()) {
+			// Only process if there are multiple reads of the same file
+			if (indices.length > 1) {
+				// Process all but the last index, as we will keep that instance of the file read
+				for (let i = 0; i < indices.length - 1; i++) {
+					const messageIndex = indices[i]
+
+					let innerMap = this.contextHistoryUpdates.get(messageIndex)
+					if (!innerMap) {
+						innerMap = new Map<number, ContextUpdate[]>()
+						this.contextHistoryUpdates.set(messageIndex, innerMap)
+					}
+
+					// block index for file reads from read_file tool is 1
+					const blockIndex = 1
+
+					const updates = innerMap.get(blockIndex) || []
+
+					updates.push([timestamp, "text", [formatResponse.duplicateFileReadNotice()]])
+
+					innerMap.set(blockIndex, updates)
+
+					didUpdate = true
+				}
+			}
+		}
+
+		return didUpdate
 	}
 }
