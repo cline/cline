@@ -15,7 +15,12 @@ let registeredTabChangeCallback: (() => Promise<void>) | null = null
 // Mock workspace path
 jest.mock("../../../utils/path", () => ({
 	getWorkspacePath: jest.fn().mockReturnValue("/test/workspace"),
-	toRelativePath: jest.fn((path, cwd) => path.replace(`${cwd}/`, "")),
+	toRelativePath: jest.fn((path, cwd) => {
+		// Simple mock that preserves the original behavior for tests
+		const relativePath = path.replace(`${cwd}/`, "")
+		// Add trailing slash if original path had one
+		return path.endsWith("/") ? relativePath + "/" : relativePath
+	}),
 }))
 
 // Mock watcher - must be defined after mockDispose but before jest.mock("vscode")

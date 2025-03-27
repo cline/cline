@@ -70,10 +70,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			currentApiConfigName,
 			listApiConfigMeta,
 			customModes,
-			cwd,
+			cwd, 
+			osInfo,
 			pinnedApiConfigs,
 			togglePinnedApiConfig,
-		} = useExtensionState()
+		} =
+			useExtensionState()
 
 		// Find the ID and display text for the currently selected API configuration
 		const { currentConfigId, displayName } = useMemo(() => {
@@ -187,7 +189,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					.filter((tab) => tab.path)
 					.map((tab) => ({
 						type: ContextMenuOptionType.OpenedFile,
-						value: "/" + tab.path,
+						value: tab.path,
 					})),
 				...filePaths
 					.map((file) => "/" + file)
@@ -307,6 +309,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								queryItems,
 								fileSearchResults,
 								getAllModes(customModes),
+								osInfo,
 							)
 							const optionsLength = options.length
 
@@ -343,6 +346,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							queryItems,
 							fileSearchResults,
 							getAllModes(customModes),
+							osInfo,
 						)[selectedMenuIndex]
 						if (
 							selectedOption &&
@@ -398,19 +402,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 			},
 			[
-				onSend,
 				showContextMenu,
-				searchQuery,
 				selectedMenuIndex,
-				handleMentionSelect,
+				searchQuery,
 				selectedType,
+				queryItems,
+				fileSearchResults,
+				customModes,
+				osInfo,
+				handleMentionSelect,
+				onSend,
 				inputValue,
 				cursorPosition,
-				setInputValue,
 				justDeletedSpaceAfterMention,
-				queryItems,
-				customModes,
-				fileSearchResults,
+				setInputValue,
 			],
 		)
 
@@ -624,7 +629,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						for (let i = 0; i < lines.length; i++) {
 							const line = lines[i]
 							// Convert each path to a mention-friendly format
-							const mentionText = convertToMentionPath(line, cwd)
+							const mentionText = convertToMentionPath(line, cwd, osInfo)
 							newValue += mentionText
 							totalLength += mentionText.length
 
@@ -691,16 +696,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 			},
 			[
-				cursorPosition,
-				cwd,
-				inputValue,
-				setInputValue,
-				setCursorPosition,
-				setIntendedCursorPosition,
 				textAreaDisabled,
+				inputValue,
+				cursorPosition,
+				setInputValue,
+				cwd,
+				osInfo,
 				shouldDisableImages,
-				setSelectedImages,
 				t,
+				setSelectedImages,
 			],
 		)
 
@@ -786,6 +790,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									modes={getAllModes(customModes)}
 									loading={searchLoading}
 									dynamicSearchResults={fileSearchResults}
+									os={osInfo}
 								/>
 							</div>
 						)}

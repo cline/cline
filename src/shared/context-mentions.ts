@@ -1,57 +1,90 @@
 /*
-Mention regex:
-- **Purpose**: 
-  - To identify and highlight specific mentions in text that start with '@'. 
-  - These mentions can be file paths, URLs, or the exact word 'problems'.
-  - Ensures that trailing punctuation marks (like commas, periods, etc.) are not included in the match, allowing punctuation to follow the mention without being part of it.
-
 - **Regex Breakdown**:
-  - `/@`: 
-	- **@**: The mention must start with the '@' symbol.
-  
-  - `((?:\/|\w+:\/\/)[^\s]+?|problems\b|git-changes\b)`:
-	- **Capturing Group (`(...)`)**: Captures the part of the string that matches one of the specified patterns.
-	- `(?:\/|\w+:\/\/)`: 
-	  - **Non-Capturing Group (`(?:...)`)**: Groups the alternatives without capturing them for back-referencing.
-	  - `\/`: 
-		- **Slash (`/`)**: Indicates that the mention is a file or folder path starting with a '/'.
-	  - `|`: Logical OR.
-	  - `\w+:\/\/`: 
-		- **Protocol (`\w+://`)**: Matches URLs that start with a word character sequence followed by '://', such as 'http://', 'https://', 'ftp://', etc.
-	- `[^\s]+?`: 
-	  - **Non-Whitespace Characters (`[^\s]+`)**: Matches one or more characters that are not whitespace.
-	  - **Non-Greedy (`+?`)**: Ensures the smallest possible match, preventing the inclusion of trailing punctuation.
-	- `|`: Logical OR.
-	- `problems\b`: 
-	  - **Exact Word ('problems')**: Matches the exact word 'problems'.
-	  - **Word Boundary (`\b`)**: Ensures that 'problems' is matched as a whole word and not as part of another word (e.g., 'problematic').
-		- `|`: Logical OR.
-    - `terminal\b`:
-      - **Exact Word ('terminal')**: Matches the exact word 'terminal'.
-      - **Word Boundary (`\b`)**: Ensures that 'terminal' is matched as a whole word and not as part of another word (e.g., 'terminals').
-  - `(?=[.,;:!?]?(?=[\s\r\n]|$))`:
-	- **Positive Lookahead (`(?=...)`)**: Ensures that the match is followed by specific patterns without including them in the match.
-	- `[.,;:!?]?`: 
-	  - **Optional Punctuation (`[.,;:!?]?`)**: Matches zero or one of the specified punctuation marks.
-	- `(?=[\s\r\n]|$)`: 
-	  - **Nested Positive Lookahead (`(?=[\s\r\n]|$)`)**: Ensures that the punctuation (if present) is followed by a whitespace character, a line break, or the end of the string.
-  
-- **Summary**:
-  - The regex effectively matches:
-	- Mentions that are file or folder paths starting with '/' and containing any non-whitespace characters (including periods within the path).
-	- URLs that start with a protocol (like 'http://') followed by any non-whitespace characters (including query parameters).
-	- The exact word 'problems'.
-	- The exact word 'git-changes'.
-    - The exact word 'terminal'.
-  - It ensures that any trailing punctuation marks (such as ',', '.', '!', etc.) are not included in the matched mention, allowing the punctuation to follow the mention naturally in the text.
 
-- **Global Regex**:
-  - `mentionRegexGlobal`: Creates a global version of the `mentionRegex` to find all matches within a given string.
+  1. **Pattern Components**:
+     - The regex is built from multiple patterns joined with OR (|) operators
+     - Each pattern handles a specific type of mention:
+       - Unix/Linux paths
+       - Windows paths with drive letters
+       - Windows relative paths
+       - Windows network shares
+       - URLs with protocols
+       - Git commit hashes
+       - Special keywords (problems, git-changes, terminal)
 
+  2. **Unix Path Pattern**:
+     - `(?:\\/|^)`: Starts with a forward slash or beginning of line
+     - `(?:[^\\/\\s\\\\]|\\\\[ \\t])+`: Path segment that can include escaped spaces
+     - `(?:\\/(?:[^\\/\\s\\\\]|\\\\[ \\t])+)*`: Additional path segments after slashes
+     - `\\/?`: Optional trailing slash
+
+  3. **Windows Path Pattern**:
+     - `[A-Za-z]:\\\\`: Drive letter followed by colon and double backslash
+     - `(?:(?:[^\\\\\\s/]+|\\/[ ])+`: Path segment that can include spaces escaped with forward slash
+     - `(?:\\\\(?:[^\\\\\\s/]+|\\/[ ])+)*)?`: Additional path segments after backslashes
+
+  4. **Windows Relative Path Pattern**:
+     - `(?:\\.{0,2}|[^\\\\\\s/]+)`: Path prefix that can be:
+       - Current directory (.)
+       - Parent directory (..)
+       - Any directory name not containing spaces, backslashes, or forward slashes
+     - `\\\\`: Backslash separator
+     - `(?:[^\\\\\\s/]+|\\\\[ \\t]|\\/[ ])+`: Path segment that can include spaces escaped with backslash or forward slash
+     - `(?:\\\\(?:[^\\\\\\s/]+|\\\\[ \\t]|\\/[ ])+)*`: Additional path segments after backslashes
+     - `\\\\?`: Optional trailing backslash
+
+  5. **Network Share Pattern**:
+     - `\\\\\\\\`: Double backslash (escaped) to start network path
+     - `[^\\\\\\s]+`: Server name
+     - `(?:\\\\(?:[^\\\\\\s/]+|\\/[ ])+)*`: Share name and additional path components
+     - `(?:\\\\)?`: Optional trailing backslash
+
+  6. **URL Pattern**:
+     - `\\w+:\/\/`: Protocol (http://, https://, etc.)
+     - `[^\\s]+`: Rest of the URL (non-whitespace characters)
+
+  7. **Git Hash Pattern**:
+     - `[a-zA-Z0-9]{7,40}\\b`: 7-40 alphanumeric characters followed by word boundary
+
+  8. **Special Keywords Pattern**:
+     - `problems\\b`, `git-changes\\b`, `terminal\\b`: Exact word matches with word boundaries
+
+  9. **Termination Logic**:
+     - `(?=[.,;:!?]?(?=[\\s\\r\\n]|$))`: Positive lookahead that:
+       - Allows an optional punctuation mark after the mention
+       - Ensures the mention (and optional punctuation) is followed by whitespace or end of string
+
+- **Behavior Summary**:
+  - Matches @-prefixed mentions
+  - Handles different path formats across operating systems
+  - Supports escaped spaces in paths using OS-appropriate conventions
+  - Cleanly terminates at whitespace or end of string
+  - Excludes trailing punctuation from the match
+  - Creates both single-match and global-match regex objects
 */
-export const mentionRegex =
-	/@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|git-changes\b|terminal\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/
-export const mentionRegexGlobal = new RegExp(mentionRegex.source, "g")
+
+const mentionPatterns = [
+	// Unix paths with escaped spaces using backslash
+	"(?:\\/|^)(?:[^\\/\\s\\\\]|\\\\[ \\t])+(?:\\/(?:[^\\/\\s\\\\]|\\\\[ \\t])+)*\\/?",
+	// Windows paths with drive letters (C:\path) with support for escaped spaces using forward slash
+	"[A-Za-z]:\\\\(?:(?:[^\\\\\\s/]+|\\/[ ])+(?:\\\\(?:[^\\\\\\s/]+|\\/[ ])+)*)?",
+	// Windows relative paths (folder\file or .\folder\file) with support for escaped spaces
+	"(?:\\.{0,2}|[^\\\\\\s/]+)\\\\(?:[^\\\\\\s/]+|\\\\[ \\t]|\\/[ ])+(?:\\\\(?:[^\\\\\\s/]+|\\\\[ \\t]|\\/[ ])+)*\\\\?",
+	// Windows network shares (\\server\share) with support for escaped spaces using forward slash
+	"\\\\\\\\[^\\\\\\s]+(?:\\\\(?:[^\\\\\\s/]+|\\/[ ])+)*(?:\\\\)?",
+	// URLs with protocols (http://, https://, etc.)
+	"\\w+:\/\/[^\\s]+",
+	// Git hashes (7-40 alphanumeric characters)
+	"[a-zA-Z0-9]{7,40}\\b",
+	// Special keywords
+	"problems\\b",
+	"git-changes\\b",
+	"terminal\\b",
+]
+// Build the full regex pattern by joining the patterns with OR operator
+const mentionRegexPattern = `@(${mentionPatterns.join("|")})(?=[.,;:!?]?(?=[\\s\\r\\n]|$))`
+export const mentionRegex = new RegExp(mentionRegexPattern)
+export const mentionRegexGlobal = new RegExp(mentionRegexPattern, "g")
 
 export interface MentionSuggestion {
 	type: "file" | "folder" | "git" | "problems"

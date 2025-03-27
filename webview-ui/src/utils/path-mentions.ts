@@ -2,6 +2,8 @@
  * Utilities for handling path-related operations in mentions
  */
 
+import { formatPath } from "../../../src/shared/formatPath"
+
 /**
  * Converts an absolute path to a mention-friendly path
  * If the provided path starts with the current working directory,
@@ -11,16 +13,16 @@
  * @param cwd The current working directory
  * @returns A mention-friendly path
  */
-export function convertToMentionPath(path: string, cwd?: string): string {
-	const normalizedPath = path.replace(/\\/g, "/")
-	let normalizedCwd = cwd ? cwd.replace(/\\/g, "/") : ""
+export function convertToMentionPath(path: string, cwd?: string, os?: string): string {
+	const normalizedPath = formatPath(path, os)
+	let normalizedCwd = cwd ? formatPath(cwd, os) : ""
 
 	if (!normalizedCwd) {
 		return path
 	}
 
 	// Remove trailing slash from cwd if it exists
-	if (normalizedCwd.endsWith("/")) {
+	if ((os !== "win32" && normalizedCwd.endsWith("/")) || (os === "win32" && normalizedCwd.endsWith("\\"))) {
 		normalizedCwd = normalizedCwd.slice(0, -1)
 	}
 
@@ -31,7 +33,7 @@ export function convertToMentionPath(path: string, cwd?: string): string {
 	if (lowerPath.startsWith(lowerCwd)) {
 		const relativePath = normalizedPath.substring(normalizedCwd.length)
 		// Ensure there's a slash after the @ symbol when we create the mention path
-		return "@" + (relativePath.startsWith("/") ? relativePath : "/" + relativePath)
+		return "@" + formatPath(relativePath, os, false)
 	}
 
 	return path

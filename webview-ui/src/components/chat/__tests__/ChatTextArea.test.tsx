@@ -4,6 +4,7 @@ import { useExtensionState } from "../../../context/ExtensionStateContext"
 import { vscode } from "../../../utils/vscode"
 import { defaultModeSlug } from "../../../../../src/shared/modes"
 import * as pathMentions from "../../../utils/path-mentions"
+import { formatPath } from "../../../../../src/shared/formatPath"
 
 // Mock modules
 jest.mock("../../../utils/vscode", () => ({
@@ -16,11 +17,11 @@ jest.mock("../../../components/common/MarkdownBlock")
 jest.mock("../../../utils/path-mentions", () => ({
 	convertToMentionPath: jest.fn((path, cwd) => {
 		// Simple mock implementation that mimics the real function's behavior
-		if (cwd && path.toLowerCase().startsWith(cwd.toLowerCase())) {
+		if (path.startsWith(cwd)) {
 			const relativePath = path.substring(cwd.length)
-			return "@" + (relativePath.startsWith("/") ? relativePath : "/" + relativePath)
+			// Ensure there's a slash after the @ symbol when we create the mention path
+			return "@" + formatPath(relativePath, "unix", false)
 		}
-		return path
 	}),
 }))
 
@@ -67,6 +68,7 @@ describe("ChatTextArea", () => {
 			apiConfiguration: {
 				apiProvider: "anthropic",
 			},
+			osInfo: "unix",
 		})
 	})
 
@@ -192,6 +194,7 @@ describe("ChatTextArea", () => {
 				filePaths: [],
 				openedTabs: [],
 				cwd: mockCwd,
+				osInfo: "unix",
 			})
 			mockConvertToMentionPath.mockClear()
 		})
@@ -217,8 +220,8 @@ describe("ChatTextArea", () => {
 
 			// Verify convertToMentionPath was called for each file path
 			expect(mockConvertToMentionPath).toHaveBeenCalledTimes(2)
-			expect(mockConvertToMentionPath).toHaveBeenCalledWith("/Users/test/project/file1.js", mockCwd)
-			expect(mockConvertToMentionPath).toHaveBeenCalledWith("/Users/test/project/file2.js", mockCwd)
+			expect(mockConvertToMentionPath).toHaveBeenCalledWith("/Users/test/project/file1.js", mockCwd, "unix")
+			expect(mockConvertToMentionPath).toHaveBeenCalledWith("/Users/test/project/file2.js", mockCwd, "unix")
 
 			// Verify setInputValue was called with the correct value
 			// The mock implementation of convertToMentionPath will convert the paths to @/file1.js and @/file2.js
@@ -304,7 +307,7 @@ describe("ChatTextArea", () => {
 			})
 
 			// Verify convertToMentionPath was called with the long path
-			expect(mockConvertToMentionPath).toHaveBeenCalledWith(longPath, mockCwd)
+			expect(mockConvertToMentionPath).toHaveBeenCalledWith(longPath, mockCwd, "unix")
 
 			// The mock implementation will convert it to @/very/long/path/...
 			expect(setInputValue).toHaveBeenCalledWith(
@@ -339,10 +342,10 @@ describe("ChatTextArea", () => {
 
 			// Verify convertToMentionPath was called for each path
 			expect(mockConvertToMentionPath).toHaveBeenCalledTimes(4)
-			expect(mockConvertToMentionPath).toHaveBeenCalledWith(specialPath1, mockCwd)
-			expect(mockConvertToMentionPath).toHaveBeenCalledWith(specialPath2, mockCwd)
-			expect(mockConvertToMentionPath).toHaveBeenCalledWith(specialPath3, mockCwd)
-			expect(mockConvertToMentionPath).toHaveBeenCalledWith(specialPath4, mockCwd)
+			expect(mockConvertToMentionPath).toHaveBeenCalledWith(specialPath1, mockCwd, "unix")
+			expect(mockConvertToMentionPath).toHaveBeenCalledWith(specialPath2, mockCwd, "unix")
+			expect(mockConvertToMentionPath).toHaveBeenCalledWith(specialPath3, mockCwd, "unix")
+			expect(mockConvertToMentionPath).toHaveBeenCalledWith(specialPath4, mockCwd, "unix")
 
 			// Verify setInputValue was called with the correct value
 			expect(setInputValue).toHaveBeenCalledWith(
@@ -376,7 +379,7 @@ describe("ChatTextArea", () => {
 			})
 
 			// Verify convertToMentionPath was called with the outside path
-			expect(mockConvertToMentionPath).toHaveBeenCalledWith(outsidePath, mockCwd)
+			expect(mockConvertToMentionPath).toHaveBeenCalledWith(outsidePath, mockCwd, "unix")
 
 			// Verify setInputValue was called with the original path
 			expect(setInputValue).toHaveBeenCalledWith("/Users/other/project/file.js ")

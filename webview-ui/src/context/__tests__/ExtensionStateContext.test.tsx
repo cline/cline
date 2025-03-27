@@ -184,6 +184,7 @@ describe("mergeExtensionState", () => {
 	it("should correctly merge extension states", () => {
 		const baseState: ExtensionState = {
 			version: "",
+			osInfo: "unix",
 			mcpEnabled: false,
 			enableMcpServerCreation: false,
 			clineMessages: [],

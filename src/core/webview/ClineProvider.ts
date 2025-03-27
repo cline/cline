@@ -1198,7 +1198,10 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 						openFile(message.text!, message.values as { create?: boolean; content?: string })
 						break
 					case "openMention":
-						openMention(message.text)
+						{
+							const { osInfo } = (await this.getState()) || {}
+							openMention(message.text, osInfo)
+						}
 						break
 					case "checkpointDiff":
 						const result = checkoutDiffPayloadSchema.safeParse(message.payload)
@@ -2601,6 +2604,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
+			osInfo: os.platform() === "win32" ? "win32" : "unix",
 			apiConfiguration,
 			customInstructions,
 			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
@@ -2694,6 +2698,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		// Return the same structure as before
 		return {
 			apiConfiguration: providerSettings,
+			osInfo: os.platform() === "win32" ? "win32" : "unix",
 			lastShownAnnouncementId: stateValues.lastShownAnnouncementId,
 			customInstructions: stateValues.customInstructions,
 			alwaysAllowReadOnly: stateValues.alwaysAllowReadOnly ?? false,
