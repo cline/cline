@@ -4,7 +4,7 @@ run-name: Changeset Release ${{ github.actor != 'github-actions' && '- Create PR
 on:
     workflow_dispatch:
     pull_request:
-        types: [closed, opened, labeled]
+        types: [closed, opened]
 
 env:
     REPO_PATH: ${{ github.repository }}
@@ -12,6 +12,26 @@ env:
     NODE_VERSION: 20.18.1
 
 jobs:
+    # Job 0: Collect metadata from PR
+    changeset-pr-metadata:
+        if: github.event_name == 'pull_request' && github.event.action == 'opened'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Get PR metadata
+              id: pr-metadata
+              run: |
+                  echo "Collecting PR metadata..."
+                  echo "--------------------------------------------------------------------------------"
+                  echo "Event name: ${{ github.event_name }}"
+                  echo "Event action: ${{ github.event.action }}"
+                  echo "Actor: ${{ github.actor }}"
+                  echo "PR number: ${{ github.event.pull_request.number }}"
+                  echo "PR title: ${{ github.event.pull_request.title }}"
+                  echo "Head ref: ${{ github.event.pull_request.head.ref }}"
+                  echo "Head SHA: ${{ github.event.pull_request.head.sha }}"
+                  echo "Base ref: ${{ github.event.pull_request.base.ref }}"
+                  echo "Base SHA: ${{ github.event.pull_request.base.sha }}"
+
     # Job 1: Create version bump PR when changesets are merged to main
     changeset-pr-version-bump:
         if: >
