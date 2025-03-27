@@ -54,16 +54,12 @@ export class ConversationObservabilityService {
 		return apiConfiguration?.clineApiKey
 	}
 
-	public isOptedInToConversationTelemetry(): boolean {
-		// First check global telemetry level - telemetry should only be enabled when level is "all"
-		const telemetryLevel = vscode.workspace.getConfiguration("telemetry").get<string>("telemetryLevel", "all")
-		const isGlobalTelemetryEnabled = telemetryLevel === "all"
-
+	public isOptedInToConversationObservability(): boolean {
 		// User has to manually opt in to conversation telemetry in Advanced Settings
-		const isConversationTelemetryEnabled =
+		const isConversationObservabilityEnabled =
 			vscode.workspace.getConfiguration("cline").get<boolean>("conversationObservability") ?? false
 
-		return isGlobalTelemetryEnabled && isConversationTelemetryEnabled
+		return isConversationObservabilityEnabled
 	}
 
 	private async initializeTracer() {
@@ -76,7 +72,7 @@ export class ConversationObservabilityService {
 
 			const clineApiKey = await this.getClineApiKey()
 
-			console.log("[ConversationTelemetry] Initializing OpenTelemetry tracer...")
+			console.info("[ConversationObservability] Initializing OpenTelemetry tracer...")
 
 			// Configure the OTLP exporter
 			const headers: Record<string, string> = {
@@ -108,9 +104,9 @@ export class ConversationObservabilityService {
 			// Get a tracer
 			this.tracer = trace.getTracer("cline-conversation-tracer")
 
-			console.log("[ConversationTelemetry] OpenTelemetry tracer initialized successfully")
+			console.info("[ConversationObservability] OpenTelemetry tracer initialized successfully")
 		} catch (error) {
-			console.error("[ConversationTelemetry] Failed to initialize OpenTelemetry tracer:", error)
+			console.error("[ConversationObservability] Failed to initialize OpenTelemetry tracer:", error)
 		}
 	}
 
@@ -120,7 +116,7 @@ export class ConversationObservabilityService {
 	 */
 	public async captureMessage(taskId: string, message: TelemetryChatMessage, metadata: ConversationMetadata) {
 		// Do NOT capture message if user has not explicitly opted in
-		if (!this.isOptedInToConversationTelemetry()) {
+		if (!this.isOptedInToConversationObservability()) {
 			return
 		}
 
@@ -190,9 +186,9 @@ export class ConversationObservabilityService {
 			// End the span immediately since messages are discrete events
 			span.end(this.millisecondsToHrTime(timestamp)) // Convert to nanoseconds
 
-			console.log(`[ConversationTelemetry] Captured ${message.role} message for task ${taskId}`, { span })
+			console.info(`[ConversationObservability] Captured ${message.role} message for task ${taskId}`, { span })
 		} catch (error) {
-			console.error("[ConversationTelemetry] Error capturing message:", error)
+			console.error("[ConversationObservability] Error capturing message:", error)
 		}
 	}
 
@@ -254,7 +250,7 @@ export class ConversationObservabilityService {
 	 */
 	public async cleanupTask(taskId: string, conversationData: any): Promise<void> {
 		// Do NOT send data if user has not explicitly opted in
-		if (!this.isOptedInToConversationTelemetry()) {
+		if (!this.isOptedInToConversationObservability()) {
 			return
 		}
 
@@ -290,9 +286,9 @@ export class ConversationObservabilityService {
 				throw new Error(`Failed to send cleanup data: ${response.status} ${response.statusText}`)
 			}
 
-			console.log(`[ConversationTelemetry] Cleanup data sent for task ${taskId}`)
+			console.info(`[ConversationObservability] Cleanup data sent for task ${taskId}`)
 		} catch (error) {
-			console.error("[ConversationTelemetry] Error sending cleanup data:", error)
+			console.error("[ConversationObservability] Error sending cleanup data:", error)
 		}
 	}
 

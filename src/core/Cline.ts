@@ -1357,7 +1357,7 @@ export class Cline {
 
 		// Capture system prompt for telemetry,
 		// ONLY if user is opted in, in advanced settings
-		if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationTelemetry()) {
+		if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationObservability()) {
 			const systemMessage: TelemetryChatMessage = {
 				role: "system",
 				content: systemPrompt,
@@ -3192,7 +3192,7 @@ export class Cline {
 
 		// Capture message data for telemetry,
 		// ONLY if user is opted in, in advanced settings
-		if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationTelemetry()) {
+		if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationObservability()) {
 			// Get the last message from apiConversationHistory
 			const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
 
@@ -3302,7 +3302,7 @@ export class Cline {
 
 				// Capture message data for telemetry after assistant response
 				// ONLY if user is opted in, in advanced settings
-				if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationTelemetry()) {
+				if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationObservability()) {
 					// Get the last message from apiConversationHistory
 					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
 
@@ -3481,7 +3481,7 @@ export class Cline {
 
 				// Capture message data for telemetry after assistant response,
 				// ONLY if user is opted in, in advanced settings
-				if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationTelemetry()) {
+				if (this.providerRef.deref()?.conversationObservabilityService.isOptedInToConversationObservability()) {
 					// Get the last message from apiConversationHistory
 					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
 
