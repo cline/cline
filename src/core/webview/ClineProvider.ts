@@ -710,6 +710,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "getLatestState":
 						await this.postStateToWebview()
 						break
+					case "toggleActiveConversation":
+						await this.toggleActiveConversation()
+						break
 					case "accountLoginClicked": {
 						// Generate nonce for state validation
 						const nonce = crypto.randomBytes(32).toString("hex")
@@ -2376,6 +2379,105 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	async getSecret(key: SecretKey) {
 		return await this.context.secrets.get(key)
+	}
+
+	/**
+	 * Toggles the active conversation status for the current task.
+	 * Cycles through: Inactive → Active A → Active B → Inactive
+	 */
+	async toggleActiveConversation() {
+		try {
+			if (!this.cline?.taskId) {
+				console.error("Cannot toggle active conversation: No active task")
+				return
+			}
+
+			// Define the interface for active task
+			interface ActiveTask {
+				id: string;
+				label: string;
+				lastActivated: number;
+				source: string;
+				extensionType: string;
+			}
+
+			const taskId = this.cline.taskId
+			const activeTasksFilePath = path.join(
+				this.context.globalStorageUri.fsPath,
+				"active_tasks.json"
+			)
+
+			// Ensure the directory exists
+			await fs.mkdir(path.dirname(activeTasksFilePath), { recursive: true })
+
+			// Read the current active tasks file or create a new one
+			let activeTasksData: { activeTasks: ActiveTask[] } = { activeTasks: [] }
+			if (await fileExistsAtPath(activeTasksFilePath)) {
+				try {
+					const fileContent = await fs.readFile(activeTasksFilePath, "utf8")
+					activeTasksData = JSON.parse(fileContent)
+				} catch (error) {
+					console.error("Error parsing active_tasks.json:", error)
+				}
+			}
+
+			// Find the current task in the active tasks list
+			const activeTasks: ActiveTask[] = activeTasksData.activeTasks || []
+			const currentTaskIndex = activeTasks.findIndex(task => task.id === taskId)
+			const currentTime = Date.now()
+
+			// Determine the new label based on the current state
+			let newLabel: string | null = null
+			
+			if (currentTaskIndex === -1) {
+				// Task is not active, make it Active A
+				newLabel = "A"
+				
+				// If there's already an Active A task, demote it to Active B
+				const activeAIndex = activeTasks.findIndex(task => task.label === "A")
+				if (activeAIndex !== -1) {
+					activeTasks[activeAIndex].label = "B"
+					activeTasks[activeAIndex].lastActivated = currentTime
+				}
+				
+				// Add the new Active A task
+				activeTasks.push({
+					id: taskId,
+					label: newLabel,
+					lastActivated: currentTime,
+					source: "cline",
+					extensionType: "cline"
+				})
+			} else {
+				// Task is already active, cycle through states
+				const currentLabel = activeTasks[currentTaskIndex].label
+				
+				if (currentLabel === "A") {
+					// A → B
+					newLabel = "B"
+					activeTasks[currentTaskIndex].label = newLabel
+					activeTasks[currentTaskIndex].lastActivated = currentTime
+				} else if (currentLabel === "B") {
+					// B → Inactive (remove from list)
+					activeTasks.splice(currentTaskIndex, 1)
+				}
+			}
+			
+			// Update the active tasks file
+			activeTasksData.activeTasks = activeTasks
+			await fs.writeFile(activeTasksFilePath, JSON.stringify(activeTasksData, null, 2), "utf8")
+			
+			// Send the updated active label to the webview
+			await this.postMessageToWebview({
+				type: "activeConversationStatus",
+				activeLabel: newLabel
+			})
+			
+			console.log(`Toggled active conversation for task ${taskId} to ${newLabel || "Inactive"}`)
+		} catch (error) {
+			console.error("Error toggling active conversation:", error)
+			vscode.window.showErrorMessage("Failed to toggle active conversation status")
+		}
 	}
 
 	// Open Graph Data
