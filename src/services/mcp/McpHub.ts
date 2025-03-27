@@ -701,7 +701,7 @@ export class McpHub {
 	public async updateServerTimeout(serverName: string, timeout: number): Promise<void> {
 		try {
 			// Validate timeout against schema
-			const setConfigResult = StdioConfigSchema.shape.timeout.safeParse(timeout)
+			const setConfigResult = BaseConfigSchema.shape.timeout.safeParse(timeout)
 			if (!setConfigResult.success) {
 				throw new Error(`Invalid timeout value: ${timeout}. Must be at minimum ${MIN_MCP_TIMEOUT_SECONDS} seconds.`)
 			}
