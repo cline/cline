@@ -1008,9 +1008,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							// Mark the advice as read
 							await this.markAdviceAsRead(message.advice.id)
 							
-							// Add the advice content to the chat input
+							// Send the advice content directly to chat
 							await this.postMessageToWebview({
-								type: "addToInput",
+								type: "invoke",
+								invoke: "sendMessage",
 								text: message.advice.content
 							})
 						}
