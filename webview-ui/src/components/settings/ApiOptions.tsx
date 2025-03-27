@@ -45,6 +45,7 @@ import {
 	xaiModels,
 	sambanovaModels,
 	sambanovaDefaultModelId,
+	arkModels,
 } from "../../../../src/shared/api"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -212,6 +213,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="asksage">AskSage</VSCodeOption>
 					<VSCodeOption value="xai">X AI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
+					<VSCodeOption value="ark">ARK</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 
@@ -1359,6 +1361,62 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
+			{selectedProvider === "ark" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.arkEndpoint || ""}
+						style={{ width: "100%" }}
+						type="url"
+						onInput={handleInputChange("arkEndpoint")}
+						placeholder="https://ark.cn-beijing.volces.com/api/v3">
+						<span style={{ fontWeight: 500 }}>Ark API Endpoint</span>
+					</VSCodeTextField>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: 3,
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						<VSCodeLink href="https://console.volcengine.com/" style={{ display: "inline", fontSize: "inherit" }}>
+							Volcano
+						</VSCodeLink>{" "}
+						Ark is a large model development platform. Before using it, you need
+						<VSCodeLink
+							href="https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint"
+							style={{ display: "inline", fontSize: "inherit" }}>
+							Create Inference Endpoint
+						</VSCodeLink>{" "}
+						or
+						<VSCodeLink
+							href="https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement"
+							style={{ display: "inline", fontSize: "inherit" }}>
+							Active Model
+						</VSCodeLink>{" "}
+						and
+						<VSCodeLink
+							href="https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey"
+							style={{ display: "inline", fontSize: "inherit" }}>
+							Get Api Key
+						</VSCodeLink>
+					</p>
+					<VSCodeTextField
+						value={apiConfiguration?.arkApiKey || ""}
+						style={{ width: "100%" }}
+						type="password"
+						onInput={handleInputChange("arkApiKey")}
+						placeholder="Enter API Key...">
+						<span style={{ fontWeight: 500 }}>Ark API Key</span>
+					</VSCodeTextField>
+					<VSCodeTextField
+						value={apiConfiguration?.apiModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("apiModelId")}
+						placeholder={"Enter Model ID or Endpoint..."}>
+						<span style={{ fontWeight: 500 }}>Model ID or Endpoint</span>
+					</VSCodeTextField>
+				</div>
+			)}
+
 			{apiErrorMessage && (
 				<p
 					style={{
@@ -1449,6 +1507,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							{selectedProvider === "asksage" && createDropdown(askSageModels)}
 							{selectedProvider === "xai" && createDropdown(xaiModels)}
 							{selectedProvider === "sambanova" && createDropdown(sambanovaModels)}
+							{selectedProvider === "ark" && createDropdown(arkModels)}
 						</DropdownContainer>
 
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
@@ -1723,6 +1782,15 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(xaiModels, xaiDefaultModelId)
 		case "sambanova":
 			return getProviderData(sambanovaModels, sambanovaDefaultModelId)
+		case "ark":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.apiModelId || "",
+				selectedModelInfo:
+					apiConfiguration?.apiModelId && apiConfiguration.apiModelId in arkModels
+						? arkModels[apiConfiguration.apiModelId as keyof typeof arkModels]
+						: openAiModelInfoSaneDefaults,
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

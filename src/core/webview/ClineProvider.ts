@@ -68,6 +68,7 @@ type SecretKey =
 	| "asksageApiKey"
 	| "xaiApiKey"
 	| "sambanovaApiKey"
+	| "arkApiKey"
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -115,6 +116,7 @@ type GlobalStateKey =
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
+	| "arkEndpoint"
 
 export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -1170,6 +1172,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			thinkingBudgetTokens,
 			clineApiKey,
 			sambanovaApiKey,
+			arkEndpoint,
+			arkApiKey,
 		} = apiConfiguration
 		await this.updateGlobalState("apiProvider", apiProvider)
 		await this.updateGlobalState("apiModelId", apiModelId)
@@ -1220,6 +1224,8 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.updateGlobalState("thinkingBudgetTokens", thinkingBudgetTokens)
 		await this.storeSecret("clineApiKey", clineApiKey)
 		await this.storeSecret("sambanovaApiKey", sambanovaApiKey)
+		await this.updateGlobalState("arkEndpoint", arkEndpoint)
+		await this.storeSecret("arkApiKey", arkApiKey)
 		if (this.cline) {
 			this.cline.api = buildApiHandler(apiConfiguration)
 		}
@@ -2147,6 +2153,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			thinkingBudgetTokens,
 			sambanovaApiKey,
 			planActSeparateModelsSettingRaw,
+			arkEndpoint,
+			arkApiKey,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -2211,6 +2219,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("thinkingBudgetTokens") as Promise<number | undefined>,
 			this.getSecret("sambanovaApiKey") as Promise<string | undefined>,
 			this.getGlobalState("planActSeparateModelsSetting") as Promise<boolean | undefined>,
+			this.getGlobalState("arkEndpoint") as Promise<string | undefined>,
+			this.getSecret("arkApiKey") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2303,6 +2313,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				asksageApiUrl,
 				xaiApiKey,
 				sambanovaApiKey,
+				arkEndpoint,
+				arkApiKey,
 			},
 			lastShownAnnouncementId,
 			customInstructions,
@@ -2451,6 +2463,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			"asksageApiKey",
 			"xaiApiKey",
 			"sambanovaApiKey",
+			"arkApiKey",
 		]
 		for (const key of secretKeys) {
 			await this.storeSecret(key, undefined)

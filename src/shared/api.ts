@@ -19,6 +19,7 @@ export type ApiProvider =
 	| "asksage"
 	| "xai"
 	| "sambanova"
+	| "ark"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -70,6 +71,8 @@ export interface ApiHandlerOptions {
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
 	sambanovaApiKey?: string
+	arkEndpoint?: string
+	arkApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -1416,5 +1419,19 @@ export const sambanovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.5,
 		outputPrice: 1.0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// ARK
+// https://www.volcengine.com/product/ark
+export type ArkModelId = keyof typeof arkModels
+export const arkModels = {
+	"doubao-1-5-vision-pro-32k-250115": {
+		maxTokens: 4096,
+		contextWindow: 12_288,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.25,
+		outputPrice: 0.65,
 	},
 } as const satisfies Record<string, ModelInfo>
