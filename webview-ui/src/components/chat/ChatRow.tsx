@@ -184,6 +184,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 		// For now, reset if the message timestamp changes.
 		return () => {
 			// Cleanup if needed, potentially reset retryAttempted if component unmounts or message changes significantly
+			setRetryAttempted(false)
 		}
 	}, [apiRequestFailedMessage, apiReqStreamingFailedMessage, isLast, message.ts, retryAttempted])
 
