@@ -1,6 +1,7 @@
 out
 dist
 node_modules
+package-lock.json
 tmp
 .vscode-test/
 *.vsix
