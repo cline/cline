@@ -18,5 +18,25 @@ echo "✅ All checks passed!"
 
 # Exclude package-lock files
 echo "Excluding Package-lock Files"
-(git diff --name-only --cached | grep -q '^package-lock.json$' && git restore --staged package-lock.json && git update-index --skip-worktree package-lock.json) || true
-(git diff --name-only --cached | grep -q '^webview-ui/package-lock.json$' && git restore --staged webview-ui/package-lock.json && git update-index --skip-worktree webview-ui/package-lock.json) || true
+
+# Define the list of package-lock files to check and potentially unstage
+PACKAGE_LOCK_FILES=(
+    "package-lock.json"
+    "webview-ui/package-lock.json"
+)
+
+# Loop through each file path
+for file_path in "${PACKAGE_LOCK_FILES[@]}"; do
+    # Check if the file is currently staged using git diff and grep
+    # The -q flag makes grep quiet (no output), it just sets the exit status
+    # The ^...$ ensures we match the exact filename
+    if git diff --name-only --cached | grep -q "^${file_path}$"; then
+        # If the file was found in the staged changes, unstage it
+        # The '&&' ensures the echo only happens if 'git restore' succeeds
+        git restore --staged "$file_path" && echo "Removed $file_path from commit"
+    fi
+    # No '|| true' needed here; the 'if' statement handles the case where
+    # the file isn't staged, and the loop simply continues.
+done
+
+echo "Finished checking package-lock files."
