@@ -77,7 +77,7 @@ jobs:
                   echo "webview_coverage=$COVERAGE_PCT" >> $GITHUB_OUTPUT
                   echo "Webview coverage: $COVERAGE_PCT%"
 
-            # Save coverage reports as artifacts
+            # Save coverage reports as artifacts (workflow-scoped)
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
               with:
@@ -85,6 +85,7 @@ jobs:
                   path: |
                       extension_coverage.txt
                       webview-ui/webview_coverage.txt
+                  retention-period: workflow # Artifacts are automatically deleted when the workflow completes
 
     coverage:
         needs: test
