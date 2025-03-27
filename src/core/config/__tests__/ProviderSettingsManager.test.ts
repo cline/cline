@@ -2,7 +2,7 @@
 
 import { ExtensionContext } from "vscode"
 
-import { ProviderSettings } from "../../../exports/roo-code"
+import { ProviderSettings } from "../../../schemas"
 import { ProviderSettingsManager, ProviderProfiles } from "../ProviderSettingsManager"
 
 // Mock VSCode ExtensionContext

@@ -1,7 +1,3 @@
-import { CheckpointStorage } from "../exports/roo-code"
+import { CheckpointStorage, isCheckpointStorage } from "../schemas"
 
-export type { CheckpointStorage }
-
-export const isCheckpointStorage = (value: string): value is CheckpointStorage => {
-	return value === "task" || value === "workspace"
-}
+export { type CheckpointStorage, isCheckpointStorage }

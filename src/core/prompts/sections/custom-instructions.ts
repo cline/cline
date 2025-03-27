@@ -1,8 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 
-import { LANGUAGES } from "../../../shared/language"
-import { isLanguage } from "../../../shared/globalState"
+import { LANGUAGES, isLanguage } from "../../../shared/language"
 
 async function safeReadFile(filePath: string): Promise<string> {
 	try {

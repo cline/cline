@@ -1,14 +1,23 @@
-import { ApiConfiguration, ModelInfo } from "./api"
-import { HistoryItem } from "./HistoryItem"
+import {
+	ModelInfo,
+	GlobalSettings,
+	ApiConfigMeta,
+	ProviderSettings as ApiConfiguration,
+	HistoryItem,
+	ModeConfig,
+	CheckpointStorage,
+	TelemetrySetting,
+	ExperimentId,
+	ClineAsk,
+	ClineSay,
+	ToolProgressStatus,
+	ClineMessage,
+} from "../schemas"
 import { McpServer } from "./mcp"
 import { GitCommit } from "../utils/git"
-import { Mode, ModeConfig } from "./modes"
-import { ExperimentId } from "./experiments"
-import { CheckpointStorage } from "./checkpoints"
-import { TelemetrySetting } from "./TelemetrySetting"
-import type { GlobalSettings, ApiConfigMeta, ClineMessage, ClineAsk, ClineSay } from "../exports/roo-code"
+import { Mode } from "./modes"
 
-export type { ApiConfigMeta }
+export type { ApiConfigMeta, ToolProgressStatus }
 
 export interface LanguageModelChatSelector {
 	vendor?: string
@@ -261,8 +270,3 @@ export interface ClineApiReqInfo {
 }
 
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
-
-export type ToolProgressStatus = {
-	icon?: string
-	text?: string
-}

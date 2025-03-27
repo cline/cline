@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 
-import { GroupOptions, GroupEntry, ModeConfig, PromptComponent, CustomModePrompts } from "../exports/roo-code"
+import { GroupOptions, GroupEntry, ModeConfig, PromptComponent, CustomModePrompts } from "../schemas"
 import { TOOL_GROUPS, ToolGroup, ALWAYS_AVAILABLE_TOOLS } from "./tool-groups"
 import { addCustomInstructions } from "../core/prompts/sections/custom-instructions"
 

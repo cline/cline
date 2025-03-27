@@ -1,4 +1,4 @@
-import type { ToolGroup } from "../exports/roo-code"
+import type { ToolGroup } from "../schemas"
 
 // Define tool group configuration
 export type ToolGroupConfig = {

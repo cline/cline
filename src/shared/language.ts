@@ -1,7 +1,6 @@
-import { type Language } from "../exports/roo-code"
-import { isLanguage } from "./globalState"
+import { type Language, isLanguage } from "../schemas"
 
-export type { Language }
+export { type Language, isLanguage }
 
 /**
  * Language name mapping from ISO codes to full language names

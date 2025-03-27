@@ -1,9 +1,8 @@
 import { ExtensionContext } from "vscode"
 import { z } from "zod"
 
-import { providerSettingsSchema } from "../../shared/globalState"
+import { providerSettingsSchema, ApiConfigMeta } from "../../schemas"
 import { Mode } from "../../shared/modes"
-import { ApiConfigMeta } from "../../shared/ExtensionMessage"
 
 const providerSettingsWithIdSchema = providerSettingsSchema.extend({ id: z.string().optional() })
 

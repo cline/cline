@@ -1,16 +1,12 @@
+import * as vscode from "vscode"
+
 import { SYSTEM_PROMPT } from "../system"
 import { McpHub } from "../../../services/mcp/McpHub"
-import { McpServer } from "../../../shared/mcp"
 import { ClineProvider } from "../../../core/webview/ClineProvider"
 import { SearchReplaceDiffStrategy } from "../../../core/diff/strategies/search-replace"
-import * as vscode from "vscode"
-import fs from "fs/promises"
-import os from "os"
-import { defaultModeSlug, modes, Mode, isToolAllowedForMode } from "../../../shared/modes"
-// Import path utils to get access to toPosix string extension
-import "../../../utils/path"
+import { defaultModeSlug, modes, Mode, ModeConfig } from "../../../shared/modes"
+import "../../../utils/path" // Import path utils to get access to toPosix string extension.
 import { addCustomInstructions } from "../sections/custom-instructions"
-import * as modesSection from "../sections/modes"
 import { EXPERIMENT_IDS } from "../../../shared/experiments"
 
 // Mock the sections
@@ -386,7 +382,8 @@ describe("SYSTEM_PROMPT", () => {
 
 	it("should include custom mode role definition at top and instructions at bottom", async () => {
 		const modeCustomInstructions = "Custom mode instructions"
-		const customModes = [
+
+		const customModes: ModeConfig[] = [
 			{
 				slug: "custom-mode",
 				name: "Custom Mode",

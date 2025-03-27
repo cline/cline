@@ -351,7 +351,8 @@
 		"clean:webview": "cd webview-ui && npm run clean",
 		"clean:e2e": "cd e2e && npm run clean",
 		"clean:benchmark": "cd benchmark && npm run clean",
-		"update-contributors": "node scripts/update-contributors.js"
+		"update-contributors": "node scripts/update-contributors.js",
+		"generate-types": "tsx scripts/generate-types.mts"
 	},
 	"dependencies": {
 		"@anthropic-ai/bedrock-sdk": "^0.10.2",

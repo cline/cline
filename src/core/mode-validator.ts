@@ -1,4 +1,4 @@
-import { Mode, isToolAllowedForMode, getModeConfig, ModeConfig, FileRestrictionError } from "../shared/modes"
+import { Mode, isToolAllowedForMode, ModeConfig } from "../shared/modes"
 import { ToolName } from "../shared/tool-groups"
 
 export { isToolAllowedForMode }

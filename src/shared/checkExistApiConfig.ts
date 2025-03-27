@@ -1,5 +1,4 @@
-import { ProviderSettings } from "../exports/roo-code"
-import { SECRET_STATE_KEYS } from "./globalState"
+import { SECRET_STATE_KEYS, ProviderSettings } from "../schemas"
 
 export function checkExistKey(config: ProviderSettings | undefined) {
 	if (!config) {

@@ -1,25 +1,27 @@
 import * as vscode from "vscode"
 
-import { logger } from "../../utils/logging"
-import type {
-	ProviderSettings,
-	RooCodeSettings,
-	RooCodeSettingsKey,
-	GlobalStateKey,
-	GlobalState,
-	SecretStateKey,
-	SecretState,
-	GlobalSettings,
-} from "../../exports/roo-code"
 import {
 	PROVIDER_SETTINGS_KEYS,
-	GLOBAL_STATE_KEYS,
-	SECRET_STATE_KEYS,
-	isSecretStateKey,
-	isPassThroughStateKey,
-	globalSettingsSchema,
+	ProviderSettings,
 	providerSettingsSchema,
-} from "../../shared/globalState"
+	GlobalSettings,
+	globalSettingsSchema,
+	RooCodeSettings,
+	SECRET_STATE_KEYS,
+	SecretState,
+	isSecretStateKey,
+	GLOBAL_STATE_KEYS,
+	GlobalState,
+} from "../../schemas"
+import { logger } from "../../utils/logging"
+
+type GlobalStateKey = keyof GlobalState
+type SecretStateKey = keyof SecretState
+type RooCodeSettingsKey = keyof RooCodeSettings
+
+const PASS_THROUGH_STATE_KEYS = ["taskHistory"]
+
+export const isPassThroughStateKey = (key: string) => PASS_THROUGH_STATE_KEYS.includes(key)
 
 const globalSettingsExportSchema = globalSettingsSchema.omit({
 	taskHistory: true,

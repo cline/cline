@@ -1,5 +1,4 @@
-import { ExperimentId } from "../exports/roo-code"
-
+import { ExperimentId } from "../schemas"
 import { AssertEqual, Equals, Keys, Values } from "../utils/type-fu"
 
 export type { ExperimentId }

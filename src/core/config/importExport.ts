@@ -5,7 +5,7 @@ import fs from "fs/promises"
 import * as vscode from "vscode"
 import { z } from "zod"
 
-import { globalSettingsSchema } from "../../shared/globalState"
+import { globalSettingsSchema } from "../../schemas"
 import { ProviderSettingsManager, providerProfilesSchema } from "./ProviderSettingsManager"
 import { ContextProxy } from "./ContextProxy"
 

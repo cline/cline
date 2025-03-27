@@ -1,3 +1,3 @@
-import type { HistoryItem } from "../exports/roo-code"
+import type { HistoryItem } from "../schemas"
 
 export type { HistoryItem }

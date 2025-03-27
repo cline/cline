@@ -6,10 +6,10 @@ import os from "os"
 
 import * as vscode from "vscode"
 
+import { ProviderName } from "../../../schemas"
 import { importSettings, exportSettings } from "../importExport"
 import { ProviderSettingsManager } from "../ProviderSettingsManager"
 import { ContextProxy } from "../ContextProxy"
-import { ProviderName } from "../../../exports/roo-code"
 
 // Mock VSCode modules
 jest.mock("vscode", () => ({

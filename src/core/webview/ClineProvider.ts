@@ -12,12 +12,12 @@ import * as vscode from "vscode"
 import {
 	CheckpointStorage,
 	GlobalState,
+	SecretState,
 	Language,
 	ProviderSettings,
 	RooCodeSettings,
-	GlobalStateKey,
-	SecretStateKey,
-} from "../../exports/roo-code"
+	ApiConfigMeta,
+} from "../../schemas"
 import { changeLanguage, t } from "../../i18n"
 import { setPanel } from "../../activate/registerCommands"
 import {
@@ -35,7 +35,7 @@ import { findLast } from "../../shared/array"
 import { supportPrompt } from "../../shared/support-prompt"
 import { GlobalFileNames } from "../../shared/globalFileNames"
 import { HistoryItem } from "../../shared/HistoryItem"
-import { ApiConfigMeta, ExtensionMessage } from "../../shared/ExtensionMessage"
+import { ExtensionMessage } from "../../shared/ExtensionMessage"
 import { checkoutDiffPayloadSchema, checkoutRestorePayloadSchema, WebviewMessage } from "../../shared/WebviewMessage"
 import { Mode, PromptComponent, defaultModeSlug, getModeBySlug, getGroupName } from "../../shared/modes"
 import { checkExistKey } from "../../shared/checkExistApiConfig"
@@ -2804,21 +2804,21 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 
 	// global
 
-	public async updateGlobalState<K extends GlobalStateKey>(key: K, value: GlobalState[K]) {
+	public async updateGlobalState<K extends keyof GlobalState>(key: K, value: GlobalState[K]) {
 		await this.contextProxy.setValue(key, value)
 	}
 
-	public getGlobalState<K extends GlobalStateKey>(key: K) {
+	public getGlobalState<K extends keyof GlobalState>(key: K) {
 		return this.contextProxy.getValue(key)
 	}
 
 	// secrets
 
-	public async storeSecret(key: SecretStateKey, value?: string) {
+	public async storeSecret(key: keyof SecretState, value?: string) {
 		await this.contextProxy.setValue(key, value)
 	}
 
-	private getSecret(key: SecretStateKey) {
+	private getSecret(key: keyof SecretState) {
 		return this.contextProxy.getValue(key)
 	}
 

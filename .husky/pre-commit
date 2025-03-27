@@ -12,4 +12,12 @@ else
   npx_cmd="npx"
 fi
 
+npm run generate-types
+
+if [ -n "$(git diff --name-only src/exports/roo-code.d.ts)" ]; then
+  echo "Error: There are unstaged changes to roo-code.d.ts after running 'npm run generate-types'."
+  echo "Please review and stage the changes before committing."
+  exit 1
+fi
+
 "$npx_cmd" lint-staged

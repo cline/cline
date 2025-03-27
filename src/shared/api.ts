@@ -1,4 +1,4 @@
-import { ModelInfo, ProviderName, ProviderSettings } from "../exports/roo-code"
+import { ModelInfo, ProviderName, ProviderSettings } from "../schemas"
 
 export type { ModelInfo, ProviderName as ApiProvider }
 
