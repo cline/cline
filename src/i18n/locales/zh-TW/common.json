@@ -44,6 +44,7 @@
 		"delete_api_config": "刪除API配置失敗",
 		"list_api_config": "獲取API配置列表失敗",
 		"update_server_timeout": "更新服務器超時設置失敗",
+		"failed_update_project_mcp": "更新項目MCP服務器失敗",
 		"create_mcp_json": "創建或打開 .roo/mcp.json 失敗：{{error}}",
 		"hmr_not_running": "本地開發服務器未運行，HMR將不起作用。請在啟動擴展前運行'npm run dev'以啟用HMR。",
 		"retrieve_current_mode": "從狀態中檢索當前模式失敗。",

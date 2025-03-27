@@ -7,7 +7,27 @@ import { ServerConfigSchema } from "../McpHub"
 const fs = require("fs/promises")
 const { McpHub } = require("../McpHub")
 
-jest.mock("vscode")
+jest.mock("vscode", () => ({
+	workspace: {
+		createFileSystemWatcher: jest.fn().mockReturnValue({
+			onDidChange: jest.fn(),
+			onDidCreate: jest.fn(),
+			onDidDelete: jest.fn(),
+			dispose: jest.fn(),
+		}),
+		onDidSaveTextDocument: jest.fn(),
+		onDidChangeWorkspaceFolders: jest.fn(),
+		workspaceFolders: [],
+	},
+	window: {
+		showErrorMessage: jest.fn(),
+		showInformationMessage: jest.fn(),
+		showWarningMessage: jest.fn(),
+	},
+	Disposable: {
+		from: jest.fn(),
+	},
+}))
 jest.mock("fs/promises")
 jest.mock("../../../core/webview/ClineProvider")
 
@@ -99,7 +119,7 @@ describe("McpHub", () => {
 			// Mock reading initial config
 			;(fs.readFile as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockConfig))
 
-			await mcpHub.toggleToolAlwaysAllow("test-server", "new-tool", true)
+			await mcpHub.toggleToolAlwaysAllow("test-server", "global", "new-tool", true)
 
 			// Verify the config was updated correctly
 			const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]
@@ -122,7 +142,7 @@ describe("McpHub", () => {
 			// Mock reading initial config
 			;(fs.readFile as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockConfig))
 
-			await mcpHub.toggleToolAlwaysAllow("test-server", "existing-tool", false)
+			await mcpHub.toggleToolAlwaysAllow("test-server", "global", "existing-tool", false)
 
 			// Verify the config was updated correctly
 			const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]
@@ -144,7 +164,7 @@ describe("McpHub", () => {
 			// Mock reading initial config
 			;(fs.readFile as jest.Mock).mockResolvedValueOnce(JSON.stringify(mockConfig))
 
-			await mcpHub.toggleToolAlwaysAllow("test-server", "new-tool", true)
+			await mcpHub.toggleToolAlwaysAllow("test-server", "global", "new-tool", true)
 
 			// Verify the config was updated with initialized alwaysAllow
 			const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]

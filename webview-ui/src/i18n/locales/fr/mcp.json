@@ -10,7 +10,8 @@
 		"title": "Activer la création de serveurs MCP",
 		"description": "Lorsqu'activé, Roo peut vous aider à créer de nouveaux serveurs MCP via des commandes comme \"ajouter un nouvel outil pour...\". Si vous n'avez pas besoin de créer des serveurs MCP, vous pouvez désactiver cette option pour réduire l'utilisation de tokens par Roo."
 	},
-	"editSettings": "Modifier les paramètres MCP",
+	"editGlobalMCP": "Modifier MCP Global",
+	"editProjectMCP": "Modifier MCP du Projet",
 	"tool": {
 		"alwaysAllow": "Toujours autoriser",
 		"parameters": "Paramètres",

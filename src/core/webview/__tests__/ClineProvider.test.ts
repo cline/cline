@@ -2061,6 +2061,130 @@ describe("ClineProvider", () => {
 	})
 })
 
+describe("Project MCP Settings", () => {
+	let provider: ClineProvider
+	let mockContext: vscode.ExtensionContext
+	let mockOutputChannel: vscode.OutputChannel
+	let mockWebviewView: vscode.WebviewView
+	let mockPostMessage: jest.Mock
+
+	beforeEach(() => {
+		jest.clearAllMocks()
+
+		mockContext = {
+			extensionPath: "/test/path",
+			extensionUri: {} as vscode.Uri,
+			globalState: {
+				get: jest.fn(),
+				update: jest.fn(),
+				keys: jest.fn().mockReturnValue([]),
+			},
+			secrets: {
+				get: jest.fn(),
+				store: jest.fn(),
+				delete: jest.fn(),
+			},
+			subscriptions: [],
+			extension: {
+				packageJSON: { version: "1.0.0" },
+			},
+			globalStorageUri: {
+				fsPath: "/test/storage/path",
+			},
+		} as unknown as vscode.ExtensionContext
+
+		mockOutputChannel = {
+			appendLine: jest.fn(),
+			clear: jest.fn(),
+			dispose: jest.fn(),
+		} as unknown as vscode.OutputChannel
+
+		mockPostMessage = jest.fn()
+		mockWebviewView = {
+			webview: {
+				postMessage: mockPostMessage,
+				html: "",
+				options: {},
+				onDidReceiveMessage: jest.fn(),
+				asWebviewUri: jest.fn(),
+			},
+			visible: true,
+			onDidDispose: jest.fn(),
+			onDidChangeVisibility: jest.fn(),
+		} as unknown as vscode.WebviewView
+
+		provider = new ClineProvider(mockContext, mockOutputChannel)
+	})
+
+	test("handles openProjectMcpSettings message", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+		// Mock workspace folders
+		;(vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: "/test/workspace" } }]
+
+		// Mock fs functions
+		const fs = require("fs/promises")
+		fs.mkdir.mockResolvedValue(undefined)
+		fs.writeFile.mockResolvedValue(undefined)
+
+		// Trigger openProjectMcpSettings
+		await messageHandler({
+			type: "openProjectMcpSettings",
+		})
+
+		// Verify directory was created
+		expect(fs.mkdir).toHaveBeenCalledWith(
+			expect.stringContaining(".roo"),
+			expect.objectContaining({ recursive: true }),
+		)
+
+		// Verify file was created with default content
+		expect(fs.writeFile).toHaveBeenCalledWith(
+			expect.stringContaining("mcp.json"),
+			JSON.stringify({ mcpServers: {} }, null, 2),
+		)
+	})
+
+	test("handles openProjectMcpSettings when workspace is not open", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+		// Mock no workspace folders
+		;(vscode.workspace as any).workspaceFolders = []
+
+		// Trigger openProjectMcpSettings
+		await messageHandler({
+			type: "openProjectMcpSettings",
+		})
+
+		// Verify error message was shown
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith("Please open a project folder first")
+	})
+
+	test("handles openProjectMcpSettings file creation error", async () => {
+		await provider.resolveWebviewView(mockWebviewView)
+		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
+
+		// Mock workspace folders
+		;(vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: "/test/workspace" } }]
+
+		// Mock fs functions to fail
+		const fs = require("fs/promises")
+		fs.mkdir.mockRejectedValue(new Error("Failed to create directory"))
+
+		// Trigger openProjectMcpSettings
+		await messageHandler({
+			type: "openProjectMcpSettings",
+		})
+
+		// Verify error message was shown
+		expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+			expect.stringContaining("Failed to create or open .roo/mcp.json"),
+		)
+	})
+})
+
 describe("ContextProxy integration", () => {
 	let provider: ClineProvider
 	let mockContext: vscode.ExtensionContext

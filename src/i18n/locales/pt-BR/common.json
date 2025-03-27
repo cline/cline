@@ -48,6 +48,7 @@
 		"delete_api_config": "Falha ao excluir a configuração da API",
 		"list_api_config": "Falha ao obter a lista de configurações da API",
 		"update_server_timeout": "Falha ao atualizar o tempo limite do servidor",
+		"failed_update_project_mcp": "Falha ao atualizar os servidores MCP do projeto",
 		"create_mcp_json": "Falha ao criar ou abrir .roo/mcp.json: {{error}}",
 		"hmr_not_running": "O servidor de desenvolvimento local não está em execução, o HMR não funcionará. Por favor, execute 'npm run dev' antes de iniciar a extensão para habilitar o HMR.",
 		"retrieve_current_mode": "Erro ao recuperar o modo atual do estado.",

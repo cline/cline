@@ -83,6 +83,7 @@ describe("McpToolRow", () => {
 			serverName: "test-server",
 			toolName: "test-tool",
 			alwaysAllow: true,
+			source: "global",
 		})
 	})
 

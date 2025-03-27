@@ -44,6 +44,7 @@
 		"delete_api_config": "API कॉन्फ़िगरेशन हटाने में विफल",
 		"list_api_config": "API कॉन्फ़िगरेशन की सूची प्राप्त करने में विफल",
 		"update_server_timeout": "सर्वर टाइमआउट अपडेट करने में विफल",
+		"failed_update_project_mcp": "प्रोजेक्ट MCP सर्वर अपडेट करने में विफल",
 		"create_mcp_json": ".roo/mcp.json बनाने या खोलने में विफल: {{error}}",
 		"hmr_not_running": "स्थानीय विकास सर्वर चल नहीं रहा है, HMR काम नहीं करेगा। कृपया HMR सक्षम करने के लिए एक्सटेंशन लॉन्च करने से पहले 'npm run dev' चलाएँ।",
 		"retrieve_current_mode": "स्टेट से वर्तमान मोड प्राप्त करने में त्रुटि।",

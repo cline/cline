@@ -44,6 +44,7 @@
 		"delete_api_config": "Nie udało się usunąć konfiguracji API",
 		"list_api_config": "Nie udało się pobrać listy konfiguracji API",
 		"update_server_timeout": "Nie udało się zaktualizować limitu czasu serwera",
+		"failed_update_project_mcp": "Nie udało się zaktualizować serwerów MCP projektu",
 		"create_mcp_json": "Nie udało się utworzyć lub otworzyć .roo/mcp.json: {{error}}",
 		"hmr_not_running": "Lokalny serwer deweloperski nie jest uruchomiony, HMR nie będzie działać. Uruchom 'npm run dev' przed uruchomieniem rozszerzenia, aby włączyć HMR.",
 		"retrieve_current_mode": "Błąd podczas pobierania bieżącego trybu ze stanu.",

@@ -6,17 +6,18 @@ import { vscode } from "../../utils/vscode"
 type McpToolRowProps = {
 	tool: McpTool
 	serverName?: string
+	serverSource?: "global" | "project"
 	alwaysAllowMcp?: boolean
 }
 
-const McpToolRow = ({ tool, serverName, alwaysAllowMcp }: McpToolRowProps) => {
+const McpToolRow = ({ tool, serverName, serverSource, alwaysAllowMcp }: McpToolRowProps) => {
 	const { t } = useAppTranslation()
 	const handleAlwaysAllowChange = () => {
 		if (!serverName) return
-
 		vscode.postMessage({
 			type: "toggleToolAlwaysAllow",
 			serverName,
+			source: serverSource || "global",
 			toolName: tool.name,
 			alwaysAllow: !tool.alwaysAllow,
 		})

@@ -1249,6 +1249,28 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 						}
 						break
 					}
+					case "openProjectMcpSettings": {
+						if (!vscode.workspace.workspaceFolders?.length) {
+							vscode.window.showErrorMessage(t("common:no_workspace"))
+							return
+						}
+
+						const workspaceFolder = vscode.workspace.workspaceFolders[0]
+						const rooDir = path.join(workspaceFolder.uri.fsPath, ".roo")
+						const mcpPath = path.join(rooDir, "mcp.json")
+
+						try {
+							await fs.mkdir(rooDir, { recursive: true })
+							const exists = await fileExistsAtPath(mcpPath)
+							if (!exists) {
+								await fs.writeFile(mcpPath, JSON.stringify({ mcpServers: {} }, null, 2))
+							}
+							await openFile(mcpPath)
+						} catch (error) {
+							vscode.window.showErrorMessage(t("common:errors.create_mcp_json", { error: `${error}` }))
+						}
+						break
+					}
 					case "openCustomModesSettings": {
 						const customModesFilePath = await this.customModesManager.getCustomModesFilePath()
 						if (customModesFilePath) {
@@ -1263,7 +1285,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 
 						try {
 							this.outputChannel.appendLine(`Attempting to delete MCP server: ${message.serverName}`)
-							await this.mcpHub?.deleteServer(message.serverName)
+							await this.mcpHub?.deleteServer(message.serverName, message.source as "global" | "project")
 							this.outputChannel.appendLine(`Successfully deleted MCP server: ${message.serverName}`)
 						} catch (error) {
 							const errorMessage = error instanceof Error ? error.message : String(error)
@@ -1274,7 +1296,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 					}
 					case "restartMcpServer": {
 						try {
-							await this.mcpHub?.restartConnection(message.text!)
+							await this.mcpHub?.restartConnection(message.text!, message.source as "global" | "project")
 						} catch (error) {
 							this.outputChannel.appendLine(
 								`Failed to retry connection for ${message.text}: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
@@ -1284,11 +1306,14 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 					}
 					case "toggleToolAlwaysAllow": {
 						try {
-							await this.mcpHub?.toggleToolAlwaysAllow(
-								message.serverName!,
-								message.toolName!,
-								message.alwaysAllow!,
-							)
+							if (this.mcpHub) {
+								await this.mcpHub.toggleToolAlwaysAllow(
+									message.serverName!,
+									message.source as "global" | "project",
+									message.toolName!,
+									Boolean(message.alwaysAllow),
+								)
+							}
 						} catch (error) {
 							this.outputChannel.appendLine(
 								`Failed to toggle auto-approve for tool ${message.toolName}: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
@@ -1298,7 +1323,11 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 					}
 					case "toggleMcpServer": {
 						try {
-							await this.mcpHub?.toggleServerDisabled(message.serverName!, message.disabled!)
+							await this.mcpHub?.toggleServerDisabled(
+								message.serverName!,
+								message.disabled!,
+								message.source as "global" | "project",
+							)
 						} catch (error) {
 							this.outputChannel.appendLine(
 								`Failed to toggle MCP server ${message.serverName}: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
@@ -2018,7 +2047,11 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 					case "updateMcpTimeout":
 						if (message.serverName && typeof message.timeout === "number") {
 							try {
-								await this.mcpHub?.updateServerTimeout(message.serverName, message.timeout)
+								await this.mcpHub?.updateServerTimeout(
+									message.serverName,
+									message.timeout,
+									message.source as "global" | "project",
+								)
 							} catch (error) {
 								this.outputChannel.appendLine(
 									`Failed to update timeout for ${message.serverName}: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,

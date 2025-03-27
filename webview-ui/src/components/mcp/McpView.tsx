@@ -89,21 +89,34 @@ const McpView = ({ onDone }: McpViewProps) => {
 						{servers.length > 0 && (
 							<div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
 								{servers.map((server) => (
-									<ServerRow key={server.name} server={server} alwaysAllowMcp={alwaysAllowMcp} />
+									<ServerRow
+										key={`${server.name}-${server.source || "global"}`}
+										server={server}
+										alwaysAllowMcp={alwaysAllowMcp}
+									/>
 								))}
 							</div>
 						)}
 
-						{/* Edit Settings Button */}
-						<div style={{ marginTop: "10px", width: "100%" }}>
+						{/* Edit Settings Buttons */}
+						<div style={{ marginTop: "10px", width: "100%", display: "flex", gap: "10px" }}>
 							<VSCodeButton
 								appearance="secondary"
-								style={{ width: "100%" }}
+								style={{ flex: 1 }}
 								onClick={() => {
 									vscode.postMessage({ type: "openMcpSettings" })
 								}}>
 								<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
-								{t("mcp:editSettings")}
+								{t("mcp:editGlobalMCP")}
+							</VSCodeButton>
+							<VSCodeButton
+								appearance="secondary"
+								style={{ flex: 1 }}
+								onClick={() => {
+									vscode.postMessage({ type: "openProjectMcpSettings" })
+								}}>
+								<span className="codicon codicon-edit" style={{ marginRight: "6px" }}></span>
+								{t("mcp:editProjectMCP")}
 							</VSCodeButton>
 						</div>
 					</>
@@ -154,6 +167,7 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 		vscode.postMessage({
 			type: "restartMcpServer",
 			text: server.name,
+			source: server.source || "global",
 		})
 	}
 
@@ -163,6 +177,7 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 		vscode.postMessage({
 			type: "updateMcpTimeout",
 			serverName: server.name,
+			source: server.source || "global",
 			timeout: seconds,
 		})
 	}
@@ -171,6 +186,7 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 		vscode.postMessage({
 			type: "deleteMcpServer",
 			serverName: server.name,
+			source: server.source || "global",
 		})
 		setShowDeleteConfirm(false)
 	}
@@ -194,7 +210,22 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 						style={{ marginRight: "8px" }}
 					/>
 				)}
-				<span style={{ flex: 1 }}>{server.name}</span>
+				<span style={{ flex: 1 }}>
+					{server.name}
+					{server.source && (
+						<span
+							style={{
+								marginLeft: "8px",
+								padding: "1px 6px",
+								fontSize: "11px",
+								borderRadius: "4px",
+								background: "var(--vscode-badge-background)",
+								color: "var(--vscode-badge-foreground)",
+							}}>
+							{server.source}
+						</span>
+					)}
+				</span>
 				<div
 					style={{ display: "flex", alignItems: "center", marginRight: "8px" }}
 					onClick={(e) => e.stopPropagation()}>
@@ -231,6 +262,7 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 							vscode.postMessage({
 								type: "toggleMcpServer",
 								serverName: server.name,
+								source: server.source || "global",
 								disabled: !server.disabled,
 							})
 						}}
@@ -240,6 +272,7 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 								vscode.postMessage({
 									type: "toggleMcpServer",
 									serverName: server.name,
+									source: server.source || "global",
 									disabled: !server.disabled,
 								})
 							}
@@ -321,9 +354,10 @@ const ServerRow = ({ server, alwaysAllowMcp }: { server: McpServer; alwaysAllowM
 										style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
 										{server.tools.map((tool) => (
 											<McpToolRow
-												key={tool.name}
+												key={`${tool.name}-${server.name}-${server.source || "global"}`}
 												tool={tool}
 												serverName={server.name}
+												serverSource={server.source || "global"}
 												alwaysAllowMcp={alwaysAllowMcp}
 											/>
 										))}

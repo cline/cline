@@ -10,7 +10,8 @@
 		"title": "MCP 서버 생성 활성화",
 		"description": "활성화하면 Roo가 \"새 도구 추가...\"와 같은 명령을 통해 새 MCP 서버를 만드는 데 도움을 줄 수 있습니다. MCP 서버를 만들 필요가 없다면 이 기능을 비활성화하여 Roo의 token 사용량을 줄일 수 있습니다."
 	},
-	"editSettings": "MCP 설정 편집",
+	"editGlobalMCP": "전역 MCP 편집",
+	"editProjectMCP": "프로젝트 MCP 편집",
 	"tool": {
 		"alwaysAllow": "항상 허용",
 		"parameters": "매개변수",

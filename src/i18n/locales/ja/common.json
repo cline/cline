@@ -44,6 +44,7 @@
 		"delete_api_config": "API設定の削除に失敗しました",
 		"list_api_config": "API設定リストの取得に失敗しました",
 		"update_server_timeout": "サーバータイムアウトの更新に失敗しました",
+		"failed_update_project_mcp": "プロジェクトMCPサーバーの更新に失敗しました",
 		"create_mcp_json": ".roo/mcp.jsonの作成または開くことに失敗しました：{{error}}",
 		"hmr_not_running": "ローカル開発サーバーが実行されていないため、HMRは機能しません。HMRを有効にするには、拡張機能を起動する前に'npm run dev'を実行してください。",
 		"retrieve_current_mode": "現在のモードを状態から取得する際にエラーが発生しました。",

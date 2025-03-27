@@ -10,7 +10,8 @@
 		"title": "Habilitar creació de servidors MCP",
 		"description": "Quan està habilitat, Roo pot ajudar-te a crear nous servidors MCP mitjançant ordres com \"afegir una nova eina per a...\". Si no necessites crear servidors MCP, pots desactivar això per reduir l'ús de tokens de Roo."
 	},
-	"editSettings": "Editar configuració de MCP",
+	"editGlobalMCP": "Editar MCP Global",
+	"editProjectMCP": "Editar MCP del Projecte",
 	"tool": {
 		"alwaysAllow": "Permetre sempre",
 		"parameters": "Paràmetres",

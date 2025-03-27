@@ -44,6 +44,7 @@
 		"delete_api_config": "API 구성 삭제에 실패했습니다",
 		"list_api_config": "API 구성 목록 가져오기에 실패했습니다",
 		"update_server_timeout": "서버 타임아웃 업데이트에 실패했습니다",
+		"failed_update_project_mcp": "프로젝트 MCP 서버 업데이트에 실패했습니다",
 		"create_mcp_json": ".roo/mcp.json 생성 또는 열기 실패: {{error}}",
 		"hmr_not_running": "로컬 개발 서버가 실행되고 있지 않아 HMR이 작동하지 않습니다. HMR을 활성화하려면 확장 프로그램을 실행하기 전에 'npm run dev'를 실행하세요.",
 		"retrieve_current_mode": "상태에서 현재 모드를 검색하는 데 오류가 발생했습니다.",

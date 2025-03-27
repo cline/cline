@@ -44,6 +44,7 @@
 		"delete_api_config": "Không thể xóa cấu hình API",
 		"list_api_config": "Không thể lấy danh sách cấu hình API",
 		"update_server_timeout": "Không thể cập nhật thời gian chờ máy chủ",
+		"failed_update_project_mcp": "Không thể cập nhật máy chủ MCP của dự án",
 		"create_mcp_json": "Không thể tạo hoặc mở .roo/mcp.json: {{error}}",
 		"hmr_not_running": "Máy chủ phát triển cục bộ không chạy, HMR sẽ không hoạt động. Vui lòng chạy 'npm run dev' trước khi khởi chạy tiện ích mở rộng để bật HMR.",
 		"retrieve_current_mode": "Lỗi không thể truy xuất chế độ hiện tại từ trạng thái.",

@@ -50,7 +50,8 @@
 		"failed_delete_repo": "Failed to delete associated shadow repository or branch: {{error}}",
 		"failed_remove_directory": "Failed to remove task directory: {{error}}",
 		"custom_storage_path_unusable": "Custom storage path \"{{path}}\" is unusable, will use default path",
-		"cannot_access_path": "Cannot access path {{path}}: {{error}}"
+		"cannot_access_path": "Cannot access path {{path}}: {{error}}",
+		"failed_update_project_mcp": "Failed to update project MCP servers"
 	},
 	"warnings": {
 		"no_terminal_content": "No terminal content selected",

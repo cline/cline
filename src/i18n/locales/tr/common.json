@@ -44,6 +44,7 @@
 		"delete_api_config": "API yapılandırması silinemedi",
 		"list_api_config": "API yapılandırma listesi alınamadı",
 		"update_server_timeout": "Sunucu zaman aşımı güncellenemedi",
+		"failed_update_project_mcp": "Proje MCP sunucuları güncellenemedi",
 		"create_mcp_json": ".roo/mcp.json oluşturulamadı veya açılamadı: {{error}}",
 		"hmr_not_running": "Yerel geliştirme sunucusu çalışmıyor, HMR çalışmayacak. HMR'yi etkinleştirmek için uzantıyı başlatmadan önce lütfen 'npm run dev' komutunu çalıştırın.",
 		"retrieve_current_mode": "Mevcut mod durumdan alınırken hata oluştu.",
