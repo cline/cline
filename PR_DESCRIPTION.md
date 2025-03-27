@@ -34,6 +34,11 @@ The implementation builds on existing features:
    - Maintains the existing UI with bell icon in the task header
    - Uses the same storage mechanism in the task's external advice directory
 
+3. **MCP Server Integration**:
+   - Implemented using the [cline-mcp-tools](https://github.com/anthonyjj89/cline-mcp-tools) MCP server
+   - Currently tested and verified with Claude Desktop only
+   - Provides the `send_external_advice` tool for sending notifications from Claude Desktop to Cline
+
 ## User Experience
 
 From the user's perspective, the workflow is:
@@ -53,9 +58,18 @@ This creates a seamless "external plan mode" experience, where Claude Desktop ac
 
 ## Future Enhancements
 
-- Add ability to customize notification appearance and behavior
-- Implement bidirectional communication between Cline and external MCP tools
-- Create a dedicated UI for managing external tool connections
+- Extend testing and support to other external MCP tools beyond Claude Desktop
+
+## Pre-Submission Checks
+
+All required pre-submission checks have been completed:
+- ✅ Dependencies installed (`npm run install:all`)
+- ✅ Tests passing (`npm run test`)
+- ✅ Code style verified (`npm run lint`)
+- ✅ Code formatted (`npm run format:fix`)
+- ✅ Changeset created (`npm run changeset`)
+- ✅ Build artifacts removed
+- ✅ Documentation updated
 
 ## Screenshots
 

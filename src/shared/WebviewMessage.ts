@@ -8,32 +8,32 @@ import { TelemetrySetting } from "./TelemetrySetting"
 
 // Interfaces for machine-actionable advice
 export interface CodeSuggestion {
-  file: string;
-  location?: { line: number; column: number };
-  currentCode?: string;
-  suggestedCode?: string;
-  explanation: string;
+	file: string
+	location?: { line: number; column: number }
+	currentCode?: string
+	suggestedCode?: string
+	explanation: string
 }
 
 export interface MachineData {
-  actionType: 'code_suggestion' | 'refactor_advice' | 'security_warning' | 'performance_tip' | 'best_practice' | string;
-  context: string;
-  suggestions?: CodeSuggestion[];
-  metadata?: Record<string, any>;
+	actionType: "code_suggestion" | "refactor_advice" | "security_warning" | "performance_tip" | "best_practice" | string
+	context: string
+	suggestions?: CodeSuggestion[]
+	metadata?: Record<string, any>
 }
 
 export interface ExternalAdvice {
-  id: string;
-  title: string;
-  content: string;
-  type: 'info' | 'warning' | 'tip' | 'task';
-  priority: 'low' | 'medium' | 'high';
-  timestamp: number;
-  expiresAt: number | null;
-  relatedFiles: string[];
-  read: boolean;
-  dismissed?: boolean;
-  machineData?: MachineData;
+	id: string
+	title: string
+	content: string
+	type: "info" | "warning" | "tip" | "task"
+	priority: "low" | "medium" | "high"
+	timestamp: number
+	expiresAt: number | null
+	relatedFiles: string[]
+	read: boolean
+	dismissed?: boolean
+	machineData?: MachineData
 }
 
 export interface WebviewMessage {
@@ -128,7 +128,7 @@ export interface WebviewMessage {
 	planActSeparateModelsSetting?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
-	
+
 	// For external advice
 	advice?: ExternalAdvice
 	adviceId?: string

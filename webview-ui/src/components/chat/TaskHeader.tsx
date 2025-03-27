@@ -13,46 +13,44 @@ import Thumbnails from "../common/Thumbnails"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
 // Active Conversation Toggle component
 interface ActiveConversationToggleProps {
-  activeLabel: string | null;
-  onClick: () => void;
+	activeLabel: string | null
+	onClick: () => void
 }
 
 const ActiveConversationToggle: React.FC<ActiveConversationToggleProps> = ({ activeLabel, onClick }) => {
-  return (
-    <div 
-      className="active-conversation-toggle" 
-      onClick={onClick}
-      style={{
-        marginLeft: 10,
-        backgroundColor: activeLabel 
-          ? (activeLabel === 'A' ? '#22c55e' : '#3b82f6') 
-          : "color-mix(in srgb, var(--vscode-badge-foreground) 40%, transparent)",
-        color: activeLabel 
-          ? "var(--vscode-badge-background)" 
-          : "var(--vscode-badge-foreground)",
-        padding: "2px 8px",
-        borderRadius: "500px",
-        fontSize: "11px",
-        fontWeight: 500,
-        display: "flex",
-        alignItems: "center",
-        gap: "4px",
-        cursor: "pointer",
-        flexShrink: 0,
-      }}
-    >
-      <span className={`codicon codicon-inbox hand-icon ${activeLabel ? 'active' : ''}`} style={{ display: "inline-flex", alignItems: "center" }}>
-      </span>
-      {activeLabel ? (
-        <span className={`active-label label-${activeLabel.toLowerCase()}`}>
-          {`Active ${activeLabel}`}
-        </span>
-      ) : (
-        <span>Inactive</span>
-      )}
-    </div>
-  );
-};
+	return (
+		<div
+			className="active-conversation-toggle"
+			onClick={onClick}
+			style={{
+				marginLeft: 10,
+				backgroundColor: activeLabel
+					? activeLabel === "A"
+						? "#22c55e"
+						: "#3b82f6"
+					: "color-mix(in srgb, var(--vscode-badge-foreground) 40%, transparent)",
+				color: activeLabel ? "var(--vscode-badge-background)" : "var(--vscode-badge-foreground)",
+				padding: "2px 8px",
+				borderRadius: "500px",
+				fontSize: "11px",
+				fontWeight: 500,
+				display: "flex",
+				alignItems: "center",
+				gap: "4px",
+				cursor: "pointer",
+				flexShrink: 0,
+			}}>
+			<span
+				className={`codicon codicon-inbox hand-icon ${activeLabel ? "active" : ""}`}
+				style={{ display: "inline-flex", alignItems: "center" }}></span>
+			{activeLabel ? (
+				<span className={`active-label label-${activeLabel.toLowerCase()}`}>{`Active ${activeLabel}`}</span>
+			) : (
+				<span>Inactive</span>
+			)}
+		</div>
+	)
+}
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -83,78 +81,74 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const [showSeeMore, setShowSeeMore] = useState(false)
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
-	
+
 	// Notification state
 	const [showNotifications, setShowNotifications] = useState(false)
 	const [notifications, setNotifications] = useState<ExternalAdvice[]>([])
-	
+
 	// Fetch notifications when component mounts
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
 			const message = event.data
-			if (message.type === 'newExternalAdvice' && message.advice) {
-				setNotifications(prev => {
+			if (message.type === "newExternalAdvice" && message.advice) {
+				setNotifications((prev) => {
 					// Replace if exists, otherwise add
-					const exists = prev.some(n => n.id === message.advice.id)
+					const exists = prev.some((n) => n.id === message.advice.id)
 					if (exists) {
-						return prev.map(n => n.id === message.advice.id ? message.advice : n)
+						return prev.map((n) => (n.id === message.advice.id ? message.advice : n))
 					} else {
 						return [...prev, message.advice]
 					}
 				})
 			}
 		}
-		
-		window.addEventListener('message', handleMessage)
-		
+
+		window.addEventListener("message", handleMessage)
+
 		// Request notifications when component mounts
-		vscode.postMessage({ type: 'getExternalAdvice' })
-		
+		vscode.postMessage({ type: "getExternalAdvice" })
+
 		return () => {
-			window.removeEventListener('message', handleMessage)
+			window.removeEventListener("message", handleMessage)
 		}
 	}, [])
-	
+
 	// Refresh notifications when a notification is restored
 	useEffect(() => {
 		const handleRestoreMessage = (event: MessageEvent) => {
 			const message = event.data
-			if (message.type === 'restoreAdvice') {
+			if (message.type === "restoreAdvice") {
 				// Request fresh notifications after a restore operation
-				vscode.postMessage({ type: 'getExternalAdvice' })
+				vscode.postMessage({ type: "getExternalAdvice" })
 			}
 		}
-		
-		window.addEventListener('message', handleRestoreMessage)
-		
+
+		window.addEventListener("message", handleRestoreMessage)
+
 		return () => {
-			window.removeEventListener('message', handleRestoreMessage)
+			window.removeEventListener("message", handleRestoreMessage)
 		}
 	}, [])
-	
+
 	// Notification handlers
 	const handleMarkAsRead = (id: string) => {
-		vscode.postMessage({ 
-			type: 'markAdviceAsRead', 
-			adviceId: id 
+		vscode.postMessage({
+			type: "markAdviceAsRead",
+			adviceId: id,
 		})
-		
+
 		// Update local state
-		setNotifications(prev => 
-			prev.map(n => n.id === id ? { ...n, read: true } : n)
-		)
+		setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
 	}
-	
+
 	const handleDismiss = (id: string) => {
-		vscode.postMessage({ 
-			type: 'dismissAdvice', 
-			adviceId: id 
+		vscode.postMessage({
+			type: "dismissAdvice",
+			adviceId: id,
 		})
-		
+
 		// Update local state
-		setNotifications(prev => 
-			prev.map(n => n.id === id ? { ...n, dismissed: true } : n)
-		)
+		setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, dismissed: true } : n)))
 	}
 
 	const { selectedModelInfo } = useMemo(() => normalizeApiConfiguration(apiConfiguration), [apiConfiguration])
@@ -381,46 +375,47 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							${totalCost?.toFixed(4)}
 						</div>
 					)}
-					
-					<ActiveConversationToggle activeLabel={activeLabel} onClick={() => vscode.postMessage({ type: "toggleActiveConversation" })} />
-					
+
+					<ActiveConversationToggle
+						activeLabel={activeLabel}
+						onClick={() => vscode.postMessage({ type: "toggleActiveConversation" })}
+					/>
+
 					{/* Notification Bell */}
-					<VSCodeButton 
-						appearance="icon" 
+					<VSCodeButton
+						appearance="icon"
 						onClick={() => {
-							setShowNotifications(!showNotifications);
-						}} 
-						style={{ 
-							marginLeft: 6, 
-							flexShrink: 0,
-							position: 'relative' 
+							setShowNotifications(!showNotifications)
 						}}
-					>
+						style={{
+							marginLeft: 6,
+							flexShrink: 0,
+							position: "relative",
+						}}>
 						<span className="codicon codicon-bell"></span>
-						{notifications.filter(n => !n.read && !n.dismissed).length > 0 && (
-							<span 
+						{notifications.filter((n) => !n.read && !n.dismissed).length > 0 && (
+							<span
 								style={{
-									position: 'absolute',
-									top: '0px',
-									right: '0px',
-									minWidth: '16px',
-									height: '16px',
-									borderRadius: '8px',
-									backgroundColor: 'var(--vscode-notificationsErrorIcon-foreground)',
-									color: 'white',
-									fontSize: '10px',
-									fontWeight: 'bold',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
-									padding: '0 4px'
-								}}
-							>
-								{notifications.filter(n => !n.read && !n.dismissed).length}
+									position: "absolute",
+									top: "0px",
+									right: "0px",
+									minWidth: "16px",
+									height: "16px",
+									borderRadius: "8px",
+									backgroundColor: "var(--vscode-notificationsErrorIcon-foreground)",
+									color: "white",
+									fontSize: "10px",
+									fontWeight: "bold",
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+									padding: "0 4px",
+								}}>
+								{notifications.filter((n) => !n.read && !n.dismissed).length}
 							</span>
 						)}
 					</VSCodeButton>
-					
+
 					{/* Always show the close button */}
 					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>
 						<span className="codicon codicon-close"></span>
@@ -699,7 +694,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 				</div>
 			)} */}
-			
+
 			{/* Notification Panel */}
 			{showNotifications && (
 				<NotificationPanel

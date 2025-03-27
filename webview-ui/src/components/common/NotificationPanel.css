@@ -1,316 +1,317 @@
 .notification-panel {
-  position: absolute;
-  top: 60px;
-  right: 10px;
-  width: 400px;
-  max-width: 90vw;
-  max-height: 80vh;
-  background-color: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+	position: absolute;
+	top: 60px;
+	right: 10px;
+	width: 400px;
+	max-width: 90vw;
+	max-height: 80vh;
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 6px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	z-index: 1000;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 }
 
 .notification-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 15px;
-  background-color: var(--vscode-editor-background);
-  border-bottom: 1px solid var(--vscode-panel-border);
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 10px 15px;
+	background-color: var(--vscode-editor-background);
+	border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .notification-header h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+	margin: 0;
+	font-size: 16px;
+	font-weight: 600;
 }
 
 .task-id-display {
-  font-size: 12px;
-  color: var(--vscode-descriptionForeground);
-  margin-top: 4px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 4px;
 }
 
 .close-button {
-  background: none;
-  border: none;
-  color: var(--vscode-foreground);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+	background: none;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	padding: 4px;
+	border-radius: 4px;
 }
 
 .close-button:hover {
-  background-color: var(--vscode-button-hoverBackground);
+	background-color: var(--vscode-button-hoverBackground);
 }
 
 .notification-list {
-  overflow-y: auto;
-  padding: 10px;
-  flex: 1;
+	overflow-y: auto;
+	padding: 10px;
+	flex: 1;
 }
 
 .notification-empty {
-  padding: 20px;
-  text-align: center;
-  color: var(--vscode-descriptionForeground);
+	padding: 20px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
 }
 
 .notification-section-title {
-  margin: 10px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--vscode-foreground);
-  padding-bottom: 5px;
-  border-bottom: 1px solid var(--vscode-panel-border);
+	margin: 10px 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	padding-bottom: 5px;
+	border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .notification-item {
-  margin-bottom: 12px;
-  padding: 12px;
-  border-radius: 4px;
-  background-color: var(--vscode-editor-background);
-  border-left: 3px solid transparent;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	margin-bottom: 12px;
+	padding: 12px;
+	border-radius: 4px;
+	background-color: var(--vscode-editor-background);
+	border-left: 3px solid transparent;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .notification-item.high {
-  border-left-color: var(--vscode-errorForeground);
+	border-left-color: var(--vscode-errorForeground);
 }
 
 .notification-item.medium {
-  border-left-color: var(--vscode-editorWarning-foreground);
+	border-left-color: var(--vscode-editorWarning-foreground);
 }
 
 .notification-item.low {
-  border-left-color: var(--vscode-editorInfo-foreground);
+	border-left-color: var(--vscode-editorInfo-foreground);
 }
 
 .notification-item.unread {
-  background-color: var(--vscode-editor-selectionBackground);
+	background-color: var(--vscode-editor-selectionBackground);
 }
 
 .notification-item.dismissed {
-  opacity: 0.7;
+	opacity: 0.7;
 }
 
 .notification-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 8px;
 }
 
 .notification-item h4 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
 }
 
 .machine-actionable-indicator {
-  margin-left: 8px;
-  color: var(--vscode-editorInfo-foreground);
+	margin-left: 8px;
+	color: var(--vscode-editorInfo-foreground);
 }
 
 .expand-button {
-  background: none;
-  border: none;
-  color: var(--vscode-foreground);
-  cursor: pointer;
-  padding: 2px;
+	background: none;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	padding: 2px;
 }
 
 .notification-item p {
-  margin: 8px 0;
-  font-size: 13px;
-  line-height: 1.4;
+	margin: 8px 0;
+	font-size: 13px;
+	line-height: 1.4;
 }
 
 .notification-content-text {
-  position: relative;
+	position: relative;
 }
 
 .content-toggle-button {
-  color: var(--vscode-textLink-foreground);
-  cursor: pointer;
-  font-size: 12px;
-  margin-top: 4px;
-  text-align: right;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	margin-top: 4px;
+	text-align: right;
 }
 
 .content-toggle-button:hover {
-  text-decoration: underline;
+	text-decoration: underline;
 }
 
 .notification-context {
-  margin: 8px 0;
-  padding: 8px;
-  background-color: var(--vscode-editor-inactiveSelectionBackground);
-  border-radius: 4px;
-  font-size: 12px;
+	margin: 8px 0;
+	padding: 8px;
+	background-color: var(--vscode-editor-inactiveSelectionBackground);
+	border-radius: 4px;
+	font-size: 12px;
 }
 
 .notification-suggestions {
-  margin: 12px 0;
+	margin: 12px 0;
 }
 
 .suggestion-item {
-  margin: 8px 0;
-  padding: 8px;
-  background-color: var(--vscode-editor-inactiveSelectionBackground);
-  border-radius: 4px;
+	margin: 8px 0;
+	padding: 8px;
+	background-color: var(--vscode-editor-inactiveSelectionBackground);
+	border-radius: 4px;
 }
 
 .suggestion-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 6px;
+	display: flex;
+	align-items: center;
+	margin-bottom: 6px;
 }
 
 .suggestion-number {
-  font-weight: bold;
-  margin-right: 6px;
+	font-weight: bold;
+	margin-right: 6px;
 }
 
 .suggestion-file {
-  color: var(--vscode-textLink-foreground);
-  cursor: pointer;
-  margin-right: 8px;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	margin-right: 8px;
 }
 
 .suggestion-location {
-  font-size: 11px;
-  color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .suggestion-explanation {
-  margin: 6px 0;
-  font-size: 12px;
+	margin: 6px 0;
+	font-size: 12px;
 }
 
 .suggestion-code {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-top: 8px;
 }
 
 .code-block {
-  background-color: var(--vscode-editor-background);
-  border-radius: 3px;
-  overflow: hidden;
+	background-color: var(--vscode-editor-background);
+	border-radius: 3px;
+	overflow: hidden;
 }
 
 .code-label {
-  padding: 4px 8px;
-  background-color: var(--vscode-editor-lineHighlightBackground);
-  font-size: 11px;
-  font-weight: bold;
+	padding: 4px 8px;
+	background-color: var(--vscode-editor-lineHighlightBackground);
+	font-size: 11px;
+	font-weight: bold;
 }
 
 .code-block pre {
-  margin: 0;
-  padding: 8px;
-  font-size: 12px;
-  overflow-x: auto;
-  max-height: 150px;
+	margin: 0;
+	padding: 8px;
+	font-size: 12px;
+	overflow-x: auto;
+	max-height: 150px;
 }
 
 .related-files {
-  margin: 8px 0;
-  font-size: 12px;
+	margin: 8px 0;
+	font-size: 12px;
 }
 
 .related-files p {
-  margin: 4px 0;
-  font-weight: bold;
+	margin: 4px 0;
+	font-weight: bold;
 }
 
 .related-files ul {
-  margin: 4px 0;
-  padding-left: 20px;
+	margin: 4px 0;
+	padding-left: 20px;
 }
 
 .related-files a {
-  color: var(--vscode-textLink-foreground);
-  cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
 }
 
 .notification-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-  font-size: 11px;
-  color: var(--vscode-descriptionForeground);
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 8px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .notification-type {
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-weight: 500;
+	padding: 2px 6px;
+	border-radius: 3px;
+	font-weight: 500;
 }
 
 .notification-type.info {
-  background-color: var(--vscode-editorInfo-foreground);
-  color: var(--vscode-editor-background);
+	background-color: var(--vscode-editorInfo-foreground);
+	color: var(--vscode-editor-background);
 }
 
 .notification-type.warning {
-  background-color: var(--vscode-editorWarning-foreground);
-  color: var(--vscode-editor-background);
+	background-color: var(--vscode-editorWarning-foreground);
+	color: var(--vscode-editor-background);
 }
 
 .notification-type.tip {
-  background-color: var(--vscode-textLink-foreground);
-  color: var(--vscode-editor-background);
+	background-color: var(--vscode-textLink-foreground);
+	color: var(--vscode-editor-background);
 }
 
 .notification-type.task {
-  background-color: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
 }
 
 .notification-action-type {
-  font-style: italic;
+	font-style: italic;
 }
 
 .notification-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 12px;
 }
 
-.mark-read-button, .dismiss-button {
-  padding: 4px 8px;
-  border-radius: 3px;
-  font-size: 12px;
-  cursor: pointer;
-  border: 1px solid var(--vscode-button-border);
+.mark-read-button,
+.dismiss-button {
+	padding: 4px 8px;
+	border-radius: 3px;
+	font-size: 12px;
+	cursor: pointer;
+	border: 1px solid var(--vscode-button-border);
 }
 
 .mark-read-button {
-  background-color: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
 }
 
 .mark-read-button:hover {
-  background-color: var(--vscode-button-hoverBackground);
+	background-color: var(--vscode-button-hoverBackground);
 }
 
 .dismiss-button {
-  background-color: transparent;
-  color: var(--vscode-foreground);
+	background-color: transparent;
+	color: var(--vscode-foreground);
 }
 
 .dismiss-button:hover {
-  background-color: var(--vscode-button-secondaryHoverBackground);
+	background-color: var(--vscode-button-secondaryHoverBackground);
 }

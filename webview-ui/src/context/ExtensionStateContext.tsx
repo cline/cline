@@ -154,19 +154,19 @@ export const ExtensionStateContextProvider: React.FC<{
 			}
 			case "newExternalAdvice": {
 				if (message.advice) {
-					setNotifications(prev => {
+					setNotifications((prev) => {
 						// Check if this notification already exists
-						const exists = prev.some(n => n.id === message.advice!.id);
-						if (exists) return prev;
-						
+						const exists = prev.some((n) => n.id === message.advice!.id)
+						if (exists) return prev
+
 						// Add new notification at the beginning
-						return [message.advice!, ...prev];
-					});
+						return [message.advice!, ...prev]
+					})
 				}
 				break
 			}
 			case "activeConversationStatus": {
-				setActiveLabel(message.activeLabel || null);
+				setActiveLabel(message.activeLabel || null)
 				break
 			}
 		}
@@ -218,63 +218,51 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		markNotificationAsRead: (id) => {
 			// Update local state
-			setNotifications(prev => 
-				prev.map(notification => 
-					notification.id === id 
-						? { ...notification, read: true } 
-						: notification
-				)
-			);
-			
+			setNotifications((prev) =>
+				prev.map((notification) => (notification.id === id ? { ...notification, read: true } : notification)),
+			)
+
 			// Send message to extension
-			vscode.postMessage({ 
-				type: "markAdviceAsRead", 
-				adviceId: id 
-			});
-			
+			vscode.postMessage({
+				type: "markAdviceAsRead",
+				adviceId: id,
+			})
+
 			// Send to chat
 			vscode.postMessage({
 				type: "sendExternalAdviceToChat",
-				advice: notifications.find(n => n.id === id)
-			});
+				advice: notifications.find((n) => n.id === id),
+			})
 		},
 		dismissNotification: (id) => {
 			// Update local state
-			setNotifications(prev => 
-				prev.map(notification => 
-					notification.id === id 
-						? { ...notification, dismissed: true } 
-						: notification
-				)
-			);
-			
+			setNotifications((prev) =>
+				prev.map((notification) => (notification.id === id ? { ...notification, dismissed: true } : notification)),
+			)
+
 			// Send message to extension
-			vscode.postMessage({ 
-				type: "dismissAdvice", 
-				adviceId: id 
-			});
+			vscode.postMessage({
+				type: "dismissAdvice",
+				adviceId: id,
+			})
 		},
 		restoreNotification: (id) => {
 			// Update local state
-			setNotifications(prev => 
-				prev.map(notification => 
-					notification.id === id 
-						? { ...notification, dismissed: false } 
-						: notification
-				)
-			);
-			
+			setNotifications((prev) =>
+				prev.map((notification) => (notification.id === id ? { ...notification, dismissed: false } : notification)),
+			)
+
 			// Send message to extension
-			vscode.postMessage({ 
-				type: "restoreAdvice", 
-				adviceId: id 
-			});
+			vscode.postMessage({
+				type: "restoreAdvice",
+				adviceId: id,
+			})
 		},
 		openRelatedFile: (filePath) => {
 			vscode.postMessage({
 				type: "openFile",
-				text: filePath
-			});
+				text: filePath,
+			})
 		},
 	}
 

@@ -83,8 +83,8 @@ export async function getFileSizeInKB(filePath: string): Promise<number> {
  * @returns string - Path to the external advice directory
  */
 export function getExternalAdviceDirectory(context: vscode.ExtensionContext, taskId: string): string {
-	const taskDir = path.join(context.globalStorageUri.fsPath, "tasks", taskId);
-	return path.join(taskDir, "external-advice");
+	const taskDir = path.join(context.globalStorageUri.fsPath, "tasks", taskId)
+	return path.join(taskDir, "external-advice")
 }
 
 /**
@@ -94,6 +94,6 @@ export function getExternalAdviceDirectory(context: vscode.ExtensionContext, tas
  * @returns string - Path to the dismissed external advice directory
  */
 export function getDismissedAdviceDirectory(context: vscode.ExtensionContext, taskId: string): string {
-	const adviceDir = getExternalAdviceDirectory(context, taskId);
-	return path.join(adviceDir, "Dismissed");
+	const adviceDir = getExternalAdviceDirectory(context, taskId)
+	return path.join(adviceDir, "Dismissed")
 }

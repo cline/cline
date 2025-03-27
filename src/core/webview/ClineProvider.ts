@@ -128,10 +128,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	accountService?: ClineAccountService
 	private latestAnnouncementId = "march-22-2025" // update to some unique identifier when we add a new announcement
 	conversationTelemetryService: ConversationTelemetryService
-	
+
 	// Notification polling
-	private notificationPollingInterval: NodeJS.Timeout | undefined;
-	private seenNotificationIds = new Set<string>();
+	private notificationPollingInterval: NodeJS.Timeout | undefined
+	private seenNotificationIds = new Set<string>()
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
@@ -148,9 +148,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
-		
+
 		// Start notification polling
-		this.startNotificationPolling();
+		this.startNotificationPolling()
 	}
 
 	/*
@@ -160,9 +160,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	*/
 	async dispose() {
 		this.outputChannel.appendLine("Disposing ClineProvider...")
-		
+
 		// Stop notification polling
-		this.stopNotificationPolling();
+		this.stopNotificationPolling()
 		await this.clearTask()
 		this.outputChannel.appendLine("Cleared task")
 		if (this.view && "dispose" in this.view) {
@@ -300,137 +300,140 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	 */
 	private startNotificationPolling() {
 		// Clear any existing interval
-		this.stopNotificationPolling();
-		
+		this.stopNotificationPolling()
+
 		// Set up polling interval (check every 2 seconds)
 		this.notificationPollingInterval = setInterval(async () => {
 			try {
-				await this.refreshAllNotifications();
+				await this.refreshAllNotifications()
 			} catch (error) {
-				console.error('Error in notification polling:', error);
+				console.error("Error in notification polling:", error)
 			}
-		}, 2000); // More frequent polling
+		}, 2000) // More frequent polling
 	}
-	
+
 	/**
 	 * Refreshes all notifications from disk
 	 * This is a complete refresh that clears the cache and re-reads all files
 	 */
 	private async refreshAllNotifications() {
 		// Only check for notifications if there's an active task
-		if (!this.cline?.taskId) {return;}
-		
+		if (!this.cline?.taskId) {
+			return
+		}
+
 		try {
 			// Clear the seen notifications cache to force a complete refresh
-			this.seenNotificationIds.clear();
-			
+			this.seenNotificationIds.clear()
+
 			// Re-read all notifications from disk
-			await this.sendExternalAdvice();
+			await this.sendExternalAdvice()
 		} catch (error) {
-			console.error('Error refreshing notifications:', error);
+			console.error("Error refreshing notifications:", error)
 		}
 	}
-	
+
 	/**
 	 * Stops notification polling
 	 */
 	private stopNotificationPolling() {
 		if (this.notificationPollingInterval) {
-			clearInterval(this.notificationPollingInterval);
-			this.notificationPollingInterval = undefined;
+			clearInterval(this.notificationPollingInterval)
+			this.notificationPollingInterval = undefined
 		}
 	}
-	
+
 	/**
 	 * Sends external advice notifications to the webview
 	 */
 	private async sendExternalAdvice() {
 		try {
 			// Only check for advice if there's an active task
-			const currentTaskId = this.cline?.taskId;
-			if (!currentTaskId) {return;}
-			
-			const activeAdviceDir = getExternalAdviceDirectory(this.context, currentTaskId);
-			const dismissedAdviceDir = getDismissedAdviceDirectory(this.context, currentTaskId);
-			
+			const currentTaskId = this.cline?.taskId
+			if (!currentTaskId) {
+				return
+			}
+
+			const activeAdviceDir = getExternalAdviceDirectory(this.context, currentTaskId)
+			const dismissedAdviceDir = getDismissedAdviceDirectory(this.context, currentTaskId)
+
 			// Note: We don't create directories - they should be created by MCP tools
-			
+
 			// Collect advice from both active and dismissed directories
-			let allAdvice: ExternalAdvice[] = [];
-			
+			let allAdvice: ExternalAdvice[] = []
+
 			// Process active advice
 			if (await fileExistsAtPath(activeAdviceDir)) {
-				const activeFiles = await fs.readdir(activeAdviceDir);
-				
+				const activeFiles = await fs.readdir(activeAdviceDir)
+
 				// Skip the Dismissed directory if it's in the list
-				const jsonFiles = activeFiles
-					.filter(file => file.endsWith('.json') && file !== 'Dismissed');
-				
-				const activeAdvicePromises = jsonFiles.map(async file => {
+				const jsonFiles = activeFiles.filter((file) => file.endsWith(".json") && file !== "Dismissed")
+
+				const activeAdvicePromises = jsonFiles.map(async (file) => {
 					try {
-						const filePath = path.join(activeAdviceDir, file);
-						const content = await fs.readFile(filePath, 'utf8');
-						const advice = JSON.parse(content) as ExternalAdvice;
+						const filePath = path.join(activeAdviceDir, file)
+						const content = await fs.readFile(filePath, "utf8")
+						const advice = JSON.parse(content) as ExternalAdvice
 						// Ensure dismissed is false for active advice
-						advice.dismissed = false;
-						return advice;
+						advice.dismissed = false
+						return advice
 					} catch (error) {
-						console.error(`Error reading active notification file ${file}:`, error);
-						return null;
+						console.error(`Error reading active notification file ${file}:`, error)
+						return null
 					}
-				});
-				
-				const activeAdvice = (await Promise.all(activeAdvicePromises))
-					.filter(advice => advice !== null) as ExternalAdvice[];
-				
-				allAdvice = [...allAdvice, ...activeAdvice];
+				})
+
+				const activeAdvice = (await Promise.all(activeAdvicePromises)).filter(
+					(advice) => advice !== null,
+				) as ExternalAdvice[]
+
+				allAdvice = [...allAdvice, ...activeAdvice]
 			}
-			
+
 			// Process dismissed advice
 			if (await fileExistsAtPath(dismissedAdviceDir)) {
-				const dismissedFiles = await fs.readdir(dismissedAdviceDir);
-				
+				const dismissedFiles = await fs.readdir(dismissedAdviceDir)
+
 				const dismissedAdvicePromises = dismissedFiles
-					.filter(file => file.endsWith('.json'))
-					.map(async file => {
+					.filter((file) => file.endsWith(".json"))
+					.map(async (file) => {
 						try {
-							const filePath = path.join(dismissedAdviceDir, file);
-							const content = await fs.readFile(filePath, 'utf8');
-							const advice = JSON.parse(content) as ExternalAdvice;
+							const filePath = path.join(dismissedAdviceDir, file)
+							const content = await fs.readFile(filePath, "utf8")
+							const advice = JSON.parse(content) as ExternalAdvice
 							// Ensure dismissed is true for dismissed advice
-							advice.dismissed = true;
-							return advice;
+							advice.dismissed = true
+							return advice
 						} catch (error) {
-							console.error(`Error reading dismissed notification file ${file}:`, error);
-							return null;
+							console.error(`Error reading dismissed notification file ${file}:`, error)
+							return null
 						}
-					});
-				
-				const dismissedAdvice = (await Promise.all(dismissedAdvicePromises))
-					.filter(advice => advice !== null) as ExternalAdvice[];
-				
-				allAdvice = [...allAdvice, ...dismissedAdvice];
+					})
+
+				const dismissedAdvice = (await Promise.all(dismissedAdvicePromises)).filter(
+					(advice) => advice !== null,
+				) as ExternalAdvice[]
+
+				allAdvice = [...allAdvice, ...dismissedAdvice]
 			}
-			
+
 			// Filter out expired advice
-			const currentTime = Date.now();
-			const validAdvice = allAdvice.filter(advice => 
-				!advice.expiresAt || advice.expiresAt > currentTime
-			);
-			
+			const currentTime = Date.now()
+			const validAdvice = allAdvice.filter((advice) => !advice.expiresAt || advice.expiresAt > currentTime)
+
 			// Send all valid advice to the webview
 			for (const advice of validAdvice) {
 				// Only send advice we haven't seen before
 				if (!this.seenNotificationIds.has(advice.id)) {
-					this.seenNotificationIds.add(advice.id);
+					this.seenNotificationIds.add(advice.id)
 					await this.postMessageToWebview({
-						type: 'newExternalAdvice',
-						advice
-					});
+						type: "newExternalAdvice",
+						advice,
+					})
 				}
 			}
 		} catch (error) {
-			console.error('Error sending external advice:', error);
+			console.error("Error sending external advice:", error)
 		}
 	}
 
@@ -439,33 +442,39 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	 * @param adviceId - The ID of the advice to mark as read
 	 */
 	private async markAdviceAsRead(adviceId?: string) {
-		if (!adviceId) {return;}
-		
+		if (!adviceId) {
+			return
+		}
+
 		try {
 			// Only check for advice if there's an active task
-			const currentTaskId = this.cline?.taskId;
-			if (!currentTaskId) {return;}
-			
-			const adviceDir = getExternalAdviceDirectory(this.context, currentTaskId);
-			
+			const currentTaskId = this.cline?.taskId
+			if (!currentTaskId) {
+				return
+			}
+
+			const adviceDir = getExternalAdviceDirectory(this.context, currentTaskId)
+
 			// Note: We don't create directories - they should be created by MCP tools
 			// Only proceed if the directory exists
-			if (!await fileExistsAtPath(adviceDir)) {return;}
-			
-			let filePath = path.join(adviceDir, `${adviceId}.json`);
-			
+			if (!(await fileExistsAtPath(adviceDir))) {
+				return
+			}
+
+			let filePath = path.join(adviceDir, `${adviceId}.json`)
+
 			if (await fileExistsAtPath(filePath)) {
-				const content = await fs.readFile(filePath, 'utf8');
-				const advice = JSON.parse(content) as ExternalAdvice;
-				
+				const content = await fs.readFile(filePath, "utf8")
+				const advice = JSON.parse(content) as ExternalAdvice
+
 				// Update the read status
-				advice.read = true;
-				
+				advice.read = true
+
 				// Write back to file
-				await fs.writeFile(filePath, JSON.stringify(advice, null, 2), 'utf8');
+				await fs.writeFile(filePath, JSON.stringify(advice, null, 2), "utf8")
 			}
 		} catch (error) {
-			console.error(`Error marking advice ${adviceId} as read:`, error);
+			console.error(`Error marking advice ${adviceId} as read:`, error)
 		}
 	}
 
@@ -474,94 +483,102 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	 * @param adviceId - The ID of the advice to dismiss
 	 */
 	private async dismissAdvice(adviceId?: string) {
-		if (!adviceId) {return;}
-		
+		if (!adviceId) {
+			return
+		}
+
 		try {
 			// Only check for advice if there's an active task
-			const currentTaskId = this.cline?.taskId;
-			if (!currentTaskId) {return;}
-			
-			const adviceDir = getExternalAdviceDirectory(this.context, currentTaskId);
-			const dismissedDir = getDismissedAdviceDirectory(this.context, currentTaskId);
-			
+			const currentTaskId = this.cline?.taskId
+			if (!currentTaskId) {
+				return
+			}
+
+			const adviceDir = getExternalAdviceDirectory(this.context, currentTaskId)
+			const dismissedDir = getDismissedAdviceDirectory(this.context, currentTaskId)
+
 			// Note: We don't create directories - they should be created by MCP tools
 			// Only proceed if the source directory exists
-			if (!await fileExistsAtPath(adviceDir)) {return;}
-			
-			const sourceFilePath = path.join(adviceDir, `${adviceId}.json`);
-			const targetFilePath = path.join(dismissedDir, `${adviceId}.json`);
-			
+			if (!(await fileExistsAtPath(adviceDir))) {
+				return
+			}
+
+			const sourceFilePath = path.join(adviceDir, `${adviceId}.json`)
+			const targetFilePath = path.join(dismissedDir, `${adviceId}.json`)
+
 			if (await fileExistsAtPath(sourceFilePath)) {
 				// Check if the target directory exists
-				if (!await fileExistsAtPath(dismissedDir)) {
-					console.error(`Target directory ${dismissedDir} does not exist for dismissing advice ${adviceId}`);
-					return;
+				if (!(await fileExistsAtPath(dismissedDir))) {
+					console.error(`Target directory ${dismissedDir} does not exist for dismissing advice ${adviceId}`)
+					return
 				}
-				
+
 				// Move the file to the dismissed directory
-				await fs.rename(sourceFilePath, targetFilePath);
+				await fs.rename(sourceFilePath, targetFilePath)
 			}
-			
+
 			// Force a complete refresh of all notifications
-			await this.refreshAllNotifications();
+			await this.refreshAllNotifications()
 		} catch (error) {
-			console.error(`Error dismissing advice ${adviceId}:`, error);
+			console.error(`Error dismissing advice ${adviceId}:`, error)
 			// Try to refresh anyway to maintain UI consistency
-			await this.refreshAllNotifications();
+			await this.refreshAllNotifications()
 		}
 	}
-	
+
 	/**
 	 * Restores a previously dismissed advice by moving it back from the Dismissed directory
 	 * @param adviceId - The ID of the advice to restore
 	 */
 	private async restoreAdvice(adviceId?: string) {
 		if (!adviceId) {
-			return;
+			return
 		}
-		
+
 		try {
 			// Only check for advice if there's an active task
-			const currentTaskId = this.cline?.taskId;
+			const currentTaskId = this.cline?.taskId
 			if (!currentTaskId) {
-				return;
+				return
 			}
-			
-			const adviceDir = getExternalAdviceDirectory(this.context, currentTaskId);
-			const dismissedDir = getDismissedAdviceDirectory(this.context, currentTaskId);
-			
+
+			const adviceDir = getExternalAdviceDirectory(this.context, currentTaskId)
+			const dismissedDir = getDismissedAdviceDirectory(this.context, currentTaskId)
+
 			// Note: We don't create directories - they should be created by MCP tools
 			// Only proceed if the source directory exists
-			if (!await fileExistsAtPath(dismissedDir)) {return;}
-			
-			const sourceFilePath = path.join(dismissedDir, `${adviceId}.json`);
-			const targetFilePath = path.join(adviceDir, `${adviceId}.json`);
-			
+			if (!(await fileExistsAtPath(dismissedDir))) {
+				return
+			}
+
+			const sourceFilePath = path.join(dismissedDir, `${adviceId}.json`)
+			const targetFilePath = path.join(adviceDir, `${adviceId}.json`)
+
 			if (await fileExistsAtPath(sourceFilePath)) {
 				// Only proceed if the target directory exists
 				if (await fileExistsAtPath(adviceDir)) {
 					// Move the file back to the active directory
-					await fs.rename(sourceFilePath, targetFilePath);
+					await fs.rename(sourceFilePath, targetFilePath)
 				} else {
-					console.error(`Target directory ${adviceDir} does not exist for restoring advice ${adviceId}`);
-					return;
+					console.error(`Target directory ${adviceDir} does not exist for restoring advice ${adviceId}`)
+					return
 				}
 			}
-			
+
 			// Force a complete refresh of all notifications
-			await this.refreshAllNotifications();
+			await this.refreshAllNotifications()
 		} catch (error) {
-			console.error(`Error restoring advice ${adviceId}:`, error);
+			console.error(`Error restoring advice ${adviceId}:`, error)
 			// Try to refresh anyway to maintain UI consistency
-			await this.refreshAllNotifications();
+			await this.refreshAllNotifications()
 		}
 	}
 
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		
+
 		// Reset seen notification IDs when starting a new task
-		this.seenNotificationIds.clear();
+		this.seenNotificationIds.clear()
 		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
 			await this.getState()
 		this.cline = new Cline(
@@ -578,9 +595,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		
+
 		// Reset seen notification IDs when loading a task from history
-		this.seenNotificationIds.clear();
+		this.seenNotificationIds.clear()
 		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
 			await this.getState()
 		this.cline = new Cline(
@@ -1007,12 +1024,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						if (message.advice) {
 							// Mark the advice as read
 							await this.markAdviceAsRead(message.advice.id)
-							
+
 							// Send the advice content directly to chat
 							await this.postMessageToWebview({
 								type: "invoke",
 								invoke: "sendMessage",
-								text: message.advice.content
+								text: message.advice.content,
 							})
 						}
 						break
@@ -2698,18 +2715,15 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 			// Define the interface for active task
 			interface ActiveTask {
-				id: string;
-				label: string;
-				lastActivated: number;
-				source: string;
-				extensionType: string;
+				id: string
+				label: string
+				lastActivated: number
+				source: string
+				extensionType: string
 			}
 
 			const taskId = this.cline.taskId
-			const activeTasksFilePath = path.join(
-				this.context.globalStorageUri.fsPath,
-				"active_tasks.json"
-			)
+			const activeTasksFilePath = path.join(this.context.globalStorageUri.fsPath, "active_tasks.json")
 
 			// Ensure the directory exists
 			await fs.mkdir(path.dirname(activeTasksFilePath), { recursive: true })
@@ -2727,65 +2741,65 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 			// Find the current task in the active tasks list
 			let activeTasks: ActiveTask[] = activeTasksData.activeTasks || []
-			const currentTaskIndex = activeTasks.findIndex(task => task.id === taskId)
+			const currentTaskIndex = activeTasks.findIndex((task) => task.id === taskId)
 			const currentTime = Date.now()
 
 			// Determine the new label based on the current state
 			let newLabel: string | null = null
-			
+
 			if (currentTaskIndex === -1) {
 				// Task is not active, make it Active A
 				newLabel = "A"
-				
+
 				// Remove any existing task with label A (no demotion)
-				activeTasks = activeTasks.filter(task => task.label !== "A")
-				
+				activeTasks = activeTasks.filter((task) => task.label !== "A")
+
 				// Add the new Active A task
 				activeTasks.push({
 					id: taskId,
 					label: newLabel,
 					lastActivated: currentTime,
 					source: "cline",
-					extensionType: "cline"
+					extensionType: "cline",
 				})
 			} else {
 				// Task is already active, cycle through states
 				const currentLabel = activeTasks[currentTaskIndex].label
-				
+
 				if (currentLabel === "A") {
 					// A → B
 					newLabel = "B"
-					
+
 					// Remove the current task from the list
 					activeTasks.splice(currentTaskIndex, 1)
-					
+
 					// Remove any existing task with label B
-					activeTasks = activeTasks.filter(task => task.label !== "B")
-					
+					activeTasks = activeTasks.filter((task) => task.label !== "B")
+
 					// Add the task as B
 					activeTasks.push({
 						id: taskId,
 						label: newLabel,
 						lastActivated: currentTime,
 						source: "cline",
-						extensionType: "cline"
+						extensionType: "cline",
 					})
 				} else if (currentLabel === "B") {
 					// B → Inactive (remove from list)
 					activeTasks.splice(currentTaskIndex, 1)
 				}
 			}
-			
+
 			// Update the active tasks file
 			activeTasksData.activeTasks = activeTasks
 			await fs.writeFile(activeTasksFilePath, JSON.stringify(activeTasksData, null, 2), "utf8")
-			
+
 			// Send the updated active label to the webview
 			await this.postMessageToWebview({
 				type: "activeConversationStatus",
-				activeLabel: newLabel
+				activeLabel: newLabel,
 			})
-			
+
 			console.log(`Toggled active conversation for task ${taskId} to ${newLabel || "Inactive"}`)
 		} catch (error) {
 			console.error("Error toggling active conversation:", error)

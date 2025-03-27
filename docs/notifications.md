@@ -31,6 +31,8 @@ The Notification System serves as a powerful bridge between Cline and external M
 - This creates a seamless workflow where you can use Claude Desktop for research and planning ($20/month subscription), then send targeted advice to Cline
 - The integration acts like an "external plan mode," allowing you to leverage the strengths of both tools while managing costs effectively
 
+This integration is implemented using the [cline-mcp-tools](https://github.com/anthonyjj89/cline-mcp-tools) MCP server, which has been specifically tested and verified with Claude Desktop. The MCP server provides a `send_external_advice` tool that allows Claude Desktop to send notifications to Cline.
+
 For example, you can use Claude Desktop with its MCP tools (like Brave Search) to research a complex problem, then send the solution directly to your Cline conversation as a notification.
 
 ## Machine-Actionable Notifications
@@ -59,7 +61,9 @@ The notification system uses a polling mechanism to check for new notifications 
 
 ## Creating Notifications (for MCP Developers)
 
-MCP servers can create notifications by writing JSON files to the external advice directory. The file format is:
+MCP servers can create notifications by writing JSON files to the external advice directory. The reference implementation for this is the [cline-mcp-tools](https://github.com/anthonyjj89/cline-mcp-tools) MCP server, which provides a `send_external_advice` tool.
+
+The notification file format is:
 
 ```json
 {

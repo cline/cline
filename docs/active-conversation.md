@@ -26,6 +26,8 @@ The Active Conversation feature enables powerful integration with external MCP t
 - External MCP tools can analyze both the conversation and your workspace files to provide targeted assistance.
 - This integration creates a seamless workflow between Cline and other AI assistants, allowing you to leverage the strengths of each.
 
+This integration is implemented using the [cline-mcp-tools](https://github.com/anthonyjj89/cline-mcp-tools) MCP server, which has been specifically tested and verified with Claude Desktop. The MCP server can detect which conversations are marked as active and interact with them.
+
 For example, you can use Claude Desktop (with its $20/month subscription) to perform research and planning, then send targeted advice to your active Cline conversation through the notification system.
 
 ## Technical Implementation
