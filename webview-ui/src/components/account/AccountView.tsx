@@ -19,7 +19,7 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 				<h3 className="text-[var(--vscode-foreground)] m-0">Account</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
-			<div className="flex-grow overflow-hidden pr-[8px] flex flex-col">
+			<div className="flex-grow overflow-y-scroll flex flex-col">
 				<div className="h-full mb-[5px]">
 					<ClineAccountView />
 				</div>
@@ -140,11 +140,9 @@ export const ClineAccountView = () => {
 						</div>
 					</div>
 
-					<VSCodeDivider className="mt-6 mb-3 w-full" />
+					<VSCodeDivider className="my-8 w-full" />
 
-					<div className="flex-grow flex flex-col min-h-0 pb-[0px]">
-						<CreditsHistoryTable isLoading={isLoading} usageData={usageData} paymentsData={paymentsData} />
-					</div>
+					<CreditsHistoryTable isLoading={isLoading} usageData={usageData} paymentsData={paymentsData} />
 				</div>
 			) : (
 				<div className="flex flex-col items-center pr-3 max-w-[400px]">
