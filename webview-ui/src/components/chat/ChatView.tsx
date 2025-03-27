@@ -993,7 +993,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 										alignItems: "center",
 										gap: "10px",
 									}}>
-									<div>Did I complete this task successfully?</div>
+									<div style={{ display: "flex", alignItems: "center" }}>
+										{isYesNoButtonsHighlighted ? (
+											<span>Click on Yes or No to continue typing</span>
+										) : (
+											<>
+												<span className="codicon codicon-question" style={{ marginRight: "5px" }} />
+												Did I complete this task successfully?
+											</>
+										)}
+									</div>
 									<div
 										style={{
 											display: "flex",
@@ -1004,9 +1013,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 											gap: "10px",
 										}}>
 										<VSCodeButton
-											appearance={selectedButton === "no" ? "primary" : "secondary"}
+											appearance="secondary"
 											style={{
 												flex: 1,
+												opacity: selectedButton === "yes" ? 0.5 : 1,
 												border:
 													selectedButton === "no" ? "2px solid var(--vscode-focusBorder)" : undefined,
 											}}
@@ -1018,12 +1028,16 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 													}),
 												)
 											}}>
-											Not really...
+											{selectedButton === "no" && (
+												<span className="codicon codicon-check" style={{ marginRight: "5px" }}></span>
+											)}
+											No, let's Talk...
 										</VSCodeButton>
 										<VSCodeButton
-											appearance={selectedButton === "yes" ? "primary" : "secondary"}
+											appearance="secondary"
 											style={{
 												flex: 1,
+												opacity: selectedButton === "no" ? 0.5 : 1,
 												border:
 													selectedButton === "yes" ? "2px solid var(--vscode-focusBorder)" : undefined,
 											}}
@@ -1035,6 +1049,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 													}),
 												)
 											}}>
+											{selectedButton === "yes" && (
+												<span className="codicon codicon-check" style={{ marginRight: "5px" }}></span>
+											)}
 											Yes!
 										</VSCodeButton>
 									</div>
