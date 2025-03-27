@@ -167,11 +167,13 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 			errorText && // Ensure there is an error message
 			(errorText.includes("503 Service Unavailable") || errorText.includes("model is overloaded"))
 
+		let retryTimeoutId;
+
 		if (shouldRetry) {
 			console.log("Detected overload error, scheduling retry for message:", message.ts)
 			setRetryAttempted(true) // Mark retry as attempted for this instance
 			const delay = getRandomInt(3000, 7000) // Random delay between 3 and 7 seconds
-			setTimeout(() => {
+			retryTimeoutId = setTimeout(() => {
 				console.log(`Retrying API request for message ${message.ts} after ${delay}ms delay.`)
 				vscode.postMessage({
 					type: "retryApiRequest",
@@ -184,6 +186,9 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 		// For now, reset if the message timestamp changes.
 		return () => {
 			// Cleanup if needed, potentially reset retryAttempted if component unmounts or message changes significantly
+			if (retryTimeoutId) {
+				clearTimeout(retryTimeoutId);
+			}
 		}
 	}, [apiRequestFailedMessage, apiReqStreamingFailedMessage, isLast, message.ts, retryAttempted])
 
