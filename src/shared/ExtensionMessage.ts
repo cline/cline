@@ -41,6 +41,7 @@ export interface ExtensionMessage {
 		| "totalTasksSize"
 		| "addToInput"
 		| "browserConnectionResult"
+		| "browserConnectionInfo"
 		| "detectedChromePath"
 		| "scrollToSettings"
 	text?: string
@@ -86,6 +87,10 @@ export interface ExtensionMessage {
 	success?: boolean
 	values?: Record<string, any>
 	isBundled?: boolean
+	isConnected?: boolean
+	isRemote?: boolean
+	host?: string
+	isHeadless?: boolean
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -207,6 +212,13 @@ export type BrowserActionResult = {
 	logs?: string
 	currentUrl?: string
 	currentMousePosition?: string
+}
+
+export interface BrowserConnectionInfo {
+	isConnected: boolean
+	isRemote: boolean
+	host?: string
+	isHeadless: boolean
 }
 
 export interface ClineAskUseMcpServer {
