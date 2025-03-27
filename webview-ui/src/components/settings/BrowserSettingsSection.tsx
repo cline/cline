@@ -1,15 +1,43 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import debounce from "debounce"
 import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
+import styled from "styled-components"
+
+const ConnectionStatusIndicator = ({ isChecking, isConnected, remoteBrowserEnabled }: { 
+	isChecking: boolean; 
+	isConnected: boolean | null; 
+	remoteBrowserEnabled?: boolean;
+}) => {
+	if (!remoteBrowserEnabled) return null;
+	
+	return (
+		<StatusContainer>
+			{isChecking ? (
+				<>
+					<Spinner />
+					<StatusText>Checking connection...</StatusText>
+				</>
+			) : isConnected === true ? (
+				<>
+					<CheckIcon className="codicon codicon-check" />
+					<StatusText style={{ color: 'var(--vscode-terminal-ansiGreen)' }}>Connected</StatusText>
+				</>
+			) : isConnected === false ? (
+				<StatusText style={{ color: 'var(--vscode-errorForeground)' }}>Not connected</StatusText>
+			) : null}
+		</StatusContainer>
+	);
+};
 
 export const BrowserSettingsSection: React.FC = () => {
 	const { browserSettings } = useExtensionState()
-	const [testingConnection, setTestingConnection] = useState(false)
-	const [debugMode, setDebugMode] = useState(false)
-	const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+	const [isCheckingConnection, setIsCheckingConnection] = useState(false)
+	const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null)
 	const [relaunchResult, setRelaunchResult] = useState<{ success: boolean; message: string } | null>(null)
+	const [debugMode, setDebugMode] = useState(false)
 	const [isBundled, setIsBundled] = useState(false)
 	const [detectedChromePath, setDetectedChromePath] = useState<string | null>(null)
 
@@ -18,11 +46,8 @@ export const BrowserSettingsSection: React.FC = () => {
 		const handleMessage = (event: MessageEvent) => {
 			const message = event.data
 			if (message.type === "browserConnectionResult") {
-				setTestResult({
-					success: message.success,
-					message: message.text,
-				})
-				setTestingConnection(false)
+				setConnectionStatus(message.success)
+				setIsCheckingConnection(false)
 			} else if (message.type === "browserRelaunchResult") {
 				setRelaunchResult({
 					success: message.success,
@@ -46,6 +71,30 @@ export const BrowserSettingsSection: React.FC = () => {
 		})
 	}, [])
 
+	// Debounced connection check function
+	const debouncedCheckConnection = useCallback(
+		debounce(() => {
+			if (browserSettings.remoteBrowserEnabled) {
+				setIsCheckingConnection(true)
+				setConnectionStatus(null)
+				vscode.postMessage({
+					type: browserSettings.remoteBrowserHost ? "testBrowserConnection" : "discoverBrowser",
+					text: browserSettings.remoteBrowserHost,
+				})
+			}
+		}, 1000),
+		[browserSettings.remoteBrowserEnabled, browserSettings.remoteBrowserHost]
+	)
+
+	// Check connection when component mounts or when remote settings change
+	useEffect(() => {
+		if (browserSettings.remoteBrowserEnabled) {
+			debouncedCheckConnection()
+		} else {
+			setConnectionStatus(null)
+		}
+	}, [browserSettings.remoteBrowserEnabled, browserSettings.remoteBrowserHost, debouncedCheckConnection])
+
 	const handleViewportChange = (event: Event) => {
 		const target = event.target as HTMLSelectElement
 		const selectedSize = BROWSER_VIEWPORT_PRESETS[target.value as keyof typeof BROWSER_VIEWPORT_PRESETS]
@@ -58,16 +107,6 @@ export const BrowserSettingsSection: React.FC = () => {
 				},
 			})
 		}
-	}
-
-	const updateHeadless = (headless: boolean) => {
-		vscode.postMessage({
-			type: "browserSettings",
-			browserSettings: {
-				...browserSettings,
-				headless,
-			},
-		})
 	}
 
 	const updateRemoteBrowserEnabled = (enabled: boolean) => {
@@ -92,33 +131,17 @@ export const BrowserSettingsSection: React.FC = () => {
 		})
 	}
 
-	const testConnection = () => {
-		setTestingConnection(true)
-		setTestResult(null)
-		setRelaunchResult(null)
-		vscode.postMessage({
-			type: "testBrowserConnection",
-			text: browserSettings.remoteBrowserHost,
-		})
-	}
-
-	const discoverBrowser = () => {
-		setTestingConnection(true)
-		setTestResult(null)
-		setRelaunchResult(null)
-		vscode.postMessage({
-			type: "discoverBrowser",
-		})
-	}
-
 	const relaunchChromeDebugMode = () => {
 		setDebugMode(true)
 		setRelaunchResult(null)
-		setTestResult(null)
 		vscode.postMessage({
 			type: "relaunchChromeDebugMode",
 		})
 	}
+
+	// Determine if we should show the relaunch button
+	const isRemoteEnabled = Boolean(browserSettings.remoteBrowserEnabled);
+	const shouldShowRelaunchButton = isRemoteEnabled && connectionStatus === false;
 
 	return (
 		<div
@@ -193,12 +216,17 @@ export const BrowserSettingsSection: React.FC = () => {
 			    - Remote connections always use non-headless mode */}
 
 			<div style={{ marginBottom: 15 }}>
-				<div style={{ marginBottom: 8 }}>
+				<div style={{ marginBottom: 8, display: "flex", alignItems: "center" }}>
 					<VSCodeCheckbox
 						checked={browserSettings.remoteBrowserEnabled}
 						onChange={(e) => updateRemoteBrowserEnabled((e.target as HTMLInputElement).checked)}>
 						Use remote browser connection
 					</VSCodeCheckbox>
+					<ConnectionStatusIndicator 
+						isChecking={isCheckingConnection} 
+						isConnected={connectionStatus} 
+						remoteBrowserEnabled={browserSettings.remoteBrowserEnabled} 
+					/>
 				</div>
 				<p
 					style={{
@@ -218,35 +246,30 @@ export const BrowserSettingsSection: React.FC = () => {
 							style={{ width: "100%", marginBottom: 8 }}
 							onChange={(e: any) => updateRemoteBrowserHost(e.target.value || undefined)}
 						/>
-						<div style={{ display: "flex", gap: "10px", marginBottom: 8, justifyContent: "center" }}>
-							<VSCodeButton
-								style={{ flex: 1 }}
-								disabled={testingConnection}
-								onClick={browserSettings.remoteBrowserHost ? testConnection : discoverBrowser}>
-								{testingConnection ? "Testing..." : "Test Connection"}
-							</VSCodeButton>
-							<VSCodeButton style={{ flex: 1 }} disabled={debugMode} onClick={relaunchChromeDebugMode}>
-								{debugMode ? "Relaunching Browser..." : "Relaunch Browser with Debug Mode"}
-							</VSCodeButton>
-						</div>
+						
+						{shouldShowRelaunchButton && (
+							<div style={{ display: "flex", gap: "10px", marginBottom: 8, justifyContent: "center" }}>
+								<VSCodeButton style={{ flex: 1 }} disabled={debugMode} onClick={relaunchChromeDebugMode}>
+									{debugMode ? "Relaunching Browser..." : "Relaunch Browser with Debug Mode"}
+								</VSCodeButton>
+							</div>
+						)}
 
-						{(testResult || relaunchResult) && (
+						{relaunchResult && (
 							<div
 								style={{
 									padding: "8px",
 									marginBottom: "8px",
-									backgroundColor:
-										(relaunchResult?.success ?? testResult?.success)
-											? "rgba(0, 128, 0, 0.1)"
-											: "rgba(255, 0, 0, 0.1)",
-									color:
-										testResult?.success || relaunchResult?.success
-											? "var(--vscode-terminal-ansiGreen)"
-											: "var(--vscode-terminal-ansiRed)",
+									backgroundColor: relaunchResult.success
+										? "rgba(0, 128, 0, 0.1)"
+										: "rgba(255, 0, 0, 0.1)",
+									color: relaunchResult.success
+										? "var(--vscode-terminal-ansiGreen)"
+										: "var(--vscode-terminal-ansiRed)",
 									borderRadius: "3px",
 									fontSize: "11px",
 								}}>
-								{testResult?.message || relaunchResult?.message}
+								{relaunchResult.message}
 							</div>
 						)}
 
@@ -262,5 +285,35 @@ export const BrowserSettingsSection: React.FC = () => {
 		</div>
 	)
 }
+
+const StatusContainer = styled.div`
+	display: flex;
+	align-items: center;
+	margin-left: 12px;
+	height: 20px;
+`;
+
+const StatusText = styled.span`
+	font-size: 12px;
+	margin-left: 4px;
+`;
+
+const CheckIcon = styled.i`
+	color: var(--vscode-terminal-ansiGreen);
+	font-size: 14px;
+`;
+
+const Spinner = styled.div`
+	width: 14px;
+	height: 14px;
+	border: 2px solid rgba(255, 255, 255, 0.3);
+	border-radius: 50%;
+	border-top-color: var(--vscode-progressBar-background);
+	animation: spin 1s ease-in-out infinite;
+	
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
+`;
 
 export default BrowserSettingsSection
