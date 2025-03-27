@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react"
-import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions } from "../../utils/context-mentions"
+import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions, SearchResult } from "../../utils/context-mentions"
 import { cleanPathPrefix } from "../common/CodeAccordian"
 
 interface ContextMenuProps {
@@ -10,6 +10,8 @@ interface ContextMenuProps {
 	setSelectedIndex: (index: number) => void
 	selectedType: ContextMenuOptionType | null
 	queryItems: ContextMenuQueryItem[]
+	dynamicSearchResults?: SearchResult[]
+	isLoading?: boolean
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -20,13 +22,15 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	setSelectedIndex,
 	selectedType,
 	queryItems,
+	dynamicSearchResults = [],
+	isLoading = false,
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
 
-	const filteredOptions = useMemo(
-		() => getContextMenuOptions(searchQuery, selectedType, queryItems),
-		[searchQuery, selectedType, queryItems],
-	)
+	const filteredOptions = useMemo(() => {
+		const options = getContextMenuOptions(searchQuery, selectedType, queryItems, dynamicSearchResults)
+		return options
+	}, [searchQuery, selectedType, queryItems, dynamicSearchResults])
 
 	useEffect(() => {
 		if (menuRef.current) {
@@ -149,6 +153,19 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 					overflowY: "auto",
 				}}>
 				{/* Can't use virtuoso since it requires fixed height and menu height is dynamic based on # of items */}
+				{isLoading && searchQuery && (
+					<div
+						style={{
+							padding: "8px 12px",
+							display: "flex",
+							alignItems: "center",
+							gap: "8px",
+							opacity: 0.7,
+						}}>
+						<i className="codicon codicon-loading codicon-modifier-spin" style={{ fontSize: "14px" }} />
+						<span>Searching...</span>
+					</div>
+				)}
 				{filteredOptions.map((option, index) => (
 					<div
 						key={`${option.type}-${option.value || index}`}

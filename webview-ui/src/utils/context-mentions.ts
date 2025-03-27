@@ -1,5 +1,12 @@
 import { mentionRegex } from "../../../src/shared/context-mentions"
 import { Fzf } from "fzf"
+import * as path from "path"
+
+export interface SearchResult {
+	path: string
+	type: "file" | "folder"
+	label?: string
+}
 
 export function insertMention(text: string, position: number, value: string): { newValue: string; mentionIndex: number } {
 	const beforeCursor = text.slice(0, position)
@@ -44,6 +51,7 @@ export function removeMention(text: string, position: number): { newText: string
 }
 
 export enum ContextMenuOptionType {
+	OpenedFile = "openedFile",
 	File = "file",
 	Folder = "folder",
 	Problems = "problems",
@@ -64,6 +72,7 @@ export function getContextMenuOptions(
 	query: string,
 	selectedType: ContextMenuOptionType | null = null,
 	queryItems: ContextMenuQueryItem[],
+	dynamicSearchResults: SearchResult[] = [],
 ): ContextMenuQueryItem[] {
 	const workingChanges: ContextMenuQueryItem = {
 		type: ContextMenuOptionType.Git,
@@ -172,9 +181,30 @@ export function getContextMenuOptions(
 			item.type !== ContextMenuOptionType.Git,
 	)
 
-	// Combine suggestions with matching items in the desired order
-	if (suggestions.length > 0 || matchingItems.length > 0) {
-		const allItems = [...suggestions, ...fileMatches, ...gitMatches, ...otherMatches]
+	// Separate matches by type
+	const openedFileMatches = matchingItems.filter((item) => item.type === ContextMenuOptionType.OpenedFile)
+
+	const searchResultItems = dynamicSearchResults.map((result) => {
+		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
+		const item = {
+			type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
+			value: formattedPath,
+			label: result.label || path.basename(result.path),
+			description: formattedPath,
+		}
+		return item
+	})
+
+	// Combine all items in the desired order
+	if (suggestions.length > 0 || matchingItems.length > 0 || searchResultItems.length > 0) {
+		const allItems = [
+			...suggestions,
+			...searchResultItems,
+			...openedFileMatches,
+			...fileMatches,
+			...gitMatches,
+			...otherMatches,
+		]
 
 		// Remove duplicates based on type and value
 		const seen = new Set()

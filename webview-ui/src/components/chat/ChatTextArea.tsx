@@ -12,6 +12,7 @@ import {
 	insertMention,
 	removeMention,
 	shouldShowContextMenu,
+	SearchResult,
 } from "../../utils/context-mentions"
 import { useMetaKeyDetection, useShortcut } from "../../utils/hooks"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
@@ -238,7 +239,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [arrowPosition, setArrowPosition] = useState(0)
 		const [menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
-
+		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
+		const [searchLoading, setSearchLoading] = useState(false)
+		const [searchRequestId, setSearchRequestId] = useState<string>("")
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 
 		// Add a ref to track previous menu state
@@ -267,6 +270,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						})) || []
 					setGitCommits(commits)
 					break
+				}
+
+				case "fileSearchResults": {
+					setSearchLoading(false)
+					// Always update results to prevent flickering
+					setFileSearchResults(message.results || [])
 				}
 			}
 		}, [])
@@ -372,7 +381,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						event.preventDefault()
 						setSelectedMenuIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
-							const options = getContextMenuOptions(searchQuery, selectedType, queryItems)
+							const options = getContextMenuOptions(searchQuery, selectedType, queryItems, fileSearchResults)
 							const optionsLength = options.length
 
 							if (optionsLength === 0) return prevIndex
@@ -398,7 +407,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 					if ((event.key === "Enter" || event.key === "Tab") && selectedMenuIndex !== -1) {
 						event.preventDefault()
-						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems)[selectedMenuIndex]
+						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems, fileSearchResults)[
+							selectedMenuIndex
+						]
 						if (
 							selectedOption &&
 							selectedOption.type !== ContextMenuOptionType.URL &&
@@ -465,6 +476,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setInputValue,
 				justDeletedSpaceAfterMention,
 				queryItems,
+				fileSearchResults,
 			],
 		)
 
@@ -474,6 +486,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setIntendedCursorPosition(null) // Reset the state
 			}
 		}, [inputValue, intendedCursorPosition])
+
+		const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
 		const handleInputChange = useCallback(
 			(e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -490,15 +504,38 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					setSearchQuery(query)
 					if (query.length > 0) {
 						setSelectedMenuIndex(0)
+
+						// Clear any existing timeout
+						if (searchTimeoutRef.current) {
+							clearTimeout(searchTimeoutRef.current)
+						}
+
+						// Set a timeout to debounce the search requests
+						searchTimeoutRef.current = setTimeout(() => {
+							// Generate a request ID for this search
+							const reqId = Math.random().toString(36).substring(2, 9)
+							setSearchRequestId(reqId)
+							setSearchLoading(true)
+
+							// Send message to extension to search files
+							vscode.postMessage({
+								type: "searchFiles",
+								query: query,
+								requestId: reqId,
+							})
+						}, 200) // 200ms debounce
 					} else {
 						setSelectedMenuIndex(3) // Set to "File" option by default
+						// Don't clear results to prevent flickering
 					}
 				} else {
 					setSearchQuery("")
 					setSelectedMenuIndex(-1)
+					// Only clear results when menu is explicitly closed
+					setFileSearchResults([])
 				}
 			},
-			[setInputValue],
+			[setInputValue, setSearchRequestId, setFileSearchResults],
 		)
 
 		useEffect(() => {
@@ -892,15 +929,22 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					onDragOver={onDragOver}>
 					{showContextMenu && (
 						<div ref={contextMenuContainerRef}>
-							<ContextMenu
-								onSelect={handleMentionSelect}
-								searchQuery={searchQuery}
-								onMouseDown={handleMenuMouseDown}
-								selectedIndex={selectedMenuIndex}
-								setSelectedIndex={setSelectedMenuIndex}
-								selectedType={selectedType}
-								queryItems={queryItems}
-							/>
+							{/* Add debug logging before rendering */}
+							{(() => {
+								return (
+									<ContextMenu
+										onSelect={handleMentionSelect}
+										searchQuery={searchQuery}
+										onMouseDown={handleMenuMouseDown}
+										selectedIndex={selectedMenuIndex}
+										setSelectedIndex={setSelectedMenuIndex}
+										selectedType={selectedType}
+										queryItems={queryItems}
+										dynamicSearchResults={fileSearchResults}
+										isLoading={searchLoading}
+									/>
+								)
+							})()}
 						</div>
 					)}
 					{!isTextAreaFocused && (
