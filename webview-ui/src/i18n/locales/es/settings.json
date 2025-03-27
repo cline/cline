@@ -276,8 +276,9 @@
 		},
 		"maxReadFile": {
 			"label": "Umbral de auto-truncado de lectura de archivos",
-			"description": "El número predeterminado de líneas para leer de un archivo en un lote. Valores más bajos reducen el uso de contexto/recursos pero pueden requerir más lecturas para archivos grandes.",
-			"lines": "líneas"
+			"description": "Roo lee este número de líneas cuando el modelo omite valores de inicio/fin. Si este número es menor que el total del archivo, Roo genera un índice de números de línea de las definiciones de código. Casos especiales: -1 indica a Roo que lea el archivo completo (sin indexación), y 0 indica que no lea líneas y proporcione solo índices de línea para un contexto mínimo. Valores más bajos minimizan el uso inicial de contexto, permitiendo lecturas posteriores de rangos de líneas precisos. Las solicitudes con inicio/fin explícitos no están limitadas por esta configuración.",
+			"lines": "líneas",
+			"always_full_read": "Siempre leer el archivo completo"
 		}
 	},
 	"terminal": {

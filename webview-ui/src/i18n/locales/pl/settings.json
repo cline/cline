@@ -276,8 +276,9 @@
 		},
 		"maxReadFile": {
 			"label": "Próg automatycznego skracania odczytu pliku",
-			"description": "Domyślna liczba linii odczytywanych z pliku w jednej partii. Niższe wartości zmniejszają użycie kontekstu/zasobów, ale mogą wymagać więcej odczytów dla dużych plików.",
-			"lines": "linii"
+			"description": "Roo odczytuje tę liczbę linii, gdy model nie określa wartości początkowej/końcowej. Jeśli ta liczba jest mniejsza niż całkowita liczba linii pliku, Roo generuje indeks numerów linii definicji kodu. Przypadki specjalne: -1 nakazuje Roo odczytać cały plik (bez indeksowania), a 0 nakazuje nie czytać żadnych linii i dostarczyć tylko indeksy linii dla minimalnego kontekstu. Niższe wartości minimalizują początkowe użycie kontekstu, umożliwiając późniejsze precyzyjne odczyty zakresów linii. Jawne żądania początku/końca nie są ograniczone tym ustawieniem.",
+			"lines": "linii",
+			"always_full_read": "Zawsze czytaj cały plik"
 		}
 	},
 	"terminal": {

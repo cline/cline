@@ -276,8 +276,9 @@
 		},
 		"maxReadFile": {
 			"label": "Ngưỡng tự động cắt ngắn khi đọc tệp",
-			"description": "Số dòng mặc định để đọc từ một tệp trong một lô. Giá trị thấp hơn giảm sử dụng ngữ cảnh/tài nguyên nhưng có thể yêu cầu đọc nhiều lần hơn cho các tệp lớn.",
-			"lines": "dòng"
+			"description": "Roo đọc số dòng này khi mô hình không chỉ định giá trị bắt đầu/kết thúc. Nếu số này nhỏ hơn tổng số dòng của tệp, Roo sẽ tạo một chỉ mục số dòng của các định nghĩa mã. Trường hợp đặc biệt: -1 chỉ thị Roo đọc toàn bộ tệp (không tạo chỉ mục), và 0 chỉ thị không đọc dòng nào và chỉ cung cấp chỉ mục dòng cho ngữ cảnh tối thiểu. Giá trị thấp hơn giảm thiểu việc sử dụng ngữ cảnh ban đầu, cho phép đọc chính xác các phạm vi dòng sau này. Các yêu cầu có chỉ định bắt đầu/kết thúc rõ ràng không bị giới hạn bởi cài đặt này.",
+			"lines": "dòng",
+			"always_full_read": "Luôn đọc toàn bộ tệp"
 		}
 	},
 	"terminal": {

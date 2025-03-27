@@ -276,8 +276,9 @@
 		},
 		"maxReadFile": {
 			"label": "File read auto-truncate threshold",
-			"description": "The default number of lines to read from a file in one batch. Lower values reduce context/resource usage but may require more reads for large files.",
-			"lines": "lines"
+			"description": "Roo reads this number of lines when the model omits start/end values. If this number is less than the file's total, Roo generates a line number index of code definitions. Special cases: -1 instructs Roo to read the entire file (without indexing), and 0 instructs it to read no lines and provides line indexes only for minimal context. Lower values minimize initial context usage, enabling precise subsequent line-range reads. Explicit start/end requests are not limited by this setting.",
+			"lines": "lines",
+			"always_full_read": "Always read entire file"
 		}
 	},
 	"terminal": {

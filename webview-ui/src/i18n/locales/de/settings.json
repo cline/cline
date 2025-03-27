@@ -276,8 +276,9 @@
 		},
 		"maxReadFile": {
 			"label": "Schwellenwert für automatische Dateilesekürzung",
-			"description": "Die Standardanzahl an Zeilen, die in einem Durchgang aus einer Datei gelesen werden. Niedrigere Werte reduzieren den Kontext-/Ressourcenverbrauch, können aber mehr Lesevorgänge für große Dateien erfordern.",
-			"lines": "Zeilen"
+			"description": "Roo liest diese Anzahl von Zeilen, wenn das Modell keine Start-/Endwerte angibt. Wenn diese Zahl kleiner als die Gesamtzahl der Zeilen ist, erstellt Roo einen Zeilennummernindex der Codedefinitionen. Spezialfälle: -1 weist Roo an, die gesamte Datei zu lesen (ohne Indexierung), und 0 weist an, keine Zeilen zu lesen und nur Zeilenindizes für minimalen Kontext bereitzustellen. Niedrigere Werte minimieren die anfängliche Kontextnutzung und ermöglichen präzise nachfolgende Zeilenbereich-Lesungen. Explizite Start-/End-Anfragen sind von dieser Einstellung nicht begrenzt.",
+			"lines": "Zeilen",
+			"always_full_read": "Immer die gesamte Datei lesen"
 		}
 	},
 	"terminal": {

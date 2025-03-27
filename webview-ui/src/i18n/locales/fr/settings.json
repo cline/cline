@@ -276,8 +276,9 @@
 		},
 		"maxReadFile": {
 			"label": "Seuil d'auto-troncature de lecture de fichier",
-			"description": "Le nombre par défaut de lignes à lire depuis un fichier en un lot. Des valeurs plus basses réduisent l'utilisation de contexte/ressources mais peuvent nécessiter plus de lectures pour les fichiers volumineux.",
-			"lines": "lignes"
+			"description": "Roo lit ce nombre de lignes lorsque le modèle omet les valeurs de début/fin. Si ce nombre est inférieur au total du fichier, Roo génère un index des numéros de ligne des définitions de code. Cas spéciaux : -1 indique à Roo de lire le fichier entier (sans indexation), et 0 indique de ne lire aucune ligne et de fournir uniquement les index de ligne pour un contexte minimal. Des valeurs plus basses minimisent l'utilisation initiale du contexte, permettant des lectures ultérieures de plages de lignes précises. Les requêtes avec début/fin explicites ne sont pas limitées par ce paramètre.",
+			"lines": "lignes",
+			"always_full_read": "Toujours lire le fichier entier"
 		}
 	},
 	"terminal": {
