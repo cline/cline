@@ -117,23 +117,40 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWid
 
 	// Determine icon based on connection state
 	const getIconClass = () => {
-		if (connectionInfo.isConnected) {
-			return connectionInfo.isRemote ? 'codicon-remote' : 'codicon-vm-running';
+		if (connectionInfo.isRemote) {
+			return 'codicon-remote';
 		} else {
-			return connectionInfo.isRemote ? 'codicon-remote' : 'codicon-info';
+			return connectionInfo.isConnected ? 'codicon-vm-running' : 'codicon-info';
 		}
 	}
 
 	// Determine icon color based on connection state
 	const getIconColor = () => {
-		if (connectionInfo.isConnected) {
+		if (connectionInfo.isRemote) {
+			return connectionInfo.isConnected ? 'var(--vscode-charts-blue)' : 'var(--vscode-foreground)';
+		} else if (connectionInfo.isConnected) {
 			return 'var(--vscode-charts-green)';
-		} else if (connectionInfo.isRemote) {
-			return 'var(--vscode-charts-blue)';
 		} else {
 			return 'var(--vscode-foreground)';
 		}
 	}
+	
+	// Check connection status every second to keep icon in sync
+	useEffect(() => {
+		// Request connection info immediately
+		vscode.postMessage({
+			type: "getBrowserConnectionInfo"
+		});
+		
+		// Set up interval to refresh every second
+		const intervalId = setInterval(() => {
+			vscode.postMessage({
+				type: "getBrowserConnectionInfo"
+			});
+		}, 1000);
+		
+		return () => clearInterval(intervalId);
+	}, []);
 
 	return (
 		<div ref={containerRef} style={{ position: "relative", marginTop: "-1px", display: "flex" }}>
@@ -141,7 +158,8 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWid
 				appearance="icon" 
 				className="browser-info-icon"
 				onClick={toggleInfoPopover}
-				title="Browser connection info">
+				title="Browser connection info"
+				style={{ marginRight: "4px" }}>
 				<i 
 					className={`codicon ${getIconClass()}`} 
 					style={{ 
@@ -170,10 +188,6 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWid
 							<InfoValue>{connectionInfo.host}</InfoValue>
 						</InfoRow>
 					)}
-					<InfoRow>
-						<InfoLabel>Headless:</InfoLabel>
-						<InfoValue>{connectionInfo.isHeadless ? 'Yes' : 'No'}</InfoValue>
-					</InfoRow>
 				</InfoPopover>
 			)}
 			

@@ -281,6 +281,11 @@ export class BrowserSession {
 	async closeBrowser(): Promise<BrowserActionResult> {
 		if (this.browser || this.page) {
 			if (this.isConnectedToRemote && this.browser) {
+				// Close the page/tab first if it exists
+				if (this.page) {
+					await this.page.close().catch(() => {})
+					console.log("closed remote browser tab...")
+				}
 				await this.browser.disconnect().catch(() => {})
 				console.log("disconnected from remote browser...")
 			} else {
