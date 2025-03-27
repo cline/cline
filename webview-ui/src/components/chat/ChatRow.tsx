@@ -3,6 +3,12 @@ import deepEqual from "fast-deep-equal"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent, useSize } from "react-use"
 import styled from "styled-components"
+// Define getRandomInt locally as import path was incorrect
+const getRandomInt = (min: number, max: number): number => {
+	min = Math.ceil(min)
+	max = Math.floor(max)
+	return Math.floor(Math.random() * (max - min + 1)) + min
+}
 import {
 	ClineApiReqInfo,
 	ClineAskQuestion,
@@ -136,6 +142,7 @@ export default ChatRow
 export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
+	const [retryAttempted, setRetryAttempted] = useState(false) // State to prevent infinite retries
 
 	const [cost, apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 		if (message.text != null && message.say === "api_req_started") {
@@ -150,6 +157,35 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 		isLast && lastModifiedMessage?.ask === "api_req_failed" // if request is retried then the latest message is a api_req_retried
 			? lastModifiedMessage?.text
 			: undefined
+
+	// Effect for automatic retry on specific errors
+	useEffect(() => {
+		const errorText = apiRequestFailedMessage || apiReqStreamingFailedMessage
+		const shouldRetry =
+			isLast && // Only retry if it's the last message
+			!retryAttempted && // Only retry once per message instance
+			errorText && // Ensure there is an error message
+			(errorText.includes("503 Service Unavailable") || errorText.includes("model is overloaded"))
+
+		if (shouldRetry) {
+			console.log("Detected overload error, scheduling retry for message:", message.ts)
+			setRetryAttempted(true) // Mark retry as attempted for this instance
+			const delay = getRandomInt(3000, 7000) // Random delay between 3 and 7 seconds
+			setTimeout(() => {
+				console.log(`Retrying API request for message ${message.ts} after ${delay}ms delay.`)
+				vscode.postMessage({
+					type: "retryApiRequest",
+					ts: message.ts,
+				})
+			}, delay)
+		}
+		// Reset retry flag if the message or error changes (e.g., user manually retries or new message arrives)
+		// This might need refinement depending on exact interaction flow.
+		// For now, reset if the message timestamp changes.
+		return () => {
+			// Cleanup if needed, potentially reset retryAttempted if component unmounts or message changes significantly
+		}
+	}, [apiRequestFailedMessage, apiReqStreamingFailedMessage, isLast, message.ts, retryAttempted])
 
 	const isCommandExecuting =
 		isLast &&

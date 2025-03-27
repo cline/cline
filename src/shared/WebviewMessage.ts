@@ -65,8 +65,10 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
+		| "retryApiRequest" // Added for automatic retry
 	// | "relaunchChromeDebugMode"
 	text?: string
+	ts?: number // Added for retryApiRequest
 	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
