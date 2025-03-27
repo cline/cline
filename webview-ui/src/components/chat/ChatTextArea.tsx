@@ -895,10 +895,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{/* Overlay div that captures clicks when input is disabled */}
 					{textAreaDisabled && onDisabledClick && (
 						<div
-							onClick={() => {
-								console.log("Overlay div clicked")
-								onDisabledClick()
-							}}
+							onClick={onDisabledClick}
 							style={{
 								position: "absolute",
 								top: 0,
@@ -985,17 +982,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						onSelect={updateCursorPosition}
 						onMouseUp={updateCursorPosition}
 						onClick={() => {
-							console.log("ChatTextArea clicked")
-							console.log("textAreaDisabled:", textAreaDisabled)
-							console.log("onDisabledClick exists:", !!onDisabledClick)
-
 							if (textAreaDisabled && onDisabledClick) {
-								console.log("Calling onDisabledClick")
 								onDisabledClick()
-							} else {
-								console.log("Not calling onDisabledClick")
-								if (!textAreaDisabled) console.log("Reason: textAreaDisabled is false")
-								if (!onDisabledClick) console.log("Reason: onDisabledClick is undefined")
 							}
 						}}
 						onHeightChange={(height) => {

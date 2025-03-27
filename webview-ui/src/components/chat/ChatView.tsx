@@ -66,6 +66,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [selectedImages, setSelectedImages] = useState<string[]>([])
 	const [taskCompletionStatus, setTaskCompletionStatus] = useState<"pending" | "completed" | "not_completed">("pending")
 	const [hasMessageBeenSentAfterCompletion, setHasMessageBeenSentAfterCompletion] = useState(false)
+	const buttonContainerRef = useRef<HTMLDivElement>(null)
 
 	// we need to hold on to the ask because useEffect > lastMessage will always let us know when an ask comes in and handle it, but by the time handleMessage is called, the last message might not be the ask anymore (it could be a say that followed)
 	const [clineAsk, setClineAsk] = useState<ClineAsk | undefined>(undefined)
@@ -80,6 +81,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 	const [isAtBottom, setIsAtBottom] = useState(false)
 	const [isYesNoButtonsHighlighted, setIsYesNoButtonsHighlighted] = useState(false) // This will be passed to ChatRow
+	const [selectedButton, setSelectedButton] = useState<"yes" | "no" | null>(null)
 
 	// UI layout depends on the last 2 messages
 	// (since it relies on the content of these messages, we are deep comparing. i.e. the button state after hitting button sets enableButtons to false, and this effect otherwise would have to true again even if messages didn't change
@@ -742,16 +744,21 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	)
 
 	const handleDisabledInputClick = useCallback(() => {
-		console.log("handleDisabledInputClick called")
-		console.log("textAreaDisabled:", textAreaDisabled)
-		console.log("taskCompletionStatus:", taskCompletionStatus)
-		setIsYesNoButtonsHighlighted(true)
+		// Only highlight the Yes/No buttons if the input is disabled due to completion result
+		if (textAreaDisabled && clineAsk === "completion_result" && !isStreaming) {
+			setIsYesNoButtonsHighlighted(true)
 
-		// Set a timeout to turn off the highlight after a short duration
-		setTimeout(() => {
-			setIsYesNoButtonsHighlighted(false)
-		}, 1500)
-	}, [textAreaDisabled, setIsYesNoButtonsHighlighted])
+			// Set a timeout to turn off the highlight after a short duration
+			setTimeout(() => {
+				setIsYesNoButtonsHighlighted(false)
+			}, 1500)
+
+			// Scroll to the Yes/No buttons if needed
+			if (buttonContainerRef.current) {
+				buttonContainerRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
+			}
+		}
+	}, [textAreaDisabled, clineAsk, isStreaming, setIsYesNoButtonsHighlighted])
 
 	useEffect(() => {
 		if (!disableAutoScrollRef.current) {
@@ -939,6 +946,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						/>
 					</div>
 					<AutoApproveMenu />
+					{/* Yes/No buttons container is now only in the button container div below */}
 
 					{showScrollToBottom ? (
 						<div
@@ -956,6 +964,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						</div>
 					) : (
 						<div
+							ref={buttonContainerRef}
 							className="button-container"
 							style={{
 								opacity:
@@ -967,29 +976,61 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								display: "flex",
 								padding: `${primaryButtonText || secondaryButtonText || isStreaming ? "10" : "0"}px 15px 0px 15px`,
 							}}>
-							{primaryButtonText && !isStreaming && (
-								<VSCodeButton
-									appearance="primary"
-									disabled={!enableButtons}
+							{/* Yes/No buttons for task completion feedback */}
+							{clineAsk === "completion_result" && !isStreaming && (
+								<div
 									style={{
-										flex: secondaryButtonText ? 1 : 2,
-										marginRight: secondaryButtonText ? "6px" : "0",
-									}}
-									onClick={() => handlePrimaryButtonClick(inputValue, selectedImages)}>
-									{primaryButtonText}
-								</VSCodeButton>
-							)}
-							{(secondaryButtonText || isStreaming) && (
-								<VSCodeButton
-									appearance="secondary"
-									disabled={!enableButtons && !(isStreaming && !didClickCancel)}
-									style={{
-										flex: isStreaming ? 2 : 1,
-										marginLeft: isStreaming ? 0 : "6px",
-									}}
-									onClick={() => handleSecondaryButtonClick(inputValue, selectedImages)}>
-									{isStreaming ? "Cancel" : secondaryButtonText}
-								</VSCodeButton>
+										display: "flex",
+										flexDirection: "column",
+										width: "100%",
+										border: isYesNoButtonsHighlighted
+											? "2px solid var(--vscode-focusBorder)"
+											: "2px solid transparent",
+										boxShadow: isYesNoButtonsHighlighted ? "0 0 8px var(--vscode-focusBorder)" : "none",
+										padding: isYesNoButtonsHighlighted ? "6px" : "8px 8px",
+										transition: "all 0.3s ease-in-out",
+										alignItems: "center",
+										gap: "10px",
+									}}>
+									<div>Did I complete this task successfully?</div>
+									<div
+										style={{
+											display: "flex",
+											justifyContent: "space-between",
+											marginTop: "10px",
+											width: "100%",
+											borderRadius: "4px",
+										}}>
+										<VSCodeButton
+											appearance="secondary"
+											style={{
+												flex: 1,
+											}}
+											onClick={() => {
+												window.dispatchEvent(
+													new CustomEvent("taskCompletionStatus", {
+														detail: { status: "not_completed" },
+													}),
+												)
+											}}>
+											No, let's Talk...
+										</VSCodeButton>
+										<VSCodeButton
+											appearance="primary"
+											style={{
+												flex: 1,
+											}}
+											onClick={() => {
+												window.dispatchEvent(
+													new CustomEvent("taskCompletionStatus", {
+														detail: { status: "completed" },
+													}),
+												)
+											}}>
+											Yes!
+										</VSCodeButton>
+									</div>
+								</div>
 							)}
 						</div>
 					)}
