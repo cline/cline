@@ -135,9 +135,43 @@ export const BrowserSettingsSection: React.FC = () => {
 		})
 	}
 
+	// Function to check connection once without changing UI state immediately
+	const checkConnectionOnce = useCallback(() => {
+		// Don't show the spinner for every check to avoid UI flicker
+		// We'll rely on the response to update the connectionStatus
+		vscode.postMessage({
+			type: browserSettings.remoteBrowserHost ? "testBrowserConnection" : "discoverBrowser",
+			text: browserSettings.remoteBrowserHost,
+		})
+	}, [browserSettings.remoteBrowserHost]);
+	
+	// Setup continuous polling for connection status when remote browser is enabled
+	useEffect(() => {
+		// Only poll if remote browser mode is enabled
+		if (!browserSettings.remoteBrowserEnabled) {
+			// Make sure we're not showing checking state when disabled
+			setIsCheckingConnection(false);
+			return;
+		}
+		
+		// Check immediately when enabled
+		checkConnectionOnce();
+		
+		// Then check every second
+		const pollInterval = setInterval(() => {
+			checkConnectionOnce();
+		}, 1000);
+		
+		// Cleanup the interval if the component unmounts or remote browser is disabled
+		return () => clearInterval(pollInterval);
+		
+	}, [browserSettings.remoteBrowserEnabled, checkConnectionOnce]);
+
 	const relaunchChromeDebugMode = () => {
 		setDebugMode(true)
 		setRelaunchResult(null)
+		// The connection status will be automatically updated by our polling
+		
 		vscode.postMessage({
 			type: "relaunchChromeDebugMode",
 		})
