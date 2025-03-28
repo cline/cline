@@ -119,7 +119,7 @@ export class BrowserSession {
 
 			const chromeFlags = [
 				"--remote-debugging-port=" + DEBUG_PORT,
-				//"--no-first-run",
+				"--no-first-run",
 				"--no-default-browser-check",
 				"--disable-notifications",
 			]

@@ -68,6 +68,18 @@ export const BrowserSettingsSection: React.FC = () => {
 		return () => window.removeEventListener("message", handleMessage)
 	}, [])
 
+	// Auto-clear relaunch result message after 15 seconds
+	useEffect(() => {
+		if (relaunchResult) {
+			const timer = setTimeout(() => {
+				setRelaunchResult(null)
+			}, 15000)
+
+			// Clear timeout if component unmounts or relaunchResult changes
+			return () => clearTimeout(timer)
+		}
+	}, [relaunchResult])
+
 	// Request detected Chrome path on mount
 	useEffect(() => {
 		vscode.postMessage({
@@ -143,35 +155,34 @@ export const BrowserSettingsSection: React.FC = () => {
 			type: browserSettings.remoteBrowserHost ? "testBrowserConnection" : "discoverBrowser",
 			text: browserSettings.remoteBrowserHost,
 		})
-	}, [browserSettings.remoteBrowserHost]);
-	
+	}, [browserSettings.remoteBrowserHost])
+
 	// Setup continuous polling for connection status when remote browser is enabled
 	useEffect(() => {
 		// Only poll if remote browser mode is enabled
 		if (!browserSettings.remoteBrowserEnabled) {
 			// Make sure we're not showing checking state when disabled
-			setIsCheckingConnection(false);
-			return;
+			setIsCheckingConnection(false)
+			return
 		}
-		
+
 		// Check immediately when enabled
-		checkConnectionOnce();
-		
+		checkConnectionOnce()
+
 		// Then check every second
 		const pollInterval = setInterval(() => {
-			checkConnectionOnce();
-		}, 1000);
-		
+			checkConnectionOnce()
+		}, 1000)
+
 		// Cleanup the interval if the component unmounts or remote browser is disabled
-		return () => clearInterval(pollInterval);
-		
-	}, [browserSettings.remoteBrowserEnabled, checkConnectionOnce]);
+		return () => clearInterval(pollInterval)
+	}, [browserSettings.remoteBrowserEnabled, checkConnectionOnce])
 
 	const relaunchChromeDebugMode = () => {
 		setDebugMode(true)
 		setRelaunchResult(null)
 		// The connection status will be automatically updated by our polling
-		
+
 		vscode.postMessage({
 			type: "relaunchChromeDebugMode",
 		})
