@@ -84,9 +84,9 @@ export function getContextMenuOptions(
 	if (query === "") {
 		if (selectedType === ContextMenuOptionType.File) {
 			const files = queryItems
-				.filter((item) => item.type === ContextMenuOptionType.File)
+				.filter((item) => item.type === ContextMenuOptionType.File || item.type === ContextMenuOptionType.OpenedFile)
 				.map((item) => ({
-					type: ContextMenuOptionType.File,
+					type: item.type,
 					value: item.value,
 				}))
 			return files.length > 0 ? files : [{ type: ContextMenuOptionType.NoResults }]
@@ -182,7 +182,15 @@ export function getContextMenuOptions(
 	)
 
 	// Separate matches by type
-	const openedFileMatches = matchingItems.filter((item) => item.type === ContextMenuOptionType.OpenedFile)
+	//const openedFileMatches = matchingItems.filter((item) => item.type === ContextMenuOptionType.OpenedFile)
+
+	// Convert search results to queryItems format
+	console.log("context-mentions.ts: (0) dynamicSearchResults:", {
+		length: dynamicSearchResults.length,
+		firstItem: dynamicSearchResults[0],
+		query,
+		selectedType,
+	})
 
 	const searchResultItems = dynamicSearchResults.map((result) => {
 		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
@@ -192,32 +200,32 @@ export function getContextMenuOptions(
 			label: result.label || path.basename(result.path),
 			description: formattedPath,
 		}
+		console.log("context-mentions.ts: Mapped item:", item)
 		return item
+	})
+
+	console.log("context-mentions.ts: (1) searchResultItems:", {
+		length: searchResultItems.length,
+		firstItem: searchResultItems[0],
 	})
 
 	// Combine all items in the desired order
 	if (suggestions.length > 0 || matchingItems.length > 0 || searchResultItems.length > 0) {
-		const allItems = [
-			...suggestions,
-			...searchResultItems,
-			...openedFileMatches,
-			...fileMatches,
-			...gitMatches,
-			...otherMatches,
-		]
+		console.log("context-mentions.ts: (2) searchResultItems length: ", searchResultItems.length) // why is this zero?
+		const allItems = [...suggestions, ...searchResultItems, ...fileMatches, ...gitMatches, ...otherMatches]
 
-		// Remove duplicates based on type and value
+		// Remove duplicates - normalize paths by ensuring all have leading slashes
 		const seen = new Set()
 		const deduped = allItems.filter((item) => {
-			const key = `${item.type}-${item.value}`
-			if (seen.has(key)) {
-				return false
-			}
+			// Normalize paths for deduplication by ensuring leading slashes
+			const normalizedValue = item.value && !item.value.startsWith("/") ? `/${item.value}` : item.value
+			const key = `${item.type}-${normalizedValue}`
+			if (seen.has(key)) return false
 			seen.add(key)
 			return true
 		})
 
-		return deduped
+		return deduped.length > 0 ? deduped : [{ type: ContextMenuOptionType.NoResults }]
 	}
 
 	return [{ type: ContextMenuOptionType.NoResults }]

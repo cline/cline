@@ -502,7 +502,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
 					const query = newValue.slice(lastAtIndex + 1, newCursorPosition)
 					setSearchQuery(query)
-					if (query.length > 0) {
+					if (query.length > 0 && !selectedType) {
+						console.log("searching for:", query)
 						setSelectedMenuIndex(0)
 
 						// Clear any existing timeout
