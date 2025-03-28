@@ -2,7 +2,7 @@
 
 ## [3.8.4]
 
--   Added Sambanova Deepseek-V3-0324
+-   Add Sambanova Deepseek-V3-0324
 -   Add cost calculation support for LiteLLM provider
 -   Fix bug where Cline would use plan_mode_response bug without response parameter
 
