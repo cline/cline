@@ -75,13 +75,13 @@ describe("CodeActionProvider", () => {
 			const actions = provider.provideCodeActions(mockDocument, mockRange, mockContext)
 
 			expect(actions).toHaveLength(7) // 2 explain + 2 fix logic + 2 improve + 1 add to context
-			expect((actions as any)[0].title).toBe(`${ACTION_NAMES.EXPLAIN} in New Task`)
-			expect((actions as any)[1].title).toBe(`${ACTION_NAMES.EXPLAIN} in Current Task`)
-			expect((actions as any)[2].title).toBe(`${ACTION_NAMES.FIX_LOGIC} in New Task`)
-			expect((actions as any)[3].title).toBe(`${ACTION_NAMES.FIX_LOGIC} in Current Task`)
-			expect((actions as any)[4].title).toBe(`${ACTION_NAMES.IMPROVE} in New Task`)
-			expect((actions as any)[5].title).toBe(`${ACTION_NAMES.IMPROVE} in Current Task`)
-			expect((actions as any)[6].title).toBe(ACTION_NAMES.ADD_TO_CONTEXT)
+			expect((actions as any)[0].title).toBe(ACTION_NAMES.ADD_TO_CONTEXT)
+			expect((actions as any)[1].title).toBe(`${ACTION_NAMES.EXPLAIN} in New Task`)
+			expect((actions as any)[2].title).toBe(`${ACTION_NAMES.EXPLAIN} in Current Task`)
+			expect((actions as any)[3].title).toBe(`${ACTION_NAMES.FIX_LOGIC} in New Task`)
+			expect((actions as any)[4].title).toBe(`${ACTION_NAMES.FIX_LOGIC} in Current Task`)
+			expect((actions as any)[5].title).toBe(`${ACTION_NAMES.IMPROVE} in New Task`)
+			expect((actions as any)[6].title).toBe(`${ACTION_NAMES.IMPROVE} in Current Task`)
 		})
 
 		it("should provide fix action instead of fix logic when diagnostics exist", () => {

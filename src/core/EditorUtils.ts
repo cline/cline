@@ -38,6 +38,10 @@ export interface EditorContext {
 	filePath: string
 	/** The effective text selected or derived from the document. */
 	selectedText: string
+	/** The starting line number of the selected text (1-based). */
+	startLine: number
+	/** The ending line number of the selected text (1-based). */
+	endLine: number
 	/** Optional list of diagnostics associated with the effective range. */
 	diagnostics?: DiagnosticData[]
 }
@@ -194,6 +198,8 @@ export class EditorUtils {
 			return {
 				filePath,
 				selectedText: effectiveRange.text,
+				startLine: effectiveRange.range.start.line + 1, // Convert to 1-based line numbers
+				endLine: effectiveRange.range.end.line + 1, // Convert to 1-based line numbers
 				...(diagnostics.length > 0 ? { diagnostics } : {}),
 			}
 		} catch (error) {

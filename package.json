@@ -185,19 +185,19 @@
 			],
 			"roo-code.contextMenu": [
 				{
-					"command": "roo-cline.explainCode",
+					"command": "roo-cline.addToContext",
 					"group": "1_actions@1"
 				},
 				{
-					"command": "roo-cline.fixCode",
+					"command": "roo-cline.explainCode",
 					"group": "1_actions@2"
 				},
 				{
-					"command": "roo-cline.improveCode",
+					"command": "roo-cline.fixCode",
 					"group": "1_actions@3"
 				},
 				{
-					"command": "roo-cline.addToContext",
+					"command": "roo-cline.improveCode",
 					"group": "1_actions@4"
 				}
 			],

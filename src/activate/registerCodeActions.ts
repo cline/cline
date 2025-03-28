@@ -53,20 +53,24 @@ const registerCodeAction = (
 			// Handle both code action and direct command cases.
 			let filePath: string
 			let selectedText: string
+			let startLine: number | undefined
+			let endLine: number | undefined
 			let diagnostics: any[] | undefined
 
 			if (args.length > 1) {
 				// Called from code action.
-				;[filePath, selectedText, diagnostics] = args
+				;[filePath, selectedText, startLine, endLine, diagnostics] = args
 			} else {
 				// Called directly from command palette.
 				const context = EditorUtils.getEditorContext()
 				if (!context) return
-				;({ filePath, selectedText, diagnostics } = context)
+				;({ filePath, selectedText, startLine, endLine, diagnostics } = context)
 			}
 
 			const params = {
 				...{ filePath, selectedText },
+				...(startLine !== undefined ? { startLine: startLine.toString() } : {}),
+				...(endLine !== undefined ? { endLine: endLine.toString() } : {}),
 				...(diagnostics ? { diagnostics } : {}),
 				...(userInput ? { userInput } : {}),
 			}
