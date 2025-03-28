@@ -55,13 +55,16 @@ Cline supports API providers like OpenRouter, Anthropic, OpenAI, Google Gemini, 
 
 The extension also keeps track of total tokens and API usage cost for the entire task loop and individual requests, keeping you informed of spend every step of the way.
 
-<!-- Transparent pixel to create line break after floating image -->
+#### Custom Headers for OpenAI-Compatible APIs
 
-<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
+For OpenAI-compatible APIs that require custom HTTP headers (like Open WebUI or enterprise API gateways), Cline now supports custom header configuration. You can either:
+- Choose from predefined header templates (like Open WebUI authentication)
+- Provide your own custom headers as a JSON object
 
+This makes it easier to connect to a wider range of OpenAI-compatible API providers that require special authentication or configuration.
+
+### Browser Integration
 <img align="left" width="370" src="https://github.com/user-attachments/assets/81be79a8-1fdb-4028-9129-5fe055e01e76">
-
-### Run Commands in Terminal
 
 Thanks to the new [shell integration updates in VSCode v1.93](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api), Cline can execute commands directly in your terminal and receive the output. This allows him to perform a wide range of tasks, from installing packages and running build scripts to deploying applications, managing databases, and executing tests, all while adapting to your dev environment & toolchain to get the job done right.
 
