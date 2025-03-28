@@ -1,7 +1,10 @@
-import { constructNewFileContent as cnfc2 } from "./diff2"
-import { constructNewFileContent as cnfc } from "./diff"
+import { constructNewFileContent as cnfc2 } from "./diff"
 import { describe, it } from "mocha"
 import { expect } from "chai"
+
+async function cnfc(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
+	return cnfc2(diffContent, originalContent, isFinal, "v1")
+}
 
 describe("Diff Format Edge Cases", () => {
 	it("should handle SEARCH prefix symbols < less than 7", async () => {
