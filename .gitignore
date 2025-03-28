@@ -1,4 +1,5 @@
 out
+coverage
 dist
 node_modules
 tmp
