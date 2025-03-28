@@ -938,6 +938,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						this.postMessageToWebview({ type: "relinquishControl" })
 						break
 					}
+					case "retryApiRequest": {
+						if (message.ts && this.cline) {
+							console.log(`Received retry request for message ts: ${message.ts}`)
+							// Call a method on the Cline instance to handle the retry
+							// We'll need to implement this method in Cline.ts
+							await this.cline.retryFailedRequest(message.ts)
+						}
+						break
+					}
 					// Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
 				}
