@@ -205,7 +205,7 @@ export const TabButton = ({
 
 // Server Row Component
 const ServerRow = ({ server }: { server: McpServer }) => {
-	const { mcpMarketplaceCatalog } = useExtensionState()
+	const { mcpMarketplaceCatalog, autoApprovalSettings } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
@@ -457,13 +457,15 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 											gap: "8px",
 											width: "100%",
 										}}>
-										<VSCodeCheckbox
-											style={{ alignSelf: "center" }}
-											checked={server.tools.every((tool) => tool.autoApprove)}
-											onChange={handleAutoApproveChange}
-											data-tool="all-tools">
-											Auto-approve all tools
-										</VSCodeCheckbox>
+										{server.name && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
+											<VSCodeCheckbox
+												style={{ alignSelf: "center" }}
+												checked={server.tools.every((tool) => tool.autoApprove)}
+												onChange={handleAutoApproveChange}
+												data-tool="all-tools">
+												Auto-approve all tools
+											</VSCodeCheckbox>
+										)}
 										{server.tools.map((tool) => (
 											<McpToolRow key={tool.name} tool={tool} serverName={server.name} />
 										))}
