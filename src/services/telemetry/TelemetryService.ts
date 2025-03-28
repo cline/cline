@@ -32,6 +32,8 @@ class PostHogClient {
 			HISTORICAL_LOADED: "task.historical_loaded",
 			// Tracks when the retry button is clicked for failed operations
 			RETRY_CLICKED: "task.retry_clicked",
+			// Tracks when a diff edit (replace_in_file) operation fails
+			DIFF_EDIT_FAILED: "task.diff_edit_failed",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -373,6 +375,21 @@ class PostHogClient {
 			event: PostHogClient.EVENTS.UI.TASK_POPPED,
 			properties: {
 				taskId,
+			},
+		})
+	}
+
+	/**
+	 * Records when a diff edit (replace_in_file) operation fails
+	 * @param taskId Unique identifier for the task
+	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
+	 */
+	public captureDiffEditFailure(taskId: string, errorType?: string) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.DIFF_EDIT_FAILED,
+			properties: {
+				taskId,
+				errorType,
 			},
 		})
 	}
