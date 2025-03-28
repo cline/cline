@@ -9,7 +9,8 @@
 		"preview": "vite preview",
 		"lint": "eslint .",
 		"test": "vitest run",
-		"test:watch": "vitest dev"
+		"test:watch": "vitest dev",
+		"test:coverage": "vitest run --coverage"
 	},
 	"dependencies": {
 		"@floating-ui/react": "^0.27.4",
@@ -46,6 +47,7 @@
 		"@types/react-dom": "^18.3.5",
 		"@types/vscode-webview": "^1.57.5",
 		"@vitejs/plugin-react-swc": "^3.5.0",
+		"@vitest/coverage-v8": "^3.0.9",
 		"eslint": "^9.17.0",
 		"eslint-plugin-react-hooks": "^5.0.0",
 		"eslint-plugin-react-refresh": "^0.4.16",
