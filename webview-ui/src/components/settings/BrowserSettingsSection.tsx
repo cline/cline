@@ -6,13 +6,17 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import styled from "styled-components"
 
-const ConnectionStatusIndicator = ({ isChecking, isConnected, remoteBrowserEnabled }: { 
-	isChecking: boolean; 
-	isConnected: boolean | null; 
-	remoteBrowserEnabled?: boolean;
+const ConnectionStatusIndicator = ({
+	isChecking,
+	isConnected,
+	remoteBrowserEnabled,
+}: {
+	isChecking: boolean
+	isConnected: boolean | null
+	remoteBrowserEnabled?: boolean
 }) => {
-	if (!remoteBrowserEnabled) return null;
-	
+	if (!remoteBrowserEnabled) return null
+
 	return (
 		<StatusContainer>
 			{isChecking ? (
@@ -23,14 +27,14 @@ const ConnectionStatusIndicator = ({ isChecking, isConnected, remoteBrowserEnabl
 			) : isConnected === true ? (
 				<>
 					<CheckIcon className="codicon codicon-check" />
-					<StatusText style={{ color: 'var(--vscode-terminal-ansiGreen)' }}>Connected</StatusText>
+					<StatusText style={{ color: "var(--vscode-terminal-ansiGreen)" }}>Connected</StatusText>
 				</>
 			) : isConnected === false ? (
-				<StatusText style={{ color: 'var(--vscode-errorForeground)' }}>Not connected</StatusText>
+				<StatusText style={{ color: "var(--vscode-errorForeground)" }}>Not connected</StatusText>
 			) : null}
 		</StatusContainer>
-	);
-};
+	)
+}
 
 export const BrowserSettingsSection: React.FC = () => {
 	const { browserSettings } = useExtensionState()
@@ -140,8 +144,8 @@ export const BrowserSettingsSection: React.FC = () => {
 	}
 
 	// Determine if we should show the relaunch button
-	const isRemoteEnabled = Boolean(browserSettings.remoteBrowserEnabled);
-	const shouldShowRelaunchButton = isRemoteEnabled && connectionStatus === false;
+	const isRemoteEnabled = Boolean(browserSettings.remoteBrowserEnabled)
+	const shouldShowRelaunchButton = isRemoteEnabled && connectionStatus === false
 
 	return (
 		<div
@@ -222,10 +226,10 @@ export const BrowserSettingsSection: React.FC = () => {
 						onChange={(e) => updateRemoteBrowserEnabled((e.target as HTMLInputElement).checked)}>
 						Use remote browser connection
 					</VSCodeCheckbox>
-					<ConnectionStatusIndicator 
-						isChecking={isCheckingConnection} 
-						isConnected={connectionStatus} 
-						remoteBrowserEnabled={browserSettings.remoteBrowserEnabled} 
+					<ConnectionStatusIndicator
+						isChecking={isCheckingConnection}
+						isConnected={connectionStatus}
+						remoteBrowserEnabled={browserSettings.remoteBrowserEnabled}
 					/>
 				</div>
 				<p
@@ -246,7 +250,7 @@ export const BrowserSettingsSection: React.FC = () => {
 							style={{ width: "100%", marginBottom: 8 }}
 							onChange={(e: any) => updateRemoteBrowserHost(e.target.value || undefined)}
 						/>
-						
+
 						{shouldShowRelaunchButton && (
 							<div style={{ display: "flex", gap: "10px", marginBottom: 8, justifyContent: "center" }}>
 								<VSCodeButton style={{ flex: 1 }} disabled={debugMode} onClick={relaunchChromeDebugMode}>
@@ -260,14 +264,13 @@ export const BrowserSettingsSection: React.FC = () => {
 								style={{
 									padding: "8px",
 									marginBottom: "8px",
-									backgroundColor: relaunchResult.success
-										? "rgba(0, 128, 0, 0.1)"
-										: "rgba(255, 0, 0, 0.1)",
+									backgroundColor: relaunchResult.success ? "rgba(0, 128, 0, 0.1)" : "rgba(255, 0, 0, 0.1)",
 									color: relaunchResult.success
 										? "var(--vscode-terminal-ansiGreen)"
 										: "var(--vscode-terminal-ansiRed)",
 									borderRadius: "3px",
 									fontSize: "11px",
+									whiteSpace: "pre",
 								}}>
 								{relaunchResult.message}
 							</div>
@@ -291,17 +294,17 @@ const StatusContainer = styled.div`
 	align-items: center;
 	margin-left: 12px;
 	height: 20px;
-`;
+`
 
 const StatusText = styled.span`
 	font-size: 12px;
 	margin-left: 4px;
-`;
+`
 
 const CheckIcon = styled.i`
 	color: var(--vscode-terminal-ansiGreen);
 	font-size: 14px;
-`;
+`
 
 const Spinner = styled.div`
 	width: 14px;
@@ -310,10 +313,12 @@ const Spinner = styled.div`
 	border-radius: 50%;
 	border-top-color: var(--vscode-progressBar-background);
 	animation: spin 1s ease-in-out infinite;
-	
+
 	@keyframes spin {
-		to { transform: rotate(360deg); }
+		to {
+			transform: rotate(360deg);
+		}
 	}
-`;
+`
 
 export default BrowserSettingsSection
