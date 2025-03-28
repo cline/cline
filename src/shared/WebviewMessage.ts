@@ -5,6 +5,7 @@ import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
 import { TelemetrySetting } from "./TelemetrySetting"
+import { MemoryBankSettings } from "./MemoryBankSettings"
 
 export interface WebviewMessage {
 	type:
@@ -52,6 +53,7 @@ export interface WebviewMessage {
 		| "downloadMcp"
 		| "silentlyRefreshMcpMarketplace"
 		| "searchCommits"
+		| "memoryBankSettings"
 		| "showMcpView"
 		| "fetchLatestMcpServersFromHub"
 		| "telemetrySetting"
@@ -79,6 +81,8 @@ export interface WebviewMessage {
 	chatContent?: ChatContent
 	mcpId?: string
 	timeout?: number
+	memoryBankSettings?: MemoryBankSettings
+
 	// For toggleToolAutoApprove
 	serverName?: string
 	toolName?: string
