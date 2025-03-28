@@ -63,7 +63,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 					padding: "10px 17px 5px 20px",
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>MCP Servers</h3>
-				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+				<VSCodeButton onClick={onDone}  style={{ borderRadius:"6px",}}>Done</VSCodeButton>
 			</div>
 
 			<div style={{ flex: 1, overflow: "auto" }}>
@@ -310,7 +310,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 							backgroundColor: server.disabled
 								? "var(--vscode-titleBar-inactiveForeground)"
 								: "var(--vscode-testing-iconPassed)",
-							borderRadius: "5px",
+							borderRadius: "6px",
 							position: "relative",
 							cursor: "pointer",
 							transition: "background-color 0.2s",

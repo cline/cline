@@ -171,7 +171,7 @@ class LinkPreview extends React.Component<
 						alignItems: "center",
 						justifyContent: "center",
 						border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
-						borderRadius: "4px",
+						borderRadius: "6px",
 						height: "128px",
 						maxWidth: "512px",
 					}}>
@@ -224,7 +224,7 @@ class LinkPreview extends React.Component<
 					style={{
 						padding: "12px",
 						border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
-						borderRadius: "4px",
+						borderRadius: "6px",
 						color: "var(--vscode-errorForeground)",
 						height: "128px",
 						maxWidth: "512px",
@@ -261,7 +261,7 @@ class LinkPreview extends React.Component<
 				style={{
 					display: "flex",
 					border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
-					borderRadius: "4px",
+					borderRadius: "6px",
 					overflow: "hidden",
 					cursor: "pointer",
 					height: "128px",

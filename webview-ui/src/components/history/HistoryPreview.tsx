@@ -40,7 +40,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						overflow: hidden;
 						opacity: 0.8;
 						cursor: pointer;
-						margin-bottom: 12px;
+						margin-bottom: 10px;
 					}
 					.history-preview-item:hover {
 						background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 100%, transparent);
@@ -73,12 +73,14 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 				</span>
 			</div>
 
-			<div style={{ padding: "0px 20px 0 20px" }}>
+			<div style={{ padding: "0px 20px 0 20px", marginBottom: "20px" }}>
 				{taskHistory
 					.filter((item) => item.ts && item.task)
 					.slice(0, 3)
 					.map((item) => (
-						<div key={item.id} className="history-preview-item" onClick={() => handleHistorySelect(item.id)}>
+						<div key={item.id} className="history-preview-item"
+						style={{ cursor: "pointer", borderRadius: "6px", padding: "4px 8px",}}
+						onClick={() => handleHistorySelect(item.id)}>
 							<div style={{ padding: "12px" }}>
 								<div style={{ marginBottom: "8px" }}>
 									<span
@@ -97,6 +99,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 										color: "var(--vscode-descriptionForeground)",
 										marginBottom: "8px",
 										display: "-webkit-box",
+										borderRadius: "6px",
 										WebkitLineClamp: 3,
 										WebkitBoxOrient: "vertical",
 										overflow: "hidden",

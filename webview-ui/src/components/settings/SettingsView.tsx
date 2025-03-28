@@ -154,7 +154,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					paddingRight: 17,
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
-				<VSCodeButton onClick={() => handleSubmit(false)}>Done</VSCodeButton>
+				<VSCodeButton onClick={() => handleSubmit(false)} style={{ borderRadius:"6px",}} >Done</VSCodeButton>
 			</div>
 			<div
 				style={{
@@ -169,7 +169,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<div
 						style={{
 							border: "1px solid var(--vscode-panel-border)",
-							borderRadius: "4px",
+							borderRadius: "6px",
 							padding: "10px",
 							marginBottom: "20px",
 							background: "var(--vscode-panel-background)",
@@ -282,7 +282,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 				{IS_DEV && (
 					<>
 						<div style={{ marginTop: "10px", marginBottom: "4px" }}>Debug</div>
-						<VSCodeButton onClick={handleResetState} style={{ marginTop: "5px", width: "auto" }}>
+						<VSCodeButton onClick={handleResetState} style={{ marginTop: "5px", width: "auto", borderRadius: "6px" }}>
 							Reset State
 						</VSCodeButton>
 						<p
@@ -306,8 +306,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<SettingsButton
 						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
 						style={{
-							margin: "0 0 16px 0",
-						}}>
+							margin: "0 0 16px 0", borderRadius: "6px",}}>
 						<i className="codicon codicon-settings-gear" />
 						Advanced Settings
 					</SettingsButton>

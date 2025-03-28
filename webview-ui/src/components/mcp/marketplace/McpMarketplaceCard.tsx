@@ -238,7 +238,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 							style={{
 								fontSize: "10px",
 								padding: "1px 4px",
-								borderRadius: "3px",
+								borderRadius: "6px",
 								border: "1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent)",
 								color: "var(--vscode-descriptionForeground)",
 								whiteSpace: "nowrap",
@@ -251,7 +251,7 @@ const McpMarketplaceCard = ({ item, installedServers }: McpMarketplaceCardProps)
 								style={{
 									fontSize: "10px",
 									padding: "1px 4px",
-									borderRadius: "3px",
+									borderRadius: "6px",
 									border: "1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent)",
 									color: "var(--vscode-descriptionForeground)",
 									whiteSpace: "nowrap",

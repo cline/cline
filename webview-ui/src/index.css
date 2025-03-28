@@ -88,7 +88,7 @@ The above scrollbar styling uses some transparent background color magic to acco
 
 .code-block-scrollable::-webkit-scrollbar-thumb {
 	background-color: var(--vscode-scrollbarSlider-background);
-	border-radius: 5px;
+	border-radius: 6px;
 	border: 2px solid transparent;
 	background-clip: content-box;
 }
@@ -154,7 +154,7 @@ vscode-dropdown::part(listbox) {
 
 .mention-context-textarea-highlight {
 	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
-	border-radius: 3px;
+	border-radius: 6px;
 	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 	color: transparent;
 	/* padding: 0.5px;
@@ -165,11 +165,11 @@ vscode-dropdown::part(listbox) {
 
 .mention-context-highlight {
 	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
-	border-radius: 3px;
+	border-radius: 6px;
 }
 
 .mention-context-highlight-with-shadow {
 	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
-	border-radius: 3px;
+	border-radius: 6px;
 	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 }

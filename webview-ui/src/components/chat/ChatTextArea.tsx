@@ -1,5 +1,5 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, KeyboardEvent } from "react" // Added KeyboardEvent
 import DynamicTextArea from "react-textarea-autosize"
 import { useClickAway, useEvent, useWindowSize } from "react-use"
 import styled from "styled-components"
@@ -23,6 +23,7 @@ import ApiOptions, { normalizeApiConfiguration } from "../settings/ApiOptions"
 import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
 import ContextMenu from "./ContextMenu"
 import { ChatSettings } from "../../../../src/shared/ChatSettings"
+import { a } from "vitest/dist/chunks/suite.d.FvehnV49.js"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -111,7 +112,7 @@ const ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
 	background: ${CODE_BLOCK_BG_COLOR};
 	border: 1px solid var(--vscode-editorGroup-border);
 	padding: 12px;
-	border-radius: 3px;
+	border-radius: 6px;
 	z-index: 1000;
 	max-height: calc(100vh - 100px);
 	overflow-y: auto;
@@ -236,10 +237,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 		const buttonRef = useRef<HTMLDivElement>(null)
 		const [arrowPosition, setArrowPosition] = useState(0)
-		const [menuPosition, setMenuPosition] = useState(0)
-		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
+	const [menuPosition, setMenuPosition] = useState(0)
+	const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
 
-		const [, metaKeyChar] = useMetaKeyDetection(platform)
+	// Input History State
+	const [inputHistory, setInputHistory] = useState<string[]>([])
+	const [historyIndex, setHistoryIndex] = useState<number>(-1)
+	const [currentInputBeforeHistory, setCurrentInputBeforeHistory] = useState<string>("")
+	const HISTORY_LIMIT = 50 // Max number of history items
+
+	const [, metaKeyChar] = useMetaKeyDetection(platform)
 
 		// Add a ref to track previous menu state
 		const prevShowModelSelector = useRef(showModelSelector)
@@ -414,6 +421,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
 					setIsTextAreaFocused(false)
+					// Add to history before sending
+					if (inputValue.trim()) {
+						setInputHistory((prevHistory) => {
+							// Avoid adding duplicates consecutively
+							if (prevHistory.length > 0 && prevHistory[prevHistory.length - 1] === inputValue) {
+								return prevHistory
+							}
+							const newHistory = [...prevHistory, inputValue]
+							if (newHistory.length > HISTORY_LIMIT) {
+								return newHistory.slice(newHistory.length - HISTORY_LIMIT)
+							}
+							return newHistory
+						})
+						setHistoryIndex(-1) // Reset history index after sending
+					}
 					onSend()
 				}
 
@@ -452,6 +474,49 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						setJustDeletedSpaceAfterMention(false)
 					}
 				}
+
+				// Input History Navigation
+				if (!showContextMenu) {
+					if (event.key === "ArrowUp") {
+						event.preventDefault()
+						if (inputHistory.length > 0) {
+							let newIndex: number
+							if (historyIndex === -1) {
+								// Starting history navigation
+								setCurrentInputBeforeHistory(inputValue)
+								newIndex = inputHistory.length - 1
+							} else {
+								// Moving up in history
+								newIndex = Math.max(0, historyIndex - 1)
+							}
+
+							if (newIndex !== historyIndex) {
+								setHistoryIndex(newIndex)
+								setInputValue(inputHistory[newIndex])
+								// Move cursor to end after setting value
+								setTimeout(() => textAreaRef.current?.setSelectionRange(inputHistory[newIndex].length, inputHistory[newIndex].length), 0)
+							}
+						}
+					} else if (event.key === "ArrowDown") {
+						event.preventDefault()
+						if (historyIndex !== -1) {
+							if (historyIndex < inputHistory.length - 1) {
+								// Moving down in history
+								const newIndex = historyIndex + 1
+								setHistoryIndex(newIndex)
+								setInputValue(inputHistory[newIndex])
+								// Move cursor to end
+								setTimeout(() => textAreaRef.current?.setSelectionRange(inputHistory[newIndex].length, inputHistory[newIndex].length), 0)
+							} else if (historyIndex === inputHistory.length - 1) {
+								// Reached end of history, restore original input
+								setHistoryIndex(-1)
+								setInputValue(currentInputBeforeHistory)
+								// Move cursor to end
+								setTimeout(() => textAreaRef.current?.setSelectionRange(currentInputBeforeHistory.length, currentInputBeforeHistory.length), 0)
+							}
+						}
+					}
+				}
 			},
 			[
 				onSend,
@@ -462,6 +527,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				selectedType,
 				inputValue,
 				cursorPosition,
+				inputHistory,
+				historyIndex,
+				inputValue,
+				currentInputBeforeHistory,
 				setInputValue,
 				justDeletedSpaceAfterMention,
 				queryItems,
@@ -479,8 +548,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			(e: React.ChangeEvent<HTMLTextAreaElement>) => {
 				const newValue = e.target.value
 				const newCursorPosition = e.target.selectionStart
+
+				// Check if the change was programmatic (from history navigation)
+				const isHistoryNavigation = historyIndex !== -1 && newValue === inputHistory[historyIndex]
+
 				setInputValue(newValue)
 				setCursorPosition(newCursorPosition)
+
+				// Reset history index if user types something new
+				if (!isHistoryNavigation && historyIndex !== -1) {
+					setHistoryIndex(-1)
+				}
+
 				const showMenu = shouldShowContextMenu(newValue, newCursorPosition)
 
 				setShowContextMenu(showMenu)
@@ -883,10 +962,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			<div>
 				<div
 					style={{
-						padding: "10px 15px",
+						padding: "12px 16px",
 						opacity: textAreaDisabled ? 0.5 : 1,
 						position: "relative",
 						display: "flex",
+						margin: 0,
+						// borderRadius: "6px",
+						border: "none",
 					}}
 					onDrop={onDrop}
 					onDragOver={onDragOver}>
@@ -907,9 +989,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<div
 							style={{
 								position: "absolute",
-								inset: "10px 15px",
+								inset: "12px 16px",
 								border: "1px solid var(--vscode-input-border)",
-								borderRadius: 2,
+								borderRadius: 8,
 								pointerEvents: "none",
 								zIndex: 5,
 							}}
@@ -923,6 +1005,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							left: 15,
 							right: 15,
 							bottom: 10,
+							inset: "11px 16px",
 							pointerEvents: "none",
 							whiteSpace: "pre-wrap",
 							wordWrap: "break-word",
@@ -932,11 +1015,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							fontFamily: "var(--vscode-font-family)",
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
-							borderRadius: 2,
-							borderLeft: 0,
-							borderRight: 0,
-							borderTop: 0,
+							// borderLeft: 0,
+							// borderRight: 0,
+							// borderTop: 0,
 							borderColor: "transparent",
+							borderRadius: 8,
 							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
 							padding: "9px 28px 3px 9px",
 						}}
@@ -979,7 +1062,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							backgroundColor: "transparent",
 							color: "var(--vscode-input-foreground)",
 							//border: "1px solid var(--vscode-input-border)",
-							borderRadius: 2,
 							fontFamily: "var(--vscode-font-family)",
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
@@ -989,9 +1071,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							scrollbarWidth: "none",
 							// Since we have maxRows, when text is long enough it starts to overflow the bottom padding, appearing behind the thumbnails. To fix this, we use a transparent border to push the text up instead. (https://stackoverflow.com/questions/42631947/maintaining-a-padding-inside-of-text-area/52538410#52538410)
 							// borderTop: "9px solid transparent",
-							borderLeft: 0,
-							borderRight: 0,
-							borderTop: 0,
+							borderRadius: "6px",
 							borderBottom: `${thumbnailsHeight + 6}px solid transparent`,
 							borderColor: "transparent",
 							// borderRight: "54px solid transparent",

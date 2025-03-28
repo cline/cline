@@ -366,7 +366,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 										padding: "8px",
 										color: "var(--vscode-errorForeground)",
 										border: "1px solid var(--vscode-editorError-foreground)",
-										borderRadius: "4px",
+										borderRadius: "6px",
 										height: "128px", // Fixed height
 										overflow: "auto", // Allow scrolling if content overflows
 									}}>

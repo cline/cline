@@ -179,7 +179,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									flex: 1,
 									height: "4px",
 									backgroundColor: "color-mix(in srgb, var(--vscode-badge-foreground) 20%, transparent)",
-									borderRadius: "2px",
+									borderRadius: "6px",
 									overflow: "hidden",
 								}}>
 								<div
@@ -187,7 +187,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										width: `${((lastApiReqTotalTokens || 0) / contextWindow) * 100}%`,
 										height: "100%",
 										backgroundColor: "var(--vscode-badge-foreground)",
-										borderRadius: "2px",
+										borderRadius: "6px",
 									}}
 								/>
 							</div>
@@ -205,7 +205,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				style={{
 					backgroundColor: "var(--vscode-badge-background)",
 					color: "var(--vscode-badge-foreground)",
-					borderRadius: "3px",
+					borderRadius: "6px",
 					padding: "9px 10px 9px 14px",
 					display: "flex",
 					flexDirection: "column",

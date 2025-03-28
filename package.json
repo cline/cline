@@ -333,6 +333,7 @@
 		"@types/clone-deep": "^4.0.4",
 		"@types/get-folder-size": "^3.0.4",
 		"@types/pdf-parse": "^1.1.4",
+		"@types/puppeteer-core": "^5.4.0",
 		"@types/turndown": "^5.0.5",
 		"@vscode/codicons": "^0.0.36",
 		"axios": "^1.8.2",

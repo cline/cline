@@ -47,7 +47,7 @@ const McpResourceRow = ({ item }: McpResourceRowProps) => {
 						color: "var(--vscode-textPreformat-foreground)",
 						background: "var(--vscode-textPreformat-background)",
 						padding: "1px 4px",
-						borderRadius: "3px",
+						borderRadius: "6px",
 					}}>
 					{item.mimeType || "Unknown"}
 				</code>

@@ -1,6 +1,6 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useState } from "react"
-import styled from "styled-components"
+import styled, { css } from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { AutoApprovalSettings } from "../../../../src/shared/AutoApprovalSettings"
 import { vscode } from "../../utils/vscode"
@@ -126,7 +126,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	return (
 		<div
 			style={{
-				padding: "0 15px",
+				padding: "0 16px",
 				userSelect: "none",
 				borderTop: isExpanded
 					? `0.5px solid color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`
@@ -209,11 +209,12 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					/>
 				</CollapsibleSection>
 			</div>
-			{isExpanded && (
-				<div style={{ padding: "0" }}>
+			<CollapsibleContent isExpanded={isExpanded}>
+				<div style={{ padding: "0" }}> {/* Keep inner padding if needed, or adjust CollapsibleContent */}
 					<div
 						style={{
 							marginBottom: "10px",
+							paddingTop: "5px", // Add some top padding when expanded
 							color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 							fontSize: "12px",
 						}}>
@@ -306,10 +307,26 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						</div>
 					</div>
 				</div>
-			)}
+			</CollapsibleContent>
 		</div>
 	)
 }
+
+const CollapsibleContent = styled.div<{ isExpanded: boolean }>`
+	max-height: 0;
+	overflow: hidden;
+	padding: 0 8px;
+	border-radius: 6px;
+	transition: max-height 0.3s ease-in-out;
+	background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
+
+
+	${(props) =>
+		props.isExpanded &&
+		css`
+			max-height: 930px; /* Adjust if content might exceed this height */
+		`}
+`
 
 const CollapsibleSection = styled.div<{ isHovered?: boolean }>`
 	display: flex;

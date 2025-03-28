@@ -60,7 +60,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 							marginTop: "8px",
 							fontSize: "12px",
 							border: "1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 30%, transparent)",
-							borderRadius: "3px",
+							borderRadius: "6px",
 							padding: "8px",
 						}}>
 						<div

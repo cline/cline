@@ -726,8 +726,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	useEvent("wheel", handleWheel, window, { passive: true }) // passive improves scrolling performance
 
 	const placeholderText = useMemo(() => {
-		const text = task ? "Type a message..." : "Type your task here..."
-		return text
+		const baseText = task ? "Type a message..." : "Type your task here..."
+		// Add hint for input history
+		return `${baseText} (↑↓ for history)`
 	}, [task])
 
 	const itemContent = useCallback(
@@ -914,6 +915,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 									style={{
 										flex: secondaryButtonText ? 1 : 2,
 										marginRight: secondaryButtonText ? "6px" : "0",
+										borderRadius: "6px",
 									}}
 									onClick={() => handlePrimaryButtonClick(inputValue, selectedImages)}>
 									{primaryButtonText}
