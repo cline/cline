@@ -1,5 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
-import { StdioClientTransport, StdioServerParameters } from "@modelcontextprotocol/sdk/client/stdio.js"
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import {
 	CallToolResultSchema,
 	ListResourcesResultSchema,
@@ -204,7 +204,7 @@ export class McpHub {
 			let transport: StdioClientTransport | SSEClientTransport
 
 			if (config.transportType === "sse") {
-				return
+				transport = new SSEClientTransport(new URL(config.url), {})
 			} else {
 				transport = new StdioClientTransport({
 					command: config.command,
@@ -236,59 +236,42 @@ export class McpHub {
 				await this.notifyWebviewOfServerChanges()
 			}
 
-			// If the config is invalid, show an error
-			if (!StdioConfigSchema.safeParse(config).success) {
-				console.error(`Invalid config for "${name}": missing or invalid parameters`)
-				const connection: McpConnection = {
-					server: {
-						name,
-						config: JSON.stringify(config),
-						status: "disconnected",
-						error: "Invalid config: missing or invalid parameters",
-					},
-					client,
-					transport,
-				}
-				this.connections.push(connection)
-				return
-			}
-
-			// valid schema
-			const parsedConfig = StdioConfigSchema.parse(config)
 			const connection: McpConnection = {
 				server: {
 					name,
 					config: JSON.stringify(config),
 					status: "connecting",
-					disabled: parsedConfig.disabled,
+					disabled: config.disabled,
 				},
 				client,
 				transport,
 			}
 			this.connections.push(connection)
 
-			// transport.stderr is only available after the process has been started. However we can't start it separately from the .connect() call because it also starts the transport. And we can't place this after the connect call since we need to capture the stderr stream before the connection is established, in order to capture errors during the connection process.
-			// As a workaround, we start the transport ourselves, and then monkey-patch the start method to no-op so that .connect() doesn't try to start it again.
-			await transport.start()
-			const stderrStream = transport.stderr
-			if (stderrStream) {
-				stderrStream.on("data", async (data: Buffer) => {
-					const errorOutput = data.toString()
-					console.error(`Server "${name}" stderr:`, errorOutput)
-					const connection = this.connections.find((conn) => conn.server.name === name)
-					if (connection) {
-						// NOTE: we do not set server status to "disconnected" because stderr logs do not necessarily mean the server crashed or disconnected, it could just be informational. In fact when the server first starts up, it immediately logs "<name> server running on stdio" to stderr.
-						this.appendErrorMessage(connection, errorOutput)
-						// Only need to update webview right away if it's already disconnected
-						if (connection.server.status === "disconnected") {
-							await this.notifyWebviewOfServerChanges()
+			if (config.transportType === "stdio") {
+				// transport.stderr is only available after the process has been started. However we can't start it separately from the .connect() call because it also starts the transport. And we can't place this after the connect call since we need to capture the stderr stream before the connection is established, in order to capture errors during the connection process.
+				// As a workaround, we start the transport ourselves, and then monkey-patch the start method to no-op so that .connect() doesn't try to start it again.
+				await transport.start()
+				const stderrStream = (transport as StdioClientTransport).stderr
+				if (stderrStream) {
+					stderrStream.on("data", async (data: Buffer) => {
+						const errorOutput = data.toString()
+						console.error(`Server "${name}" stderr:`, errorOutput)
+						const connection = this.connections.find((conn) => conn.server.name === name)
+						if (connection) {
+							// NOTE: we do not set server status to "disconnected" because stderr logs do not necessarily mean the server crashed or disconnected, it could just be informational. In fact when the server first starts up, it immediately logs "<name> server running on stdio" to stderr.
+							this.appendErrorMessage(connection, errorOutput)
+							// Only need to update webview right away if it's already disconnected
+							if (connection.server.status === "disconnected") {
+								await this.notifyWebviewOfServerChanges()
+							}
 						}
-					}
-				})
-			} else {
-				console.error(`No stderr stream for ${name}`)
+					})
+				} else {
+					console.error(`No stderr stream for ${name}`)
+				}
+				transport.start = async () => {} // No-op now, .connect() won't fail
 			}
-			transport.start = async () => {} // No-op now, .connect() won't fail
 
 			// Connect
 			await client.connect(transport)
@@ -399,7 +382,9 @@ export class McpHub {
 			if (!currentConnection) {
 				// New server
 				try {
-					this.setupFileWatcher(name, config)
+					if (config.transportType === "stdio") {
+						this.setupFileWatcher(name, config)
+					}
 					await this.connectToServer(name, config)
 				} catch (error) {
 					console.error(`Failed to connect to new MCP server ${name}:`, error)
@@ -407,7 +392,9 @@ export class McpHub {
 			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
 				// Existing server with changed config
 				try {
-					this.setupFileWatcher(name, config)
+					if (config.transportType === "stdio") {
+						this.setupFileWatcher(name, config)
+					}
 					await this.deleteConnection(name)
 					await this.connectToServer(name, config)
 					console.log(`Reconnected MCP server with updated config: ${name}`)
@@ -613,7 +600,7 @@ export class McpHub {
 
 		try {
 			const config = JSON.parse(connection.server.config)
-			const parsedConfig = StdioConfigSchema.parse(config)
+			const parsedConfig = ServerConfigSchema.parse(config)
 			timeout = secondsToMs(parsedConfig.timeout)
 		} catch (error) {
 			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
