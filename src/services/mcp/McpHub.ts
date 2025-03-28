@@ -154,22 +154,24 @@ export class McpHub {
 			return undefined
 		}
 	}
-
+	public async onMcpSettingsFileChange(): Promise<void> {
+		const settings = await this.readAndValidateMcpSettingsFile()
+		if (settings) {
+			try {
+				vscode.window.showInformationMessage("Updating MCP servers...")
+				await this.updateServerConnections(settings.mcpServers)
+				vscode.window.showInformationMessage("MCP servers updated")
+			} catch (error) {
+				console.error("Failed to process MCP settings change:", error)
+			}
+		}
+	}
 	private async watchMcpSettingsFile(): Promise<void> {
 		const settingsPath = await this.getMcpSettingsFilePath()
 		this.disposables.push(
 			vscode.workspace.onDidSaveTextDocument(async (document) => {
 				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
-					const settings = await this.readAndValidateMcpSettingsFile()
-					if (settings) {
-						try {
-							vscode.window.showInformationMessage("Updating MCP servers...")
-							await this.updateServerConnections(settings.mcpServers)
-							vscode.window.showInformationMessage("MCP servers updated")
-						} catch (error) {
-							console.error("Failed to process MCP settings change:", error)
-						}
-					}
+					await this.onMcpSettingsFileChange()
 				}
 			}),
 		)
@@ -274,7 +276,7 @@ export class McpHub {
 			}
 
 			// Connect
-			await client.connect(transport)
+			client.connect(transport)
 			connection.server.status = "connected"
 			connection.server.error = ""
 

@@ -18,6 +18,7 @@ import McpMarketplaceView from "./marketplace/McpMarketplaceView"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
 import DangerButton from "../common/DangerButton"
+import McpCreateDialog from "./McpCreateDialog"
 
 type McpViewProps = {
 	onDone: () => void
@@ -26,7 +27,7 @@ type McpViewProps = {
 const McpView = ({ onDone }: McpViewProps) => {
 	const { mcpServers: servers, mcpMarketplaceEnabled } = useExtensionState()
 	const [activeTab, setActiveTab] = useState(mcpMarketplaceEnabled ? "marketplace" : "installed")
-
+	const [open, setOpen] = useState(false)
 	const handleTabChange = (tab: string) => {
 		setActiveTab(tab)
 	}
@@ -112,6 +113,13 @@ const McpView = ({ onDone }: McpViewProps) => {
 								<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
 									See a demo here.
 								</VSCodeLink>
+								<VSCodeLink
+									onClick={() => {
+										vscode.postMessage({ type: "openMcpSettings" })
+									}}
+									style={{ display: "inline" }}>
+									Configure MCP Servers JSON here.
+								</VSCodeLink>
 							</div>
 
 							{servers.length > 0 ? (
@@ -139,17 +147,17 @@ const McpView = ({ onDone }: McpViewProps) => {
 									No MCP servers installed
 								</div>
 							)}
-
+							<McpCreateDialog open={open} onOpenChange={setOpen} />
 							{/* Settings Section */}
 							<div style={{ marginBottom: "20px", marginTop: 10 }}>
 								<VSCodeButton
 									appearance="secondary"
 									style={{ width: "100%", marginBottom: "5px" }}
 									onClick={() => {
-										vscode.postMessage({ type: "openMcpSettings" })
+										setOpen(true)
 									}}>
 									<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
-									Configure MCP Servers
+									Add MCP Servers
 								</VSCodeButton>
 
 								<div style={{ textAlign: "center" }}>
@@ -209,7 +217,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
-
+	const [open, setOpen] = useState(false)
 	const getStatusColor = () => {
 		switch (server.status) {
 			case "connected":
@@ -540,6 +548,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 					</div>
 				)
 			)}
+			<McpCreateDialog open={open} onOpenChange={setOpen} mcpConfig={JSON.parse(server.config)} mcpName={server.name} />
 		</div>
 	)
 }

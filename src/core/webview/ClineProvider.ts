@@ -25,7 +25,7 @@ import { ChatContent } from "../../shared/ChatContent"
 import { ChatSettings, DEFAULT_CHAT_SETTINGS } from "../../shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
-import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
+import { McpConfig, McpDownloadResponse, McpMarketplaceCatalog, McpServer, UpdateMcpConfig } from "../../shared/mcp"
 import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
 import { fileExistsAtPath } from "../../utils/fs"
 import { searchCommits } from "../../utils/git"
@@ -746,6 +746,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 						break
 					}
+					case "updateMcpServices": {
+						await this.updateMcpServices(message.newMcpConfig)
+						break
+					}
 					case "fetchMcpMarketplace": {
 						await this.fetchMcpMarketplace(message.bool)
 						break
@@ -1451,7 +1455,46 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			console.error("Failed to silently refresh MCP marketplace:", error)
 		}
 	}
-
+	private async updateMcpServices(newMcpConfig?: UpdateMcpConfig) {
+		if (!newMcpConfig) {
+			return
+		}
+		if (this.mcpHub) {
+			const { name, mcpConfig } = newMcpConfig
+			const mcpPath = await this.mcpHub?.getMcpSettingsFilePath()
+			try {
+				const exists = await fileExistsAtPath(mcpPath)
+				let mcpServers = {
+					[name]: mcpConfig,
+				}
+				if (exists) {
+					mcpServers = JSON.parse(await fs.readFile(mcpPath, "utf8")).mcpServers || {}
+					if (mcpServers[name]) {
+						if (mcpConfig.command) {
+							delete mcpServers[name].url
+							delete mcpServers[name].headers
+						} else {
+							delete mcpServers[name].command
+							delete mcpServers[name].args
+							delete mcpServers[name].env
+						}
+						mcpServers[name] = {
+							...mcpServers[name],
+							...mcpConfig,
+						}
+					} else {
+						mcpServers[name] = mcpConfig
+					}
+				}
+				await fs.writeFile(mcpPath, JSON.stringify({ mcpServers }, null, 2))
+				if (this.mcpHub) {
+					this.mcpHub?.onMcpSettingsFileChange()
+				}
+			} catch (error) {
+				vscode.window.showErrorMessage(`Unable to create or open: ${JSON.stringify(error)}`)
+			}
+		}
+	}
 	private async fetchMcpMarketplace(forceRefresh: boolean = false) {
 		try {
 			// Check if we have cached data
