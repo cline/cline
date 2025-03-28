@@ -36,6 +36,14 @@ export interface ExternalAdvice {
 	machineData?: MachineData
 }
 
+export interface ActiveTask {
+	id: string
+	label: string
+	lastActivated: number
+	source: string
+	extensionType: string
+}
+
 export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
@@ -95,7 +103,9 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
-		| "toggleActiveConversation"
+		| "setActiveConversation"
+		| "getActiveTasks"
+		| "confirmActiveConversation"
 		| "getExternalAdvice"
 		| "markAdviceAsRead"
 		| "dismissAdvice"
@@ -119,6 +129,12 @@ export interface WebviewMessage {
 	serverName?: string
 	toolName?: string
 	autoApprove?: boolean
+
+	// For toggleActiveConversation
+	label?: string | null
+	force?: boolean
+	activeTasks?: ActiveTask[]
+	existingTask?: ActiveTask
 
 	// For auth
 	user?: UserInfo | null

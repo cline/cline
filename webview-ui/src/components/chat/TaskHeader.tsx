@@ -11,42 +11,168 @@ import { vscode } from "../../utils/vscode"
 import { NotificationPanel } from "../common/NotificationPanel"
 import Thumbnails from "../common/Thumbnails"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
-// Active Conversation Toggle component
-interface ActiveConversationToggleProps {
+// Dev Conversation Selector component
+interface DevConversationSelectorProps {
 	activeLabel: string | null
-	onClick: () => void
+	onClick: (label: string | null, force?: boolean) => void
 }
 
-const ActiveConversationToggle: React.FC<ActiveConversationToggleProps> = ({ activeLabel, onClick }) => {
+const DevConversationSelector: React.FC<DevConversationSelectorProps> = ({ activeLabel, onClick }) => {
+	const [isOpen, setIsOpen] = useState(false)
+	const { activeTasks } = useExtensionState()
+	const [showConfirmation, setShowConfirmation] = useState<{ label: string; taskId: string } | null>(null)
+
+	// Fetch active tasks when dropdown opens
+	useEffect(() => {
+		if (isOpen) {
+			vscode.postMessage({ type: "getActiveTasks" })
+		}
+	}, [isOpen])
+
+	const getSelectorClassName = () => {
+		if (!activeLabel) return "dev-conversation-selector none"
+		return `dev-conversation-selector dev-${activeLabel.toLowerCase()}`
+	}
+
+	const handleClick = () => {
+		setIsOpen(!isOpen)
+	}
+
+	const handleOptionClick = (label: string | null) => {
+		// Check if this label is already in use by another task
+		const existingTask = activeTasks?.find((task) => task.label === label)
+
+		if (existingTask && label !== null) {
+			// Show confirmation dialog
+			setShowConfirmation({ label, taskId: existingTask.id })
+		} else {
+			// Proceed with selection
+			onClick(label)
+			setIsOpen(false)
+		}
+	}
+
+	const handleConfirmation = (confirmed: boolean) => {
+		if (confirmed && showConfirmation) {
+			// User confirmed, force the assignment
+			onClick(showConfirmation.label, true)
+		}
+
+		// Close confirmation and dropdown
+		setShowConfirmation(null)
+		setIsOpen(false)
+	}
+
+	// Check if a Dev option is in use
+	const isDevInUse = (label: string) => {
+		return activeTasks?.some((task) => task.label === label) || false
+	}
+
+	// Check if this is the current task's label
+	const isCurrentLabel = (label: string) => {
+		return label === activeLabel
+	}
+
+	// Close dropdown when clicking outside
+	const selectorRef = useRef<HTMLDivElement>(null)
+
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) {
+				setIsOpen(false)
+			}
+		}
+
+		document.addEventListener("mousedown", handleClickOutside)
+		return () => {
+			document.removeEventListener("mousedown", handleClickOutside)
+		}
+	}, [])
+
+	// Listen for activeConversationInUse messages
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			const message = event.data
+			if (message.type === "activeConversationInUse" && message.existingTask) {
+				setShowConfirmation({
+					label: message.existingTask.label,
+					taskId: message.existingTask.id,
+				})
+			}
+		}
+
+		window.addEventListener("message", handleMessage)
+		return () => {
+			window.removeEventListener("message", handleMessage)
+		}
+	}, [])
+
 	return (
-		<div
-			className="active-conversation-toggle"
-			onClick={onClick}
-			style={{
-				marginLeft: 10,
-				backgroundColor: activeLabel
-					? activeLabel === "A"
-						? "#22c55e"
-						: "#3b82f6"
-					: "color-mix(in srgb, var(--vscode-badge-foreground) 40%, transparent)",
-				color: activeLabel ? "var(--vscode-badge-background)" : "var(--vscode-badge-foreground)",
-				padding: "2px 8px",
-				borderRadius: "500px",
-				fontSize: "11px",
-				fontWeight: 500,
-				display: "flex",
-				alignItems: "center",
-				gap: "4px",
-				cursor: "pointer",
-				flexShrink: 0,
-			}}>
-			<span
-				className={`codicon codicon-inbox hand-icon ${activeLabel ? "active" : ""}`}
-				style={{ display: "inline-flex", alignItems: "center" }}></span>
-			{activeLabel ? (
-				<span className={`active-label label-${activeLabel.toLowerCase()}`}>{`Active ${activeLabel}`}</span>
-			) : (
-				<span>Inactive</span>
+		<div ref={selectorRef} className={getSelectorClassName()} onClick={handleClick}>
+			{/* Show "Assign Dev" with people icon */}
+			<span className="codicon codicon-organization dev-conversation-icon"></span>
+			<span>{activeLabel ? `Dev ${activeLabel}` : "Assign Dev"}</span>
+			<span className={`codicon codicon-chevron-${isOpen ? "up" : "down"}`} style={{ fontSize: "10px" }}></span>
+
+			{isOpen && (
+				<div className="dev-selector-dropdown">
+					<div
+						className="dev-selector-option"
+						onClick={(e) => {
+							e.stopPropagation()
+							handleOptionClick(null)
+						}}>
+						<span className="codicon codicon-close"></span>
+						None
+					</div>
+
+					{["A", "B", "C", "D"].map((label) => (
+						<div
+							key={label}
+							className={`dev-selector-option dev-${label.toLowerCase()}`}
+							onClick={(e) => {
+								e.stopPropagation()
+								handleOptionClick(label)
+							}}>
+							<div className="dev-option-content">
+								{/* Status indicator icon on the left */}
+								{isCurrentLabel(label) ? (
+									<span className="status-icon current">✓</span>
+								) : (
+									<span
+										className={`status-icon codicon codicon-info ${isDevInUse(label) ? "in-use" : "available"}`}
+										title={
+											isDevInUse(label)
+												? `Currently assigned to task: ${activeTasks?.find((t) => t.label === label)?.id}`
+												: "Available"
+										}></span>
+								)}
+
+								<span>{`Dev ${label}`}</span>
+							</div>
+						</div>
+					))}
+				</div>
+			)}
+
+			{/* Confirmation Dialog */}
+			{showConfirmation && (
+				<div
+					className="confirmation-dialog"
+					style={{
+						left: "0",
+						transform: "translateX(-45%)",
+						width: "300px",
+					}}>
+					<div className="confirmation-content">
+						<p>{`Dev ${showConfirmation.label} is already assigned to task ${showConfirmation.taskId}.`}</p>
+						<p>Do you want to reassign it to this task?</p>
+						<div className="confirmation-buttons">
+							<VSCodeButton onClick={() => handleConfirmation(true)}>Yes, reassign</VSCodeButton>
+							<VSCodeButton onClick={() => handleConfirmation(false)}>Cancel</VSCodeButton>
+						</div>
+					</div>
+				</div>
 			)}
 		</div>
 	)
@@ -376,12 +502,19 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						</div>
 					)}
 
-					<ActiveConversationToggle
+					<DevConversationSelector
 						activeLabel={activeLabel}
-						onClick={() => vscode.postMessage({ type: "toggleActiveConversation" })}
+						onClick={(label, force) => {
+							// Pass the selected label to the backend
+							vscode.postMessage({
+								type: "setActiveConversation",
+								label: label,
+								force: force,
+							})
+						}}
 					/>
 
-					{/* Notification Bell */}
+					{/* Notification Inbox */}
 					<VSCodeButton
 						appearance="icon"
 						onClick={() => {
@@ -392,7 +525,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							flexShrink: 0,
 							position: "relative",
 						}}>
-						<span className="codicon codicon-bell"></span>
+						<span className="codicon codicon-inbox"></span>
 						{notifications.filter((n) => !n.read && !n.dismissed).length > 0 && (
 							<span
 								style={{

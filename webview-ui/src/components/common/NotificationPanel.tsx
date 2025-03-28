@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react"
 import { ExternalAdvice } from "../../../../src/shared/WebviewMessage"
-import { formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow } from "../../utils/format"
 import { vscode } from "../../utils/vscode"
 import "./NotificationPanel.css"
 
@@ -14,6 +14,7 @@ import "./NotificationPanel.css"
  * - Sending notifications to chat
  * - Dismissing and restoring notifications
  * - Displaying machine-actionable suggestions with code examples
+ * - Toggling the panel by clicking the inbox icon
  */
 interface NotificationPanelProps {
 	notifications: ExternalAdvice[]
@@ -41,8 +42,18 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
 	// Add click-outside handler to close the panel
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
+			// Check if the click was on the inbox icon (which has its own toggle handler)
+			const target = event.target as Element
+			const isInboxIcon =
+				target.classList.contains("codicon-inbox") || target.parentElement?.classList.contains("codicon-inbox")
+
+			// If it's the inbox icon, don't do anything (let the toggle handler in TaskHeader handle it)
+			if (isInboxIcon) {
+				return
+			}
+
+			// If click was outside the panel, close it
 			if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
-				// Click was outside the panel, close it
 				onClose()
 			}
 		}

@@ -1001,8 +1001,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "getLatestState":
 						await this.postStateToWebview()
 						break
-					case "toggleActiveConversation":
-						await this.toggleActiveConversation()
+					case "setActiveConversation":
+						await this.setActiveConversation(message.label ?? null, message.force)
+						break
+					case "getActiveTasks":
+						const activeTasks = await this.getActiveTasks()
+						await this.postMessageToWebview({
+							type: "activeTasksData",
+							activeTasks,
+						})
 						break
 					case "getExternalAdvice":
 						await this.sendExternalAdvice()
@@ -2698,14 +2705,35 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	}
 
 	/**
-	 * Toggles the active conversation status for the current task.
-	 * Cycles through: Inactive → Active A → Active B → Inactive
-	 * Ensures only one task can have label A and one task can have label B at any time.
+	 * Gets the current active tasks from the active_tasks.json file
 	 */
-	async toggleActiveConversation() {
+	async getActiveTasks() {
+		try {
+			const activeTasksFilePath = path.join(this.context.globalStorageUri.fsPath, "active_tasks.json")
+			if (await fileExistsAtPath(activeTasksFilePath)) {
+				const fileContent = await fs.readFile(activeTasksFilePath, "utf8")
+				const activeTasksData = JSON.parse(fileContent)
+				return activeTasksData.activeTasks || []
+			}
+			return []
+		} catch (error) {
+			console.error("Error reading active tasks:", error)
+			return []
+		}
+	}
+
+	/**
+	 * Sets the active conversation status for the current task.
+	 * Directly sets the task to the specified label without any toggling behavior.
+	 * Ensures only one task can have a specific label at any time.
+	 *
+	 * @param label The label to set for the current task (A, B, C, D, or null to clear)
+	 * @param force If true, will override any existing task with the same label
+	 */
+	async setActiveConversation(label: string | null, force: boolean = false) {
 		try {
 			if (!this.cline?.taskId) {
-				console.error("Cannot toggle active conversation: No active task")
+				console.error("Cannot set active conversation: No active task")
 				return
 			}
 
@@ -2735,56 +2763,52 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 				}
 			}
 
-			// Find the current task in the active tasks list
+			// Get the current list of active tasks
 			let activeTasks: ActiveTask[] = activeTasksData.activeTasks || []
 			const currentTaskIndex = activeTasks.findIndex((task) => task.id === taskId)
 			const currentTime = Date.now()
 
-			// Determine the new label based on the current state
-			let newLabel: string | null = null
+			// Check if the label is already in use by another task
+			const existingTask = activeTasks.find((task) => task.label === label && task.id !== taskId)
 
-			if (currentTaskIndex === -1) {
-				// Task is not active, make it Active A
-				newLabel = "A"
+			// If label is in use and force is false, notify the webview and return
+			if (existingTask && !force) {
+				await this.postMessageToWebview({
+					type: "activeConversationInUse",
+					existingTask,
+				})
 
-				// Remove any existing task with label A (no demotion)
-				activeTasks = activeTasks.filter((task) => task.label !== "A")
+				// Important: Update the UI state to reflect the current task's label
+				// This ensures the UI stays in sync with the backend state
+				const currentTask = activeTasks.find((task) => task.id === taskId)
+				await this.postMessageToWebview({
+					type: "activeConversationStatus",
+					activeLabel: currentTask?.label || null,
+				})
 
-				// Add the new Active A task
+				return
+			}
+
+			// First, remove the current task from the active tasks list if it exists
+			if (currentTaskIndex !== -1) {
+				activeTasks.splice(currentTaskIndex, 1)
+			}
+
+			// If a label is provided (not null), add the task with that label
+			if (label !== null) {
+				// Remove any existing task with the same label to ensure uniqueness
+				activeTasks = activeTasks.filter((task) => task.label !== label)
+
+				// Add the task with the specified label
 				activeTasks.push({
 					id: taskId,
-					label: newLabel,
+					label: label,
 					lastActivated: currentTime,
 					source: "cline",
 					extensionType: "cline",
 				})
-			} else {
-				// Task is already active, cycle through states
-				const currentLabel = activeTasks[currentTaskIndex].label
-
-				if (currentLabel === "A") {
-					// A → B
-					newLabel = "B"
-
-					// Remove the current task from the list
-					activeTasks.splice(currentTaskIndex, 1)
-
-					// Remove any existing task with label B
-					activeTasks = activeTasks.filter((task) => task.label !== "B")
-
-					// Add the task as B
-					activeTasks.push({
-						id: taskId,
-						label: newLabel,
-						lastActivated: currentTime,
-						source: "cline",
-						extensionType: "cline",
-					})
-				} else if (currentLabel === "B") {
-					// B → Inactive (remove from list)
-					activeTasks.splice(currentTaskIndex, 1)
-				}
 			}
+			// If label is null, the task remains removed from the active tasks list
 
 			// Update the active tasks file
 			activeTasksData.activeTasks = activeTasks
@@ -2793,13 +2817,19 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			// Send the updated active label to the webview
 			await this.postMessageToWebview({
 				type: "activeConversationStatus",
-				activeLabel: newLabel,
+				activeLabel: label,
 			})
 
-			console.log(`Toggled active conversation for task ${taskId} to ${newLabel || "Inactive"}`)
+			// Also send updated active tasks data
+			await this.postMessageToWebview({
+				type: "activeTasksData",
+				activeTasks,
+			})
+
+			console.log(`Set active conversation for task ${taskId} to ${label || "Inactive"}`)
 		} catch (error) {
-			console.error("Error toggling active conversation:", error)
-			vscode.window.showErrorMessage("Failed to toggle active conversation status")
+			console.error("Error setting active conversation:", error)
+			vscode.window.showErrorMessage("Failed to set active conversation status")
 		}
 	}
 

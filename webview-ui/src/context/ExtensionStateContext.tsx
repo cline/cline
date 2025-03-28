@@ -5,7 +5,7 @@ import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "../../../src
 import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpMarketplaceCatalog, McpServer } from "../../../src/shared/mcp"
-import { ExternalAdvice } from "../../../src/shared/WebviewMessage"
+import { ActiveTask, ExternalAdvice } from "../../../src/shared/WebviewMessage"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
@@ -24,6 +24,7 @@ interface ExtensionStateContextType extends ExtensionState {
 	totalTasksSize: number | null
 	notifications: ExternalAdvice[]
 	activeLabel: string | null
+	activeTasks: ActiveTask[]
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
@@ -63,6 +64,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 	const [notifications, setNotifications] = useState<ExternalAdvice[]>([])
 	const [activeLabel, setActiveLabel] = useState<string | null>(null)
+	const [activeTasks, setActiveTasks] = useState<ActiveTask[]>([])
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
@@ -169,6 +171,10 @@ export const ExtensionStateContextProvider: React.FC<{
 				setActiveLabel(message.activeLabel || null)
 				break
 			}
+			case "activeTasksData": {
+				setActiveTasks(message.activeTasks || [])
+				break
+			}
 		}
 	}, [])
 
@@ -191,6 +197,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		totalTasksSize,
 		notifications,
 		activeLabel,
+		activeTasks,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,

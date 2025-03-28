@@ -173,3 +173,166 @@ vscode-dropdown::part(listbox) {
 	border-radius: 3px;
 	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 }
+
+/* Active Conversation Selector styles */
+.dev-conversation-selector {
+	margin-left: 10px;
+	padding: 2px 8px;
+	border-radius: 500px;
+	font-size: 11px;
+	font-weight: 500;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+	flex-shrink: 0;
+	position: relative;
+}
+
+.dev-conversation-selector.none {
+	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 40%, transparent);
+	color: var(--vscode-badge-foreground);
+}
+
+.dev-conversation-selector.dev-a {
+	background-color: #22c55e;
+	color: var(--vscode-badge-background);
+}
+
+.dev-conversation-selector.dev-b {
+	background-color: #3b82f6;
+	color: var(--vscode-badge-background);
+}
+
+.dev-conversation-selector.dev-c {
+	background-color: #f59e0b;
+	color: var(--vscode-badge-background);
+}
+
+.dev-conversation-selector.dev-d {
+	background-color: #ec4899;
+	color: var(--vscode-badge-background);
+}
+
+.dev-conversation-icon {
+	display: inline-flex;
+	align-items: center;
+}
+
+.dev-selector-dropdown {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	margin-top: 4px;
+	background-color: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: 3px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	z-index: 10;
+	overflow: hidden;
+	width: 100%; /* Make dropdown the same width as the button */
+	min-width: 100px; /* Ensure minimum width */
+}
+
+.dev-selector-option {
+	padding: 6px 12px;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.dev-selector-option:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.dev-selector-option.dev-a {
+	color: #22c55e;
+}
+
+.dev-selector-option.dev-b {
+	color: #3b82f6;
+}
+
+.dev-selector-option.dev-c {
+	color: #f59e0b;
+}
+
+.dev-selector-option.dev-d {
+	color: #ec4899;
+}
+
+.dev-selector-option {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+/* Status icon styles */
+.status-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	margin-right: 6px;
+	flex-shrink: 0;
+	font-size: 14px;
+}
+
+.status-icon.in-use {
+	color: var(--vscode-notificationsErrorIcon-foreground); /* Red color for in-use */
+}
+
+.status-icon.available {
+	color: #22c55e; /* Green color for available */
+}
+
+.status-icon.current {
+	color: #22c55e; /* Green color for checkmark */
+	font-weight: bold;
+	font-size: 16px;
+}
+
+/* Dev option content layout */
+.dev-option-content {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	gap: 6px;
+}
+
+/* Info icon */
+.info-icon {
+	margin-left: auto;
+	font-size: 12px;
+	opacity: 0.7;
+}
+
+.info-icon:hover {
+	opacity: 1;
+}
+
+/* Confirmation dialog */
+.confirmation-dialog {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	margin-top: 4px;
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: 3px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	z-index: 20;
+	width: 250px;
+	padding: 12px;
+}
+
+.confirmation-content {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.confirmation-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 8px;
+}
