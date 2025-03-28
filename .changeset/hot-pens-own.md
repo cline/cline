@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Fixed to be able to use DeepSeek in Azure.
+Add support for Azure's DeepSeek model.
