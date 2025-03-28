@@ -393,7 +393,7 @@ export class ContextManager {
 	}
 
 	/**
-	 * generate a mapping from unique files reads from multiple tool calls to their outer index position(s)
+	 * generate a mapping from unique file reads from multiple tool calls to their outer index position(s)
 	 */
 	private getPossibleDuplicateFileReads(
 		apiMessages: Anthropic.Messages.MessageParam[],
@@ -416,9 +416,11 @@ export class ContextManager {
 						if (matchTup[0] === "read_file") {
 							this.handleReadFileToolCall(i, matchTup[1], fileReadIndices)
 						} else if (matchTup[0] === "replace_in_file" || matchTup[0] === "write_to_file") {
-							const secondBlock = message.content[1]
-							if (secondBlock.type === "text") {
-								this.handlePotentialFileChangeToolCalls(i, matchTup[1], secondBlock.text, fileReadIndices)
+							if (message.content.length > 1) {
+								const secondBlock = message.content[1]
+								if (secondBlock.type === "text") {
+									this.handlePotentialFileChangeToolCalls(i, matchTup[1], secondBlock.text, fileReadIndices)
+								}
 							}
 						}
 
