@@ -239,18 +239,18 @@ Your final result description here
 <command>Command to demonstrate result (optional)</command>
 </attempt_completion>
 
-## plan_mode_response
+## plan_mode_respond
 Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution.
 Parameters:
 - response: (required) The response to provide to the user. Do not try to use tools in this parameter, this is simply a chat response.
 - options: (optional) An array of 2-5 options for the user to choose from. Each option should be a string describing a possible choice or path forward in the planning process. This can help guide the discussion and make it easier for the user to provide input on key decisions. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually. Do NOT present an option to toggle to Act mode, as this will be something you need to direct the user to do manually themselves.
 Usage:
-<plan_mode_response>
+<plan_mode_respond>
 <response>Your response here</response>
 <options>
 Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]
 </options>
-</plan_mode_response>
+</plan_mode_respond>
 
 # Tool Use Examples
 
@@ -881,11 +881,11 @@ ACT MODE V.S. PLAN MODE
 
 In each user message, the environment_details will specify the current mode. There are two modes:
 
-- ACT MODE: In this mode, you have access to all tools EXCEPT the plan_mode_response tool.
+- ACT MODE: In this mode, you have access to all tools EXCEPT the plan_mode_respond tool.
  - In ACT MODE, you use tools to accomplish the user's task. Once you've completed the user's task, you use the attempt_completion tool to present the result of the task to the user.
-- PLAN MODE: In this special mode, you have access to the plan_mode_response tool.
+- PLAN MODE: In this special mode, you have access to the plan_mode_respond tool.
  - In PLAN MODE, the goal is to gather information and get context to create a detailed plan for accomplishing the task, which the user will review and approve before they switch you to ACT MODE to implement the solution.
- - In PLAN MODE, when you need to converse with the user or present a plan, you should use the plan_mode_response tool to deliver your response directly, rather than using <thinking> tags to analyze when to respond. Do not talk about using plan_mode_response - just use it directly to share your thoughts and provide helpful answers.
+ - In PLAN MODE, when you need to converse with the user or present a plan, you should use the plan_mode_respond tool to deliver your response directly, rather than using <thinking> tags to analyze when to respond. Do not talk about using plan_mode_respond - just use it directly to share your thoughts and provide helpful answers.
 
 ## What is PLAN MODE?
 

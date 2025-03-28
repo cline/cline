@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
-import delay from "delay"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import fs from "fs/promises"
 import getFolderSize from "get-folder-size"
 import os from "os"
@@ -64,10 +64,13 @@ import { ClineHandler } from "../api/providers/cline"
 import { ClineProvider } from "./webview/ClineProvider"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
 import { telemetryService } from "../services/telemetry/TelemetryService"
-import { ConversationTelemetryService, TelemetryChatMessage } from "../services/telemetry/ConversationTelemetryService"
 import pTimeout from "p-timeout"
 import { GlobalFileNames } from "../global-constants"
-import { checkIsOpenRouterContextWindowError } from "./context-management/context-error-handling"
+import {
+	checkIsAnthropicContextWindowError,
+	checkIsOpenRouterContextWindowError,
+} from "./context-management/context-error-handling"
+import { AnthropicHandler } from "../api/providers/anthropic"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1034,7 +1037,7 @@ export class Cline {
 						: ""
 				}` +
 				(responseText
-					? `\n\n${this.chatSettings?.mode === "plan" ? "New message to respond to with plan_mode_response tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
+					? `\n\n${this.chatSettings?.mode === "plan" ? "New message to respond to with plan_mode_respond tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
 					: this.chatSettings.mode === "plan"
 						? "(The user did not provide a new message. Consider asking them how they'd like you to proceed, or to switch to Act mode to continue with the task.)"
 						: ""),
@@ -1211,7 +1214,7 @@ export class Cline {
 		// for their associated messages to be sent to the webview, maintaining
 		// the correct order of messages (although the webview is smart about
 		// grouping command_output messages despite any gaps anyways)
-		await delay(50)
+		await setTimeoutPromise(50)
 
 		result = result.trim()
 
@@ -1350,77 +1353,20 @@ export class Cline {
 				preferredLanguageInstructions,
 			)
 		}
-
-		// Capture system prompt for telemetry,
-		// ONLY if user is opted in, in advanced settings
-		if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
-			const systemMessage: TelemetryChatMessage = {
-				role: "system",
-				content: systemPrompt,
-				ts: Date.now(), // we dont uniquely identify system messages, so we use the timestamp as the id
-			}
-
-			// no need for timeout here, as there's no timestamp to compare to
-			this.providerRef.deref()?.conversationTelemetryService.captureMessage(this.taskId, systemMessage, {
-				apiProvider: this.apiProvider,
-				model: this.api.getModel().id,
-				tokensIn: 0,
-				tokensOut: 0,
-			})
-		}
-
-		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
-		if (previousApiReqIndex >= 0) {
-			const previousRequest = this.clineMessages[previousApiReqIndex]
-			if (previousRequest && previousRequest.text) {
-				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
-				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				let contextWindow = this.api.getModel().info.contextWindow || 128_000
-				// FIXME: hack to get anyone using openai compatible with deepseek to have the proper context window instead of the default 128k. We need a way for the user to specify the context window for models they input through openai compatible
-				if (this.api instanceof OpenAiHandler && this.api.getModel().id.toLowerCase().includes("deepseek")) {
-					contextWindow = 64_000
-				}
-				let maxAllowedSize: number
-				switch (contextWindow) {
-					case 64_000: // deepseek models
-						maxAllowedSize = contextWindow - 27_000
-						break
-					case 128_000: // most models
-						maxAllowedSize = contextWindow - 30_000
-						break
-					case 200_000: // claude models
-						maxAllowedSize = contextWindow - 40_000
-						break
-					default:
-						maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8) // for deepseek, 80% of 64k meant only ~10k buffer which was too small and resulted in users getting context window errors.
-				}
-
-				// This is the most reliable way to know when we're close to hitting the context window.
-				if (totalTokens >= maxAllowedSize) {
-					// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
-					// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
-					// FIXME: truncating the conversation in a way that is optimal for prompt caching AND takes into account multi-context window complexity is something we need to improve
-					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
-
-					// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
-					this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
-						this.apiConversationHistory,
-						this.conversationHistoryDeletedRange,
-						keep,
-					)
-					await this.saveClineMessages() // saves task history item which we use to keep track of conversation history deleted range
-					// await this.overwriteApiConversationHistory(truncatedMessages)
-				}
-			}
-		}
-
-		// conversationHistoryDeletedRange is updated only when we're close to hitting the context window, so we don't continuously break the prompt cache
-		const truncatedConversationHistory = this.contextManager.getTruncatedMessages(
+		const contextManagementMetadata = this.contextManager.getNewContextMessagesAndMetadata(
 			this.apiConversationHistory,
+			this.clineMessages,
+			this.api,
 			this.conversationHistoryDeletedRange,
+			previousApiReqIndex,
 		)
 
-		let stream = this.api.createMessage(systemPrompt, truncatedConversationHistory)
+		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
+			this.conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
+			await this.saveClineMessages() // saves task history item which we use to keep track of conversation history deleted range
+		}
+
+		let stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -1432,9 +1378,20 @@ export class Cline {
 			this.isWaitingForFirstChunk = false
 		} catch (error) {
 			const isOpenRouter = this.api instanceof OpenRouterHandler || this.api instanceof ClineHandler
+			const isAnthropic = this.api instanceof AnthropicHandler
 			const isOpenRouterContextWindowError = checkIsOpenRouterContextWindowError(error) && isOpenRouter
+			const isAnthropicContextWindowError = checkIsAnthropicContextWindowError(error) && isAnthropic
 
-			if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
+			if (isAnthropic && isAnthropicContextWindowError && !this.didAutomaticallyRetryFailedApiRequest) {
+				this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
+					this.apiConversationHistory,
+					this.conversationHistoryDeletedRange,
+					"quarter", // Force aggressive truncation
+				)
+				await this.saveClineMessages()
+
+				this.didAutomaticallyRetryFailedApiRequest = true
+			} else if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
 				if (isOpenRouterContextWindowError) {
 					this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
 						this.apiConversationHistory,
@@ -1445,13 +1402,13 @@ export class Cline {
 				}
 
 				console.log("first chunk failed, waiting 1 second before retrying")
-				await delay(1000)
+				await setTimeoutPromise(1000)
 				this.didAutomaticallyRetryFailedApiRequest = true
 			} else {
 				// request failed after retrying automatically once, ask user if they want to retry again
 				// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 
-				if (isOpenRouterContextWindowError) {
+				if (isOpenRouterContextWindowError || isAnthropicContextWindowError) {
 					const truncatedConversationHistory = this.contextManager.getTruncatedMessages(
 						this.apiConversationHistory,
 						this.conversationHistoryDeletedRange,
@@ -1595,7 +1552,7 @@ export class Cline {
 							return `[${block.name} for '${block.params.server_name}']`
 						case "ask_followup_question":
 							return `[${block.name} for '${block.params.question}']`
-						case "plan_mode_response":
+						case "plan_mode_respond":
 							return `[${block.name}]`
 						case "attempt_completion":
 							return `[${block.name}]`
@@ -1887,7 +1844,7 @@ export class Cline {
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(newContent, true)
-								await delay(300) // wait for diff view to update
+								await setTimeoutPromise(300) // wait for diff view to update
 								this.diffViewProvider.scrollToFirstDiff()
 								// showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
 
@@ -1909,7 +1866,7 @@ export class Cline {
 									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
 
 									// we need an artificial delay to let the diagnostics catch up to the changes
-									await delay(3_500)
+									await setTimeoutPromise(3_500)
 								} else {
 									// If auto-approval is enabled but this tool wasn't auto-approved, send notification
 									showNotificationForApprovalIfAutoApprovalEnabled(
@@ -2825,7 +2782,7 @@ export class Cline {
 							break
 						}
 					}
-					case "plan_mode_response": {
+					case "plan_mode_respond": {
 						const response: string | undefined = block.params.response
 						const optionsRaw: string | undefined = block.params.options
 						const sharedMessage = {
@@ -2834,12 +2791,12 @@ export class Cline {
 						} satisfies ClinePlanModeResponse
 						try {
 							if (block.partial) {
-								await this.ask("plan_mode_response", JSON.stringify(sharedMessage), block.partial).catch(() => {})
+								await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), block.partial).catch(() => {})
 								break
 							} else {
 								if (!response) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("plan_mode_response", "response"))
+									pushToolResult(await this.sayAndCreateMissingParamError("plan_mode_respond", "response"))
 									//
 									break
 								}
@@ -2853,7 +2810,7 @@ export class Cline {
 								// }
 
 								this.isAwaitingPlanResponse = true
-								let { text, images } = await this.ask("plan_mode_response", JSON.stringify(sharedMessage), false)
+								let { text, images } = await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), false)
 								this.isAwaitingPlanResponse = false
 
 								// webview invoke sendMessage will send this marker in order to put webview into the proper state (responding to an ask) and as a flag to extension that the user switched to ACT mode.
@@ -2865,7 +2822,7 @@ export class Cline {
 								if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
 									// Valid option selected, don't show user message in UI
 									// Update last followup message with selected option
-									const lastPlanMessage = findLast(this.clineMessages, (m) => m.ask === "plan_mode_response")
+									const lastPlanMessage = findLast(this.clineMessages, (m) => m.ask === "plan_mode_respond")
 									if (lastPlanMessage) {
 										lastPlanMessage.text = JSON.stringify({
 											...sharedMessage,
@@ -3213,39 +3170,6 @@ export class Cline {
 
 		telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "user")
 
-		// Capture message data for telemetry,
-		// ONLY if user is opted in, in advanced settings
-		if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
-			// Get the last message from apiConversationHistory
-			const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
-
-			// Get the corresponding timestamp from clineMessages
-			// The last message in clineMessages should be the one we just added
-
-			const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
-			const ts = lastClineMessage.ts
-
-			// Send individual message to telemetry
-			this.providerRef.deref()?.conversationTelemetryService.captureMessage(
-				this.taskId,
-				// Add the timestamp to the message object for telemetry
-				{
-					...lastMessage,
-					ts,
-				},
-				{
-					apiProvider: this.apiProvider,
-					model: this.api.getModel().id,
-					tokensIn: 0,
-					tokensOut: 0,
-				},
-			)
-
-			// Send entire conversation history to cleanup endpoint
-			// This ensures deleted messages are properly handled in telemetry
-			this.providerRef.deref()?.conversationTelemetryService.cleanupTask(this.taskId, this.clineMessages)
-		}
-
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
@@ -3322,36 +3246,6 @@ export class Cline {
 				await this.saveClineMessages()
 
 				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
-
-				// Capture message data for telemetry after assistant response
-				// ONLY if user is opted in, in advanced settings
-				if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
-					// Get the last message from apiConversationHistory
-					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
-
-					// Find the corresponding timestamp from clineMessages
-					// For assistant messages, we need to find the most recent "text" message
-					const lastTextMessage = findLast(this.clineMessages, (m) => m.say === "text")
-
-					// Add the timestamp to the message object for telemetry
-					if (!lastTextMessage) {
-						console.error("No text message found in clineMessages")
-					} else {
-						this.providerRef.deref()?.conversationTelemetryService.captureMessage(
-							this.taskId,
-							{
-								...lastMessage,
-								ts: lastTextMessage.ts,
-							},
-							{
-								apiProvider: this.apiProvider,
-								model: this.api.getModel().id,
-								tokensIn: inputTokens,
-								tokensOut: outputTokens,
-							},
-						)
-					}
-				}
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.didFinishAbortingStream = true
@@ -3502,32 +3396,6 @@ export class Cline {
 					content: [{ type: "text", text: assistantMessage }],
 				})
 
-				// Capture message data for telemetry after assistant response,
-				// ONLY if user is opted in, in advanced settings
-				if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
-					// Get the last message from apiConversationHistory
-					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
-
-					// Find the corresponding timestamp from clineMessages
-					const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
-
-					if (lastClineMessage) {
-						this.providerRef.deref()?.conversationTelemetryService.captureMessage(
-							this.taskId,
-							{
-								...lastMessage,
-								ts: lastClineMessage.ts,
-							},
-							{
-								apiProvider: this.apiProvider,
-								model: this.api.getModel().id,
-								tokensIn: inputTokens,
-								tokensOut: outputTokens,
-							},
-						)
-					}
-				}
-
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished
 				// it may be the api stream finished after the last parsed content block was executed, so  we are able to detect out of bounds and set userMessageContentReady to true (note you should not call presentAssistantMessage since if the last block is completed it will be presented again)
@@ -3651,7 +3519,7 @@ export class Cline {
 
 		if (busyTerminals.length > 0 && this.didEditFile) {
 			//  || this.didEditFile
-			await delay(300) // delay after saving file to let terminals catch up
+			await setTimeoutPromise(300) // delay after saving file to let terminals catch up
 		}
 
 		// let terminalWasBusy = false
@@ -3763,7 +3631,7 @@ export class Cline {
 		if (this.chatSettings.mode === "plan") {
 			details += "\nPLAN MODE"
 			details +=
-				"\nIn this mode you should focus on information gathering, asking questions, and architecting a solution. Once you have a plan, use the plan_mode_response tool to engage in a conversational back and forth with the user. Do not use the plan_mode_response tool until you've gathered all the information you need e.g. with read_file or ask_followup_question."
+				"\nIn this mode you should focus on information gathering, asking questions, and architecting a solution. Once you have a plan, use the plan_mode_respond tool to engage in a conversational back and forth with the user. Do not use the plan_mode_respond tool until you've gathered all the information you need e.g. with read_file or ask_followup_question."
 			details +=
 				'\n(Remember: If it seems the user wants you to use tools only available in Act Mode, you should ask the user to "toggle to Act mode" (use those words) - they will have to manually do this themselves with the Plan/Act toggle button below. You do not have the ability to switch to Act Mode yourself, and must wait for the user to do it themselves once they are satisfied with the plan. You also cannot present an option to toggle to Act mode, as this will be something you need to direct the user to do manually themselves.)'
 		} else {
