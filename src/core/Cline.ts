@@ -29,7 +29,7 @@ import {
 	everyLineHasLineNumbers,
 } from "../integrations/misc/extract-text"
 import { countFileLines } from "../integrations/misc/line-counter"
-import { fetchInstructions } from "./prompts/instructions/instructions"
+import { fetchInstructionsTool } from "./tools/fetchInstructionsTool"
 import { ExitCodeDetails } from "../integrations/terminal/TerminalProcess"
 import { Terminal } from "../integrations/terminal/Terminal"
 import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
@@ -86,7 +86,7 @@ import { readLines } from "../integrations/misc/read-lines"
 import { getWorkspacePath } from "../utils/path"
 import { isBinaryFile } from "isbinaryfile"
 
-type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
+export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.Messages.ContentBlockParam>
 
 export type ClineEvents = {
@@ -148,9 +148,11 @@ export class Cline extends EventEmitter<ClineEvents> {
 	private askResponseText?: string
 	private askResponseImages?: string[]
 	private lastMessageTs?: number
-	private consecutiveMistakeCount: number = 0
+	// Not private since it needs to be accessible by tools
+	consecutiveMistakeCount: number = 0
 	private consecutiveMistakeCountForApplyDiff: Map<string, number> = new Map()
-	private providerRef: WeakRef<ClineProvider>
+	// Not private since it needs to be accessible by tools
+	providerRef: WeakRef<ClineProvider>
 	private abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
@@ -2402,59 +2404,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 					}
 
 					case "fetch_instructions": {
-						const task: string | undefined = block.params.task
-						const sharedMessageProps: ClineSayTool = {
-							tool: "fetchInstructions",
-							content: task,
-						}
-						try {
-							if (block.partial) {
-								const partialMessage = JSON.stringify({
-									...sharedMessageProps,
-									content: undefined,
-								} satisfies ClineSayTool)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								break
-							} else {
-								if (!task) {
-									this.consecutiveMistakeCount++
-									pushToolResult(
-										await this.sayAndCreateMissingParamError("fetch_instructions", "task"),
-									)
-									break
-								}
-
-								this.consecutiveMistakeCount = 0
-								const completeMessage = JSON.stringify({
-									...sharedMessageProps,
-									content: task,
-								} satisfies ClineSayTool)
-
-								const didApprove = await askApproval("tool", completeMessage)
-								if (!didApprove) {
-									break
-								}
-
-								// now fetch the content and provide it to the agent.
-								const provider = this.providerRef.deref()
-								const mcpHub = provider?.getMcpHub()
-								if (!mcpHub) {
-									throw new Error("MCP hub not available")
-								}
-								const diffStrategy = this.diffStrategy
-								const context = provider?.context
-								const content = await fetchInstructions(task, { mcpHub, diffStrategy, context })
-								if (!content) {
-									pushToolResult(formatResponse.toolError(`Invalid instructions request: ${task}`))
-									break
-								}
-								pushToolResult(content)
-								break
-							}
-						} catch (error) {
-							await handleError("fetch instructions", error)
-							break
-						}
+						fetchInstructionsTool(this, block, askApproval, handleError, pushToolResult)
+						break
 					}
 
 					case "list_files": {
