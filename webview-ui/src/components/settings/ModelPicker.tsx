@@ -3,6 +3,8 @@ import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { Trans } from "react-i18next"
 import { ChevronsUpDown, Check, X } from "lucide-react"
 
+import { ProviderSettings, ModelInfo } from "../../../../src/schemas"
+
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { cn } from "@/lib/utils"
 import {
@@ -18,30 +20,30 @@ import {
 	Button,
 } from "@/components/ui"
 
-import { ApiConfiguration, ModelInfo } from "../../../../src/shared/api"
-
 import { normalizeApiConfiguration } from "./ApiOptions"
 import { ThinkingBudget } from "./ThinkingBudget"
 import { ModelInfoView } from "./ModelInfoView"
 
-type ExtractType<T> = NonNullable<
-	{ [K in keyof ApiConfiguration]: Required<ApiConfiguration>[K] extends T ? K : never }[keyof ApiConfiguration]
+type ModelIdKey = keyof Pick<
+	ProviderSettings,
+	"glamaModelId" | "openRouterModelId" | "unboundModelId" | "requestyModelId" | "openAiModelId"
 >
 
-type ModelIdKeys = NonNullable<
-	{ [K in keyof ApiConfiguration]: K extends `${string}ModelId` ? K : never }[keyof ApiConfiguration]
+type ModelInfoKey = keyof Pick<
+	ProviderSettings,
+	"glamaModelInfo" | "openRouterModelInfo" | "unboundModelInfo" | "requestyModelInfo" | "openAiCustomModelInfo"
 >
 
 interface ModelPickerProps {
 	defaultModelId: string
 	defaultModelInfo?: ModelInfo
 	models: Record<string, ModelInfo> | null
-	modelIdKey: ModelIdKeys
-	modelInfoKey: ExtractType<ModelInfo>
+	modelIdKey: ModelIdKey
+	modelInfoKey: ModelInfoKey
 	serviceName: string
 	serviceUrl: string
-	apiConfiguration: ApiConfiguration
-	setApiConfigurationField: <K extends keyof ApiConfiguration>(field: K, value: ApiConfiguration[K]) => void
+	apiConfiguration: ProviderSettings
+	setApiConfigurationField: <K extends keyof ProviderSettings>(field: K, value: ProviderSettings[K]) => void
 }
 
 export const ModelPicker = ({
@@ -72,7 +74,9 @@ export const ModelPicker = ({
 
 	const onSelect = useCallback(
 		(modelId: string) => {
-			if (!modelId) return
+			if (!modelId) {
+				return
+			}
 
 			setOpen(false)
 			const modelInfo = models?.[modelId]

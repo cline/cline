@@ -28,7 +28,7 @@ type ProviderSettings = {
 	anthropicBaseUrl?: string | undefined
 	glamaModelId?: string | undefined
 	glamaModelInfo?:
-		| {
+		| ({
 				maxTokens?: number | undefined
 				contextWindow: number
 				supportsImages?: boolean | undefined
@@ -41,13 +41,13 @@ type ProviderSettings = {
 				description?: string | undefined
 				reasoningEffort?: ("low" | "medium" | "high") | undefined
 				thinking?: boolean | undefined
-		  }
+		  } | null)
 		| undefined
 	glamaApiKey?: string | undefined
 	openRouterApiKey?: string | undefined
 	openRouterModelId?: string | undefined
 	openRouterModelInfo?:
-		| {
+		| ({
 				maxTokens?: number | undefined
 				contextWindow: number
 				supportsImages?: boolean | undefined
@@ -60,7 +60,7 @@ type ProviderSettings = {
 				description?: string | undefined
 				reasoningEffort?: ("low" | "medium" | "high") | undefined
 				thinking?: boolean | undefined
-		  }
+		  } | null)
 		| undefined
 	openRouterBaseUrl?: string | undefined
 	openRouterSpecificProvider?: string | undefined
@@ -84,7 +84,7 @@ type ProviderSettings = {
 	openAiR1FormatEnabled?: boolean | undefined
 	openAiModelId?: string | undefined
 	openAiCustomModelInfo?:
-		| {
+		| ({
 				maxTokens?: number | undefined
 				contextWindow: number
 				supportsImages?: boolean | undefined
@@ -97,7 +97,7 @@ type ProviderSettings = {
 				description?: string | undefined
 				reasoningEffort?: ("low" | "medium" | "high") | undefined
 				thinking?: boolean | undefined
-		  }
+		  } | null)
 		| undefined
 	openAiUseAzure?: boolean | undefined
 	azureApiVersion?: string | undefined
@@ -126,7 +126,7 @@ type ProviderSettings = {
 	unboundApiKey?: string | undefined
 	unboundModelId?: string | undefined
 	unboundModelInfo?:
-		| {
+		| ({
 				maxTokens?: number | undefined
 				contextWindow: number
 				supportsImages?: boolean | undefined
@@ -139,12 +139,12 @@ type ProviderSettings = {
 				description?: string | undefined
 				reasoningEffort?: ("low" | "medium" | "high") | undefined
 				thinking?: boolean | undefined
-		  }
+		  } | null)
 		| undefined
 	requestyApiKey?: string | undefined
 	requestyModelId?: string | undefined
 	requestyModelInfo?:
-		| {
+		| ({
 				maxTokens?: number | undefined
 				contextWindow: number
 				supportsImages?: boolean | undefined
@@ -157,7 +157,7 @@ type ProviderSettings = {
 				description?: string | undefined
 				reasoningEffort?: ("low" | "medium" | "high") | undefined
 				thinking?: boolean | undefined
-		  }
+		  } | null)
 		| undefined
 	modelTemperature?: (number | null) | undefined
 	modelMaxTokens?: number | undefined

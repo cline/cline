@@ -16,18 +16,6 @@ export const providerProfilesSchema = z.object({
 
 export type ProviderProfiles = z.infer<typeof providerProfilesSchema>
 
-const providerProfilesExportSchema = providerProfilesSchema.extend({
-	apiConfigs: z.record(
-		z.string(),
-		providerSettingsWithIdSchema.omit({
-			glamaModelInfo: true,
-			openRouterModelInfo: true,
-			unboundModelInfo: true,
-			requestyModelInfo: true,
-		}),
-	),
-})
-
 export class ProviderSettingsManager {
 	private static readonly SCOPE_PREFIX = "roo_cline_config_"
 
@@ -246,7 +234,7 @@ export class ProviderSettingsManager {
 
 	public async export() {
 		try {
-			return await this.lock(async () => providerProfilesExportSchema.parse(await this.load()))
+			return await this.lock(async () => providerProfilesSchema.parse(await this.load()))
 		} catch (error) {
 			throw new Error(`Failed to export provider profiles: ${error}`)
 		}

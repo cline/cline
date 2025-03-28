@@ -2,16 +2,17 @@ import * as vscode from "vscode"
 
 import {
 	PROVIDER_SETTINGS_KEYS,
-	ProviderSettings,
-	providerSettingsSchema,
-	GlobalSettings,
-	globalSettingsSchema,
-	RooCodeSettings,
+	GLOBAL_SETTINGS_KEYS,
 	SECRET_STATE_KEYS,
-	SecretState,
-	isSecretStateKey,
 	GLOBAL_STATE_KEYS,
+	ProviderSettings,
+	GlobalSettings,
+	SecretState,
 	GlobalState,
+	RooCodeSettings,
+	providerSettingsSchema,
+	globalSettingsSchema,
+	isSecretStateKey,
 } from "../../schemas"
 import { logger } from "../../utils/logging"
 
@@ -151,7 +152,15 @@ export class ContextProxy {
 	 */
 
 	public getGlobalSettings(): GlobalSettings {
-		return globalSettingsSchema.parse({ ...this.stateCache })
+		const values = this.getValues()
+
+		try {
+			return globalSettingsSchema.parse(values)
+		} catch (error) {
+			// Log to Posthog?
+			// We'll want to know about bad type assumptions or bad ExtensionState data.
+			return GLOBAL_SETTINGS_KEYS.reduce((acc, key) => ({ ...acc, [key]: values[key] }), {} as GlobalSettings)
+		}
 	}
 
 	/**
@@ -159,7 +168,15 @@ export class ContextProxy {
 	 */
 
 	public getProviderSettings(): ProviderSettings {
-		return providerSettingsSchema.parse(this.getValues())
+		const values = this.getValues()
+
+		try {
+			return providerSettingsSchema.parse(values)
+		} catch (error) {
+			// Log to Posthog?
+			// We'll want to know about bad type assumptions or bad ExtensionState data.
+			return PROVIDER_SETTINGS_KEYS.reduce((acc, key) => ({ ...acc, [key]: values[key] }), {} as ProviderSettings)
+		}
 	}
 
 	public async setProviderSettings(values: ProviderSettings) {
@@ -206,7 +223,6 @@ export class ContextProxy {
 	public async export(): Promise<GlobalSettings | undefined> {
 		try {
 			const globalSettings = globalSettingsExportSchema.parse(this.getValues())
-
 			return Object.fromEntries(Object.entries(globalSettings).filter(([_, value]) => value !== undefined))
 		} catch (error) {
 			console.log(error.message)
