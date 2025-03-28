@@ -52,6 +52,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		}
 	}, [checkpointTrackerErrorMessage])
 
+	// Reset isTextExpanded when task is collapsed
+	useEffect(() => {
+		if (!isTaskExpanded) {
+			setIsTextExpanded(false)
+		}
+	}, [isTaskExpanded])
+
 	/*
 	When dealing with event listeners in React components that depend on state variables, we face a challenge. We want our listener to always use the most up-to-date version of a callback function that relies on current state, but we don't want to constantly add and remove event listeners as that function updates. This scenario often arises with resize listeners or other window events. Simply adding the listener in a useEffect with an empty dependency array risks using stale state, while including the callback in the dependencies can lead to unnecessary re-registrations of the listener. There are react hook libraries that provide a elegant solution to this problem by utilizing the useRef hook to maintain a reference to the latest callback function without triggering re-renders or effect re-runs. This approach ensures that our event listener always has access to the most current state while minimizing performance overhead and potential memory leaks from multiple listener registrations. 
 	Sources
@@ -95,17 +102,19 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	useEffect(() => {
 		if (isTaskExpanded && textRef.current && textContainerRef.current) {
-			let textContainerHeight = textContainerRef.current.clientHeight
-			if (!textContainerHeight) {
-				textContainerHeight = textContainerRef.current.getBoundingClientRect().height
-			}
-			const isOverflowing = textRef.current.scrollHeight > textContainerHeight
+			// Use requestAnimationFrame to ensure DOM is fully updated
+			requestAnimationFrame(() => {
+				// Check if refs are still valid
+				if (textRef.current && textContainerRef.current) {
+					let textContainerHeight = textContainerRef.current.clientHeight
+					if (!textContainerHeight) {
+						textContainerHeight = textContainerRef.current.getBoundingClientRect().height
+					}
+					const isOverflowing = textRef.current.scrollHeight > textContainerHeight
 
-			// necessary to show see more button again if user resizes window to expand and then back to collapse
-			if (!isOverflowing) {
-				setIsTextExpanded(false)
-			}
-			setShowSeeMore(isOverflowing)
+					setShowSeeMore(isOverflowing)
+				}
+			})
 		}
 	}, [task.text, windowWidth, isTaskExpanded])
 

@@ -37,7 +37,8 @@ export class OpenAiHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelId = this.options.openAiModelId ?? ""
-		const isDeepseekReasoner = modelId.includes("deepseek-reasoner") || modelId.includes("deepseek-r1")
+		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
+		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false
 		const isO3Mini = modelId.includes("o3-mini")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -46,8 +47,15 @@ export class OpenAiHandler implements ApiHandler {
 		]
 		let temperature: number | undefined = this.options.openAiModelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined = undefined
+		let maxTokens: number | undefined
 
-		if (isDeepseekReasoner) {
+		if (this.options.openAiModelInfo?.maxTokens && this.options.openAiModelInfo.maxTokens > 0) {
+			maxTokens = Number(this.options.openAiModelInfo.maxTokens)
+		} else {
+			maxTokens = undefined
+		}
+
+		if (isDeepseekReasoner || isR1FormatRequired) {
 			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
 		}
 
@@ -61,6 +69,7 @@ export class OpenAiHandler implements ApiHandler {
 			model: modelId,
 			messages: openAiMessages,
 			temperature,
+			max_tokens: maxTokens,
 			reasoning_effort: reasoningEffort,
 			stream: true,
 			stream_options: { include_usage: true },

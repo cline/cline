@@ -8,13 +8,13 @@ import {
 	ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import chokidar, { FSWatcher } from "chokidar"
-import delay from "delay"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
-import { ClineProvider, GlobalFileNames } from "../../core/webview/ClineProvider"
+import { ClineProvider } from "../../core/webview/ClineProvider"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpMode,
@@ -29,25 +29,47 @@ import {
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
 import { secondsToMs } from "../../utils/time"
+import { GlobalFileNames } from "../../global-constants"
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+
 export type McpConnection = {
 	server: McpServer
 	client: Client
-	transport: StdioClientTransport
+	transport: StdioClientTransport | SSEClientTransport
 }
+
+export type McpTransportType = "stdio" | "sse"
+
+export type McpServerConfig = z.infer<typeof ServerConfigSchema>
 
 const AutoApproveSchema = z.array(z.string()).default([])
 
-const StdioConfigSchema = z.object({
-	command: z.string(),
-	args: z.array(z.string()).optional(),
-	env: z.record(z.string()).optional(),
+const BaseConfigSchema = z.object({
 	autoApprove: AutoApproveSchema.optional(),
 	disabled: z.boolean().optional(),
 	timeout: z.number().min(MIN_MCP_TIMEOUT_SECONDS).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS),
 })
 
+const SseConfigSchema = BaseConfigSchema.extend({
+	url: z.string().url(),
+}).transform((config) => ({
+	...config,
+	transportType: "sse" as const,
+}))
+
+const StdioConfigSchema = BaseConfigSchema.extend({
+	command: z.string(),
+	args: z.array(z.string()).optional(),
+	env: z.record(z.string()).optional(),
+}).transform((config) => ({
+	...config,
+	transportType: "stdio" as const,
+}))
+
+const ServerConfigSchema = z.union([StdioConfigSchema, SseConfigSchema])
+
 const McpSettingsSchema = z.object({
-	mcpServers: z.record(StdioConfigSchema),
+	mcpServers: z.record(ServerConfigSchema),
 })
 
 export class McpHub {
@@ -102,32 +124,51 @@ export class McpHub {
 		return mcpSettingsFilePath
 	}
 
+	private async readAndValidateMcpSettingsFile(): Promise<z.infer<typeof McpSettingsSchema> | undefined> {
+		try {
+			const settingsPath = await this.getMcpSettingsFilePath()
+			const content = await fs.readFile(settingsPath, "utf-8")
+
+			let config: any
+
+			// Parse JSON file content
+			try {
+				config = JSON.parse(content)
+			} catch (error) {
+				vscode.window.showErrorMessage(
+					"Invalid MCP settings format. Please ensure your settings follow the correct JSON format.",
+				)
+				return undefined
+			}
+
+			// Validate against schema
+			const result = McpSettingsSchema.safeParse(config)
+			if (!result.success) {
+				vscode.window.showErrorMessage("Invalid MCP settings schema.")
+				return undefined
+			}
+
+			return result.data
+		} catch (error) {
+			console.error("Failed to read MCP settings:", error)
+			return undefined
+		}
+	}
+
 	private async watchMcpSettingsFile(): Promise<void> {
 		const settingsPath = await this.getMcpSettingsFilePath()
 		this.disposables.push(
 			vscode.workspace.onDidSaveTextDocument(async (document) => {
 				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
-					const content = await fs.readFile(settingsPath, "utf-8")
-					const errorMessage =
-						"Invalid MCP settings format. Please ensure your settings follow the correct JSON format."
-					let config: any
-					try {
-						config = JSON.parse(content)
-					} catch (error) {
-						vscode.window.showErrorMessage(errorMessage)
-						return
-					}
-					const result = McpSettingsSchema.safeParse(config)
-					if (!result.success) {
-						vscode.window.showErrorMessage(errorMessage)
-						return
-					}
-					try {
-						vscode.window.showInformationMessage("Updating MCP servers...")
-						await this.updateServerConnections(result.data.mcpServers || {})
-						vscode.window.showInformationMessage("MCP servers updated")
-					} catch (error) {
-						console.error("Failed to process MCP settings change:", error)
+					const settings = await this.readAndValidateMcpSettingsFile()
+					if (settings) {
+						try {
+							vscode.window.showInformationMessage("Updating MCP servers...")
+							await this.updateServerConnections(settings.mcpServers)
+							vscode.window.showInformationMessage("MCP servers updated")
+						} catch (error) {
+							console.error("Failed to process MCP settings change:", error)
+						}
 					}
 				}
 			}),
@@ -135,17 +176,16 @@ export class McpHub {
 	}
 
 	private async initializeMcpServers(): Promise<void> {
-		try {
-			const settingsPath = await this.getMcpSettingsFilePath()
-			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
-			await this.updateServerConnections(config.mcpServers || {})
-		} catch (error) {
-			console.error("Failed to initialize MCP servers:", error)
+		const settings = await this.readAndValidateMcpSettingsFile()
+		if (settings) {
+			await this.updateServerConnections(settings.mcpServers)
 		}
 	}
 
-	private async connectToServer(name: string, config: StdioServerParameters): Promise<void> {
+	private async connectToServer(
+		name: string,
+		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema>,
+	): Promise<void> {
 		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
 
@@ -161,16 +201,22 @@ export class McpHub {
 				},
 			)
 
-			const transport = new StdioClientTransport({
-				command: config.command,
-				args: config.args,
-				env: {
-					...config.env,
-					...(process.env.PATH ? { PATH: process.env.PATH } : {}),
-					// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
-				},
-				stderr: "pipe", // necessary for stderr to be available
-			})
+			let transport: StdioClientTransport | SSEClientTransport
+
+			if (config.transportType === "sse") {
+				return
+			} else {
+				transport = new StdioClientTransport({
+					command: config.command,
+					args: config.args,
+					env: {
+						...config.env,
+						...(process.env.PATH ? { PATH: process.env.PATH } : {}),
+						// ...(process.env.NODE_PATH ? { NODE_PATH: process.env.NODE_PATH } : {}),
+					},
+					stderr: "pipe", // necessary for stderr to be available
+				})
+			}
 
 			transport.onerror = async (error) => {
 				console.error(`Transport error for "${name}":`, error)
@@ -332,7 +378,7 @@ export class McpHub {
 		}
 	}
 
-	async updateServerConnections(newServers: Record<string, any>): Promise<void> {
+	async updateServerConnections(newServers: Record<string, McpServerConfig>): Promise<void> {
 		this.isConnecting = true
 		this.removeAllFileWatchers()
 		const currentNames = new Set(this.connections.map((conn) => conn.server.name))
@@ -414,7 +460,7 @@ export class McpHub {
 			connection.server.status = "connecting"
 			connection.server.error = ""
 			await this.notifyWebviewOfServerChanges()
-			await delay(500) // artificial delay to show user that server is restarting
+			await setTimeoutPromise(500) // artificial delay to show user that server is restarting
 			try {
 				await this.deleteConnection(serverName)
 				// Try to connect again using existing config
@@ -655,7 +701,7 @@ export class McpHub {
 	public async updateServerTimeout(serverName: string, timeout: number): Promise<void> {
 		try {
 			// Validate timeout against schema
-			const setConfigResult = StdioConfigSchema.shape.timeout.safeParse(timeout)
+			const setConfigResult = BaseConfigSchema.shape.timeout.safeParse(timeout)
 			if (!setConfigResult.success) {
 				throw new Error(`Invalid timeout value: ${timeout}. Must be at minimum ${MIN_MCP_TIMEOUT_SECONDS} seconds.`)
 			}
