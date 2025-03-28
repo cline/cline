@@ -5,6 +5,7 @@ import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
 import { TelemetrySetting } from "./TelemetrySetting"
+import { McpConfig, UpdateMcpConfig } from "./mcp"
 
 export interface WebviewMessage {
 	type:
@@ -12,6 +13,7 @@ export interface WebviewMessage {
 		| "webviewDidLaunch"
 		| "newTask"
 		| "askResponse"
+		| "updateMcpServices"
 		| "clearTask"
 		| "didShowAnnouncement"
 		| "selectImages"
@@ -67,6 +69,7 @@ export interface WebviewMessage {
 		| "requestTotalTasksSize"
 	// | "relaunchChromeDebugMode"
 	text?: string
+	newMcpConfig?: UpdateMcpConfig
 	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
