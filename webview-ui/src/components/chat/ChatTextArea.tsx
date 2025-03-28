@@ -844,11 +844,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		 * @param {string} text - The dropped text.
 		 */
 		const handleTextDrop = (text: string) => {
-			const newValue = inputValue.slice(0, cursorPosition) + text + inputValue.slice(cursorPosition)
+			const newValue = inputValue.slice(0, cursorPosition) + text + inputValue.slice(0)
 			setInputValue(newValue)
 			const newCursorPosition = cursorPosition + text.length
 			setCursorPosition(newCursorPosition)
 			setIntendedCursorPosition(newCursorPosition)
+			setShowContextMenu(false)
 		}
 
 		/**
