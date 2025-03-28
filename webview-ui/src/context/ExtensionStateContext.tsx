@@ -5,6 +5,7 @@ import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "../../../src
 import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
 import { McpMarketplaceCatalog, McpServer } from "../../../src/shared/mcp"
+import { ActiveTask, ExternalAdvice } from "../../../src/shared/WebviewMessage"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { vscode } from "../utils/vscode"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../src/shared/BrowserSettings"
@@ -21,11 +22,18 @@ interface ExtensionStateContextType extends ExtensionState {
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	filePaths: string[]
 	totalTasksSize: number | null
+	notifications: ExternalAdvice[]
+	activeLabel: string | null
+	activeTasks: ActiveTask[]
 	setApiConfiguration: (config: ApiConfiguration) => void
 	setCustomInstructions: (value?: string) => void
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
+	markNotificationAsRead: (id: string) => void
+	dismissNotification: (id: string) => void
+	restoreNotification: (id: string) => void
+	openRelatedFile: (filePath: string) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -54,6 +62,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
+	const [notifications, setNotifications] = useState<ExternalAdvice[]>([])
+	const [activeLabel, setActiveLabel] = useState<string | null>(null)
+	const [activeTasks, setActiveTasks] = useState<ActiveTask[]>([])
 
 	const [openAiModels, setOpenAiModels] = useState<string[]>([])
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
@@ -143,6 +154,27 @@ export const ExtensionStateContextProvider: React.FC<{
 				setTotalTasksSize(message.totalTasksSize ?? null)
 				break
 			}
+			case "newExternalAdvice": {
+				if (message.advice) {
+					setNotifications((prev) => {
+						// Check if this notification already exists
+						const exists = prev.some((n) => n.id === message.advice!.id)
+						if (exists) return prev
+
+						// Add new notification at the beginning
+						return [message.advice!, ...prev]
+					})
+				}
+				break
+			}
+			case "activeConversationStatus": {
+				setActiveLabel(message.activeLabel || null)
+				break
+			}
+			case "activeTasksData": {
+				setActiveTasks(message.activeTasks || [])
+				break
+			}
 		}
 	}, [])
 
@@ -163,6 +195,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpMarketplaceCatalog,
 		filePaths,
 		totalTasksSize,
+		notifications,
+		activeLabel,
+		activeTasks,
 		setApiConfiguration: (value) =>
 			setState((prevState) => ({
 				...prevState,
@@ -188,6 +223,54 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				shouldShowAnnouncement: value,
 			})),
+		markNotificationAsRead: (id) => {
+			// Update local state
+			setNotifications((prev) =>
+				prev.map((notification) => (notification.id === id ? { ...notification, read: true } : notification)),
+			)
+
+			// Send message to extension
+			vscode.postMessage({
+				type: "markAdviceAsRead",
+				adviceId: id,
+			})
+
+			// Send to chat
+			vscode.postMessage({
+				type: "sendExternalAdviceToChat",
+				advice: notifications.find((n) => n.id === id),
+			})
+		},
+		dismissNotification: (id) => {
+			// Update local state
+			setNotifications((prev) =>
+				prev.map((notification) => (notification.id === id ? { ...notification, dismissed: true } : notification)),
+			)
+
+			// Send message to extension
+			vscode.postMessage({
+				type: "dismissAdvice",
+				adviceId: id,
+			})
+		},
+		restoreNotification: (id) => {
+			// Update local state
+			setNotifications((prev) =>
+				prev.map((notification) => (notification.id === id ? { ...notification, dismissed: false } : notification)),
+			)
+
+			// Send message to extension
+			vscode.postMessage({
+				type: "restoreAdvice",
+				adviceId: id,
+			})
+		},
+		openRelatedFile: (filePath) => {
+			vscode.postMessage({
+				type: "openFile",
+				text: filePath,
+			})
+		},
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

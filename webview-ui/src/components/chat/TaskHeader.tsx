@@ -3,12 +3,180 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { mentionRegexGlobal } from "../../../../src/shared/context-mentions"
 import { ClineMessage } from "../../../../src/shared/ExtensionMessage"
+import { ExternalAdvice } from "../../../../src/shared/WebviewMessage"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { formatLargeNumber } from "../../utils/format"
 import { formatSize } from "../../utils/size"
 import { vscode } from "../../utils/vscode"
+import { NotificationPanel } from "../common/NotificationPanel"
 import Thumbnails from "../common/Thumbnails"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
+// Dev Conversation Selector component
+interface DevConversationSelectorProps {
+	activeLabel: string | null
+	onClick: (label: string | null, force?: boolean) => void
+}
+
+const DevConversationSelector: React.FC<DevConversationSelectorProps> = ({ activeLabel, onClick }) => {
+	const [isOpen, setIsOpen] = useState(false)
+	const { activeTasks } = useExtensionState()
+	const [showConfirmation, setShowConfirmation] = useState<{ label: string; taskId: string } | null>(null)
+
+	// Fetch active tasks when dropdown opens
+	useEffect(() => {
+		if (isOpen) {
+			vscode.postMessage({ type: "getActiveTasks" })
+		}
+	}, [isOpen])
+
+	const getSelectorClassName = () => {
+		if (!activeLabel) return "dev-conversation-selector none"
+		return `dev-conversation-selector dev-${activeLabel.toLowerCase()}`
+	}
+
+	const handleClick = () => {
+		setIsOpen(!isOpen)
+	}
+
+	const handleOptionClick = (label: string | null) => {
+		// Check if this label is already in use by another task
+		const existingTask = activeTasks?.find((task) => task.label === label)
+
+		if (existingTask && label !== null) {
+			// Show confirmation dialog
+			setShowConfirmation({ label, taskId: existingTask.id })
+		} else {
+			// Proceed with selection
+			onClick(label)
+			setIsOpen(false)
+		}
+	}
+
+	const handleConfirmation = (confirmed: boolean) => {
+		if (confirmed && showConfirmation) {
+			// User confirmed, force the assignment
+			onClick(showConfirmation.label, true)
+		}
+
+		// Close confirmation and dropdown
+		setShowConfirmation(null)
+		setIsOpen(false)
+	}
+
+	// Check if a Dev option is in use
+	const isDevInUse = (label: string) => {
+		return activeTasks?.some((task) => task.label === label) || false
+	}
+
+	// Check if this is the current task's label
+	const isCurrentLabel = (label: string) => {
+		return label === activeLabel
+	}
+
+	// Close dropdown when clicking outside
+	const selectorRef = useRef<HTMLDivElement>(null)
+
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			if (selectorRef.current && !selectorRef.current.contains(event.target as Node)) {
+				setIsOpen(false)
+			}
+		}
+
+		document.addEventListener("mousedown", handleClickOutside)
+		return () => {
+			document.removeEventListener("mousedown", handleClickOutside)
+		}
+	}, [])
+
+	// Listen for activeConversationInUse messages
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			const message = event.data
+			if (message.type === "activeConversationInUse" && message.existingTask) {
+				setShowConfirmation({
+					label: message.existingTask.label,
+					taskId: message.existingTask.id,
+				})
+			}
+		}
+
+		window.addEventListener("message", handleMessage)
+		return () => {
+			window.removeEventListener("message", handleMessage)
+		}
+	}, [])
+
+	return (
+		<div ref={selectorRef} className={getSelectorClassName()} onClick={handleClick}>
+			{/* Show "Assign Dev" with people icon */}
+			<span className="codicon codicon-organization dev-conversation-icon"></span>
+			<span>{activeLabel ? `Dev ${activeLabel}` : "Assign Dev"}</span>
+			<span className={`codicon codicon-chevron-${isOpen ? "up" : "down"}`} style={{ fontSize: "10px" }}></span>
+
+			{isOpen && (
+				<div className="dev-selector-dropdown">
+					<div
+						className="dev-selector-option"
+						onClick={(e) => {
+							e.stopPropagation()
+							handleOptionClick(null)
+						}}>
+						<span className="codicon codicon-close"></span>
+						None
+					</div>
+
+					{["A", "B", "C", "D"].map((label) => (
+						<div
+							key={label}
+							className={`dev-selector-option dev-${label.toLowerCase()}`}
+							onClick={(e) => {
+								e.stopPropagation()
+								handleOptionClick(label)
+							}}>
+							<div className="dev-option-content">
+								{/* Status indicator icon on the left */}
+								{isCurrentLabel(label) ? (
+									<span className="status-icon current">✓</span>
+								) : (
+									<span
+										className={`status-icon codicon codicon-info ${isDevInUse(label) ? "in-use" : "available"}`}
+										title={
+											isDevInUse(label)
+												? `Currently assigned to task: ${activeTasks?.find((t) => t.label === label)?.id}`
+												: "Available"
+										}></span>
+								)}
+
+								<span>{`Dev ${label}`}</span>
+							</div>
+						</div>
+					))}
+				</div>
+			)}
+
+			{/* Confirmation Dialog */}
+			{showConfirmation && (
+				<div
+					className="confirmation-dialog"
+					style={{
+						left: "0",
+						transform: "translateX(-45%)",
+						width: "300px",
+					}}>
+					<div className="confirmation-content">
+						<p>{`Dev ${showConfirmation.label} is already assigned to task ${showConfirmation.taskId}.`}</p>
+						<p>Do you want to reassign it to this task?</p>
+						<div className="confirmation-buttons">
+							<VSCodeButton onClick={() => handleConfirmation(true)}>Yes, reassign</VSCodeButton>
+							<VSCodeButton onClick={() => handleConfirmation(false)}>Cancel</VSCodeButton>
+						</div>
+					</div>
+				</div>
+			)}
+		</div>
+	)
+}
 
 interface TaskHeaderProps {
 	task: ClineMessage
@@ -33,12 +201,81 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	lastApiReqTotalTokens,
 	onClose,
 }) => {
-	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage } = useExtensionState()
+	const { apiConfiguration, currentTaskItem, checkpointTrackerErrorMessage, activeLabel, chatSettings } = useExtensionState()
 	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
 	const [isTextExpanded, setIsTextExpanded] = useState(false)
 	const [showSeeMore, setShowSeeMore] = useState(false)
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const textRef = useRef<HTMLDivElement>(null)
+
+	// Notification state
+	const [showNotifications, setShowNotifications] = useState(false)
+	const [notifications, setNotifications] = useState<ExternalAdvice[]>([])
+
+	// Fetch notifications when component mounts
+	useEffect(() => {
+		const handleMessage = (event: MessageEvent) => {
+			const message = event.data
+			if (message.type === "newExternalAdvice" && message.advice) {
+				setNotifications((prev) => {
+					// Replace if exists, otherwise add
+					const exists = prev.some((n) => n.id === message.advice.id)
+					if (exists) {
+						return prev.map((n) => (n.id === message.advice.id ? message.advice : n))
+					} else {
+						return [...prev, message.advice]
+					}
+				})
+			}
+		}
+
+		window.addEventListener("message", handleMessage)
+
+		// Request notifications when component mounts
+		vscode.postMessage({ type: "getExternalAdvice" })
+
+		return () => {
+			window.removeEventListener("message", handleMessage)
+		}
+	}, [])
+
+	// Refresh notifications when a notification is restored
+	useEffect(() => {
+		const handleRestoreMessage = (event: MessageEvent) => {
+			const message = event.data
+			if (message.type === "restoreAdvice") {
+				// Request fresh notifications after a restore operation
+				vscode.postMessage({ type: "getExternalAdvice" })
+			}
+		}
+
+		window.addEventListener("message", handleRestoreMessage)
+
+		return () => {
+			window.removeEventListener("message", handleRestoreMessage)
+		}
+	}, [])
+
+	// Notification handlers
+	const handleMarkAsRead = (id: string) => {
+		vscode.postMessage({
+			type: "markAdviceAsRead",
+			adviceId: id,
+		})
+
+		// Update local state
+		setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+	}
+
+	const handleDismiss = (id: string) => {
+		vscode.postMessage({
+			type: "dismissAdvice",
+			adviceId: id,
+		})
+
+		// Update local state
+		setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, dismissed: true } : n)))
+	}
 
 	const { selectedModelInfo } = useMemo(() => normalizeApiConfiguration(apiConfiguration), [apiConfiguration])
 	const contextWindow = selectedModelInfo?.contextWindow
@@ -51,13 +288,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			prevErrorMessageRef.current = checkpointTrackerErrorMessage
 		}
 	}, [checkpointTrackerErrorMessage])
-
-	// Reset isTextExpanded when task is collapsed
-	useEffect(() => {
-		if (!isTaskExpanded) {
-			setIsTextExpanded(false)
-		}
-	}, [isTaskExpanded])
 
 	/*
 	When dealing with event listeners in React components that depend on state variables, we face a challenge. We want our listener to always use the most up-to-date version of a callback function that relies on current state, but we don't want to constantly add and remove event listeners as that function updates. This scenario often arises with resize listeners or other window events. Simply adding the listener in a useEffect with an empty dependency array risks using stale state, while including the callback in the dependencies can lead to unnecessary re-registrations of the listener. There are react hook libraries that provide a elegant solution to this problem by utilizing the useRef hook to maintain a reference to the latest callback function without triggering re-renders or effect re-runs. This approach ensures that our event listener always has access to the most current state while minimizing performance overhead and potential memory leaks from multiple listener registrations. 
@@ -102,19 +332,17 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	useEffect(() => {
 		if (isTaskExpanded && textRef.current && textContainerRef.current) {
-			// Use requestAnimationFrame to ensure DOM is fully updated
-			requestAnimationFrame(() => {
-				// Check if refs are still valid
-				if (textRef.current && textContainerRef.current) {
-					let textContainerHeight = textContainerRef.current.clientHeight
-					if (!textContainerHeight) {
-						textContainerHeight = textContainerRef.current.getBoundingClientRect().height
-					}
-					const isOverflowing = textRef.current.scrollHeight > textContainerHeight
+			let textContainerHeight = textContainerRef.current.clientHeight
+			if (!textContainerHeight) {
+				textContainerHeight = textContainerRef.current.getBoundingClientRect().height
+			}
+			const isOverflowing = textRef.current.scrollHeight > textContainerHeight
 
-					setShowSeeMore(isOverflowing)
-				}
-			})
+			// necessary to show see more button again if user resizes window to expand and then back to collapse
+			if (!isOverflowing) {
+				setIsTextExpanded(false)
+			}
+			setShowSeeMore(isOverflowing)
 		}
 	}, [task.text, windowWidth, isTaskExpanded])
 
@@ -273,6 +501,55 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							${totalCost?.toFixed(4)}
 						</div>
 					)}
+
+					<DevConversationSelector
+						activeLabel={activeLabel}
+						onClick={(label, force) => {
+							// Pass the selected label to the backend
+							vscode.postMessage({
+								type: "setActiveConversation",
+								label: label,
+								force: force,
+							})
+						}}
+					/>
+
+					{/* Notification Inbox */}
+					<VSCodeButton
+						appearance="icon"
+						onClick={() => {
+							setShowNotifications(!showNotifications)
+						}}
+						style={{
+							marginLeft: 6,
+							flexShrink: 0,
+							position: "relative",
+						}}>
+						<span className="codicon codicon-inbox"></span>
+						{notifications.filter((n) => !n.read && !n.dismissed).length > 0 && (
+							<span
+								style={{
+									position: "absolute",
+									top: "0px",
+									right: "0px",
+									minWidth: "16px",
+									height: "16px",
+									borderRadius: "8px",
+									backgroundColor: "var(--vscode-notificationsErrorIcon-foreground)",
+									color: "white",
+									fontSize: "10px",
+									fontWeight: "bold",
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+									padding: "0 4px",
+								}}>
+								{notifications.filter((n) => !n.read && !n.dismissed).length}
+							</span>
+						)}
+					</VSCodeButton>
+
+					{/* Always show the close button */}
 					<VSCodeButton appearance="icon" onClick={onClose} style={{ marginLeft: 6, flexShrink: 0 }}>
 						<span className="codicon codicon-close"></span>
 					</VSCodeButton>
@@ -550,6 +827,17 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 				</div>
 			)} */}
+
+			{/* Notification Panel */}
+			{showNotifications && (
+				<NotificationPanel
+					notifications={notifications}
+					onMarkAsRead={handleMarkAsRead}
+					onDismiss={handleDismiss}
+					onClose={() => setShowNotifications(false)}
+					taskId={currentTaskItem?.id}
+				/>
+			)}
 		</div>
 	)
 }

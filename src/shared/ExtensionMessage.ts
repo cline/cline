@@ -9,6 +9,7 @@ import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
 import { TelemetrySetting } from "./TelemetrySetting"
 import type { BalanceResponse, UsageTransaction, PaymentTransaction } from "../shared/ClineAccount"
+import { ActiveTask, ExternalAdvice } from "./WebviewMessage"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -40,6 +41,10 @@ export interface ExtensionMessage {
 		| "userCreditsPayments"
 		| "totalTasksSize"
 		| "addToInput"
+		| "newExternalAdvice"
+		| "activeConversationStatus"
+		| "activeTasksData"
+		| "activeConversationInUse"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -80,6 +85,11 @@ export interface ExtensionMessage {
 	userCreditsUsage?: UsageTransaction[]
 	userCreditsPayments?: PaymentTransaction[]
 	totalTasksSize?: number | null
+	advice?: ExternalAdvice
+	adviceId?: string
+	activeLabel?: string | null
+	activeTasks?: ActiveTask[]
+	existingTask?: ActiveTask
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -111,6 +121,10 @@ export interface ExtensionState {
 	}
 	version: string
 	vscMachineId: string
+	notifications?: ExternalAdvice[]
+	activeLabel?: string | null
+	activeTasks?: ActiveTask[]
+	previousModeVsCodeLmModelSelector?: string | null
 }
 
 export interface ClineMessage {

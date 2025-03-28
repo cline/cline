@@ -5,6 +5,7 @@ node_modules
 tmp
 .vscode-test/
 *.vsix
+webview-ui/build
 
 .DS_Store
 
