@@ -119,7 +119,7 @@ export class BrowserSession {
 
 			const chromeFlags = [
 				"--remote-debugging-port=" + DEBUG_PORT,
-				"--no-first-run",
+				//"--no-first-run",
 				"--no-default-browser-check",
 				"--disable-notifications",
 			]
@@ -131,6 +131,7 @@ export class BrowserSession {
 			const launcher = new chromeLauncher.Launcher({
 				port: DEBUG_PORT,
 				chromeFlags: chromeFlags,
+				ignoreDefaultFlags: true,
 			})
 
 			await launcher.launch()
@@ -143,7 +144,7 @@ export class BrowserSession {
 			webview?.postMessage({
 				type: "browserRelaunchResult",
 				success: true,
-				text: `Browser successfully launched in debug mode`,
+				text: `Browser successfully launched in debug mode\nUsing Chrome at: ${installation}`,
 			})
 		} catch (error) {
 			webview?.postMessage({

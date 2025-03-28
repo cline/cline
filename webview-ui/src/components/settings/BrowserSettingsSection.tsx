@@ -216,7 +216,7 @@ export const BrowserSettingsSection: React.FC = () => {
 			    - Remote connections always use non-headless mode */}
 
 			<div style={{ marginBottom: 15 }}>
-				<div style={{ marginBottom: 8, display: "flex", alignItems: "center" }}>
+				<div style={{ marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 					<VSCodeCheckbox
 						checked={browserSettings.remoteBrowserEnabled}
 						onChange={(e) => updateRemoteBrowserEnabled((e.target as HTMLInputElement).checked)}>
