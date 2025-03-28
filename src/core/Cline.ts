@@ -123,10 +123,7 @@ export type ClineOptions = {
 export class Cline extends EventEmitter<ClineEvents> {
 	readonly taskId: string
 	readonly instanceId: string
-	get cwd() {
-		return getWorkspacePath(path.join(os.homedir(), "Desktop"))
-	}
-	// Subtasks
+
 	readonly rootTask: Cline | undefined = undefined
 	readonly parentTask: Cline | undefined = undefined
 	readonly taskNumber: number
@@ -268,6 +265,10 @@ export class Cline extends EventEmitter<ClineEvents> {
 		return [instance, promise]
 	}
 
+	get cwd() {
+		return getWorkspacePath(path.join(os.homedir(), "Desktop"))
+	}
+
 	// Add method to update diffStrategy
 	async updateDiffStrategy(experimentalDiffStrategy?: boolean, multiSearchReplaceDiffStrategy?: boolean) {
 		// If not provided, get from current state
@@ -334,6 +335,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 	private async getSavedClineMessages(): Promise<ClineMessage[]> {
 		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages)
+
 		if (await fileExistsAtPath(filePath)) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
 		} else {
@@ -1222,11 +1224,12 @@ export class Cline extends EventEmitter<ClineEvents> {
 			}
 			return { role, content }
 		})
+
 		const stream = this.api.createMessage(systemPrompt, cleanConversationHistory)
 		const iterator = stream[Symbol.asyncIterator]()
 
 		try {
-			// awaiting first chunk to see if it will throw an error
+			// Awaiting first chunk to see if it will throw an error.
 			this.isWaitingForFirstChunk = true
 			const firstChunk = await iterator.next()
 			yield firstChunk.value
@@ -3392,6 +3395,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 					? `This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
 					: "Roo Code uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 3.7 Sonnet for its advanced agentic coding capabilities.",
 			)
+
 			if (response === "messageResponse") {
 				userContent.push(
 					...[
@@ -3455,9 +3459,11 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
+
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
 			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClineApiReqInfo)
+
 		await this.saveClineMessages()
 		await this.providerRef.deref()?.postStateToWebview()
 
@@ -3499,6 +3505,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 				// if last message is a partial we need to update and save it
 				const lastMessage = this.clineMessages.at(-1)
+
 				if (lastMessage && lastMessage.partial) {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
@@ -3544,7 +3551,10 @@ export class Cline extends EventEmitter<ClineEvents> {
 			this.presentAssistantMessageHasPendingUpdates = false
 			await this.diffViewProvider.reset()
 
-			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
+			// Yields only if the first chunk is successful, otherwise will
+			// allow the user to retry the request (most likely due to rate
+			// limit error, which gets thrown on the first chunk).
+			const stream = this.attemptApiRequest(previousApiReqIndex)
 			let assistantMessage = ""
 			let reasoningMessage = ""
 			this.isStreaming = true
@@ -3552,9 +3562,10 @@ export class Cline extends EventEmitter<ClineEvents> {
 			try {
 				for await (const chunk of stream) {
 					if (!chunk) {
-						// Sometimes chunk is undefined, no idea that can cause it, but this workaround seems to fix it
+						// Sometimes chunk is undefined, no idea that can cause it, but this workaround seems to fix it.
 						continue
 					}
+
 					switch (chunk.type) {
 						case "reasoning":
 							reasoningMessage += chunk.text
@@ -3610,11 +3621,14 @@ export class Cline extends EventEmitter<ClineEvents> {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.abandoned) {
 					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
+
 					await abortStream(
 						"streaming_failed",
 						error.message ?? JSON.stringify(serializeError(error), null, 2),
 					)
+
 					const history = await this.providerRef.deref()?.getTaskWithId(this.taskId)
+
 					if (history) {
 						await this.providerRef.deref()?.initClineWithHistoryItem(history.historyItem)
 						// await this.providerRef.deref()?.postStateToWebview()
@@ -4092,7 +4106,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 			})
 
 			service.initShadowGit().catch((err) => {
-				log("[Cline#initializeCheckpoints] caught unexpected error in initShadowGit, disabling checkpoints")
+				log(
+					`[Cline#initializeCheckpoints] caught unexpected error in initShadowGit, disabling checkpoints (${err.message})`,
+				)
 				console.error(err)
 				this.enableCheckpoints = false
 			})

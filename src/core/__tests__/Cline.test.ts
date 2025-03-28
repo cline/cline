@@ -1,66 +1,20 @@
 // npx jest src/core/__tests__/Cline.test.ts
 
+import * as os from "os"
+import * as path from "path"
+
+import pWaitFor from "p-wait-for"
+import * as vscode from "vscode"
+import { Anthropic } from "@anthropic-ai/sdk"
+
+import { GlobalState } from "../../schemas"
 import { Cline } from "../Cline"
 import { ClineProvider } from "../webview/ClineProvider"
 import { ApiConfiguration, ModelInfo } from "../../shared/api"
 import { ApiStreamChunk } from "../../api/transform/stream"
-import { Anthropic } from "@anthropic-ai/sdk"
-import * as vscode from "vscode"
-import * as os from "os"
-import * as path from "path"
 
 // Mock RooIgnoreController
 jest.mock("../ignore/RooIgnoreController")
-
-// Mock all MCP-related modules
-jest.mock(
-	"@modelcontextprotocol/sdk/types.js",
-	() => ({
-		CallToolResultSchema: {},
-		ListResourcesResultSchema: {},
-		ListResourceTemplatesResultSchema: {},
-		ListToolsResultSchema: {},
-		ReadResourceResultSchema: {},
-		ErrorCode: {
-			InvalidRequest: "InvalidRequest",
-			MethodNotFound: "MethodNotFound",
-			InternalError: "InternalError",
-		},
-		McpError: class McpError extends Error {
-			code: string
-			constructor(code: string, message: string) {
-				super(message)
-				this.code = code
-				this.name = "McpError"
-			}
-		},
-	}),
-	{ virtual: true },
-)
-
-jest.mock(
-	"@modelcontextprotocol/sdk/client/index.js",
-	() => ({
-		Client: jest.fn().mockImplementation(() => ({
-			connect: jest.fn().mockResolvedValue(undefined),
-			close: jest.fn().mockResolvedValue(undefined),
-			listTools: jest.fn().mockResolvedValue({ tools: [] }),
-			callTool: jest.fn().mockResolvedValue({ content: [] }),
-		})),
-	}),
-	{ virtual: true },
-)
-
-jest.mock(
-	"@modelcontextprotocol/sdk/client/stdio.js",
-	() => ({
-		StdioClientTransport: jest.fn().mockImplementation(() => ({
-			connect: jest.fn().mockResolvedValue(undefined),
-			close: jest.fn().mockResolvedValue(undefined),
-		})),
-	}),
-	{ virtual: true },
-)
 
 // Mock fileExistsAtPath
 jest.mock("../../utils/fs", () => ({
@@ -174,6 +128,7 @@ jest.mock("vscode", () => {
 				stat: jest.fn().mockResolvedValue({ type: 1 }), // FileType.File = 1
 			},
 			onDidSaveTextDocument: jest.fn(() => mockDisposable),
+			getConfiguration: jest.fn(() => ({ get: (key: string, defaultValue: any) => defaultValue })),
 		},
 		env: {
 			uriScheme: "vscode",
@@ -193,40 +148,6 @@ jest.mock("p-wait-for", () => ({
 	default: jest.fn().mockImplementation(async () => Promise.resolve()),
 }))
 
-jest.mock("delay", () => ({
-	__esModule: true,
-	default: jest.fn().mockImplementation(async () => Promise.resolve()),
-}))
-
-jest.mock("serialize-error", () => ({
-	__esModule: true,
-	serializeError: jest.fn().mockImplementation((error) => ({
-		name: error.name,
-		message: error.message,
-		stack: error.stack,
-	})),
-}))
-
-jest.mock("strip-ansi", () => ({
-	__esModule: true,
-	default: jest.fn().mockImplementation((str) => str.replace(/\u001B\[\d+m/g, "")),
-}))
-
-jest.mock("globby", () => ({
-	__esModule: true,
-	globby: jest.fn().mockImplementation(async () => []),
-}))
-
-jest.mock("os-name", () => ({
-	__esModule: true,
-	default: jest.fn().mockReturnValue("Mock OS Name"),
-}))
-
-jest.mock("default-shell", () => ({
-	__esModule: true,
-	default: "/bin/bash", // Mock default shell path
-}))
-
 describe("Cline", () => {
 	let mockProvider: jest.Mocked<ClineProvider>
 	let mockApiConfig: ApiConfiguration
@@ -238,9 +159,10 @@ describe("Cline", () => {
 		const storageUri = {
 			fsPath: path.join(os.tmpdir(), "test-storage"),
 		}
+
 		mockExtensionContext = {
 			globalState: {
-				get: jest.fn().mockImplementation((key) => {
+				get: jest.fn().mockImplementation((key: keyof GlobalState) => {
 					if (key === "taskHistory") {
 						return [
 							{
@@ -256,6 +178,7 @@ describe("Cline", () => {
 							},
 						]
 					}
+
 					return undefined
 				}),
 				update: jest.fn().mockImplementation((key, value) => Promise.resolve()),
@@ -336,80 +259,69 @@ describe("Cline", () => {
 
 	describe("constructor", () => {
 		it("should respect provided settings", async () => {
-			const [cline, task] = Cline.create({
+			const cline = new Cline({
 				provider: mockProvider,
 				apiConfiguration: mockApiConfig,
 				customInstructions: "custom instructions",
 				fuzzyMatchThreshold: 0.95,
 				task: "test task",
+				startTask: false,
 			})
 
 			expect(cline.customInstructions).toBe("custom instructions")
 			expect(cline.diffEnabled).toBe(false)
-
-			await cline.abortTask(true)
-			await task.catch(() => {})
 		})
 
 		it("should use default fuzzy match threshold when not provided", async () => {
-			const [cline, task] = await Cline.create({
+			const cline = new Cline({
 				provider: mockProvider,
 				apiConfiguration: mockApiConfig,
 				customInstructions: "custom instructions",
 				enableDiff: true,
 				fuzzyMatchThreshold: 0.95,
 				task: "test task",
+				startTask: false,
 			})
 
 			expect(cline.diffEnabled).toBe(true)
-			// The diff strategy should be created with default threshold (1.0)
-			expect(cline.diffStrategy).toBeDefined()
 
-			await cline.abortTask(true)
-			await task.catch(() => {})
+			// The diff strategy should be created with default threshold (1.0).
+			expect(cline.diffStrategy).toBeDefined()
 		})
 
 		it("should use provided fuzzy match threshold", async () => {
 			const getDiffStrategySpy = jest.spyOn(require("../diff/DiffStrategy"), "getDiffStrategy")
 
-			const [cline, task] = await Cline.create({
+			const cline = new Cline({
 				provider: mockProvider,
 				apiConfiguration: mockApiConfig,
 				customInstructions: "custom instructions",
 				enableDiff: true,
 				fuzzyMatchThreshold: 0.9,
 				task: "test task",
+				startTask: false,
 			})
 
 			expect(cline.diffEnabled).toBe(true)
 			expect(cline.diffStrategy).toBeDefined()
 			expect(getDiffStrategySpy).toHaveBeenCalledWith("claude-3-5-sonnet-20241022", 0.9, false, false)
-
-			getDiffStrategySpy.mockRestore()
-
-			await cline.abortTask(true)
-			await task.catch(() => {})
 		})
 
 		it("should pass default threshold to diff strategy when not provided", async () => {
 			const getDiffStrategySpy = jest.spyOn(require("../diff/DiffStrategy"), "getDiffStrategy")
 
-			const [cline, task] = Cline.create({
+			const cline = new Cline({
 				provider: mockProvider,
 				apiConfiguration: mockApiConfig,
 				customInstructions: "custom instructions",
 				enableDiff: true,
 				task: "test task",
+				startTask: false,
 			})
 
 			expect(cline.diffEnabled).toBe(true)
 			expect(cline.diffStrategy).toBeDefined()
 			expect(getDiffStrategySpy).toHaveBeenCalledWith("claude-3-5-sonnet-20241022", 1.0, false, false)
-
-			getDiffStrategySpy.mockRestore()
-
-			await cline.abortTask(true)
-			await task.catch(() => {})
 		})
 
 		it("should require either task or historyItem", () => {
@@ -464,22 +376,20 @@ describe("Cline", () => {
 		})
 
 		it("should include timezone information in environment details", async () => {
-			const [cline, task] = Cline.create({
+			const cline = new Cline({
 				provider: mockProvider,
 				apiConfiguration: mockApiConfig,
 				task: "test task",
+				startTask: false,
 			})
 
 			const details = await cline["getEnvironmentDetails"](false)
 
-			// Verify timezone information is present and formatted correctly
+			// Verify timezone information is present and formatted correctly.
 			expect(details).toContain("America/Los_Angeles")
-			expect(details).toMatch(/UTC-7:00/) // Fixed offset for America/Los_Angeles
+			expect(details).toMatch(/UTC-7:00/) // Fixed offset for America/Los_Angeles.
 			expect(details).toContain("# Current Time")
-			expect(details).toMatch(/1\/1\/2024.*5:00:00 AM.*\(America\/Los_Angeles, UTC-7:00\)/) // Full time string format
-
-			await cline.abortTask(true)
-			await task.catch(() => {})
+			expect(details).toMatch(/1\/1\/2024.*5:00:00 AM.*\(America\/Los_Angeles, UTC-7:00\)/) // Full time string format.
 		})
 
 		describe("API conversation handling", () => {
@@ -493,24 +403,22 @@ describe("Cline", () => {
 				cline.abandoned = true
 				await task
 
-				// Mock the API's createMessage method to capture the conversation history
-				const createMessageSpy = jest.fn()
-				// Set up mock stream
+				// Set up mock stream.
 				const mockStreamForClean = (async function* () {
 					yield { type: "text", text: "test response" }
 				})()
 
-				// Set up spy
+				// Set up spy.
 				const cleanMessageSpy = jest.fn().mockReturnValue(mockStreamForClean)
 				jest.spyOn(cline.api, "createMessage").mockImplementation(cleanMessageSpy)
 
-				// Mock getEnvironmentDetails to return empty details
+				// Mock getEnvironmentDetails to return empty details.
 				jest.spyOn(cline as any, "getEnvironmentDetails").mockResolvedValue("")
 
-				// Mock loadContext to return unmodified content
+				// Mock loadContext to return unmodified content.
 				jest.spyOn(cline as any, "loadContext").mockImplementation(async (content) => [content, ""])
 
-				// Add test message to conversation history
+				// Add test message to conversation history.
 				cline.apiConversationHistory = [
 					{
 						role: "user" as const,
@@ -533,6 +441,7 @@ describe("Cline", () => {
 					ts: Date.now(),
 					extraProp: "should be removed",
 				}
+
 				cline.apiConversationHistory = [messageWithExtra]
 
 				// Trigger an API request
