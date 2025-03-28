@@ -12,7 +12,6 @@ import * as vscode from "vscode"
 import {
 	CheckpointStorage,
 	GlobalState,
-	SecretState,
 	Language,
 	ProviderSettings,
 	RooCodeSettings,
@@ -2802,27 +2801,29 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		return history
 	}
 
-	// global
+	// ContextProxy
 
-	public async updateGlobalState<K extends keyof GlobalState>(key: K, value: GlobalState[K]) {
+	// @deprecated - Use `ContextProxy#setValue` instead.
+	private async updateGlobalState<K extends keyof GlobalState>(key: K, value: GlobalState[K]) {
 		await this.contextProxy.setValue(key, value)
 	}
 
-	public getGlobalState<K extends keyof GlobalState>(key: K) {
+	// @deprecated - Use `ContextProxy#getValue` instead.
+	private getGlobalState<K extends keyof GlobalState>(key: K) {
 		return this.contextProxy.getValue(key)
 	}
 
-	// secrets
-
-	public async storeSecret(key: keyof SecretState, value?: string) {
+	public async setValue<K extends keyof RooCodeSettings>(key: K, value: RooCodeSettings[K]) {
 		await this.contextProxy.setValue(key, value)
 	}
 
-	private getSecret(key: keyof SecretState) {
+	public getValue<K extends keyof RooCodeSettings>(key: K) {
 		return this.contextProxy.getValue(key)
 	}
 
-	// global + secret
+	public getValues() {
+		return this.contextProxy.getValues()
+	}
 
 	public async setValues(values: RooCodeSettings) {
 		await this.contextProxy.setValues(values)

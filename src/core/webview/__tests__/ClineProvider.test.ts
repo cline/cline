@@ -630,7 +630,7 @@ describe("ClineProvider", () => {
 			setModeConfig: jest.fn(),
 		} as any
 
-		provider.updateGlobalState("currentApiConfigName", "current-config")
+		provider.setValue("currentApiConfigName", "current-config")
 
 		// Switch to architect mode
 		await messageHandler({ type: "mode", text: "architect" })
@@ -759,7 +759,7 @@ describe("ClineProvider", () => {
 			},
 		}
 
-		provider.updateGlobalState("customModePrompts", existingPrompts)
+		provider.setValue("customModePrompts", existingPrompts)
 
 		// Test updating a prompt
 		await messageHandler({
@@ -2159,19 +2159,19 @@ describe.skip("ContextProxy integration", () => {
 	})
 
 	test("updateGlobalState uses contextProxy", async () => {
-		await provider.updateGlobalState("currentApiConfigName", "testValue")
+		await provider.setValue("currentApiConfigName", "testValue")
 		expect(mockContextProxy.updateGlobalState).toHaveBeenCalledWith("currentApiConfigName", "testValue")
 	})
 
 	test("getGlobalState uses contextProxy", async () => {
 		mockContextProxy.getGlobalState.mockResolvedValueOnce("testValue")
-		const result = await provider.getGlobalState("currentApiConfigName")
+		const result = await provider.getValue("currentApiConfigName")
 		expect(mockContextProxy.getGlobalState).toHaveBeenCalledWith("currentApiConfigName")
 		expect(result).toBe("testValue")
 	})
 
 	test("storeSecret uses contextProxy", async () => {
-		await provider.storeSecret("apiKey", "test-secret")
+		await provider.setValue("apiKey", "test-secret")
 		expect(mockContextProxy.storeSecret).toHaveBeenCalledWith("apiKey", "test-secret")
 	})
 
