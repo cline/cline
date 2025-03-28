@@ -7,7 +7,12 @@ import { ApiHandlerOptions, bedrockDefaultModelId, BedrockModelId, bedrockModels
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
-import { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
+import {
+	BedrockRuntimeClient,
+	ConversationRole,
+	ConverseStreamCommand,
+	InvokeModelWithResponseStreamCommand,
+} from "@aws-sdk/client-bedrock-runtime"
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
@@ -22,6 +27,12 @@ export class AwsBedrockHandler implements ApiHandler {
 		// cross region inference requires prefixing the model id with the region
 		let modelId = await this.getModelId()
 		const model = this.getModel()
+
+		// Check if this is an Amazon Nova model
+		if (modelId.includes("amazon.nova")) {
+			yield* this.createNovaMessage(systemPrompt, messages, modelId, model)
+			return
+		}
 
 		// Check if this is a Deepseek model
 		if (modelId.includes("deepseek")) {
@@ -461,5 +472,193 @@ export class AwsBedrockHandler implements ApiHandler {
 	private estimateTokenCount(text: string): number {
 		// Approximate 4 characters per token
 		return Math.ceil(text.length / 4)
+	}
+
+	/**
+	 * Creates a message using Amazon Nova models through AWS Bedrock
+	 * Implements support for Nova Micro, Nova Lite, and Nova Pro models
+	 */
+	private async *createNovaMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		modelId: string,
+		model: { id: BedrockModelId; info: ModelInfo },
+	): ApiStream {
+		// Get Bedrock client with proper credentials
+		const client = await this.getBedrockClient()
+
+		// Format messages for Nova model
+		const formattedMessages = this.formatNovaMessages(messages)
+
+		// Prepare request for Nova model
+		const command = new ConverseStreamCommand({
+			modelId: modelId,
+			messages: formattedMessages,
+			system: systemPrompt ? [{ text: systemPrompt }] : undefined,
+			inferenceConfig: {
+				maxTokens: model.info.maxTokens || 5000,
+				temperature: 0,
+				// topP: 0.9, // Alternative: use topP instead of temperature
+			},
+		})
+
+		// Execute the streaming request and handle response
+		try {
+			const response = await client.send(command)
+
+			if (response.stream) {
+				let hasReportedInputTokens = false
+
+				for await (const chunk of response.stream) {
+					// Handle metadata events with token usage information
+					if (chunk.metadata?.usage) {
+						// Report complete token usage from the model itself
+						const inputTokens = chunk.metadata.usage.inputTokens || 0
+						const outputTokens = chunk.metadata.usage.outputTokens || 0
+						yield {
+							type: "usage",
+							inputTokens,
+							outputTokens,
+							totalCost: calculateApiCostOpenAI(model.info, inputTokens, outputTokens, 0, 0),
+						}
+						hasReportedInputTokens = true
+					}
+
+					// Handle content delta (text generation)
+					if (chunk.contentBlockDelta?.delta?.text) {
+						yield {
+							type: "text",
+							text: chunk.contentBlockDelta.delta.text,
+						}
+					}
+
+					// Handle reasoning content if present
+					if (chunk.contentBlockDelta?.delta?.reasoningContent?.text) {
+						yield {
+							type: "reasoning",
+							reasoning: chunk.contentBlockDelta.delta.reasoningContent.text,
+						}
+					}
+
+					// Handle errors
+					if (chunk.internalServerException) {
+						yield {
+							type: "text",
+							text: `[ERROR] Internal server error: ${chunk.internalServerException.message}`,
+						}
+					} else if (chunk.modelStreamErrorException) {
+						yield {
+							type: "text",
+							text: `[ERROR] Model stream error: ${chunk.modelStreamErrorException.message}`,
+						}
+					} else if (chunk.validationException) {
+						yield {
+							type: "text",
+							text: `[ERROR] Validation error: ${chunk.validationException.message}`,
+						}
+					} else if (chunk.throttlingException) {
+						yield {
+							type: "text",
+							text: `[ERROR] Throttling error: ${chunk.throttlingException.message}`,
+						}
+					} else if (chunk.serviceUnavailableException) {
+						yield {
+							type: "text",
+							text: `[ERROR] Service unavailable: ${chunk.serviceUnavailableException.message}`,
+						}
+					}
+				}
+			}
+		} catch (error) {
+			console.error("Error processing Nova model response:", error)
+			yield {
+				type: "text",
+				text: `[ERROR] Failed to process Nova response: ${error instanceof Error ? error.message : String(error)}`,
+			}
+		}
+	}
+
+	/**
+	 * Formats messages for Amazon Nova models according to the SDK specification
+	 */
+	private formatNovaMessages(messages: Anthropic.Messages.MessageParam[]): { role: ConversationRole; content: any[] }[] {
+		return messages.map((message) => {
+			// Determine role (user or assistant)
+			const role = message.role === "user" ? ConversationRole.USER : ConversationRole.ASSISTANT
+
+			// Process content based on type
+			let content: any[] = []
+
+			if (typeof message.content === "string") {
+				// Simple text content
+				content = [{ text: message.content }]
+			} else if (Array.isArray(message.content)) {
+				// Convert Anthropic content format to Nova content format
+				content = message.content
+					.map((item) => {
+						// Text content
+						if (item.type === "text") {
+							return { text: item.text }
+						}
+
+						// Image content
+						if (item.type === "image") {
+							// Handle different image source formats
+							let imageData: Uint8Array
+							let format = "jpeg" // default format
+
+							// Extract format from media_type if available
+							if (item.source.media_type) {
+								// Extract format from media_type (e.g., "image/jpeg" -> "jpeg")
+								const formatMatch = item.source.media_type.match(/image\/(\w+)/)
+								if (formatMatch && formatMatch[1]) {
+									format = formatMatch[1]
+									// Ensure format is one of the allowed values
+									if (!["png", "jpeg", "gif", "webp"].includes(format)) {
+										format = "jpeg" // Default to jpeg if not supported
+									}
+								}
+							}
+
+							// Get image data
+							try {
+								if (typeof item.source.data === "string") {
+									// Handle base64 encoded data
+									const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
+									imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
+								} else if (item.source.data && typeof item.source.data === "object") {
+									// Try to convert to Uint8Array
+									imageData = new Uint8Array(Buffer.from(item.source.data as any))
+								} else {
+									console.error("Unsupported image data format")
+									return null // Skip this item if format is not supported
+								}
+							} catch (error) {
+								console.error("Could not convert image data to Uint8Array:", error)
+								return null // Skip this item if conversion fails
+							}
+
+							return {
+								image: {
+									format,
+									source: {
+										bytes: imageData,
+									},
+								},
+							}
+						}
+
+						// Return null for unsupported content types
+						return null
+					})
+					.filter(Boolean) // Remove any null items
+			}
+
+			// Return formatted message
+			return {
+				role,
+				content,
+			}
+		})
 	}
 }

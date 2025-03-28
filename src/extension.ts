@@ -1,6 +1,6 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
-import delay from "delay"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import * as vscode from "vscode"
 import { ClineProvider } from "./core/webview/ClineProvider"
 import { Logger } from "./services/logging/Logger"
@@ -31,6 +31,8 @@ export function activate(context: vscode.ExtensionContext) {
 	Logger.log("Cline extension activated")
 
 	const sidebarProvider = new ClineProvider(context, outputChannel)
+
+	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
 
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, sidebarProvider, {
@@ -88,7 +90,7 @@ export function activate(context: vscode.ExtensionContext) {
 		tabProvider.resolveWebviewView(panel)
 
 		// Lock the editor group so clicking on files doesn't open them over the panel
-		await delay(100)
+		await setTimeoutPromise(100)
 		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
 	}
 
@@ -192,6 +194,20 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 	context.subscriptions.push(vscode.window.registerUriHandler({ handleUri }))
+
+	// Register size testing commands in development mode
+	if (IS_DEV && IS_DEV === "true") {
+		// Use dynamic import to avoid loading the module in production
+		import("./dev/commands/tasks")
+			.then((module) => {
+				const devTaskCommands = module.registerTaskCommands(context, sidebarProvider)
+				context.subscriptions.push(...devTaskCommands)
+				Logger.log("Cline dev task commands registered")
+			})
+			.catch((error) => {
+				Logger.log("Failed to register dev task commands: " + error)
+			})
+	}
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.addToChat", async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {

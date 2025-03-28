@@ -102,6 +102,7 @@ export interface ModelInfo {
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
+	isR1FormatRequired?: boolean
 }
 
 // Anthropic
@@ -168,6 +169,33 @@ export const anthropicModels = {
 export type BedrockModelId = keyof typeof bedrockModels
 export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-3-7-sonnet-20250219-v1:0"
 export const bedrockModels = {
+	"amazon.nova-pro-v1:0": {
+		maxTokens: 5000,
+		contextWindow: 300_000,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.8,
+		outputPrice: 3.2,
+	},
+	"amazon.nova-lite-v1:0": {
+		maxTokens: 5000,
+		contextWindow: 300_000,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.06,
+		outputPrice: 0.24,
+	},
+	"amazon.nova-micro-v1:0": {
+		maxTokens: 5000,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsComputerUse: false,
+		supportsPromptCache: false,
+		inputPrice: 0.035,
+		outputPrice: 0.14,
+	},
 	"anthropic.claude-3-7-sonnet-20250219-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -419,6 +447,7 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	contextWindow: 128_000,
 	supportsImages: true,
 	supportsPromptCache: false,
+	isR1FormatRequired: false,
 	inputPrice: 0,
 	outputPrice: 0,
 	temperature: 0,
@@ -439,6 +468,14 @@ export const openAiCompatibleDefaultConfig = {
 export type GeminiModelId = keyof typeof geminiModels
 export const geminiDefaultModelId: GeminiModelId = "gemini-2.0-flash-001"
 export const geminiModels = {
+	"gemini-2.5-pro-exp-03-25": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,
@@ -597,11 +634,19 @@ export const openAiNativeModels = {
 		outputPrice: 0.6,
 		cacheReadsPrice: 0.075,
 	},
-	"gpt-4.5-preview": {
+	"chatgpt-4o-latest": {
 		maxTokens: 16_384,
 		contextWindow: 128_000,
 		supportsImages: true,
 		supportsPromptCache: false,
+		inputPrice: 5,
+		outputPrice: 15,
+	},
+	"gpt-4.5-preview": {
+		maxTokens: 16_384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: true,
 		inputPrice: 75,
 		outputPrice: 150,
 	},
@@ -1382,5 +1427,21 @@ export const sambanovaModels = {
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
+	},
+	"QwQ-32B": {
+		maxTokens: 4096,
+		contextWindow: 16_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.0,
+	},
+	"DeepSeek-V3-0324": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 1.5,
 	},
 } as const satisfies Record<string, ModelInfo>
