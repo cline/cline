@@ -1027,6 +1027,16 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								onChange={handleOpenAiChange("supportsComputerUse", true)}>
 								Supports Computer Use
 							</VSCodeCheckbox>
+							<VSCodeCheckbox
+								checked={
+									(apiConfiguration?.openAiConfigs &&
+										apiConfiguration.openAiConfigs[apiConfiguration.openAiSelectedConfigIndex ?? 0]
+											?.openAiModelInfo?.isR1FormatRequired) ||
+									false
+								}
+								onChange={handleOpenAiChange("isR1FormatRequired", true)}>
+								Enable R1 messages format
+							</VSCodeCheckbox>
 							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 								<VSCodeTextField
 									value={
