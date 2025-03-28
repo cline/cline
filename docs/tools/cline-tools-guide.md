@@ -40,6 +40,8 @@ Cline is your AI assistant that can:
     - Run npm commands
     - Start development servers
     - Install dependencies
+    - Advanced Configuration:
+      - `cline.terminal.shellIntegrationTimeout`: Timeout in milliseconds to wait for shell integration to activate (default: 4000)
 
 3. **Code Analysis**
 
