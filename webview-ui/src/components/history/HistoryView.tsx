@@ -160,9 +160,11 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						}}>
 						History
 					</h3>
-					<VSCodeButton onClick={onDone} style={{ borderRadius:"6px",}} >Done</VSCodeButton>
+					<VSCodeButton onClick={onDone} style={{ borderRadius: "6px" }}>
+						Done
+					</VSCodeButton>
 				</div>
-				<div style={{ padding: "5px 17px 6px 17px", borderRadius: "6px", }}>
+				<div style={{ padding: "5px 17px 6px 17px", borderRadius: "6px" }}>
 					<div
 						style={{
 							display: "flex",
@@ -170,7 +172,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							gap: "6px",
 						}}>
 						<VSCodeTextField
-							style={{ width: "100%" , borderRadius: "6px",}}
+							style={{ width: "100%", borderRadius: "6px" }}
 							placeholder="Fuzzy search history..."
 							value={searchQuery}
 							onInput={(e) => {
@@ -475,9 +477,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						borderTop: "1px solid var(--vscode-panel-border)",
 					}}>
 					<DangerButton
-						style={{ width: "100%",
-							borderRadius: "6px",
-						 }}
+						style={{ width: "100%", borderRadius: "6px" }}
 						disabled={deleteAllDisabled || taskHistory.length === 0}
 						onClick={() => {
 							setDeleteAllDisabled(true)

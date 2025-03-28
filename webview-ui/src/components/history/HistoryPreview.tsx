@@ -78,9 +78,11 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 					.filter((item) => item.ts && item.task)
 					.slice(0, 3)
 					.map((item) => (
-						<div key={item.id} className="history-preview-item"
-						style={{ cursor: "pointer", borderRadius: "6px", padding: "4px 8px",}}
-						onClick={() => handleHistorySelect(item.id)}>
+						<div
+							key={item.id}
+							className="history-preview-item"
+							style={{ cursor: "pointer", borderRadius: "6px", padding: "4px 8px" }}
+							onClick={() => handleHistorySelect(item.id)}>
 							<div style={{ padding: "12px" }}>
 								<div style={{ marginBottom: "8px" }}>
 									<span

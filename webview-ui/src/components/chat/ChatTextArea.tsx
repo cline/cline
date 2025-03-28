@@ -237,16 +237,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 		const buttonRef = useRef<HTMLDivElement>(null)
 		const [arrowPosition, setArrowPosition] = useState(0)
-	const [menuPosition, setMenuPosition] = useState(0)
-	const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
+		const [menuPosition, setMenuPosition] = useState(0)
+		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
 
-	// Input History State
-	const [inputHistory, setInputHistory] = useState<string[]>([])
-	const [historyIndex, setHistoryIndex] = useState<number>(-1)
-	const [currentInputBeforeHistory, setCurrentInputBeforeHistory] = useState<string>("")
-	const HISTORY_LIMIT = 50 // Max number of history items
+		// Input History State
+		const [inputHistory, setInputHistory] = useState<string[]>([])
+		const [historyIndex, setHistoryIndex] = useState<number>(-1)
+		const [currentInputBeforeHistory, setCurrentInputBeforeHistory] = useState<string>("")
+		const HISTORY_LIMIT = 50 // Max number of history items
 
-	const [, metaKeyChar] = useMetaKeyDetection(platform)
+		const [, metaKeyChar] = useMetaKeyDetection(platform)
 
 		// Add a ref to track previous menu state
 		const prevShowModelSelector = useRef(showModelSelector)
@@ -494,7 +494,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								setHistoryIndex(newIndex)
 								setInputValue(inputHistory[newIndex])
 								// Move cursor to end after setting value
-								setTimeout(() => textAreaRef.current?.setSelectionRange(inputHistory[newIndex].length, inputHistory[newIndex].length), 0)
+								setTimeout(
+									() =>
+										textAreaRef.current?.setSelectionRange(
+											inputHistory[newIndex].length,
+											inputHistory[newIndex].length,
+										),
+									0,
+								)
 							}
 						}
 					} else if (event.key === "ArrowDown") {
@@ -506,13 +513,27 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								setHistoryIndex(newIndex)
 								setInputValue(inputHistory[newIndex])
 								// Move cursor to end
-								setTimeout(() => textAreaRef.current?.setSelectionRange(inputHistory[newIndex].length, inputHistory[newIndex].length), 0)
+								setTimeout(
+									() =>
+										textAreaRef.current?.setSelectionRange(
+											inputHistory[newIndex].length,
+											inputHistory[newIndex].length,
+										),
+									0,
+								)
 							} else if (historyIndex === inputHistory.length - 1) {
 								// Reached end of history, restore original input
 								setHistoryIndex(-1)
 								setInputValue(currentInputBeforeHistory)
 								// Move cursor to end
-								setTimeout(() => textAreaRef.current?.setSelectionRange(currentInputBeforeHistory.length, currentInputBeforeHistory.length), 0)
+								setTimeout(
+									() =>
+										textAreaRef.current?.setSelectionRange(
+											currentInputBeforeHistory.length,
+											currentInputBeforeHistory.length,
+										),
+									0,
+								)
 							}
 						}
 					}

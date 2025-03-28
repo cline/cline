@@ -154,7 +154,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					paddingRight: 17,
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
-				<VSCodeButton onClick={() => handleSubmit(false)} style={{ borderRadius:"6px",}} >Done</VSCodeButton>
+				<VSCodeButton onClick={() => handleSubmit(false)} style={{ borderRadius: "6px" }}>
+					Done
+				</VSCodeButton>
 			</div>
 			<div
 				style={{
@@ -306,7 +308,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					<SettingsButton
 						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
 						style={{
-							margin: "0 0 16px 0", borderRadius: "6px",}}>
+							margin: "0 0 16px 0",
+							borderRadius: "6px",
+						}}>
 						<i className="codicon codicon-settings-gear" />
 						Advanced Settings
 					</SettingsButton>

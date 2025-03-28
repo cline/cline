@@ -17,7 +17,9 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 		<div className="fixed inset-0 flex flex-col overflow-hidden pt-[10px] pl-[20px]">
 			<div className="flex justify-between items-center mb-[17px] pr-[17px]">
 				<h3 className="text-[var(--vscode-foreground)] m-0">Account</h3>
-				<VSCodeButton onClick={onDone} style={{ borderRadius:"6px",}}>Done</VSCodeButton>
+				<VSCodeButton onClick={onDone} style={{ borderRadius: "6px" }}>
+					Done
+				</VSCodeButton>
 			</div>
 			<div className="flex-grow overflow-hidden pr-[8px] flex flex-col">
 				<div className="h-full mb-[5px]">

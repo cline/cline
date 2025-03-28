@@ -63,7 +63,9 @@ const McpView = ({ onDone }: McpViewProps) => {
 					padding: "10px 17px 5px 20px",
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>MCP Servers</h3>
-				<VSCodeButton onClick={onDone}  style={{ borderRadius:"6px",}}>Done</VSCodeButton>
+				<VSCodeButton onClick={onDone} style={{ borderRadius: "6px" }}>
+					Done
+				</VSCodeButton>
 			</div>
 
 			<div style={{ flex: 1, overflow: "auto" }}>

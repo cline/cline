@@ -210,7 +210,9 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				</CollapsibleSection>
 			</div>
 			<CollapsibleContent isExpanded={isExpanded}>
-				<div style={{ padding: "0" }}> {/* Keep inner padding if needed, or adjust CollapsibleContent */}
+				<div style={{ padding: "0" }}>
+					{" "}
+					{/* Keep inner padding if needed, or adjust CollapsibleContent */}
 					<div
 						style={{
 							marginBottom: "10px",
@@ -319,7 +321,6 @@ const CollapsibleContent = styled.div<{ isExpanded: boolean }>`
 	border-radius: 6px;
 	transition: max-height 0.3s ease-in-out;
 	background-color: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
-
 
 	${(props) =>
 		props.isExpanded &&
