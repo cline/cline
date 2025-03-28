@@ -1774,6 +1774,16 @@ export class Cline {
 									)
 								} catch (error) {
 									await this.say("diff_error", relPath)
+
+									// Extract error type from error message if possible, or use a generic type
+									const errorType =
+										error instanceof Error && error.message.includes("does not match anything")
+											? "search_not_found"
+											: "other_diff_error"
+
+									// Add telemetry for diff edit failure
+									telemetryService.captureDiffEditFailure(this.taskId, errorType)
+
 									pushToolResult(
 										formatResponse.toolError(
 											`${(error as Error)?.message}\n\n` +
