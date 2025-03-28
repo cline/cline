@@ -554,6 +554,8 @@
 		}
 	],
 	"colors": {
-		"actionBar.toggledBackground": "#dddddd"
+		"actionBar.toggledBackground": "#dddddd",
+		"textCodeBlock.background": "#0F4A85",
+		"textPreformat.foreground": "#FFFFFF"
 	}
 }
