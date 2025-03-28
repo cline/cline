@@ -19,7 +19,7 @@ import {
 	ModeConfig,
 	GroupEntry,
 } from "../../../../src/shared/modes"
-import { CustomModeSchema } from "../../../../src/core/config/CustomModesSchema"
+import { modeConfigSchema } from "../../../../src/schemas"
 import { supportPrompt, SupportPromptType } from "../../../../src/shared/support-prompt"
 
 import { TOOL_GROUPS, ToolGroup } from "../../../../src/shared/tool-groups"
@@ -223,7 +223,8 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 		}
 
 		// Validate the mode against the schema
-		const result = CustomModeSchema.safeParse(newMode)
+		const result = modeConfigSchema.safeParse(newMode)
+
 		if (!result.success) {
 			// Map Zod errors to specific fields
 			result.error.errors.forEach((error) => {

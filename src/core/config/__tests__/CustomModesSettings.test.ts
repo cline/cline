@@ -1,4 +1,6 @@
-import { CustomModesSettingsSchema } from "../CustomModesSchema"
+// npx jest src/core/config/__tests__/CustomModesSettings.test.ts
+
+import { customModesSettingsSchema } from "../../../schemas"
 import { ModeConfig } from "../../../shared/modes"
 import { ZodError } from "zod"
 
@@ -17,7 +19,7 @@ describe("CustomModesSettings", () => {
 			}
 
 			expect(() => {
-				CustomModesSettingsSchema.parse(validSettings)
+				customModesSettingsSchema.parse(validSettings)
 			}).not.toThrow()
 		})
 
@@ -27,7 +29,7 @@ describe("CustomModesSettings", () => {
 			}
 
 			expect(() => {
-				CustomModesSettingsSchema.parse(validSettings)
+				customModesSettingsSchema.parse(validSettings)
 			}).not.toThrow()
 		})
 
@@ -44,7 +46,7 @@ describe("CustomModesSettings", () => {
 			}
 
 			expect(() => {
-				CustomModesSettingsSchema.parse(validSettings)
+				customModesSettingsSchema.parse(validSettings)
 			}).not.toThrow()
 		})
 
@@ -52,7 +54,7 @@ describe("CustomModesSettings", () => {
 			const invalidSettings = {} as any
 
 			expect(() => {
-				CustomModesSettingsSchema.parse(invalidSettings)
+				customModesSettingsSchema.parse(invalidSettings)
 			}).toThrow(ZodError)
 		})
 
@@ -68,10 +70,10 @@ describe("CustomModesSettings", () => {
 			}
 
 			expect(() => {
-				CustomModesSettingsSchema.parse(invalidSettings)
+				customModesSettingsSchema.parse(invalidSettings)
 			}).toThrow(ZodError)
 			expect(() => {
-				CustomModesSettingsSchema.parse(invalidSettings)
+				customModesSettingsSchema.parse(invalidSettings)
 			}).toThrow("Slug must contain only letters numbers and dashes")
 		})
 
@@ -81,17 +83,17 @@ describe("CustomModesSettings", () => {
 			}
 
 			expect(() => {
-				CustomModesSettingsSchema.parse(invalidSettings)
+				customModesSettingsSchema.parse(invalidSettings)
 			}).toThrow(ZodError)
 		})
 
 		test("rejects null or undefined", () => {
 			expect(() => {
-				CustomModesSettingsSchema.parse(null)
+				customModesSettingsSchema.parse(null)
 			}).toThrow(ZodError)
 
 			expect(() => {
-				CustomModesSettingsSchema.parse(undefined)
+				customModesSettingsSchema.parse(undefined)
 			}).toThrow(ZodError)
 		})
 
@@ -104,7 +106,7 @@ describe("CustomModesSettings", () => {
 			}
 
 			expect(() => {
-				CustomModesSettingsSchema.parse(duplicateSettings)
+				customModesSettingsSchema.parse(duplicateSettings)
 			}).toThrow("Duplicate mode slugs are not allowed")
 		})
 
@@ -119,7 +121,7 @@ describe("CustomModesSettings", () => {
 			}
 
 			expect(() => {
-				CustomModesSettingsSchema.parse(invalidSettings)
+				customModesSettingsSchema.parse(invalidSettings)
 			}).toThrow(ZodError)
 		})
 
@@ -134,7 +136,7 @@ describe("CustomModesSettings", () => {
 			}
 
 			expect(() => {
-				CustomModesSettingsSchema.parse(validSettings)
+				customModesSettingsSchema.parse(validSettings)
 			}).not.toThrow()
 		})
 	})

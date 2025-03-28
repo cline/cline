@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
-import { CustomModesSettingsSchema } from "./CustomModesSchema"
+import { customModesSettingsSchema } from "../../schemas"
 import { ModeConfig } from "../../shared/modes"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual, getWorkspacePath } from "../../utils/path"
@@ -62,7 +62,7 @@ export class CustomModesManager {
 		try {
 			const content = await fs.readFile(filePath, "utf-8")
 			const settings = JSON.parse(content)
-			const result = CustomModesSettingsSchema.safeParse(settings)
+			const result = customModesSettingsSchema.safeParse(settings)
 			if (!result.success) {
 				return []
 			}
@@ -144,7 +144,8 @@ export class CustomModesManager {
 						return
 					}
 
-					const result = CustomModesSettingsSchema.safeParse(config)
+					const result = customModesSettingsSchema.safeParse(config)
+
 					if (!result.success) {
 						vscode.window.showErrorMessage(errorMessage)
 						return

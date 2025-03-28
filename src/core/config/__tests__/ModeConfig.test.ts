@@ -1,6 +1,13 @@
+// npx jest src/core/config/__tests__/ModeConfig.test.ts
+
 import { ZodError } from "zod"
-import { CustomModeSchema, validateCustomMode } from "../CustomModesSchema"
+
+import { modeConfigSchema } from "../../../schemas"
 import { ModeConfig } from "../../../shared/modes"
+
+function validateCustomMode(mode: unknown): asserts mode is ModeConfig {
+	modeConfigSchema.parse(mode)
+}
 
 describe("CustomModeSchema", () => {
 	describe("validateCustomMode", () => {
@@ -129,8 +136,8 @@ describe("CustomModeSchema", () => {
 				],
 			}
 
-			expect(() => CustomModeSchema.parse(modeWithJustRegex)).not.toThrow()
-			expect(() => CustomModeSchema.parse(modeWithDescription)).not.toThrow()
+			expect(() => modeConfigSchema.parse(modeWithJustRegex)).not.toThrow()
+			expect(() => modeConfigSchema.parse(modeWithDescription)).not.toThrow()
 		})
 
 		it("validates file regex patterns", () => {
@@ -144,7 +151,7 @@ describe("CustomModeSchema", () => {
 					roleDefinition: "Test",
 					groups: ["read", ["edit", { fileRegex: pattern }]],
 				}
-				expect(() => CustomModeSchema.parse(mode)).not.toThrow()
+				expect(() => modeConfigSchema.parse(mode)).not.toThrow()
 			})
 
 			invalidPatterns.forEach((pattern) => {
@@ -154,7 +161,7 @@ describe("CustomModeSchema", () => {
 					roleDefinition: "Test",
 					groups: ["read", ["edit", { fileRegex: pattern }]],
 				}
-				expect(() => CustomModeSchema.parse(mode)).toThrow()
+				expect(() => modeConfigSchema.parse(mode)).toThrow()
 			})
 		})
 
@@ -166,7 +173,84 @@ describe("CustomModeSchema", () => {
 				groups: ["read", "read", ["edit", { fileRegex: "\\.md$" }], ["edit", { fileRegex: "\\.txt$" }]],
 			}
 
-			expect(() => CustomModeSchema.parse(modeWithDuplicates)).toThrow(/Duplicate groups/)
+			expect(() => modeConfigSchema.parse(modeWithDuplicates)).toThrow(/Duplicate groups/)
+		})
+	})
+
+	const validBaseMode = {
+		slug: "123e4567-e89b-12d3-a456-426614174000",
+		name: "Test Mode",
+		roleDefinition: "Test role definition",
+	}
+
+	describe("group format validation", () => {
+		test("accepts single group", () => {
+			const mode = {
+				...validBaseMode,
+				groups: ["read"] as const,
+			} satisfies ModeConfig
+
+			expect(() => modeConfigSchema.parse(mode)).not.toThrow()
+		})
+
+		test("accepts multiple groups", () => {
+			const mode = {
+				...validBaseMode,
+				groups: ["read", "edit", "browser"] as const,
+			} satisfies ModeConfig
+
+			expect(() => modeConfigSchema.parse(mode)).not.toThrow()
+		})
+
+		test("accepts all available groups", () => {
+			const mode = {
+				...validBaseMode,
+				groups: ["read", "edit", "browser", "command", "mcp"] as const,
+			} satisfies ModeConfig
+
+			expect(() => modeConfigSchema.parse(mode)).not.toThrow()
+		})
+
+		test("rejects non-array group format", () => {
+			const mode = {
+				...validBaseMode,
+				groups: "not-an-array" as any,
+			}
+
+			expect(() => modeConfigSchema.parse(mode)).toThrow()
+		})
+
+		test("rejects invalid group names", () => {
+			const mode = {
+				...validBaseMode,
+				groups: ["invalid_group"] as any,
+			}
+
+			expect(() => modeConfigSchema.parse(mode)).toThrow()
+		})
+
+		test("rejects duplicate groups", () => {
+			const mode = {
+				...validBaseMode,
+				groups: ["read", "read"] as any,
+			}
+
+			expect(() => modeConfigSchema.parse(mode)).toThrow("Duplicate groups are not allowed")
+		})
+
+		test("rejects null or undefined groups", () => {
+			const modeWithNull = {
+				...validBaseMode,
+				groups: null as any,
+			}
+
+			const modeWithUndefined = {
+				...validBaseMode,
+				groups: undefined as any,
+			}
+
+			expect(() => modeConfigSchema.parse(modeWithNull)).toThrow()
+			expect(() => modeConfigSchema.parse(modeWithUndefined)).toThrow()
 		})
 	})
 })
