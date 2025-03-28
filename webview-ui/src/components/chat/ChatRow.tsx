@@ -1210,7 +1210,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							</div>
 						</>
 					)
-				case "plan_mode_response": {
+				case "plan_mode_respond": {
 					let response: string | undefined
 					let options: string[] | undefined
 					let selected: string | undefined
@@ -1229,7 +1229,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							<OptionsButtons
 								options={options}
 								selected={selected}
-								isActive={isLast && lastModifiedMessage?.ask === "plan_mode_response"}
+								isActive={isLast && lastModifiedMessage?.ask === "plan_mode_respond"}
 							/>
 						</div>
 					)

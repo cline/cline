@@ -1417,4 +1417,12 @@ export const sambanovaModels = {
 		inputPrice: 0.5,
 		outputPrice: 1.0,
 	},
+	"DeepSeek-V3-0324": {
+		maxTokens: 4096,
+		contextWindow: 8192,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1.0,
+		outputPrice: 1.5,
+	},
 } as const satisfies Record<string, ModelInfo>
