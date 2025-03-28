@@ -1477,7 +1477,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				}
 				await fs.writeFile(mcpPath, JSON.stringify({ mcpServers }, null, 2))
 				if (this.mcpHub) {
-					this.mcpHub?.onMcpSettingFileChange()
+					this.mcpHub?.onMcpSettingsFileChange()
 				}
 			} catch (error) {
 				vscode.window.showErrorMessage(`Unable to create or open: ${JSON.stringify(error)}`)

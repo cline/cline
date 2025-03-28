@@ -154,7 +154,7 @@ export class McpHub {
 			return undefined
 		}
 	}
-	public async onMcpSettingFileChange(): Promise<void> {
+	public async onMcpSettingsFileChange(): Promise<void> {
 		const settings = await this.readAndValidateMcpSettingsFile()
 		if (settings) {
 			try {
@@ -171,7 +171,7 @@ export class McpHub {
 		this.disposables.push(
 			vscode.workspace.onDidSaveTextDocument(async (document) => {
 				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
-					await this.onMcpSettingFileChange()
+					await this.onMcpSettingsFileChange()
 				}
 			}),
 		)
