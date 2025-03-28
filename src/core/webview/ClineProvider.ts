@@ -1480,7 +1480,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					this.mcpHub?.onMcpSettingFileChange()
 				}
 			} catch (error) {
-				vscode.window.showErrorMessage(`Impossibile creare o aprire .roo/mcp.json: ${JSON.stringify(error)}`)
+				vscode.window.showErrorMessage(`Unable to create or open: ${JSON.stringify(error)}`)
 			}
 		}
 	}
