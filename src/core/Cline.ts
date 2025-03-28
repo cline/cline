@@ -1755,7 +1755,7 @@ export class Cline {
 												`The file was reverted to its original state:\n\n` +
 												`<file_content path="${relPath.toPosix()}">\n${this.diffViewProvider.originalContent}\n</file_content>\n\n` +
 												`First, make sure you call the read_file tool and re-read the file again in case any changes were made, to get its latest state. Then, make a proper, TARGETED search and replace edit using the write_to_file tool.` +
-												`You can play around with fewer/more precise SEARCH blocks.\n(If you run into this error three times in a row, you may use the write_to_file tool as a fallback. ` +
+												`You may want to try fewer/more precise SEARCH blocks.\n(If you run into this error three times in a row, you may use the write_to_file tool as a fallback. ` +
 												`Keep in mind, the write_to_file fallback is far from ideal, as this means you'll be re-writing the entire contents of the file just to make a few edits, which takes time and money. So let's bias towards using replace_in_file as effectively as possible)`,
 										),
 									)
