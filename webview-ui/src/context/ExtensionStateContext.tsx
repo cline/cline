@@ -81,6 +81,7 @@ export const ExtensionStateContextProvider: React.FC<{
 							config.togetherApiKey,
 							config.qwenApiKey,
 							config.mistralApiKey,
+							config.nebiusApiKey,
 							config.vsCodeLmModelSelector,
 							config.clineApiKey,
 							config.asksageApiKey,
