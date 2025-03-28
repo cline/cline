@@ -2,4 +2,4 @@
 "claude-dev": minor
 ---
 
-adding code coverage warnings to our PR workflow
+adding code coverage actions to npm scripts
