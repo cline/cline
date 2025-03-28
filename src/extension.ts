@@ -43,9 +43,15 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.plusButtonClicked", async () => {
 			Logger.log("Plus button Clicked")
-			await sidebarProvider.clearTask()
-			await sidebarProvider.postStateToWebview()
-			await sidebarProvider.postMessageToWebview({
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (!visibleProvider) {
+				Logger.log("Cannot find any visible Cline instances.")
+				return
+			}
+
+			await visibleProvider.clearTask()
+			await visibleProvider.postStateToWebview()
+			await visibleProvider.postMessageToWebview({
 				type: "action",
 				action: "chatButtonClicked",
 			})
@@ -54,7 +60,13 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.mcpButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (!visibleProvider) {
+				Logger.log("Cannot find any visible Cline instances.")
+				return
+			}
+
+			visibleProvider.postMessageToWebview({
 				type: "action",
 				action: "mcpButtonClicked",
 			})
@@ -100,7 +112,13 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.settingsButtonClicked", () => {
 			//vscode.window.showInformationMessage(message)
-			sidebarProvider.postMessageToWebview({
+			const visibleClineProvider = ClineProvider.getVisibleInstance()
+			if (!visibleClineProvider) {
+				Logger.log("Cannot find any visible Cline instances.")
+				return
+			}
+
+			visibleClineProvider.postMessageToWebview({
 				type: "action",
 				action: "settingsButtonClicked",
 			})
@@ -109,7 +127,13 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.historyButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (!visibleProvider) {
+				Logger.log("Cannot find any visible Cline instances.")
+				return
+			}
+
+			visibleProvider.postMessageToWebview({
 				type: "action",
 				action: "historyButtonClicked",
 			})
@@ -118,7 +142,13 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.accountButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({
+			const visibleProvider = ClineProvider.getVisibleInstance()
+			if (!visibleProvider) {
+				Logger.log("Cannot find any visible Cline instances.")
+				return
+			}
+
+			visibleProvider.postMessageToWebview({
 				type: "action",
 				action: "accountButtonClicked",
 			})
