@@ -457,18 +457,18 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 											gap: "8px",
 											width: "100%",
 										}}>
+										{server.tools.map((tool) => (
+											<McpToolRow key={tool.name} tool={tool} serverName={server.name} />
+										))}
 										{server.name && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
 											<VSCodeCheckbox
-												style={{ alignSelf: "center" }}
+												style={{ marginBottom: -10 }}
 												checked={server.tools.every((tool) => tool.autoApprove)}
 												onChange={handleAutoApproveChange}
 												data-tool="all-tools">
 												Auto-approve all tools
 											</VSCodeCheckbox>
 										)}
-										{server.tools.map((tool) => (
-											<McpToolRow key={tool.name} tool={tool} serverName={server.name} />
-										))}
 									</div>
 								) : (
 									<div
