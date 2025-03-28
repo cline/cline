@@ -17,7 +17,7 @@ import McpMarketplaceView from "./marketplace/McpMarketplaceView"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
 import DangerButton from "../common/DangerButton"
-import McpCreaeteDialog from "./McpCreaeteDialog"
+import McpCreateDialog from "./McpCreateDialog"
 
 type McpViewProps = {
 	onDone: () => void
@@ -146,7 +146,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 									No MCP servers installed
 								</div>
 							)}
-							<McpCreaeteDialog open={open} onOpenChange={setOpen} />
+							<McpCreateDialog open={open} onOpenChange={setOpen} />
 							{/* Settings Section */}
 							<div style={{ marginBottom: "20px", marginTop: 10 }}>
 								<VSCodeButton
@@ -501,7 +501,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 					</div>
 				)
 			)}
-			<McpCreaeteDialog open={open} onOpenChange={setOpen} mcpConfig={JSON.parse(server.config)} mcpName={server.name} />
+			<McpCreateDialog open={open} onOpenChange={setOpen} mcpConfig={JSON.parse(server.config)} mcpName={server.name} />
 		</div>
 	)
 }

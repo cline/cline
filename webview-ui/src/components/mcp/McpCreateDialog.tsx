@@ -7,36 +7,14 @@ import { McpConfig } from "../../../../src/shared/mcp"
 import { vscode } from "../../utils/vscode"
 import { useEffect, useState } from "react"
 
-interface McpCreaeteDialogProps {
+interface McpCreateDialogProps {
 	open: boolean
 	onOpenChange?: (open: boolean) => void
 	mcpConfig?: McpConfig
 	mcpName?: string
 }
 
-const StyledTabButton = styled.button<{ isActive: boolean }>`
-	background: none;
-	border: none;
-	border-bottom: 2px solid ${(props) => (props.isActive ? "var(--vscode-foreground)" : "transparent")};
-	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
-	padding: 8px 16px;
-	cursor: pointer;
-	font-size: 13px;
-	margin-bottom: -1px;
-	font-family: inherit;
-
-	&:hover {
-		color: var(--vscode-foreground);
-	}
-`
-
-const TabButton = ({ children, isActive, onClick }: { children: React.ReactNode; isActive: boolean; onClick: () => void }) => (
-	<StyledTabButton isActive={isActive} onClick={onClick}>
-		{children}
-	</StyledTabButton>
-)
-
-const McpCreaeteDialog = (props: McpCreaeteDialogProps) => {
+const McpCreateDialog = (props: McpCreateDialogProps) => {
 	const { open, onOpenChange, mcpConfig, mcpName } = props
 	const [name, setName] = useState<string>()
 	const [command, setCommand] = useState<string>("npx")
@@ -247,4 +225,4 @@ const McpCreaeteDialog = (props: McpCreaeteDialogProps) => {
 	)
 }
 
-export default McpCreaeteDialog
+export default McpCreateDialog
