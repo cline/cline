@@ -203,7 +203,7 @@ export class ContextManager {
 
 		let rangeEndIndex = startOfRest + messagesToRemove - 1 // inclusive ending index
 
-		// Make sure that the last message being removed is a assistant message, so the next message after the initial user-assistant pair is an assistant message. This preservers the user-assistant-user-assistant structure.
+		// Make sure that the last message being removed is a assistant message, so the next message after the initial user-assistant pair is an assistant message. This preserves the user-assistant-user-assistant structure.
 		// NOTE: anthropic format messages are always user-assistant-user-assistant, while openai format messages can have multiple user messages in a row (we use anthropic format throughout cline)
 		if (apiMessages[rangeEndIndex].role !== "assistant") {
 			rangeEndIndex -= 1
@@ -393,13 +393,13 @@ export class ContextManager {
 	}
 
 	/**
-	 * generate a mapping from unique files (based on read_file tool) to their outer index position(s)
+	 * generate a mapping from unique files reads from multiple tool calls to their outer index position(s)
 	 */
 	private getPossibleDuplicateFileReads(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		startFromIndex: number,
-	): Map<string, number[]> {
-		const fileReadIndices = new Map<string, number[]>() // for a unique file, all outer indices its read at
+	): Map<string, [number, string][]> {
+		const fileReadIndices = new Map<string, [number, string][]>() // for a unique file, all outer indices its read at & the string to replace it with
 
 		for (let i = startFromIndex; i < apiMessages.length; i++) {
 			// for now we assume there's no need to check if we've already adjusted this message
@@ -411,12 +411,18 @@ export class ContextManager {
 			if (message.role === "user" && Array.isArray(message.content) && message.content.length > 0) {
 				const firstBlock = message.content[0]
 				if (firstBlock.type === "text") {
-					const match = firstBlock.text.match(/^\[read_file for '([^']+)'\] Result:$/)
-					if (match) {
-						const filePath = match[1]
-						const indices = fileReadIndices.get(filePath) || []
-						indices.push(i)
-						fileReadIndices.set(filePath, indices)
+					const matchTup = this.parsePotentialToolCall(firstBlock.text)
+					if (matchTup) {
+						if (matchTup[0] === "read_file") {
+							this.handleReadFileToolCall(i, matchTup[1], fileReadIndices)
+						} else if (matchTup[0] === "replace_in_file" || matchTup[0] === "write_to_file") {
+							const secondBlock = message.content[1]
+							if (secondBlock.type === "text") {
+								this.handlePotentialFileChangeToolCalls(i, matchTup[1], secondBlock.text, fileReadIndices)
+							}
+						}
+
+						// this will match other tool calls, ignore those
 					}
 				}
 			}
@@ -426,9 +432,51 @@ export class ContextManager {
 	}
 
 	/**
-	 * alter all occurences of file read operations to indicate they occured, and latest should be referenced
+	 * parses specific tool call formats, returns null if no acceptable format is found
 	 */
-	private applyFileReadContextHistoryUpdates(fileReadIndices: Map<string, number[]>, timestamp: number): boolean {
+	private parsePotentialToolCall(text: string): [string, string] | null {
+		const match = text.match(/^\[([^\s]+) for '([^']+)'\] Result:$/)
+
+		if (!match) {
+			return null
+		}
+
+		return [match[1], match[2]]
+	}
+
+	/**
+	 * file_read tool call always pastes the file, so this is always a hit
+	 */
+	private handleReadFileToolCall(i: number, filePath: string, fileReadIndices: Map<string, [number, string][]>) {
+		const indices = fileReadIndices.get(filePath) || []
+		indices.push([i, formatResponse.duplicateFileReadNotice()])
+		fileReadIndices.set(filePath, indices)
+	}
+
+	/**
+	 * write_to_file and replace_in_file tool output are handled similarly
+	 */
+	private handlePotentialFileChangeToolCalls(
+		i: number,
+		filePath: string,
+		secondBlockText: string,
+		fileReadIndices: Map<string, [number, string][]>,
+	) {
+		const pattern = new RegExp(`(<final_file_content path="[^"]*">)[\\s\\S]*?(</final_file_content>)`)
+
+		// check if this exists in the text, it wont exist if the user rejects the file change for example
+		if (pattern.test(secondBlockText)) {
+			const replacementText = secondBlockText.replace(pattern, `$1 ${formatResponse.duplicateFileReadNotice()} $2`)
+			const indices = fileReadIndices.get(filePath) || []
+			indices.push([i, replacementText])
+			fileReadIndices.set(filePath, indices)
+		}
+	}
+
+	/**
+	 * alter all occurrences of file read operations to indicate they occurred, and latest should be referenced
+	 */
+	private applyFileReadContextHistoryUpdates(fileReadIndices: Map<string, [number, string][]>, timestamp: number): boolean {
 		let didUpdate = false
 
 		for (const indices of fileReadIndices.values()) {
@@ -436,7 +484,8 @@ export class ContextManager {
 			if (indices.length > 1) {
 				// Process all but the last index, as we will keep that instance of the file read
 				for (let i = 0; i < indices.length - 1; i++) {
-					const messageIndex = indices[i]
+					const messageIndex = indices[i][0]
+					const messageString = indices[i][1] // what we will replace the string with
 
 					let innerMap = this.contextHistoryUpdates.get(messageIndex)
 					if (!innerMap) {
@@ -444,12 +493,12 @@ export class ContextManager {
 						this.contextHistoryUpdates.set(messageIndex, innerMap)
 					}
 
-					// block index for file reads from read_file tool is 1
+					// block index for file reads from read_file, write_to_file, replace_in_file tools is 1
 					const blockIndex = 1
 
 					const updates = innerMap.get(blockIndex) || []
 
-					updates.push([timestamp, "text", [formatResponse.duplicateFileReadNotice()]])
+					updates.push([timestamp, "text", [messageString]])
 
 					innerMap.set(blockIndex, updates)
 
