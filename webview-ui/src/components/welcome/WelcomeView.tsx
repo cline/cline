@@ -50,11 +50,13 @@ const WelcomeView = () => {
 					<ClineLogoWhite className="size-60" />
 				</div>
 				<p>
-					得益于{
+					得益于
+					{
 						<VSCodeLink href="https://www.anthropic.com/claude/sonnet" style={{ display: "inline" }}>
 							Claude 3.7 Sonnet
 						</VSCodeLink>
-					}的突破性编码能力，我可以完成各种任务，包括创建和编辑文件、探索复杂项目、使用浏览器、执行终端命令
+					}
+					的突破性编码能力，我可以完成各种任务，包括创建和编辑文件、探索复杂项目、使用浏览器、执行终端命令
 					<i>(当然需要您的许可)</i>。我甚至可以使用MCP创建新工具来扩展自己的能力。
 				</p>
 

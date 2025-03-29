@@ -651,12 +651,13 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						{apiConfiguration?.awsUseProfile ? (
-							<>
-								使用 ~/.aws/credentials 中的 AWS 配置（留空则使用 default 配置），这些凭证仅限本扩展本地使用。
-							</>
+							<>使用 ~/.aws/credentials 中的 AWS 配置（留空则使用 default 配置），这些凭证仅限本扩展本地使用。</>
 						) : (
 							<>
-								<>认证方式：提供上方密钥 或 使用AWS默认凭证（~/.aws/credentials文件/环境变量）。这些凭证仅限本扩展本地使用。</>
+								<>
+									认证方式：提供上方密钥 或
+									使用AWS默认凭证（~/.aws/credentials文件/环境变量）。这些凭证仅限本扩展本地使用。
+								</>
 							</>
 						)}
 					</p>
@@ -695,11 +696,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						</VSCodeDropdown>
 					</DropdownContainer>
 					<div className="vertex-ai-tips">
-						<p style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
 							要使用Google Cloud Vertex AI，您需要：
 							<VSCodeLink
 								href="https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#before_you_begin"
@@ -743,9 +745,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									display: "inline",
 									fontSize: "inherit",
 								}}>
-								<VSCodeLink
-									href="https://gemini.example.com/signup"
-									style={{ display: 'inline' }}>
+								<VSCodeLink href="https://gemini.example.com/signup" style={{ display: "inline" }}>
 									此处注册
 								</VSCodeLink>
 								获取Gemini API密钥
@@ -995,12 +995,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
 							(<span style={{ fontWeight: 500 }}>注意:</span> Cline使用复杂提示词，在Claude模型上效果最佳。
 							性能较低的模型可能无法达到预期效果。)
-							<p style={{
-								fontSize: "12px",
-								marginTop: "4px",
-								color: "var(--vscode-descriptionForeground)"
-							}}>
-							</p>
+							<p
+								style={{
+									fontSize: "12px",
+									marginTop: "4px",
+									color: "var(--vscode-descriptionForeground)",
+								}}></p>
 						</span>
 					</p>
 				</div>
@@ -1112,10 +1112,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									color: "var(--vscode-descriptionForeground)",
 								}}>
 								<p>
-									VS Code 语言模型 API 支持运行其他 VS Code 扩展提供的各类模型
-									（包含但不限于 GitHub Copilot 等）。推荐使用方式：
-									1. 通过 VS Marketplace 安装 Copilot 扩展
-									2. 在设置中启用 Claude 3.7 Sonnet 模型支持
+									VS Code 语言模型 API 支持运行其他 VS Code 扩展提供的各类模型 （包含但不限于 GitHub Copilot
+									等）。推荐使用方式： 1. 通过 VS Marketplace 安装 Copilot 扩展 2. 在设置中启用 Claude 3.7
+									Sonnet 模型支持
 								</p>
 							</p>
 						)}
@@ -1193,8 +1192,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						feature to use it with this extension.{" "}
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
 							(<span style={{ fontWeight: 500 }}>注意:</span> Cline使用复杂提示词，在Claude模型上效果最佳。
-							性能较低的模型可能无法达到预期效果。)
-							性能较低的模型可能无法达到预期效果。)
+							性能较低的模型可能无法达到预期效果。) 性能较低的模型可能无法达到预期效果。)
 						</span>
 					</p>
 				</div>
@@ -1474,8 +1472,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
 							(selectedProvider === "bedrock" && selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
 							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
-								<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
-							)}
+							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+						)}
 
 						<ModelInfoView
 							selectedModelId={selectedModelId}
@@ -1581,8 +1579,7 @@ export const ModelInfoView = ({
 		),
 		modelInfo.supportsPromptCache && modelInfo.cacheReadsPrice && (
 			<span key="cacheReadsPrice">
-				<span style={{ fontWeight: 500 }}>缓存读取价格:</span> {formatPrice(modelInfo.cacheReadsPrice || 0)}/百万
-				令牌
+				<span style={{ fontWeight: 500 }}>缓存读取价格:</span> {formatPrice(modelInfo.cacheReadsPrice || 0)}/百万 令牌
 			</span>
 		),
 		modelInfo.outputPrice !== undefined && modelInfo.outputPrice > 0 && (

@@ -727,7 +727,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "请输入消息..." : "请输入任务内容..."
-		return text;
+		return text
 		return text
 	}, [task])
 

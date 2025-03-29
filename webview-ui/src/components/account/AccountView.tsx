@@ -150,9 +150,7 @@ export const ClineAccountView = () => {
 				<div className="flex flex-col items-center pr-3">
 					<ClineLogoWhite className="size-16 mb-4" />
 
-					<p style={{}}>
-						注册账号即可访问最新模型、查看使用情况和积分的账单仪表盘，以及更多即将推出的功能。
-					</p>
+					<p style={{}}>注册账号即可访问最新模型、查看使用情况和积分的账单仪表盘，以及更多即将推出的功能。</p>
 
 					<VSCodeButton onClick={handleLogin} className="w-full mb-4">
 						注册Cline账号

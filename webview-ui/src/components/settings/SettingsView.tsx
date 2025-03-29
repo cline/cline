@@ -215,15 +215,18 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						style={{ width: "100%" }}
 						resize="vertical"
 						rows={4}
-						placeholder={'示例："最后执行单元测试"、"TS异步写法"、"中文语模式" \n -用中文交流-只使用替换文件工具进行修改\n-修改后自动运行调试\n-自动执行所有终端命令，无需人工干预.\n 英文: \n-Communicate in Chinese-Only use replace_in_file tool for modification\n-Automatically run debugging after modification\n-Automatically execute all terminal commands without human intervention'}
+						placeholder={
+							'示例："最后执行单元测试"、"TS异步写法"、"中文语模式" \n -用中文交流-只使用替换文件工具进行修改\n-修改后自动运行调试\n-自动执行所有终端命令，无需人工干预.\n 英文: \n-Communicate in Chinese-Only use replace_in_file tool for modification\n-Automatically run debugging after modification\n-Automatically execute all terminal commands without human intervention'
+						}
 						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
 						<span style={{ fontWeight: "500" }}>自定义指令</span>
 					</VSCodeTextArea>
-					<p style={{
-						fontSize: "12px",
-						marginTop: "5px",
-						color: "var(--vscode-descriptionForeground)",
-					}}>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
 						这些指令会附加到发送给模型的系统提示末尾。
 					</p>
 				</div>
@@ -238,11 +241,12 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						为计划和执行模式使用不同模型
 					</VSCodeCheckbox>
-					<p style={{
-						fontSize: "12px",
-						marginTop: "5px",
-						color: "var(--vscode-descriptionForeground)",
-					}}>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
 						切换模式时将保留之前使用的API和模型配置。例如：使用推理能力强的模型制定计划，
 						再用更经济的编码模型执行任务。
 					</p>
@@ -258,18 +262,21 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						}}>
 						允许匿名错误和使用情况统计
 					</VSCodeCheckbox>
-					<p style={{
-						fontSize: "12px",
-						marginTop: "5px",
-						color: "var(--vscode-descriptionForeground)",
-					}}>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
 						通过发送匿名数据帮助改进Cline，不会收集代码、提示词或个人信息。详见{" "}
 						<VSCodeLink href="https://docs.cline.bot/more-info/telemetry" style={{ fontSize: "inherit" }}>
 							遥测说明
-						</VSCodeLink>{" "}和{" "}
+						</VSCodeLink>{" "}
+						和{" "}
 						<VSCodeLink href="https://cline.bot/privacy" style={{ fontSize: "inherit" }}>
 							隐私政策
-						</VSCodeLink>。
+						</VSCodeLink>
+						。
 					</p>
 				</div>
 

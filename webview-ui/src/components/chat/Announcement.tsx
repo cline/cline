@@ -31,14 +31,16 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>添加到Cline:</b> 在任何文件或终端中右键点击选中的文本，快速将其添加为当前任务的上下文！此外，当你看到灯泡图标时，选择'用Cline修复'可以让Cline修复代码中的错误。
+					<b>添加到Cline:</b>{" "}
+					在任何文件或终端中右键点击选中的文本，快速将其添加为当前任务的上下文！此外，当你看到灯泡图标时，选择'用Cline修复'可以让Cline修复代码中的错误。
 				</li>
 				<li>
 					<b>账单仪表盘:</b> 在扩展中直接跟踪剩余积分和交易历史，使用{" "}
 					<span className="codicon codicon-account" style={{ fontSize: 11 }}></span> Cline账户！
 				</li>
 				<li>
-					<b>更快的推理:</b> Cline/OpenRouter用户可以根据吞吐量、价格和延迟对底层提供商进行排序。按吞吐量排序将获得更快的生成速度(但成本更高)。
+					<b>更快的推理:</b>{" "}
+					Cline/OpenRouter用户可以根据吞吐量、价格和延迟对底层提供商进行排序。按吞吐量排序将获得更快的生成速度(但成本更高)。
 				</li>
 				<li>
 					<b>增强的MCP支持:</b> 支持动态图像加载和GIF，新增删除按钮可清理失败的服务器。
@@ -112,7 +114,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					盛世中华 Cline 中文版本
 				</VSCodeLink>
 				获取更多更新！
-
 			</p>
 		</div>
 	)

@@ -16,38 +16,37 @@ const ACTION_METADATA: {
 	shortName: string
 	description: string
 }[] = [
-		{
-			id: "readFiles",
-			label: "读取文件和目录",
-			shortName: "读取",
-			description: "允许访问读取您电脑上的任何文件。",
-		},
-		{
-			id: "editFiles",
-			label: "编辑文件",
-			shortName: "编辑",
-			description: "允许修改您电脑上的任何文件。",
-		},
-		{
-			id: "executeCommands",
-			label: "执行安全命令",
-			shortName: "命令",
-			description:
-				"允许执行安全的终端命令。如果模型认为命令可能具有破坏性，仍需要批准。",
-		},
-		{
-			id: "useBrowser",
-			label: "使用浏览器",
-			shortName: "浏览器",
-			description: "允许在无头浏览器中启动并与任何网站交互。",
-		},
-		{
-			id: "useMcp",
-			label: "使用MCP服务器",
-			shortName: "MCP",
-			description: "允许使用配置的MCP服务器，这些服务器可能会修改文件系统或与API交互。",
-		},
-	]
+	{
+		id: "readFiles",
+		label: "读取文件和目录",
+		shortName: "读取",
+		description: "允许访问读取您电脑上的任何文件。",
+	},
+	{
+		id: "editFiles",
+		label: "编辑文件",
+		shortName: "编辑",
+		description: "允许修改您电脑上的任何文件。",
+	},
+	{
+		id: "executeCommands",
+		label: "执行安全命令",
+		shortName: "命令",
+		description: "允许执行安全的终端命令。如果模型认为命令可能具有破坏性，仍需要批准。",
+	},
+	{
+		id: "useBrowser",
+		label: "使用浏览器",
+		shortName: "浏览器",
+		description: "允许在无头浏览器中启动并与任何网站交互。",
+	},
+	{
+		id: "useMcp",
+		label: "使用MCP服务器",
+		shortName: "MCP",
+		description: "允许使用配置的MCP服务器，这些服务器可能会修改文件系统或与API交互。",
+	},
+]
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const { autoApprovalSettings } = useExtensionState()
@@ -217,7 +216,8 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 							fontSize: "12px",
 						}}>
-						自动批准允许 Cline 在不询问的情况下执行以下操作。请谨慎使用，并确保您了解相关风险。</div>
+						自动批准允许 Cline 在不询问的情况下执行以下操作。请谨慎使用，并确保您了解相关风险。
+					</div>
 					{ACTION_METADATA.map((action) => (
 						<div key={action.id} style={{ margin: "6px 0" }}>
 							<VSCodeCheckbox

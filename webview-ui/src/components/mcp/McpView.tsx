@@ -481,7 +481,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 
 							<VSCodePanelView id="resources-view">
 								{(server.resources && server.resources.length > 0) ||
-									(server.resourceTemplates && server.resourceTemplates.length > 0) ? (
+								(server.resourceTemplates && server.resourceTemplates.length > 0) ? (
 									<div
 										style={{
 											display: "flex",
