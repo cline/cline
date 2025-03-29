@@ -1,36 +1,89 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Browser, Page, ScreenshotOptions, TimeoutError, launch } from "puppeteer-core"
+import { Browser, Page, ScreenshotOptions, TimeoutError, launch, connect } from "puppeteer-core"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
 import pWaitFor from "p-wait-for"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import axios from "axios"
 import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
 import { BrowserSettings } from "../../shared/BrowserSettings"
-// import * as chromeLauncher from "chrome-launcher"
+import { discoverChromeInstances, testBrowserConnection } from "./BrowserDiscovery"
+import * as chromeLauncher from "chrome-launcher"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
 	executablePath: string
 }
 
-// const DEBUG_PORT = 9222 // Chrome's default debugging port
+// Define browser connection info interface
+export interface BrowserConnectionInfo {
+	isConnected: boolean
+	isRemote: boolean
+	host?: string
+	isHeadless: boolean
+}
+
+const DEBUG_PORT = 9222 // Chrome's default debugging port
 
 export class BrowserSession {
 	private context: vscode.ExtensionContext
 	private browser?: Browser
 	private page?: Page
 	private currentMousePosition?: string
+	private cachedWebSocketEndpoint?: string
+	private lastConnectionAttempt: number = 0
 	browserSettings: BrowserSettings
+	private isConnectedToRemote: boolean = false
 
 	constructor(context: vscode.ExtensionContext, browserSettings: BrowserSettings) {
 		this.context = context
 		this.browserSettings = browserSettings
 	}
 
-	private async ensureChromiumExists(): Promise<PCRStats> {
+	// Tests remote browser connection
+	async testConnection(host: string): Promise<{ success: boolean; message: string; endpoint?: string }> {
+		return testBrowserConnection(host)
+	}
+
+	/**
+	 * Get current browser connection information
+	 */
+	getConnectionInfo(): BrowserConnectionInfo {
+		return {
+			isConnected: !!this.browser,
+			isRemote: this.isConnectedToRemote,
+			host: this.isConnectedToRemote ? this.browserSettings.remoteBrowserHost : undefined,
+			isHeadless: !this.isConnectedToRemote, // Local is always headless, remote is always non-headless
+		}
+	}
+
+	async getDetectedChromePath(): Promise<{ path: string; isBundled: boolean }> {
+		// First check VSCode config
+		const configPath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
+		if (configPath && (await fileExistsAtPath(configPath))) {
+			return { path: configPath, isBundled: false }
+		}
+
+		// Then try to find system Chrome
+		try {
+			const systemPath = chromeLauncher.Launcher.getFirstInstallation()
+			// Add validation to ensure path is not in Trash - This can happen on Mac OS due to the way the chrome-launcher library works
+			if (systemPath && !systemPath.includes(".Trash") && (await fileExistsAtPath(systemPath))) {
+				return { path: systemPath, isBundled: false }
+			}
+		} catch (error) {
+			console.log("Could not find system Chrome:", error)
+		}
+
+		// Finally fall back to PCR's bundled version
+		const stats = await this.ensureChromiumExists()
+		return { path: stats.executablePath, isBundled: true }
+	}
+
+	async ensureChromiumExists(): Promise<PCRStats> {
 		const globalStoragePath = this.context?.globalStorageUri?.fsPath
 		if (!globalStoragePath) {
 			throw new Error("Global storage uri is invalid")
@@ -42,130 +95,208 @@ export class BrowserSession {
 			await fs.mkdir(puppeteerDir, { recursive: true })
 		}
 
-		const chromeExecutablePath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
-		if (chromeExecutablePath && !(await fileExistsAtPath(chromeExecutablePath))) {
-			throw new Error(`Chrome executable not found at path: ${chromeExecutablePath}`)
-		}
-		const stats: PCRStats = chromeExecutablePath
-			? { puppeteer: require("puppeteer-core"), executablePath: chromeExecutablePath }
-			: // if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")
-				// if it does exist it will return the path to existing chromium
-				await PCR({ downloadPath: puppeteerDir })
-
+		// if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")
+		// if it does exist it will return the path to existing chromium
+		const stats = await PCR({ downloadPath: puppeteerDir })
 		return stats
 	}
 
-	// private async checkExistingChromeDebugger(): Promise<boolean> {
-	// 	try {
-	// 		// Try to connect to existing debugger
-	// 		const response = await fetch(`http://localhost:${DEBUG_PORT}/json/version`)
-	// 		return response.ok
-	// 	} catch {
-	// 		return false
-	// 	}
-	// }
+	async relaunchChromeDebugMode(webview?: vscode.Webview) {
+		const result = await vscode.window.showWarningMessage(
+			"This will close your existing Chrome tabs and relaunch Chrome in debug mode. Are you sure?",
+			{ modal: true },
+			"Yes",
+		)
 
-	// async relaunchChromeDebugMode() {
-	// 	const result = await vscode.window.showWarningMessage(
-	// 		"This will close your existing Chrome tabs and relaunch Chrome in debug mode. Are you sure?",
-	// 		{ modal: true },
-	// 		"Yes",
-	// 	)
+		if (result !== "Yes") {
+			webview?.postMessage({ type: "browserRelaunchResult", success: false, text: "Operation cancelled by user" })
+			return
+		}
 
-	// 	if (result !== "Yes") {
-	// 		return
-	// 	}
+		try {
+			// Kill any existing Chrome instances
+			await chromeLauncher.killAll()
 
-	// 	// // Kill any existing Chrome instances
-	// 	// await chromeLauncher.killAll()
+			const chromeFlags = [
+				"--remote-debugging-port=" + DEBUG_PORT,
+				"--no-first-run",
+				"--no-default-browser-check",
+				"--disable-notifications",
+			]
 
-	// 	// // Launch Chrome with debug port
-	// 	// const launcher = new chromeLauncher.Launcher({
-	// 	// 	port: DEBUG_PORT,
-	// 	// 	chromeFlags: ["--remote-debugging-port=" + DEBUG_PORT, "--no-first-run", "--no-default-browser-check"],
-	// 	// })
+			// Remote connections are always non-headless
+			// Don't add headless flag for remote connections
 
-	// 	// await launcher.launch()
-	// 	const installation = chromeLauncher.Launcher.getFirstInstallation()
-	// 	if (!installation) {
-	// 		throw new Error("Could not find Chrome installation on this system")
-	// 	}
-	// 	console.log("chrome installation", installation)
-	// }
+			// Launch Chrome with debug port
+			const launcher = new chromeLauncher.Launcher({
+				port: DEBUG_PORT,
+				chromeFlags: chromeFlags,
+				ignoreDefaultFlags: true,
+			})
 
-	// private async getSystemChromeExecutablePath(): Promise<string> {
-	// 	// Find installed Chrome
-	// 	const installation = chromeLauncher.Launcher.getFirstInstallation()
-	// 	if (!installation) {
-	// 		throw new Error("Could not find Chrome installation on this system")
-	// 	}
-	// 	console.log("chrome installation", installation)
-	// 	return installation
-	// }
+			await launcher.launch()
+			const installation = chromeLauncher.Launcher.getFirstInstallation()
+			if (!installation) {
+				throw new Error("Could not find Chrome installation on this system")
+			}
+			console.log("chrome installation", installation)
 
-	// /**
-	//  * Helper to detect user’s default Chrome data dir.
-	//  * Adjust for OS if needed.
-	//  */
-	// private getDefaultChromeUserDataDir(): string {
-	// 	const homedir = require("os").homedir()
-	// 	switch (process.platform) {
-	// 		case "win32":
-	// 			return path.join(homedir, "AppData", "Local", "Google", "Chrome", "User Data")
-	// 		case "darwin":
-	// 			return path.join(homedir, "Library", "Application Support", "Google", "Chrome")
-	// 		default:
-	// 			return path.join(homedir, ".config", "google-chrome")
-	// 	}
-	// }
+			webview?.postMessage({
+				type: "browserRelaunchResult",
+				success: true,
+				text: `Browser successfully launched with debug mode\nUsing: ${installation}`,
+			})
+		} catch (error) {
+			webview?.postMessage({
+				type: "browserRelaunchResult",
+				success: false,
+				text: `Failed to relaunch Chrome: ${error instanceof Error ? error.message : String(error)}`,
+			})
+		}
+	}
 
 	async launchBrowser() {
-		console.log("launch browser called")
 		if (this.browser) {
-			// throw new Error("Browser already launched")
 			await this.closeBrowser() // this may happen when the model launches a browser again after having used it already before
 		}
 
-		const stats = await this.ensureChromiumExists()
-		this.browser = await stats.puppeteer.launch({
+		// Reset remote connection status
+		this.isConnectedToRemote = false
+
+		if (this.browserSettings.remoteBrowserEnabled) {
+			console.log(`launch browser called -- remote host mode (non-headless)`)
+			try {
+				await this.launchRemoteBrowser()
+				// Don't create a new page here, as we'll create it in launchRemoteBrowser
+				return
+			} catch (error) {
+				console.error("Failed to launch remote browser, falling back to local mode:", error)
+				await this.launchLocalBrowser()
+			}
+		} else {
+			console.log(`launch browser called -- local mode (headless)`)
+			await this.launchLocalBrowser()
+		}
+
+		this.page = await this.browser?.newPage()
+	}
+
+	async launchLocalBrowser() {
+		const { path } = await this.getDetectedChromePath()
+		this.browser = await require("puppeteer-core").launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
 			],
-			executablePath: stats.executablePath,
+			executablePath: path,
 			defaultViewport: this.browserSettings.viewport,
-			headless: this.browserSettings.headless,
+			headless: "shell", // Always use headless mode for local connections
 		})
+		this.isConnectedToRemote = false
+	}
 
-		// if (this.browserSettings.chromeType === "system") {
-		// 	const userDataDir = this.getDefaultChromeUserDataDir()
-		// 	this.browser = await stats.puppeteer.launch({
-		// 		args: [`--user-data-dir=${userDataDir}`, "--profile-directory=Default"],
-		// 		executablePath: await this.getSystemChromeExecutablePath(),
-		// 		defaultViewport: this.browserSettings.viewport,
-		// 		headless: this.browserSettings.headless,
-		// 	})
-		// } else {
-		// 	this.browser = await stats.puppeteer.launch({
-		// 		args: [
-		// 			"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-		// 		],
-		// 		executablePath: stats.executablePath,
-		// 		defaultViewport: this.browserSettings.viewport,
-		// 		headless: this.browserSettings.headless,
-		// 	})
-		// }
+	async launchRemoteBrowser() {
+		let remoteBrowserHost = this.browserSettings.remoteBrowserHost
+		let browserWSEndpoint: string | undefined = this.cachedWebSocketEndpoint
+		let reconnectionAttempted = false
 
-		// (latest version of puppeteer does not add headless to user agent)
-		this.page = await this.browser?.newPage()
+		const getViewport = () => {
+			return this.browserSettings.viewport
+		}
+
+		// First try auto-discovery if no host is provided
+		if (!remoteBrowserHost) {
+			try {
+				console.log("No remote browser host provided, trying auto-discovery")
+				const discoveredHost = await discoverChromeInstances()
+
+				if (discoveredHost) {
+					console.log(`Auto-discovered Chrome at ${discoveredHost}`)
+					remoteBrowserHost = discoveredHost
+				}
+			} catch (error) {
+				console.log(`Auto-discovery failed: ${error}`)
+			}
+		}
+
+		// Try to connect with cached endpoint first if it exists and is recent (less than 1 hour old)
+		if (browserWSEndpoint && Date.now() - this.lastConnectionAttempt < 3600000) {
+			try {
+				console.log(`Attempting to connect using cached WebSocket endpoint: ${browserWSEndpoint}`)
+				this.browser = await connect({
+					browserWSEndpoint,
+					defaultViewport: getViewport(),
+				})
+				this.page = await this.browser?.newPage()
+				this.isConnectedToRemote = true
+				return
+			} catch (error) {
+				console.log(`Failed to connect using cached endpoint: ${error}`)
+				// Clear the cached endpoint since it's no longer valid
+				this.cachedWebSocketEndpoint = undefined
+				// User wants to give up after one reconnection attempt
+				if (remoteBrowserHost) {
+					reconnectionAttempted = true
+				}
+			}
+		}
+
+		// Try to connect with host (either user-provided or auto-discovered)
+		if (remoteBrowserHost) {
+			try {
+				// Fetch the WebSocket endpoint from the Chrome DevTools Protocol
+				const versionUrl = `${remoteBrowserHost.replace(/\/$/, "")}/json/version`
+				console.log(`Fetching WebSocket endpoint from ${versionUrl}`)
+
+				const response = await axios.get(versionUrl)
+				browserWSEndpoint = response.data.webSocketDebuggerUrl
+
+				if (!browserWSEndpoint) {
+					throw new Error("Could not find webSocketDebuggerUrl in the response")
+				}
+
+				console.log(`Found WebSocket browser endpoint: ${browserWSEndpoint}`)
+
+				// Cache the successful endpoint
+				this.cachedWebSocketEndpoint = browserWSEndpoint
+				this.lastConnectionAttempt = Date.now()
+
+				this.browser = await connect({
+					browserWSEndpoint,
+					defaultViewport: getViewport(),
+				})
+				this.page = await this.browser?.newPage()
+				this.isConnectedToRemote = true
+				return
+			} catch (error) {
+				console.log(`Failed to connect to remote browser: ${error}`)
+			}
+		}
+
+		// If we get here, all connection attempts failed
+		throw new Error(
+			"Failed to connect to remote browser. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+		)
 	}
 
 	async closeBrowser(): Promise<BrowserActionResult> {
 		if (this.browser || this.page) {
-			console.log("closing browser...")
-			await this.browser?.close().catch(() => {})
+			if (this.isConnectedToRemote && this.browser) {
+				// Close the page/tab first if it exists
+				if (this.page) {
+					await this.page.close().catch(() => {})
+					console.log("closed remote browser tab...")
+				}
+				await this.browser.disconnect().catch(() => {})
+				console.log("disconnected from remote browser...")
+			} else {
+				await this.browser?.close().catch(() => {})
+				console.log("closed local browser...")
+			}
+
 			this.browser = undefined
 			this.page = undefined
 			this.currentMousePosition = undefined
+			this.isConnectedToRemote = false
 		}
 		return {}
 	}

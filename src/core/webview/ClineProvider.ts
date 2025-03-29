@@ -40,6 +40,8 @@ import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { getTotalTasksSize } from "../../utils/storage"
 import { GlobalFileNames } from "../../global-constants"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import { BrowserSession } from "../../services/browser/BrowserSession"
+import { discoverChromeInstances } from "../../services/browser/BrowserDiscovery"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -114,6 +116,8 @@ type GlobalStateKey =
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
+	| "remoteBrowserHost"
+	| "remoteBrowserEnabled"
 
 export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -570,6 +574,140 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.postStateToWebview()
 						}
 						break
+					case "remoteBrowserHost":
+						await this.updateGlobalState("remoteBrowserHost", message.text)
+						await this.postStateToWebview()
+						break
+					case "remoteBrowserEnabled":
+						// Store the preference in global state
+						// remoteBrowserEnabled now means "enable remote browser connection"
+						await this.updateGlobalState("remoteBrowserEnabled", message.bool ?? false)
+						// If disabling remote browser connection, clear the remoteBrowserHost
+						if (!message.bool) {
+							await this.updateGlobalState("remoteBrowserHost", undefined)
+						}
+						await this.postStateToWebview()
+						break
+					case "getBrowserConnectionInfo":
+						try {
+							// Get the current browser session from Cline if it exists
+							if (this.cline?.browserSession) {
+								const connectionInfo = this.cline.browserSession.getConnectionInfo()
+								await this.postMessageToWebview({
+									type: "browserConnectionInfo",
+									isConnected: connectionInfo.isConnected,
+									isRemote: connectionInfo.isRemote,
+									host: connectionInfo.host,
+									isHeadless: connectionInfo.isHeadless,
+								})
+							} else {
+								// If no active browser session, just return the settings
+								const { browserSettings } = await this.getState()
+								await this.postMessageToWebview({
+									type: "browserConnectionInfo",
+									isConnected: false,
+									isRemote: !!browserSettings.remoteBrowserEnabled,
+									host: browserSettings.remoteBrowserHost,
+									isHeadless: !!browserSettings.headless,
+								})
+							}
+						} catch (error) {
+							console.error("Error getting browser connection info:", error)
+							await this.postMessageToWebview({
+								type: "browserConnectionInfo",
+								isConnected: false,
+								isRemote: false,
+								isHeadless: true,
+							})
+						}
+						break
+					case "testBrowserConnection":
+						try {
+							const { browserSettings } = await this.getState()
+							const browserSession = new BrowserSession(this.context, browserSettings)
+							// If no text is provided, try auto-discovery
+							if (!message.text) {
+								try {
+									const discoveredHost = await discoverChromeInstances()
+									if (discoveredHost) {
+										// Test the connection to the discovered host
+										const result = await browserSession.testConnection(discoveredHost)
+										// Send the result back to the webview
+										await this.postMessageToWebview({
+											type: "browserConnectionResult",
+											success: result.success,
+											text: `Auto-discovered and tested connection to Chrome at ${discoveredHost}: ${result.message}`,
+											values: { endpoint: result.endpoint },
+										})
+									} else {
+										await this.postMessageToWebview({
+											type: "browserConnectionResult",
+											success: false,
+											text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+										})
+									}
+								} catch (error) {
+									await this.postMessageToWebview({
+										type: "browserConnectionResult",
+										success: false,
+										text: `Error during auto-discovery: ${error instanceof Error ? error.message : String(error)}`,
+									})
+								}
+							} else {
+								// Test the provided URL
+								const result = await browserSession.testConnection(message.text)
+
+								// Send the result back to the webview
+								await this.postMessageToWebview({
+									type: "browserConnectionResult",
+									success: result.success,
+									text: result.message,
+									values: { endpoint: result.endpoint },
+								})
+							}
+						} catch (error) {
+							await this.postMessageToWebview({
+								type: "browserConnectionResult",
+								success: false,
+								text: `Error testing connection: ${error instanceof Error ? error.message : String(error)}`,
+							})
+						}
+						break
+					case "discoverBrowser":
+						try {
+							const discoveredHost = await discoverChromeInstances()
+
+							if (discoveredHost) {
+								// Don't update the remoteBrowserHost state when auto-discovering
+								// This way we don't override the user's preference
+
+								// Test the connection to get the endpoint
+								const { browserSettings } = await this.getState()
+								const browserSession = new BrowserSession(this.context, browserSettings)
+								const result = await browserSession.testConnection(discoveredHost)
+
+								// Send the result back to the webview
+								await this.postMessageToWebview({
+									type: "browserConnectionResult",
+									success: true,
+									text: `Successfully discovered and connected to Chrome at ${discoveredHost}`,
+									values: { endpoint: result.endpoint },
+								})
+							} else {
+								await this.postMessageToWebview({
+									type: "browserConnectionResult",
+									success: false,
+									text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+								})
+							}
+						} catch (error) {
+							await this.postMessageToWebview({
+								type: "browserConnectionResult",
+								success: false,
+								text: `Error discovering browser: ${error instanceof Error ? error.message : String(error)}`,
+							})
+						}
+						break
 					case "togglePlanActMode":
 						if (message.chatSettings) {
 							await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
@@ -582,11 +720,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							text: message.text,
 						})
 						break
-					// case "relaunchChromeDebugMode":
-					// 	if (this.cline) {
-					// 		this.cline.browserSession.relaunchChromeDebugMode()
-					// 	}
-					// 	break
+					case "relaunchChromeDebugMode":
+						const { browserSettings } = await this.getState()
+						const browserSession = new BrowserSession(this.context, browserSettings)
+						await browserSession.relaunchChromeDebugMode(webview)
+						break
 					case "askResponse":
 						this.cline?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 						break
@@ -908,6 +1046,13 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						})
 						break
 					}
+					case "scrollToSettings": {
+						await this.postMessageToWebview({
+							type: "scrollToSettings",
+							text: message.text,
+						})
+						break
+					}
 					case "telemetrySetting": {
 						if (message.telemetrySetting) {
 							await this.updateTelemetrySetting(message.telemetrySetting)
@@ -943,6 +1088,55 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						await this.postStateToWebview()
 						this.refreshTotalTasksSize()
 						this.postMessageToWebview({ type: "relinquishControl" })
+						break
+					}
+					case "getBrowserConnectionInfo": {
+						try {
+							// Get the current browser session from Cline if it exists
+							if (this.cline?.browserSession) {
+								const connectionInfo = this.cline.browserSession.getConnectionInfo()
+								await this.postMessageToWebview({
+									type: "browserConnectionInfo",
+									isConnected: connectionInfo.isConnected,
+									isRemote: connectionInfo.isRemote,
+									host: connectionInfo.host,
+									isHeadless: connectionInfo.isHeadless,
+								})
+							} else {
+								// If no active browser session, just return the settings
+								const { browserSettings } = await this.getState()
+								await this.postMessageToWebview({
+									type: "browserConnectionInfo",
+									isConnected: false,
+									isRemote: !!browserSettings.remoteBrowserEnabled,
+									host: browserSettings.remoteBrowserHost,
+									isHeadless: !!browserSettings.headless,
+								})
+							}
+						} catch (error) {
+							console.error("Error getting browser connection info:", error)
+							await this.postMessageToWebview({
+								type: "browserConnectionInfo",
+								isConnected: false,
+								isRemote: false,
+								isHeadless: true,
+							})
+						}
+						break
+					}
+					case "getDetectedChromePath": {
+						try {
+							const { browserSettings } = await this.getState()
+							const browserSession = new BrowserSession(this.context, browserSettings)
+							const { path, isBundled } = await browserSession.getDetectedChromePath()
+							await this.postMessageToWebview({
+								type: "detectedChromePath",
+								text: path,
+								isBundled,
+							})
+						} catch (error) {
+							console.error("Error getting detected Chrome path:", error)
+						}
 						break
 					}
 					// Add more switch case statements here as more webview message commands
@@ -2090,6 +2284,11 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	*/
 
 	async getState() {
+		// Read settings from VSCode configuration
+		const config = vscode.workspace.getConfiguration("cline")
+		const configRemoteBrowserEnabled = config.get<boolean>("remoteBrowserEnabled")
+		const configRemoteBrowserHost = config.get<string>("remoteBrowserHost")
+
 		const [
 			storedApiProvider,
 			apiModelId,
@@ -2154,6 +2353,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			thinkingBudgetTokens,
 			sambanovaApiKey,
 			planActSeparateModelsSettingRaw,
+			remoteBrowserEnabled,
+			remoteBrowserHost,
 		] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
@@ -2218,6 +2419,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("thinkingBudgetTokens") as Promise<number | undefined>,
 			this.getSecret("sambanovaApiKey") as Promise<string | undefined>,
 			this.getGlobalState("planActSeparateModelsSetting") as Promise<boolean | undefined>,
+			this.getGlobalState("remoteBrowserEnabled") as Promise<boolean | undefined>,
+			this.getGlobalState("remoteBrowserHost") as Promise<string | undefined>,
 		])
 
 		let apiProvider: ApiProvider
@@ -2256,6 +2459,13 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			// this is a special case where it's a new state, but we want it to default to different values for existing and new users.
 			// persist so next time state is retrieved it's set to the correct value.
 			await this.updateGlobalState("planActSeparateModelsSetting", planActSeparateModelsSetting)
+		}
+
+		// Merge browser settings with configuration values
+		const mergedBrowserSettings = {
+			...(browserSettings || DEFAULT_BROWSER_SETTINGS),
+			remoteBrowserEnabled: remoteBrowserEnabled ?? configRemoteBrowserEnabled ?? false,
+			remoteBrowserHost: remoteBrowserHost ?? configRemoteBrowserHost ?? "http://localhost:9222",
 		}
 
 		return {
@@ -2315,7 +2525,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			customInstructions,
 			taskHistory,
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
-			browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
+			browserSettings: mergedBrowserSettings,
 			chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 			userInfo,
 			previousModeApiProvider,
