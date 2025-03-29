@@ -99,7 +99,7 @@ export const BrowserSettingsSection: React.FC = () => {
 				})
 			}
 		}, 1000),
-		[browserSettings.remoteBrowserEnabled, browserSettings.remoteBrowserHost]
+		[browserSettings.remoteBrowserEnabled, browserSettings.remoteBrowserHost],
 	)
 
 	// Check connection when component mounts or when remote settings change

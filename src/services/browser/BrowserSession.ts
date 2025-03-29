@@ -105,7 +105,7 @@ export class BrowserSession {
 		const result = await vscode.window.showWarningMessage(
 			"This will close your existing Chrome tabs and relaunch Chrome in debug mode. Are you sure?",
 			{ modal: true },
-			"Yes"
+			"Yes",
 		)
 
 		if (result !== "Yes") {
@@ -274,7 +274,7 @@ export class BrowserSession {
 
 		// If we get here, all connection attempts failed
 		throw new Error(
-			"Failed to connect to remote browser. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222)."
+			"Failed to connect to remote browser. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
 		)
 	}
 
@@ -304,7 +304,7 @@ export class BrowserSession {
 	async doAction(action: (page: Page) => Promise<void>): Promise<BrowserActionResult> {
 		if (!this.page) {
 			throw new Error(
-				"Browser is not launched. This may occur if the browser was automatically closed by a non-`browser_action` tool."
+				"Browser is not launched. This may occur if the browser was automatically closed by a non-`browser_action` tool.",
 			)
 		}
 

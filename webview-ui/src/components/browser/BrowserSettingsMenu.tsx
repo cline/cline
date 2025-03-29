@@ -23,7 +23,7 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWid
 		isConnected: false,
 		isRemote: !!browserSettings.remoteBrowserEnabled,
 		host: browserSettings.remoteBrowserHost,
-		isHeadless: !!browserSettings.headless
+		isHeadless: !!browserSettings.headless,
 	})
 	const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -31,7 +31,7 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWid
 	useEffect(() => {
 		// Request connection info when component mounts
 		vscode.postMessage({
-			type: "getBrowserConnectionInfo"
+			type: "getBrowserConnectionInfo",
 		})
 
 		// Listen for connection info updates
@@ -42,31 +42,34 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWid
 					isConnected: message.isConnected,
 					isRemote: message.isRemote,
 					host: message.host,
-					isHeadless: message.isHeadless
+					isHeadless: message.isHeadless,
 				})
 			}
 		}
 
-		window.addEventListener('message', handleMessage)
+		window.addEventListener("message", handleMessage)
 		return () => {
-			window.removeEventListener('message', handleMessage)
+			window.removeEventListener("message", handleMessage)
 		}
 	}, [browserSettings.remoteBrowserHost, browserSettings.remoteBrowserEnabled, browserSettings.headless])
 
 	// Close popover when clicking outside
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
-			if (popoverRef.current && !popoverRef.current.contains(event.target as Node) && 
-				!event.composedPath().some(el => (el as HTMLElement).classList?.contains('browser-info-icon'))) {
+			if (
+				popoverRef.current &&
+				!popoverRef.current.contains(event.target as Node) &&
+				!event.composedPath().some((el) => (el as HTMLElement).classList?.contains("browser-info-icon"))
+			) {
 				setShowInfoPopover(false)
 			}
 		}
 
 		if (showInfoPopover) {
-			document.addEventListener('mousedown', handleClickOutside)
+			document.addEventListener("mousedown", handleClickOutside)
 		}
 		return () => {
-			document.removeEventListener('mousedown', handleClickOutside)
+			document.removeEventListener("mousedown", handleClickOutside)
 		}
 	}, [showInfoPopover])
 
@@ -87,100 +90,105 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWid
 
 	const toggleInfoPopover = () => {
 		setShowInfoPopover(!showInfoPopover)
-		
+
 		// Request updated connection info when opening the popover
 		if (!showInfoPopover) {
 			vscode.postMessage({
-				type: "getBrowserConnectionInfo"
+				type: "getBrowserConnectionInfo",
 			})
 		}
 	}
-	
+
 	// Refresh connection info periodically when popover is open
 	useEffect(() => {
-		if (!showInfoPopover) return;
-		
+		if (!showInfoPopover) return
+
 		// Request connection info immediately
 		vscode.postMessage({
-			type: "getBrowserConnectionInfo"
-		});
-		
+			type: "getBrowserConnectionInfo",
+		})
+
 		// Set up interval to refresh every 2 seconds
 		const intervalId = setInterval(() => {
 			vscode.postMessage({
-				type: "getBrowserConnectionInfo"
-			});
-		}, 2000);
-		
-		return () => clearInterval(intervalId);
-	}, [showInfoPopover]);
+				type: "getBrowserConnectionInfo",
+			})
+		}, 2000)
+
+		return () => clearInterval(intervalId)
+	}, [showInfoPopover])
 
 	// Determine icon based on connection state
 	const getIconClass = () => {
 		if (connectionInfo.isRemote) {
-			return 'codicon-remote';
+			return "codicon-remote"
 		} else {
-			return connectionInfo.isConnected ? 'codicon-vm-running' : 'codicon-info';
+			return connectionInfo.isConnected ? "codicon-vm-running" : "codicon-info"
 		}
 	}
 
 	// Determine icon color based on connection state
 	const getIconColor = () => {
 		if (connectionInfo.isRemote) {
-			return connectionInfo.isConnected ? 'var(--vscode-charts-blue)' : 'var(--vscode-foreground)';
+			return connectionInfo.isConnected ? "var(--vscode-charts-blue)" : "var(--vscode-foreground)"
 		} else if (connectionInfo.isConnected) {
-			return 'var(--vscode-charts-green)';
+			return "var(--vscode-charts-green)"
 		} else {
-			return 'var(--vscode-foreground)';
+			return "var(--vscode-foreground)"
 		}
 	}
-	
+
 	// Check connection status every second to keep icon in sync
 	useEffect(() => {
 		// Request connection info immediately
 		vscode.postMessage({
-			type: "getBrowserConnectionInfo"
-		});
-		
+			type: "getBrowserConnectionInfo",
+		})
+
 		// Set up interval to refresh every second
 		const intervalId = setInterval(() => {
 			vscode.postMessage({
-				type: "getBrowserConnectionInfo"
-			});
-		}, 1000);
-		
-		return () => clearInterval(intervalId);
-	}, []);
+				type: "getBrowserConnectionInfo",
+			})
+		}, 1000)
+
+		return () => clearInterval(intervalId)
+	}, [])
 
 	return (
 		<div ref={containerRef} style={{ position: "relative", marginTop: "-1px", display: "flex" }}>
-			<VSCodeButton 
-				appearance="icon" 
+			<VSCodeButton
+				appearance="icon"
 				className="browser-info-icon"
 				onClick={toggleInfoPopover}
 				title="Browser connection info"
 				style={{ marginRight: "4px" }}>
-				<i 
-					className={`codicon ${getIconClass()}`} 
-					style={{ 
-						fontSize: "14.5px", 
-						color: getIconColor()
-					}} 
+				<i
+					className={`codicon ${getIconClass()}`}
+					style={{
+						fontSize: "14.5px",
+						color: getIconColor(),
+					}}
 				/>
 			</VSCodeButton>
-			
+
 			{showInfoPopover && (
 				<InfoPopover ref={popoverRef}>
 					<h4 style={{ margin: "0 0 8px 0" }}>Browser Connection</h4>
 					<InfoRow>
 						<InfoLabel>Status:</InfoLabel>
-						<InfoValue style={{ color: connectionInfo.isConnected ? 'var(--vscode-charts-green)' : 'var(--vscode-errorForeground)' }}>
-							{connectionInfo.isConnected ? 'Connected' : 'Disconnected'}
+						<InfoValue
+							style={{
+								color: connectionInfo.isConnected
+									? "var(--vscode-charts-green)"
+									: "var(--vscode-errorForeground)",
+							}}>
+							{connectionInfo.isConnected ? "Connected" : "Disconnected"}
 						</InfoValue>
 					</InfoRow>
 					<InfoRow>
 						<InfoLabel>Type:</InfoLabel>
-						<InfoValue>{connectionInfo.isRemote ? 'Remote' : 'Local'}</InfoValue>
+						<InfoValue>{connectionInfo.isRemote ? "Remote" : "Local"}</InfoValue>
 					</InfoRow>
 					{connectionInfo.isRemote && connectionInfo.host && (
 						<InfoRow>
@@ -190,7 +198,7 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWid
 					)}
 				</InfoPopover>
 			)}
-			
+
 			<VSCodeButton appearance="icon" onClick={openBrowserSettings}>
 				<i className="codicon codicon-settings-gear" style={{ fontSize: "14.5px" }} />
 			</VSCodeButton>
