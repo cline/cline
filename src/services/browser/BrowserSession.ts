@@ -114,32 +114,40 @@ export class BrowserSession {
 		}
 
 		try {
-			// Kill any existing Chrome instances
-			await chromeLauncher.killAll()
-
-			const chromeFlags = [
-				"--remote-debugging-port=" + DEBUG_PORT,
-				"--no-first-run",
-				"--no-default-browser-check",
-				"--disable-notifications",
-			]
+			// Chrome-launcher's killAll only kills instances it launched
+			// We need to handle system Chrome processes separately
+			await this.killAllChromeBrowsers()
+			
+			// Wait a moment for Chrome to fully shut down
+			await new Promise(resolve => setTimeout(resolve, 500))
 
 			// Remote connections are always non-headless
 			// Don't add headless flag for remote connections
+			
+			// Instead of using any default flags, use a minimal set to ensure session persistence
+			// This closely mimics running "google-chrome-stable --remote-debugging-port=9222" from the CLI
+			const chromeFlags = [
+				"--remote-debugging-port=" + DEBUG_PORT,
+				"--disable-notifications",
+				// Do not add any flags that might interfere with profile data
+			]
 
-			// Launch Chrome with debug port
-			const launcher = new chromeLauncher.Launcher({
-				port: DEBUG_PORT,
-				chromeFlags: chromeFlags,
-				ignoreDefaultFlags: true,
-			})
-
-			await launcher.launch()
 			const installation = chromeLauncher.Launcher.getFirstInstallation()
 			if (!installation) {
 				throw new Error("Could not find Chrome installation on this system")
 			}
 			console.log("chrome installation", installation)
+
+			// Launch Chrome with debug port
+			const launcher = new chromeLauncher.Launcher({
+				chromePath: installation,
+				port: DEBUG_PORT,
+				chromeFlags: chromeFlags,
+				userDataDir: false, // use default profile, not a new one
+				ignoreDefaultFlags: true, // Completely ignore all default flags to mimic CLI launch behavior
+			})
+
+			await launcher.launch()
 
 			webview?.postMessage({
 				type: "browserRelaunchResult",
@@ -192,6 +200,46 @@ export class BrowserSession {
 			headless: "shell", // Always use headless mode for local connections
 		})
 		this.isConnectedToRemote = false
+	}
+	
+	/**
+	 * Kill all Chrome instances, including those not launched by chrome-launcher
+	 */
+	private async killAllChromeBrowsers(): Promise<void> {
+		// First try chrome-launcher's killAll to handle instances it launched
+		try {
+			await chromeLauncher.killAll()
+		} catch (err: unknown) {
+			console.log("Error in chrome-launcher killAll:", err)
+		}
+		
+		// Then kill other Chrome instances using platform-specific commands
+		try {
+			if (process.platform === 'win32') {
+				// Windows: Use taskkill to forcefully terminate Chrome processes
+				await new Promise<void>((resolve, reject) => {
+					const { exec } = require('child_process')
+					exec('taskkill /F /IM chrome.exe /T', (error: Error) => {
+						// We don't reject on error because it's expected if no Chrome is running
+						resolve()
+					})
+				})
+			} else if (process.platform === 'darwin') {
+				// macOS: Use pkill to terminate Chrome processes
+				await new Promise<void>((resolve) => {
+					const { exec } = require('child_process')
+					exec('pkill -x "Google Chrome"', () => resolve())
+				})
+			} else {
+				// Linux: Use pkill for Chrome and chromium
+				await new Promise<void>((resolve) => {
+					const { exec } = require('child_process')
+					exec('pkill -f "chrome|chromium"', () => resolve())
+				})
+			}
+		} catch (error) {
+			console.log("Error killing Chrome processes:", error)
+		}
 	}
 
 	async launchRemoteBrowser() {
