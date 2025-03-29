@@ -147,7 +147,7 @@ export const ClineAccountView = () => {
 					</div>
 				</div>
 			) : (
-				<div className="flex flex-col items-center pr-3 max-w-[400px]">
+				<div className="flex flex-col items-center pr-3">
 					<ClineLogoWhite className="size-16 mb-4" />
 
 					<p style={{}}>
