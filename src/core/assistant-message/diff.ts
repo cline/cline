@@ -60,6 +60,19 @@ function lineTrimmedFallbackMatch(originalContent: string, searchContent: string
 	return false
 }
 
+// Levenshtein distance algorithm implementation
+function levenshtein(a: string, b: string): number {
+	const matrix = Array.from({ length: a.length + 1 }, () => Array.from({ length: b.length + 1 }, (_, i) => i))
+
+	for (let i = 1; i <= a.length; i++) {
+		for (let j = 1; j <= b.length; j++) {
+			const cost = a[i - 1] === b[j - 1] ? 0 : 1
+			matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost)
+		}
+	}
+	return matrix[a.length][b.length]
+}
+
 /**
  * Attempts to match blocks of code by using the first and last lines as anchors.
  * This is a third-tier fallback strategy that helps match blocks where we can identify
@@ -113,29 +126,90 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 		startLineNum++
 	}
 
-	// Look for matching start and end anchors
+	// Collect all candidate positions
+	const candidates: number[] = []
 	for (let i = startLineNum; i <= originalLines.length - searchBlockSize; i++) {
-		// Check if first line matches
-		if (originalLines[i].trim() !== firstLineSearch) {
-			continue
+		if (originalLines[i].trim() === firstLineSearch && originalLines[i + searchBlockSize - 1].trim() === lastLineSearch) {
+			candidates.push(i)
+		}
+	}
+
+	// Return immediately if no candidates
+	if (candidates.length === 0) {
+		return false
+	}
+	// Handle single candidate scenario (using relaxed threshold)
+	if (candidates.length === 1) {
+		const i = candidates[0]
+		let similarity = 0
+		const similarityThreshold = 0.5
+		let linesToCheck = searchBlockSize - 2
+
+		for (let j = 1; j < searchBlockSize - 1; j++) {
+			const originalLine = originalLines[i + j].trim()
+			const searchLine = searchLines[j].trim()
+			const maxLen = Math.max(originalLine.length, searchLine.length)
+			if (maxLen === 0) {
+				continue
+			}
+			const distance = levenshtein(originalLine, searchLine)
+			similarity += (1 - distance / maxLen) / linesToCheck
+
+			// Exit early when threshold is reached
+			if (similarity >= similarityThreshold) {
+				break
+			}
 		}
 
-		// Check if last line matches at the expected position
-		if (originalLines[i + searchBlockSize - 1].trim() !== lastLineSearch) {
-			continue
+		if (similarity >= 0.5) {
+			let matchStartIndex = 0
+			for (let k = 0; k < i; k++) {
+				matchStartIndex += originalLines[k].length + 1
+			}
+			let matchEndIndex = matchStartIndex
+			for (let k = 0; k < searchBlockSize; k++) {
+				matchEndIndex += originalLines[i + k].length + 1
+			}
+			return [matchStartIndex, matchEndIndex]
 		}
+		return false
+	}
 
-		// Calculate exact character positions
+	// Calculate similarity for multiple candidates
+	let bestMatchIndex = -1
+	let maxSimilarity = -1
+
+	for (const i of candidates) {
+		let similarity = 0
+		for (let j = 1; j < searchBlockSize - 1; j++) {
+			const originalLine = originalLines[i + j].trim()
+			const searchLine = searchLines[j].trim()
+			const maxLen = Math.max(originalLine.length, searchLine.length)
+			if (maxLen === 0) {
+				continue
+			}
+			const distance = levenshtein(originalLine, searchLine)
+			similarity += 1 - distance / maxLen
+		}
+		similarity /= searchBlockSize - 2 // Average similarity
+
+		if (similarity > maxSimilarity) {
+			maxSimilarity = similarity
+			bestMatchIndex = i
+		}
+	}
+
+	// Threshold judgment
+	if (maxSimilarity >= 0.7) {
+		const i = bestMatchIndex
 		let matchStartIndex = 0
 		for (let k = 0; k < i; k++) {
 			matchStartIndex += originalLines[k].length + 1
 		}
-
 		let matchEndIndex = matchStartIndex
 		for (let k = 0; k < searchBlockSize; k++) {
 			matchEndIndex += originalLines[i + k].length + 1
 		}
-
 		return [matchStartIndex, matchEndIndex]
 	}
 
