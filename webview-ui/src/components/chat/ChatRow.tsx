@@ -30,6 +30,7 @@ import CreditLimitError from "./CreditLimitError"
 import { OptionsButtons } from "./OptionsButtons"
 import { highlightMentions } from "./TaskHeader"
 import SuccessButton from "../common/SuccessButton"
+import TaskFeedbackButtons from "./TaskFeedbackButtons"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -1008,25 +1009,30 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								}}>
 								<Markdown markdown={text} />
 							</div>
-							{message.partial !== true && hasChanges && (
-								<div style={{ paddingTop: 17 }}>
-									<SuccessButton
-										disabled={seeNewChangesDisabled}
-										onClick={() => {
-											setSeeNewChangesDisabled(true)
-											vscode.postMessage({
-												type: "taskCompletionViewChanges",
-												number: message.ts,
-											})
-										}}
-										style={{
-											cursor: seeNewChangesDisabled ? "wait" : "pointer",
-											width: "100%",
-										}}>
-										<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
-										See new changes
-									</SuccessButton>
-								</div>
+							{message.partial !== true && (
+								<>
+									{hasChanges && (
+										<div style={{ paddingTop: 17 }}>
+											<SuccessButton
+												disabled={seeNewChangesDisabled}
+												onClick={() => {
+													setSeeNewChangesDisabled(true)
+													vscode.postMessage({
+														type: "taskCompletionViewChanges",
+														number: message.ts,
+													})
+												}}
+												style={{
+													cursor: seeNewChangesDisabled ? "wait" : "pointer",
+													width: "100%",
+												}}>
+												<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
+												See new changes
+											</SuccessButton>
+										</div>
+									)}
+									<TaskFeedbackButtons messageTs={message.ts} />
+								</>
 							)}
 						</>
 					)

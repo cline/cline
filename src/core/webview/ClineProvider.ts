@@ -478,6 +478,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		webview.onDidReceiveMessage(
 			async (message: WebviewMessage) => {
 				switch (message.type) {
+					case "taskFeedback":
+						if (message.feedbackType && message.messageTs && this.cline?.taskId) {
+							telemetryService.captureTaskFeedback(this.cline.taskId, message.feedbackType)
+						}
+						break
 					case "authStateChanged":
 						await this.setUserInfo(message.user || undefined)
 						await this.postStateToWebview()
