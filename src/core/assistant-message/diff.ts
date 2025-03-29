@@ -1,3 +1,7 @@
+// Similarity thresholds for block anchor fallback matching
+const SINGLE_CANDIDATE_SIMILARITY_THRESHOLD = 0.5
+const MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD = 0.7
+
 /**
  * Attempts a line-trimmed fallback match for the given search content in the original content.
  * It tries to match `searchContent` lines against a block of lines in `originalContent` starting
@@ -62,6 +66,10 @@ function lineTrimmedFallbackMatch(originalContent: string, searchContent: string
 
 // Levenshtein distance algorithm implementation
 function levenshtein(a: string, b: string): number {
+	// Handle empty strings
+	if (a === "" || b === "") {
+		return Math.max(a.length, b.length)
+	}
 	const matrix = Array.from({ length: a.length + 1 }, () => Array.from({ length: b.length + 1 }, (_, i) => i))
 
 	for (let i = 1; i <= a.length; i++) {
@@ -142,7 +150,6 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 	if (candidates.length === 1) {
 		const i = candidates[0]
 		let similarity = 0
-		const similarityThreshold = 0.5
 		let linesToCheck = searchBlockSize - 2
 
 		for (let j = 1; j < searchBlockSize - 1; j++) {
@@ -156,12 +163,12 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 			similarity += (1 - distance / maxLen) / linesToCheck
 
 			// Exit early when threshold is reached
-			if (similarity >= similarityThreshold) {
+			if (similarity >= SINGLE_CANDIDATE_SIMILARITY_THRESHOLD) {
 				break
 			}
 		}
 
-		if (similarity >= 0.5) {
+		if (similarity >= SINGLE_CANDIDATE_SIMILARITY_THRESHOLD) {
 			let matchStartIndex = 0
 			for (let k = 0; k < i; k++) {
 				matchStartIndex += originalLines[k].length + 1
@@ -200,7 +207,7 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 	}
 
 	// Threshold judgment
-	if (maxSimilarity >= 0.7) {
+	if (maxSimilarity >= MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD) {
 		const i = bestMatchIndex
 		let matchStartIndex = 0
 		for (let k = 0; k < i; k++) {
