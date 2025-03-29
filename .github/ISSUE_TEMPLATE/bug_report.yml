@@ -1,68 +1,80 @@
 name: Bug Report
-description: File a bug report
+description: Clearly report a bug with detailed repro steps
 labels: ["bug"]
 body:
-    - type: input
-      id: version
-      attributes:
-          label: Which version of the app are you using?
-          description: Please specify the app version you're using (e.g. v3.3.1)
-      validations:
-          required: true
-    - type: dropdown
-      id: provider
-      attributes:
-          label: Which API Provider are you using?
-          multiple: false
-          options:
-              - OpenRouter
-              - Anthropic
-              - Google Gemini
-              - DeepSeek
-              - OpenAI
-              - OpenAI Compatible
-              - GCP Vertex AI
-              - AWS Bedrock
-              - Glama
-              - VS Code LM API
-              - LM Studio
-              - Ollama
-      validations:
-          required: true
-    - type: input
-      id: model
-      attributes:
-          label: Which Model are you using?
-          description: Please specify the model you're using (e.g. Claude 3.7 Sonnet)
-      validations:
-          required: true
-    - type: textarea
-      id: what-happened
-      attributes:
-          label: What happened?
-          description: Also tell us, what did you expect to happen?
-          placeholder: Tell us what you see!
-      validations:
-          required: true
-    - type: textarea
-      id: steps
-      attributes:
-          label: Steps to reproduce
-          description: How do you trigger this bug? Please walk us through it step by step.
-          value: |
-              1.
-              2.
-              3.
-      validations:
-          required: true
-    - type: textarea
-      id: logs
-      attributes:
-          label: Relevant API REQUEST output
-          description: Please copy and paste any relevant output. This will be automatically formatted into code, so no need for backticks.
-          render: shell
-    - type: textarea
-      id: additional-context
-      attributes:
-          label: Additional context
-          description: Add any other context about the problem here, such as screenshots or related issues.
+  - type: input
+    id: version
+    attributes:
+      label: App Version
+      description: Specify exactly which version you're using (e.g., v3.3.1)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: API Provider
+      description: Choose the API provider involved
+      multiple: false
+      options:
+        - OpenRouter
+        - Anthropic
+        - Google Gemini
+        - DeepSeek
+        - OpenAI
+        - OpenAI Compatible
+        - GCP Vertex AI
+        - AWS Bedrock
+        - Requesty
+        - Glama
+        - VS Code LM API
+        - LM Studio
+        - Ollama
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Model Used
+      description: Clearly specify the exact model (e.g., Claude 3.7 Sonnet)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Actual vs. Expected Behavior
+      description: Clearly state what actually happened and what you expected instead.
+      placeholder: Provide precise details of the issue here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Detailed Steps to Reproduce
+      description: |
+        List the exact steps someone must follow to reproduce this bug:
+        1. Starting conditions (software state, settings, environment)
+        2. Precise actions taken (every click, selection, input)
+        3. Clearly observe and report outcomes
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant API Request Output
+      description: Paste relevant API logs or outputs here (formatted automatically as code)
+      render: shell
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Include extra details, screenshots, or related issues.
