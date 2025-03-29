@@ -1,4 +1,5 @@
-import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
+import { AxiosRequestConfig, AxiosResponse } from "axios"
+import axios from "../../utils/http"
 import { Controller } from "../../core/controller"
 import type { BalanceResponse, PaymentTransaction, UsageTransaction } from "../../shared/ClineAccount"
 
