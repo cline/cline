@@ -1,0 +1,41 @@
+graph TB
+    subgraph VSCode Extension Host
+        subgraph Core Extension
+            ExtensionEntry[مدخل الإضافة<br/>src/extension.ts]
+            ClineProvider[ClineProvider<br/>src/core/webview/ClineProvider.ts]
+            ClineClass[فئة Cline<br/>src/core/Cline.ts]
+            GlobalState[حالة VSCode العالمية]
+            SecretsStorage[تخزين الأسرار VSCode]
+        end
+
+        subgraph Webview UI
+            WebviewApp[تطبيق React<br/>webview-ui/src/App.tsx]
+            ExtStateContext[سياق حالة الإضافة<br/>webview-ui/src/context/ExtensionStateContext.tsx]
+            ReactComponents[مكونات React]
+        end
+
+        subgraph Storage
+            TaskStorage[تخزين المهام<br/>ملفات المهام والتاريخ]
+            CheckpointSystem[نقاط التحقق المبنية على Git]
+        end
+    end
+
+    %% تدفق بيانات الإضافة الأساسية
+    ExtensionEntry --> ClineProvider
+    ClineProvider --> ClineClass
+    ClineClass --> GlobalState
+    ClineClass --> SecretsStorage
+    ClineClass --> TaskStorage
+    ClineClass --> CheckpointSystem
+
+    %% تدفق بيانات Webview
+    WebviewApp --> ExtStateContext
+    ExtStateContext --> ReactComponents
+
+    %% التواصل ثنائي الاتجاه
+    ClineProvider <-->|postMessage| ExtStateContext
+
+    style GlobalState fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style SecretsStorage fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style ExtStateContext fill:#0066ff,stroke:#333,stroke-width:2px,color:#ffffff
+    style ClineProvider fill:#00cc66,stroke:#333,stroke-width:2px,color:#ffffff

@@ -1,0 +1,1 @@
+请查看我们的隐私政策，网址为 [https://cline.bot/privacy](https://cline.bot/privacy)。

@@ -1,0 +1,1 @@
+우리의 개인정보 보호 정책에 대해 [https://cline.bot/privacy](https://cline.bot/privacy)를 참조하세요.

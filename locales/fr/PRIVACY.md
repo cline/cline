@@ -1,0 +1,1 @@
+Consultez [https://cline.bot/privacy](https://cline.bot/privacy) pour notre politique de confidentialité.

@@ -1,0 +1,41 @@
+graph TB
+    subgraph Hôte de l'extension VSCode
+        subgraph Extension de base
+            ExtensionEntry[Point d'entrée de l'extension<br/>src/extension.ts]
+            ClineProvider[ClineProvider<br/>src/core/webview/ClineProvider.ts]
+            ClineClass[Classe Cline<br/>src/core/Cline.ts]
+            GlobalState[État global de VSCode]
+            SecretsStorage[Stockage des secrets de VSCode]
+        end
+
+        subgraph Interface Webview
+            WebviewApp[Application React<br/>webview-ui/src/App.tsx]
+            ExtStateContext[Contexte de l'état de l'extension<br/>webview-ui/src/context/ExtensionStateContext.tsx]
+            ReactComponents[Composants React]
+        end
+
+        subgraph Stockage
+            TaskStorage[Stockage des tâches<br/>Fichiers et historique par tâche]
+            CheckpointSystem[Points de contrôle basés sur Git]
+        end
+    end
+
+    %% Flux de données de l'extension de base
+    ExtensionEntry --> ClineProvider
+    ClineProvider --> ClineClass
+    ClineClass --> GlobalState
+    ClineClass --> SecretsStorage
+    ClineClass --> TaskStorage
+    ClineClass --> CheckpointSystem
+
+    %% Flux de données de la Webview
+    WebviewApp --> ExtStateContext
+    ExtStateContext --> ReactComponents
+
+    %% Communication bidirectionnelle
+    ClineProvider <-->|postMessage| ExtStateContext
+
+    style GlobalState fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style SecretsStorage fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style ExtStateContext fill:#0066ff,stroke:#333,stroke-width:2px,color:#ffffff
+    style ClineProvider fill:#00cc66,stroke:#333,stroke-width:2px,color:#ffffff

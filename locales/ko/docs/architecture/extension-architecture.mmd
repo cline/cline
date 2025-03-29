@@ -1,0 +1,41 @@
+graph TB
+    subgraph VSCode 확장 호스트
+        subgraph 핵심 확장
+            ExtensionEntry[확장 진입점<br/>src/extension.ts]
+            ClineProvider[ClineProvider<br/>src/core/webview/ClineProvider.ts]
+            ClineClass[Cline 클래스<br/>src/core/Cline.ts]
+            GlobalState[VSCode 글로벌 상태]
+            SecretsStorage[VSCode 비밀 저장소]
+        end
+
+        subgraph 웹뷰 UI
+            WebviewApp[React 앱<br/>webview-ui/src/App.tsx]
+            ExtStateContext[확장 상태 컨텍스트<br/>webview-ui/src/context/ExtensionStateContext.tsx]
+            ReactComponents[React 컴포넌트]
+        end
+
+        subgraph 저장소
+            TaskStorage[작업 저장소<br/>작업별 파일 및 이력]
+            CheckpointSystem[Git 기반 체크포인트]
+        end
+    end
+
+    %% 핵심 확장 데이터 흐름
+    ExtensionEntry --> ClineProvider
+    ClineProvider --> ClineClass
+    ClineClass --> GlobalState
+    ClineClass --> SecretsStorage
+    ClineClass --> TaskStorage
+    ClineClass --> CheckpointSystem
+
+    %% 웹뷰 데이터 흐름
+    WebviewApp --> ExtStateContext
+    ExtStateContext --> ReactComponents
+
+    %% 양방향 통신
+    ClineProvider <-->|postMessage| ExtStateContext
+
+    style GlobalState fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style SecretsStorage fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style ExtStateContext fill:#0066ff,stroke:#333,stroke-width:2px,color:#ffffff
+    style ClineProvider fill:#00cc66,stroke:#333,stroke-width:2px,color:#ffffff
