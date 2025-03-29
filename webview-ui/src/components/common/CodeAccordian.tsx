@@ -17,12 +17,15 @@ interface CodeAccordianProps {
 }
 
 /*
-We need to remove leading non-alphanumeric characters from the path in order for our leading ellipses trick to work.
-^: Anchors the match to the start of the string.
-[^a-zA-Z0-9]+: Matches one or more characters that are not alphanumeric.
-The replace method removes these matched characters, effectively trimming the string up to the first alphanumeric character.
+We need to remove certain leading characters from the path in order for our leading ellipses trick to work.
+However, we want to preserve all language characters (including CJK, Cyrillic, etc.) and only remove specific
+punctuation that might interfere with the ellipsis display.
 */
-export const removeLeadingNonAlphanumeric = (path: string): string => path.replace(/^[^a-zA-Z0-9]+/, "")
+export const removeLeadingNonAlphanumeric = (path: string): string => {
+	// Only remove specific punctuation characters that might interfere with ellipsis display
+	// Keep all language characters (including CJK, Cyrillic, etc.) and numbers
+	return path.replace(/^[/\\:*?"<>|]+/, "")
+}
 
 const CodeAccordian = ({
 	code,
