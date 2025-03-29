@@ -103,11 +103,6 @@
 				"when": "cline.isDevMode"
 			},
 			{
-				"command": "cline.openDocumentation",
-				"title": "Documentation",
-				"icon": "$(book)"
-			},
-			{
 				"command": "cline.addToChat",
 				"title": "Add to Cline",
 				"category": "Cline"
@@ -146,18 +141,13 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.openDocumentation",
+					"command": "cline.accountButtonClicked",
 					"group": "navigation@5",
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
-					"group": "navigation@6",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
 					"command": "cline.settingsButtonClicked",
-					"group": "navigation@7",
+					"group": "navigation@6",
 					"when": "view == claude-dev.SidebarProvider"
 				}
 			],
@@ -183,18 +173,13 @@
 					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				},
 				{
-					"command": "cline.openDocumentation",
+					"command": "cline.accountButtonClicked",
 					"group": "navigation@5",
 					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
-					"group": "navigation@6",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
 					"command": "cline.settingsButtonClicked",
-					"group": "navigation@7",
+					"group": "navigation@6",
 					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				}
 			],
