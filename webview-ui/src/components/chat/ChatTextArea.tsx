@@ -28,7 +28,7 @@ interface ChatTextAreaProps {
 	inputValue: string
 	setInputValue: (value: string) => void
 	textAreaDisabled: boolean
-	placeholderText: string
+	placeholderText: string // 占位符文本
 	selectedImages: string[]
 	setSelectedImages: React.Dispatch<React.SetStateAction<string[]>>
 	onSend: () => void
@@ -37,7 +37,7 @@ interface ChatTextAreaProps {
 	onHeightChange?: (height: number) => void
 }
 
-const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)"
+const PLAN_MODE_COLOR = "var(--vscode-inputValidation-warningBorder)" // 计划模式颜色
 
 const SwitchOption = styled.div<{ isActive: boolean }>`
 	padding: 2px 8px;
@@ -1134,21 +1134,21 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<Tooltip
 						style={{ zIndex: 1000 }}
 						visible={shownTooltipMode !== null}
-						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
-						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>
+						tipText={`在${shownTooltipMode === "act" ? "执行" : "计划"}模式下，Cline将会${shownTooltipMode === "act" ? "立即完成任务" : "收集信息来制定计划"}`}
+						hintText={`切换模式快捷键 ${metaKeyChar}+Shift+A`}>
 						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
 							<Slider isAct={chatSettings.mode === "act"} isPlan={chatSettings.mode === "plan"} />
 							<SwitchOption
 								isActive={chatSettings.mode === "plan"}
 								onMouseOver={() => setShownTooltipMode("plan")}
 								onMouseLeave={() => setShownTooltipMode(null)}>
-								Plan
+								计划
 							</SwitchOption>
 							<SwitchOption
 								isActive={chatSettings.mode === "act"}
 								onMouseOver={() => setShownTooltipMode("act")}
 								onMouseLeave={() => setShownTooltipMode(null)}>
-								Act
+								执行
 							</SwitchOption>
 						</SwitchContainer>
 					</Tooltip>

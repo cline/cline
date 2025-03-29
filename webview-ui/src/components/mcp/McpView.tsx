@@ -63,8 +63,8 @@ const McpView = ({ onDone }: McpViewProps) => {
 					alignItems: "center",
 					padding: "10px 17px 5px 20px",
 				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>MCP Servers</h3>
-				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>MCP 服务器</h3>
+				<VSCodeButton onClick={onDone}>完成</VSCodeButton>
 			</div>
 
 			<div style={{ flex: 1, overflow: "auto" }}>
@@ -78,11 +78,11 @@ const McpView = ({ onDone }: McpViewProps) => {
 					}}>
 					{mcpMarketplaceEnabled && (
 						<TabButton isActive={activeTab === "marketplace"} onClick={() => handleTabChange("marketplace")}>
-							Marketplace
+							市场
 						</TabButton>
 					)}
 					<TabButton isActive={activeTab === "installed"} onClick={() => handleTabChange("installed")}>
-						Installed
+						已安装
 					</TabButton>
 				</div>
 
@@ -98,19 +98,17 @@ const McpView = ({ onDone }: McpViewProps) => {
 									marginBottom: "16px",
 									marginTop: "5px",
 								}}>
-								The{" "}
+								{" "}
 								<VSCodeLink href="https://github.com/modelcontextprotocol" style={{ display: "inline" }}>
-									Model Context Protocol
+									模型上下文协议
 								</VSCodeLink>{" "}
-								enables communication with locally running MCP servers that provide additional tools and resources
-								to extend Cline's capabilities. You can use{" "}
+								使Cline能够与本地运行的MCP服务器通信，这些服务器提供额外的工具和资源来扩展Cline的功能。您可以使用{" "}
 								<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
-									community-made servers
+									社区制作的服务器
 								</VSCodeLink>{" "}
-								or ask Cline to create new tools specific to your workflow (e.g., "add a tool that gets the latest
-								npm docs").{" "}
+								或要求Cline创建特定于您工作流程的新工具（例如，"添加一个获取最新npm文档的工具"）。{" "}
 								<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
-									See a demo here.
+									点击此处查看演示
 								</VSCodeLink>
 							</div>
 
@@ -136,7 +134,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 										marginBottom: 20,
 										color: "var(--vscode-descriptionForeground)",
 									}}>
-									No MCP servers installed
+									未安装MCP服务器
 								</div>
 							)}
 
@@ -149,7 +147,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 										vscode.postMessage({ type: "openMcpSettings" })
 									}}>
 									<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
-									Configure MCP Servers
+									配置MCP服务器
 								</VSCodeButton>
 
 								<div style={{ textAlign: "center" }}>
@@ -161,7 +159,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 											})
 										}}
 										style={{ fontSize: "12px" }}>
-										Advanced MCP Settings
+										高级MCP设置
 									</VSCodeLink>
 								</div>
 							</div>
@@ -483,7 +481,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 
 							<VSCodePanelView id="resources-view">
 								{(server.resources && server.resources.length > 0) ||
-								(server.resourceTemplates && server.resourceTemplates.length > 0) ? (
+									(server.resourceTemplates && server.resourceTemplates.length > 0) ? (
 									<div
 										style={{
 											display: "flex",

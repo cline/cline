@@ -131,7 +131,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 				}}
 			/>
 			<Label $isCheckedOut={isCheckpointCheckedOut}>
-				{isCheckpointCheckedOut ? "Checkpoint (restored)" : "Checkpoint"}
+				{isCheckpointCheckedOut ? "检查点（已恢复）" : "检查点"}
 			</Label>
 			<DottedLine $isCheckedOut={isCheckpointCheckedOut} />
 			<ButtonGroup>
@@ -146,7 +146,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 							number: messageTs,
 						})
 					}}>
-					Compare
+					对比
 				</CustomButton>
 				<DottedLine small $isCheckedOut={isCheckpointCheckedOut} />
 				<div ref={refs.setReference} style={{ position: "relative", marginTop: -2 }}>
@@ -154,7 +154,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 						$isCheckedOut={isCheckpointCheckedOut}
 						isActive={showRestoreConfirm}
 						onClick={() => setShowRestoreConfirm(true)}>
-						Restore
+						恢复
 					</CustomButton>
 					{showRestoreConfirm &&
 						createPortal(
@@ -173,11 +173,10 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 											width: "100%",
 											marginBottom: "10px",
 										}}>
-										Restore Files
+										恢复文件
 									</VSCodeButton>
 									<p>
-										Restores your project's files back to a snapshot taken at this point (use "Compare" to see
-										what will be reverted)
+										将项目文件恢复到此时的快照（使用"对比
 									</p>
 								</RestoreOption>
 								<RestoreOption>
@@ -189,9 +188,9 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 											width: "100%",
 											marginBottom: "10px",
 										}}>
-										Restore Task Only
+										仅恢复任务
 									</VSCodeButton>
-									<p>Deletes messages after this point (does not affect workspace files)</p>
+									<p>删除此时间点之后的消息（不影响工作区文件）</p>
 								</RestoreOption>
 								<RestoreOption>
 									<VSCodeButton
@@ -202,9 +201,9 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 											width: "100%",
 											marginBottom: "10px",
 										}}>
-										Restore Files & Task
+										恢复文件与任务
 									</VSCodeButton>
-									<p>Restores your project's files and deletes all messages after this point</p>
+									<p>恢复项目文件并删除此时间点之后的所有消息</p>
 								</RestoreOption>
 							</RestoreConfirmTooltip>,
 							document.body,
@@ -286,9 +285,9 @@ const CustomButton = styled.button<{ disabled?: boolean; isActive?: boolean; $is
 		bottom: 0;
 		border-radius: 1px;
 		background-image: ${(props) =>
-			props.isActive || props.disabled
-				? "none"
-				: `linear-gradient(to right, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%),
+		props.isActive || props.disabled
+			? "none"
+			: `linear-gradient(to right, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%),
 			linear-gradient(to bottom, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%),
 			linear-gradient(to right, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%),
 			linear-gradient(to bottom, ${props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"} 50%, transparent 50%)`};
@@ -303,7 +302,7 @@ const CustomButton = styled.button<{ disabled?: boolean; isActive?: boolean; $is
 
 	&:hover:not(:disabled) {
 		background: ${(props) =>
-			props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"};
+		props.$isCheckedOut ? "var(--vscode-textLink-foreground)" : "var(--vscode-descriptionForeground)"};
 		color: var(--vscode-editor-background);
 		&::before {
 			display: none;
@@ -392,3 +391,5 @@ const RestoreConfirmTooltip = styled.div`
 		word-wrap: break-word;
 	}
 `
+
+

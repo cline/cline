@@ -41,7 +41,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.plusButtonClicked", async () => {
+		vscode.commands.registerCommand("cline-cn.plusButtonClicked", async () => {
 			Logger.log("Plus button Clicked")
 			const visibleProvider = ClineProvider.getVisibleInstance()
 			if (!visibleProvider) {
@@ -59,7 +59,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.mcpButtonClicked", () => {
+		vscode.commands.registerCommand("cline-cn.mcpButtonClicked", () => {
 			const visibleProvider = ClineProvider.getVisibleInstance()
 			if (!visibleProvider) {
 				Logger.log("Cannot find any visible Cline instances.")
@@ -106,11 +106,11 @@ export function activate(context: vscode.ExtensionContext) {
 		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
 	}
 
-	context.subscriptions.push(vscode.commands.registerCommand("cline.popoutButtonClicked", openClineInNewTab))
-	context.subscriptions.push(vscode.commands.registerCommand("cline.openInNewTab", openClineInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand("cline-cn.popoutButtonClicked", openClineInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand("cline-cn.openInNewTab", openClineInNewTab))
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.settingsButtonClicked", () => {
+		vscode.commands.registerCommand("cline-cn.settingsButtonClicked", () => {
 			//vscode.window.showInformationMessage(message)
 			const visibleClineProvider = ClineProvider.getVisibleInstance()
 			if (!visibleClineProvider) {
@@ -126,7 +126,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.historyButtonClicked", () => {
+		vscode.commands.registerCommand("cline-cn.historyButtonClicked", () => {
 			const visibleProvider = ClineProvider.getVisibleInstance()
 			if (!visibleProvider) {
 				Logger.log("Cannot find any visible Cline instances.")
@@ -141,7 +141,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.accountButtonClicked", () => {
+		vscode.commands.registerCommand("cline-cn.accountButtonClicked", () => {
 			const visibleProvider = ClineProvider.getVisibleInstance()
 			if (!visibleProvider) {
 				Logger.log("Cannot find any visible Cline instances.")
@@ -156,7 +156,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.openDocumentation", () => {
+		vscode.commands.registerCommand("cline-cn.openDocumentation", () => {
 			vscode.env.openExternal(vscode.Uri.parse("https://docs.cline.bot/"))
 		}),
 	)
@@ -240,7 +240,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.addToChat", async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
+		vscode.commands.registerCommand("cline-cn.addToChat", async (range?: vscode.Range, diagnostics?: vscode.Diagnostic[]) => {
 			const editor = vscode.window.activeTextEditor
 			if (!editor) {
 				return
@@ -270,7 +270,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.addTerminalOutputToChat", async () => {
+		vscode.commands.registerCommand("cline-cn.addTerminalOutputToChat", async () => {
 			const terminal = vscode.window.activeTerminal
 			if (!terminal) {
 				return
@@ -341,14 +341,14 @@ export function activate(context: vscode.ExtensionContext) {
 
 					const addAction = new vscode.CodeAction("Add to Cline", vscode.CodeActionKind.QuickFix)
 					addAction.command = {
-						command: "cline.addToChat",
+						command: "cline-cn.addToChat",
 						title: "Add to Cline",
 						arguments: [expandedRange, context.diagnostics],
 					}
 
 					const fixAction = new vscode.CodeAction("Fix with Cline", vscode.CodeActionKind.QuickFix)
 					fixAction.command = {
-						command: "cline.fixWithCline",
+						command: "cline-cn.fixWithCline",
 						title: "Fix with Cline",
 						arguments: [expandedRange, context.diagnostics],
 					}
@@ -369,7 +369,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Register the command handler
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.fixWithCline", async (range: vscode.Range, diagnostics: any[]) => {
+		vscode.commands.registerCommand("cline-cn.fixWithCline", async (range: vscode.Range, diagnostics: any[]) => {
 			const editor = vscode.window.activeTextEditor
 			if (!editor) {
 				return

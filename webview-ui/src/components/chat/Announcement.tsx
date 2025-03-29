@@ -4,7 +4,7 @@ import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND
 import { vscode } from "../../utils/vscode"
 
 interface AnnouncementProps {
-	version: string
+	version: string //
 	hideAnnouncement: () => void
 }
 
@@ -27,24 +27,21 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<span className="codicon codicon-close"></span>
 			</VSCodeButton>
 			<h3 style={{ margin: "0 0 8px" }}>
-				🎉{"  "}New in v{minorVersion}
+				🎉{"  "}盛世中华——新版来袭 v{minorVersion}
 			</h3>
 			<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				<li>
-					<b>Add to Cline:</b> Right-click selected text in any file or terminal to quickly add context to your current
-					task! Plus, when you see a lightbulb icon, select 'Fix with Cline' to have Cline fix errors in your code.
+					<b>添加到Cline:</b> 在任何文件或终端中右键点击选中的文本，快速将其添加为当前任务的上下文！此外，当你看到灯泡图标时，选择'用Cline修复'可以让Cline修复代码中的错误。
 				</li>
 				<li>
-					<b>Billing Dashboard:</b> Track your remaining credits and transaction history right in the extension with a{" "}
-					<span className="codicon codicon-account" style={{ fontSize: 11 }}></span> Cline account!
+					<b>账单仪表盘:</b> 在扩展中直接跟踪剩余积分和交易历史，使用{" "}
+					<span className="codicon codicon-account" style={{ fontSize: 11 }}></span> Cline账户！
 				</li>
 				<li>
-					<b>Faster Inference:</b> Cline/OpenRouter users can sort underlying providers used by throughput, price, and
-					latency. Sorting by throughput will output faster generations (at a higher cost).
+					<b>更快的推理:</b> Cline/OpenRouter用户可以根据吞吐量、价格和延迟对底层提供商进行排序。按吞吐量排序将获得更快的生成速度(但成本更高)。
 				</li>
 				<li>
-					<b>Enhanced MCP Support:</b> Dynamic image loading with GIF support, and a new delete button to clean up
-					failed servers.
+					<b>增强的MCP支持:</b> 支持动态图像加载和GIF，新增删除按钮可清理失败的服务器。
 				</li>
 			</ul>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
@@ -103,18 +100,19 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				}}
 			/>
 			<p style={{ margin: "0" }}>
-				Join us on{" "}
-				<VSCodeLink style={{ display: "inline" }} href="https://x.com/cline">
-					X,
+				加入我们{" "}
+				<VSCodeLink style={{ display: "inline" }} href="https://github.com/dxdw2021/cline">
+					盛世中华 Cline 中文版本,
 				</VSCodeLink>{" "}
-				<VSCodeLink style={{ display: "inline" }} href="https://discord.gg/cline">
-					discord,
+				<VSCodeLink style={{ display: "inline" }} href="https://github.com/dxdw2021/cline">
+					盛世中华 Cline 中文版本,
 				</VSCodeLink>{" "}
-				or{" "}
-				<VSCodeLink style={{ display: "inline" }} href="https://www.reddit.com/r/cline/">
-					r/cline
+				和{" "}
+				<VSCodeLink style={{ display: "inline" }} href="https://github.com/dxdw2021/cline">
+					盛世中华 Cline 中文版本
 				</VSCodeLink>
-				for more updates!
+				获取更多更新！
+
 			</p>
 		</div>
 	)

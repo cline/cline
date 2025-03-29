@@ -87,16 +87,16 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 	// validate as soon as the component is mounted
 	/*
-    useEffect will use stale values of variables if they are not included in the dependency array. 
-    so trying to use useEffect with a dependency array of only one value for example will use any 
-    other variables' old values. In most cases you don't want this, and should opt to use react-use 
-    hooks.
+	useEffect will use stale values of variables if they are not included in the dependency array. 
+	so trying to use useEffect with a dependency array of only one value for example will use any 
+	other variables' old values. In most cases you don't want this, and should opt to use react-use 
+	hooks.
     
-        // uses someVar and anotherVar
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [someVar])
+		// uses someVar and anotherVar
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [someVar])
 	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
-    */
+	*/
 
 	const handleMessage = useCallback(
 		(event: MessageEvent) => {
@@ -153,8 +153,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					marginBottom: "13px",
 					paddingRight: 17,
 				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
-				<VSCodeButton onClick={() => handleSubmit(false)}>Done</VSCodeButton>
+				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>设置</h3>
+				<VSCodeButton onClick={() => handleSubmit(false)}>完成</VSCodeButton>
 			</div>
 			<div
 				style={{
@@ -183,10 +183,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								borderBottom: "1px solid var(--vscode-panel-border)",
 							}}>
 							<TabButton isActive={chatSettings.mode === "plan"} onClick={() => handleTabChange("plan")}>
-								Plan Mode
+								计划模式
 							</TabButton>
 							<TabButton isActive={chatSettings.mode === "act"} onClick={() => handleTabChange("act")}>
-								Act Mode
+								执行模式
 							</TabButton>
 						</div>
 
@@ -215,17 +215,16 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						style={{ width: "100%" }}
 						resize="vertical"
 						rows={4}
-						placeholder={'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'}
+						placeholder={'示例："最后执行单元测试"、"TS异步写法"、"中文语模式" \n -用中文交流-只使用替换文件工具进行修改\n-修改后自动运行调试\n-自动执行所有终端命令，无需人工干预.\n 英文: \n-Communicate in Chinese-Only use replace_in_file tool for modification\n-Automatically run debugging after modification\n-Automatically execute all terminal commands without human intervention'}
 						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
-						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
+						<span style={{ fontWeight: "500" }}>自定义指令</span>
 					</VSCodeTextArea>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						These instructions are added to the end of the system prompt sent with every request.
+					<p style={{
+						fontSize: "12px",
+						marginTop: "5px",
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+						这些指令会附加到发送给模型的系统提示末尾。
 					</p>
 				</div>
 
@@ -237,16 +236,15 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							const checked = e.target.checked === true
 							setPlanActSeparateModelsSetting(checked)
 						}}>
-						Use different models for Plan and Act modes
+						为计划和执行模式使用不同模型
 					</VSCodeCheckbox>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be
-						helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on.
+					<p style={{
+						fontSize: "12px",
+						marginTop: "5px",
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+						切换模式时将保留之前使用的API和模型配置。例如：使用推理能力强的模型制定计划，
+						再用更经济的编码模型执行任务。
 					</p>
 				</div>
 
@@ -258,32 +256,28 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							const checked = e.target.checked === true
 							setTelemetrySetting(checked ? "enabled" : "disabled")
 						}}>
-						Allow anonymous error and usage reporting
+						允许匿名错误和使用情况统计
 					</VSCodeCheckbox>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						Help improve Cline by sending anonymous usage data and error reports. No code, prompts, or personal
-						information are ever sent. See our{" "}
+					<p style={{
+						fontSize: "12px",
+						marginTop: "5px",
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+						通过发送匿名数据帮助改进Cline，不会收集代码、提示词或个人信息。详见{" "}
 						<VSCodeLink href="https://docs.cline.bot/more-info/telemetry" style={{ fontSize: "inherit" }}>
-							telemetry overview
-						</VSCodeLink>{" "}
-						and{" "}
+							遥测说明
+						</VSCodeLink>{" "}和{" "}
 						<VSCodeLink href="https://cline.bot/privacy" style={{ fontSize: "inherit" }}>
-							privacy policy
-						</VSCodeLink>{" "}
-						for more details.
+							隐私政策
+						</VSCodeLink>。
 					</p>
 				</div>
 
 				{IS_DEV && (
 					<>
-						<div style={{ marginTop: "10px", marginBottom: "4px" }}>Debug</div>
+						<div style={{ marginTop: "10px", marginBottom: "4px" }}>调试</div>
 						<VSCodeButton onClick={handleResetState} style={{ marginTop: "5px", width: "auto" }}>
-							Reset State
+							重置状态
 						</VSCodeButton>
 						<p
 							style={{
@@ -291,7 +285,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 								marginTop: "5px",
 								color: "var(--vscode-descriptionForeground)",
 							}}>
-							This will reset all global state and secret storage in the extension.
+							这将重置扩展中的所有全局状态和秘密存储。
 						</p>
 					</>
 				)}
@@ -309,7 +303,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							margin: "0 0 16px 0",
 						}}>
 						<i className="codicon codicon-settings-gear" />
-						Advanced Settings
+						高级设置
 					</SettingsButton>
 				</div>
 				<div
@@ -326,7 +320,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							margin: 0,
 							padding: 0,
 						}}>
-						If you have any questions or feedback, feel free to open an issue at{" "}
+						如果您有任何问题或反馈，请随时在{" "}
 						<VSCodeLink href="https://github.com/cline/cline" style={{ display: "inline" }}>
 							https://github.com/cline/cline
 						</VSCodeLink>

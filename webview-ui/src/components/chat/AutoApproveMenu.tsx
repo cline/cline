@@ -16,38 +16,38 @@ const ACTION_METADATA: {
 	shortName: string
 	description: string
 }[] = [
-	{
-		id: "readFiles",
-		label: "Read files and directories",
-		shortName: "Read",
-		description: "Allows access to read any file on your computer.",
-	},
-	{
-		id: "editFiles",
-		label: "Edit files",
-		shortName: "Edit",
-		description: "Allows modification of any files on your computer.",
-	},
-	{
-		id: "executeCommands",
-		label: "Execute safe commands",
-		shortName: "Commands",
-		description:
-			"Allows execution of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
-	},
-	{
-		id: "useBrowser",
-		label: "Use the browser",
-		shortName: "Browser",
-		description: "Allows ability to launch and interact with any website in a headless browser.",
-	},
-	{
-		id: "useMcp",
-		label: "Use MCP servers",
-		shortName: "MCP",
-		description: "Allows use of configured MCP servers which may modify filesystem or interact with APIs.",
-	},
-]
+		{
+			id: "readFiles",
+			label: "读取文件和目录",
+			shortName: "读取",
+			description: "允许访问读取您电脑上的任何文件。",
+		},
+		{
+			id: "editFiles",
+			label: "编辑文件",
+			shortName: "编辑",
+			description: "允许修改您电脑上的任何文件。",
+		},
+		{
+			id: "executeCommands",
+			label: "执行安全命令",
+			shortName: "命令",
+			description:
+				"允许执行安全的终端命令。如果模型认为命令可能具有破坏性，仍需要批准。",
+		},
+		{
+			id: "useBrowser",
+			label: "使用浏览器",
+			shortName: "浏览器",
+			description: "允许在无头浏览器中启动并与任何网站交互。",
+		},
+		{
+			id: "useMcp",
+			label: "使用MCP服务器",
+			shortName: "MCP",
+			description: "允许使用配置的MCP服务器，这些服务器可能会修改文件系统或与API交互。",
+		},
+	]
 
 const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const { autoApprovalSettings } = useExtensionState()
@@ -190,7 +190,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							color: getAsVar(VSC_FOREGROUND),
 							whiteSpace: "nowrap",
 						}}>
-						Auto-approve:
+						自动批准：
 					</span>
 					<span
 						style={{
@@ -217,9 +217,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 							fontSize: "12px",
 						}}>
-						Auto-approve allows Cline to perform the following actions without asking for permission. Please use with
-						caution and only enable if you understand the risks.
-					</div>
+						自动批准允许 Cline 在不询问的情况下执行以下操作。请谨慎使用，并确保您了解相关风险。</div>
 					{ACTION_METADATA.map((action) => (
 						<div key={action.id} style={{ margin: "6px 0" }}>
 							<VSCodeCheckbox
@@ -257,7 +255,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							marginBottom: "8px",
 							color: getAsVar(VSC_FOREGROUND),
 						}}>
-						<span style={{ flexShrink: 1, minWidth: 0 }}>Max Requests:</span>
+						<span style={{ flexShrink: 1, minWidth: 0 }}>最大请求数：</span>
 						<VSCodeTextField
 							// placeholder={DEFAULT_AUTO_APPROVAL_SETTINGS.maxRequests.toString()}
 							value={autoApprovalSettings.maxRequests.toString()}
@@ -285,7 +283,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							fontSize: "12px",
 							marginBottom: "10px",
 						}}>
-						Cline will automatically make this many API requests before asking for approval to proceed with the task.
+						在达到此数量的API请求后，Cline将会请求您的批准以继续执行任务。
 					</div>
 					<div style={{ margin: "6px 0" }}>
 						<VSCodeCheckbox
@@ -294,7 +292,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								const checked = (e.target as HTMLInputElement).checked
 								updateNotifications(checked)
 							}}>
-							Enable Notifications
+							启用通知
 						</VSCodeCheckbox>
 						<div
 							style={{
@@ -302,7 +300,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 								fontSize: "12px",
 							}}>
-							Receive system notifications when Cline requires approval to proceed or when a task is completed.
+							当 Cline 需要您的批准或任务完成时，您将收到系统通知。
 						</div>
 					</div>
 				</div>

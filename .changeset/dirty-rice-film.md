@@ -1,5 +1,5 @@
 ---
-"claude-dev": minor
+"cline-cn": minor
 ---
 
 added telemetry to track replace_in_file tool failures

@@ -1,7 +1,7 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline",
-	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
+	"name": "cline-cn",
+	"displayName": "Cline Chinese [中文版-3.8.4]",
+	"description": "IDE中的自主编程助手，能够在您的许可下创建/编辑文件、运行命令、使用浏览器等功能，逐步完成各项任务。",
 	"version": "3.8.4",
 	"icon": "assets/icons/icon.png",
 	"engines": {
@@ -45,177 +45,177 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "claude-dev-ActivityBar",
-					"title": "Cline",
+					"id": "cline-cn-ActivityBar",
+					"title": "Cline Chinese [中文版-3.8.4]",
 					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
 		"views": {
-			"claude-dev-ActivityBar": [
+			"cline-cn-ActivityBar": [
 				{
 					"type": "webview",
-					"id": "claude-dev.SidebarProvider",
+					"id": "cline-cn.SidebarProvider",
 					"name": ""
 				}
 			]
 		},
 		"commands": [
 			{
-				"command": "cline.plusButtonClicked",
-				"title": "New Task",
+				"command": "cline-cn.plusButtonClicked",
+				"title": "新建任务",
 				"icon": "$(add)"
 			},
 			{
-				"command": "cline.mcpButtonClicked",
-				"title": "MCP Servers",
+				"command": "cline-cn.mcpButtonClicked",
+				"title": "MCP服务器",
 				"icon": "$(server)"
 			},
 			{
-				"command": "cline.historyButtonClicked",
-				"title": "History",
+				"command": "cline-cn.historyButtonClicked",
+				"title": "历史记录",
 				"icon": "$(history)"
 			},
 			{
-				"command": "cline.popoutButtonClicked",
-				"title": "Open in Editor",
+				"command": "cline-cn.popoutButtonClicked",
+				"title": "在编辑器中打开",
 				"icon": "$(link-external)"
 			},
 			{
-				"command": "cline.accountButtonClicked",
-				"title": "Account",
+				"command": "cline-cn.accountButtonClicked",
+				"title": "账户",
 				"icon": "$(account)"
 			},
 			{
-				"command": "cline.settingsButtonClicked",
-				"title": "Settings",
+				"command": "cline-cn.settingsButtonClicked",
+				"title": "设置",
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "cline.openInNewTab",
-				"title": "Open In New Tab",
+				"command": "cline-cn.openInNewTab",
+				"title": "在新标签页打开",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.dev.createTestTasks",
-				"title": "Create Test Tasks",
+				"command": "cline-cn.dev.createTestTasks",
+				"title": "创建测试任务",
 				"category": "Cline",
 				"when": "cline.isDevMode"
 			},
 			{
-				"command": "cline.openDocumentation",
-				"title": "Documentation",
+				"command": "cline-cn.openDocumentation",
+				"title": "文档",
 				"icon": "$(book)"
 			},
 			{
-				"command": "cline.addToChat",
-				"title": "Add to Cline",
+				"command": "cline-cn.addToChat",
+				"title": "添加到Cline",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.addTerminalOutputToChat",
-				"title": "Add to Cline",
+				"command": "cline-cn.addTerminalOutputToChat",
+				"title": "添加到Cline",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.fixWithCline",
-				"title": "Fix with Cline",
+				"command": "cline-cn.fixWithCline",
+				"title": "用Cline修复",
 				"category": "Cline"
 			}
 		],
 		"menus": {
 			"view/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "cline-cn.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-cn.SidebarProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "cline-cn.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-cn.SidebarProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "cline-cn.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-cn.SidebarProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
+					"command": "cline-cn.popoutButtonClicked",
 					"group": "navigation@4",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-cn.SidebarProvider"
 				},
 				{
-					"command": "cline.openDocumentation",
+					"command": "cline-cn.openDocumentation",
 					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-cn.SidebarProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "cline-cn.accountButtonClicked",
 					"group": "navigation@6",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-cn.SidebarProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "cline-cn.settingsButtonClicked",
 					"group": "navigation@7",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == cline-cn.SidebarProvider"
 				}
 			],
 			"editor/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "cline-cn.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == cline-cn.TabPanelProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "cline-cn.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == cline-cn.TabPanelProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "cline-cn.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == cline-cn.TabPanelProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
+					"command": "cline-cn.popoutButtonClicked",
 					"group": "navigation@4",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == cline-cn.TabPanelProvider"
 				},
 				{
-					"command": "cline.openDocumentation",
+					"command": "cline-cn.openDocumentation",
 					"group": "navigation@5",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == cline-cn.TabPanelProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
+					"command": "cline-cn.accountButtonClicked",
 					"group": "navigation@6",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == cline-cn.TabPanelProvider"
 				},
 				{
-					"command": "cline.settingsButtonClicked",
+					"command": "cline-cn.settingsButtonClicked",
 					"group": "navigation@7",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+					"when": "activeWebviewPanelId == cline-cn.TabPanelProvider"
 				}
 			],
 			"editor/context": [
 				{
-					"command": "cline.addToChat",
+					"command": "cline-cn.addToChat",
 					"group": "navigation",
 					"when": "editorHasSelection"
 				}
 			],
 			"terminal/context": [
 				{
-					"command": "cline.addTerminalOutputToChat",
+					"command": "cline-cn.addTerminalOutputToChat",
 					"group": "navigation"
 				}
 			]
 		},
 		"configuration": {
-			"title": "Cline",
+			"title": "Cline Chinese [中文版-3.8.4]",
 			"properties": {
-				"cline.vsCodeLmModelSelector": {
+				"cline-cn.vsCodeLmModelSelector": {
 					"type": "object",
 					"properties": {
 						"vendor": {
@@ -227,9 +227,9 @@
 							"description": "The family of the language model (e.g. gpt-4)"
 						}
 					},
-					"description": "Settings for VSCode Language Model API"
+					"description": "VSCode语言模型API设置"
 				},
-				"cline.mcp.mode": {
+				"cline-cn.mcp.mode": {
 					"type": "string",
 					"enum": [
 						"full",
@@ -242,19 +242,19 @@
 						"Disable all MCP functionality"
 					],
 					"default": "full",
-					"description": "Controls MCP inclusion in prompts, reduces token usage if you only need access to certain functionality."
+					"description": "控制MCP在提示中的包含情况，如果只需要访问特定功能，可以减少令牌使用量。"
 				},
-				"cline.enableCheckpoints": {
+				"cline-cn.enableCheckpoints": {
 					"type": "boolean",
 					"default": true,
-					"description": "Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which may not work well with large workspaces."
+					"description": "启用扩展在任务过程中保存工作区检查点。使用git实现，可能不适用于大型工作区。"
 				},
-				"cline.disableBrowserTool": {
+				"cline-cn.disableBrowserTool": {
 					"type": "boolean",
 					"default": false,
-					"description": "Disables extension from spawning browser session."
+					"description": "禁用扩展启动浏览器会话。"
 				},
-				"cline.modelSettings.o3Mini.reasoningEffort": {
+				"cline-cn.modelSettings.o3Mini.reasoningEffort": {
 					"type": "string",
 					"enum": [
 						"low",
@@ -262,14 +262,14 @@
 						"high"
 					],
 					"default": "medium",
-					"description": "Controls the reasoning effort when using the o3-mini model. Higher values may result in more thorough but slower responses."
+					"description": "控制使用o3-mini模型时的推理力度。较高的值可能导致更彻底但更慢的响应。"
 				},
-				"cline.chromeExecutablePath": {
+				"cline-cn.chromeExecutablePath": {
 					"type": "string",
 					"default": null,
-					"description": "Path to Chrome executable for browser use functionality. If not set, the extension will attempt to find or download it automatically."
+					"description": "用于浏览器功能的Chrome可执行文件路径。如果未设置，扩展将尝试自动查找或下载。"
 				},
-				"cline.preferredLanguage": {
+				"cline-cn.preferredLanguage": {
 					"type": "string",
 					"enum": [
 						"English",
@@ -292,12 +292,12 @@
 						"Turkish - Türkçe"
 					],
 					"default": "English",
-					"description": "The language that Cline should use for communication."
+					"description": "Cline应使用的通信语言。"
 				},
-				"cline.mcpMarketplace.enabled": {
+				"cline-cn.mcpMarketplace.enabled": {
 					"type": "boolean",
 					"default": true,
-					"description": "Controls whether the MCP Marketplace is enabled."
+					"description": "控制是否启用MCP市场。"
 				}
 			}
 		}

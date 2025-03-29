@@ -243,17 +243,17 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						color: "var(--vscode-descriptionForeground)",
 					}}>
 					<>
-						The extension automatically fetches the latest list of models available on{" "}
+						本扩展会自动获取{" "}
 						<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://openrouter.ai/models">
-							OpenRouter.
-						</VSCodeLink>
-						If you're unsure which model to choose, Cline works best with{" "}
+							OpenRouter
+						</VSCodeLink>{" "}上最新的模型列表。
+						如果您不确定选择哪个模型，Cline最适配{" "}
 						<VSCodeLink
 							style={{ display: "inline", fontSize: "inherit" }}
 							onClick={() => handleModelChange("anthropic/claude-3.7-sonnet")}>
-							anthropic/claude-3.7-sonnet.
-						</VSCodeLink>
-						You can also try searching "free" for no-cost options currently available.
+							anthropic/claude-3.7-sonnet
+						</VSCodeLink>{" "}模型。
+						您也可以尝试搜索"free"来查找当前可用的免费选项。
 					</>
 				</p>
 			)}

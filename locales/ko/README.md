@@ -8,7 +8,7 @@
 <table>
 <tbody>
 <td align="center">
-<a href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev" target="_blank"><strong>VS Marketplace에서 다운로드</strong></a>
+<a href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.cline-cn" target="_blank"><strong>VS Marketplace에서 다운로드</strong></a>
 </td>
 <td align="center">
 <a href="https://discord.gg/cline" target="_blank"><strong>Discord</strong></a>

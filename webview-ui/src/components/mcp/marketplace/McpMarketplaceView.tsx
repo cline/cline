@@ -124,7 +124,7 @@ const McpMarketplaceView = () => {
 				<div style={{ color: "var(--vscode-errorForeground)" }}>{error}</div>
 				<VSCodeButton appearance="secondary" onClick={() => fetchMarketplace(true)}>
 					<span className="codicon codicon-refresh" style={{ marginRight: "6px" }} />
-					Retry
+					重试
 				</VSCodeButton>
 			</div>
 		)
@@ -141,7 +141,7 @@ const McpMarketplaceView = () => {
 				{/* Search row */}
 				<VSCodeTextField
 					style={{ width: "100%" }}
-					placeholder="Search MCPs..."
+					placeholder="搜索MCP服务器..."
 					value={searchQuery}
 					onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}>
 					<div
@@ -155,7 +155,7 @@ const McpMarketplaceView = () => {
 					{searchQuery && (
 						<div
 							className="codicon codicon-close"
-							aria-label="Clear search"
+							aria-label="清除搜索"
 							onClick={() => setSearchQuery("")}
 							slot="end"
 							style={{
@@ -184,7 +184,7 @@ const McpMarketplaceView = () => {
 							fontWeight: 500,
 							flexShrink: 0,
 						}}>
-						Filter:
+						筛选：
 					</span>
 					<div
 						style={{
@@ -222,7 +222,7 @@ const McpMarketplaceView = () => {
 							fontWeight: 500,
 							marginTop: "3px",
 						}}>
-						Sort:
+						排序：
 					</span>
 					<VSCodeRadioGroup
 						style={{
@@ -233,9 +233,9 @@ const McpMarketplaceView = () => {
 						value={sortBy}
 						onChange={(e) => setSortBy((e.target as HTMLInputElement).value as typeof sortBy)}>
 						{/* <VSCodeRadio value="downloadCount">Most Installs</VSCodeRadio> */}
-						<VSCodeRadio value="newest">Newest</VSCodeRadio>
-						<VSCodeRadio value="stars">GitHub Stars</VSCodeRadio>
-						<VSCodeRadio value="name">Name</VSCodeRadio>
+						<VSCodeRadio value="newest">最新</VSCodeRadio>
+						<VSCodeRadio value="stars">GitHub 星标</VSCodeRadio>
+						<VSCodeRadio value="name">名称</VSCodeRadio>
 					</VSCodeRadioGroup>
 				</div>
 			</div>

@@ -111,9 +111,9 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 							style={{ marginBottom: "8px", marginTop: -1 }}
 							checked={browserSettings.headless}
 							onChange={(e) => updateHeadless((e.target as HTMLInputElement).checked)}>
-							Run in headless mode
+							后台运行模式
 						</VSCodeCheckbox>
-						<SettingsDescription>When enabled, Chrome will run in the background.</SettingsDescription>
+						<SettingsDescription>启用后，Chrome 将在后台运行。</SettingsDescription>
 					</SettingsGroup>
 
 					{/* <SettingsGroup>
@@ -149,7 +149,7 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 					</SettingsGroup> */}
 
 					<SettingsGroup>
-						<SettingsHeader>Viewport Size</SettingsHeader>
+						<SettingsHeader>视口大小</SettingsHeader>
 						<VSCodeDropdown
 							style={{ width: "100%" }}
 							value={

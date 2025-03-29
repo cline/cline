@@ -16,8 +16,8 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 	return (
 		<div className="fixed inset-0 flex flex-col overflow-hidden pt-[10px] pl-[20px]">
 			<div className="flex justify-between items-center mb-[17px] pr-[17px]">
-				<h3 className="text-[var(--vscode-foreground)] m-0">Account</h3>
-				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+				<h3 className="text-[var(--vscode-foreground)] m-0">账户</h3>
+				<VSCodeButton onClick={onDone}>完成</VSCodeButton>
 			</div>
 			<div className="flex-grow overflow-hidden pr-[8px] flex flex-col">
 				<div className="h-full mb-[5px]">
@@ -103,22 +103,22 @@ export const ClineAccountView = () => {
 					<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 						<div className="w-full min-[225px]:w-1/2">
 							<VSCodeButtonLink href="https://app.cline.bot/credits" appearance="primary" className="w-full">
-								Dashboard
+								仪表盘
 							</VSCodeButtonLink>
 						</div>
 						<VSCodeButton appearance="secondary" onClick={handleLogout} className="w-full min-[225px]:w-1/2">
-							Log out
+							登出
 						</VSCodeButton>
 					</div>
 
 					<VSCodeDivider className="w-full my-6" />
 
 					<div className="w-full flex flex-col items-center">
-						<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3">CURRENT BALANCE</div>
+						<div className="text-sm text-[var(--vscode-descriptionForeground)] mb-3">当前余额</div>
 
 						<div className="text-4xl font-bold text-[var(--vscode-foreground)] mb-6 flex items-center gap-2">
 							{isLoading ? (
-								<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
+								<div className="text-[var(--vscode-descriptionForeground)]">加载中...</div>
 							) : (
 								<>
 									<span>$</span>
@@ -135,7 +135,7 @@ export const ClineAccountView = () => {
 
 						<div className="w-full">
 							<VSCodeButtonLink href="https://app.cline.bot/credits/#buy" className="w-full">
-								Add Credits
+								添加积分
 							</VSCodeButtonLink>
 						</div>
 					</div>
@@ -151,12 +151,11 @@ export const ClineAccountView = () => {
 					<ClineLogoWhite className="size-16 mb-4" />
 
 					<p style={{}}>
-						Sign up for an account to get access to the latest models, billing dashboard to view usage and credits,
-						and more upcoming features.
+						注册账号即可访问最新模型、查看使用情况和积分的账单仪表盘，以及更多即将推出的功能。
 					</p>
 
 					<VSCodeButton onClick={handleLogin} className="w-full mb-4">
-						Sign up with Cline
+						注册Cline账号
 					</VSCodeButton>
 
 					<p className="text-[var(--vscode-descriptionForeground)] text-xs text-center m-0">

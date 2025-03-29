@@ -116,8 +116,8 @@ type GlobalStateKey =
 	| "planActSeparateModelsSetting"
 
 export class ClineProvider implements vscode.WebviewViewProvider {
-	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
-	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
+	public static readonly sideBarId = "cline-cn.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
+	public static readonly tabPanelId = "cline-cn.TabPanelProvider"
 	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
@@ -718,7 +718,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const uriScheme = vscode.env.uriScheme
 
 						const authUrl = vscode.Uri.parse(
-							`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`,
+							`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.cline-cn/auth`)}`,
 						)
 						vscode.env.openExternal(authUrl)
 						break
@@ -887,7 +887,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const settingsFilter = message.text || ""
 						await vscode.commands.executeCommand(
 							"workbench.action.openSettings",
-							`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
+							`@ext:saoudrizwan.cline-cn ${settingsFilter}`.trim(), // trim whitespace if no settings filter
 						)
 						break
 					}
@@ -1773,7 +1773,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	// 'Add to Cline' context menu in editor and code action
 	async addSelectedCodeToChat(code: string, filePath: string, languageId: string, diagnostics?: vscode.Diagnostic[]) {
 		// Ensure the sidebar view is visible
-		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await vscode.commands.executeCommand("cline-cn.SidebarProvider.focus")
 		await setTimeoutPromise(100)
 
 		// Post message to webview with the selected code
@@ -1796,7 +1796,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	// 'Add to Cline' context menu in Terminal
 	async addSelectedTerminalOutputToChat(output: string, terminalName: string) {
 		// Ensure the sidebar view is visible
-		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await vscode.commands.executeCommand("cline-cn.SidebarProvider.focus")
 		await setTimeoutPromise(100)
 
 		// Post message to webview with the selected terminal output
@@ -1817,7 +1817,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	// 'Fix with Cline' in code actions
 	async fixWithCline(code: string, filePath: string, languageId: string, diagnostics: vscode.Diagnostic[]) {
 		// Ensure the sidebar view is visible
-		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+		await vscode.commands.executeCommand("cline-cn.SidebarProvider.focus")
 		await setTimeoutPromise(100)
 
 		const fileMention = this.getFileMentionFromPath(filePath)

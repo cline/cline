@@ -1,5 +1,5 @@
 ---
-"claude-dev": minor
+"cline-cn": minor
 ---
 
 Support connecting to SSE servers

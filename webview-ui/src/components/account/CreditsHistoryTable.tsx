@@ -18,10 +18,10 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 			{/* Tabs container */}
 			<div className="flex border-b border-[var(--vscode-panel-border)]">
 				<TabButton isActive={activeTab === "usage"} onClick={() => setActiveTab("usage")}>
-					USAGE HISTORY
+					使用历史
 				</TabButton>
 				<TabButton isActive={activeTab === "payments"} onClick={() => setActiveTab("payments")}>
-					PAYMENTS HISTORY
+					支付历史
 				</TabButton>
 			</div>
 
@@ -29,7 +29,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 			<div className="mt-[15px] mb-[0px] rounded-md overflow-auto flex-grow">
 				{isLoading ? (
 					<div className="flex justify-center items-center p-4">
-						<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
+						<div className="text-[var(--vscode-descriptionForeground)]">加载中...</div>
 					</div>
 				) : (
 					<>
@@ -65,7 +65,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 									</VSCodeDataGrid>
 								) : (
 									<div className="flex justify-center items-center p-4">
-										<div className="text-[var(--vscode-descriptionForeground)]">No usage history</div>
+										<div className="text-[var(--vscode-descriptionForeground)]">无使用记录</div>
 									</div>
 								)}
 							</>
@@ -99,7 +99,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 									</VSCodeDataGrid>
 								) : (
 									<div className="flex justify-center items-center p-4">
-										<div className="text-[var(--vscode-descriptionForeground)]">No payment history</div>
+										<div className="text-[var(--vscode-descriptionForeground)]">无支付记录</div>
 									</div>
 								)}
 							</>
