@@ -2255,12 +2255,12 @@ export class Cline extends EventEmitter<ClineEvents> {
 					}
 
 					case "read_file": {
-						readFileTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						await readFileTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
 						break
 					}
 
 					case "fetch_instructions": {
-						fetchInstructionsTool(this, block, askApproval, handleError, pushToolResult)
+						await fetchInstructionsTool(this, block, askApproval, handleError, pushToolResult)
 						break
 					}
 
