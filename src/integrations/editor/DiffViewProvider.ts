@@ -228,11 +228,6 @@ export class DiffViewProvider {
 			)
 		}
 
-		if (this.fileEncoding.toLowerCase() !== "utf8") {
-			const encodedBuffer = iconv.encode(normalizedPostSaveContent, this.fileEncoding)
-			await fs.writeFile(absolutePath, encodedBuffer as unknown as Uint8Array)
-		}
-
 		return {
 			newProblemsMessage,
 			userEdits,
