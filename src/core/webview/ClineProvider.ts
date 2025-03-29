@@ -96,7 +96,6 @@ type GlobalStateKey =
 	| "openRouterProviderSorting"
 	| "autoApprovalSettings"
 	| "browserSettings"
-	| "chatSettings"
 	| "vsCodeLmModelSelector"
 	| "userInfo"
 	| "previousModeApiProvider"
@@ -114,6 +113,8 @@ type GlobalStateKey =
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
+
+type WorkspaceStateKey = "chatSettings"
 
 export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -1069,7 +1070,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
-		await this.updateGlobalState("chatSettings", chatSettings)
+		await this.updateWorkspaceState("chatSettings", chatSettings)
 		await this.postStateToWebview()
 
 		if (this.cline) {
@@ -2199,7 +2200,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
 			this.getGlobalState("autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
 			this.getGlobalState("browserSettings") as Promise<BrowserSettings | undefined>,
-			this.getGlobalState("chatSettings") as Promise<ChatSettings | undefined>,
+			this.getWorkspaceState("chatSettings") as Promise<ChatSettings | undefined>,
 			this.getGlobalState("vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 			this.getGlobalState("liteLlmBaseUrl") as Promise<string | undefined>,
 			this.getGlobalState("liteLlmModelId") as Promise<string | undefined>,
@@ -2353,11 +2354,11 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 	// workspace
 
-	private async updateWorkspaceState(key: string, value: any) {
+	private async updateWorkspaceState(key: WorkspaceStateKey, value: any) {
 		await this.context.workspaceState.update(key, value)
 	}
 
-	private async getWorkspaceState(key: string) {
+	private async getWorkspaceState(key: WorkspaceStateKey) {
 		return await this.context.workspaceState.get(key)
 	}
 
