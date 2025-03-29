@@ -1,0 +1,9 @@
+{
+	"readFile": {
+		"linesRange": " (पंक्तियाँ {{start}}-{{end}})",
+		"linesFromToEnd": " (पंक्तियाँ {{start}}-अंत)",
+		"linesFromStartTo": " (पंक्तियाँ 1-{{end}})",
+		"definitionsOnly": " (केवल परिभाषाएँ)",
+		"maxLines": " (अधिकतम {{max}} पंक्तियाँ)"
+	}
+}

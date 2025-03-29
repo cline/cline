@@ -1,0 +1,9 @@
+{
+	"readFile": {
+		"linesRange": " ({{start}}-{{end}}행)",
+		"linesFromToEnd": " ({{start}}행-끝)",
+		"linesFromStartTo": " (1-{{end}}행)",
+		"definitionsOnly": " (정의만)",
+		"maxLines": " (최대 {{max}}행)"
+	}
+}

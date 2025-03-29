@@ -3,6 +3,7 @@ import { Cline } from "../Cline"
 import { ClineSayTool } from "../../shared/ExtensionMessage"
 import { ToolUse } from "../assistant-message"
 import { formatResponse } from "../prompts/responses"
+import { t } from "../../i18n"
 import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
 import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { getReadablePath } from "../../utils/path"
@@ -97,20 +98,35 @@ export async function readFileTool(
 						break
 					}
 
+					const { maxReadFileLine = 500 } = (await cline.providerRef.deref()?.getState()) ?? {}
+
+					// Create line snippet description for approval message
+					let lineSnippet = ""
+					if (startLine !== undefined && endLine !== undefined) {
+						lineSnippet = t("tools:readFile.linesRange", { start: startLine + 1, end: endLine + 1 })
+					} else if (startLine !== undefined) {
+						lineSnippet = t("tools:readFile.linesFromToEnd", { start: startLine + 1 })
+					} else if (endLine !== undefined) {
+						lineSnippet = t("tools:readFile.linesFromStartTo", { end: endLine + 1 })
+					} else if (maxReadFileLine === 0) {
+						lineSnippet = t("tools:readFile.definitionsOnly")
+					} else if (maxReadFileLine > 0) {
+						lineSnippet = t("tools:readFile.maxLines", { max: maxReadFileLine })
+					}
+
 					cline.consecutiveMistakeCount = 0
 					const absolutePath = path.resolve(cline.cwd, relPath)
+
 					const completeMessage = JSON.stringify({
 						...sharedMessageProps,
 						content: absolutePath,
+						reason: lineSnippet,
 					} satisfies ClineSayTool)
 
 					const didApprove = await askApproval("tool", completeMessage)
 					if (!didApprove) {
 						break
 					}
-
-					// Get the maxReadFileLine setting
-					const { maxReadFileLine = 500 } = (await cline.providerRef.deref()?.getState()) ?? {}
 
 					// Count total lines in the file
 					let totalLines = 0

@@ -356,6 +356,7 @@ export const ChatRowContent = ({
 										textAlign: "left",
 									}}>
 									{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
+									{tool.reason}
 								</span>
 								<div style={{ flexGrow: 1 }}></div>
 								<span

@@ -1,0 +1,9 @@
+{
+	"readFile": {
+		"linesRange": " ({{start}}-{{end}}行目)",
+		"linesFromToEnd": " ({{start}}行目-最後まで)",
+		"linesFromStartTo": " (1-{{end}}行目)",
+		"definitionsOnly": " (定義のみ)",
+		"maxLines": " (最大{{max}}行)"
+	}
+}

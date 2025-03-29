@@ -1,0 +1,9 @@
+{
+	"readFile": {
+		"linesRange": " (satır {{start}}-{{end}})",
+		"linesFromToEnd": " (satır {{start}}-son)",
+		"linesFromStartTo": " (satır 1-{{end}})",
+		"definitionsOnly": " (sadece tanımlar)",
+		"maxLines": " (maks. {{max}} satır)"
+	}
+}
