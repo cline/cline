@@ -44,7 +44,7 @@ export class ChatErrorBoundary extends React.Component<ChatErrorBoundaryProps, C
 						maxWidth: "512px",
 						overflow: "auto",
 						border: "1px solid var(--vscode-editorError-foreground)",
-						borderRadius: "4px",
+						borderRadius: "6px",
 						backgroundColor: "var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1))",
 					}}>
 					<h3 style={{ margin: "0 0 8px 0" }}>{errorTitle || "Something went wrong displaying this content"}</h3>
@@ -118,7 +118,7 @@ export class ErrorAfterDelay extends React.Component<ErrorAfterDelayProps, Error
 					color: "var(--vscode-errorForeground)",
 					padding: "2px 5px",
 					fontSize: "12px",
-					borderRadius: "0 0 0 4px",
+					borderRadius: "0 0 0 6px",
 					zIndex: 100,
 				}}>
 				Error in {this.state.tickCount}/{this.props.numSecondsToWait ?? 5} seconds

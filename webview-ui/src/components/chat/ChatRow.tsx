@@ -398,7 +398,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 						</div>
 						<div
 							style={{
-								borderRadius: 3,
+								borderRadius: 6,
 								backgroundColor: CODE_BLOCK_BG_COLOR,
 								overflow: "hidden",
 								border: "1px solid var(--vscode-editorGroup-border)",
@@ -569,7 +569,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 				</div>
 				<div
 					style={{
-						borderRadius: 3,
+						borderRadius: 6,
 						border: "1px solid var(--vscode-editorGroup-border)",
 						overflow: "hidden",
 						backgroundColor: CODE_BLOCK_BG_COLOR,
@@ -626,7 +626,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 				<div
 					style={{
 						background: "var(--vscode-textCodeBlock-background)",
-						borderRadius: "3px",
+						borderRadius: "6px",
 						padding: "8px 10px",
 						marginTop: "8px",
 					}}>
@@ -863,7 +863,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							style={{
 								backgroundColor: "var(--vscode-badge-background)",
 								color: "var(--vscode-badge-foreground)",
-								borderRadius: "3px",
+								borderRadius: "6px",
 								padding: "9px",
 								whiteSpace: "pre-line",
 								wordWrap: "break-word",
@@ -917,7 +917,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									flexDirection: "column",
 									backgroundColor: "var(--vscode-textBlockQuote-background)",
 									padding: 8,
-									borderRadius: 3,
+									borderRadius: 6,
 									fontSize: 12,
 									color: "var(--vscode-foreground)",
 									opacity: 0.8,
@@ -950,7 +950,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									flexDirection: "column",
 									backgroundColor: "rgba(255, 191, 0, 0.1)",
 									padding: 8,
-									borderRadius: 3,
+									borderRadius: 6,
 									fontSize: 12,
 								}}>
 								<div
@@ -1039,7 +1039,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									flexDirection: "column",
 									backgroundColor: "rgba(255, 191, 0, 0.1)",
 									padding: 8,
-									borderRadius: 3,
+									borderRadius: 6,
 									fontSize: 12,
 								}}>
 								<div

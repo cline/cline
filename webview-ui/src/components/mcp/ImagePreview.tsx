@@ -165,7 +165,7 @@ class ImagePreview extends React.Component<
 						alignItems: "center",
 						justifyContent: "center",
 						border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
-						borderRadius: "4px",
+						borderRadius: "6px",
 						height: "128px",
 						maxWidth: "512px",
 					}}>
@@ -229,7 +229,7 @@ class ImagePreview extends React.Component<
 					style={{
 						padding: "12px",
 						border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
-						borderRadius: "4px",
+						borderRadius: "6px",
 						color: "var(--vscode-errorForeground)",
 					}}
 					onClick={() => {
@@ -270,7 +270,7 @@ class ImagePreview extends React.Component<
 						style={{
 							width: "85%",
 							height: "auto",
-							borderRadius: "4px",
+							borderRadius: "6px",
 						}}
 						aria-label={`SVG from ${getSafeHostname(url)}`}>
 						{/* Fallback if object tag fails */}
@@ -280,7 +280,7 @@ class ImagePreview extends React.Component<
 							style={{
 								width: "85%",
 								height: "auto",
-								borderRadius: "4px",
+								borderRadius: "6px",
 							}}
 						/>
 					</object>
@@ -291,7 +291,7 @@ class ImagePreview extends React.Component<
 						style={{
 							width: "85%",
 							height: "auto",
-							borderRadius: "4px",
+							borderRadius: "6px",
 							// Use contain only for very extreme aspect ratios, otherwise use cover
 							objectFit: this.aspectRatio > 3 || this.aspectRatio < 0.33 ? "contain" : "cover",
 						}}

@@ -17,7 +17,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 		<div
 			style={{
 				backgroundColor: getAsVar(VSC_INACTIVE_SELECTION_BACKGROUND),
-				borderRadius: "3px",
+				borderRadius: "6px",
 				padding: "12px 16px",
 				margin: "5px 15px 5px 15px",
 				position: "relative",

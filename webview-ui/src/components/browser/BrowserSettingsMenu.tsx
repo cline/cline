@@ -180,7 +180,7 @@ const SettingsMenu = styled.div<{ maxWidth?: number }>`
 	background: ${CODE_BLOCK_BG_COLOR};
 	border: 1px solid var(--vscode-editorGroup-border);
 	padding: 8px;
-	border-radius: 3px;
+	border-radius: 6px;
 	z-index: 1000;
 	width: calc(100vw - 57px);
 	min-width: 0px;

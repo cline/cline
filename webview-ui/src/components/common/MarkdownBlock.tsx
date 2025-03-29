@@ -92,7 +92,7 @@ const remarkPreventBoldFilenames = () => {
 const StyledMarkdown = styled.div`
 	pre {
 		background-color: ${CODE_BLOCK_BG_COLOR};
-		border-radius: 3px;
+		border-radius: 6px;
 		margin: 13x 0;
 		padding: 10px 10px;
 		max-width: calc(100vw - 20px);
@@ -118,7 +118,7 @@ const StyledMarkdown = styled.div`
 			display: none;
 		}
 		word-wrap: break-word;
-		border-radius: 3px;
+		border-radius: 6px;
 		background-color: ${CODE_BLOCK_BG_COLOR};
 		font-size: var(--vscode-editor-font-size, var(--vscode-font-size, 12px));
 		font-family: var(--vscode-editor-font-family);
@@ -129,7 +129,7 @@ const StyledMarkdown = styled.div`
 		color: var(--vscode-textPreformat-foreground, #f78383);
 		background-color: var(--vscode-textCodeBlock-background, #1e1e1e);
 		padding: 0px 2px;
-		border-radius: 3px;
+		border-radius: 6px;
 		border: 1px solid var(--vscode-textSeparator-foreground, #424242);
 		white-space: pre-line;
 		word-break: break-word;

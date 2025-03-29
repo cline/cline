@@ -268,7 +268,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 			</div>
 			<div
 				style={{
-					borderRadius: 3,
+					borderRadius: 6,
 					border: "1px solid var(--vscode-editorGroup-border)",
 					// overflow: "hidden",
 					backgroundColor: CODE_BLOCK_BG_COLOR,
@@ -290,8 +290,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							flex: 1,
 							backgroundColor: "var(--vscode-input-background)",
 							border: "1px solid var(--vscode-input-border)",
-							borderRadius: "4px",
-							padding: "3px 5px",
+							borderRadius: "6px",
+							padding: "4px 6px",
 							minWidth: 0,
 							color: displayState.url ? "var(--vscode-input-foreground)" : "var(--vscode-descriptionForeground)",
 							fontSize: "12px",
@@ -468,7 +468,7 @@ const BrowserSessionRowContent = ({
 				</div>
 				<div
 					style={{
-						borderRadius: 3,
+						borderRadius: 6,
 						border: "1px solid var(--vscode-editorGroup-border)",
 						overflow: "hidden",
 						backgroundColor: CODE_BLOCK_BG_COLOR,
@@ -546,7 +546,7 @@ const BrowserActionBox = ({ action, coordinate, text }: { action: BrowserAction;
 		<div style={{ padding: "10px 0 0 0" }}>
 			<div
 				style={{
-					borderRadius: 3,
+					borderRadius: 6,
 					backgroundColor: CODE_BLOCK_BG_COLOR,
 					overflow: "hidden",
 					border: "1px solid var(--vscode-editorGroup-border)",

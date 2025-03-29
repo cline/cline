@@ -53,7 +53,7 @@ const Tooltip: React.FC<TooltipProps> = ({ text, isVisible, position, align = "c
 				backgroundColor: "var(--vscode-editorHoverWidget-background)",
 				color: "var(--vscode-editorHoverWidget-foreground)",
 				padding: "4px 8px",
-				borderRadius: "3px",
+				borderRadius: "6px",
 				fontSize: "12px",
 				pointerEvents: "none",
 				zIndex: 1000,
@@ -67,9 +67,9 @@ const Tooltip: React.FC<TooltipProps> = ({ text, isVisible, position, align = "c
 					position: "absolute",
 					top: "-5px",
 					...triangleStyle,
-					borderLeft: "5px solid transparent",
-					borderRight: "5px solid transparent",
-					borderBottom: "5px solid var(--vscode-editorHoverWidget-border)",
+					borderLeft: "6px solid transparent",
+					borderRight: "6px solid transparent",
+					borderBottom: "6px solid var(--vscode-editorHoverWidget-border)",
 				}}
 			/>
 			<div
@@ -77,9 +77,9 @@ const Tooltip: React.FC<TooltipProps> = ({ text, isVisible, position, align = "c
 					position: "absolute",
 					top: "-4px",
 					...triangleStyle,
-					borderLeft: "5px solid transparent",
-					borderRight: "5px solid transparent",
-					borderBottom: "5px solid var(--vscode-editorHoverWidget-background)",
+					borderLeft: "6px solid transparent",
+					borderRight: "6px solid transparent",
+					borderBottom: "6px solid var(--vscode-editorHoverWidget-background)",
 				}}
 			/>
 			{text}

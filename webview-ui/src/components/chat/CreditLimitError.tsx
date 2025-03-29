@@ -17,7 +17,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({ currentBalance, tot
 			style={{
 				backgroundColor: "var(--vscode-textBlockQuote-background)",
 				padding: "12px",
-				borderRadius: "4px",
+				borderRadius: "6px",
 				marginBottom: "12px",
 			}}>
 			<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "8px" }}>{message}</div>
