@@ -1,0 +1,43 @@
+```mmd
+graph TB
+    subgraph VSCode 扩展主机
+        subgraph 核心扩展
+            ExtensionEntry[扩展入口<br/>src/extension.ts]
+            ClineProvider[ClineProvider<br/>src/core/webview/ClineProvider.ts]
+            ClineClass[Cline 类<br/>src/core/Cline.ts]
+            GlobalState[VSCode 全局状态]
+            SecretsStorage[VSCode 机密存储]
+        end
+
+        subgraph Webview UI
+            WebviewApp[React 应用<br/>webview-ui/src/App.tsx]
+            ExtStateContext[扩展状态上下文<br/>webview-ui/src/context/ExtensionStateContext.tsx]
+            ReactComponents[React 组件]
+        end
+
+        subgraph 存储
+            TaskStorage[任务存储<br/>每任务文件和历史记录]
+            CheckpointSystem[基于 Git 的检查点]
+        end
+    end
+
+    %% 核心扩展数据流
+    ExtensionEntry --> ClineProvider
+    ClineProvider --> ClineClass
+    ClineClass --> GlobalState
+    ClineClass --> SecretsStorage
+    ClineClass --> TaskStorage
+    ClineClass --> CheckpointSystem
+
+    %% Webview 数据流
+    WebviewApp --> ExtStateContext
+    ExtStateContext --> ReactComponents
+
+    %% 双向通信
+    ClineProvider <-->|postMessage| ExtStateContext
+
+    style GlobalState fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style SecretsStorage fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style ExtStateContext fill:#0066ff,stroke:#333,stroke-width:2px,color:#ffffff
+    style ClineProvider fill:#00cc66,stroke:#333,stroke-width:2px,color:#ffffff
+```

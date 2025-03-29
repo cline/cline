@@ -1,0 +1,1 @@
+請參閱我們的隱私政策，網址為 [https://cline.bot/privacy](https://cline.bot/privacy)。

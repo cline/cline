@@ -4,14 +4,14 @@
 
 ## 入门
 
--   **刚开始编程？** 我们准备了一份温和的介绍：
-    -   [新手编程入门](getting-started-new-coders/README.md)
+-   **编程新手？** 我们准备了一份温和的介绍：
+    -   [编程新手入门](getting-started-new-coders/README.md)
 
 ## 提升您的提示技能
 
 -   **想与 Cline 更有效地沟通？** 探索：
     -   [提示工程指南](prompting/README.md)
-    -   [Cline 记忆库](prompting/custom%20instructions%20library/cline-memory-bank.md)
+    -   [Cline 记忆库](<prompting/custom instructions library/cline-memory-bank.md>)
 
 ## 探索 Cline 的工具
 
@@ -24,11 +24,11 @@
     -   [从 GitHub 构建 MCP 服务器](mcp/mcp-server-from-github.md)
     -   [构建自定义 MCP 服务器](mcp/mcp-server-from-scratch.md)
 
-## 为 Cline 做贡献
+## 为 Cline 贡献
 
 -   **有兴趣贡献？** 我们欢迎您的投入：
     -   随时提交拉取请求
-    -   [贡献指南](../CONTRIBUTING.md)
+    -   [贡献指南](../../../docs/i18n/CONTRIBUTING.md)
 
 ## 其他资源
 

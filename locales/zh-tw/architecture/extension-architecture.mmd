@@ -1,0 +1,41 @@
+graph TB
+    subgraph VSCode Extension Host
+        subgraph Core Extension
+            ExtensionEntry[擴充功能入口<br/>src/extension.ts]
+            ClineProvider[ClineProvider<br/>src/core/webview/ClineProvider.ts]
+            ClineClass[Cline Class<br/>src/core/Cline.ts]
+            GlobalState[VSCode 全局狀態]
+            SecretsStorage[VSCode 秘密儲存]
+        end
+
+        subgraph Webview UI
+            WebviewApp[React 應用程式<br/>webview-ui/src/App.tsx]
+            ExtStateContext[擴充功能狀態上下文<br/>webview-ui/src/context/ExtensionStateContext.tsx]
+            ReactComponents[React 組件]
+        end
+
+        subgraph Storage
+            TaskStorage[任務儲存<br/>每任務檔案與歷史記錄]
+            CheckpointSystem[基於 Git 的檢查點]
+        end
+    end
+
+    %% Core Extension Data Flow
+    ExtensionEntry --> ClineProvider
+    ClineProvider --> ClineClass
+    ClineClass --> GlobalState
+    ClineClass --> SecretsStorage
+    ClineClass --> TaskStorage
+    ClineClass --> CheckpointSystem
+
+    %% Webview Data Flow
+    WebviewApp --> ExtStateContext
+    ExtStateContext --> ReactComponents
+
+    %% Bidirectional Communication
+    ClineProvider <-->|postMessage| ExtStateContext
+
+    style GlobalState fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style SecretsStorage fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style ExtStateContext fill:#0066ff,stroke:#333,stroke-width:2px,color:#ffffff
+    style ClineProvider fill:#00cc66,stroke:#333,stroke-width:2px,color:#ffffff
