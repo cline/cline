@@ -186,11 +186,13 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWid
 							{connectionInfo.isConnected ? "Connected" : "Disconnected"}
 						</InfoValue>
 					</InfoRow>
-					<InfoRow>
-						<InfoLabel>Type:</InfoLabel>
-						<InfoValue>{connectionInfo.isRemote ? "Remote" : "Local"}</InfoValue>
-					</InfoRow>
-					{connectionInfo.isRemote && connectionInfo.host && (
+					{connectionInfo.isConnected && (
+						<InfoRow>
+							<InfoLabel>Type:</InfoLabel>
+							<InfoValue>{connectionInfo.isRemote ? "Remote" : "Local"}</InfoValue>
+						</InfoRow>
+					)}
+					{connectionInfo.isConnected && connectionInfo.isRemote && connectionInfo.host && (
 						<InfoRow>
 							<InfoLabel>Remote Host:</InfoLabel>
 							<InfoValue>{connectionInfo.host}</InfoValue>
