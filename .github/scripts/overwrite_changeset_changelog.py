@@ -27,7 +27,6 @@ CHANGELOG_PATH = os.environ.get("CHANGELOG_PATH", "CHANGELOG.md")
 VERSION = os.environ['VERSION']
 PREV_VERSION = os.environ.get("PREV_VERSION", "")
 NEW_CONTENT = os.environ.get("NEW_CONTENT", "")
-RELEASE = os.environ.get("RELEASE", "false").lower() == "true"
 
 def overwrite_changelog_section(changelog_text: str, new_content: str):
     # Find the section for the specified version
@@ -47,7 +46,7 @@ def overwrite_changelog_section(changelog_text: str, new_content: str):
         filtered_lines = []
         for line in changeset_lines:
             # If the previous line is a changeset format
-            if filtered_lines and filtered_lines[-1].startswith("### "):
+            if len(filtered_lines) > 1 and filtered_lines[-1].startswith("### "):
                 # Remove the last two lines from the filted_lines
                 filtered_lines.pop()
                 filtered_lines.pop()
@@ -64,9 +63,6 @@ def overwrite_changelog_section(changelog_text: str, new_content: str):
 
         parsed_lines = "\n".join(line for line in filtered_lines)
         updated_changelog = changelog_text[:notes_start_index] + parsed_lines + changelog_text[notes_end_index:]
-        if RELEASE:
-            # Ensure version numbers are wrapped in square brackets
-            updated_changelog = "\n".join(updated_changelog.split("\n")[2:])
         return updated_changelog
 
 with open(CHANGELOG_PATH, 'r') as f:
