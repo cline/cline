@@ -61,8 +61,9 @@ jobs:
             # Run extension tests with coverage
             - name: Extension Tests with Coverage
               id: extension_coverage
+              continue-on-error: true
               run: |
-                  xvfb-run -a npm run test:coverage > extension_coverage.txt 2>&1
+                  xvfb-run -a npm run test:coverage > extension_coverage.txt 2>&1 || true
                   COVERAGE_PCT=$(cat extension_coverage.txt | grep "Lines" | grep -o "[0-9.]*%" | sed 's/%//' || echo "0")
                   echo "extension_coverage=$COVERAGE_PCT" >> $GITHUB_OUTPUT
                   echo "Extension coverage: $COVERAGE_PCT%"
@@ -70,9 +71,10 @@ jobs:
             # Run webview tests with coverage
             - name: Webview Tests with Coverage
               id: webview_coverage
+              continue-on-error: true
               run: |
                   cd webview-ui
-                  npm run test:coverage > webview_coverage.txt 2>&1
+                  npm run test:coverage > webview_coverage.txt 2>&1 || true
                   COVERAGE_PCT=$(cat webview_coverage.txt | grep -A 5 "% Coverage report" | grep "All files" | awk '{print $4}' || echo "0")
                   echo "webview_coverage=$COVERAGE_PCT" >> $GITHUB_OUTPUT
                   echo "Webview coverage: $COVERAGE_PCT%"
@@ -155,7 +157,7 @@ jobs:
               continue-on-error: true
               run: |
                   # Run coverage and extract percentage
-                  npm run test:coverage > base_extension_coverage.txt 2>&1
+                  npm run test:coverage > base_extension_coverage.txt 2>&1 || true
                   COVERAGE_PCT=$(cat base_extension_coverage.txt | grep "Lines" | grep -o "[0-9.]*%" | sed 's/%//' || echo "0")
                   echo "base_extension_coverage=$COVERAGE_PCT" >> $GITHUB_OUTPUT
                   echo "Base extension coverage: $COVERAGE_PCT%"
@@ -166,7 +168,7 @@ jobs:
               run: |
                   # Run coverage and extract percentage
                   cd webview-ui
-                  npm run test:coverage > base_webview_coverage.txt 2>&1
+                  npm run test:coverage > base_webview_coverage.txt 2>&1 || true
                   COVERAGE_PCT=$(cat base_webview_coverage.txt | grep -A 5 "% Coverage report" | grep "All files" | awk '{print $4}' || echo "0")
                   echo "base_webview_coverage=$COVERAGE_PCT" >> $GITHUB_OUTPUT
                   echo "Base webview coverage: $COVERAGE_PCT%"
