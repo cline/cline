@@ -22,7 +22,6 @@ Environment Variables:
 #!/usr/bin/env python3
 
 import os
-import sys
 
 CHANGELOG_PATH = os.environ.get("CHANGELOG_PATH", "CHANGELOG.md")
 VERSION = os.environ['VERSION']
@@ -32,72 +31,49 @@ NEW_CONTENT = os.environ.get("NEW_CONTENT", "")
 def overwrite_changelog_section(changelog_text: str, new_content: str):
     # Find the section for the specified version
     version_pattern = f"## {VERSION}\n"
-    bracketed_version_pattern = f"## [{VERSION}]\n"
+    unformmatted_prev_version_pattern = f"## {PREV_VERSION}\n"
     prev_version_pattern = f"## [{PREV_VERSION}]\n"
     print(f"latest version: {VERSION}")
     print(f"prev_version: {PREV_VERSION}")
 
-    # Try both unbracketed and bracketed version patterns
-    version_index = changelog_text.find(version_pattern)
-    if version_index == -1:
-        version_index = changelog_text.find(bracketed_version_pattern)
-        if version_index == -1:
-            # If version not found, add it at the top (after the first line)
-            first_newline = changelog_text.find('\n')
-            if first_newline == -1:
-                # If no newline found, just prepend
-                return f"## [{VERSION}]\n\n{changelog_text}"
-            return f"{changelog_text[:first_newline + 1]}## [{VERSION}]\n\n{changelog_text[first_newline + 1:]}"
-        else:
-            # Using bracketed version
-            version_pattern = bracketed_version_pattern
-
-    notes_start_index = version_index + len(version_pattern)
-    notes_end_index = changelog_text.find(prev_version_pattern, notes_start_index) if PREV_VERSION and prev_version_pattern in changelog_text else len(changelog_text)
+    notes_start_index = changelog_text.find(version_pattern) + len(version_pattern)
+    notes_end_index = changelog_text.find(prev_version_pattern, notes_start_index) if PREV_VERSION and (prev_version_pattern in changelog_text or unformmatted_prev_version_pattern in changelog_text) else len(changelog_text)
 
     if new_content:
         return changelog_text[:notes_start_index] + f"{new_content}\n" + changelog_text[notes_end_index:]
     else:
         changeset_lines = changelog_text[notes_start_index:notes_end_index].split("\n")
-        # Ensure we have at least 2 lines before removing them
-        if len(changeset_lines) < 2:
-            print("Warning: Changeset content has fewer than 2 lines")
-            parsed_lines = "\n".join(changeset_lines)
-        else:
-            # Remove the first two lines from the regular changeset format, ex: \n### Patch Changes
-            parsed_lines = "\n".join(changeset_lines[2:])
+        filtered_lines = []
+        for line in changeset_lines:
+            # If the previous line is a changeset format
+            if len(filtered_lines) > 1 and filtered_lines[-1].startswith("### "):
+                # Remove the last two lines from the filted_lines
+                filtered_lines.pop()
+                filtered_lines.pop()
+            else:
+                filtered_lines.append(line.strip())
+
+        # Prepend a new line to the first line of filtered_lines
+        if filtered_lines:
+            filtered_lines[0] = "\n" + filtered_lines[0]
+
+        # Print filted_lines wiht a "\n" at the end of each line
+        for line in filtered_lines:
+            print(line.strip())
+
+        parsed_lines = "\n".join(line for line in filtered_lines)
         updated_changelog = changelog_text[:notes_start_index] + parsed_lines + changelog_text[notes_end_index:]
-        # Ensure version number is bracketed
-        updated_changelog = updated_changelog.replace(f"## {VERSION}", f"## [{VERSION}]")
         return updated_changelog
 
-try:
-    print(f"Reading changelog from: {CHANGELOG_PATH}")
-    with open(CHANGELOG_PATH, 'r') as f:
-        changelog_content = f.read()
+with open(CHANGELOG_PATH, 'r') as f:
+    changelog_content = f.read()
 
-    print(f"Changelog content length: {len(changelog_content)} characters")
-    print("First 200 characters of changelog:")
-    print(changelog_content[:200])
-    print("----------------------------------------------------------------------------------")
+new_changelog = overwrite_changelog_section(changelog_content, NEW_CONTENT)
+# print("----------------------------------------------------------------------------------")
+# print(new_changelog)
+# print("----------------------------------------------------------------------------------")
+# Write back to CHANGELOG.md
+with open(CHANGELOG_PATH, 'w') as f:
+    f.write(new_changelog)
 
-    new_changelog = overwrite_changelog_section(changelog_content, NEW_CONTENT)
-    
-    print("New changelog content:")
-    print("----------------------------------------------------------------------------------")
-    print(new_changelog)
-    print("----------------------------------------------------------------------------------")
-    
-    print(f"Writing updated changelog back to: {CHANGELOG_PATH}")
-    with open(CHANGELOG_PATH, 'w') as f:
-        f.write(new_changelog)
-
-    print(f"{CHANGELOG_PATH} updated successfully!")
-
-except FileNotFoundError:
-    print(f"Error: Changelog file not found at {CHANGELOG_PATH}")
-    sys.exit(1)
-except Exception as e:
-    print(f"Error updating changelog: {str(e)}")
-    print(f"Current working directory: {os.getcwd()}")
-    sys.exit(1)
+print(f"{CHANGELOG_PATH} updated successfully!")
