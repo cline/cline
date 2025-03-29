@@ -40,8 +40,11 @@ jest.mock("../../../services/browser/BrowserSession", () => ({
 
 // Mock browserDiscovery
 jest.mock("../../../services/browser/browserDiscovery", () => ({
-	discoverChromeInstances: jest.fn().mockImplementation(async () => {
+	discoverChromeHostUrl: jest.fn().mockImplementation(async () => {
 		return "http://localhost:9222"
+	}),
+	tryChromeHostUrl: jest.fn().mockImplementation(async (url) => {
+		return url === "http://localhost:9222"
 	}),
 }))
 
@@ -1916,9 +1919,9 @@ describe("ClineProvider", () => {
 				type: "testBrowserConnection",
 			})
 
-			// Verify discoverChromeInstances was called
-			const { discoverChromeInstances } = require("../../../services/browser/browserDiscovery")
-			expect(discoverChromeInstances).toHaveBeenCalled()
+			// Verify discoverChromeHostUrl was called
+			const { discoverChromeHostUrl } = require("../../../services/browser/browserDiscovery")
+			expect(discoverChromeHostUrl).toHaveBeenCalled()
 
 			// Verify postMessage was called with success result
 			expect(mockPostMessage).toHaveBeenCalledWith(
@@ -1926,77 +1929,6 @@ describe("ClineProvider", () => {
 					type: "browserConnectionResult",
 					success: true,
 					text: expect.stringContaining("Auto-discovered and tested connection to Chrome"),
-				}),
-			)
-		})
-
-		test("handles discoverBrowser message", async () => {
-			// Get the message handler
-			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
-
-			// Test browser discovery
-			await messageHandler({
-				type: "discoverBrowser",
-			})
-
-			// Verify discoverChromeInstances was called
-			const { discoverChromeInstances } = require("../../../services/browser/browserDiscovery")
-			expect(discoverChromeInstances).toHaveBeenCalled()
-
-			// Verify postMessage was called with success result
-			expect(mockPostMessage).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: "browserConnectionResult",
-					success: true,
-					text: expect.stringContaining("Successfully discovered and connected to Chrome"),
-				}),
-			)
-		})
-
-		test("handles errors during browser discovery", async () => {
-			// Mock discoverChromeInstances to throw an error
-			const { discoverChromeInstances } = require("../../../services/browser/browserDiscovery")
-			discoverChromeInstances.mockImplementationOnce(() => {
-				throw new Error("Discovery error")
-			})
-
-			// Get the message handler
-			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
-
-			// Test browser discovery with error
-			await messageHandler({
-				type: "discoverBrowser",
-			})
-
-			// Verify postMessage was called with error result
-			expect(mockPostMessage).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: "browserConnectionResult",
-					success: false,
-					text: expect.stringContaining("Error discovering browser"),
-				}),
-			)
-		})
-
-		test("handles case when no browsers are discovered", async () => {
-			// Mock discoverChromeInstances to return null (no browsers found)
-			const { discoverChromeInstances } = require("../../../services/browser/browserDiscovery")
-			discoverChromeInstances.mockImplementationOnce(() => null)
-
-			// Get the message handler
-			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as jest.Mock).mock.calls[0][0]
-
-			// Test browser discovery with no browsers found
-			await messageHandler({
-				type: "discoverBrowser",
-			})
-
-			// Verify postMessage was called with failure result
-			expect(mockPostMessage).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: "browserConnectionResult",
-					success: false,
-					text: expect.stringContaining("No Chrome instances found"),
 				}),
 			)
 		})

@@ -513,6 +513,7 @@ export const globalSettingsSchema = z.object({
 	screenshotQuality: z.number().optional(),
 	remoteBrowserEnabled: z.boolean().optional(),
 	remoteBrowserHost: z.string().optional(),
+	cachedChromeHostUrl: z.string().optional(),
 
 	enableCheckpoints: z.boolean().optional(),
 	checkpointStorage: checkpointStoragesSchema.optional(),
@@ -618,6 +619,7 @@ const globalSettingsRecord: GlobalSettingsRecord = {
 	customModePrompts: undefined,
 	customSupportPrompts: undefined,
 	enhancementApiConfigId: undefined,
+	cachedChromeHostUrl: undefined,
 }
 
 export const GLOBAL_SETTINGS_KEYS = Object.keys(globalSettingsRecord) as Keys<GlobalSettings>[]
@@ -791,7 +793,7 @@ export type TokenUsage = z.infer<typeof tokenUsageSchema>
  * TypeDefinition
  */
 
-type TypeDefinition = {
+export type TypeDefinition = {
 	schema: z.ZodTypeAny
 	identifier: string
 }
@@ -802,3 +804,6 @@ export const typeDefinitions: TypeDefinition[] = [
 	{ schema: clineMessageSchema, identifier: "ClineMessage" },
 	{ schema: tokenUsageSchema, identifier: "TokenUsage" },
 ]
+
+// Also export as default for ESM compatibility
+export default { typeDefinitions }

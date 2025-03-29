@@ -1,14 +1,14 @@
-import { HTMLAttributes, useState, useEffect, useMemo } from "react"
 import { VSCodeButton, VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { SquareMousePointer } from "lucide-react"
+import { HTMLAttributes, useEffect, useMemo, useState } from "react"
 
-import { vscode } from "@/utils/vscode"
-import { useAppTranslation } from "@/i18n/TranslationContext"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue, Slider } from "@/components/ui"
+import { useAppTranslation } from "@/i18n/TranslationContext"
+import { vscode } from "@/utils/vscode"
 
-import { SetCachedStateField } from "./types"
-import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
+import { SectionHeader } from "./SectionHeader"
+import { SetCachedStateField } from "./types"
 
 type BrowserSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	browserToolEnabled?: boolean
@@ -37,7 +37,7 @@ export const BrowserSettings = ({
 	const { t } = useAppTranslation()
 
 	const [testingConnection, setTestingConnection] = useState(false)
-	const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+	const [testResult, setTestResult] = useState<{ success: boolean; text: string } | null>(null)
 	const [discovering, setDiscovering] = useState(false)
 
 	// We don't need a local state for useRemoteBrowser since we're using the
@@ -50,7 +50,7 @@ export const BrowserSettings = ({
 			const message = event.data
 
 			if (message.type === "browserConnectionResult") {
-				setTestResult({ success: message.success, message: message.text })
+				setTestResult({ success: message.success, text: message.text })
 				setTestingConnection(false)
 				setDiscovering(false)
 			}
@@ -73,25 +73,9 @@ export const BrowserSettings = ({
 		} catch (error) {
 			setTestResult({
 				success: false,
-				message: `Error: ${error instanceof Error ? error.message : String(error)}`,
+				text: `Error: ${error instanceof Error ? error.message : String(error)}`,
 			})
 			setTestingConnection(false)
-		}
-	}
-
-	const discoverBrowser = async () => {
-		setDiscovering(true)
-		setTestResult(null)
-
-		try {
-			// Send a message to the extension to discover Chrome instances.
-			vscode.postMessage({ type: "discoverBrowser" })
-		} catch (error) {
-			setTestResult({
-				success: false,
-				message: `Error: ${error instanceof Error ? error.message : String(error)}`,
-			})
-			setDiscovering(false)
 		}
 	}
 
@@ -206,9 +190,7 @@ export const BrowserSettings = ({
 										placeholder={t("settings:browser.remote.urlPlaceholder")}
 										style={{ flexGrow: 1 }}
 									/>
-									<VSCodeButton
-										disabled={testingConnection}
-										onClick={remoteBrowserHost ? testConnection : discoverBrowser}>
+									<VSCodeButton disabled={testingConnection} onClick={testConnection}>
 										{testingConnection || discovering
 											? t("settings:browser.remote.testingButton")
 											: t("settings:browser.remote.testButton")}
@@ -221,7 +203,7 @@ export const BrowserSettings = ({
 												? "bg-green-800/20 text-green-400"
 												: "bg-red-800/20 text-red-400"
 										}`}>
-										{testResult.message}
+										{testResult.text}
 									</div>
 								)}
 								<div className="text-vscode-descriptionForeground text-sm mt-1">

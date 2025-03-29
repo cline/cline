@@ -1,7 +1,6 @@
-import * as vscode from "vscode"
-import * as os from "os"
 import * as net from "net"
 import axios from "axios"
+import * as dns from "dns"
 
 /**
  * Check if a port is open on a given host
@@ -43,46 +42,14 @@ export async function isPortOpen(host: string, port: number, timeout = 1000): Pr
 /**
  * Try to connect to Chrome at a specific IP address
  */
-export async function tryConnect(ipAddress: string): Promise<{ endpoint: string; ip: string } | null> {
+export async function tryChromeHostUrl(chromeHostUrl: string): Promise<boolean> {
 	try {
-		console.log(`Trying to connect to Chrome at: http://${ipAddress}:9222/json/version`)
-		const response = await axios.get(`http://${ipAddress}:9222/json/version`, { timeout: 1000 })
+		console.log(`Trying to connect to Chrome at: ${chromeHostUrl}/json/version`)
+		const response = await axios.get(`${chromeHostUrl}/json/version`, { timeout: 1000 })
 		const data = response.data
-		return { endpoint: data.webSocketDebuggerUrl, ip: ipAddress }
+		return true
 	} catch (error) {
-		return null
-	}
-}
-
-/**
- * Execute a shell command and return stdout and stderr
- */
-export async function executeShellCommand(command: string): Promise<{ stdout: string; stderr: string }> {
-	return new Promise<{ stdout: string; stderr: string }>((resolve) => {
-		const cp = require("child_process")
-		cp.exec(command, (err: any, stdout: string, stderr: string) => {
-			resolve({ stdout, stderr })
-		})
-	})
-}
-
-/**
- * Get Docker gateway IP without UI feedback
- */
-export async function getDockerGatewayIP(): Promise<string | null> {
-	try {
-		if (process.platform === "linux") {
-			try {
-				const { stdout } = await executeShellCommand("ip route | grep default | awk '{print $3}'")
-				return stdout.trim()
-			} catch (error) {
-				console.log("Could not determine Docker gateway IP:", error)
-			}
-		}
-		return null
-	} catch (error) {
-		console.log("Could not determine Docker gateway IP:", error)
-		return null
+		return false
 	}
 }
 
@@ -93,7 +60,6 @@ export async function getDockerHostIP(): Promise<string | null> {
 	try {
 		// Try to resolve host.docker.internal (works on Docker Desktop)
 		return new Promise((resolve) => {
-			const dns = require("dns")
 			dns.lookup("host.docker.internal", (err: any, address: string) => {
 				if (err) {
 					resolve(null)
@@ -111,7 +77,7 @@ export async function getDockerHostIP(): Promise<string | null> {
 /**
  * Scan a network range for Chrome debugging port
  */
-export async function scanNetworkForChrome(baseIP: string): Promise<string | null> {
+export async function scanNetworkForChrome(baseIP: string, port: number): Promise<string | null> {
 	if (!baseIP || !baseIP.match(/^\d+\.\d+\.\d+\./)) {
 		return null
 	}
@@ -130,7 +96,7 @@ export async function scanNetworkForChrome(baseIP: string): Promise<string | nul
 
 	// Check priority IPs first
 	for (const ip of priorityIPs) {
-		const isOpen = await isPortOpen(ip, 9222)
+		const isOpen = await isPortOpen(ip, port)
 		if (isOpen) {
 			console.log(`Found Chrome debugging port open on ${ip}`)
 			return ip
@@ -140,24 +106,10 @@ export async function scanNetworkForChrome(baseIP: string): Promise<string | nul
 	return null
 }
 
-/**
- * Discover Chrome instances on the network
- */
-export async function discoverChromeInstances(): Promise<string | null> {
+// Function to discover Chrome instances on the network
+const discoverChromeHosts = async (port: number): Promise<string | null> => {
 	// Get all network interfaces
-	const networkInterfaces = os.networkInterfaces()
 	const ipAddresses = []
-
-	// Always try localhost first
-	ipAddresses.push("localhost")
-	ipAddresses.push("127.0.0.1")
-
-	// Try to get Docker gateway IP (headless mode)
-	const gatewayIP = await getDockerGatewayIP()
-	if (gatewayIP) {
-		console.log("Found Docker gateway IP:", gatewayIP)
-		ipAddresses.push(gatewayIP)
-	}
 
 	// Try to get Docker host IP
 	const hostIP = await getDockerHostIP()
@@ -166,44 +118,21 @@ export async function discoverChromeInstances(): Promise<string | null> {
 		ipAddresses.push(hostIP)
 	}
 
-	// Add all local IP addresses from network interfaces
-	const localIPs: string[] = []
-	Object.values(networkInterfaces).forEach((interfaces) => {
-		if (!interfaces) return
-		interfaces.forEach((iface) => {
-			// Only consider IPv4 addresses
-			if (iface.family === "IPv4" || iface.family === (4 as any)) {
-				localIPs.push(iface.address)
-			}
-		})
-	})
-
-	// Add local IPs to the list
-	ipAddresses.push(...localIPs)
-
-	// Scan network for Chrome debugging port
-	for (const ip of localIPs) {
-		const chromeIP = await scanNetworkForChrome(ip)
-		if (chromeIP && !ipAddresses.includes(chromeIP)) {
-			console.log("Found potential Chrome host via network scan:", chromeIP)
-			ipAddresses.push(chromeIP)
-		}
-	}
-
 	// Remove duplicates
 	const uniqueIPs = [...new Set(ipAddresses)]
 	console.log("IP Addresses to try:", uniqueIPs)
 
 	// Try connecting to each IP address
 	for (const ip of uniqueIPs) {
-		const connection = await tryConnect(ip)
-		if (connection) {
-			console.log(`Successfully connected to Chrome at: ${connection.ip}`)
+		const hostEndpoint = `http://${ip}:${port}`
+
+		const hostIsValid = await tryChromeHostUrl(hostEndpoint)
+		if (hostIsValid) {
 			// Store the successful IP for future use
-			console.log(`✅ Found Chrome at ${connection.ip} - You can hardcode this IP if needed`)
+			console.log(`✅ Found Chrome at ${hostEndpoint}`)
 
 			// Return the host URL and endpoint
-			return `http://${connection.ip}:9222`
+			return hostEndpoint
 		}
 	}
 
@@ -211,36 +140,43 @@ export async function discoverChromeInstances(): Promise<string | null> {
 }
 
 /**
- * Test connection to a remote browser
+ * Test connection to a remote browser debugging websocket.
+ * First tries specific hosts, then attempts auto-discovery if needed.
+ * @param browserHostUrl Optional specific host URL to check first
+ * @param port Browser debugging port (default: 9222)
+ * @returns WebSocket debugger URL if connection is successful, null otherwise
  */
-export async function testBrowserConnection(
-	host: string,
-): Promise<{ success: boolean; message: string; endpoint?: string }> {
-	try {
-		// Fetch the WebSocket endpoint from the Chrome DevTools Protocol
-		const versionUrl = `${host.replace(/\/$/, "")}/json/version`
-		console.log(`Testing connection to ${versionUrl}`)
+export async function discoverChromeHostUrl(port: number = 9222): Promise<string | null> {
+	// First try specific hosts
+	const hostsToTry = [`http://localhost:${port}`, `http://127.0.0.1:${port}`]
 
-		const response = await axios.get(versionUrl, { timeout: 3000 })
-		const browserWSEndpoint = response.data.webSocketDebuggerUrl
-
-		if (!browserWSEndpoint) {
-			return {
-				success: false,
-				message: "Could not find webSocketDebuggerUrl in the response",
-			}
-		}
-
-		return {
-			success: true,
-			message: "Successfully connected to Chrome browser",
-			endpoint: browserWSEndpoint,
-		}
-	} catch (error) {
-		console.error(`Failed to connect to remote browser: ${error}`)
-		return {
-			success: false,
-			message: `Failed to connect: ${error instanceof Error ? error.message : String(error)}`,
+	// Try each host directly first
+	for (const hostUrl of hostsToTry) {
+		console.log(`Trying to connect to: ${hostUrl}`)
+		try {
+			const hostIsValid = await tryChromeHostUrl(hostUrl)
+			if (hostIsValid) return hostUrl
+		} catch (error) {
+			console.log(`Failed to connect to ${hostUrl}: ${error instanceof Error ? error.message : error}`)
 		}
 	}
+
+	// If direct connections failed, attempt auto-discovery
+	console.log("Direct connections failed. Attempting auto-discovery...")
+
+	const discoveredHostUrl = await discoverChromeHosts(port)
+	if (discoveredHostUrl) {
+		console.log(`Trying to connect to discovered host: ${discoveredHostUrl}`)
+		try {
+			const hostIsValid = await tryChromeHostUrl(discoveredHostUrl)
+			if (hostIsValid) return discoveredHostUrl
+			console.log(`Failed to connect to discovered host ${discoveredHostUrl}`)
+		} catch (error) {
+			console.log(`Error connecting to discovered host: ${error instanceof Error ? error.message : error}`)
+		}
+	} else {
+		console.log("No browser instances discovered on network")
+	}
+
+	return null
 }

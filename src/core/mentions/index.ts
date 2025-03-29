@@ -22,10 +22,7 @@ export async function openMention(mention?: string, osInfo?: string): Promise<vo
 		return
 	}
 
-	if (
-		(osInfo !== "win32" && mention.startsWith("/")) ||
-		(osInfo === "win32" && mention.startsWith("\\"))
-	) {
+	if ((osInfo !== "win32" && mention.startsWith("/")) || (osInfo === "win32" && mention.startsWith("\\"))) {
 		const relPath = mention.slice(1)
 		let absPath = path.resolve(cwd, relPath)
 		if (absPath.includes(" ")) {

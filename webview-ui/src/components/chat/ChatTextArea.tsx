@@ -70,12 +70,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			currentApiConfigName,
 			listApiConfigMeta,
 			customModes,
-			cwd, 
+			cwd,
 			osInfo,
 			pinnedApiConfigs,
 			togglePinnedApiConfig,
-		} =
-			useExtensionState()
+		} = useExtensionState()
 
 		// Find the ID and display text for the currently selected API configuration
 		const { currentConfigId, displayName } = useMemo(() => {

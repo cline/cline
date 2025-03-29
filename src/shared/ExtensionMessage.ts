@@ -233,7 +233,7 @@ export interface ClineSayTool {
 }
 
 // Must keep in sync with system prompt.
-export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
+export const browserActions = ["launch", "click", "hover", "type", "scroll_down", "scroll_up", "close"] as const
 
 export type BrowserAction = (typeof browserActions)[number]
 
