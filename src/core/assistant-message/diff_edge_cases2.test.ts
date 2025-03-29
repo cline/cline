@@ -292,6 +292,7 @@ Section 5: Final replacement
 		expect(result).to.equal(expected)
 	})
 
+	// Test diff containing special regex characters and nested search markers
 	const diff = `<<< SEARCH
 $^.*
 =======
@@ -303,6 +304,8 @@ replaced
 =======
 before
 >>>>>>> REPLACE`
+	// expected1 shows the incremental results when processing the diff line by line
+	// Each element represents the result after processing that line number
 	const expected1 = [
 		"",
 		"",
@@ -315,7 +318,8 @@ before
 		"replaced\n",
 		"replaced\nbefore\n",
 	]
-
+	// expected2 shows the results when processing with original content
+	// Each element represents the result after processing that line number
 	const expected2 = [
 		"",
 		"",
