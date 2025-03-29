@@ -188,7 +188,10 @@ jobs:
                     DIFF=$(echo "$PR_COV - $BASE_COV" | bc 2>/dev/null || echo "0")
                     echo "Extension coverage difference: $DIFF%"
                     
-                    if (( $(echo "$DIFF < 0" | bc -l 2>/dev/null || echo "0") )); then
+                    # Store the comparison result in a variable for better readability
+                    IS_NEGATIVE=$(echo "$DIFF < 0" | bc -l 2>/dev/null || echo "0")
+                    
+                    if [[ "$IS_NEGATIVE" -eq 1 ]]; then
                       echo "extension_decreased=true" >> $GITHUB_OUTPUT
                       echo "extension_diff=${DIFF#-}" >> $GITHUB_OUTPUT  # Remove minus sign
                     else
@@ -211,7 +214,10 @@ jobs:
                     DIFF=$(echo "$PR_COV - $BASE_COV" | bc 2>/dev/null || echo "0")
                     echo "Webview coverage difference: $DIFF%"
                     
-                    if (( $(echo "$DIFF < 0" | bc -l 2>/dev/null || echo "0") )); then
+                    # Store the comparison result in a variable for better readability
+                    IS_NEGATIVE=$(echo "$DIFF < 0" | bc -l 2>/dev/null || echo "0")
+                    
+                    if [[ "$IS_NEGATIVE" -eq 1 ]]; then
                       echo "webview_decreased=true" >> $GITHUB_OUTPUT
                       echo "webview_diff=${DIFF#-}" >> $GITHUB_OUTPUT  # Remove minus sign
                     else
@@ -235,7 +241,9 @@ jobs:
                       const baseWebviewCov = parseFloat('${{ steps.base_webview_coverage.outputs.base_webview_coverage }}' || '0');
                       const prWebviewCov = parseFloat('${{ steps.pr_coverage.outputs.pr_webview_coverage }}' || '0');
 
-                      let comment = '## Coverage Report\n\n';
+                      // Add a unique identifier to find this comment later
+                      let comment = '<!-- COVERAGE_REPORT -->\n';
+                      comment += '## Coverage Report\n\n';
 
                       // Extension coverage
                       comment += '### Extension Coverage\n\n';
@@ -270,9 +278,36 @@ jobs:
                         comment += '✅ **Test coverage has been maintained or improved**\n\n';
                       }
 
-                      github.rest.issues.createComment({
+                      // Add timestamp
+                      comment += `\n\n<sub>Last updated: ${new Date().toISOString()}</sub>`;
+
+                      // Find existing coverage comment
+                      const { data: comments } = await github.rest.issues.listComments({
                         issue_number: context.issue.number,
                         owner: context.repo.owner,
-                        repo: context.repo.repo,
-                        body: comment
+                        repo: context.repo.repo
                       });
+
+                      const coverageComment = comments.find(comment => 
+                        comment.body.includes('<!-- COVERAGE_REPORT -->')
+                      );
+
+                      if (coverageComment) {
+                        // Update existing comment
+                        await github.rest.issues.updateComment({
+                          comment_id: coverageComment.id,
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          body: comment
+                        });
+                        console.log(`Updated existing coverage comment: ${coverageComment.id}`);
+                      } else {
+                        // Create new comment
+                        await github.rest.issues.createComment({
+                          issue_number: context.issue.number,
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          body: comment
+                        });
+                        console.log('Created new coverage comment');
+                      }
