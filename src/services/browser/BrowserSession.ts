@@ -145,6 +145,7 @@ export class BrowserSession {
 				chromeFlags: chromeFlags,
 				userDataDir: false, // use default profile, not a new one
 				ignoreDefaultFlags: true, // Completely ignore all default flags to mimic CLI launch behavior
+				startingUrl: "chrome://newtab", // Instead of about:blank, open a new tab page
 			})
 
 			await launcher.launch()
