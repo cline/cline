@@ -166,7 +166,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 	const successColor = "var(--vscode-charts-green)"
 	const cancelledColor = "var(--vscode-descriptionForeground)"
 
-	console.log("[ChatRowContent] Logging stuff:", { message, isExpanded, onToggleExpand, lastModifiedMessage, isLast })
 
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
