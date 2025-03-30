@@ -55,7 +55,6 @@ if (!isTestEnv) {
 						// Read and parse the JSON file
 						const content = fs.readFileSync(filePath, "utf8")
 						translations[language][namespace] = JSON.parse(content)
-						console.log(`Successfully loaded '${language}/${namespace}' translations`)
 					} catch (error) {
 						console.error(`Error loading translation file ${filePath}:`, error)
 					}

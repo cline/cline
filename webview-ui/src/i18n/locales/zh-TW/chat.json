@@ -159,7 +159,7 @@
 	"autoApprove": {
 		"title": "自動批准:",
 		"none": "無",
-		"description": "自動批准允許Roo Code無需請求許可即可執行操作。僅為您完全信任的操作啟用。",
+		"description": "自動批准允許Roo Code無需請求許可即可執行操作。僅為您完全信任的操作啟用。更詳細的配置可在<settingsLink>設定</settingsLink>中查看。",
 		"actions": {
 			"readFiles": {
 				"label": "讀取檔案和目錄",

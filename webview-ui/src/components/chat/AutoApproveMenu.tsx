@@ -2,6 +2,8 @@ import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { useAppTranslation } from "../../i18n/TranslationContext"
+import { Trans } from "react-i18next"
+import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { vscode } from "../../utils/vscode"
 
 interface AutoApproveAction {
@@ -158,6 +160,10 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 		vscode.postMessage({ type: "alwaysApproveResubmit", bool: newValue })
 	}, [alwaysApproveResubmit, setAlwaysApproveResubmit])
 
+	const handleOpenSettings = useCallback(() => {
+		window.postMessage({ type: "action", action: "settingsButtonClicked" })
+	}, [])
+
 	// Map action IDs to their specific handlers
 	const actionHandlers: Record<AutoApproveAction["id"], () => void> = {
 		readFiles: handleReadOnlyChange,
@@ -243,7 +249,12 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							color: "var(--vscode-descriptionForeground)",
 							fontSize: "12px",
 						}}>
-						{t("chat:autoApprove.description")}
+						<Trans
+							i18nKey="chat:autoApprove.description"
+							components={{
+								settingsLink: <VSCodeLink href="#" onClick={handleOpenSettings} />,
+							}}
+						/>
 					</div>
 					{actions.map((action) => (
 						<div key={action.id} style={{ margin: "6px 0" }}>
