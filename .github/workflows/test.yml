@@ -69,6 +69,10 @@ jobs:
             - name: Prettier / Format Check
               run: npm run format
 
+            # Build the extension before running tests
+            - name: Build Extension
+              run: npm run compile
+
             # Run extension tests with coverage
             - name: Extension Tests with Coverage
               id: extension_coverage
