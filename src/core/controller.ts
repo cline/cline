@@ -102,7 +102,11 @@ export class Controller {
 					action: "didBecomeVisible",
 				})
 			},
-			onDidDispose: () => {},
+			onDidDispose: () => {
+				// since we use vscode's webview extension api, when webview is disposed–it indicates that the extension or tab is closed
+				// this is a good opportunity to clean up resources
+				this.dispose()
+			},
 			messageListener: (message: WebviewMessage) => {
 				this.handleWebviewMessage(message)
 			},
@@ -123,7 +127,6 @@ export class Controller {
 		this.outputChannel.appendLine("Disposing ClineProvider...")
 		await this.clearTask()
 		this.outputChannel.appendLine("Cleared task")
-		this.webviewProvider.dispose()
 		while (this.disposables.length) {
 			const x = this.disposables.pop()
 			if (x) {
@@ -137,6 +140,7 @@ export class Controller {
 		this.accountService = undefined
 		this.outputChannel.appendLine("Disposed all disposables")
 		Controller.activeInstances.delete(this)
+		console.error("Controller disposed")
 	}
 
 	// Auth methods

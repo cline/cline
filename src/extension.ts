@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 		Logger.log("Opening Cline in new tab")
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-		const tabProvider = new Controller(context, outputChannel)
+		const tabController = new Controller(context, outputChannel)
 		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
 		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 
@@ -100,7 +100,7 @@ export function activate(context: vscode.ExtensionContext) {
 			light: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_light.png"),
 			dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_dark.png"),
 		}
-		tabProvider.webviewProvider.resolveWebviewView(panel)
+		tabController.webviewProvider.resolveWebviewView(panel)
 
 		// Lock the editor group so clicking on files doesn't open them over the panel
 		await setTimeoutPromise(100)

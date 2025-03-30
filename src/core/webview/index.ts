@@ -20,7 +20,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		readonly listeners: {
 			didResolveWebview: () => void
 			onDidBecomeVisible: () => void
-			onDidDispose: (e: any) => any
+			onDidDispose: () => any
 			messageListener: (message: any) => void
 		},
 	) {}
@@ -35,6 +35,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 				x.dispose()
 			}
 		}
+		this.listeners.onDidDispose()
 	}
 
 	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
