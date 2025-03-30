@@ -85,6 +85,7 @@ import { telemetryService } from "../services/telemetry/TelemetryService"
 import { validateToolUse, isToolAllowedForMode, ToolName } from "./mode-validator"
 import { parseXml } from "../utils/xml"
 import { getWorkspacePath } from "../utils/path"
+import { writeToFileTool } from "./tools/writeToFileTool"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.Messages.ContentBlockParam>
@@ -135,7 +136,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 	api: ApiHandler
 	private urlContentFetcher: UrlContentFetcher
 	private browserSession: BrowserSession
-	private didEditFile: boolean = false
+	didEditFile: boolean = false
 	customInstructions?: string
 	diffStrategy?: DiffStrategy
 	diffEnabled: boolean = false
@@ -156,7 +157,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 	private abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
-	private diffViewProvider: DiffViewProvider
+	diffViewProvider: DiffViewProvider
 	private lastApiRequestTime?: number
 	isInitialized = false
 
@@ -1564,211 +1565,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 				}
 
 				switch (block.name) {
-					case "write_to_file": {
-						const relPath: string | undefined = block.params.path
-						let newContent: string | undefined = block.params.content
-						let predictedLineCount: number | undefined = parseInt(block.params.line_count ?? "0")
-						if (!relPath || !newContent) {
-							// checking for newContent ensure relPath is complete
-							// wait so we can determine if it's a new file or editing an existing file
-							break
-						}
-
-						const accessAllowed = this.rooIgnoreController?.validateAccess(relPath)
-						if (!accessAllowed) {
-							await this.say("rooignore_error", relPath)
-							pushToolResult(formatResponse.toolError(formatResponse.rooIgnoreError(relPath)))
-
-							break
-						}
-
-						// Check if file exists using cached map or fs.access
-						let fileExists: boolean
-						if (this.diffViewProvider.editType !== undefined) {
-							fileExists = this.diffViewProvider.editType === "modify"
-						} else {
-							const absolutePath = path.resolve(this.cwd, relPath)
-							fileExists = await fileExistsAtPath(absolutePath)
-							this.diffViewProvider.editType = fileExists ? "modify" : "create"
-						}
-
-						// pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)
-						if (newContent.startsWith("```")) {
-							// this handles cases where it includes language specifiers like ```python ```js
-							newContent = newContent.split("\n").slice(1).join("\n").trim()
-						}
-						if (newContent.endsWith("```")) {
-							newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
-						}
-
-						if (!this.api.getModel().id.includes("claude")) {
-							// it seems not just llama models are doing this, but also gemini and potentially others
-							if (
-								newContent.includes("&gt;") ||
-								newContent.includes("&lt;") ||
-								newContent.includes("&quot;")
-							) {
-								newContent = newContent
-									.replace(/&gt;/g, ">")
-									.replace(/&lt;/g, "<")
-									.replace(/&quot;/g, '"')
-							}
-						}
-
-						// Determine if the path is outside the workspace
-						const fullPath = relPath ? path.resolve(this.cwd, removeClosingTag("path", relPath)) : ""
-						const isOutsideWorkspace = isPathOutsideWorkspace(fullPath)
-
-						const sharedMessageProps: ClineSayTool = {
-							tool: fileExists ? "editedExistingFile" : "newFileCreated",
-							path: getReadablePath(this.cwd, removeClosingTag("path", relPath)),
-							isOutsideWorkspace,
-						}
-						try {
-							if (block.partial) {
-								// update gui message
-								const partialMessage = JSON.stringify(sharedMessageProps)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								// update editor
-								if (!this.diffViewProvider.isEditing) {
-									// open the editor and prepare to stream content in
-									await this.diffViewProvider.open(relPath)
-								}
-								// editor is open, stream content in
-								await this.diffViewProvider.update(
-									everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent,
-									false,
-								)
-								break
-							} else {
-								if (!relPath) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "path"))
-									await this.diffViewProvider.reset()
-									break
-								}
-								if (!newContent) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("write_to_file", "content"))
-									await this.diffViewProvider.reset()
-									break
-								}
-								if (!predictedLineCount) {
-									this.consecutiveMistakeCount++
-									pushToolResult(
-										await this.sayAndCreateMissingParamError("write_to_file", "line_count"),
-									)
-									await this.diffViewProvider.reset()
-									break
-								}
-								this.consecutiveMistakeCount = 0
-
-								// if isEditingFile false, that means we have the full contents of the file already.
-								// it's important to note how this function works, you can't make the assumption that the block.partial conditional will always be called since it may immediately get complete, non-partial data. So this part of the logic will always be called.
-								// in other words, you must always repeat the block.partial logic here
-								if (!this.diffViewProvider.isEditing) {
-									// show gui message before showing edit animation
-									const partialMessage = JSON.stringify(sharedMessageProps)
-									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
-									await this.diffViewProvider.open(relPath)
-								}
-								await this.diffViewProvider.update(
-									everyLineHasLineNumbers(newContent) ? stripLineNumbers(newContent) : newContent,
-									true,
-								)
-								await delay(300) // wait for diff view to update
-								this.diffViewProvider.scrollToFirstDiff()
-
-								// Check for code omissions before proceeding
-								if (
-									detectCodeOmission(
-										this.diffViewProvider.originalContent || "",
-										newContent,
-										predictedLineCount,
-									)
-								) {
-									if (this.diffStrategy) {
-										await this.diffViewProvider.revertChanges()
-										pushToolResult(
-											formatResponse.toolError(
-												`Content appears to be truncated (file has ${
-													newContent.split("\n").length
-												} lines but was predicted to have ${predictedLineCount} lines), and found comments indicating omitted code (e.g., '// rest of code unchanged', '/* previous code */'). Please provide the complete file content without any omissions if possible, or otherwise use the 'apply_diff' tool to apply the diff to the original file.`,
-											),
-										)
-										break
-									} else {
-										vscode.window
-											.showWarningMessage(
-												"Potential code truncation detected. This happens when the AI reaches its max output limit.",
-												"Follow this guide to fix the issue",
-											)
-											.then((selection) => {
-												if (selection === "Follow this guide to fix the issue") {
-													vscode.env.openExternal(
-														vscode.Uri.parse(
-															"https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Cline-Deleting-Code-with-%22Rest-of-Code-Here%22-Comments",
-														),
-													)
-												}
-											})
-									}
-								}
-
-								const completeMessage = JSON.stringify({
-									...sharedMessageProps,
-									content: fileExists ? undefined : newContent,
-									diff: fileExists
-										? formatResponse.createPrettyPatch(
-												relPath,
-												this.diffViewProvider.originalContent,
-												newContent,
-											)
-										: undefined,
-								} satisfies ClineSayTool)
-								const didApprove = await askApproval("tool", completeMessage)
-								if (!didApprove) {
-									await this.diffViewProvider.revertChanges()
-									break
-								}
-								const { newProblemsMessage, userEdits, finalContent } =
-									await this.diffViewProvider.saveChanges()
-								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
-								if (userEdits) {
-									await this.say(
-										"user_feedback_diff",
-										JSON.stringify({
-											tool: fileExists ? "editedExistingFile" : "newFileCreated",
-											path: getReadablePath(this.cwd, relPath),
-											diff: userEdits,
-										} satisfies ClineSayTool),
-									)
-									pushToolResult(
-										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
-											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
-											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(
-												finalContent || "",
-											)}\n</final_file_content>\n\n` +
-											`Please note:\n` +
-											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
-											`2. Proceed with the task using this updated file content as the new baseline.\n` +
-											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
-											`${newProblemsMessage}`,
-									)
-								} else {
-									pushToolResult(
-										`The content was successfully saved to ${relPath.toPosix()}.${newProblemsMessage}`,
-									)
-								}
-								await this.diffViewProvider.reset()
-								break
-							}
-						} catch (error) {
-							await handleError("writing file", error)
-							await this.diffViewProvider.reset()
-							break
-						}
-					}
+					case "write_to_file":
+						await writeToFileTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
 					case "apply_diff": {
 						const relPath: string | undefined = block.params.path
 						const diffContent: string | undefined = block.params.diff
