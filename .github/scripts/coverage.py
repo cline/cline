@@ -65,24 +65,47 @@ def print_debug_output(content, coverage_type):
     if not verbose:
         return
     
+    # Use sys.stdout.write to ensure output is captured in GitHub Actions logs
+    import sys
+    
+    # Always print the first 1000 characters of the file content in verbose mode
+    sys.stdout.write(f"\n##[group]COVERAGE FILE CONTENT ({coverage_type.upper()}) - FIRST 1000 CHARS\n")
+    sys.stdout.write(content[:1000])
+    if len(content) > 1000:
+        sys.stdout.write("\n... (content truncated) ...\n")
+    sys.stdout.write("\n##[endgroup]\n")
+    sys.stdout.flush()
+    
     # Extract and print only the coverage summary section
     if coverage_type == "extension":
         # Look for the coverage summary section
         summary_match = re.search(r'=============================== Coverage summary ===============================\n(.*?)\n=+', content, re.DOTALL)
         if summary_match:
-            print("=============================== Coverage summary ===============================")
-            print(summary_match.group(1))
-            print("================================================================================")
+            sys.stdout.write("\n##[group]EXTENSION COVERAGE SUMMARY\n")
+            sys.stdout.write("=============================== Coverage summary ===============================\n")
+            sys.stdout.write(summary_match.group(1) + "\n")
+            sys.stdout.write("================================================================================\n")
+            sys.stdout.write("##[endgroup]\n")
+            sys.stdout.flush()
+        else:
+            sys.stdout.write("\n##[warning]No coverage summary found in extension coverage file\n")
+            sys.stdout.flush()
     else:  # webview
         # Look for the coverage table - specifically the "All files" row
         table_match = re.search(r'% Coverage report from v8.*?-+\|.*?\n.*?\n(All files.*?)(?:\n[^\n]*\|)', content, re.DOTALL)
         if table_match:
-            print("% Coverage report from v8")
-            print("-------------------|---------|----------|---------|---------|-------------------")
-            print("File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s ")
-            print("-------------------|---------|----------|---------|---------|-------------------")
-            print(table_match.group(1))
-            print("-------------------|---------|----------|---------|---------|-------------------")
+            sys.stdout.write("\n##[group]WEBVIEW COVERAGE SUMMARY\n")
+            sys.stdout.write("% Coverage report from v8\n")
+            sys.stdout.write("-------------------|---------|----------|---------|---------|-------------------\n")
+            sys.stdout.write("File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s \n")
+            sys.stdout.write("-------------------|---------|----------|---------|---------|-------------------\n")
+            sys.stdout.write(table_match.group(1) + "\n")
+            sys.stdout.write("-------------------|---------|----------|---------|---------|-------------------\n")
+            sys.stdout.write("##[endgroup]\n")
+            sys.stdout.flush()
+        else:
+            sys.stdout.write("\n##[warning]No coverage table found in webview coverage file\n")
+            sys.stdout.flush()
 
 
 def extract_coverage(file_path, coverage_type="extension"):
