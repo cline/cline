@@ -5,6 +5,7 @@
 <p align="center">
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/617694668.cline-cn)](https://marketplace.visualstudio.com/items?itemName=617694668.cline-cn)
+[![字节Trae扩展安装](https://img.shields.io/badge/字节Trae扩展安装-阿里云盘-blue)](https://www.alipan.com/s/TWqXrtFqqRa)
 
 </p>
 
