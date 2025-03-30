@@ -340,16 +340,33 @@ def process_coverage_workflow(args):
     
     # Check for significant coverage decrease and output warnings
     if ext_decreased or web_decreased:
-        print("::warning::Test coverage has decreased in this PR")
-        print(f"::warning::Extension coverage: {base_ext_cov}% -> {pr_ext_cov}% (Diff: {ext_diff}%)")
-        print(f"::warning::Webview coverage: {base_web_cov}% -> {pr_web_cov}% (Diff: {web_diff}%)")
+        # Get the GitHub step summary file path from environment variable
+        github_step_summary = os.environ.get('GITHUB_STEP_SUMMARY')
+        
+        # Write warnings to GitHub Actions logs
+        warnings = [
+            "Test coverage has decreased in this PR",
+            f"Extension coverage: {base_ext_cov}% -> {pr_ext_cov}% (Diff: {ext_diff}%)",
+            f"Webview coverage: {base_web_cov}% -> {pr_web_cov}% (Diff: {web_diff}%)"
+        ]
         
         # Additional warning for significant decrease (more than 1%)
         if ext_diff > 1.0:
-            print(f"::warning::Extension coverage decreased by more than 1% ({ext_diff}%). Consider adding tests to cover your changes.")
+            warnings.append(f"Extension coverage decreased by more than 1% ({ext_diff}%). Consider adding tests to cover your changes.")
         
         if web_diff > 1.0:
-            print(f"::warning::Webview coverage decreased by more than 1% ({web_diff}%). Consider adding tests to cover your changes.")
+            warnings.append(f"Webview coverage decreased by more than 1% ({web_diff}%). Consider adding tests to cover your changes.")
+        
+        # Write to GitHub step summary if available
+        if github_step_summary:
+            with open(github_step_summary, 'a') as f:
+                f.write("## Coverage Warnings\n\n")
+                for warning in warnings:
+                    f.write(f"⚠️ {warning}\n\n")
+        
+        # Also output to console with ::warning:: syntax for backward compatibility
+        for warning in warnings:
+            print(f"::warning::{warning}")
     
     # Generate comment
     print("=== Generating comment ===")
@@ -386,8 +403,14 @@ def set_github_output(name, value):
         name: Output variable name
         value: Output variable value
     """
-    # For GitHub Actions
-    print(f"::set-output name={name}::{value}")
+    # Write to the GitHub output file if available
+    if 'GITHUB_OUTPUT' in os.environ:
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"{name}={value}\n")
+    else:
+        # Fallback to the deprecated method for backward compatibility
+        print(f"::set-output name={name}::{value}")
+    
     # Also print for human readability
     print(f"{name}: {value}")
 
