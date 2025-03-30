@@ -61,7 +61,7 @@ import { ContextManager } from ".././context-management/ContextManager"
 import { OpenAiHandler } from "../../api/providers/openai"
 import { ApiStream } from "../../api/transform/stream"
 import { ClineHandler } from "../../api/providers/cline"
-import { Controller as ClineProvider } from "../../core/controller"
+import { Controller } from "../../core/controller"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../../shared/Languages"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import pTimeout from "p-timeout"
@@ -99,7 +99,7 @@ export class Task {
 	private lastMessageTs?: number
 	private consecutiveAutoApprovedRequestsCount: number = 0
 	private consecutiveMistakeCount: number = 0
-	private providerRef: WeakRef<ClineProvider>
+	private controllerRef: WeakRef<Controller>
 	private abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
@@ -126,7 +126,7 @@ export class Task {
 	private didAutomaticallyRetryFailedApiRequest = false
 
 	constructor(
-		provider: ClineProvider,
+		controller: Controller,
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
@@ -140,12 +140,12 @@ export class Task {
 		this.clineIgnoreController.initialize().catch((error) => {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 		})
-		this.providerRef = new WeakRef(provider)
+		this.controllerRef = new WeakRef(controller)
 		this.apiProvider = apiConfiguration.apiProvider
 		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
-		this.urlContentFetcher = new UrlContentFetcher(provider.context)
-		this.browserSession = new BrowserSession(provider.context, browserSettings)
+		this.urlContentFetcher = new UrlContentFetcher(controller.context)
+		this.browserSession = new BrowserSession(controller.context, browserSettings)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
@@ -184,7 +184,7 @@ export class Task {
 	// Storing task to disk for history
 
 	private async ensureTaskDirectoryExists(): Promise<string> {
-		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
+		const globalStoragePath = this.controllerRef.deref()?.context.globalStorageUri.fsPath
 		if (!globalStoragePath) {
 			throw new Error("Global storage uri is invalid")
 		}
@@ -272,7 +272,7 @@ export class Task {
 			} catch (error) {
 				console.error("Failed to get task directory size:", taskDir, error)
 			}
-			await this.providerRef.deref()?.updateTaskHistory({
+			await this.controllerRef.deref()?.updateTaskHistory({
 				id: this.taskId,
 				ts: lastRelevantMessage.ts,
 				task: taskMessage.text ?? "",
@@ -309,13 +309,13 @@ export class Task {
 					try {
 						this.checkpointTracker = await CheckpointTracker.create(
 							this.taskId,
-							this.providerRef.deref()?.context.globalStorageUri.fsPath,
+							this.controllerRef.deref()?.context.globalStorageUri.fsPath,
 						)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
 						console.error("Failed to initialize checkpoint tracker:", errorMessage)
 						this.checkpointTrackerErrorMessage = errorMessage
-						await this.providerRef.deref()?.postStateToWebview()
+						await this.controllerRef.deref()?.postStateToWebview()
 						vscode.window.showErrorMessage(errorMessage)
 						didWorkspaceRestoreFail = true
 					}
@@ -391,17 +391,17 @@ export class Task {
 
 			await this.saveClineMessages()
 
-			await this.providerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
+			await this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
 
-			this.providerRef.deref()?.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
+			this.controllerRef.deref()?.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
 		} else {
-			await this.providerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
+			await this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
 		}
 	}
 
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
 		const relinquishButton = () => {
-			this.providerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
+			this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
 		}
 
 		console.log("presentMultifileDiff", messageTs)
@@ -424,13 +424,13 @@ export class Task {
 			try {
 				this.checkpointTracker = await CheckpointTracker.create(
 					this.taskId,
-					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+					this.controllerRef.deref()?.context.globalStorageUri.fsPath,
 				)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 				this.checkpointTrackerErrorMessage = errorMessage
-				await this.providerRef.deref()?.postStateToWebview()
+				await this.controllerRef.deref()?.postStateToWebview()
 				vscode.window.showErrorMessage(errorMessage)
 				relinquishButton()
 				return
@@ -539,7 +539,7 @@ export class Task {
 			try {
 				this.checkpointTracker = await CheckpointTracker.create(
 					this.taskId,
-					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+					this.controllerRef.deref()?.context.globalStorageUri.fsPath,
 				)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -611,8 +611,8 @@ export class Task {
 					lastMessage.partial = partial
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessages()
-					// await this.providerRef.deref()?.postStateToWebview()
-					await this.providerRef.deref()?.postMessageToWebview({
+					// await this.controllerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					})
@@ -631,7 +631,7 @@ export class Task {
 						text,
 						partial,
 					})
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 					throw new Error("Current ask promise was ignored 2")
 				}
 			} else {
@@ -654,8 +654,8 @@ export class Task {
 					lastMessage.text = text
 					lastMessage.partial = false
 					await this.saveClineMessages()
-					// await this.providerRef.deref()?.postStateToWebview()
-					await this.providerRef.deref()?.postMessageToWebview({
+					// await this.controllerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					})
@@ -672,7 +672,7 @@ export class Task {
 						ask: type,
 						text,
 					})
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 				}
 			}
 		} else {
@@ -689,7 +689,7 @@ export class Task {
 				ask: type,
 				text,
 			})
-			await this.providerRef.deref()?.postStateToWebview()
+			await this.controllerRef.deref()?.postStateToWebview()
 		}
 
 		await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })
@@ -728,7 +728,7 @@ export class Task {
 					lastMessage.text = text
 					lastMessage.images = images
 					lastMessage.partial = partial
-					await this.providerRef.deref()?.postMessageToWebview({
+					await this.controllerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					})
@@ -744,7 +744,7 @@ export class Task {
 						images,
 						partial,
 					})
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 				}
 			} else {
 				// partial=false means its a complete version of a previously partial message
@@ -758,8 +758,8 @@ export class Task {
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					await this.saveClineMessages()
-					// await this.providerRef.deref()?.postStateToWebview()
-					await this.providerRef.deref()?.postMessageToWebview({
+					// await this.controllerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					}) // more performant than an entire postStateToWebview
@@ -774,7 +774,7 @@ export class Task {
 						text,
 						images,
 					})
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 				}
 			}
 		} else {
@@ -788,7 +788,7 @@ export class Task {
 				text,
 				images,
 			})
-			await this.providerRef.deref()?.postStateToWebview()
+			await this.controllerRef.deref()?.postStateToWebview()
 		}
 	}
 
@@ -807,7 +807,7 @@ export class Task {
 		if (lastMessage?.partial && lastMessage.type === type && (lastMessage.ask === askOrSay || lastMessage.say === askOrSay)) {
 			this.clineMessages.pop()
 			await this.saveClineMessages()
-			await this.providerRef.deref()?.postStateToWebview()
+			await this.controllerRef.deref()?.postStateToWebview()
 		}
 	}
 
@@ -819,7 +819,7 @@ export class Task {
 		this.clineMessages = []
 		this.apiConversationHistory = []
 
-		await this.providerRef.deref()?.postStateToWebview()
+		await this.controllerRef.deref()?.postStateToWebview()
 
 		await this.say("text", task, images)
 
@@ -841,7 +841,7 @@ export class Task {
 	private async resumeTaskFromHistory() {
 		// UPDATE: we don't need this anymore since most tasks are now created with checkpoints enabled
 		// right now we let users init checkpoints for old tasks, assuming they're continuing them from the same workspace (which we never tied to tasks, so no way for us to know if it's opened in the right workspace)
-		// const doesShadowGitExist = await CheckpointTracker.doesShadowGitExist(this.taskId, this.providerRef.deref())
+		// const doesShadowGitExist = await CheckpointTracker.doesShadowGitExist(this.taskId, this.controllerRef.deref())
 		// if (!doesShadowGitExist) {
 		// 	this.checkpointTrackerErrorMessage = "Checkpoints are only available for new tasks"
 		// }
@@ -1276,11 +1276,11 @@ export class Task {
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
-		await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
+		await pWaitFor(() => this.controllerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
 			console.error("MCP servers failed to connect in time")
 		})
 
-		const mcpHub = this.providerRef.deref()?.mcpHub
+		const mcpHub = this.controllerRef.deref()?.mcpHub
 		if (!mcpHub) {
 			throw new Error("MCP hub not available")
 		}
@@ -1958,7 +1958,7 @@ export class Task {
 								}
 
 								if (!fileExists) {
-									this.providerRef.deref()?.workspaceTracker?.populateFilePaths()
+									this.controllerRef.deref()?.workspaceTracker?.populateFilePaths()
 								}
 
 								await this.diffViewProvider.reset()
@@ -2522,7 +2522,7 @@ export class Task {
 								}
 
 								// Re-populate file paths in case the command modified the workspace (vscode listeners do not trigger unless the user manually creates/deletes files)
-								this.providerRef.deref()?.workspaceTracker?.populateFilePaths()
+								this.controllerRef.deref()?.workspaceTracker?.populateFilePaths()
 
 								pushToolResult(result)
 
@@ -2604,7 +2604,7 @@ export class Task {
 									arguments: mcp_arguments,
 								} satisfies ClineAskUseMcpServer)
 
-								const isToolAutoApproved = this.providerRef
+								const isToolAutoApproved = this.controllerRef
 									.deref()
 									?.mcpHub?.connections?.find((conn) => conn.server.name === server_name)
 									?.server.tools?.find((tool) => tool.name === tool_name)?.autoApprove
@@ -2626,7 +2626,7 @@ export class Task {
 
 								// now execute the tool
 								await this.say("mcp_server_request_started") // same as browser_action_result
-								const toolResult = await this.providerRef
+								const toolResult = await this.controllerRef
 									.deref()
 									?.mcpHub?.callTool(server_name, tool_name, parsedArguments)
 
@@ -2716,7 +2716,7 @@ export class Task {
 
 								// now execute the tool
 								await this.say("mcp_server_request_started")
-								const resourceResult = await this.providerRef.deref()?.mcpHub?.readResource(server_name, uri)
+								const resourceResult = await this.controllerRef.deref()?.mcpHub?.readResource(server_name, uri)
 								const resourceResultPretty =
 									resourceResult?.contents
 										.map((item) => {
@@ -3146,7 +3146,7 @@ export class Task {
 		if (!this.checkpointTracker && !this.checkpointTrackerErrorMessage) {
 			try {
 				this.checkpointTracker = await pTimeout(
-					CheckpointTracker.create(this.taskId, this.providerRef.deref()?.context.globalStorageUri.fsPath),
+					CheckpointTracker.create(this.taskId, this.controllerRef.deref()?.context.globalStorageUri.fsPath),
 					{
 						milliseconds: 15_000,
 						message:
@@ -3188,7 +3188,7 @@ export class Task {
 			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClineApiReqInfo)
 		await this.saveClineMessages()
-		await this.providerRef.deref()?.postStateToWebview()
+		await this.controllerRef.deref()?.postStateToWebview()
 
 		try {
 			let cacheWriteTokens = 0
@@ -3348,10 +3348,10 @@ export class Task {
 					const errorMessage = this.formatErrorWithStatusCode(error)
 
 					await abortStream("streaming_failed", errorMessage)
-					const history = await this.providerRef.deref()?.getTaskWithId(this.taskId)
+					const history = await this.controllerRef.deref()?.getTaskWithId(this.taskId)
 					if (history) {
-						await this.providerRef.deref()?.initClineWithHistoryItem(history.historyItem)
-						// await this.providerRef.deref()?.postStateToWebview()
+						await this.controllerRef.deref()?.initClineWithHistoryItem(history.historyItem)
+						// await this.controllerRef.deref()?.postStateToWebview()
 					}
 				}
 			} finally {
@@ -3371,7 +3371,7 @@ export class Task {
 					}
 					updateApiReqMsg()
 					await this.saveClineMessages()
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 				})
 			}
 
@@ -3395,7 +3395,7 @@ export class Task {
 
 			updateApiReqMsg()
 			await this.saveClineMessages()
-			await this.providerRef.deref()?.postStateToWebview()
+			await this.controllerRef.deref()?.postStateToWebview()
 
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
