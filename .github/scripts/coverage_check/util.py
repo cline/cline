@@ -6,9 +6,59 @@ This module provides utility functions used across the coverage check scripts.
 import os
 import sys
 import re
+import shlex
 import subprocess
 import traceback
 from typing import List, Tuple, Dict, Any, Optional, Union
+
+# List of allowed commands and their arguments
+ALLOWED_COMMANDS = {
+    'xvfb-run': ['-a'],
+    'npm': ['run', 'test:coverage', 'ci'],
+    'cd': [],
+    'python': ['-m', 'coverage_check'],
+    'git': ['fetch', 'checkout'],
+}
+
+def is_safe_command(command: Union[str, List[str]]) -> bool:
+    """
+    Check if a command is safe to execute.
+    
+    Args:
+        command: Command to check (string or list)
+        
+    Returns:
+        True if command is safe, False otherwise
+    """
+    # Convert string command to list
+    if isinstance(command, str):
+        try:
+            cmd_parts = shlex.split(command)
+        except ValueError:
+            return False
+    else:
+        cmd_parts = command
+
+    if not cmd_parts:
+        return False
+
+    # Get base command
+    base_cmd = os.path.basename(cmd_parts[0])
+    
+    # Check if command is in allowed list
+    if base_cmd not in ALLOWED_COMMANDS:
+        return False
+        
+    # For each argument, check for suspicious patterns
+    for arg in cmd_parts[1:]:
+        # Check for shell metacharacters
+        if re.search(r'[;&|`$]', arg):
+            return False
+        # Check for path traversal
+        if '..' in arg:
+            return False
+            
+    return True
 
 def log(message: str) -> None:
     """
@@ -113,24 +163,33 @@ def write_file_content(file_path: str, content: str) -> bool:
         log(f"Error writing to file {file_path}: {e}")
         return False
 
-def run_command(command: Union[str, List[str]], shell: bool = True, 
-                capture_output: bool = True) -> Tuple[int, str, str]:
+def run_command(command: Union[str, List[str]], capture_output: bool = True) -> Tuple[int, str, str]:
     """
     Run a command and return the result.
     
     Args:
         command: Command to run (string or list)
-        shell: Whether to use shell=True
         capture_output: Whether to capture stdout/stderr
         
     Returns:
         Tuple of (returncode, stdout, stderr)
     """
+    if not is_safe_command(command):
+        error_msg = f"Unsafe command detected: {command}"
+        log(error_msg)
+        return 1, "", error_msg
+        
     log(f"Running command: {command}")
     try:
+        # Convert string command to list
+        if isinstance(command, str):
+            cmd_list = shlex.split(command)
+        else:
+            cmd_list = command
+            
         result = subprocess.run(
-            command, 
-            shell=shell if isinstance(command, str) else False,
+            cmd_list,
+            shell=False,  # Never use shell=True for security
             capture_output=capture_output,
             text=True
         )

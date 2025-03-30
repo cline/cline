@@ -11,6 +11,24 @@ from .github_api import generate_comment, post_comment, set_github_output
 from .workflow import process_coverage_workflow
 from .util import log
 
+def setup_verbose_mode(args):
+    """
+    Set up verbose mode based on command line arguments.
+    
+    Args:
+        args: Parsed command line arguments
+    """
+    # Check for verbose flag in any level of arguments
+    is_verbose = any(
+        getattr(args, attr, False) 
+        for attr in ['verbose', 'v'] 
+        if hasattr(args, attr)
+    )
+    
+    if is_verbose:
+        set_verbose(True)
+        log("Verbose mode enabled")
+
 def main():
     parser = argparse.ArgumentParser(description='Coverage utility script for GitHub Actions workflows')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
@@ -75,10 +93,8 @@ def main():
     
     args = parser.parse_args()
     
-    # Set verbose flag - check both the main parser and subparser arguments
-    if hasattr(args, 'verbose') and args.verbose:
-        set_verbose(True)
-        log("Verbose mode enabled")
+    # Set up verbose mode
+    setup_verbose_mode(args)
     
     if args.command == 'extract-coverage':
         log(f"Extracting coverage from file: {args.file_path} (type: {args.type})")

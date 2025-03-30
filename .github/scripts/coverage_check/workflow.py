@@ -13,35 +13,59 @@ from .extraction import run_coverage, compare_coverage, extract_coverage
 from .github_api import generate_comment, post_comment, set_github_output
 from .util import log, file_exists, get_file_size, list_directory
 
-def checkout_branch(branch_name):
-    """Checkout a branch for testing."""
+def is_valid_branch_name(branch_name: str) -> bool:
+    """
+    Validate a git branch name.
+    
+    Args:
+        branch_name: Branch name to validate
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    # Check for common branch name patterns
+    if not re.match(r'^[a-zA-Z0-9_\-./]+$', branch_name):
+        return False
+    
+    # Check for path traversal
+    if '..' in branch_name:
+        return False
+        
+    # Check for shell metacharacters
+    if re.search(r'[;&|`$]', branch_name):
+        return False
+        
+    return True
+
+def checkout_branch(branch_name: str) -> None:
+    """
+    Checkout a branch for testing.
+    
+    Args:
+        branch_name: Branch name to checkout
+        
+    Raises:
+        RuntimeError: If branch checkout fails
+        ValueError: If branch name is invalid
+    """
+    if not is_valid_branch_name(branch_name):
+        raise ValueError(f"Invalid branch name: {branch_name}")
+        
     log(f"=== Checking out branch: {branch_name} ===")
     
     # Fetch the branch
-    fetch_result = subprocess.run(
-        f"git fetch origin {branch_name}", 
-        shell=True, 
-        capture_output=True, 
-        text=True
-    )
-    
-    if fetch_result.returncode != 0:
+    returncode, stdout, stderr = run_command(['git', 'fetch', 'origin', branch_name])
+    if returncode != 0:
         log(f"ERROR: Failed to fetch branch {branch_name}")
-        log(f"Error details: {fetch_result.stderr}")
-        raise RuntimeError(f"Git fetch failed: {fetch_result.stderr}")
+        log(f"Error details: {stderr}")
+        raise RuntimeError(f"Git fetch failed: {stderr}")
     
     # Checkout the branch
-    checkout_result = subprocess.run(
-        f"git checkout {branch_name}", 
-        shell=True, 
-        capture_output=True, 
-        text=True
-    )
-    
-    if checkout_result.returncode != 0:
+    returncode, stdout, stderr = run_command(['git', 'checkout', branch_name])
+    if returncode != 0:
         log(f"ERROR: Failed to checkout branch {branch_name}")
-        log(f"Error details: {checkout_result.stderr}")
-        raise RuntimeError(f"Git checkout failed: {checkout_result.stderr}")
+        log(f"Error details: {stderr}")
+        raise RuntimeError(f"Git checkout failed: {stderr}")
     
     log(f"Successfully checked out branch: {branch_name}")
 
@@ -290,7 +314,21 @@ def process_coverage_workflow(args):
     Args:
         args: Command line arguments
     """
+    # Initialize all variables at the start
+    pr_ext_cov = 0.0
+    pr_web_cov = 0.0
+    base_ext_cov = 0.0
+    base_web_cov = 0.0
+    ext_decreased = False
+    ext_diff = 0.0
+    web_decreased = False
+    web_diff = 0.0
+    
     try:
+        # Validate branch name
+        if not is_valid_branch_name(args.base_branch):
+            raise ValueError(f"Invalid base branch name: {args.base_branch}")
+        
         # Check if we're running in GitHub Actions
         is_github_actions = 'GITHUB_ACTIONS' in os.environ
         if is_github_actions:
@@ -367,15 +405,6 @@ def process_coverage_workflow(args):
     except Exception as e:
         log(f"ERROR in process_coverage_workflow: {e}")
         traceback.print_exc()
-        # Continue with default values if an error occurs
-        pr_ext_cov = pr_ext_cov if 'pr_ext_cov' in locals() else 0.0
-        pr_web_cov = pr_web_cov if 'pr_web_cov' in locals() else 0.0
-        base_ext_cov = base_ext_cov if 'base_ext_cov' in locals() else 0.0
-        base_web_cov = base_web_cov if 'base_web_cov' in locals() else 0.0
-        ext_decreased = ext_decreased if 'ext_decreased' in locals() else False
-        ext_diff = ext_diff if 'ext_diff' in locals() else 0.0
-        web_decreased = web_decreased if 'web_decreased' in locals() else False
-        web_diff = web_diff if 'web_diff' in locals() else 0.0
         
         # Try to output results even if there was an error
         try:

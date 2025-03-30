@@ -6,9 +6,10 @@ This module handles extracting coverage percentages from coverage report files.
 import os
 import re
 import sys
+import shlex
 import subprocess
 import traceback
-from .util import log, file_exists, get_file_size, list_directory
+from .util import log, file_exists, get_file_size, list_directory, is_safe_command
 
 # Global verbose flag
 verbose = False
@@ -207,32 +208,28 @@ def run_coverage(command, output_file, coverage_type="extension"):
     
     try:
         # Run the command and capture output
-        # For complex commands that require shell features like pipes or redirects,
-        # we need to use shell=True, but we ensure the commands are constructed internally
-        # and not directly from user input
-        if isinstance(command, list):
-            # If command is already a list, use it directly with shell=False
-            log(f"Running command (as list): {command}")
-            result = subprocess.run(command, shell=False, capture_output=True, text=True)
-        else:
-            # For string commands, use shell=True but log a warning in verbose mode
-            log(f"Running command (as string): {command}")
-            if verbose:
-                log(f"Warning: Running command with shell=True: {command}")
-            result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        if not is_safe_command(command):
+            error_msg = f"ERROR: Unsafe command detected: {command}"
+            log(error_msg)
+            sys.stdout.write(f"\n##[error]{error_msg}\n")
+            sys.stdout.flush()
+            sys.exit(1)
+
+        # Run command using safe execution from util
+        returncode, stdout, stderr = run_command(command)
         
         # Log command result
-        log(f"Command exit code: {result.returncode}")
-        log(f"Command stdout length: {len(result.stdout)} bytes")
-        log(f"Command stderr length: {len(result.stderr)} bytes")
+        log(f"Command exit code: {returncode}")
+        log(f"Command stdout length: {len(stdout)} bytes")
+        log(f"Command stderr length: {len(stderr)} bytes")
         
         # Save output to file
         log(f"Saving command output to {output_file}")
         with open(output_file, 'w') as f:
-            f.write(result.stdout)
-            if result.stderr:
+            f.write(stdout)
+            if stderr:
                 f.write("\n\n=== STDERR ===\n")
-                f.write(result.stderr)
+                f.write(stderr)
         
         # Verify file was created and has content
         if not file_exists(output_file):
