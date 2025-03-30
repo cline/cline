@@ -88,6 +88,7 @@ import { getWorkspacePath } from "../utils/path"
 import { writeToFileTool } from "./tools/writeToFileTool"
 import { applyDiffTool } from "./tools/applyDiffTool"
 import { insertContentTool } from "./tools/insertContentTool"
+import { searchAndReplaceTool } from "./tools/searchAndReplaceTool"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.Messages.ContentBlockParam>
@@ -1576,187 +1577,25 @@ export class Cline extends EventEmitter<ClineEvents> {
 					case "insert_content":
 						await insertContentTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
 						break
-					case "search_and_replace": {
-						const relPath: string | undefined = block.params.path
-						const operations: string | undefined = block.params.operations
-
-						const sharedMessageProps: ClineSayTool = {
-							tool: "appliedDiff",
-							path: getReadablePath(this.cwd, removeClosingTag("path", relPath)),
-						}
-
-						try {
-							if (block.partial) {
-								const partialMessage = JSON.stringify({
-									path: removeClosingTag("path", relPath),
-									operations: removeClosingTag("operations", operations),
-								})
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								break
-							} else {
-								if (!relPath) {
-									this.consecutiveMistakeCount++
-									pushToolResult(
-										await this.sayAndCreateMissingParamError("search_and_replace", "path"),
-									)
-									break
-								}
-								if (!operations) {
-									this.consecutiveMistakeCount++
-									pushToolResult(
-										await this.sayAndCreateMissingParamError("search_and_replace", "operations"),
-									)
-									break
-								}
-
-								const absolutePath = path.resolve(this.cwd, relPath)
-								const fileExists = await fileExistsAtPath(absolutePath)
-
-								if (!fileExists) {
-									this.consecutiveMistakeCount++
-									const formattedError = `File does not exist at path: ${absolutePath}\n\n<error_details>\nThe specified file could not be found. Please verify the file path and try again.\n</error_details>`
-									await this.say("error", formattedError)
-									pushToolResult(formattedError)
-									break
-								}
-
-								let parsedOperations: Array<{
-									search: string
-									replace: string
-									start_line?: number
-									end_line?: number
-									use_regex?: boolean
-									ignore_case?: boolean
-									regex_flags?: string
-								}>
-
-								try {
-									parsedOperations = JSON.parse(operations)
-									if (!Array.isArray(parsedOperations)) {
-										throw new Error("Operations must be an array")
-									}
-								} catch (error) {
-									this.consecutiveMistakeCount++
-									await this.say("error", `Failed to parse operations JSON: ${error.message}`)
-									pushToolResult(formatResponse.toolError("Invalid operations JSON format"))
-									break
-								}
-
-								// Read the original file content
-								const fileContent = await fs.readFile(absolutePath, "utf-8")
-								this.diffViewProvider.editType = "modify"
-								this.diffViewProvider.originalContent = fileContent
-								let lines = fileContent.split("\n")
-
-								for (const op of parsedOperations) {
-									const flags = op.regex_flags ?? (op.ignore_case ? "gi" : "g")
-									const multilineFlags = flags.includes("m") ? flags : flags + "m"
-
-									const searchPattern = op.use_regex
-										? new RegExp(op.search, multilineFlags)
-										: new RegExp(escapeRegExp(op.search), multilineFlags)
-
-									if (op.start_line || op.end_line) {
-										const startLine = Math.max((op.start_line ?? 1) - 1, 0)
-										const endLine = Math.min((op.end_line ?? lines.length) - 1, lines.length - 1)
-
-										// Get the content before and after the target section
-										const beforeLines = lines.slice(0, startLine)
-										const afterLines = lines.slice(endLine + 1)
-
-										// Get the target section and perform replacement
-										const targetContent = lines.slice(startLine, endLine + 1).join("\n")
-										const modifiedContent = targetContent.replace(searchPattern, op.replace)
-										const modifiedLines = modifiedContent.split("\n")
-
-										// Reconstruct the full content with the modified section
-										lines = [...beforeLines, ...modifiedLines, ...afterLines]
-									} else {
-										// Global replacement
-										const fullContent = lines.join("\n")
-										const modifiedContent = fullContent.replace(searchPattern, op.replace)
-										lines = modifiedContent.split("\n")
-									}
-								}
-
-								const newContent = lines.join("\n")
-
-								this.consecutiveMistakeCount = 0
-
-								// Show diff preview
-								const diff = formatResponse.createPrettyPatch(relPath, fileContent, newContent)
-
-								if (!diff) {
-									pushToolResult(`No changes needed for '${relPath}'`)
-									break
-								}
-
-								await this.diffViewProvider.open(relPath)
-								await this.diffViewProvider.update(newContent, true)
-								this.diffViewProvider.scrollToFirstDiff()
-
-								const completeMessage = JSON.stringify({
-									...sharedMessageProps,
-									diff: diff,
-								} satisfies ClineSayTool)
-
-								const didApprove = await askApproval("tool", completeMessage)
-								if (!didApprove) {
-									await this.diffViewProvider.revertChanges() // This likely handles closing the diff view
-									break
-								}
-
-								const { newProblemsMessage, userEdits, finalContent } =
-									await this.diffViewProvider.saveChanges()
-								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
-								if (userEdits) {
-									await this.say(
-										"user_feedback_diff",
-										JSON.stringify({
-											tool: fileExists ? "editedExistingFile" : "newFileCreated",
-											path: getReadablePath(this.cwd, relPath),
-											diff: userEdits,
-										} satisfies ClineSayTool),
-									)
-									pushToolResult(
-										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
-											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file, including line numbers:\n\n` +
-											`<final_file_content path="${relPath.toPosix()}">\n${addLineNumbers(finalContent || "")}\n</final_file_content>\n\n` +
-											`Please note:\n` +
-											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
-											`2. Proceed with the task using this updated file content as the new baseline.\n` +
-											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
-											`${newProblemsMessage}`,
-									)
-								} else {
-									pushToolResult(
-										`Changes successfully applied to ${relPath.toPosix()}:\n\n${newProblemsMessage}`,
-									)
-								}
-								await this.diffViewProvider.reset()
-								break
-							}
-						} catch (error) {
-							await handleError("applying search and replace", error)
-							await this.diffViewProvider.reset()
-							break
-						}
-					}
-
-					case "read_file": {
+					case "search_and_replace":
+						await searchAndReplaceTool(
+							this,
+							block,
+							askApproval,
+							handleError,
+							pushToolResult,
+							removeClosingTag,
+						)
+						break
+					case "read_file":
 						await readFileTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
 						break
-					}
-
-					case "fetch_instructions": {
+					case "fetch_instructions":
 						await fetchInstructionsTool(this, block, askApproval, handleError, pushToolResult)
 						break
-					}
-
-					case "list_files": {
+					case "list_files":
 						await listFilesTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
 						break
-					}
 					case "list_code_definition_names": {
 						const relPath: string | undefined = block.params.path
 						const sharedMessageProps: ClineSayTool = {
@@ -3561,8 +3400,4 @@ export class Cline extends EventEmitter<ClineEvents> {
 			this.enableCheckpoints = false
 		}
 	}
-}
-
-function escapeRegExp(string: string): string {
-	return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
