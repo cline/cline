@@ -62,7 +62,7 @@ Cline-Chinese已发布到VSCode插件市场，欢迎感兴趣的小伙伴们下�
 <div align="center" style="display: flex; justify-content: center; gap: 20px;">
 
   <img src="https://github.com/user-attachments/assets/f01e4514-e8ec-48de-883a-9f6fbd05c2a0" alt="支付宝赞赏" width="250" />
-  <img src="https://github.com/dxdw2021/cline/tree/28d08920d018bb3f07d51ae02418f544a1a2d176/User%20Tutorials/png" alt="微信赞赏" width="250" />
+  <img src="https://raw.githubusercontent.com/dxdw2021/cline/main/User%20Tutorials/png/weixin-%E8%B5%9E%E8%B5%8F%E7%A0%81.png" alt="微信赞赏" width="250" />
 
 </div>
 
