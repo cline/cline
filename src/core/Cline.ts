@@ -92,6 +92,7 @@ import { searchAndReplaceTool } from "./tools/searchAndReplaceTool"
 import { listCodeDefinitionNamesTool } from "./tools/listCodeDefinitionNamesTool"
 import { searchFilesTool } from "./tools/searchFilesTool"
 import { browserActionTool } from "./tools/browserActionTool"
+import { executeCommandTool } from "./tools/executeCommandTool"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.Messages.ContentBlockParam>
@@ -181,7 +182,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 	private presentAssistantMessageHasPendingUpdates = false
 	private userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
 	private userMessageContentReady = false
-	private didRejectTool = false
+	didRejectTool = false
 	private didAlreadyUseTool = false
 	private didCompleteReadingStream = false
 
@@ -1618,52 +1619,15 @@ export class Cline extends EventEmitter<ClineEvents> {
 						break
 					}
 					case "execute_command": {
-						const command: string | undefined = block.params.command
-						const customCwd: string | undefined = block.params.cwd
-						try {
-							if (block.partial) {
-								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-									() => {},
-								)
-								break
-							} else {
-								if (!command) {
-									this.consecutiveMistakeCount++
-									pushToolResult(
-										await this.sayAndCreateMissingParamError("execute_command", "command"),
-									)
-									break
-								}
-
-								const ignoredFileAttemptedToAccess = this.rooIgnoreController?.validateCommand(command)
-								if (ignoredFileAttemptedToAccess) {
-									await this.say("rooignore_error", ignoredFileAttemptedToAccess)
-									pushToolResult(
-										formatResponse.toolError(
-											formatResponse.rooIgnoreError(ignoredFileAttemptedToAccess),
-										),
-									)
-
-									break
-								}
-
-								this.consecutiveMistakeCount = 0
-
-								const didApprove = await askApproval("command", command)
-								if (!didApprove) {
-									break
-								}
-								const [userRejected, result] = await this.executeCommandTool(command, customCwd)
-								if (userRejected) {
-									this.didRejectTool = true
-								}
-								pushToolResult(result)
-								break
-							}
-						} catch (error) {
-							await handleError("executing command", error)
-							break
-						}
+						await executeCommandTool(
+							this,
+							block,
+							askApproval,
+							handleError,
+							pushToolResult,
+							removeClosingTag,
+						)
+						break
 					}
 					case "use_mcp_tool": {
 						const server_name: string | undefined = block.params.server_name
