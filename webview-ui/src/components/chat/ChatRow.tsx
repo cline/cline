@@ -166,7 +166,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 	const successColor = "var(--vscode-charts-green)"
 	const cancelledColor = "var(--vscode-descriptionForeground)"
 
-
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
