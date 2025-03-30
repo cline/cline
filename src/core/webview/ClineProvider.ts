@@ -479,7 +479,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			async (message: WebviewMessage) => {
 				switch (message.type) {
 					case "taskFeedback":
-						if (message.feedbackType && message.messageTs && this.cline?.taskId) {
+						if (message.feedbackType && this.cline?.taskId) {
 							telemetryService.captureTaskFeedback(this.cline.taskId, message.feedbackType)
 						}
 						break

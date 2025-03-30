@@ -42,7 +42,6 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 		vscode.postMessage({
 			type: "taskFeedback",
 			feedbackType: type,
-			messageTs: messageTs,
 		})
 
 		// Store in localStorage that feedback was provided for this message

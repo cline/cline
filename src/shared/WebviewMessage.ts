@@ -95,7 +95,6 @@ export interface WebviewMessage {
 	customInstructionsSetting?: string
 	// For task feedback
 	feedbackType?: TaskFeedbackType
-	messageTs?: number
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
