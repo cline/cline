@@ -355,7 +355,7 @@ class CheckpointTracker {
 		// Stage all changes so that untracked files appear in diff summary
 		await this.gitOperations.addCheckpointFiles(git)
 
-		const diffRange = rhsHash ? `${this.cleanCommitHash(lhsHash)}..${this.cleanCommitHash(rhsHash)}` : lhsHash
+		const diffRange = rhsHash ? `${this.cleanCommitHash(lhsHash)}..${this.cleanCommitHash(rhsHash)}` : this.cleanCommitHash(lhsHash)
 		const diffSummary = await git.diffSummary([diffRange])
 
 		const durationMs = Math.round(performance.now() - startTime)
