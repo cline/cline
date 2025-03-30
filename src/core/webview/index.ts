@@ -11,11 +11,8 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 interface WebviewProvideListeners {
-	didResolveWebview: () => any
-	onDidChangeViewState: (e: vscode.WebviewPanelOnDidChangeViewStateEvent) => any
-	thisArgs?: any
-	disposables?: vscode.Disposable[]
-	onDidChangeVisibility: (e: any) => any
+	didResolveWebview: () => void
+	onDidBecomeVisible: () => void
 	onDidDispose: (e: any) => any
 	messageListener: (message: any) => void
 }
@@ -70,10 +67,26 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		if ("onDidChangeViewState" in webviewView) {
 			// WebviewView and WebviewPanel have all the same properties except for this visibility listener
 			// panel
-			webviewView.onDidChangeViewState(this.listeners.onDidChangeViewState, null, this.disposables)
+			webviewView.onDidChangeViewState(
+				() => {
+					if (this.view?.visible) {
+						this.listeners.onDidBecomeVisible()
+					}
+				},
+				null,
+				this.disposables,
+			)
 		} else if ("onDidChangeVisibility" in webviewView) {
 			// sidebar
-			webviewView.onDidChangeVisibility(this.listeners.onDidChangeVisibility, null, this.disposables)
+			webviewView.onDidChangeVisibility(
+				() => {
+					if (this.view?.visible) {
+						this.listeners.onDidBecomeVisible()
+					}
+				},
+				null,
+				this.disposables,
+			)
 		}
 
 		// Listen for when the view is disposed
@@ -89,11 +102,6 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		// // if the extension is starting a new session, clear previous task state
 		// this.clearTask()
 		this.listeners.didResolveWebview()
-	}
-
-	// Send any JSON serializable data to the react app
-	async postMessageToWebview(message: ExtensionMessage) {
-		await this.view?.webview.postMessage(message)
 	}
 
 	/**

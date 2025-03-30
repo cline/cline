@@ -96,8 +96,12 @@ export class Controller {
 
 				this.outputChannel.appendLine("Webview view resolved")
 			},
-			onDidChangeViewState: () => {},
-			onDidChangeVisibility: () => {},
+			onDidBecomeVisible: () => {
+				this.postMessageToWebview({
+					type: "action",
+					action: "didBecomeVisible",
+				})
+			},
 			onDidDispose: () => {},
 			messageListener: (message: WebviewMessage) => {
 				this.handleWebviewMessage(message)
@@ -119,7 +123,7 @@ export class Controller {
 		this.outputChannel.appendLine("Disposing ClineProvider...")
 		await this.clearTask()
 		this.outputChannel.appendLine("Cleared task")
-
+		this.webviewProvider.dispose()
 		while (this.disposables.length) {
 			const x = this.disposables.pop()
 			if (x) {
