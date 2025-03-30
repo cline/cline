@@ -83,6 +83,7 @@
 	},
 	"providers": {
 		"configProfile": "Profilo di configurazione",
+		"providerDocumentation": "Documentazione {{provider}}",
 		"description": "Salva diverse configurazioni API per passare rapidamente tra fornitori e impostazioni.",
 		"apiProvider": "Fornitore API",
 		"model": "Modello",

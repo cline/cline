@@ -83,6 +83,7 @@
 	},
 	"providers": {
 		"configProfile": "配置文件",
+		"providerDocumentation": "{{provider}} 文档",
 		"description": "保存不同的 API 配置以快速切换提供商和设置。",
 		"apiProvider": "API 提供商",
 		"model": "模型",

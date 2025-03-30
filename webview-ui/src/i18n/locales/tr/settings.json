@@ -83,6 +83,7 @@
 	},
 	"providers": {
 		"configProfile": "Yapılandırma Profili",
+		"providerDocumentation": "{{provider}} Dokümantasyonu",
 		"description": "Sağlayıcılar ve ayarlar arasında hızlıca geçiş yapmak için farklı API yapılandırmalarını kaydedin.",
 		"apiProvider": "API Sağlayıcı",
 		"model": "Model",

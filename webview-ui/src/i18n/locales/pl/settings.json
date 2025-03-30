@@ -83,6 +83,7 @@
 	},
 	"providers": {
 		"configProfile": "Profil konfiguracji",
+		"providerDocumentation": "Dokumentacja {{provider}}",
 		"description": "Zapisz różne konfiguracje API, aby szybko przełączać się między dostawcami i ustawieniami.",
 		"apiProvider": "Dostawca API",
 		"model": "Model",

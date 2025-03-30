@@ -83,6 +83,7 @@
 	},
 	"providers": {
 		"configProfile": "Hồ sơ cấu hình",
+		"providerDocumentation": "Tài liệu {{provider}}",
 		"description": "Lưu các cấu hình API khác nhau để nhanh chóng chuyển đổi giữa các nhà cung cấp và cài đặt.",
 		"apiProvider": "Nhà cung cấp API",
 		"model": "Mẫu",

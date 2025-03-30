@@ -83,6 +83,7 @@
 	},
 	"providers": {
 		"configProfile": "구성 프로필",
+		"providerDocumentation": "{{provider}} 문서",
 		"description": "다양한 API 구성을 저장하여 제공자와 설정 간에 빠르게 전환할 수 있습니다.",
 		"apiProvider": "API 제공자",
 		"model": "모델",

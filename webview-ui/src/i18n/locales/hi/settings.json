@@ -83,6 +83,7 @@
 	},
 	"providers": {
 		"configProfile": "कॉन्फिगरेशन प्रोफाइल",
+		"providerDocumentation": "{{provider}} दस्तावेज़ीकरण",
 		"description": "विभिन्न API कॉन्फ़िगरेशन सहेजें ताकि प्रदाताओं और सेटिंग्स के बीच त्वरित रूप से स्विच कर सकें।",
 		"apiProvider": "API प्रदाता",
 		"model": "मॉडल",

@@ -83,6 +83,7 @@
 	},
 	"providers": {
 		"configProfile": "Perfil de configuració",
+		"providerDocumentation": "Documentació de {{provider}}",
 		"description": "Deseu diferents configuracions d'API per canviar ràpidament entre proveïdors i configuracions.",
 		"apiProvider": "Proveïdor d'API",
 		"openRouterApiKey": "Clau API d'OpenRouter",

@@ -83,6 +83,7 @@
 	},
 	"providers": {
 		"configProfile": "設定プロファイル",
+		"providerDocumentation": "{{provider}}のドキュメント",
 		"description": "異なるAPI設定を保存して、プロバイダーと設定をすばやく切り替えることができます。",
 		"apiProvider": "APIプロバイダー",
 		"model": "モデル",
