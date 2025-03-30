@@ -166,6 +166,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 	const successColor = "var(--vscode-charts-green)"
 	const cancelledColor = "var(--vscode-descriptionForeground)"
 
+	console.log("[ChatRowContent] Logging stuff:", { message, isExpanded, onToggleExpand, lastModifiedMessage, isLast })
+
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
 		switch (message.type) {
@@ -1031,7 +1033,14 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 											</SuccessButton>
 										</div>
 									)}
-									<TaskFeedbackButtons messageTs={message.ts} />
+									<TaskFeedbackButtons
+										messageTs={message.ts}
+										isFromHistory={
+											!isLast ||
+											lastModifiedMessage?.ask === "resume_completed_task" ||
+											lastModifiedMessage?.ask === "resume_task"
+										}
+									/>
 								</>
 							)}
 						</>

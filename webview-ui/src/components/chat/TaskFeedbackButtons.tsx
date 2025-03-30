@@ -1,15 +1,36 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import styled from "styled-components"
 import { vscode } from "../../utils/vscode"
 import { TaskFeedbackType } from "../../../../src/shared/WebviewMessage"
 
 interface TaskFeedbackButtonsProps {
 	messageTs: number
+	isFromHistory?: boolean // New prop to indicate if this is from history
 }
 
-const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs }) => {
+const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, isFromHistory = false }) => {
 	const [feedback, setFeedback] = useState<TaskFeedbackType | null>(null)
 	const [isAnimating, setIsAnimating] = useState(false)
+	const [shouldShow, setShouldShow] = useState<boolean>(true)
+
+	// Check localStorage on mount to see if feedback was already given for this message
+	useEffect(() => {
+		try {
+			const feedbackHistory = localStorage.getItem("taskFeedbackHistory") || "{}"
+			const history = JSON.parse(feedbackHistory)
+			// Check if this specific message timestamp has received feedback
+			if (history[messageTs]) {
+				setShouldShow(false)
+			}
+		} catch (e) {
+			console.error("Error checking feedback history:", e)
+		}
+	}, [messageTs])
+
+	// Don't show buttons if this is from history or feedback was already given
+	if (isFromHistory || !shouldShow) {
+		return null
+	}
 
 	const handleFeedback = (type: TaskFeedbackType) => {
 		if (feedback !== null) return // Already provided feedback
@@ -23,6 +44,16 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs }) 
 			feedbackType: type,
 			messageTs: messageTs,
 		})
+
+		// Store in localStorage that feedback was provided for this message
+		try {
+			const feedbackHistory = localStorage.getItem("taskFeedbackHistory") || "{}"
+			const history = JSON.parse(feedbackHistory)
+			history[messageTs] = true
+			localStorage.setItem("taskFeedbackHistory", JSON.stringify(history))
+		} catch (e) {
+			console.error("Error updating feedback history:", e)
+		}
 
 		// Reset animation after a delay
 		setTimeout(() => {
