@@ -1504,7 +1504,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 }
 
 export function getOpenRouterAuthUrl(uriScheme?: string) {
-	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://saoudrizwan.cline-cn/openrouter`
+	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://cline-cn.cline-cn/openrouter`
 }
 
 export const formatPrice = (price: number) => {

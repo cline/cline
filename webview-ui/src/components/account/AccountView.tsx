@@ -157,8 +157,8 @@ export const ClineAccountView = () => {
 					</VSCodeButton>
 
 					<p className="text-[var(--vscode-descriptionForeground)] text-xs text-center m-0">
-						By continuing, you agree to the <VSCodeLink href="https://cline.bot/tos">Terms of Service</VSCodeLink> and{" "}
-						<VSCodeLink href="https://cline.bot/privacy">Privacy Policy.</VSCodeLink>
+						继续使用即表示您同意<VSCodeLink href="https://cline.bot/tos">服务条款</VSCodeLink>以及{" "}
+						<VSCodeLink href="https://cline.bot/privacy">隐私政策</VSCodeLink>
 					</p>
 				</div>
 			)}

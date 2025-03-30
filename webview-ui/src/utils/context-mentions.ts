@@ -46,8 +46,8 @@ export function removeMention(text: string, position: number): { newText: string
 export enum ContextMenuOptionType {
 	File = "file",
 	Folder = "folder",
-	Problems = "problems",
-	Terminal = "terminal",
+	Problems = "问题",
+	Terminal = "终端",
 	URL = "url",
 	Git = "git",
 	NoResults = "noResults",
@@ -115,7 +115,7 @@ export function getContextMenuOptions(
 	if ("git".startsWith(lowerQuery)) {
 		suggestions.push({
 			type: ContextMenuOptionType.Git,
-			label: "Git Commits",
+			label: "Git提交",
 			description: "Search repository history",
 		})
 	} else if ("git-changes".startsWith(lowerQuery)) {

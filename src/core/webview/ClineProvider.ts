@@ -177,9 +177,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await this.storeSecret("clineApiKey", undefined)
 			await this.updateGlobalState("apiProvider", "openrouter")
 			await this.postStateToWebview()
-			vscode.window.showInformationMessage("Successfully logged out of Cline")
+			vscode.window.showInformationMessage("已成功退出Cline账号")
 		} catch (error) {
-			vscode.window.showErrorMessage("Logout failed")
+			vscode.window.showErrorMessage("退出登录失败")
 		}
 	}
 
@@ -410,7 +410,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			await axios.get(`http://${localServerUrl}`)
 		} catch (error) {
 			vscode.window.showErrorMessage(
-				"Cline: Local webview dev server is not running, HMR will not work. Please run 'npm run dev:webview' before launching the extension to enable HMR. Using bundled assets.",
+				"Cline: 本地webview开发服务器未运行，HMR将不可用。请在启动扩展前运行'npm run dev:webview'以启用HMR。正在使用打包资源。",
 			)
 
 			return this.getHtmlContent(webview)
@@ -2435,7 +2435,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	// dev
 
 	async resetState() {
-		vscode.window.showInformationMessage("Resetting state...")
+		vscode.window.showInformationMessage("正在重置状态...")
 		for (const key of this.context.globalState.keys()) {
 			await this.context.globalState.update(key, undefined)
 		}
@@ -2466,7 +2466,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			this.cline.abortTask()
 			this.cline = undefined
 		}
-		vscode.window.showInformationMessage("State reset")
+		vscode.window.showInformationMessage("状态已重置")
 		await this.postStateToWebview()
 		await this.postMessageToWebview({
 			type: "action",
