@@ -82,6 +82,10 @@ class TestCoverage(unittest.TestCase):
 
     def test_extract_coverage(self):
         """Test extract_coverage function with both extension and webview coverage."""
+        # Check if verbose mode is enabled
+        if '-v' in sys.argv or '--verbose' in sys.argv:
+            coverage_script.set_verbose(True)
+        
         # Test extension coverage
         ext_coverage_pct = coverage_script.extract_coverage(self.extension_coverage_file, 'extension')
         

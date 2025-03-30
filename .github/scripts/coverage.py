@@ -21,13 +21,22 @@ from datetime import datetime
 import requests
 
 
-def try_pattern(pattern, content, flags=0):
+# Global verbose flag
+verbose = False
+
+def set_verbose(value):
+    """Set the global verbose flag."""
+    global verbose
+    verbose = value
+
+def try_pattern(pattern, content, description="", flags=0):
     """
     Try to match a pattern in the content and extract coverage percentage.
     
     Args:
         pattern: Regular expression pattern to match
         content: Content to search in
+        description: Description of the pattern for debugging
         flags: Regular expression flags
         
     Returns:
@@ -35,8 +44,45 @@ def try_pattern(pattern, content, flags=0):
     """
     match = re.search(pattern, content, flags)
     if match:
-        return float(match.group(1))
+        coverage_pct = float(match.group(1))
+        if verbose:
+            if description:
+                print(f"Pattern matched ({description}): {coverage_pct}")
+            else:
+                print(f"Pattern matched: {coverage_pct}")
+        return coverage_pct
     return None
+
+
+def print_debug_output(content, coverage_type):
+    """
+    Print debug information about the coverage output.
+    
+    Args:
+        content: The content of the coverage file
+        coverage_type: Type of coverage report (extension or webview)
+    """
+    if not verbose:
+        return
+    
+    # Extract and print only the coverage summary section
+    if coverage_type == "extension":
+        # Look for the coverage summary section
+        summary_match = re.search(r'=============================== Coverage summary ===============================\n(.*?)\n=+', content, re.DOTALL)
+        if summary_match:
+            print("=============================== Coverage summary ===============================")
+            print(summary_match.group(1))
+            print("================================================================================")
+    else:  # webview
+        # Look for the coverage table - specifically the "All files" row
+        table_match = re.search(r'% Coverage report from v8.*?-+\|.*?\n.*?\n(All files.*?)(?:\n[^\n]*\|)', content, re.DOTALL)
+        if table_match:
+            print("% Coverage report from v8")
+            print("-------------------|---------|----------|---------|---------|-------------------")
+            print("File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s ")
+            print("-------------------|---------|----------|---------|---------|-------------------")
+            print(table_match.group(1))
+            print("-------------------|---------|----------|---------|---------|-------------------")
 
 
 def extract_coverage(file_path, coverage_type="extension"):
@@ -57,31 +103,47 @@ def extract_coverage(file_path, coverage_type="extension"):
     with open(file_path, 'r') as f:
         content = f.read()
     
+    # Print debug information if verbose
+    print_debug_output(content, coverage_type)
+    
     # Define patterns based on coverage type
     if coverage_type == "extension":
         patterns = [
-            (r'Lines[^0-9]*([0-9.]+)%', 0),
-            (r'Coverage summary.*?Lines.*?([0-9.]+)%', re.DOTALL),
-            (r'=======.*?Lines.*?([0-9.]+)%', re.DOTALL)
+            (r'Lines[^0-9]*([0-9.]+)%', "Lines percentage", 0),
+            (r'Coverage summary.*?Lines.*?([0-9.]+)%', "Coverage summary Lines", re.DOTALL),
+            (r'=======.*?Lines.*?([0-9.]+)%', "Separator Lines", re.DOTALL),
+            (r'All files.*?([0-9.]+).*?%', "All files percentage", 0),
+            (r'Statements.*?([0-9.]+).*?%', "Statements percentage", 0),
+            (r'Lines.*?([0-9.]+).*?%', "Lines percentage simple", 0),
+            (r'Functions.*?([0-9.]+).*?%', "Functions percentage", 0),
+            (r'Branches.*?([0-9.]+).*?%', "Branches percentage", 0),
+            (r'(\d+\.\d+)%', "Generic percentage", 0)
         ]
     else:  # webview
         patterns = [
-            (r'All files\s+\|\s+(\d+\.\d+)', 0),
-            (r'% Coverage report.*?All files.*?([0-9.]+)%', re.DOTALL),
-            (r'Coverage summary.*?All files.*?([0-9.]+)%', re.DOTALL),
-            (r'src/utils\s+\|\s+(\d+\.\d+)', 0),
-            (r'[^\|]+\|\s+(\d+\.\d+)', 0),
-            (r'(\d+\.\d+)\s+\|\s+\d+(?:\.\d+)?\s+\|\s+\d+(?:\.\d+)?\s+\|\s+\d+(?:\.\d+)?\s+\|.*?\n-+\|', 0),
-            (r'\|\s*(\d+(?:\.\d+)?)\s*\|', 0),
-            (r'(\d+\.\d+)%', 0)
+            (r'All files\s+\|\s+(\d+\.\d+)', "All files table", 0),
+            (r'% Coverage report.*?All files.*?([0-9.]+)%', "Coverage report All files", re.DOTALL),
+            (r'Coverage summary.*?All files.*?([0-9.]+)%', "Coverage summary All files", re.DOTALL),
+            (r'src/utils\s+\|\s+(\d+\.\d+)', "src/utils table", 0),
+            (r'src\s+\|\s+(\d+\.\d+)', "src table", 0),
+            (r'All files.*?([0-9.]+).*?%', "All files percentage", 0),
+            (r'[^\|]+\|\s+(\d+\.\d+)', "Generic table row", 0),
+            (r'(\d+\.\d+)\s+\|\s+\d+(?:\.\d+)?\s+\|\s+\d+(?:\.\d+)?\s+\|\s+\d+(?:\.\d+)?\s+\|.*?\n-+\|', "Complex table row", 0),
+            (r'\|\s*(\d+(?:\.\d+)?)\s*\|', "Simple table cell", 0),
+            (r'Statements.*?([0-9.]+).*?%', "Statements percentage", 0),
+            (r'Lines.*?([0-9.]+).*?%', "Lines percentage", 0),
+            (r'Functions.*?([0-9.]+).*?%', "Functions percentage", 0),
+            (r'Branches.*?([0-9.]+).*?%', "Branches percentage", 0),
+            (r'(\d+\.\d+)%', "Generic percentage", 0)
         ]
     
     # Try each pattern in order
     for pattern_info in patterns:
         pattern = pattern_info[0]
-        flags = pattern_info[1]
+        description = pattern_info[1]
+        flags = pattern_info[2]
         
-        result = try_pattern(pattern, content, flags)
+        result = try_pattern(pattern, content, description, flags)
         if result is not None:
             return result
     
@@ -417,6 +479,7 @@ def set_github_output(name, value):
 
 def main():
     parser = argparse.ArgumentParser(description='Coverage utility script for GitHub Actions workflows')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
     
     # extract-coverage command
@@ -425,6 +488,7 @@ def main():
     extract_parser.add_argument('--type', choices=['extension', 'webview'], default='extension',
                                help='Type of coverage report')
     extract_parser.add_argument('--github-output', action='store_true', help='Output in GitHub Actions format')
+    extract_parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     
     # compare-coverage command
     compare_parser = subparsers.add_parser('compare-coverage', help='Compare coverage percentages')
@@ -432,6 +496,7 @@ def main():
     compare_parser.add_argument('pr_cov', help='PR branch coverage percentage')
     compare_parser.add_argument('--output-prefix', default='', help='Prefix for GitHub Actions output variables')
     compare_parser.add_argument('--github-output', action='store_true', help='Output in GitHub Actions format')
+    compare_parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     
     # generate-comment command
     comment_parser = subparsers.add_parser('generate-comment', help='Generate PR comment with coverage comparison')
@@ -443,6 +508,7 @@ def main():
     comment_parser.add_argument('pr_web_cov', help='PR branch webview coverage')
     comment_parser.add_argument('web_decreased', help='Whether webview coverage decreased (true/false)')
     comment_parser.add_argument('web_diff', help='Webview coverage difference')
+    comment_parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     
     # post-comment command
     post_parser = subparsers.add_parser('post-comment', help='Post a comment to a GitHub PR')
@@ -450,6 +516,7 @@ def main():
     post_parser.add_argument('pr_number', help='PR number')
     post_parser.add_argument('repo', help='Repository in the format "owner/repo"')
     post_parser.add_argument('--token', help='GitHub token')
+    post_parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     
     # run-coverage command
     run_parser = subparsers.add_parser('run-coverage', help='Run a coverage command and extract the coverage percentage')
@@ -458,6 +525,7 @@ def main():
     run_parser.add_argument('--type', choices=['extension', 'webview'], default='extension',
                            help='Type of coverage report')
     run_parser.add_argument('--github-output', action='store_true', help='Output in GitHub Actions format')
+    run_parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     
     # process-workflow command
     workflow_parser = subparsers.add_parser('process-workflow', help='Process the entire coverage workflow')
@@ -465,13 +533,18 @@ def main():
     workflow_parser.add_argument('--pr-number', help='PR number')
     workflow_parser.add_argument('--repo', help='Repository in the format "owner/repo"')
     workflow_parser.add_argument('--token', help='GitHub token')
+    workflow_parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     
     # set-github-output command
     output_parser = subparsers.add_parser('set-github-output', help='Set GitHub Actions output variable')
     output_parser.add_argument('name', help='Output variable name')
     output_parser.add_argument('value', help='Output variable value')
+    output_parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     
     args = parser.parse_args()
+    
+    # Set verbose flag
+    set_verbose(args.verbose)
     
     if args.command == 'extract-coverage':
         coverage_pct = extract_coverage(args.file_path, args.type)
