@@ -1,11 +1,12 @@
-# Cline-cn (盛世中华版本) 🌏
+# Cline-cn 中文版本3.8.4 (盛世中华版本) 🌏
 
 > 🎉 截止到2025.03.31，Cline-cn 在VS Code插件市场的下载量突破1啦！
 
 <p align="center">
 
 [![Version](https://img.shields.io/visual-studio-marketplace/v/617694668.cline-cn)](https://marketplace.visualstudio.com/items?itemName=617694668.cline-cn)
-[![字节Trae扩展安装](https://img.shields.io/badge/字节Trae扩展安装-阿里云盘-blue)](https://www.alipan.com/s/TWqXrtFqqRa)
+[![字节Trae扩展安装教程](https://img.shields.io/badge/字节Trae扩展安装-阿里云盘-blue)](https://www.alipan.com/s/TWqXrtFqqRa)
+[![离线下载助手](https://img.shields.io/badge/离线下载助手-阿里云盘-orange)](https://www.alipan.com/s/ZeCnNGQrQad)
 
 </p>
 
