@@ -10,8 +10,7 @@ describe("Code Action Prompts", () => {
 				filePath: testFilePath,
 				selectedText: testCode,
 			})
-
-			expect(prompt).toContain(`@/${testFilePath}`)
+			expect(prompt).toContain(testFilePath)
 			expect(prompt).toContain(testCode)
 			expect(prompt).toContain("purpose and functionality")
 			expect(prompt).toContain("Key components")
@@ -25,8 +24,7 @@ describe("Code Action Prompts", () => {
 				filePath: testFilePath,
 				selectedText: testCode,
 			})
-
-			expect(prompt).toContain(`@/${testFilePath}`)
+			expect(prompt).toContain(testFilePath)
 			expect(prompt).toContain(testCode)
 			expect(prompt).toContain("Address all detected problems")
 			expect(prompt).not.toContain("Current problems detected")
@@ -64,8 +62,7 @@ describe("Code Action Prompts", () => {
 				filePath: testFilePath,
 				selectedText: testCode,
 			})
-
-			expect(prompt).toContain(`@/${testFilePath}`)
+			expect(prompt).toContain(testFilePath)
 			expect(prompt).toContain(testCode)
 			expect(prompt).toContain("Code readability")
 			expect(prompt).toContain("Performance optimization")

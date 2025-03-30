@@ -35,7 +35,7 @@ const supportPromptConfigs: Record<string, SupportPromptConfig> = {
 \${userInput}`,
 	},
 	EXPLAIN: {
-		template: `Explain the following code from file path @/\${filePath} \${startLine}:\${endLine}
+		template: `Explain the following code from file path \${filePath}:\${startLine}-\${endLine}
 \${userInput}
 
 \`\`\`
@@ -48,7 +48,7 @@ Please provide a clear and concise explanation of what this code does, including
 3. Important patterns or techniques used`,
 	},
 	FIX: {
-		template: `Fix any issues in the following code from file path @/\${filePath} \${startLine}:\${endLine}
+		template: `Fix any issues in the following code from file path \${filePath}:\${startLine}-\${endLine}
 \${diagnosticText}
 \${userInput}
 
@@ -63,7 +63,7 @@ Please:
 4. Explain what was fixed and why`,
 	},
 	IMPROVE: {
-		template: `Improve the following code from file path @/\${filePath} \${startLine}:\${endLine}
+		template: `Improve the following code from file path \${filePath}:\${startLine}-\${endLine}
 \${userInput}
 
 \`\`\`
@@ -79,7 +79,7 @@ Please suggest improvements for:
 Provide the improved code along with explanations for each enhancement.`,
 	},
 	ADD_TO_CONTEXT: {
-		template: `\${filePath}:\${startLine}:\${endLine}
+		template: `\${filePath}:\${startLine}-\${endLine}
 \`\`\`
 \${selectedText}
 \`\`\``,
