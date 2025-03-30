@@ -4,7 +4,7 @@
 
 <p align="center">
 
-[![Version](https://marketplace.visualstudio.com/items?itemName=617694668.cline-cn)]
+[![Version](https://img.shields.io/visual-studio-marketplace/v/617694668.cline-cn)](https://marketplace.visualstudio.com/items?itemName=617694668.cline-cn)
 
 </p>
 
