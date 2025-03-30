@@ -19,6 +19,7 @@ export class CustomModesManager {
 		private readonly context: vscode.ExtensionContext,
 		private readonly onUpdate: () => Promise<void>,
 	) {
+		// TODO: We really shouldn't have async methods in the constructor.
 		this.watchCustomModesFiles()
 	}
 

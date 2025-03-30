@@ -102,7 +102,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	protected mcpHub?: McpHub // Change from private to protected
 	private latestAnnouncementId = "mar-20-2025-3-10" // update to some unique identifier when we add a new announcement
 	private settingsImportedAt?: number
-	private contextProxy: ContextProxy
+	public readonly contextProxy: ContextProxy
 	public readonly providerSettingsManager: ProviderSettingsManager
 	public readonly customModesManager: CustomModesManager
 
@@ -1539,6 +1539,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 							t("common:confirmation.just_this_message"),
 							t("common:confirmation.this_and_subsequent"),
 						)
+
 						if (
 							(answer === t("common:confirmation.just_this_message") ||
 								answer === t("common:confirmation.this_and_subsequent")) &&
@@ -1547,9 +1548,11 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 							message.value
 						) {
 							const timeCutoff = message.value - 1000 // 1 second buffer before the message to delete
+
 							const messageIndex = this.getCurrentCline()!.clineMessages.findIndex(
 								(msg) => msg.ts && msg.ts >= timeCutoff,
 							)
+
 							const apiConversationHistoryIndex =
 								this.getCurrentCline()?.apiConversationHistory.findIndex(
 									(msg) => msg.ts && msg.ts >= timeCutoff,
@@ -1570,6 +1573,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 										const nextUserMessageIndex = this.getCurrentCline()!.clineMessages.findIndex(
 											(msg) => msg === nextUserMessage,
 										)
+
 										// Keep messages before current message and after next user message
 										await this.getCurrentCline()!.overwriteClineMessages([
 											...this.getCurrentCline()!.clineMessages.slice(0, messageIndex),
@@ -1981,12 +1985,11 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 
 						await this.updateGlobalState("experiments", updatedExperiments)
 
-						// Update diffStrategy in current Cline instance if it exists
-						if (message.values[EXPERIMENT_IDS.DIFF_STRATEGY] !== undefined && this.getCurrentCline()) {
-							await this.getCurrentCline()!.updateDiffStrategy(
-								Experiments.isEnabled(updatedExperiments, EXPERIMENT_IDS.DIFF_STRATEGY),
-								Experiments.isEnabled(updatedExperiments, EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE),
-							)
+						const currentCline = this.getCurrentCline()
+
+						// Update diffStrategy in current Cline instance if it exists.
+						if (message.values[EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED] !== undefined && currentCline) {
+							await currentCline.updateDiffStrategy(updatedExperiments)
 						}
 
 						await this.postStateToWebview()
@@ -2084,13 +2087,13 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				language,
 			} = await this.getState()
 
-			// Create diffStrategy based on current model and settings
-			const diffStrategy = getDiffStrategy(
-				apiConfiguration.apiModelId || apiConfiguration.openRouterModelId || "",
+			// Create diffStrategy based on current model and settings.
+			const diffStrategy = getDiffStrategy({
+				model: apiConfiguration.apiModelId || apiConfiguration.openRouterModelId || "",
+				experiments,
 				fuzzyMatchThreshold,
-				Experiments.isEnabled(experiments, EXPERIMENT_IDS.DIFF_STRATEGY),
-				Experiments.isEnabled(experiments, EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE),
-			)
+			})
+
 			const cwd = this.cwd
 
 			const mode = message.mode ?? defaultModeSlug
@@ -2146,6 +2149,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	public async handleModeSwitch(newMode: Mode) {
 		// Capture mode switch telemetry event
 		const currentTaskId = this.getCurrentCline()?.taskId
+
 		if (currentTaskId) {
 			telemetryService.captureModeSwitch(currentTaskId, newMode)
 		}
@@ -2162,8 +2166,10 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		// If this mode has a saved config, use it
 		if (savedConfigId) {
 			const config = listApiConfig?.find((c) => c.id === savedConfigId)
+
 			if (config?.name) {
 				const apiConfig = await this.providerSettingsManager.loadConfig(config.name)
+
 				await Promise.all([
 					this.updateGlobalState("currentApiConfigName", config.name),
 					this.updateApiConfiguration(apiConfig),
@@ -2175,6 +2181,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 
 			if (currentApiConfigName) {
 				const config = listApiConfig?.find((c) => c.name === currentApiConfigName)
+
 				if (config?.id) {
 					await this.providerSettingsManager.setModeConfig(newMode, config.id)
 				}

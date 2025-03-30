@@ -304,7 +304,12 @@ describe("Cline", () => {
 
 			expect(cline.diffEnabled).toBe(true)
 			expect(cline.diffStrategy).toBeDefined()
-			expect(getDiffStrategySpy).toHaveBeenCalledWith("claude-3-5-sonnet-20241022", 0.9, false, false)
+
+			expect(getDiffStrategySpy).toHaveBeenCalledWith({
+				model: "claude-3-5-sonnet-20241022",
+				experiments: {},
+				fuzzyMatchThreshold: 0.9,
+			})
 		})
 
 		it("should pass default threshold to diff strategy when not provided", async () => {
@@ -321,7 +326,11 @@ describe("Cline", () => {
 
 			expect(cline.diffEnabled).toBe(true)
 			expect(cline.diffStrategy).toBeDefined()
-			expect(getDiffStrategySpy).toHaveBeenCalledWith("claude-3-5-sonnet-20241022", 1.0, false, false)
+			expect(getDiffStrategySpy).toHaveBeenCalledWith({
+				model: "claude-3-5-sonnet-20241022",
+				experiments: {},
+				fuzzyMatchThreshold: 1.0,
+			})
 		})
 
 		it("should require either task or historyItem", () => {

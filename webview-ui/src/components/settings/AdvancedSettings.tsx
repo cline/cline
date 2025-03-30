@@ -68,8 +68,8 @@ export const AdvancedSettings = ({
 							setCachedStateField("diffEnabled", e.target.checked)
 							if (!e.target.checked) {
 								// Reset both experimental strategies when diffs are disabled.
-								setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, false)
-								setExperimentEnabled(EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE, false)
+								setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED, false)
+								setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE, false)
 							}
 						}}>
 						<span className="font-medium">{t("settings:advanced.diff.label")}</span>
@@ -87,22 +87,31 @@ export const AdvancedSettings = ({
 							</label>
 							<Select
 								value={
-									experiments[EXPERIMENT_IDS.DIFF_STRATEGY]
+									experiments[EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED]
 										? "unified"
-										: experiments[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE]
+										: experiments[EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE]
 											? "multiBlock"
 											: "standard"
 								}
 								onValueChange={(value) => {
 									if (value === "standard") {
-										setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, false)
-										setExperimentEnabled(EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE, false)
+										setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED, false)
+										setExperimentEnabled(
+											EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE,
+											false,
+										)
 									} else if (value === "unified") {
-										setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, true)
-										setExperimentEnabled(EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE, false)
+										setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED, true)
+										setExperimentEnabled(
+											EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE,
+											false,
+										)
 									} else if (value === "multiBlock") {
-										setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY, false)
-										setExperimentEnabled(EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE, true)
+										setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED, false)
+										setExperimentEnabled(
+											EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE,
+											true,
+										)
 									}
 								}}>
 								<SelectTrigger className="w-full">
@@ -121,13 +130,11 @@ export const AdvancedSettings = ({
 								</SelectContent>
 							</Select>
 							<div className="text-vscode-descriptionForeground text-sm mt-1">
-								{!experiments[EXPERIMENT_IDS.DIFF_STRATEGY] &&
-									!experiments[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE] &&
-									t("settings:advanced.diff.strategy.descriptions.standard")}
-								{experiments[EXPERIMENT_IDS.DIFF_STRATEGY] &&
-									t("settings:advanced.diff.strategy.descriptions.unified")}
-								{experiments[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE] &&
-									t("settings:advanced.diff.strategy.descriptions.multiBlock")}
+								{experiments[EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED]
+									? t("settings:advanced.diff.strategy.descriptions.unified")
+									: experiments[EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE]
+										? t("settings:advanced.diff.strategy.descriptions.multiBlock")
+										: t("settings:advanced.diff.strategy.descriptions.standard")}
 							</div>
 						</div>
 

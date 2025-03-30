@@ -227,11 +227,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 			telemetryService.captureTaskCreated(this.taskId)
 		}
 
-		// Initialize diffStrategy based on current state
-		this.updateDiffStrategy(
-			Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.DIFF_STRATEGY),
-			Experiments.isEnabled(experiments ?? {}, EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE),
-		)
+		// Initialize diffStrategy based on current state.
+		this.updateDiffStrategy(experiments ?? {})
 
 		onCreated?.(this)
 
@@ -266,25 +263,13 @@ export class Cline extends EventEmitter<ClineEvents> {
 		return getWorkspacePath(path.join(os.homedir(), "Desktop"))
 	}
 
-	// Add method to update diffStrategy
-	async updateDiffStrategy(experimentalDiffStrategy?: boolean, multiSearchReplaceDiffStrategy?: boolean) {
-		// If not provided, get from current state
-		if (experimentalDiffStrategy === undefined || multiSearchReplaceDiffStrategy === undefined) {
-			const { experiments: stateExperimental } = (await this.providerRef.deref()?.getState()) ?? {}
-			if (experimentalDiffStrategy === undefined) {
-				experimentalDiffStrategy = stateExperimental?.[EXPERIMENT_IDS.DIFF_STRATEGY] ?? false
-			}
-			if (multiSearchReplaceDiffStrategy === undefined) {
-				multiSearchReplaceDiffStrategy = stateExperimental?.[EXPERIMENT_IDS.MULTI_SEARCH_AND_REPLACE] ?? false
-			}
-		}
-
-		this.diffStrategy = getDiffStrategy(
-			this.api.getModel().id,
-			this.fuzzyMatchThreshold,
-			experimentalDiffStrategy,
-			multiSearchReplaceDiffStrategy,
-		)
+	// Add method to update diffStrategy.
+	async updateDiffStrategy(experiments: Partial<Record<ExperimentId, boolean>>) {
+		this.diffStrategy = getDiffStrategy({
+			model: this.api.getModel().id,
+			experiments,
+			fuzzyMatchThreshold: this.fuzzyMatchThreshold,
+		})
 	}
 
 	// Storing task to disk for history
