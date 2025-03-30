@@ -218,7 +218,7 @@ export abstract class ShadowCheckpointService extends EventEmitter {
 			const duration = Date.now() - startTime
 
 			if (isFirst || result.commit) {
-				this.emit("checkpoint", { type: "checkpoint", isFirst, fromHash, toHash, duration })
+				this.emit("checkpoint", { type: "checkpoint", isFirst, fromHash, toHash, duration, startTime })
 			}
 
 			if (result.commit) {
