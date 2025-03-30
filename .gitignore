@@ -11,3 +11,4 @@ tmp
 pnpm-lock.yaml
 
 .clineignore
+.venv

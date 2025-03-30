@@ -25,6 +25,19 @@ jobs:
               with:
                   node-version: 20.15.1
 
+            # Setup Python for coverage script
+            - name: Setup Python
+              uses: actions/setup-python@v4
+              with:
+                  python-version: "3.10"
+
+            - name: Install Python dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install -e .github/scripts
+                  # Fallback if pyproject.toml doesn't work
+                  pip install requests
+
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
               uses: actions/cache@v4
@@ -64,9 +77,7 @@ jobs:
               continue-on-error: true
               run: |
                   xvfb-run -a npm run test:coverage > extension_coverage.txt 2>&1 || true
-                  COVERAGE_PCT=$(cat extension_coverage.txt | grep "Lines" | grep -o "[0-9.]*%" | sed 's/%//' || echo "0")
-                  echo "extension_coverage=$COVERAGE_PCT" >> $GITHUB_OUTPUT
-                  echo "Extension coverage: $COVERAGE_PCT%"
+                  python .github/scripts/coverage.py extract-coverage extension_coverage.txt --type=extension --github-output
 
             # Run webview tests with coverage
             - name: Webview Tests with Coverage
@@ -74,10 +85,10 @@ jobs:
               continue-on-error: true
               run: |
                   cd webview-ui
+                  # Ensure coverage dependency is installed
+                  npm install --no-save @vitest/coverage-v8
                   npm run test:coverage > webview_coverage.txt 2>&1 || true
-                  COVERAGE_PCT=$(cat webview_coverage.txt | grep -A 5 "% Coverage report" | grep "All files" | awk '{print $4}' || echo "0")
-                  echo "webview_coverage=$COVERAGE_PCT" >> $GITHUB_OUTPUT
-                  echo "Webview coverage: $COVERAGE_PCT%"
+                  python ../.github/scripts/coverage.py extract-coverage webview_coverage.txt --type=webview --github-output
 
             # Save coverage reports as artifacts (workflow-scoped)
             - name: Save Coverage Reports
@@ -105,6 +116,19 @@ jobs:
               with:
                   node-version: 20.15.1
 
+            # Setup Python for coverage script
+            - name: Setup Python
+              uses: actions/setup-python@v4
+              with:
+                  python-version: "3.10"
+
+            - name: Install Python dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install -e .github/scripts
+                  # Fallback if pyproject.toml doesn't work
+                  pip install requests
+
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
               uses: actions/cache@v4
@@ -129,185 +153,22 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
-            # Download PR coverage reports
-            - name: Download PR Coverage Reports
-              uses: actions/download-artifact@v4
-              with:
-                  name: pr-coverage-reports
+            # Ensure coverage dependency is installed for webview
+            - name: Install coverage dependency for webview
+              run: cd webview-ui && npm install --no-save @vitest/coverage-v8
 
-            # Extract PR coverage percentages
-            - name: Extract PR Coverage Percentages
-              id: pr_coverage
+            # Process coverage workflow
+            - name: Process coverage workflow
+              id: coverage
               run: |
-                  PR_EXT_COV=$(cat extension_coverage.txt | grep "Lines" | grep -o "[0-9.]*%" | sed 's/%//' || echo "0")
-                  PR_WEB_COV=$(cat webview-ui/webview_coverage.txt | grep -A 5 "% Coverage report" | grep "All files" | awk '{print $4}' || echo "0")
-                  echo "pr_extension_coverage=$PR_EXT_COV" >> $GITHUB_OUTPUT
-                  echo "pr_webview_coverage=$PR_WEB_COV" >> $GITHUB_OUTPUT
-                  echo "PR extension coverage: $PR_EXT_COV%"
-                  echo "PR webview coverage: $PR_WEB_COV%"
+                  # Extract PR number from GITHUB_REF
+                  PR_NUMBER=$(echo "$GITHUB_REF" | sed -e 's/refs\/pull\///' -e 's/\/merge//')
 
-            # Get base branch coverage
-            - name: Checkout base branch
-              run: |
-                  git fetch origin ${{ github.base_ref }}
-                  git checkout ${{ github.base_ref }}
-
-            - name: Run extension coverage on base branch
-              id: base_extension_coverage
-              continue-on-error: true
-              run: |
-                  # Run coverage and extract percentage
-                  npm run test:coverage > base_extension_coverage.txt 2>&1 || true
-                  COVERAGE_PCT=$(cat base_extension_coverage.txt | grep "Lines" | grep -o "[0-9.]*%" | sed 's/%//' || echo "0")
-                  echo "base_extension_coverage=$COVERAGE_PCT" >> $GITHUB_OUTPUT
-                  echo "Base extension coverage: $COVERAGE_PCT%"
-
-            - name: Run webview coverage on base branch
-              id: base_webview_coverage
-              continue-on-error: true
-              run: |
-                  # Run coverage and extract percentage
-                  cd webview-ui
-                  npm run test:coverage > base_webview_coverage.txt 2>&1 || true
-                  COVERAGE_PCT=$(cat base_webview_coverage.txt | grep -A 5 "% Coverage report" | grep "All files" | awk '{print $4}' || echo "0")
-                  echo "base_webview_coverage=$COVERAGE_PCT" >> $GITHUB_OUTPUT
-                  echo "Base webview coverage: $COVERAGE_PCT%"
-
-            # Compare coverage
-            - name: Compare extension coverage
-              id: compare_extension_coverage
-              run: |
-                  BASE_COV="${{ steps.base_extension_coverage.outputs.base_extension_coverage }}"
-                  PR_COV="${{ steps.pr_coverage.outputs.pr_extension_coverage }}"
-
-                  if [[ -z "$BASE_COV" || -z "$PR_COV" ]]; then
-                    echo "Could not determine extension coverage percentages"
-                    echo "extension_decreased=false" >> $GITHUB_OUTPUT
-                    echo "extension_diff=0" >> $GITHUB_OUTPUT
-                  else
-                    DIFF=$(echo "$PR_COV - $BASE_COV" | bc 2>/dev/null || echo "0")
-                    echo "Extension coverage difference: $DIFF%"
-                    
-                    # Store the comparison result in a variable for better readability
-                    IS_NEGATIVE=$(echo "$DIFF < 0" | bc -l 2>/dev/null || echo "0")
-                    
-                    if [[ "$IS_NEGATIVE" -eq 1 ]]; then
-                      echo "extension_decreased=true" >> $GITHUB_OUTPUT
-                      echo "extension_diff=${DIFF#-}" >> $GITHUB_OUTPUT  # Remove minus sign
-                    else
-                      echo "extension_decreased=false" >> $GITHUB_OUTPUT
-                      echo "extension_diff=$DIFF" >> $GITHUB_OUTPUT
-                    fi
-                  fi
-
-            - name: Compare webview coverage
-              id: compare_webview_coverage
-              run: |
-                  BASE_COV="${{ steps.base_webview_coverage.outputs.base_webview_coverage }}"
-                  PR_COV="${{ steps.pr_coverage.outputs.pr_webview_coverage }}"
-
-                  if [[ -z "$BASE_COV" || -z "$PR_COV" ]]; then
-                    echo "Could not determine webview coverage percentages"
-                    echo "webview_decreased=false" >> $GITHUB_OUTPUT
-                    echo "webview_diff=0" >> $GITHUB_OUTPUT
-                  else
-                    DIFF=$(echo "$PR_COV - $BASE_COV" | bc 2>/dev/null || echo "0")
-                    echo "Webview coverage difference: $DIFF%"
-                    
-                    # Store the comparison result in a variable for better readability
-                    IS_NEGATIVE=$(echo "$DIFF < 0" | bc -l 2>/dev/null || echo "0")
-                    
-                    if [[ "$IS_NEGATIVE" -eq 1 ]]; then
-                      echo "webview_decreased=true" >> $GITHUB_OUTPUT
-                      echo "webview_diff=${DIFF#-}" >> $GITHUB_OUTPUT  # Remove minus sign
-                    else
-                      echo "webview_decreased=false" >> $GITHUB_OUTPUT
-                      echo "webview_diff=$DIFF" >> $GITHUB_OUTPUT
-                    fi
-                  fi
-
-            - name: Comment PR with coverage comparison
-              uses: actions/github-script@v6
-              with:
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-                  script: |
-                      const extensionDecreased = '${{ steps.compare_extension_coverage.outputs.extension_decreased }}' === 'true';
-                      const extensionDiff = parseFloat('${{ steps.compare_extension_coverage.outputs.extension_diff }}' || '0');
-                      const baseExtensionCov = parseFloat('${{ steps.base_extension_coverage.outputs.base_extension_coverage }}' || '0');
-                      const prExtensionCov = parseFloat('${{ steps.pr_coverage.outputs.pr_extension_coverage }}' || '0');
-
-                      const webviewDecreased = '${{ steps.compare_webview_coverage.outputs.webview_decreased }}' === 'true';
-                      const webviewDiff = parseFloat('${{ steps.compare_webview_coverage.outputs.webview_diff }}' || '0');
-                      const baseWebviewCov = parseFloat('${{ steps.base_webview_coverage.outputs.base_webview_coverage }}' || '0');
-                      const prWebviewCov = parseFloat('${{ steps.pr_coverage.outputs.pr_webview_coverage }}' || '0');
-
-                      // Add a unique identifier to find this comment later
-                      let comment = '<!-- COVERAGE_REPORT -->\n';
-                      comment += '## Coverage Report\n\n';
-
-                      // Extension coverage
-                      comment += '### Extension Coverage\n\n';
-                      comment += `Base branch: ${baseExtensionCov}%\n\n`;
-                      comment += `PR branch: ${prExtensionCov}%\n\n`;
-
-                      if (extensionDecreased) {
-                        comment += `⚠️ **Warning: Coverage decreased by ${extensionDiff.toFixed(2)}%**\n\n`;
-                        comment += 'Consider adding tests to cover your changes.\n\n';
-                      } else {
-                        comment += '✅ Coverage increased or remained the same\n\n';
-                      }
-
-                      // Webview coverage
-                      comment += '### Webview Coverage\n\n';
-                      comment += `Base branch: ${baseWebviewCov}%\n\n`;
-                      comment += `PR branch: ${prWebviewCov}%\n\n`;
-
-                      if (webviewDecreased) {
-                        comment += `⚠️ **Warning: Coverage decreased by ${webviewDiff.toFixed(2)}%**\n\n`;
-                        comment += 'Consider adding tests to cover your changes.\n\n';
-                      } else {
-                        comment += '✅ Coverage increased or remained the same\n\n';
-                      }
-
-                      // Overall assessment
-                      comment += '### Overall Assessment\n\n';
-                      if (extensionDecreased || webviewDecreased) {
-                        comment += '⚠️ **Test coverage has decreased in this PR**\n\n';
-                        comment += 'Please consider adding tests to maintain or improve coverage.\n\n';
-                      } else {
-                        comment += '✅ **Test coverage has been maintained or improved**\n\n';
-                      }
-
-                      // Add timestamp
-                      comment += `\n\n<sub>Last updated: ${new Date().toISOString()}</sub>`;
-
-                      // Find existing coverage comment
-                      const { data: comments } = await github.rest.issues.listComments({
-                        issue_number: context.issue.number,
-                        owner: context.repo.owner,
-                        repo: context.repo.repo
-                      });
-
-                      const coverageComment = comments.find(comment => 
-                        comment.body.includes('<!-- COVERAGE_REPORT -->')
-                      );
-
-                      if (coverageComment) {
-                        // Update existing comment
-                        await github.rest.issues.updateComment({
-                          comment_id: coverageComment.id,
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          body: comment
-                        });
-                        console.log(`Updated existing coverage comment: ${coverageComment.id}`);
-                      } else {
-                        // Create new comment
-                        await github.rest.issues.createComment({
-                          issue_number: context.issue.number,
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          body: comment
-                        });
-                        console.log('Created new coverage comment');
-                      }
+                  # Run the coverage workflow
+                  python .github/scripts/coverage.py process-workflow \
+                    --base-branch ${{ github.base_ref }} \
+                    --pr-number $PR_NUMBER \
+                    --repo $GITHUB_REPOSITORY \
+                    --token ${{ secrets.GITHUB_TOKEN }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
