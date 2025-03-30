@@ -8,7 +8,12 @@
 
 const https = require("https")
 const fs = require("fs")
+const { promisify } = require("util")
 const path = require("path")
+
+// Promisify filesystem operations
+const readFileAsync = promisify(fs.readFile)
+const writeFileAsync = promisify(fs.writeFile)
 
 // GitHub API URL for fetching contributors
 const GITHUB_API_URL = "https://api.github.com/repos/RooVetGit/Roo-Code/contributors?per_page=100"
@@ -33,52 +38,144 @@ if (process.env.GITHUB_TOKEN) {
 }
 
 /**
- * Fetches contributors data from GitHub API
- * @returns {Promise<Array>} Array of contributor objects
+ * Parses the GitHub API Link header to extract pagination URLs
+ * Based on RFC 5988 format for the Link header
+ * @param {string} header The Link header from GitHub API response
+ * @returns {Object} Object containing URLs for next, prev, first, last pages (if available)
  */
-function fetchContributors() {
+function parseLinkHeader(header) {
+	// Return empty object if no header is provided
+	if (!header || header.trim() === "") return {}
+
+	// Initialize links object
+	const links = {}
+
+	// Split the header into individual link entries
+	// Example: <https://api.github.com/...?page=2>; rel="next", <https://api.github.com/...?page=5>; rel="last"
+	const entries = header.split(/,\s*/)
+
+	// Process each link entry
+	for (const entry of entries) {
+		// Extract the URL (between < and >) and the parameters (after >)
+		const segments = entry.split(";")
+		if (segments.length < 2) continue
+
+		// Extract URL from the first segment, removing < and >
+		const urlMatch = segments[0].match(/<(.+)>/)
+		if (!urlMatch) continue
+		const url = urlMatch[1]
+
+		// Find the rel="value" parameter
+		let rel = null
+		for (let i = 1; i < segments.length; i++) {
+			const relMatch = segments[i].match(/\s*rel\s*=\s*"?([^"]+)"?/)
+			if (relMatch) {
+				rel = relMatch[1]
+				break
+			}
+		}
+
+		// Only add to links if both URL and rel were found
+		if (rel) {
+			links[rel] = url
+		}
+	}
+
+	return links
+}
+
+/**
+ * Performs an HTTP GET request and returns the response
+ * @param {string} url The URL to fetch
+ * @param {Object} options Request options
+ * @returns {Promise<Object>} Response object with status, headers and body
+ */
+function httpGet(url, options) {
 	return new Promise((resolve, reject) => {
 		https
-			.get(GITHUB_API_URL, options, (res) => {
-				if (res.statusCode !== 200) {
-					reject(new Error(`GitHub API request failed with status code: ${res.statusCode}`))
-					return
-				}
-
+			.get(url, options, (res) => {
 				let data = ""
 				res.on("data", (chunk) => {
 					data += chunk
 				})
 
 				res.on("end", () => {
-					try {
-						const contributors = JSON.parse(data)
-						resolve(contributors)
-					} catch (error) {
-						reject(new Error(`Failed to parse GitHub API response: ${error.message}`))
-					}
+					resolve({
+						statusCode: res.statusCode,
+						headers: res.headers,
+						body: data,
+					})
 				})
 			})
 			.on("error", (error) => {
-				reject(new Error(`GitHub API request failed: ${error.message}`))
+				reject(error)
 			})
 	})
+}
+
+/**
+ * Fetches a single page of contributors from GitHub API
+ * @param {string} url The API URL to fetch
+ * @returns {Promise<Object>} Object containing contributors and pagination links
+ */
+async function fetchContributorsPage(url) {
+	try {
+		// Make the HTTP request
+		const response = await httpGet(url, options)
+
+		// Check for successful response
+		if (response.statusCode !== 200) {
+			throw new Error(`GitHub API request failed with status code: ${response.statusCode}`)
+		}
+
+		// Parse the Link header for pagination
+		const linkHeader = response.headers.link
+		const links = parseLinkHeader(linkHeader)
+
+		// Parse the JSON response
+		const contributors = JSON.parse(response.body)
+
+		return { contributors, links }
+	} catch (error) {
+		throw new Error(`Failed to fetch contributors page: ${error.message}`)
+	}
+}
+
+/**
+ * Fetches all contributors data from GitHub API (handling pagination)
+ * @returns {Promise<Array>} Array of all contributor objects
+ */
+async function fetchContributors() {
+	let allContributors = []
+	let currentUrl = GITHUB_API_URL
+	let pageCount = 1
+
+	// Loop through all pages of contributors
+	while (currentUrl) {
+		console.log(`Fetching contributors page ${pageCount}...`)
+		const { contributors, links } = await fetchContributorsPage(currentUrl)
+
+		allContributors = allContributors.concat(contributors)
+
+		// Move to the next page if it exists
+		currentUrl = links.next
+		pageCount++
+	}
+
+	console.log(`Fetched ${allContributors.length} contributors from ${pageCount - 1} pages`)
+	return allContributors
 }
 
 /**
  * Reads the README.md file
  * @returns {Promise<string>} README content
  */
-function readReadme() {
-	return new Promise((resolve, reject) => {
-		fs.readFile(README_PATH, "utf8", (err, data) => {
-			if (err) {
-				reject(new Error(`Failed to read README.md: ${err.message}`))
-				return
-			}
-			resolve(data)
-		})
-	})
+async function readReadme() {
+	try {
+		return await readFileAsync(README_PATH, "utf8")
+	} catch (err) {
+		throw new Error(`Failed to read README.md: ${err.message}`)
+	}
 }
 
 /**
@@ -147,7 +244,7 @@ function formatContributorsSection(contributors) {
  * @param {string} contributorsSection HTML for contributors section
  * @returns {Promise<void>}
  */
-function updateReadme(readmeContent, contributorsSection) {
+async function updateReadme(readmeContent, contributorsSection) {
 	// Find existing contributors section markers
 	const startPos = readmeContent.indexOf(START_MARKER)
 	const endPos = readmeContent.indexOf(END_MARKER)
@@ -164,7 +261,7 @@ function updateReadme(readmeContent, contributorsSection) {
 	// Ensure single newline separators between sections
 	const updatedContent = beforeSection + "\n\n" + contributorsSection.trim() + "\n\n" + afterSection
 
-	return writeReadme(updatedContent)
+	await writeReadme(updatedContent)
 }
 
 /**
@@ -172,47 +269,41 @@ function updateReadme(readmeContent, contributorsSection) {
  * @param {string} content Updated README content
  * @returns {Promise<void>}
  */
-function writeReadme(content) {
-	return new Promise((resolve, reject) => {
-		fs.writeFile(README_PATH, content, "utf8", (err) => {
-			if (err) {
-				reject(new Error(`Failed to write updated README.md: ${err.message}`))
-				return
-			}
-			resolve()
-		})
-	})
+async function writeReadme(content) {
+	try {
+		await writeFileAsync(README_PATH, content, "utf8")
+	} catch (err) {
+		throw new Error(`Failed to write updated README.md: ${err.message}`)
+	}
 }
 /**
  * Finds all localized README files in the locales directory
  * @returns {Promise<string[]>} Array of README file paths
  */
-function findLocalizedReadmes() {
-	return new Promise((resolve) => {
-		const readmeFiles = []
+async function findLocalizedReadmes() {
+	const readmeFiles = []
 
-		// Check if locales directory exists
-		if (!fs.existsSync(LOCALES_DIR)) {
-			// No localized READMEs found
-			return resolve(readmeFiles)
+	// Check if locales directory exists
+	if (!fs.existsSync(LOCALES_DIR)) {
+		// No localized READMEs found
+		return readmeFiles
+	}
+
+	// Get all language subdirectories
+	const languageDirs = fs
+		.readdirSync(LOCALES_DIR, { withFileTypes: true })
+		.filter((dirent) => dirent.isDirectory())
+		.map((dirent) => dirent.name)
+
+	// Add all localized READMEs to the list
+	for (const langDir of languageDirs) {
+		const readmePath = path.join(LOCALES_DIR, langDir, "README.md")
+		if (fs.existsSync(readmePath)) {
+			readmeFiles.push(readmePath)
 		}
+	}
 
-		// Get all language subdirectories
-		const languageDirs = fs
-			.readdirSync(LOCALES_DIR, { withFileTypes: true })
-			.filter((dirent) => dirent.isDirectory())
-			.map((dirent) => dirent.name)
-
-		// Add all localized READMEs to the list
-		for (const langDir of languageDirs) {
-			const readmePath = path.join(LOCALES_DIR, langDir, "README.md")
-			if (fs.existsSync(readmePath)) {
-				readmeFiles.push(readmePath)
-			}
-		}
-
-		resolve(readmeFiles)
-	})
+	return readmeFiles
 }
 
 /**
@@ -221,40 +312,33 @@ function findLocalizedReadmes() {
  * @param {string} contributorsSection HTML for contributors section
  * @returns {Promise<void>}
  */
-function updateLocalizedReadme(filePath, contributorsSection) {
-	return new Promise((resolve, reject) => {
-		fs.readFile(filePath, "utf8", (err, readmeContent) => {
-			if (err) {
-				console.warn(`Warning: Could not read ${filePath}: ${err.message}`)
-				return resolve()
-			}
+async function updateLocalizedReadme(filePath, contributorsSection) {
+	try {
+		// Read the file content
+		const readmeContent = await readFileAsync(filePath, "utf8")
 
-			// Find existing contributors section markers
-			const startPos = readmeContent.indexOf(START_MARKER)
-			const endPos = readmeContent.indexOf(END_MARKER)
+		// Find existing contributors section markers
+		const startPos = readmeContent.indexOf(START_MARKER)
+		const endPos = readmeContent.indexOf(END_MARKER)
 
-			if (startPos === -1 || endPos === -1) {
-				console.warn(`Warning: Could not find contributors section markers in ${filePath}`)
-				console.warn(`Skipping update for ${filePath}`)
-				return resolve()
-			}
+		if (startPos === -1 || endPos === -1) {
+			console.warn(`Warning: Could not find contributors section markers in ${filePath}`)
+			console.warn(`Skipping update for ${filePath}`)
+			return
+		}
 
-			// Replace existing section, trimming whitespace at section boundaries
-			const beforeSection = readmeContent.substring(0, startPos).trimEnd()
-			const afterSection = readmeContent.substring(endPos + END_MARKER.length).trimStart()
-			// Ensure single newline separators between sections
-			const updatedContent = beforeSection + "\n\n" + contributorsSection.trim() + "\n\n" + afterSection
+		// Replace existing section, trimming whitespace at section boundaries
+		const beforeSection = readmeContent.substring(0, startPos).trimEnd()
+		const afterSection = readmeContent.substring(endPos + END_MARKER.length).trimStart()
+		// Ensure single newline separators between sections
+		const updatedContent = beforeSection + "\n\n" + contributorsSection.trim() + "\n\n" + afterSection
 
-			fs.writeFile(filePath, updatedContent, "utf8", (writeErr) => {
-				if (writeErr) {
-					console.warn(`Warning: Failed to update ${filePath}: ${writeErr.message}`)
-					return resolve()
-				}
-				console.log(`Updated ${filePath}`)
-				resolve()
-			})
-		})
-	})
+		// Write the updated content
+		await writeFileAsync(filePath, updatedContent, "utf8")
+		console.log(`Updated ${filePath}`)
+	} catch (err) {
+		console.warn(`Warning: Could not update ${filePath}: ${err.message}`)
+	}
 }
 
 /**
@@ -262,9 +346,9 @@ function updateLocalizedReadme(filePath, contributorsSection) {
  */
 async function main() {
 	try {
-		// Fetch contributors from GitHub
+		// Fetch contributors from GitHub (now handles pagination)
 		const contributors = await fetchContributors()
-		console.log(`Fetched ${contributors.length} contributors from GitHub`)
+		console.log(`Total contributors: ${contributors.length}`)
 
 		// Generate contributors section
 		const contributorsSection = formatContributorsSection(contributors)
