@@ -34,8 +34,6 @@ jobs:
             - name: Install Python dependencies
               run: |
                   python -m pip install --upgrade pip
-                  pip install -e .github/scripts
-                  # Fallback if pyproject.toml doesn't work
                   pip install requests
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
@@ -125,8 +123,6 @@ jobs:
             - name: Install Python dependencies
               run: |
                   python -m pip install --upgrade pip
-                  pip install -e .github/scripts
-                  # Fallback if pyproject.toml doesn't work
                   pip install requests
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
