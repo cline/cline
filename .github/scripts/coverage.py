@@ -543,8 +543,10 @@ def main():
     
     args = parser.parse_args()
     
-    # Set verbose flag
-    set_verbose(args.verbose)
+    # Set verbose flag - check both the main parser and subparser arguments
+    if hasattr(args, 'verbose') and args.verbose:
+        set_verbose(True)
+        print("Verbose mode enabled")
     
     if args.command == 'extract-coverage':
         coverage_pct = extract_coverage(args.file_path, args.type)
