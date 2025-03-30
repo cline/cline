@@ -5,7 +5,7 @@ import { ToolParamName, ToolUse } from "../assistant-message"
 import { formatResponse } from "../prompts/responses"
 import { listFiles } from "../../services/glob/list-files"
 import { getReadablePath } from "../../utils/path"
-import { AskApproval, HandleError, PushToolResult } from "./types"
+import { AskApproval, HandleError, PushToolResult, RemoveClosingTag } from "./types"
 /**
  * Implements the list_files tool.
  *
@@ -26,7 +26,7 @@ export async function listFilesTool(
 	askApproval: AskApproval,
 	handleError: HandleError,
 	pushToolResult: PushToolResult,
-	removeClosingTag: (tag: ToolParamName, text?: string) => string,
+	removeClosingTag: RemoveClosingTag,
 ) {
 	const relDirPath: string | undefined = block.params.path
 	const recursiveRaw: string | undefined = block.params.recursive
