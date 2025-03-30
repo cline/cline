@@ -12,8 +12,8 @@
 		"export": "Esporta cronologia attività",
 		"delete": "Elimina attività (Shift + Clic per saltare la conferma)"
 	},
-	"unpin": "sblocca",
-	"pin": "blocca",
+	"unpin": "Rilascia",
+	"pin": "Fissa",
 	"tokenProgress": {
 		"availableSpace": "Spazio disponibile: {{amount}} tokens",
 		"tokensUsed": "Tokens utilizzati: {{used}} di {{total}}",

@@ -12,8 +12,8 @@
 		"export": "Aufgabenverlauf exportieren",
 		"delete": "Aufgabe löschen (Shift + Klick zum Überspringen der Bestätigung)"
 	},
-	"unpin": "lösen",
-	"pin": "anheften",
+	"unpin": "Lösen von oben",
+	"pin": "Anheften",
 	"tokenProgress": {
 		"availableSpace": "Verfügbarer Speicher: {{amount}} Tokens",
 		"tokensUsed": "Verwendete Tokens: {{used}} von {{total}}",

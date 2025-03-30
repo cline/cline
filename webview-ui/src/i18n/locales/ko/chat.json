@@ -12,8 +12,8 @@
 		"export": "작업 기록 내보내기",
 		"delete": "작업 삭제 (Shift + 클릭으로 확인 생략)"
 	},
-	"unpin": "고정 해제",
-	"pin": "고정",
+	"unpin": "고정 해제하기",
+	"pin": "고정하기",
 	"tokenProgress": {
 		"availableSpace": "사용 가능한 공간: {{amount}} 토큰",
 		"tokensUsed": "사용된 토큰: {{used}} / {{total}}",

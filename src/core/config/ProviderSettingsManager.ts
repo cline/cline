@@ -2,7 +2,7 @@ import { ExtensionContext } from "vscode"
 import { z } from "zod"
 
 import { providerSettingsSchema, ApiConfigMeta } from "../../schemas"
-import { Mode } from "../../shared/modes"
+import { Mode, modes } from "../../shared/modes"
 
 const providerSettingsWithIdSchema = providerSettingsSchema.extend({ id: z.string().optional() })
 
@@ -18,10 +18,16 @@ export type ProviderProfiles = z.infer<typeof providerProfilesSchema>
 
 export class ProviderSettingsManager {
 	private static readonly SCOPE_PREFIX = "roo_cline_config_"
+	private readonly defaultConfigId = this.generateId()
+
+	private readonly defaultModeApiConfigs: Record<string, string> = Object.fromEntries(
+		modes.map((mode) => [mode.slug, this.defaultConfigId]),
+	)
 
 	private readonly defaultProviderProfiles: ProviderProfiles = {
 		currentApiConfigName: "default",
-		apiConfigs: { default: { id: this.generateId() } },
+		apiConfigs: { default: { id: this.defaultConfigId } },
+		modeApiConfigs: this.defaultModeApiConfigs,
 	}
 
 	private readonly context: ExtensionContext

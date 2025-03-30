@@ -12,8 +12,8 @@
 		"export": "Export task history",
 		"delete": "Delete Task (Shift + Click to skip confirmation)"
 	},
-	"unpin": "unpin",
-	"pin": "pin",
+	"unpin": "Unpin",
+	"pin": "Pin",
 	"retry": {
 		"title": "Retry",
 		"tooltip": "Try the operation again"

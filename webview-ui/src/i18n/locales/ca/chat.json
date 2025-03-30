@@ -12,8 +12,8 @@
 		"export": "Exportar historial de tasques",
 		"delete": "Eliminar tasca (Shift + Clic per ometre confirmació)"
 	},
-	"unpin": "desancorar",
-	"pin": "ancorar",
+	"unpin": "Desfixar",
+	"pin": "Fixar",
 	"tokenProgress": {
 		"availableSpace": "Espai disponible: {{amount}} tokens",
 		"tokensUsed": "Tokens utilitzats: {{used}} de {{total}}",

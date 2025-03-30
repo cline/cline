@@ -12,8 +12,8 @@
 		"export": "Eksportuj historię zadań",
 		"delete": "Usuń zadanie (Shift + Kliknięcie, aby pominąć potwierdzenie)"
 	},
-	"unpin": "odepnij",
-	"pin": "przypnij",
+	"unpin": "Odepnij",
+	"pin": "Przypnij",
 	"tokenProgress": {
 		"availableSpace": "Dostępne miejsce: {{amount}} tokenów",
 		"tokensUsed": "Wykorzystane tokeny: {{used}} z {{total}}",

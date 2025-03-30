@@ -12,8 +12,8 @@
 		"export": "Exportar histórico de tarefas",
 		"delete": "Excluir tarefa (Shift + Clique para pular confirmação)"
 	},
-	"unpin": "desafixar",
-	"pin": "fixar",
+	"unpin": "Desfixar",
+	"pin": "Fixar",
 	"tokenProgress": {
 		"availableSpace": "Espaço disponível: {{amount}} tokens",
 		"tokensUsed": "Tokens usados: {{used}} de {{total}}",
