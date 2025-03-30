@@ -22,13 +22,6 @@ import {
 	RepoPerWorkspaceCheckpointService,
 } from "../services/checkpoints"
 import { findToolName, formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
-import {
-	extractTextFromFile,
-	addLineNumbers,
-	stripLineNumbers,
-	everyLineHasLineNumbers,
-} from "../integrations/misc/extract-text"
-import { countFileLines } from "../integrations/misc/line-counter"
 import { fetchInstructionsTool } from "./tools/fetchInstructionsTool"
 import { listFilesTool } from "./tools/listFilesTool"
 import { readFileTool } from "./tools/readFileTool"
@@ -37,25 +30,17 @@ import { Terminal } from "../integrations/terminal/Terminal"
 import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
 import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
 import { listFiles } from "../services/glob/list-files"
-import { regexSearchFiles } from "../services/ripgrep"
-import { parseSourceCodeDefinitionsForFile, parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
 import { CheckpointStorage } from "../shared/checkpoints"
 import { ApiConfiguration } from "../shared/api"
 import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences } from "../shared/combineCommandSequences"
 import {
-	BrowserAction,
-	BrowserActionResult,
-	browserActions,
 	ClineApiReqCancelReason,
 	ClineApiReqInfo,
 	ClineAsk,
-	ClineAskUseMcpServer,
 	ClineMessage,
 	ClineSay,
-	ClineSayBrowserAction,
-	ClineSayTool,
 	ToolProgressStatus,
 } from "../shared/ExtensionMessage"
 import { getApiMetrics } from "../shared/getApiMetrics"
@@ -66,8 +51,7 @@ import { defaultModeSlug, getModeBySlug, getFullModeDetails } from "../shared/mo
 import { EXPERIMENT_IDS, experiments as Experiments, ExperimentId } from "../shared/experiments"
 import { calculateApiCostAnthropic } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
-import { isPathOutsideWorkspace } from "../utils/pathUtils"
-import { arePathsEqual, getReadablePath } from "../utils/path"
+import { arePathsEqual } from "../utils/path"
 import { parseMentions } from "./mentions"
 import { RooIgnoreController } from "./ignore/RooIgnoreController"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
@@ -75,15 +59,12 @@ import { formatResponse } from "./prompts/responses"
 import { SYSTEM_PROMPT } from "./prompts/system"
 import { truncateConversationIfNeeded } from "./sliding-window"
 import { ClineProvider } from "./webview/ClineProvider"
-import { detectCodeOmission } from "../integrations/editor/detect-omission"
 import { BrowserSession } from "../services/browser/BrowserSession"
 import { formatLanguage } from "../shared/language"
 import { McpHub } from "../services/mcp/McpHub"
 import { DiffStrategy, getDiffStrategy } from "./diff/DiffStrategy"
-import { insertGroups } from "./diff/insert-groups"
 import { telemetryService } from "../services/telemetry/TelemetryService"
 import { validateToolUse, isToolAllowedForMode, ToolName } from "./mode-validator"
-import { parseXml } from "../utils/xml"
 import { getWorkspacePath } from "../utils/path"
 import { writeToFileTool } from "./tools/writeToFileTool"
 import { applyDiffTool } from "./tools/applyDiffTool"
@@ -1616,15 +1597,13 @@ export class Cline extends EventEmitter<ClineEvents> {
 							removeClosingTag,
 						)
 						break
-					case "search_files": {
+					case "search_files":
 						await searchFilesTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
 						break
-					}
-					case "browser_action": {
+					case "browser_action":
 						await browserActionTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
 						break
-					}
-					case "execute_command": {
+					case "execute_command":
 						await executeCommandTool(
 							this,
 							block,
@@ -1634,12 +1613,10 @@ export class Cline extends EventEmitter<ClineEvents> {
 							removeClosingTag,
 						)
 						break
-					}
-					case "use_mcp_tool": {
+					case "use_mcp_tool":
 						await useMcpToolTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
 						break
-					}
-					case "access_mcp_resource": {
+					case "access_mcp_resource":
 						await accessMcpResourceTool(
 							this,
 							block,
@@ -1649,8 +1626,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 							removeClosingTag,
 						)
 						break
-					}
-					case "ask_followup_question": {
+					case "ask_followup_question":
 						await askFollowupQuestionTool(
 							this,
 							block,
@@ -1660,18 +1636,13 @@ export class Cline extends EventEmitter<ClineEvents> {
 							removeClosingTag,
 						)
 						break
-					}
-					case "switch_mode": {
+					case "switch_mode":
 						await switchModeTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
 						break
-					}
-
-					case "new_task": {
+					case "new_task":
 						await newTaskTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
 						break
-					}
-
-					case "attempt_completion": {
+					case "attempt_completion":
 						await attemptCompletionTool(
 							this,
 							block,
@@ -1683,7 +1654,6 @@ export class Cline extends EventEmitter<ClineEvents> {
 							askFinishSubTaskApproval,
 						)
 						break
-					}
 				}
 
 				break
