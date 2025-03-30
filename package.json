@@ -2,7 +2,7 @@
 	"name": "cline-cn",
 	"displayName": "Cline Chinese [最新中文版]",
 	"description": "Cline Chinese [最新中文版] IDE中的自主编程助手，能够在您的许可下创建/编辑文件、运行命令、使用浏览器等功能，逐步完成各项任务。",
-	"version": "3.8.4",
+	"version": "3.8.4.1",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
