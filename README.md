@@ -7,6 +7,7 @@
 [![Version](https://img.shields.io/visual-studio-marketplace/v/617694668.cline-cn)](https://marketplace.visualstudio.com/items?itemName=617694668.cline-cn)
 [![字节Trae扩展安装教程](https://img.shields.io/badge/字节Trae扩展安装-阿里云盘-blue)](https://www.alipan.com/s/TWqXrtFqqRa)
 [![离线下载助手](https://img.shields.io/badge/离线下载助手-阿里云盘-orange)](https://www.alipan.com/s/ZeCnNGQrQad)
+[![插件离线下载教程](https://img.shields.io/badge/插件离线下载教程-阿里云盘-green)](https://www.alipan.com/s/1aEUaHuyW6P)
 
 </p>
 
