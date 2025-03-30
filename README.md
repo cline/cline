@@ -52,7 +52,7 @@ Cline-Chinese已发布到VSCode插件市场，欢迎感兴趣的小伙伴们下�
 感兴趣的可以扫码加入微信社群，一起交流学习AI：
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/afc4e7e5-8b88-4c31-942c-a248dd81e00d" alt="微信群二维码" width="250" />
+  <img src="https://raw.githubusercontent.com/dxdw2021/cline/main/User%20Tutorials/png/weixin-group.jpg" alt="微信群二维码" width="250" />
 </div>
 
 ## 赞赏支持
@@ -60,10 +60,8 @@ Cline-Chinese已发布到VSCode插件市场，欢迎感兴趣的小伙伴们下�
 如果您觉得这个项目对您有帮助，欢迎赞赏支持，您的支持是我持续开发的动力 ☕
 
 <div align="center" style="display: flex; justify-content: center; gap: 20px;">
-
-  <img src="https://github.com/user-attachments/assets/f01e4514-e8ec-48de-883a-9f6fbd05c2a0" alt="支付宝赞赏" width="250" />
+  <img src="https://raw.githubusercontent.com/dxdw2021/cline/main/User%20Tutorials/png/zfb.jpg" alt="支付宝赞赏" width="250" />
   <img src="https://raw.githubusercontent.com/dxdw2021/cline/main/User%20Tutorials/png/weixin-%E8%B5%9E%E8%B5%8F%E7%A0%81.png" alt="微信赞赏" width="250" />
-
 </div>
 
 ## 免责声明
