@@ -79,7 +79,7 @@ jobs:
               continue-on-error: true
               run: |
                   xvfb-run -a npm run test:coverage > extension_coverage.txt 2>&1 || true
-                  python .github/scripts/coverage.py extract-coverage extension_coverage.txt --type=extension --github-output --verbose
+                  python -m .github.scripts.coverage extract-coverage extension_coverage.txt --type=extension --github-output --verbose
 
             # Run webview tests with coverage
             - name: Webview Tests with Coverage
@@ -90,7 +90,7 @@ jobs:
                   # Ensure coverage dependency is installed
                   npm install --no-save @vitest/coverage-v8
                   npm run test:coverage > webview_coverage.txt 2>&1 || true
-                  python ../.github/scripts/coverage.py extract-coverage webview_coverage.txt --type=webview --github-output --verbose
+                  python -m ..github.scripts.coverage extract-coverage webview_coverage.txt --type=webview --github-output --verbose
 
             # Save coverage reports as artifacts (workflow-scoped)
             - name: Save Coverage Reports
@@ -165,7 +165,7 @@ jobs:
                   PR_NUMBER=$(echo "$GITHUB_REF" | sed -e 's/refs\/pull\///' -e 's/\/merge//')
 
                   # Run the coverage workflow
-                  python .github/scripts/coverage.py process-workflow \
+                  python -m .github.scripts.coverage process-workflow \
                     --base-branch ${{ github.base_ref }} \
                     --pr-number $PR_NUMBER \
                     --repo $GITHUB_REPOSITORY \

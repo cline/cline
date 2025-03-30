@@ -8,11 +8,11 @@ import sys
 import unittest
 import subprocess
 import tempfile
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock, call, mock_open
 
-# Add parent directory to path so we can import coverage.py
+# Add parent directory to path so we can import coverage modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-import coverage as coverage_script
+from coverage import extract_coverage, compare_coverage, set_verbose, generate_comment, post_comment, set_github_output
 
 
 class TestCoverage(unittest.TestCase):
@@ -84,10 +84,10 @@ class TestCoverage(unittest.TestCase):
         """Test extract_coverage function with both extension and webview coverage."""
         # Check if verbose mode is enabled
         if '-v' in sys.argv or '--verbose' in sys.argv:
-            coverage_script.set_verbose(True)
+            set_verbose(True)
         
         # Test extension coverage
-        ext_coverage_pct = coverage_script.extract_coverage(self.extension_coverage_file, 'extension')
+        ext_coverage_pct = extract_coverage(self.extension_coverage_file, 'extension')
         
         # Check that coverage percentage is a float
         self.assertIsInstance(ext_coverage_pct, float)
@@ -100,7 +100,7 @@ class TestCoverage(unittest.TestCase):
         print(f"Extension coverage: {ext_coverage_pct}%")
         
         # Test webview coverage
-        web_coverage_pct = coverage_script.extract_coverage(self.webview_coverage_file, 'webview')
+        web_coverage_pct = extract_coverage(self.webview_coverage_file, 'webview')
         
         # Convert to float if it's an integer
         if isinstance(web_coverage_pct, int):
@@ -119,23 +119,23 @@ class TestCoverage(unittest.TestCase):
     def test_compare_coverage(self):
         """Test compare_coverage function."""
         # Test with coverage increase
-        decreased, diff = coverage_script.compare_coverage(80, 90)
+        decreased, diff = compare_coverage(80, 90)
         self.assertFalse(decreased)
         self.assertEqual(diff, 10)
         
         # Test with coverage decrease
-        decreased, diff = coverage_script.compare_coverage(90, 80)
+        decreased, diff = compare_coverage(90, 80)
         self.assertTrue(decreased)
         self.assertEqual(diff, 10)
         
         # Test with no change
-        decreased, diff = coverage_script.compare_coverage(80, 80)
+        decreased, diff = compare_coverage(80, 80)
         self.assertFalse(decreased)
         self.assertEqual(diff, 0)
 
     def test_generate_comment(self):
         """Test generate_comment function."""
-        comment = coverage_script.generate_comment(
+        comment = generate_comment(
             80, 90, 'false', 10,
             70, 75, 'false', 5
         )
@@ -171,7 +171,7 @@ class TestCoverage(unittest.TestCase):
         mock_post.return_value = MagicMock(status_code=201)
         
         # Test post_comment function
-        coverage_script.post_comment(comment_file, '123', 'owner/repo', 'token')
+        post_comment(comment_file, '123', 'owner/repo', 'token')
         
         # Check that the correct API calls were made
         mock_get.assert_called_once()
@@ -196,7 +196,7 @@ class TestCoverage(unittest.TestCase):
         mock_patch.return_value = MagicMock(status_code=200)
         
         # Test post_comment function
-        coverage_script.post_comment(comment_file, '123', 'owner/repo', 'token')
+        post_comment(comment_file, '123', 'owner/repo', 'token')
         
         # Check that the correct API calls were made
         mock_get.assert_called_once()
@@ -207,18 +207,37 @@ class TestCoverage(unittest.TestCase):
         """Test set_github_output function."""
         # Capture stdout
         with patch('sys.stdout', new=MagicMock()) as mock_stdout:
-            coverage_script.set_github_output('test_name', 'test_value')
+            # Mock environment without GITHUB_OUTPUT
+            with patch.dict('os.environ', {}, clear=True):
+                set_github_output('test_name', 'test_value')
+                
+                # Check that the correct output was printed to stdout
+                mock_stdout.assert_has_calls([
+                    # GitHub Actions output format (deprecated method)
+                    call.write('::set-output name=test_name::test_value\n'),
+                    call.flush(),
+                    # Human readable format
+                    call.write('test_name: test_value\n'),
+                    call.flush()
+                ], any_order=False)
+                
+                # Reset mock for next test
+                mock_stdout.reset_mock()
             
-            # Check that the correct output was printed to stdout
-            # The function prints two lines, and each line is split into multiple write calls
-            mock_stdout.assert_has_calls([
-                # GitHub Actions format
-                call.write('::set-output name=test_name::test_value'),
-                call.write('\n'),
-                # Human readable format
-                call.write('test_name: test_value'),
-                call.write('\n')
-            ], any_order=False)
+            # Test with GITHUB_OUTPUT environment variable
+            with patch.dict('os.environ', {'GITHUB_OUTPUT': '/tmp/github_output'}), \
+                 patch('builtins.open', mock_open()) as mock_file:
+                set_github_output('test_name', 'test_value')
+                
+                # Check that file was written to
+                mock_file.assert_called_once_with('/tmp/github_output', 'a')
+                mock_file().write.assert_called_once_with('test_name=test_value\n')
+                
+                # Check that human readable output was printed
+                mock_stdout.assert_has_calls([
+                    call.write('test_name: test_value\n'),
+                    call.flush()
+                ], any_order=False)
 
 
 if __name__ == '__main__':
