@@ -90,6 +90,7 @@ import { applyDiffTool } from "./tools/applyDiffTool"
 import { insertContentTool } from "./tools/insertContentTool"
 import { searchAndReplaceTool } from "./tools/searchAndReplaceTool"
 import { listCodeDefinitionNamesTool } from "./tools/listCodeDefinitionNamesTool"
+import { searchFilesTool } from "./tools/searchFilesTool"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.Messages.ContentBlockParam>
@@ -1608,58 +1609,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 						)
 						break
 					case "search_files": {
-						const relDirPath: string | undefined = block.params.path
-						const regex: string | undefined = block.params.regex
-						const filePattern: string | undefined = block.params.file_pattern
-						const sharedMessageProps: ClineSayTool = {
-							tool: "searchFiles",
-							path: getReadablePath(this.cwd, removeClosingTag("path", relDirPath)),
-							regex: removeClosingTag("regex", regex),
-							filePattern: removeClosingTag("file_pattern", filePattern),
-						}
-						try {
-							if (block.partial) {
-								const partialMessage = JSON.stringify({
-									...sharedMessageProps,
-									content: "",
-								} satisfies ClineSayTool)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								break
-							} else {
-								if (!relDirPath) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("search_files", "path"))
-									break
-								}
-								if (!regex) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("search_files", "regex"))
-									break
-								}
-								this.consecutiveMistakeCount = 0
-								const absolutePath = path.resolve(this.cwd, relDirPath)
-								const results = await regexSearchFiles(
-									this.cwd,
-									absolutePath,
-									regex,
-									filePattern,
-									this.rooIgnoreController,
-								)
-								const completeMessage = JSON.stringify({
-									...sharedMessageProps,
-									content: results,
-								} satisfies ClineSayTool)
-								const didApprove = await askApproval("tool", completeMessage)
-								if (!didApprove) {
-									break
-								}
-								pushToolResult(results)
-								break
-							}
-						} catch (error) {
-							await handleError("searching files", error)
-							break
-						}
+						await searchFilesTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
 					}
 					case "browser_action": {
 						const action: BrowserAction | undefined = block.params.action as BrowserAction
