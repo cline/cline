@@ -32,7 +32,8 @@ import { secondsToMs } from "../../utils/time"
 import { GlobalFileNames } from "../../global-constants"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 
-const DEFAULT_REQUEST_TIMEOUT_MS = 200 // Default timeout for MCP requests in milliseconds
+// Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
+const DEFAULT_REQUEST_TIMEOUT_MS = 5000
 
 export type McpConnection = {
 	server: McpServer
@@ -516,13 +517,6 @@ export class McpHub {
 				const connection = this.connections.find((conn) => conn.server.name === serverName)
 				if (connection) {
 					connection.server.disabled = disabled
-
-					// Only refresh capabilities if connected
-					if (!disabled && connection.server.status === "connected") {
-						connection.server.tools = await this.fetchToolsList(serverName)
-						connection.server.resources = await this.fetchResourcesList(serverName)
-						connection.server.resourceTemplates = await this.fetchResourceTemplatesList(serverName)
-					}
 				}
 
 				await this.notifyWebviewOfServerChanges()
@@ -625,7 +619,6 @@ export class McpHub {
 			// Update the tools list to reflect the change
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
 			if (connection) {
-				connection.server.tools = await this.fetchToolsList(serverName)
 				await this.notifyWebviewOfServerChanges()
 			}
 		} catch (error) {
