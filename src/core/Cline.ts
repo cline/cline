@@ -1230,7 +1230,21 @@ export class Cline extends EventEmitter<ClineEvents> {
 				}
 
 				const baseDelay = requestDelaySeconds || 5
-				const exponentialDelay = Math.ceil(baseDelay * Math.pow(2, retryAttempt))
+				let exponentialDelay = Math.ceil(baseDelay * Math.pow(2, retryAttempt))
+
+				// If the error is a 429, and the error details contain a retry delay, use that delay instead of exponential backoff
+				if (error.status === 429) {
+					const geminiRetryDetails = error.errorDetails?.find(
+						(detail: any) => detail["@type"] === "type.googleapis.com/google.rpc.RetryInfo",
+					)
+					if (geminiRetryDetails) {
+						const match = geminiRetryDetails?.retryDelay?.match(/^(\d+)s$/)
+						if (match) {
+							exponentialDelay = Number(match[1]) + 1
+						}
+					}
+				}
+
 				// Wait for the greater of the exponential delay or the rate limit delay
 				const finalDelay = Math.max(exponentialDelay, rateLimitDelay)
 
