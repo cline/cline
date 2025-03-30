@@ -30,6 +30,7 @@ import {
 } from "../integrations/misc/extract-text"
 import { countFileLines } from "../integrations/misc/line-counter"
 import { fetchInstructionsTool } from "./tools/fetchInstructionsTool"
+import { listFilesTool } from "./tools/listFilesTool"
 import { readFileTool } from "./tools/readFileTool"
 import { ExitCodeDetails } from "../integrations/terminal/TerminalProcess"
 import { Terminal } from "../integrations/terminal/Terminal"
@@ -1516,7 +1517,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 				}
 
 				// If block is partial, remove partial closing tag so its not presented to user
-				const removeClosingTag = (tag: ToolParamName, text?: string) => {
+				const removeClosingTag = (tag: ToolParamName, text?: string): string => {
 					if (!block.partial) {
 						return text || ""
 					}
@@ -2265,54 +2266,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 					}
 
 					case "list_files": {
-						const relDirPath: string | undefined = block.params.path
-						const recursiveRaw: string | undefined = block.params.recursive
-						const recursive = recursiveRaw?.toLowerCase() === "true"
-						const sharedMessageProps: ClineSayTool = {
-							tool: !recursive ? "listFilesTopLevel" : "listFilesRecursive",
-							path: getReadablePath(this.cwd, removeClosingTag("path", relDirPath)),
-						}
-						try {
-							if (block.partial) {
-								const partialMessage = JSON.stringify({
-									...sharedMessageProps,
-									content: "",
-								} satisfies ClineSayTool)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								break
-							} else {
-								if (!relDirPath) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("list_files", "path"))
-									break
-								}
-								this.consecutiveMistakeCount = 0
-								const absolutePath = path.resolve(this.cwd, relDirPath)
-								const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
-								const { showRooIgnoredFiles = true } =
-									(await this.providerRef.deref()?.getState()) ?? {}
-								const result = formatResponse.formatFilesList(
-									absolutePath,
-									files,
-									didHitLimit,
-									this.rooIgnoreController,
-									showRooIgnoredFiles,
-								)
-								const completeMessage = JSON.stringify({
-									...sharedMessageProps,
-									content: result,
-								} satisfies ClineSayTool)
-								const didApprove = await askApproval("tool", completeMessage)
-								if (!didApprove) {
-									break
-								}
-								pushToolResult(result)
-								break
-							}
-						} catch (error) {
-							await handleError("listing files", error)
-							break
-						}
+						await listFilesTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
 					}
 					case "list_code_definition_names": {
 						const relPath: string | undefined = block.params.path
