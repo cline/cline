@@ -12,6 +12,8 @@
 		"export": "匯出任務歷史",
 		"delete": "刪除任務（Shift + 點擊跳過確認）"
 	},
+	"unpin": "取消置頂",
+	"pin": "置頂",
 	"tokenProgress": {
 		"availableSpace": "可用空間: {{amount}} tokens",
 		"tokensUsed": "已使用tokens: {{used}} / {{total}}",

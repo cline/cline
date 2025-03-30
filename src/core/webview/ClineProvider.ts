@@ -1250,7 +1250,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 					}
 					case "openProjectMcpSettings": {
 						if (!vscode.workspace.workspaceFolders?.length) {
-							vscode.window.showErrorMessage(t("common:no_workspace"))
+							vscode.window.showErrorMessage(t("common:errors.no_workspace"))
 							return
 						}
 

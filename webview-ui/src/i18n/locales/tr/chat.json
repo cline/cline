@@ -12,6 +12,8 @@
 		"export": "Görev geçmişini dışa aktar",
 		"delete": "Görevi sil (Onayı atlamak için Shift + Tıkla)"
 	},
+	"unpin": "sabitlemeyi kaldır",
+	"pin": "sabitle",
 	"tokenProgress": {
 		"availableSpace": "Kullanılabilir alan: {{amount}} token",
 		"tokensUsed": "Kullanılan tokenlar: {{used}} / {{total}}",

@@ -34,9 +34,17 @@ Output:
 	process.exit(0)
 }
 
-// Directory to traverse
-const TARGET_DIR = path.join(__dirname, "../webview-ui/src/components")
-const LOCALES_DIR = path.join(__dirname, "../webview-ui/src/i18n/locales")
+// Directories to traverse and their corresponding locales
+const DIRS = {
+	components: {
+		path: path.join(__dirname, "../webview-ui/src/components"),
+		localesDir: path.join(__dirname, "../webview-ui/src/i18n/locales"),
+	},
+	src: {
+		path: path.join(__dirname, "../src"),
+		localesDir: path.join(__dirname, "../src/i18n/locales"),
+	},
+}
 
 // Regular expressions to match i18n keys
 const i18nPatterns = [
@@ -45,15 +53,23 @@ const i18nPatterns = [
 	/t\("([a-zA-Z][a-zA-Z0-9_]*[:.][a-zA-Z0-9_.]+)"\)/g, // Match t("key") format, where key contains a colon or dot
 ]
 
-// Get all language directories
-function getLocaleDirs() {
-	const allLocales = fs.readdirSync(LOCALES_DIR).filter((file) => {
-		const stats = fs.statSync(path.join(LOCALES_DIR, file))
-		return stats.isDirectory() // Do not exclude any language directories
-	})
+// Get all language directories for a specific locales directory
+function getLocaleDirs(localesDir) {
+	try {
+		const allLocales = fs.readdirSync(localesDir).filter((file) => {
+			const stats = fs.statSync(path.join(localesDir, file))
+			return stats.isDirectory() // Do not exclude any language directories
+		})
 
-	// Filter to a specific language if specified
-	return args.locale ? allLocales.filter((locale) => locale === args.locale) : allLocales
+		// Filter to a specific language if specified
+		return args.locale ? allLocales.filter((locale) => locale === args.locale) : allLocales
+	} catch (error) {
+		if (error.code === "ENOENT") {
+			console.warn(`Warning: Locales directory not found: ${localesDir}`)
+			return []
+		}
+		throw error
+	}
 }
 
 // Get the value from JSON by path
@@ -72,14 +88,14 @@ function getValueByPath(obj, path) {
 }
 
 // Check if the key exists in all language files, return a list of missing language files
-function checkKeyInLocales(key, localeDirs) {
+function checkKeyInLocales(key, localeDirs, localesDir) {
 	const [file, ...pathParts] = key.split(":")
 	const jsonPath = pathParts.join(".")
 
 	const missingLocales = []
 
 	localeDirs.forEach((locale) => {
-		const filePath = path.join(LOCALES_DIR, locale, `${file}.json`)
+		const filePath = path.join(localesDir, locale, `${file}.json`)
 		if (!fs.existsSync(filePath)) {
 			missingLocales.push(`${locale}/${file}.json`)
 			return
@@ -96,21 +112,20 @@ function checkKeyInLocales(key, localeDirs) {
 
 // Recursively traverse the directory
 function findMissingI18nKeys() {
-	const localeDirs = getLocaleDirs()
 	const results = []
 
-	function walk(dir) {
+	function walk(dir, baseDir, localeDirs, localesDir) {
 		const files = fs.readdirSync(dir)
 
 		for (const file of files) {
 			const filePath = path.join(dir, file)
 			const stat = fs.statSync(filePath)
 
-			// Exclude test files
-			if (filePath.includes(".test.")) continue
+			// Exclude test files and __mocks__ directory
+			if (filePath.includes(".test.") || filePath.includes("__mocks__")) continue
 
 			if (stat.isDirectory()) {
-				walk(filePath) // Recursively traverse subdirectories
+				walk(filePath, baseDir, localeDirs, localesDir) // Recursively traverse subdirectories
 			} else if (stat.isFile() && [".ts", ".tsx", ".js", ".jsx"].includes(path.extname(filePath))) {
 				const content = fs.readFileSync(filePath, "utf8")
 
@@ -119,12 +134,12 @@ function findMissingI18nKeys() {
 					let match
 					while ((match = pattern.exec(content)) !== null) {
 						const key = match[1]
-						const missingLocales = checkKeyInLocales(key, localeDirs)
+						const missingLocales = checkKeyInLocales(key, localeDirs, localesDir)
 						if (missingLocales.length > 0) {
 							results.push({
 								key,
 								missingLocales,
-								file: path.relative(TARGET_DIR, filePath),
+								file: path.relative(baseDir, filePath),
 							})
 						}
 					}
@@ -133,20 +148,33 @@ function findMissingI18nKeys() {
 		}
 	}
 
-	walk(TARGET_DIR)
+	// Walk through all directories
+	Object.entries(DIRS).forEach(([name, config]) => {
+		const localeDirs = getLocaleDirs(config.localesDir)
+		if (localeDirs.length > 0) {
+			console.log(`\nChecking ${name} directory with ${localeDirs.length} languages: ${localeDirs.join(", ")}`)
+			walk(config.path, config.path, localeDirs, config.localesDir)
+		}
+	})
+
 	return results
 }
 
 // Execute and output the results
 function main() {
 	try {
-		const localeDirs = getLocaleDirs()
-		if (args.locale && localeDirs.length === 0) {
-			console.error(`Error: Language '${args.locale}' not found in ${LOCALES_DIR}`)
-			process.exit(1)
-		}
+		if (args.locale) {
+			// Check if the specified locale exists in any of the locales directories
+			const localeExists = Object.values(DIRS).some((config) => {
+				const localeDirs = getLocaleDirs(config.localesDir)
+				return localeDirs.includes(args.locale)
+			})
 
-		console.log(`Checking ${localeDirs.length} non-English languages: ${localeDirs.join(", ")}`)
+			if (!localeExists) {
+				console.error(`Error: Language '${args.locale}' not found in any locales directory`)
+				process.exit(1)
+			}
+		}
 
 		const missingKeys = findMissingI18nKeys()
 

@@ -12,6 +12,8 @@
 		"export": "タスク履歴をエクスポート",
 		"delete": "タスクを削除（Shift + クリックで確認をスキップ）"
 	},
+	"unpin": "固定解除",
+	"pin": "固定",
 	"tokenProgress": {
 		"availableSpace": "利用可能な空き容量: {{amount}} トークン",
 		"tokensUsed": "使用トークン: {{used}} / {{total}}",

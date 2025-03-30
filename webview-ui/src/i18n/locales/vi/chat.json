@@ -12,6 +12,8 @@
 		"export": "Xuất lịch sử nhiệm vụ",
 		"delete": "Xóa nhiệm vụ (Shift + Click để bỏ qua xác nhận)"
 	},
+	"unpin": "bỏ ghim",
+	"pin": "ghim",
 	"tokenProgress": {
 		"availableSpace": "Không gian khả dụng: {{amount}} tokens",
 		"tokensUsed": "Tokens đã sử dụng: {{used}} trong {{total}}",

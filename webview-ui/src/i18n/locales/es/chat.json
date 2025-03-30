@@ -12,6 +12,8 @@
 		"export": "Exportar historial de tareas",
 		"delete": "Eliminar tarea (Shift + Clic para omitir confirmación)"
 	},
+	"unpin": "desanclar",
+	"pin": "anclar",
 	"retry": {
 		"title": "Reintentar",
 		"tooltip": "Intenta la operación de nuevo"

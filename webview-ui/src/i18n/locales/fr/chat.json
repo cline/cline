@@ -12,6 +12,8 @@
 		"export": "Exporter l'historique des tâches",
 		"delete": "Supprimer la tâche (Shift + Clic pour ignorer la confirmation)"
 	},
+	"unpin": "détacher",
+	"pin": "épingler",
 	"tokenProgress": {
 		"availableSpace": "Espace disponible : {{amount}} tokens",
 		"tokensUsed": "Tokens utilisés : {{used}} sur {{total}}",

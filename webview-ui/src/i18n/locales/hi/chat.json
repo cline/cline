@@ -12,6 +12,8 @@
 		"export": "कार्य इतिहास निर्यात करें",
 		"delete": "कार्य हटाएं (पुष्टि को छोड़ने के लिए Shift + क्लिक)"
 	},
+	"unpin": "पिन हटाएं",
+	"pin": "पिन करें",
 	"tokenProgress": {
 		"availableSpace": "उपलब्ध स्थान: {{amount}} tokens",
 		"tokensUsed": "प्रयुक्त tokens: {{used}} / {{total}}",
