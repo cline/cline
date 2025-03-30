@@ -142,7 +142,6 @@ export class Cline {
 		})
 		this.providerRef = new WeakRef(provider)
 		this.apiProvider = apiConfiguration.apiProvider
-		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context, browserSettings)
@@ -152,15 +151,28 @@ export class Cline {
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
+
+		// Initialize taskId first
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
-			this.resumeTaskFromHistory()
 		} else if (task || images) {
 			this.taskId = Date.now().toString()
-			this.startTask(task, images)
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
+		}
+
+		// Now that taskId is initialized, we can build the API handler
+		this.api = buildApiHandler({
+			...apiConfiguration,
+			taskId: this.taskId,
+		})
+
+		// Continue with task initialization
+		if (historyItem) {
+			this.resumeTaskFromHistory()
+		} else if (task || images) {
+			this.startTask(task, images)
 		}
 
 		if (historyItem) {
