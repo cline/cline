@@ -4,8 +4,8 @@ This module handles interactions with the GitHub API for posting comments to PRs
 """
 
 import os
-import sys
 import requests
+from .util import log, file_exists
 
 def generate_comment(base_ext_cov, pr_ext_cov, ext_decreased, ext_diff, 
                     base_web_cov, pr_web_cov, web_decreased, web_diff):
@@ -46,8 +46,7 @@ def generate_comment(base_ext_cov, pr_ext_cov, ext_decreased, ext_diff,
             web_decreased = bool(web_decreased)
         web_diff = float(web_diff)
     except ValueError as e:
-        sys.stdout.write(f"Error converting input values: {e}\n")
-        sys.stdout.flush()
+        log(f"Error converting input values: {e}")
         return ""
     
     # Add a unique identifier to find this comment later
@@ -99,9 +98,8 @@ def post_comment(comment_path, pr_number, repo, token=None):
         repo: Repository in the format "owner/repo"
         token: GitHub token
     """
-    if not os.path.exists(comment_path):
-        sys.stdout.write(f"Error: Comment file {comment_path} does not exist\n")
-        sys.stdout.flush()
+    if not file_exists(comment_path):
+        log(f"Error: Comment file {comment_path} does not exist")
         return
     
     with open(comment_path, 'r') as f:
@@ -110,8 +108,7 @@ def post_comment(comment_path, pr_number, repo, token=None):
     if not token:
         token = os.environ.get('GITHUB_TOKEN')
         if not token:
-            sys.stdout.write("Error: GitHub token not provided\n")
-            sys.stdout.flush()
+            log("Error: GitHub token not provided")
             return
     
     # Find existing comment
@@ -122,43 +119,43 @@ def post_comment(comment_path, pr_number, repo, token=None):
     
     # Get all comments
     comments_url = f'https://api.github.com/repos/{repo}/issues/{pr_number}/comments'
+    log(f"Getting comments from: {comments_url}")
     response = requests.get(comments_url, headers=headers)
     
     if response.status_code != 200:
-        sys.stdout.write(f"Error getting comments: {response.status_code} - {response.text}\n")
-        sys.stdout.flush()
+        log(f"Error getting comments: {response.status_code} - {response.text}")
         return
     
     comments = response.json()
+    log(f"Found {len(comments)} existing comments")
     
     # Find comment with our identifier
     comment_id = None
     for comment in comments:
         if '<!-- COVERAGE_REPORT -->' in comment['body']:
             comment_id = comment['id']
+            log(f"Found existing coverage report comment with ID: {comment_id}")
             break
     
     if comment_id:
         # Update existing comment
         update_url = f'https://api.github.com/repos/{repo}/issues/comments/{comment_id}'
+        log(f"Updating existing comment at: {update_url}")
         response = requests.patch(update_url, headers=headers, json={'body': comment_body})
         
         if response.status_code == 200:
-            sys.stdout.write(f"Updated existing comment: {comment_id}\n")
-            sys.stdout.flush()
+            log(f"Successfully updated existing comment: {comment_id}")
         else:
-            sys.stdout.write(f"Error updating comment: {response.status_code} - {response.text}\n")
-            sys.stdout.flush()
+            log(f"Error updating comment: {response.status_code} - {response.text}")
     else:
         # Create new comment
+        log(f"Creating new comment at: {comments_url}")
         response = requests.post(comments_url, headers=headers, json={'body': comment_body})
         
         if response.status_code == 201:
-            sys.stdout.write("Created new comment\n")
-            sys.stdout.flush()
+            log("Successfully created new comment")
         else:
-            sys.stdout.write(f"Error creating comment: {response.status_code} - {response.text}\n")
-            sys.stdout.flush()
+            log(f"Error creating comment: {response.status_code} - {response.text}")
 
 def set_github_output(name, value):
     """
@@ -174,9 +171,7 @@ def set_github_output(name, value):
             f.write(f"{name}={value}\n")
     else:
         # Fallback to the deprecated method for backward compatibility
-        sys.stdout.write(f"::set-output name={name}::{value}\n")
-        sys.stdout.flush()
+        log(f"::set-output name={name}::{value}")
     
     # Also print for human readability
-    sys.stdout.write(f"{name}: {value}\n")
-    sys.stdout.flush()
+    log(f"{name}: {value}")

@@ -9,6 +9,7 @@ import argparse
 from .extraction import extract_coverage, compare_coverage, run_coverage, set_verbose
 from .github_api import generate_comment, post_comment, set_github_output
 from .workflow import process_coverage_workflow
+from .util import log
 
 def main():
     parser = argparse.ArgumentParser(description='Coverage utility script for GitHub Actions workflows')
@@ -77,52 +78,67 @@ def main():
     # Set verbose flag - check both the main parser and subparser arguments
     if hasattr(args, 'verbose') and args.verbose:
         set_verbose(True)
-        print("Verbose mode enabled")
+        log("Verbose mode enabled")
     
     if args.command == 'extract-coverage':
+        log(f"Extracting coverage from file: {args.file_path} (type: {args.type})")
         coverage_pct = extract_coverage(args.file_path, args.type)
         if args.github_output:
             set_github_output(f"{args.type}_coverage", coverage_pct)
         else:
-            print(coverage_pct)
+            log(f"Coverage: {coverage_pct}%")
         
     elif args.command == 'compare-coverage':
+        log(f"Comparing coverage: base={args.base_cov}%, PR={args.pr_cov}%")
         decreased, diff = compare_coverage(args.base_cov, args.pr_cov)
         if args.github_output:
             prefix = args.output_prefix
             set_github_output(f"{prefix}decreased", str(decreased).lower())
             set_github_output(f"{prefix}diff", diff)
-            print(f"Coverage difference: {diff}%")
-            print(f"Coverage decreased: {decreased}")
+            log(f"Coverage difference: {diff}%")
+            log(f"Coverage decreased: {decreased}")
         else:
-            print(f"decreased={str(decreased).lower()}")
-            print(f"diff={diff}")
+            log(f"decreased={str(decreased).lower()}")
+            log(f"diff={diff}")
         
     elif args.command == 'generate-comment':
+        log("Generating coverage comparison comment")
         comment = generate_comment(
             args.base_ext_cov, args.pr_ext_cov, args.ext_decreased, args.ext_diff,
             args.base_web_cov, args.pr_web_cov, args.web_decreased, args.web_diff
         )
         # Output the comment to stdout
-        print(comment)
+        log(comment)
         
     elif args.command == 'post-comment':
+        log(f"Posting comment from {args.comment_path} to PR #{args.pr_number} in {args.repo}")
         post_comment(args.comment_path, args.pr_number, args.repo, args.token)
         
     elif args.command == 'run-coverage':
+        log(f"Running coverage command: {args.coverage_cmd}")
+        log(f"Output file: {args.output_file}")
+        log(f"Coverage type: {args.type}")
         coverage_pct = run_coverage(args.coverage_cmd, args.output_file, args.type)
         if args.github_output:
             set_github_output(f"{args.type}_coverage", coverage_pct)
         else:
-            print(coverage_pct)
+            log(f"Coverage: {coverage_pct}%")
         
     elif args.command == 'process-workflow':
+        log("Processing coverage workflow")
+        log(f"Base branch: {args.base_branch}")
+        if args.pr_number:
+            log(f"PR number: {args.pr_number}")
+        if args.repo:
+            log(f"Repository: {args.repo}")
         process_coverage_workflow(args)
         
     elif args.command == 'set-github-output':
+        log(f"Setting GitHub output: {args.name}={args.value}")
         set_github_output(args.name, args.value)
     
     else:
+        log("No command specified")
         parser.print_help()
         sys.exit(1)
 

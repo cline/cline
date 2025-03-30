@@ -4,18 +4,13 @@ This module handles the main workflow logic for running coverage tests and proce
 """
 
 import os
-import sys
 import re
 import subprocess
 import traceback
 
 from .extraction import run_coverage, compare_coverage, extract_coverage
 from .github_api import generate_comment, post_comment, set_github_output
-
-def log(message):
-    """Write a message to stdout and flush."""
-    sys.stdout.write(f"{message}\n")
-    sys.stdout.flush()
+from .util import log, file_exists, get_file_size, list_directory
 
 def checkout_branch(branch_name):
     """Checkout a branch for testing."""
@@ -51,35 +46,46 @@ def checkout_branch(branch_name):
 
 def extract_extension_coverage_from_file(file_path):
     """Extract extension coverage from file when run_coverage returns 0."""
-    if not os.path.exists(file_path):
+    if not file_exists(file_path):
+        log(f"File {file_path} does not exist, cannot extract extension coverage")
+        return 0.0
+    
+    file_size = get_file_size(file_path)
+    if file_size == 0:
+        log(f"File {file_path} is empty, cannot extract extension coverage")
         return 0.0
         
-    log(f"Extension coverage is 0.0, trying to read from file directly: {file_path}")
+    log(f"Extension coverage is 0.0, trying to read from file directly: {file_path} (size: {file_size} bytes)")
     with open(file_path, 'r') as f:
         content = f.read()
-        # Try to find the coverage summary section
-        summary_match = re.search(r'=============================== Coverage summary ===============================\n(.*?)\n=+', content, re.DOTALL)
-        if summary_match:
-            # Try to extract the Lines percentage
-            lines_match = re.search(r'Lines\s*:\s*(\d+\.\d+)%', summary_match.group(1))
-            if lines_match:
-                coverage = float(lines_match.group(1))
-                log(f"Found extension coverage in file: {coverage}%")
-                return coverage
+        # Extract the percentage from the "Lines" row in the coverage summary
+        # Pattern: Lines : xx.xx% ( xxxxxxx/xxxxxxx )
+        lines_match = re.search(r'Lines\s*:\s*(\d+\.\d+)%', content)
+        if lines_match:
+            coverage = float(lines_match.group(1))
+            log(f"Found extension coverage in file: {coverage}%")
+            return coverage
     return 0.0
 
 def extract_webview_coverage_from_file(file_path):
     """Extract webview coverage from file when run_coverage returns 0."""
-    if not os.path.exists(file_path):
+    if not file_exists(file_path):
+        log(f"File {file_path} does not exist, cannot extract webview coverage")
+        return 0.0
+    
+    file_size = get_file_size(file_path)
+    if file_size == 0:
+        log(f"File {file_path} is empty, cannot extract webview coverage")
         return 0.0
         
-    log(f"Webview coverage is 0.0, trying to read from file directly: {file_path}")
+    log(f"Webview coverage is 0.0, trying to read from file directly: {file_path} (size: {file_size} bytes)")
     with open(file_path, 'r') as f:
         content = f.read()
-        # Try to find the coverage table
-        table_match = re.search(r'All files\s+\|\s+(\d+\.\d+)', content)
-        if table_match:
-            coverage = float(table_match.group(1))
+        # Extract the percentage from the "% Lines" column in the "All files" row
+        # Pattern: All files | xx.xx | xx.xx | xx.xx | xx.xx |
+        all_files_match = re.search(r'All files\s+\|\s+\d+\.\d+\s+\|\s+\d+\.\d+\s+\|\s+\d+\.\d+\s+\|\s+(\d+\.\d+)', content)
+        if all_files_match:
+            coverage = float(all_files_match.group(1))
             log(f"Found webview coverage in file: {coverage}%")
             return coverage
     return 0.0
@@ -145,16 +151,22 @@ def run_branch_coverage(branch_name=None):
 
 def find_potential_coverage_files():
     """Find potential coverage files in the current directory and webview-ui."""
+    log("Searching for potential coverage files...")
+    
     # Find files in current directory
-    for file in os.listdir('.'):
-        if 'coverage' in file.lower() and os.path.isfile(file):
-            log(f"Found potential coverage file: {file}")
+    current_dir_files = list_directory('.')
+    for name, size in current_dir_files:
+        if 'coverage' in name.lower() and size != "DIR":
+            log(f"Found potential coverage file: {name} (size: {size} bytes)")
     
     # Find files in webview-ui directory
-    if os.path.exists('webview-ui'):
-        for file in os.listdir('webview-ui'):
-            if 'coverage' in file.lower() and os.path.isfile(os.path.join('webview-ui', file)):
-                log(f"Found potential webview coverage file: webview-ui/{file}")
+    if os.path.exists('webview-ui') and os.path.isdir('webview-ui'):
+        webview_files = list_directory('webview-ui')
+        for name, size in webview_files:
+            if 'coverage' in name.lower() and size != "DIR":
+                log(f"Found potential webview coverage file: webview-ui/{name} (size: {size} bytes)")
+    else:
+        log("webview-ui directory not found")
 
 def generate_warnings(base_ext_cov, pr_ext_cov, ext_decreased, ext_diff, 
                      base_web_cov, pr_web_cov, web_decreased, web_diff):

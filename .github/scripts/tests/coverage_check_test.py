@@ -13,6 +13,7 @@ from unittest.mock import patch, MagicMock, call, mock_open
 # Add parent directory to path so we can import coverage modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from coverage_check import extract_coverage, compare_coverage, set_verbose, generate_comment, post_comment, set_github_output
+from coverage_check.util import log, file_exists, get_file_size, list_directory
 
 
 class TestCoverage(unittest.TestCase):
@@ -51,7 +52,7 @@ class TestCoverage(unittest.TestCase):
     @classmethod
     def generate_coverage_reports(cls):
         """Generate real coverage reports by running tests."""
-        print("Generating coverage reports (this may take a while)...")
+        log("Generating coverage reports (this may take a while)...")
         
         # Run extension tests with coverage
         try:
@@ -61,18 +62,39 @@ class TestCoverage(unittest.TestCase):
             else:
                 cmd = f"cd ../../.. && npm run test:coverage > {cls.extension_coverage_file} 2>&1"
             
-            print("Running extension tests...")
-            subprocess.run(cmd, shell=True, check=False)
+            log("Running extension tests...")
+            log(f"Command: {cmd}")
+            result = subprocess.run(cmd, shell=True, check=False, capture_output=True, text=True)
+            log(f"Extension tests exit code: {result.returncode}")
             
             # Run webview tests with coverage
-            print("Running webview tests...")
+            log("Running webview tests...")
             cmd = f"cd ../../../webview-ui && npm run test:coverage > {cls.webview_coverage_file} 2>&1"
-            subprocess.run(cmd, shell=True, check=False)
+            log(f"Command: {cmd}")
+            result = subprocess.run(cmd, shell=True, check=False, capture_output=True, text=True)
+            log(f"Webview tests exit code: {result.returncode}")
             
-            print("Coverage reports generated successfully.")
+            # Verify files were created
+            if file_exists(cls.extension_coverage_file):
+                ext_size = get_file_size(cls.extension_coverage_file)
+                log(f"Extension coverage file created: {cls.extension_coverage_file} (size: {ext_size} bytes)")
+            else:
+                log(f"WARNING: Extension coverage file was not created: {cls.extension_coverage_file}")
+                
+            if file_exists(cls.webview_coverage_file):
+                web_size = get_file_size(cls.webview_coverage_file)
+                log(f"Webview coverage file created: {cls.webview_coverage_file} (size: {web_size} bytes)")
+            else:
+                log(f"WARNING: Webview coverage file was not created: {cls.webview_coverage_file}")
+            
+            log("Coverage reports generation completed.")
         except Exception as e:
-            print(f"Error generating coverage reports: {e}")
+            log(f"Error generating coverage reports: {e}")
+            import traceback
+            log(traceback.format_exc())
+            
             # Create empty files if tests fail
+            log("Creating fallback coverage files...")
             with open(cls.extension_coverage_file, 'w') as f:
                 f.write("No coverage data available")
             with open(cls.webview_coverage_file, 'w') as f:
@@ -84,7 +106,20 @@ class TestCoverage(unittest.TestCase):
         if '-v' in sys.argv or '--verbose' in sys.argv:
             set_verbose(True)
         
+        # Verify files exist before testing
+        self.assertTrue(file_exists(self.extension_coverage_file), 
+                       f"Extension coverage file does not exist: {self.extension_coverage_file}")
+        self.assertTrue(file_exists(self.webview_coverage_file), 
+                       f"Webview coverage file does not exist: {self.webview_coverage_file}")
+        
+        # Log file sizes
+        ext_size = get_file_size(self.extension_coverage_file)
+        web_size = get_file_size(self.webview_coverage_file)
+        log(f"Extension coverage file size: {ext_size} bytes")
+        log(f"Webview coverage file size: {web_size} bytes")
+        
         # Test extension coverage
+        log("Testing extension coverage extraction...")
         ext_coverage_pct = extract_coverage(self.extension_coverage_file, 'extension')
         
         # Check that coverage percentage is a float
@@ -94,10 +129,11 @@ class TestCoverage(unittest.TestCase):
         self.assertGreaterEqual(ext_coverage_pct, 0)
         self.assertLessEqual(ext_coverage_pct, 100)
         
-        # Print coverage percentage for debugging
-        print(f"Extension coverage: {ext_coverage_pct}%")
+        # Log coverage percentage for debugging
+        log(f"Extension coverage: {ext_coverage_pct}%")
         
         # Test webview coverage
+        log("Testing webview coverage extraction...")
         web_coverage_pct = extract_coverage(self.webview_coverage_file, 'webview')
         
         # Convert to float if it's an integer
@@ -111,8 +147,8 @@ class TestCoverage(unittest.TestCase):
         self.assertGreaterEqual(web_coverage_pct, 0)
         self.assertLessEqual(web_coverage_pct, 100)
         
-        # Print coverage percentage for debugging
-        print(f"Webview coverage: {web_coverage_pct}%")
+        # Log coverage percentage for debugging
+        log(f"Webview coverage: {web_coverage_pct}%")
 
     def test_compare_coverage(self):
         """Test compare_coverage function."""
