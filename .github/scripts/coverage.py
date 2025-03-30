@@ -65,9 +65,17 @@ def print_debug_output(content, coverage_type):
     if not verbose:
         return
     
-    # Use sys.stdout.write to ensure output is captured in GitHub Actions logs
-    import sys
+    # Print each line of the content separately
+    sys.stdout.write(f"\n##[group]FULL {coverage_type.upper()} COVERAGE REPORT - LINE BY LINE\n")
+    sys.stdout.flush()
+    for line in content.splitlines():
+        sys.stdout.write(line + "\n")
+        sys.stdout.flush()
+    sys.stdout.write("\n##[endgroup]\n")
+    sys.stdout.flush()
     
+    # Original logic (commented out)
+    """
     # Extract and print only the coverage summary section
     if coverage_type == "extension":
         # Look for the coverage summary section
@@ -98,6 +106,7 @@ def print_debug_output(content, coverage_type):
         else:
             sys.stdout.write("\n##[warning]No coverage table found in webview coverage file\n")
             sys.stdout.flush()
+    """
 
 
 def extract_coverage(file_path, coverage_type="extension"):
