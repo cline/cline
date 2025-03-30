@@ -87,6 +87,7 @@ import { parseXml } from "../utils/xml"
 import { getWorkspacePath } from "../utils/path"
 import { writeToFileTool } from "./tools/writeToFileTool"
 import { applyDiffTool } from "./tools/applyDiffTool"
+import { insertContentTool } from "./tools/insertContentTool"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.Messages.ContentBlockParam>
@@ -1572,153 +1573,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 					case "apply_diff":
 						await applyDiffTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
 						break
-					case "insert_content": {
-						const relPath: string | undefined = block.params.path
-						const operations: string | undefined = block.params.operations
-
-						const sharedMessageProps: ClineSayTool = {
-							tool: "appliedDiff",
-							path: getReadablePath(this.cwd, removeClosingTag("path", relPath)),
-						}
-
-						try {
-							if (block.partial) {
-								const partialMessage = JSON.stringify(sharedMessageProps)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								break
-							}
-
-							// Validate required parameters
-							if (!relPath) {
-								this.consecutiveMistakeCount++
-								pushToolResult(await this.sayAndCreateMissingParamError("insert_content", "path"))
-								break
-							}
-
-							if (!operations) {
-								this.consecutiveMistakeCount++
-								pushToolResult(await this.sayAndCreateMissingParamError("insert_content", "operations"))
-								break
-							}
-
-							const absolutePath = path.resolve(this.cwd, relPath)
-							const fileExists = await fileExistsAtPath(absolutePath)
-
-							if (!fileExists) {
-								this.consecutiveMistakeCount++
-								const formattedError = `File does not exist at path: ${absolutePath}\n\n<error_details>\nThe specified file could not be found. Please verify the file path and try again.\n</error_details>`
-								await this.say("error", formattedError)
-								pushToolResult(formattedError)
-								break
-							}
-
-							let parsedOperations: Array<{
-								start_line: number
-								content: string
-							}>
-
-							try {
-								parsedOperations = JSON.parse(operations)
-								if (!Array.isArray(parsedOperations)) {
-									throw new Error("Operations must be an array")
-								}
-							} catch (error) {
-								this.consecutiveMistakeCount++
-								await this.say("error", `Failed to parse operations JSON: ${error.message}`)
-								pushToolResult(formatResponse.toolError("Invalid operations JSON format"))
-								break
-							}
-
-							this.consecutiveMistakeCount = 0
-
-							// Read the file
-							const fileContent = await fs.readFile(absolutePath, "utf8")
-							this.diffViewProvider.editType = "modify"
-							this.diffViewProvider.originalContent = fileContent
-							const lines = fileContent.split("\n")
-
-							const updatedContent = insertGroups(
-								lines,
-								parsedOperations.map((elem) => {
-									return {
-										index: elem.start_line - 1,
-										elements: elem.content.split("\n"),
-									}
-								}),
-							).join("\n")
-
-							// Show changes in diff view
-							if (!this.diffViewProvider.isEditing) {
-								await this.ask("tool", JSON.stringify(sharedMessageProps), true).catch(() => {})
-								// First open with original content
-								await this.diffViewProvider.open(relPath)
-								await this.diffViewProvider.update(fileContent, false)
-								this.diffViewProvider.scrollToFirstDiff()
-								await delay(200)
-							}
-
-							const diff = formatResponse.createPrettyPatch(relPath, fileContent, updatedContent)
-
-							if (!diff) {
-								pushToolResult(`No changes needed for '${relPath}'`)
-								break
-							}
-
-							await this.diffViewProvider.update(updatedContent, true)
-
-							const completeMessage = JSON.stringify({
-								...sharedMessageProps,
-								diff,
-							} satisfies ClineSayTool)
-
-							const didApprove = await this.ask("tool", completeMessage, false).then(
-								(response) => response.response === "yesButtonClicked",
-							)
-
-							if (!didApprove) {
-								await this.diffViewProvider.revertChanges()
-								pushToolResult("Changes were rejected by the user.")
-								break
-							}
-
-							const { newProblemsMessage, userEdits, finalContent } =
-								await this.diffViewProvider.saveChanges()
-							this.didEditFile = true
-
-							if (!userEdits) {
-								pushToolResult(
-									`The content was successfully inserted in ${relPath.toPosix()}.${newProblemsMessage}`,
-								)
-								await this.diffViewProvider.reset()
-								break
-							}
-
-							const userFeedbackDiff = JSON.stringify({
-								tool: "appliedDiff",
-								path: getReadablePath(this.cwd, relPath),
-								diff: userEdits,
-							} satisfies ClineSayTool)
-
-							console.debug("[DEBUG] User made edits, sending feedback diff:", userFeedbackDiff)
-							await this.say("user_feedback_diff", userFeedbackDiff)
-							pushToolResult(
-								`The user made the following updates to your content:\n\n${userEdits}\n\n` +
-									`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
-									`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
-									`Please note:\n` +
-									`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
-									`2. Proceed with the task using this updated file content as the new baseline.\n` +
-									`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
-									`${newProblemsMessage}`,
-							)
-							await this.diffViewProvider.reset()
-						} catch (error) {
-							handleError("insert content", error)
-							await this.diffViewProvider.reset()
-						}
+					case "insert_content":
+						await insertContentTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
 						break
-					}
-
 					case "search_and_replace": {
 						const relPath: string | undefined = block.params.path
 						const operations: string | undefined = block.params.operations
