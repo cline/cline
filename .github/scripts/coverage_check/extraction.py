@@ -77,13 +77,38 @@ def extract_coverage(file_path, coverage_type="extension"):
     
     # Check if file exists and get its size
     if not file_exists(file_path):
+        sys.stdout.write(f"\n##[error]File {file_path} does not exist\n")
+        sys.stdout.flush()
         log(f"Error: File {file_path} does not exist")
+        
+        # Check if the directory exists
+        dir_path = os.path.dirname(file_path)
+        if not os.path.exists(dir_path):
+            sys.stdout.write(f"\n##[error]Directory {dir_path} does not exist\n")
+            sys.stdout.flush()
+            log(f"Error: Directory {dir_path} does not exist")
+        else:
+            # List directory contents for debugging
+            log(f"Directory {dir_path} exists, listing contents:")
+            try:
+                dir_contents = list_directory(dir_path)
+                for name, size in dir_contents:
+                    log(f"  {name} - {size}")
+                    sys.stdout.write(f"  {name} - {size}\n")
+                sys.stdout.flush()
+            except Exception as e:
+                log(f"Error listing directory: {e}")
+        
         return 0.0
     
     file_size = get_file_size(file_path)
     log(f"File size: {file_size} bytes")
+    sys.stdout.write(f"\n##[info]Coverage file {file_path} exists, size: {file_size} bytes\n")
+    sys.stdout.flush()
     
     if file_size == 0:
+        sys.stdout.write(f"\n##[warning]File {file_path} is empty\n")
+        sys.stdout.flush()
         log(f"Warning: File {file_path} is empty")
         return 0.0
     
@@ -100,11 +125,6 @@ def extract_coverage(file_path, coverage_type="extension"):
     with open(file_path, 'r') as f:
         content = f.read()
     
-    # Print file content preview for debugging
-    preview_length = min(500, len(content))
-    log(f"File content preview (first {preview_length} chars):")
-    log(f"{content[:preview_length]}...")
-    
     # Print debug information if verbose
     print_debug_output(content, coverage_type)
     
@@ -119,6 +139,12 @@ def extract_coverage(file_path, coverage_type="extension"):
                 sys.stdout.write(f"Pattern matched (Lines percentage): {coverage_pct}\n")
                 sys.stdout.flush()
             return coverage_pct
+        else:
+            # No coverage data found, log full content for debugging
+            log("No coverage data found. Full file content:")
+            log("=== Full file content ===")
+            log(content)
+            log("=== End file content ===")
     else:  # webview
         # Extract the percentage from the "% Lines" column in the "All files" row
         # Pattern: All files | xx.xx | xx.xx | xx.xx | xx.xx |
@@ -129,6 +155,12 @@ def extract_coverage(file_path, coverage_type="extension"):
                 sys.stdout.write(f"Pattern matched (All files % Lines): {coverage_pct}\n")
                 sys.stdout.flush()
             return coverage_pct
+        else:
+            # No coverage data found, log full content for debugging
+            log("No coverage data found. Full file content:")
+            log("=== Full file content ===")
+            log(content)
+            log("=== End file content ===")
     
     # If no match found, return 0.0
     return 0.0
@@ -168,6 +200,9 @@ def run_coverage(command, output_file, coverage_type="extension"):
         
     Returns:
         Coverage percentage as a float
+    
+    Raises:
+        SystemExit: If the output file is not created or is empty
     """
     
     try:
@@ -201,13 +236,19 @@ def run_coverage(command, output_file, coverage_type="extension"):
         
         # Verify file was created and has content
         if not file_exists(output_file):
-            log(f"ERROR: Output file {output_file} was not created")
-            return 0.0
+            error_msg = f"ERROR: Output file {output_file} was not created"
+            log(error_msg)
+            sys.stdout.write(f"\n##[error]{error_msg}\n")
+            sys.stdout.flush()
+            sys.exit(1)  # Exit with error code to fail the workflow
             
         file_size = get_file_size(output_file)
         if file_size == 0:
-            log(f"WARNING: Output file {output_file} is empty")
-            return 0.0
+            error_msg = f"ERROR: Output file {output_file} is empty"
+            log(error_msg)
+            sys.stdout.write(f"\n##[error]{error_msg}\n")
+            sys.stdout.flush()
+            sys.exit(1)  # Exit with error code to fail the workflow
             
         log(f"Output file size: {file_size} bytes")
         
@@ -218,7 +259,10 @@ def run_coverage(command, output_file, coverage_type="extension"):
         return coverage_pct
     
     except Exception as e:
-        log(f"Error running coverage command: {e}")
+        error_msg = f"Error running coverage command: {e}"
+        log(error_msg)
+        sys.stdout.write(f"\n##[error]{error_msg}\n")
+        sys.stdout.flush()
         # Print stack trace for debugging
         log(traceback.format_exc())
-        return 0
+        sys.exit(1)  # Exit with error code to fail the workflow

@@ -5,6 +5,7 @@ This module handles the main workflow logic for running coverage tests and proce
 
 import os
 import re
+import sys
 import subprocess
 import traceback
 
@@ -220,6 +221,68 @@ def output_github_results(pr_ext_cov, pr_web_cov, base_ext_cov, base_web_cov,
     set_github_output("webview_decreased", str(web_decreased).lower())
     set_github_output("webview_diff", web_diff)
 
+def extract_pr_coverage_from_artifacts():
+    """
+    Extract PR branch coverage from artifact files.
+    
+    Returns:
+        Tuple of (extension_coverage, webview_coverage)
+        
+    Raises:
+        SystemExit: If the coverage files don't exist
+    """
+    log("=== Extracting PR branch coverage from artifacts ===")
+    
+    # Check if the coverage files exist
+    ext_file_path = "extension_coverage.txt"
+    web_file_path = "webview-ui/webview_coverage.txt"
+    
+    # Extract extension coverage
+    log(f"Extracting extension coverage from {ext_file_path}")
+    if not file_exists(ext_file_path):
+        error_msg = f"ERROR: PR extension coverage file {ext_file_path} not found"
+        log(error_msg)
+        
+        # List directory contents for debugging
+        log("Current directory contents:")
+        try:
+            dir_contents = list_directory('.')
+            for name, size in dir_contents:
+                log(f"  {name} - {size}\n")
+        except Exception as e:
+            log(f"Error listing directory: {e}")
+        
+        sys.exit(1)  # Exit with error code to fail the workflow
+    
+    ext_cov = extract_extension_coverage_from_file(ext_file_path)
+    log(f"PR extension coverage from artifact: {ext_cov}%")
+    
+    # Extract webview coverage
+    log(f"Extracting webview coverage from {web_file_path}")
+    if not file_exists(web_file_path):
+        error_msg = f"ERROR: PR webview coverage file {web_file_path} not found"
+        log(error_msg)
+        
+        # Check if the webview-ui directory exists
+        if not os.path.exists('webview-ui'):
+            log("ERROR: webview-ui directory not found")
+        else:
+            # List webview-ui directory contents for debugging
+            log("webview-ui directory contents:")
+            try:
+                dir_contents = list_directory('webview-ui')
+                for name, size in dir_contents:
+                    log(f"  {name} - {size}")
+            except Exception as e:
+                log(f"Error listing directory: {e}")
+        
+        sys.exit(1)  # Exit with error code to fail the workflow
+    
+    web_cov = extract_webview_coverage_from_file(web_file_path)
+    log(f"PR webview coverage from artifact: {web_cov}%")
+    
+    return ext_cov, web_cov
+
 def process_coverage_workflow(args):
     """
     Process the entire coverage workflow.
@@ -233,9 +296,8 @@ def process_coverage_workflow(args):
         if is_github_actions:
             log("Running in GitHub Actions environment")
         
-        # Run PR branch coverage
-        log("=== Running PR branch coverage ===")
-        pr_ext_cov, pr_web_cov = run_branch_coverage()
+        # Extract PR branch coverage from artifacts (from test job)
+        pr_ext_cov, pr_web_cov = extract_pr_coverage_from_artifacts()
         
         # Verify PR coverage values
         if pr_ext_cov == 0.0:
