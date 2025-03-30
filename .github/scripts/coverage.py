@@ -68,14 +68,6 @@ def print_debug_output(content, coverage_type):
     # Use sys.stdout.write to ensure output is captured in GitHub Actions logs
     import sys
     
-    # Always print the first 1000 characters of the file content in verbose mode
-    sys.stdout.write(f"\n##[group]COVERAGE FILE CONTENT ({coverage_type.upper()}) - FIRST 1000 CHARS\n")
-    sys.stdout.write(content[:1000])
-    if len(content) > 1000:
-        sys.stdout.write("\n... (content truncated) ...\n")
-    sys.stdout.write("\n##[endgroup]\n")
-    sys.stdout.flush()
-    
     # Extract and print only the coverage summary section
     if coverage_type == "extension":
         # Look for the coverage summary section
