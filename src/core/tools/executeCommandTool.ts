@@ -11,7 +11,7 @@ export async function executeCommandTool(
 	pushToolResult: PushToolResult,
 	removeClosingTag: RemoveClosingTag,
 ) {
-	const command: string | undefined = block.params.command
+	let command: string | undefined = block.params.command
 	const customCwd: string | undefined = block.params.cwd
 	try {
 		if (block.partial) {
@@ -31,6 +31,9 @@ export async function executeCommandTool(
 
 				return
 			}
+
+			// unescape html entities (e.g. &lt; -> <)
+			command = command.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
 
 			cline.consecutiveMistakeCount = 0
 
