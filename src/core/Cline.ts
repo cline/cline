@@ -95,6 +95,10 @@ import { browserActionTool } from "./tools/browserActionTool"
 import { executeCommandTool } from "./tools/executeCommandTool"
 import { useMcpToolTool } from "./tools/useMcpToolTool"
 import { accessMcpResourceTool } from "./tools/accessMcpResourceTool"
+import { askFollowupQuestionTool } from "./tools/askFollowupQuestionTool"
+import { switchModeTool } from "./tools/switchModeTool"
+import { attemptCompletionTool } from "./tools/attemptCompletionTool"
+import { newTaskTool } from "./tools/newTaskTool"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.Messages.ContentBlockParam>
@@ -137,8 +141,8 @@ export class Cline extends EventEmitter<ClineEvents> {
 	readonly rootTask: Cline | undefined = undefined
 	readonly parentTask: Cline | undefined = undefined
 	readonly taskNumber: number
-	private isPaused: boolean = false
-	private pausedModeSlug: string = defaultModeSlug
+	isPaused: boolean = false
+	pausedModeSlug: string = defaultModeSlug
 	private pauseInterval: NodeJS.Timeout | undefined
 
 	readonly apiConfiguration: ApiConfiguration
@@ -182,7 +186,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 	private assistantMessageContent: AssistantMessageContent[] = []
 	private presentAssistantMessageLocked = false
 	private presentAssistantMessageHasPendingUpdates = false
-	private userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
+	userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
 	private userMessageContentReady = false
 	didRejectTool = false
 	private didAlreadyUseTool = false
@@ -379,7 +383,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		this.emit("message", { action: "updated", message: partialMessage })
 	}
 
-	private getTokenUsage() {
+	getTokenUsage() {
 		const usage = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
 		this.emit("taskTokenUsageUpdated", this.taskId, usage)
 		return usage
@@ -1647,363 +1651,38 @@ export class Cline extends EventEmitter<ClineEvents> {
 						break
 					}
 					case "ask_followup_question": {
-						const question: string | undefined = block.params.question
-						const follow_up: string | undefined = block.params.follow_up
-						try {
-							if (block.partial) {
-								await this.ask("followup", removeClosingTag("question", question), block.partial).catch(
-									() => {},
-								)
-								break
-							} else {
-								if (!question) {
-									this.consecutiveMistakeCount++
-									pushToolResult(
-										await this.sayAndCreateMissingParamError("ask_followup_question", "question"),
-									)
-									break
-								}
-
-								type Suggest = {
-									answer: string
-								}
-
-								let follow_up_json = {
-									question,
-									suggest: [] as Suggest[],
-								}
-
-								if (follow_up) {
-									let parsedSuggest: {
-										suggest: Suggest[] | Suggest
-									}
-
-									try {
-										parsedSuggest = parseXml(follow_up, ["suggest"]) as {
-											suggest: Suggest[] | Suggest
-										}
-									} catch (error) {
-										this.consecutiveMistakeCount++
-										await this.say("error", `Failed to parse operations: ${error.message}`)
-										pushToolResult(formatResponse.toolError("Invalid operations xml format"))
-										break
-									}
-
-									const normalizedSuggest = Array.isArray(parsedSuggest?.suggest)
-										? parsedSuggest.suggest
-										: [parsedSuggest?.suggest].filter((sug): sug is Suggest => sug !== undefined)
-
-									follow_up_json.suggest = normalizedSuggest
-								}
-
-								this.consecutiveMistakeCount = 0
-
-								const { text, images } = await this.ask(
-									"followup",
-									JSON.stringify(follow_up_json),
-									false,
-								)
-								await this.say("user_feedback", text ?? "", images)
-								pushToolResult(formatResponse.toolResult(`<answer>\n${text}\n</answer>`, images))
-								break
-							}
-						} catch (error) {
-							await handleError("asking question", error)
-							break
-						}
+						await askFollowupQuestionTool(
+							this,
+							block,
+							askApproval,
+							handleError,
+							pushToolResult,
+							removeClosingTag,
+						)
+						break
 					}
 					case "switch_mode": {
-						const mode_slug: string | undefined = block.params.mode_slug
-						const reason: string | undefined = block.params.reason
-						try {
-							if (block.partial) {
-								const partialMessage = JSON.stringify({
-									tool: "switchMode",
-									mode: removeClosingTag("mode_slug", mode_slug),
-									reason: removeClosingTag("reason", reason),
-								})
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								break
-							} else {
-								if (!mode_slug) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("switch_mode", "mode_slug"))
-									break
-								}
-								this.consecutiveMistakeCount = 0
-
-								// Verify the mode exists
-								const targetMode = getModeBySlug(
-									mode_slug,
-									(await this.providerRef.deref()?.getState())?.customModes,
-								)
-								if (!targetMode) {
-									pushToolResult(formatResponse.toolError(`Invalid mode: ${mode_slug}`))
-									break
-								}
-
-								// Check if already in requested mode
-								const currentMode =
-									(await this.providerRef.deref()?.getState())?.mode ?? defaultModeSlug
-								if (currentMode === mode_slug) {
-									pushToolResult(`Already in ${targetMode.name} mode.`)
-									break
-								}
-
-								const completeMessage = JSON.stringify({
-									tool: "switchMode",
-									mode: mode_slug,
-									reason,
-								})
-
-								const didApprove = await askApproval("tool", completeMessage)
-								if (!didApprove) {
-									break
-								}
-
-								// Switch the mode using shared handler
-								await this.providerRef.deref()?.handleModeSwitch(mode_slug)
-								pushToolResult(
-									`Successfully switched from ${getModeBySlug(currentMode)?.name ?? currentMode} mode to ${
-										targetMode.name
-									} mode${reason ? ` because: ${reason}` : ""}.`,
-								)
-								await delay(500) // delay to allow mode change to take effect before next tool is executed
-								break
-							}
-						} catch (error) {
-							await handleError("switching mode", error)
-							break
-						}
+						await switchModeTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
 					}
 
 					case "new_task": {
-						const mode: string | undefined = block.params.mode
-						const message: string | undefined = block.params.message
-						try {
-							if (block.partial) {
-								const partialMessage = JSON.stringify({
-									tool: "newTask",
-									mode: removeClosingTag("mode", mode),
-									message: removeClosingTag("message", message),
-								})
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								break
-							} else {
-								if (!mode) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("new_task", "mode"))
-									break
-								}
-								if (!message) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("new_task", "message"))
-									break
-								}
-								this.consecutiveMistakeCount = 0
-
-								// Verify the mode exists
-								const targetMode = getModeBySlug(
-									mode,
-									(await this.providerRef.deref()?.getState())?.customModes,
-								)
-								if (!targetMode) {
-									pushToolResult(formatResponse.toolError(`Invalid mode: ${mode}`))
-									break
-								}
-
-								const toolMessage = JSON.stringify({
-									tool: "newTask",
-									mode: targetMode.name,
-									content: message,
-								})
-								const didApprove = await askApproval("tool", toolMessage)
-
-								if (!didApprove) {
-									break
-								}
-
-								const provider = this.providerRef.deref()
-
-								if (!provider) {
-									break
-								}
-
-								// Preserve the current mode so we can resume with it later.
-								this.pausedModeSlug = (await provider.getState()).mode ?? defaultModeSlug
-
-								// Switch mode first, then create new task instance.
-								await provider.handleModeSwitch(mode)
-
-								// Delay to allow mode change to take effect before next tool is executed.
-								await delay(500)
-
-								const newCline = await provider.initClineWithTask(message, undefined, this)
-								this.emit("taskSpawned", newCline.taskId)
-
-								pushToolResult(
-									`Successfully created new task in ${targetMode.name} mode with message: ${message}`,
-								)
-
-								// Set the isPaused flag to true so the parent
-								// task can wait for the sub-task to finish.
-								this.isPaused = true
-								this.emit("taskPaused")
-
-								break
-							}
-						} catch (error) {
-							await handleError("creating new task", error)
-							break
-						}
+						await newTaskTool(this, block, askApproval, handleError, pushToolResult, removeClosingTag)
+						break
 					}
 
 					case "attempt_completion": {
-						const result: string | undefined = block.params.result
-						const command: string | undefined = block.params.command
-						try {
-							const lastMessage = this.clineMessages.at(-1)
-							if (block.partial) {
-								if (command) {
-									// the attempt_completion text is done, now we're getting command
-									// remove the previous partial attempt_completion ask, replace with say, post state to webview, then stream command
-
-									// const secondLastMessage = this.clineMessages.at(-2)
-									if (lastMessage && lastMessage.ask === "command") {
-										// update command
-										await this.ask(
-											"command",
-											removeClosingTag("command", command),
-											block.partial,
-										).catch(() => {})
-									} else {
-										// last message is completion_result
-										// we have command string, which means we have the result as well, so finish it (doesnt have to exist yet)
-										await this.say(
-											"completion_result",
-											removeClosingTag("result", result),
-											undefined,
-											false,
-										)
-
-										telemetryService.captureTaskCompleted(this.taskId)
-										this.emit("taskCompleted", this.taskId, this.getTokenUsage())
-
-										await this.ask(
-											"command",
-											removeClosingTag("command", command),
-											block.partial,
-										).catch(() => {})
-									}
-								} else {
-									// no command, still outputting partial result
-									await this.say(
-										"completion_result",
-										removeClosingTag("result", result),
-										undefined,
-										block.partial,
-									)
-								}
-								break
-							} else {
-								if (!result) {
-									this.consecutiveMistakeCount++
-									pushToolResult(
-										await this.sayAndCreateMissingParamError("attempt_completion", "result"),
-									)
-									break
-								}
-
-								this.consecutiveMistakeCount = 0
-
-								let commandResult: ToolResponse | undefined
-
-								if (command) {
-									if (lastMessage && lastMessage.ask !== "command") {
-										// Haven't sent a command message yet so first send completion_result then command.
-										await this.say("completion_result", result, undefined, false)
-										telemetryService.captureTaskCompleted(this.taskId)
-										this.emit("taskCompleted", this.taskId, this.getTokenUsage())
-									}
-
-									// Complete command message.
-									const didApprove = await askApproval("command", command)
-
-									if (!didApprove) {
-										break
-									}
-
-									const [userRejected, execCommandResult] = await this.executeCommandTool(command!)
-
-									if (userRejected) {
-										this.didRejectTool = true
-										pushToolResult(execCommandResult)
-										break
-									}
-
-									// User didn't reject, but the command may have output.
-									commandResult = execCommandResult
-								} else {
-									await this.say("completion_result", result, undefined, false)
-									telemetryService.captureTaskCompleted(this.taskId)
-									this.emit("taskCompleted", this.taskId, this.getTokenUsage())
-								}
-
-								if (this.parentTask) {
-									const didApprove = await askFinishSubTaskApproval()
-
-									if (!didApprove) {
-										break
-									}
-
-									// tell the provider to remove the current subtask and resume the previous task in the stack
-									await this.providerRef.deref()?.finishSubTask(`Task complete: ${lastMessage?.text}`)
-									break
-								}
-
-								// We already sent completion_result says, an
-								// empty string asks relinquishes control over
-								// button and field.
-								const { response, text, images } = await this.ask("completion_result", "", false)
-
-								// Signals to recursive loop to stop (for now
-								// this never happens since yesButtonClicked
-								// will trigger a new task).
-								if (response === "yesButtonClicked") {
-									pushToolResult("")
-									break
-								}
-
-								await this.say("user_feedback", text ?? "", images)
-								const toolResults: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
-
-								if (commandResult) {
-									if (typeof commandResult === "string") {
-										toolResults.push({ type: "text", text: commandResult })
-									} else if (Array.isArray(commandResult)) {
-										toolResults.push(...commandResult)
-									}
-								}
-
-								toolResults.push({
-									type: "text",
-									text: `The user has provided feedback on the results. Consider their input to continue the task, and then attempt completion again.\n<feedback>\n${text}\n</feedback>`,
-								})
-
-								toolResults.push(...formatResponse.imageBlocks(images))
-
-								this.userMessageContent.push({
-									type: "text",
-									text: `${toolDescription()} Result:`,
-								})
-
-								this.userMessageContent.push(...toolResults)
-								break
-							}
-						} catch (error) {
-							await handleError("inspecting site", error)
-							break
-						}
+						await attemptCompletionTool(
+							this,
+							block,
+							askApproval,
+							handleError,
+							pushToolResult,
+							removeClosingTag,
+							toolDescription,
+							askFinishSubTaskApproval,
+						)
+						break
 					}
 				}
 
