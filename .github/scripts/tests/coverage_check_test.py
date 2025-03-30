@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unit tests for coverage.py script.
+Tests for coverage_check script.
 """
 
 import os
@@ -12,12 +12,10 @@ from unittest.mock import patch, MagicMock, call, mock_open
 
 # Add parent directory to path so we can import coverage modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from coverage import extract_coverage, compare_coverage, set_verbose, generate_comment, post_comment, set_github_output
+from coverage_check import extract_coverage, compare_coverage, set_verbose, generate_comment, post_comment, set_github_output
 
 
 class TestCoverage(unittest.TestCase):
-    """Test the coverage.py script."""
-
     # Class variables to store coverage files
     temp_dir = None
     extension_coverage_file = None
@@ -156,9 +154,9 @@ class TestCoverage(unittest.TestCase):
         self.assertIn('Coverage increased or remained the same', comment)
         self.assertIn('Test coverage has been maintained or improved', comment)
 
-    @patch('coverage.requests.get')
-    @patch('coverage.requests.post')
-    @patch('coverage.requests.patch')
+    @patch('coverage_check.requests.get')
+    @patch('coverage_check.requests.post')
+    @patch('coverage_check.requests.patch')
     def test_post_comment_new(self, mock_patch, mock_post, mock_get):
         """Test post_comment function when creating a new comment."""
         # Create a temporary comment file
@@ -178,9 +176,9 @@ class TestCoverage(unittest.TestCase):
         mock_post.assert_called_once()
         mock_patch.assert_not_called()
 
-    @patch('coverage.requests.get')
-    @patch('coverage.requests.post')
-    @patch('coverage.requests.patch')
+    @patch('coverage_check.requests.get')
+    @patch('coverage_check.requests.post')
+    @patch('coverage_check.requests.patch')
     def test_post_comment_update(self, mock_patch, mock_post, mock_get):
         """Test post_comment function when updating an existing comment."""
         # Create a temporary comment file
