@@ -166,8 +166,8 @@ class CheckpointTracker {
 				"--allow-empty": null,
 				"--no-verify": null,
 			})
-			const commitHash = result.commit || ""
-			console.warn(`Checkpoint commit created.`)
+			const commitHash = (result.commit || "").replace(/^HEAD\s+/, "")
+			console.warn(`Checkpoint commit created: `, commitHash)
 
 			const durationMs = Math.round(performance.now() - startTime)
 			telemetryService.captureCheckpointUsage(this.taskId, "commit_created", durationMs)
