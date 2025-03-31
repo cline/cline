@@ -61,7 +61,7 @@ import { fixModelHtmlEscaping, removeInvalidChars } from "../../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from ".././assistant-message"
 import { constructNewFileContent } from ".././assistant-message/diff"
 import { ContextManager } from ".././context-management/ContextManager"
-import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from ".././ignore/ClineIgnoreController"
+import { ClineIgnoreController } from ".././ignore/ClineIgnoreController"
 import { parseMentions } from ".././mentions"
 import { formatResponse } from ".././prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from ".././prompts/system"
@@ -852,16 +852,6 @@ export class Task {
 			.slice()
 			.reverse()
 			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")) // could be multiple resume tasks
-		// const lastClineMessage = this.clineMessages[lastClineMessageIndex]
-		// could be a completion result with a command
-		// const secondLastClineMessage = this.clineMessages
-		// 	.slice()
-		// 	.reverse()
-		// 	.find(
-		// 		(m, index) =>
-		// 			index !== lastClineMessageIndex && !(m.ask === "resume_task" || m.ask === "resume_completed_task")
-		// 	)
-		// (lastClineMessage?.ask === "command" && secondLastClineMessage?.ask === "completion_result")
 
 		let askType: ClineAsk
 		if (lastClineMessage?.ask === "completion_result") {
@@ -888,90 +878,25 @@ export class Task {
 			this.taskId,
 		)
 
-		// if the last message is an assistant message, we need to check if there's tool use since every tool use has to have a tool response
-		// if there's no tool use and only a text block, then we can just add a user message
-		// (note this isn't relevant anymore since we use custom tool prompts instead of tool use blocks, but this is here for legacy purposes in case users resume old tasks)
-
-		// if the last message is a user message, we can need to get the assistant message before it to see if it made tool calls, and if so, fill in the remaining tool responses with 'interrupted'
-
+		// Remove the last user message so we can update it with the resume message
 		let modifiedOldUserContent: UserContent // either the last message if its user message, or the user message before the last (assistant) message
 		let modifiedApiConversationHistory: Anthropic.Messages.MessageParam[] // need to remove the last user message to replace with new modified user message
 		if (existingApiConversationHistory.length > 0) {
 			const lastMessage = existingApiConversationHistory[existingApiConversationHistory.length - 1]
-
 			if (lastMessage.role === "assistant") {
-				const content = Array.isArray(lastMessage.content)
-					? lastMessage.content
-					: [{ type: "text", text: lastMessage.content }]
-				const hasToolUse = content.some((block) => block.type === "tool_use")
-
-				if (hasToolUse) {
-					const toolUseBlocks = content.filter(
-						(block) => block.type === "tool_use",
-					) as Anthropic.Messages.ToolUseBlock[]
-					const toolResponses: Anthropic.ToolResultBlockParam[] = toolUseBlocks.map((block) => ({
-						type: "tool_result",
-						tool_use_id: block.id,
-						content: "Task was interrupted before this tool call could be completed.",
-					}))
-					modifiedApiConversationHistory = [...existingApiConversationHistory] // no changes
-					modifiedOldUserContent = [...toolResponses]
-				} else {
-					modifiedApiConversationHistory = [...existingApiConversationHistory]
-					modifiedOldUserContent = []
-				}
+				modifiedApiConversationHistory = [...existingApiConversationHistory]
+				modifiedOldUserContent = []
 			} else if (lastMessage.role === "user") {
-				const previousAssistantMessage: Anthropic.Messages.MessageParam | undefined =
-					existingApiConversationHistory[existingApiConversationHistory.length - 2]
-
 				const existingUserContent: UserContent = Array.isArray(lastMessage.content)
 					? lastMessage.content
 					: [{ type: "text", text: lastMessage.content }]
-				if (previousAssistantMessage && previousAssistantMessage.role === "assistant") {
-					const assistantContent = Array.isArray(previousAssistantMessage.content)
-						? previousAssistantMessage.content
-						: [
-								{
-									type: "text",
-									text: previousAssistantMessage.content,
-								},
-							]
-
-					const toolUseBlocks = assistantContent.filter(
-						(block) => block.type === "tool_use",
-					) as Anthropic.Messages.ToolUseBlock[]
-
-					if (toolUseBlocks.length > 0) {
-						const existingToolResults = existingUserContent.filter(
-							(block) => block.type === "tool_result",
-						) as Anthropic.ToolResultBlockParam[]
-
-						const missingToolResponses: Anthropic.ToolResultBlockParam[] = toolUseBlocks
-							.filter((toolUse) => !existingToolResults.some((result) => result.tool_use_id === toolUse.id))
-							.map((toolUse) => ({
-								type: "tool_result",
-								tool_use_id: toolUse.id,
-								content: "Task was interrupted before this tool call could be completed.",
-							}))
-
-						modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1) // removes the last user message
-						modifiedOldUserContent = [...existingUserContent, ...missingToolResponses]
-					} else {
-						modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1)
-						modifiedOldUserContent = [...existingUserContent]
-					}
-				} else {
-					modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1)
-					modifiedOldUserContent = [...existingUserContent]
-				}
+				modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1)
+				modifiedOldUserContent = [...existingUserContent]
 			} else {
 				throw new Error("Unexpected: Last message is not a user or assistant message")
 			}
 		} else {
 			throw new Error("Unexpected: No existing API conversation history")
-			// console.error("Unexpected: No existing API conversation history")
-			// modifiedApiConversationHistory = []
-			// modifiedOldUserContent = []
 		}
 
 		let newUserContent: UserContent = [...modifiedOldUserContent]
