@@ -2,6 +2,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import { useClickAway, useEvent, useWindowSize } from "react-use"
+import McpServerStatusPopup from "../mcp/McpServerStatusPopup"
 import styled from "styled-components"
 import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
@@ -143,6 +144,26 @@ const ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
 	}
 `
 
+// --- MCP Status Components (Inheriting from Model Selector where applicable) ---
+const McpStatusTooltip = styled(ModelSelectorTooltip)`` // Inherit styles from ModelSelectorTooltip
+
+const McpContainer = styled.div`
+	position: relative;
+	display: flex; // Use flex to align items if needed, similar to ModelContainer
+	// Add other styles if needed, potentially inheriting from ModelContainer if desired
+	// e.g., flex: 1; min-width: 0;
+`
+
+const ModelButtonWrapper = styled.div`
+	// Keep original ModelButtonWrapper definition
+	display: inline-flex; // Make it shrink to content
+	min-width: 0; // Allow shrinking
+	max-width: 100%; // Don't overflow parent
+`
+
+const McpButtonWrapper = styled(ModelButtonWrapper)`` // Inherit styles from ModelButtonWrapper
+
+// --- Model Selector Components ---
 const ModelContainer = styled.div`
 	position: relative;
 	display: flex;
@@ -150,11 +171,7 @@ const ModelContainer = styled.div`
 	min-width: 0;
 `
 
-const ModelButtonWrapper = styled.div`
-	display: inline-flex; // Make it shrink to content
-	min-width: 0; // Allow shrinking
-	max-width: 100%; // Don't overflow parent
-`
+// ModelButtonWrapper is defined above
 
 const ModelDisplayButton = styled.a<{ isActive?: boolean; disabled?: boolean }>`
 	padding: 0px 0px;
@@ -231,14 +248,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [justDeletedSpaceAfterMention, setJustDeletedSpaceAfterMention] = useState(false)
 		const [intendedCursorPosition, setIntendedCursorPosition] = useState<number | null>(null)
 		const contextMenuContainerRef = useRef<HTMLDivElement>(null)
+
+		// Model Selector State & Refs
 		const [showModelSelector, setShowModelSelector] = useState(false)
 		const modelSelectorRef = useRef<HTMLDivElement>(null)
-		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 		const buttonRef = useRef<HTMLDivElement>(null)
 		const [arrowPosition, setArrowPosition] = useState(0)
 		const [menuPosition, setMenuPosition] = useState(0)
+
+		// Tooltip State
 		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
 
+		// MCP State & Refs
+		const [showMcpPopup, setShowMcpPopup] = useState(false)
+		const [mcpArrowPosition, setMcpArrowPosition] = useState(0)
+		const [mcpMenuPosition, setMcpMenuPosition] = useState(0)
+		const mcpContainerRef = useRef<HTMLDivElement>(null) // New container ref
+		const mcpButtonRef = useRef<HTMLDivElement>(null)
+		const mcpPopupRef = useRef<HTMLDivElement>(null)
+
+		const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 
 		// Add a ref to track previous menu state
@@ -606,7 +635,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 			highlightLayerRef.current.innerHTML = text
 				.replace(/\n$/, "\n\n")
-				.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c] || c)
+				.replace(/[<>&]/g, (c) => ({ "<": "<", ">": ">", "&": "&" })[c] || c)
 				.replace(mentionRegexGlobal, '<mark class="mention-context-textarea-highlight">$&</mark>')
 
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
@@ -736,6 +765,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setShowModelSelector(false)
 		})
 
+		// Update click away handler for MCP pop-up to target the container
+		useClickAway(mcpContainerRef, (event) => {
+			// Ignore clicks on the button itself (let the button's onClick handle the toggle)
+			if (mcpButtonRef.current && mcpButtonRef.current.contains(event.target as Node)) {
+				return
+			}
+			// Ignore clicks inside the popup content
+			if (mcpPopupRef.current && mcpPopupRef.current.contains(event.target as Node)) {
+				return
+			}
+			// Otherwise, close the popup
+			setShowMcpPopup(false)
+		})
+
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
 			const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration)
@@ -777,6 +820,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setMenuPosition(buttonRect.top + 1) // Added +1 to move menu down by 1px
 			}
 		}, [showModelSelector, viewportWidth, viewportHeight])
+
+		// Calculate MCP arrow position and menu position based on button location
+		useEffect(() => {
+			if (showMcpPopup && mcpButtonRef.current) {
+				const buttonRect = mcpButtonRef.current.getBoundingClientRect()
+				const buttonCenter = buttonRect.left + buttonRect.width / 2
+
+				// Calculate distance from right edge of viewport using viewport coordinates
+				const rightPosition = document.documentElement.clientWidth - buttonCenter - 5
+
+				setMcpArrowPosition(rightPosition)
+				setMcpMenuPosition(buttonRect.top + 1) // Added +1 to move menu down by 1px
+			}
+		}, [showMcpPopup, viewportWidth, viewportHeight])
 
 		useEffect(() => {
 			if (!showModelSelector) {
@@ -1097,6 +1154,46 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</ButtonContainer>
 						</VSCodeButton>
 
+						{/* MCP Server Status Button & Popup */}
+						<McpContainer ref={mcpContainerRef}>
+							<McpButtonWrapper ref={mcpButtonRef}>
+								<VSCodeButton
+									data-testid="mcp-status-button"
+									appearance="icon"
+									aria-label="MCP Server Status"
+									disabled={textAreaDisabled}
+									onClick={() => setShowMcpPopup(!showMcpPopup)}
+									style={{
+										padding: "0px 0px",
+										height: "20px",
+										color: showMcpPopup ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)", // Active state color
+									}}>
+									<ButtonContainer>
+										<span
+											className="codicon codicon-server-process"
+											style={{ fontSize: "14px", marginBottom: -3 }}
+										/>
+									</ButtonContainer>
+								</VSCodeButton>
+							</McpButtonWrapper>
+							{/* Render MCP Popup inside its container */}
+							{showMcpPopup && (
+								<McpStatusTooltip
+									ref={mcpPopupRef}
+									arrowPosition={mcpArrowPosition}
+									menuPosition={mcpMenuPosition}
+									style={{
+										bottom: `calc(100vh - ${mcpMenuPosition}px + 6px)`,
+									}}>
+									<McpServerStatusPopup
+										buttonRef={mcpButtonRef} // Pass the button ref for positioning within the popup if needed
+										onClose={() => setShowMcpPopup(false)}
+									/>
+								</McpStatusTooltip>
+							)}
+						</McpContainer>
+
+						{/* Model Selector Button & Popup */}
 						<ModelContainer ref={modelSelectorRef}>
 							<ModelButtonWrapper ref={buttonRef}>
 								<ModelDisplayButton
@@ -1114,6 +1211,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
 								</ModelDisplayButton>
 							</ModelButtonWrapper>
+							{/* Render Model Selector Popup inside its container */}
 							{showModelSelector && (
 								<ModelSelectorTooltip
 									arrowPosition={arrowPosition}
@@ -1153,6 +1251,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</SwitchContainer>
 					</Tooltip>
 				</ControlsContainer>
+
+				{/* Pop-up rendering is now handled inside their respective containers */}
 			</div>
 		)
 	},

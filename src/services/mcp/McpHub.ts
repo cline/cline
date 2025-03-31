@@ -475,6 +475,25 @@ export class McpHub {
 		this.isConnecting = false
 	}
 
+	async restartAllEnabledConnections(): Promise<void> {
+		vscode.window.showInformationMessage("Restarting all enabled MCP servers...")
+		const restartPromises = this.connections
+			.filter((conn) => !conn.server.disabled)
+			.map((conn) => this.restartConnection(conn.server.name))
+
+		const results = await Promise.allSettled(restartPromises)
+
+		results.forEach((result, index) => {
+			if (result.status === "rejected") {
+				const serverName = this.connections.filter((conn) => !conn.server.disabled)[index]?.server.name
+				console.error(`Failed to restart server ${serverName}:`, result.reason)
+				// Optionally show an error message for each failed restart
+			}
+		})
+		vscode.window.showInformationMessage("Finished restarting enabled MCP servers.")
+		// Final notification is handled by individual restartConnection calls
+	}
+
 	private async notifyWebviewOfServerChanges(): Promise<void> {
 		// servers should always be sorted in the order they are defined in the settings file
 		const settingsPath = await this.getMcpSettingsFilePath()

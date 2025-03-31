@@ -27,7 +27,7 @@ import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared
 import { HistoryItem } from "../../shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
-import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
+import { ClineCheckpointRestore, ManageMcpServerPayload, WebviewMessage } from "../../shared/WebviewMessage" // Import ManageMcpServerPayload
 import { fileExistsAtPath } from "../../utils/fs"
 import { searchCommits } from "../../utils/git"
 import { getTotalTasksSize } from "../../utils/storage"
@@ -636,6 +636,38 @@ export class Controller {
 				await this.postStateToWebview()
 				this.refreshTotalTasksSize()
 				this.postMessageToWebview({ type: "relinquishControl" })
+				break
+			}
+			case "manageMcpServer": {
+				const payload = message.payload as ManageMcpServerPayload | undefined
+				if (payload && this.mcpHub) {
+					const { serverId, action } = payload
+					try {
+						switch (action) {
+							case "restart":
+								await this.mcpHub.restartConnection(serverId)
+								break
+							case "enable":
+								await this.mcpHub.toggleServerDisabled(serverId, false)
+								break
+							case "disable":
+								await this.mcpHub.toggleServerDisabled(serverId, true)
+								break
+						}
+					} catch (error) {
+						console.error(`Failed to ${action} MCP server ${serverId}:`, error)
+						vscode.window.showErrorMessage(`Failed to ${action} server ${serverId}.`)
+					}
+				}
+				break
+			}
+			case "restartAllMcpServers": {
+				try {
+					await this.mcpHub?.restartAllEnabledConnections()
+				} catch (error) {
+					console.error("Failed to restart all MCP servers:", error)
+					vscode.window.showErrorMessage("Failed to restart all MCP servers.")
+				}
 				break
 			}
 			// Add more switch case statements here as more webview message commands

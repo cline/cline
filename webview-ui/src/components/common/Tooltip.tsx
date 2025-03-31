@@ -26,7 +26,7 @@ const TooltipBody = styled.div<Pick<TooltipProps, "style">>`
 	bottom: 100%;
 	left: -180%;
 	z-index: ${(props) => props.style?.zIndex ?? 10};
-	white-space: wrap;
+	white-space: pre-wrap; // Changed from 'wrap' to 'pre-wrap' to respect newlines
 	max-width: 200px;
 	border: 1px solid ${getAsVar(VSC_INPUT_BORDER)};
 	pointer-events: none;

@@ -6,6 +6,12 @@ import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
 import { TelemetrySetting } from "./TelemetrySetting"
 
+// Interface for managing MCP servers payload
+export interface ManageMcpServerPayload {
+	serverId: string
+	action: "restart" | "enable" | "disable"
+}
+
 export interface WebviewMessage {
 	type:
 		| "apiConfiguration"
@@ -66,10 +72,13 @@ export interface WebviewMessage {
 		| "optionsResponse"
 		| "requestTotalTasksSize"
 		| "taskFeedback"
+		| "manageMcpServer" // Add the new message type string literal
+		| "restartAllMcpServers" // Add restart all message type
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
+	payload?: ManageMcpServerPayload // Add specific payload type
 	apiConfiguration?: ApiConfiguration
 	images?: string[]
 	bool?: boolean

@@ -8,7 +8,7 @@ import {
 	VSCodeOption,
 	VSCodeCheckbox,
 } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState } from "react"
+import { useEffect, useState } from "react" // Remove useCallback
 import styled from "styled-components"
 import { DEFAULT_MCP_TIMEOUT_SECONDS, McpServer } from "../../../../src/shared/mcp"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -84,6 +84,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 					<TabButton isActive={activeTab === "installed"} onClick={() => handleTabChange("installed")}>
 						Installed
 					</TabButton>
+					{/* Remove Status Tab Button */}
 				</div>
 
 				{/* Content container */}
@@ -167,6 +168,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 							</div>
 						</div>
 					)}
+					{/* Remove Status Tab Content */}
 				</div>
 			</div>
 		</div>
