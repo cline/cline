@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.11.1] - 2025-03-30
+
+- Relax provider profiles schema and add telemetry
+
 ## [3.11.0] - 2025-03-30
 
 - Replace single-block-diff with multi-block-diff fast editing strategy
