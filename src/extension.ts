@@ -9,6 +9,7 @@ import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
+import { CompletionProvider } from "./autocomplete/CompletionProvider"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -130,6 +131,38 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.env.openExternal(vscode.Uri.parse("https://docs.cline.bot/"))
 		}),
 	)
+
+	context.subscriptions.push(
+		vscode.languages.registerInlineCompletionItemProvider([{ pattern: "**" }], new CompletionProvider(context)),
+	)
+
+	const registerCopyBufferSpy = (context: vscode.ExtensionContext) => {
+		const typeDisposable = vscode.commands.registerCommand("editor.action.clipboardCopyAction", async (arg) =>
+			doCopy(typeDisposable),
+		)
+
+		async function doCopy(typeDisposable: any) {
+			typeDisposable.dispose() // must dispose to avoid endless loops
+
+			await vscode.commands.executeCommand("editor.action.clipboardCopyAction")
+
+			const clipboardText = await vscode.env.clipboard.readText()
+
+			await context.workspaceState.update("posthog.copyBuffer", {
+				text: clipboardText,
+				copiedAt: new Date().toISOString(),
+			})
+
+			// re-register to continue intercepting copy commands
+			typeDisposable = vscode.commands.registerCommand("editor.action.clipboardCopyAction", async () =>
+				doCopy(typeDisposable),
+			)
+			context.subscriptions.push(typeDisposable)
+		}
+
+		context.subscriptions.push(typeDisposable)
+	}
+	registerCopyBufferSpy(context)
 
 	/*
 	We use the text document content provider API to show the left side for diff view by creating a virtual document for the original content. This makes it readonly so users know to edit the right side if they want to keep their changes.
