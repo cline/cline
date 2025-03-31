@@ -88,7 +88,7 @@ declare module "vscode" {
 }
 
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup }: ApiOptionsProps) => {
-	const { apiConfiguration, setApiConfiguration, uriScheme } = useExtensionState()
+	const { apiConfiguration, setApiConfiguration, uriScheme, isWorkspaceProviderActive } = useExtensionState()
 	const [ollamaModels, setOllamaModels] = useState<string[]>([])
 	const [lmStudioModels, setLmStudioModels] = useState<string[]>([])
 	const [vsCodeLmModels, setVsCodeLmModels] = useState<vscodemodels.LanguageModelChatSelector[]>([])
@@ -180,16 +180,46 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		)
 	}
 
+	const handleWorkspaceOverrideChange = useCallback(
+		(isChecked: boolean) => {
+			// Send undefined instead of null when clearing
+			const providerToSend = isChecked ? selectedProvider : undefined
+			vscode.postMessage({
+				type: "updateWorkspaceApiProviderConfig",
+				text: providerToSend, // Send provider name or undefined
+			})
+		},
+		[selectedProvider],
+	)
+
+	const handleProviderDropdownChange = useCallback(
+		(event: any) => {
+			const newProvider = event.target.value as ApiProvider
+			handleInputChange("apiProvider")(event) // Update local state first
+
+			// If workspace override is active, update the workspace config immediately
+			if (isWorkspaceProviderActive) {
+				vscode.postMessage({
+					type: "updateWorkspaceApiProviderConfig",
+					text: newProvider,
+				})
+			}
+		},
+		[isWorkspaceProviderActive, handleInputChange],
+	)
+
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: isPopup ? -10 : 0 }}>
 			<DropdownContainer className="dropdown-container">
 				<label htmlFor="api-provider">
-					<span style={{ fontWeight: 500 }}>API Provider</span>
+					<span style={{ fontWeight: 500 }}>API Provider {isWorkspaceProviderActive ? "(Workspace)" : "(Global)"}</span>
 				</label>
 				<VSCodeDropdown
 					id="api-provider"
 					value={selectedProvider}
-					onChange={handleInputChange("apiProvider")}
+					// Use the new handler that also updates workspace config if needed
+					// Removed duplicate onChange handler
+					onChange={handleProviderDropdownChange}
 					style={{
 						minWidth: 130,
 						position: "relative",
@@ -216,6 +246,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					<VSCodeOption value="xai">X AI</VSCodeOption>
 					<VSCodeOption value="sambanova">SambaNova</VSCodeOption>
 				</VSCodeDropdown>
+				<VSCodeCheckbox
+					style={{ marginTop: "5px" }}
+					checked={isWorkspaceProviderActive}
+					onChange={(e: any) => handleWorkspaceOverrideChange(e.target.checked)}>
+					Override global provider for this workspace
+				</VSCodeCheckbox>
 			</DropdownContainer>
 
 			{selectedProvider === "cline" && (

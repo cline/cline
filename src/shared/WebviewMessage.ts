@@ -68,6 +68,7 @@ export interface WebviewMessage {
 		| "requestTotalTasksSize"
 		| "taskFeedback"
 		| "searchFiles"
+		| "updateWorkspaceApiProviderConfig"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean

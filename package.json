@@ -283,6 +283,61 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Controls whether the MCP Marketplace is enabled."
+				},
+				"cline.api.workspaceProvider": {
+					"type": [
+						"string",
+						"null"
+					],
+					"default": null,
+					"scope": "resource",
+					"description": "Overrides the global API provider for this workspace. Leave empty or null to use the global setting.",
+					"enum": [
+						"",
+						"anthropic",
+						"openrouter",
+						"bedrock",
+						"vertex",
+						"openai",
+						"ollama",
+						"lmstudio",
+						"gemini",
+						"openai-native",
+						"requesty",
+						"together",
+						"deepseek",
+						"qwen",
+						"mistral",
+						"vscode-lm",
+						"cline",
+						"litellm",
+						"asksage",
+						"xai",
+						"sambanova"
+					],
+					"enumDescriptions": [
+						"Use Global Default",
+						"Anthropic API (Claude models)",
+						"OpenRouter API (Various models)",
+						"AWS Bedrock API",
+						"Google Vertex AI API",
+						"OpenAI API (GPT models)",
+						"Ollama (Local models)",
+						"LM Studio (Local models)",
+						"Google Gemini API",
+						"OpenAI-Compatible API (Native)",
+						"RequestY API",
+						"Together AI API",
+						"DeepSeek API",
+						"Qwen API",
+						"Mistral AI API",
+						"VS Code Language Model API",
+						"Cline API",
+						"LiteLLM Proxy",
+						"AskSage API",
+						"xAI API (Grok)",
+						"SambaNova API"
+					]
 				}
 			}
 		}

@@ -74,6 +74,33 @@ export class Controller {
 		this.mcpHub = new McpHub(this)
 		this.accountService = new ClineAccountService(this)
 
+		// Listen for configuration changes
+		this.disposables.push(
+			vscode.workspace.onDidChangeConfiguration(async (event) => {
+				const affectsWorkspaceProvider = event.affectsConfiguration("cline.api.workspaceProvider")
+
+				if (affectsWorkspaceProvider) {
+					console.log("[cline] API provider configuration changed, updating state...")
+					try {
+						// Re-fetch the effective state which now includes workspace override logic
+						const { apiConfiguration } = await getAllExtensionState(this.context)
+
+						// Update the API handler in the current task, if one exists
+						if (this.task) {
+							this.task.api = buildApiHandler(apiConfiguration)
+						}
+
+						// Post the updated state to the webview
+						await this.postStateToWebview()
+						console.log("[cline] API provider state updated and posted to webview.")
+					} catch (error) {
+						console.error("Error handling configuration change:", error)
+						vscode.window.showErrorMessage("Failed to apply API configuration changes.")
+					}
+				}
+			}),
+		)
+
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
@@ -703,6 +730,29 @@ export class Controller {
 						error: errorMessage,
 						mentionsRequestId: message.mentionsRequestId,
 					})
+				}
+				break
+			}
+			case "updateWorkspaceApiProviderConfig": {
+				const newValue = message.text // Provider string or null/undefined
+				const workspaceFolderUri = vscode.workspace.workspaceFolders?.[0]?.uri
+				if (workspaceFolderUri) {
+					try {
+						await vscode.workspace
+							.getConfiguration("cline.api", workspaceFolderUri)
+							.update("workspaceProvider", newValue, vscode.ConfigurationTarget.WorkspaceFolder)
+					} catch (error) {
+						const errorMessage = error instanceof Error ? error.message : String(error)
+						vscode.window.showErrorMessage(`Failed to update workspace API provider: ${errorMessage}`)
+						console.error("Failed to update workspace API provider:", error)
+					} finally {
+						// Ensure UI reflects the latest state, even if update failed
+						await this.postStateToWebview()
+					}
+				} else {
+					vscode.window.showWarningMessage("No workspace folder found to save workspace-specific API provider.")
+					// Still refresh state in case the warning is unexpected
+					await this.postStateToWebview()
 				}
 				break
 			}
@@ -1670,9 +1720,18 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
 
+		// Determine if workspace provider is active
+		const workspaceFolderUri = vscode.workspace.workspaceFolders?.[0]?.uri
+		const workspaceProviderSetting = workspaceFolderUri
+			? vscode.workspace.getConfiguration("cline.api", workspaceFolderUri).get<string | null>("workspaceProvider")
+			: null
+		const isWorkspaceProviderActive =
+			!!workspaceProviderSetting && typeof workspaceProviderSetting === "string" && workspaceProviderSetting.trim() !== ""
+
 		return {
 			version: this.context.extension?.packageJSON?.version ?? "",
 			apiConfiguration,
+			isWorkspaceProviderActive,
 			customInstructions,
 			uriScheme: vscode.env.uriScheme,
 			currentTaskItem: this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined,
