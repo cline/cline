@@ -39,7 +39,7 @@ export function openMention(mention?: string): void {
 }
 
 // --- Constants for Notes ---
-const CLINERULES_DIR_NAME = "clinerules"
+const CLINERULES_DIR_NAME = ".clinerules"
 const CLINEMOTES_FILE_NAME = "clinenotes.md"
 const CLINERULES_FILE_NAME = ".clinerules"
 const NOTE_SECTION_HEADER = "## @note"
@@ -86,43 +86,16 @@ export async function parseMentions(
 	fsModule: any = fsPromises,
 ): Promise<string> {
 	const mentionsSet: Set<string> = new Set() // Stores core mention strings (e.g., /path/to/file, https://...) for content fetching
-	const noteMentionsInfo: { match: string; note: string }[] = [] // Stores info about @note mentions
+	// Note processing is now handled solely by processNotes in Cline.ts loadContext
 	const otherMentionsRaw: string[] = [] // Store raw other mentions found in original text for iteration
 
-	// --- Step 1: Identify and Process/Save Notes ---
-	const noteMatches = Array.from(text.matchAll(NOTE_REGEX_GLOBAL))
-	const noteProcessingResults: { [match: string]: string } = {} // Stores results like "Note saved: ..." keyed by the full @note: match
-	for (const matchResult of noteMatches) {
-		const fullMatch = matchResult[0] // e.g., "@note: some note\n"
-		const noteContent = matchResult[1]
-		const note = noteContent.trim()
-		noteMentionsInfo.push({ match: fullMatch, note }) // Store full match and note content
-		// Don't add notes to mentionsSet yet, handle them separately first
-		try {
-			await saveNote(note, cwd, fsModule)
-			noteProcessingResults[fullMatch] = `Note saved: "${note}"`
-		} catch (error: any) {
-			const errorMessage = error instanceof Error ? error.message : String(error)
-			console.error("Failed to save note:", errorMessage)
-			noteProcessingResults[fullMatch] = `Failed to save note "${note}": ${errorMessage}`
-		}
-	}
-
-	// --- Step 2: Replace @note mentions in the original text ---
-	let textWithNotesReplaced = text.replace(NOTE_REGEX_GLOBAL, (match) => {
-		return noteProcessingResults[match] || match // Use saved result or original match if saving failed
-	})
+	// --- Step 1 & 2: Note processing and replacement are handled by processNotes before this function is called ---
+	let textWithNotesReplaced = text // Use the original text, assuming notes are handled elsewhere
 
 	// --- Step 3: Process and Replace other mentions (@/, @http, etc.) on the result of Step 2 ---
 	// Also collect the raw other mentions from the original text for content fetching later
 	let parsedText = textWithNotesReplaced.replace(mentionRegexGlobal, (match, mention) => {
-		// Check if this is an @note: mention (which should already be replaced in textWithNotesReplaced)
-		// If somehow the regex matches an *original* @note: pattern here, we should ignore it or return the already computed result.
-		if (noteProcessingResults[match] !== undefined) {
-			// This was an original @note: match, return its processed result.
-			// This prevents re-processing if the regex somehow matches again.
-			return noteProcessingResults[match]
-		}
+		// Note processing is handled elsewhere, so no need for the noteProcessingResults check here.
 
 		// If it's not a note mention, process it as file/URL/etc.
 		// Add the core mention part (e.g., /src/file.ts) to the set for content fetching

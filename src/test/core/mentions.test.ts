@@ -66,189 +66,158 @@ describe("Mentions Processor", () => {
 		assert.strictEqual(result, text)
 		assert.ok(fakeFs.appendFile.notCalled)
 		assert.ok(fakeFs.readFile.notCalled)
-		assert.ok(fakeFs.writeFile.notCalled)
+		assert.ok(fakeFs.writeFile.notCalled) // parseMentions should not save notes
 	})
 
-	it("should process the last @note if multiple exist and replace it in the text", async () => {
+	it("should NOT process @note mentions (handled by processNotes)", async () => {
 		const text = "First @note: note 1\nSecond @note: note 2"
-		const expectedNote = "note 2"
-		// テスト失敗の修正: 改行がないことを反映
-		const expectedOutputText = `First Note saved: "note 1"Second Note saved: "note 2"` // Both notes are processed now
-		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
-		fileExistsStub.withArgs(clineruleFilePath).resolves(false) // File doesn't exist
+		// parseMentions should ignore @note and return the original text
+		const expectedOutputText = text
 
 		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
 
-		// Check the returned text
-		assert.strictEqual(result.trim(), expectedOutputText.trim()) // Check the final text output
+		// Check the returned text is unchanged
+		assert.strictEqual(result.trim(), expectedOutputText.trim())
 
-		// Check that writeFile was called twice (once for each note)
-		assert.ok(fakeFs.writeFile.calledTwice)
-		// Check the *last* call to writeFile for the second note
-		const lastWriteArgs = fakeFs.writeFile.secondCall.args
-		assert.strictEqual(lastWriteArgs[0], clineruleFilePath)
-		assert.ok(lastWriteArgs[1].includes(`${NOTE_PREFIX}${expectedNote}\n`))
-		// appendFileStub is no longer used, we use fakeFs.appendFile instead
-	})
-
-	it("should save note to clinenotes.md if clinerules directory exists", async () => {
-		const text = "@note: save here"
-		const expectedNote = "save here"
-		const expectedOutputText = `Note saved: "${expectedNote}"`
-		fileExistsStub.withArgs(clinerulesDirPath).resolves(true)
-		isDirectoryStub.withArgs(clinerulesDirPath).resolves(true)
-
-		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
-
-		assert.strictEqual(result.trim(), expectedOutputText)
-		assert.ok(fakeFs.appendFile.calledOnceWith(notesFilePath, `${NOTE_PREFIX}${expectedNote}\n`, "utf8"))
+		// Check that no file operations for notes were called by parseMentions
 		assert.ok(fakeFs.writeFile.notCalled)
-		assert.ok(fakeFs.readFile.notCalled) // readFile not called when appending
-	})
-
-	it("should save note to .clinerules if clinerules directory does not exist", async () => {
-		const text = "@note: save in dotfile"
-		const expectedNote = "save in dotfile"
-		const expectedOutputText = `Note saved: "${expectedNote}"`
-		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
-		fileExistsStub.withArgs(clineruleFilePath).resolves(false) // File doesn't exist
-
-		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
-
-		assert.strictEqual(result.trim(), expectedOutputText)
-		assert.ok(fakeFs.writeFile.calledOnce)
-		const writeArgs = fakeFs.writeFile.firstCall.args
-		assert.strictEqual(writeArgs[0], clineruleFilePath)
-		assert.ok(writeArgs[1].includes(`${NOTE_SECTION_HEADER}\n${NOTE_PREFIX}${expectedNote}\n`))
 		assert.ok(fakeFs.appendFile.notCalled)
-		assert.ok(fakeFs.readFile.notCalled) // readFile is not called when file doesn't exist
+		assert.ok(fakeFs.readFile.notCalled)
 	})
 
-	it("should create .clinerules file if it does not exist when saving note", async () => {
-		const text = "@note: new file note"
-		const expectedNote = "new file note"
-		const expectedOutputText = `Note saved: "${expectedNote}"`
-		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
-		fileExistsStub.withArgs(clineruleFilePath).resolves(false) // File doesn't exist
-
-		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
-
-		assert.strictEqual(result.trim(), expectedOutputText)
-		assert.ok(fakeFs.writeFile.calledOnce)
-		const writeArgs = fakeFs.writeFile.firstCall.args
-		assert.strictEqual(writeArgs[0], clineruleFilePath)
-		assert.match(writeArgs[1], /^# Cline Rules\n\n##@note\n- new file note\n$/)
-		assert.ok(fakeFs.readFile.notCalled) // readFile not called for new file
-	})
-
-	it("should add ##@note section if .clinerules exists but section doesn't", async () => {
-		const text = "@note: add section note"
-		const expectedNote = "add section note"
-		const existingContent = "# Some existing rules\n"
-		const expectedOutputText = `Note saved: "${expectedNote}"`
-		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
-		fileExistsStub.withArgs(clineruleFilePath).resolves(true) // File exists
-		fakeFs.readFile.withArgs(clineruleFilePath, { encoding: "utf8" }).resolves(existingContent)
-
-		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
-
-		assert.strictEqual(result.trim(), expectedOutputText)
-		assert.ok(fakeFs.readFile.calledOnce)
-		assert.ok(fakeFs.writeFile.calledOnce)
-		const writeArgs = fakeFs.writeFile.firstCall.args
-		assert.strictEqual(writeArgs[0], clineruleFilePath)
-		assert.strictEqual(
-			writeArgs[1],
-			`${existingContent.trimEnd()}\n\n${NOTE_SECTION_HEADER}\n${NOTE_PREFIX}${expectedNote}\n`,
-		)
-	})
-
-	it("should append note to existing ##@note section", async () => {
-		const text = "@note: append note"
-		const expectedNote = "append note"
-		const existingContent = `# Rules\n\n${NOTE_SECTION_HEADER}\n- old note\n`
-		const expectedOutputText = `Note saved: "${expectedNote}"`
-		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
-		fileExistsStub.withArgs(clineruleFilePath).resolves(true) // File exists
-		fakeFs.readFile.withArgs(clineruleFilePath, { encoding: "utf8" }).resolves(existingContent)
-
-		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
-
-		assert.strictEqual(result.trim(), expectedOutputText)
-		assert.ok(fakeFs.readFile.calledOnce)
-		assert.ok(fakeFs.writeFile.calledOnce)
-		const writeArgs = fakeFs.writeFile.firstCall.args
-		assert.strictEqual(writeArgs[0], clineruleFilePath)
-		const expectedNewContent = `# Rules\n\n${NOTE_SECTION_HEADER}\n${NOTE_PREFIX}${expectedNote}\n- old note\n`
-		assert.strictEqual(writeArgs[1], expectedNewContent)
-	})
-
-	it("should handle empty @note content", async () => {
-		const text = "@note:"
-		const expectedNote = ""
-		const expectedOutputText = `Note saved: "${expectedNote}"`
-		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
-		fileExistsStub.withArgs(clineruleFilePath).resolves(false) // File doesn't exist
-
-		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
-
-		assert.strictEqual(result.trim(), expectedOutputText)
-		assert.ok(fakeFs.writeFile.calledOnce)
-		const writeArgs = fakeFs.writeFile.firstCall.args
-		assert.ok(writeArgs[1].includes(`${NOTE_PREFIX}${expectedNote}\n`))
-	})
-
-	it("should return failure message in text if saving note to clinenotes.md fails", async () => {
-		const text = "@note: fail append"
-		const expectedNote = "fail append"
-		const error = new Error("Disk full")
-		const expectedOutputText = `Failed to save note "${expectedNote}": Failed to append to or create file ${notesFilePath}: ${error.message}`
+	it("should NOT save note to clinenotes.md (handled by processNotes)", async () => {
+		const text = "@note: save here"
+		const expectedOutputText = text // Expect original text
 		fileExistsStub.withArgs(clinerulesDirPath).resolves(true)
 		isDirectoryStub.withArgs(clinerulesDirPath).resolves(true)
-		fakeFs.appendFile.withArgs(notesFilePath, `${NOTE_PREFIX}${expectedNote}\n`, "utf8").rejects(error)
 
 		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
 
 		assert.strictEqual(result.trim(), expectedOutputText)
-		// consoleErrorStubが呼び出されていないのでテストを修正
-		// assert.ok(consoleErrorStub.called) // Check if error was logged
+		assert.ok(fakeFs.appendFile.notCalled) // Should not be called by parseMentions
+		assert.ok(fakeFs.writeFile.notCalled)
+		assert.ok(fakeFs.readFile.notCalled)
 	})
 
-	it("should return failure message in text if saving note to .clinerules fails (writeFile)", async () => {
+	it("should NOT save note to .clinerules (handled by processNotes)", async () => {
+		const text = "@note: save in dotfile"
+		const expectedOutputText = text // Expect original text
+		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
+		fileExistsStub.withArgs(clineruleFilePath).resolves(false)
+
+		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
+
+		assert.strictEqual(result.trim(), expectedOutputText)
+		assert.ok(fakeFs.writeFile.notCalled) // Should not be called by parseMentions
+		assert.ok(fakeFs.appendFile.notCalled)
+		assert.ok(fakeFs.readFile.notCalled)
+	})
+
+	it("should NOT create .clinerules file (handled by processNotes)", async () => {
+		const text = "@note: new file note"
+		const expectedOutputText = text // Expect original text
+		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
+		fileExistsStub.withArgs(clineruleFilePath).resolves(false)
+
+		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
+
+		assert.strictEqual(result.trim(), expectedOutputText)
+		assert.ok(fakeFs.writeFile.notCalled) // Should not be called by parseMentions
+		assert.ok(fakeFs.readFile.notCalled)
+	})
+
+	it("should NOT add ##@note section (handled by processNotes)", async () => {
+		const text = "@note: add section note"
+		const existingContent = "# Some existing rules\n"
+		const expectedOutputText = text // Expect original text
+		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
+		fileExistsStub.withArgs(clineruleFilePath).resolves(true)
+		fakeFs.readFile.withArgs(clineruleFilePath, { encoding: "utf8" }).resolves(existingContent)
+
+		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
+
+		assert.strictEqual(result.trim(), expectedOutputText)
+		assert.ok(fakeFs.readFile.notCalled) // Should not be called by parseMentions
+		assert.ok(fakeFs.writeFile.notCalled) // Should not be called by parseMentions
+	})
+
+	it("should NOT append note to existing ##@note section (handled by processNotes)", async () => {
+		const text = "@note: append note"
+		const existingContent = `# Rules\n\n${NOTE_SECTION_HEADER}\n- old note\n`
+		const expectedOutputText = text // Expect original text
+		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
+		fileExistsStub.withArgs(clineruleFilePath).resolves(true)
+		fakeFs.readFile.withArgs(clineruleFilePath, { encoding: "utf8" }).resolves(existingContent)
+
+		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
+
+		assert.strictEqual(result.trim(), expectedOutputText)
+		assert.ok(fakeFs.readFile.notCalled) // Should not be called by parseMentions
+		assert.ok(fakeFs.writeFile.notCalled) // Should not be called by parseMentions
+	})
+
+	it("should NOT handle empty @note content (handled by processNotes)", async () => {
+		const text = "@note:"
+		const expectedOutputText = text // Expect original text
+		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
+		fileExistsStub.withArgs(clineruleFilePath).resolves(false)
+
+		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
+
+		assert.strictEqual(result.trim(), expectedOutputText)
+		assert.ok(fakeFs.writeFile.notCalled) // Should not be called by parseMentions
+	})
+
+	it("should NOT return failure message if saving note fails (handled by processNotes)", async () => {
+		const text = "@note: fail append"
+		const expectedOutputText = text // Expect original text
+		const error = new Error("Disk full")
+		fileExistsStub.withArgs(clinerulesDirPath).resolves(true)
+		isDirectoryStub.withArgs(clinerulesDirPath).resolves(true)
+		// Simulate that processNotes would have failed, but parseMentions shouldn't care
+		// fakeFs.appendFile.withArgs(notesFilePath, `${NOTE_PREFIX}fail append\n`, "utf8").rejects(error);
+
+		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
+
+		assert.strictEqual(result.trim(), expectedOutputText)
+		assert.ok(fakeFs.appendFile.notCalled) // Should not be called by parseMentions
+		assert.ok(consoleErrorStub.notCalled) // Error logging is handled elsewhere
+	})
+
+	it("should NOT return failure message if saving note to .clinerules fails (writeFile) (handled by processNotes)", async () => {
 		const text = "@note: fail write"
-		const expectedNote = "fail write"
+		const expectedOutputText = text // Expect original text
 		const error = new Error("Permission denied")
-		const expectedOutputText = `Failed to save note "${expectedNote}": Failed to update ${CLINERULES_FILE_NAME} file at ${clineruleFilePath}: ${error.message}`
 		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
-		fileExistsStub.withArgs(clineruleFilePath).resolves(false) // File doesn't exist
-		const expectedContent = `# Cline Rules\n\n${NOTE_SECTION_HEADER}\n${NOTE_PREFIX}${expectedNote}\n`
-		fakeFs.writeFile.withArgs(clineruleFilePath, expectedContent, "utf8").rejects(error)
+		fileExistsStub.withArgs(clineruleFilePath).resolves(false)
+		// Simulate that processNotes would have failed
+		// fakeFs.writeFile.withArgs(clineruleFilePath, sinon.match.string, "utf8").rejects(error);
 
 		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
 
 		assert.strictEqual(result.trim(), expectedOutputText)
-		// consoleErrorStubが呼び出されていないのでテストを修正
-		// assert.ok(consoleErrorStub.called)
+		assert.ok(fakeFs.writeFile.notCalled) // Should not be called by parseMentions
+		assert.ok(consoleErrorStub.notCalled)
 	})
 
-	it("should return failure message in text if saving note to .clinerules fails (readFile)", async () => {
+	it("should NOT return failure message if saving note to .clinerules fails (readFile) (handled by processNotes)", async () => {
 		const text = "@note: fail read"
-		const expectedNote = "fail read"
+		const expectedOutputText = text // Expect original text
 		const error = new Error("IO error")
-		const expectedOutputText = `Failed to save note "${expectedNote}": Failed to update ${CLINERULES_FILE_NAME} file at ${clineruleFilePath}: ${error.message}`
 		fileExistsStub.withArgs(clinerulesDirPath).resolves(false)
-		fileExistsStub.withArgs(clineruleFilePath).resolves(true) // File exists
-		fakeFs.readFile.withArgs(clineruleFilePath, { encoding: "utf8" }).rejects(error)
+		fileExistsStub.withArgs(clineruleFilePath).resolves(true)
+		// Simulate that processNotes would have failed
+		// fakeFs.readFile.withArgs(clineruleFilePath, { encoding: "utf8" }).rejects(error);
 
 		const result = await parseMentions(text, testCwd, mockUrlContentFetcher as unknown as UrlContentFetcher, fakeFs)
 
 		assert.strictEqual(result.trim(), expectedOutputText)
-		// consoleErrorStubが呼び出されていないのでテストを修正
-		// assert.ok(consoleErrorStub.called)
-		assert.ok(fakeFs.writeFile.notCalled) // Write should not be called if read fails
+		assert.ok(fakeFs.readFile.notCalled) // Should not be called by parseMentions
+		assert.ok(fakeFs.writeFile.notCalled)
+		assert.ok(consoleErrorStub.notCalled)
 	})
 
-	// Add more tests here for other mention types (@/, @http, etc.) handled by parseMentions
+	// --- Tests for other mention types remain largely the same ---
 	// Example:
 	it("should process file mentions", async () => {
 		const text = "Check this file @/src/file.ts"
