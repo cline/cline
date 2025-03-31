@@ -9,7 +9,7 @@ import sys
 import shlex
 import subprocess
 import traceback
-from .util import log, file_exists, get_file_size, list_directory, is_safe_command
+from .util import log, file_exists, get_file_size, list_directory, is_safe_command, run_command
 
 # Global verbose flag
 verbose = False
