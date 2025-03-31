@@ -960,24 +960,22 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							})
 							break
 						}
+
 						try {
-							// Call file search service with query from message
-							const results = await searchWorkspaceFiles(
-								message.query || "",
-								workspacePath,
-								20, // Use default limit, as filtering is now done in the backend
-							)
+							// Start streaming search results
+							const searchStream = searchWorkspaceFiles(message.query || "", workspacePath, 20)
 
-							// Send results back to webview
-							await this.postMessageToWebview({
-								type: "fileSearchResults",
-								results,
-								mentionsRequestId: message.mentionsRequestId,
-							})
+							// Process results as they arrive
+							for await (const results of searchStream) {
+								await this.postMessageToWebview({
+									type: "fileSearchResults",
+									results,
+									mentionsRequestId: message.mentionsRequestId,
+								})
+							}
 						} catch (error) {
-							const errorMessage = error instanceof Error ? error.message : String(error)
-
 							// Send error response to webview
+							const errorMessage = error instanceof Error ? error.message : String(error)
 							await this.postMessageToWebview({
 								type: "fileSearchResults",
 								results: [],

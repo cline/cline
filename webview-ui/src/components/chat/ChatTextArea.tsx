@@ -241,7 +241,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
-		const [searchRequestId, setSearchRequestId] = useState<string>("")
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 
 		// Add a ref to track previous menu state
@@ -256,6 +255,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				})
 			}
 		}, [selectedType, searchQuery])
+
+		const currentSearchRequestId = useRef("")
 
 		const handleMessage = useCallback((event: MessageEvent) => {
 			const message: ExtensionMessage = event.data
@@ -273,9 +274,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 
 				case "fileSearchResults": {
-					setSearchLoading(false)
-					// Always update results to prevent flickering
-					setFileSearchResults(message.results || [])
+					console.log("[Search] Received results:", {
+						requestId: message.mentionsRequestId,
+						currentRequestId: currentSearchRequestId.current,
+						resultCount: message.results?.length || 0,
+					})
+
+					if (message.mentionsRequestId === currentSearchRequestId.current) {
+						// Only merge results if they're from the current search
+						setFileSearchResults((prevResults) => {
+							const newResults = message.results || []
+							const existingPaths = new Set(prevResults.map((r) => r.path))
+							const uniqueNewResults = newResults.filter((r) => !existingPaths.has(r.path))
+							console.log("[Search] Processing batch:", {
+								previousCount: prevResults.length,
+								newCount: newResults.length,
+								uniqueNewCount: uniqueNewResults.length,
+								finalCount: prevResults.length + uniqueNewResults.length,
+							})
+							return [...prevResults, ...uniqueNewResults]
+						})
+						setSearchLoading(false)
+					} else {
+						console.log(
+							"[Search] Skipping results from request:",
+							message.mentionsRequestId,
+							"current:",
+							currentSearchRequestId.current,
+						)
+					}
 				}
 			}
 		}, [])
@@ -511,32 +538,37 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							clearTimeout(searchTimeoutRef.current)
 						}
 
+						// Clear previous results immediately when starting a new search
+						console.log("[Search] Clearing results for new search:", query)
+						setFileSearchResults([])
+						setSearchLoading(true)
+
 						// Set a timeout to debounce the search requests
 						searchTimeoutRef.current = setTimeout(() => {
-							// Generate a request ID for this search
-							const reqId = Math.random().toString(36).substring(2, 9)
-							setSearchRequestId(reqId)
-							setSearchLoading(true)
+							// Generate and store request ID in ref
+							currentSearchRequestId.current = Math.random().toString(36).substring(2, 9)
+							console.log("[Search] Sending search request:", {
+								query,
+								requestId: currentSearchRequestId.current,
+							})
 
 							// Send message to extension to search files
 							vscode.postMessage({
 								type: "searchFiles",
 								query: query,
-								mentionsRequestId: reqId,
+								mentionsRequestId: currentSearchRequestId.current,
 							})
 						}, 200) // 200ms debounce
 					} else {
 						setSelectedMenuIndex(3) // Set to "File" option by default
-						// Don't clear results to prevent flickering
 					}
 				} else {
 					setSearchQuery("")
 					setSelectedMenuIndex(-1)
-					// Only clear results when menu is explicitly closed
 					setFileSearchResults([])
 				}
 			},
-			[setInputValue, setSearchRequestId, setFileSearchResults],
+			[setInputValue, setFileSearchResults, selectedType],
 		)
 
 		useEffect(() => {
