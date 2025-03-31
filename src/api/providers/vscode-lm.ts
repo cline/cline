@@ -112,7 +112,7 @@ export async function getModels(selector: vscode.LanguageModelChatSelector = {})
 		return true
 	}
 
-	return models.filter(modelFilter) || []
+	return models.filter(modelFilter)
 }
 
 /**
