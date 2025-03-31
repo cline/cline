@@ -3,6 +3,8 @@ run-name: Changeset Conversion
 
 on:
     pull_request:
+        branches:
+            - main
         types: [closed]
 
 env:
@@ -14,9 +16,7 @@ jobs:
     # Job 1: Create version bump PR when changesets are merged to main
     changeset-pr-version-bump:
         if: >
-            github.event_name == 'pull_request' &&
             github.event.pull_request.merged == true &&
-            github.event.pull_request.base.ref == 'main' &&
             github.actor != 'github-actions'
         runs-on: ubuntu-latest
         permissions:
