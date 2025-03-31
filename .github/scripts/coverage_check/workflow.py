@@ -122,7 +122,7 @@ def run_extension_coverage(branch_name=None):
     
     # Run coverage tests
     ext_cov = run_coverage(
-        f"xvfb-run -a npm run test:coverage", 
+        ["xvfb-run", "-a", "npm", "run", "test:coverage"], 
         file_path, 
         "extension"
     )
@@ -138,12 +138,28 @@ def run_webview_coverage(branch_name=None):
     prefix = 'base_' if branch_name else ''
     file_path = f"{prefix}webview_coverage.txt"
     
-    # Run coverage tests
-    web_cov = run_coverage(
-        f"cd webview-ui && npm run test:coverage", 
-        file_path, 
-        "webview"
-    )
+    # Save current directory
+    original_dir = os.getcwd()
+    
+    try:
+        # Change to webview-ui directory
+        os.chdir('webview-ui')
+        
+        # Install coverage dependency
+        returncode, stdout, stderr = run_command(["npm", "install", "--no-save", "@vitest/coverage-v8"])
+        if returncode != 0:
+            log(f"Failed to install coverage dependency: {stderr}")
+            return 0.0
+        
+        # Run coverage tests from webview-ui directory
+        web_cov = run_coverage(
+            ["npm", "run", "test:coverage"],
+            os.path.join('..', file_path),
+            "webview"
+        )
+    finally:
+        # Always change back to original directory
+        os.chdir(original_dir)
     
     # If coverage is 0.0, try to extract from file directly
     if web_cov == 0.0:

@@ -14,10 +14,10 @@ from typing import List, Tuple, Dict, Any, Optional, Union
 # List of allowed commands and their arguments
 ALLOWED_COMMANDS = {
     'xvfb-run': ['-a'],
-    'npm': ['run', 'test:coverage', 'ci'],
-    'cd': [],
+    'npm': ['run', 'test:coverage', 'ci', 'install', '--no-save', '@vitest/coverage-v8', 'check-types', 'lint', 'format', 'compile'],
+    'cd': ['webview-ui'],
     'python': ['-m', 'coverage_check'],
-    'git': ['fetch', 'checkout'],
+    'git': ['fetch', 'checkout', 'origin'],
 }
 
 def is_safe_command(command: Union[str, List[str]]) -> bool:
@@ -55,7 +55,7 @@ def is_safe_command(command: Union[str, List[str]]) -> bool:
         if re.search(r'[;&|`$]', arg):
             return False
         # Check for path traversal
-        if '..' in arg:
+        if '..' in arg and not (base_cmd == 'npm' and arg.startswith('@')):
             return False
             
     return True
