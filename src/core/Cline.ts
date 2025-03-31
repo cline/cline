@@ -76,6 +76,12 @@ const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
+type MessageWithMetadata = Anthropic.MessageParam & {
+	metadata?: {
+		apiProvider?: string
+		model?: string
+	}
+}
 
 export class Cline {
 	readonly taskId: string
@@ -90,7 +96,7 @@ export class Cline {
 	autoApprovalSettings: AutoApprovalSettings
 	private browserSettings: BrowserSettings
 	private chatSettings: ChatSettings
-	apiConversationHistory: Anthropic.MessageParam[] = []
+	apiConversationHistory: MessageWithMetadata[] = []
 	clineMessages: ClineMessage[] = []
 	private clineIgnoreController: ClineIgnoreController
 	private askResponse?: ClineAskResponse
@@ -193,7 +199,7 @@ export class Cline {
 		return taskDir
 	}
 
-	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
+	private async getSavedApiConversationHistory(): Promise<MessageWithMetadata[]> {
 		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
 		const fileExists = await fileExistsAtPath(filePath)
 		if (fileExists) {
@@ -202,12 +208,12 @@ export class Cline {
 		return []
 	}
 
-	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
+	private async addToApiConversationHistory(message: MessageWithMetadata) {
 		this.apiConversationHistory.push(message)
 		await this.saveApiConversationHistory()
 	}
 
-	private async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]) {
+	private async overwriteApiConversationHistory(newHistory: MessageWithMetadata[]) {
 		this.apiConversationHistory = newHistory
 		await this.saveApiConversationHistory()
 	}
@@ -912,7 +918,7 @@ export class Cline {
 
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
-		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] = await this.getSavedApiConversationHistory()
+		const existingApiConversationHistory: MessageWithMetadata[] = await this.getSavedApiConversationHistory()
 
 		// if the last message is an assistant message, we need to check if there's tool use since every tool use has to have a tool response
 		// if there's no tool use and only a text block, then we can just add a user message
@@ -921,7 +927,7 @@ export class Cline {
 		// if the last message is a user message, we can need to get the assistant message before it to see if it made tool calls, and if so, fill in the remaining tool responses with 'interrupted'
 
 		let modifiedOldUserContent: UserContent // either the last message if its user message, or the user message before the last (assistant) message
-		let modifiedApiConversationHistory: Anthropic.Messages.MessageParam[] // need to remove the last user message to replace with new modified user message
+		let modifiedApiConversationHistory: MessageWithMetadata[] // need to remove the last user message to replace with new modified user message
 		if (existingApiConversationHistory.length > 0) {
 			const lastMessage = existingApiConversationHistory[existingApiConversationHistory.length - 1]
 
@@ -947,7 +953,7 @@ export class Cline {
 					modifiedOldUserContent = []
 				}
 			} else if (lastMessage.role === "user") {
-				const previousAssistantMessage: Anthropic.Messages.MessageParam | undefined =
+				const previousAssistantMessage: MessageWithMetadata | undefined =
 					existingApiConversationHistory[existingApiConversationHistory.length - 2]
 
 				const existingUserContent: UserContent = Array.isArray(lastMessage.content)
@@ -3251,6 +3257,10 @@ export class Cline {
 								}]`,
 						},
 					],
+					metadata: {
+						apiProvider: this.apiProvider,
+						model: this.api.getModel().id,
+					},
 				})
 
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
@@ -3406,6 +3416,10 @@ export class Cline {
 				await this.addToApiConversationHistory({
 					role: "assistant",
 					content: [{ type: "text", text: assistantMessage }],
+					metadata: {
+						apiProvider: this.apiProvider,
+						model: this.api.getModel().id,
+					},
 				})
 
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
@@ -3446,6 +3460,10 @@ export class Cline {
 							text: "Failure: I did not provide a response.",
 						},
 					],
+					metadata: {
+						apiProvider: this.apiProvider,
+						model: this.api.getModel().id,
+					},
 				})
 			}
 
