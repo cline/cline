@@ -8,26 +8,26 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { ApiHandler, buildApiHandler } from "../api"
-import { OpenRouterHandler } from "../api/providers/openrouter"
-import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
-import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../integrations/editor/DiffViewProvider"
-import { formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
-import { extractTextFromFile } from "../integrations/misc/extract-text"
-import { showSystemNotification } from "../integrations/notifications"
-import { TerminalManager } from "../integrations/terminal/TerminalManager"
-import { BrowserSession } from "../services/browser/BrowserSession"
-import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
-import { listFiles } from "../services/glob/list-files"
-import { regexSearchFiles } from "../services/ripgrep"
-import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
-import { ApiConfiguration } from "../shared/api"
-import { findLast, findLastIndex, parsePartialArrayString } from "../shared/array"
-import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
-import { BrowserSettings } from "../shared/BrowserSettings"
-import { ChatSettings } from "../shared/ChatSettings"
-import { combineApiRequests } from "../shared/combineApiRequests"
-import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "../shared/combineCommandSequences"
+import { ApiHandler, buildApiHandler } from "../../api"
+import { OpenRouterHandler } from "../../api/providers/openrouter"
+import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
+import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
+import { formatContentBlockToMarkdown } from "../../integrations/misc/export-markdown"
+import { extractTextFromFile } from "../../integrations/misc/extract-text"
+import { showSystemNotification } from "../../integrations/notifications"
+import { TerminalManager } from "../../integrations/terminal/TerminalManager"
+import { BrowserSession } from "../../services/browser/BrowserSession"
+import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
+import { listFiles } from "../../services/glob/list-files"
+import { regexSearchFiles } from "../../services/ripgrep"
+import { parseSourceCodeForDefinitionsTopLevel } from "../../services/tree-sitter"
+import { ApiConfiguration } from "../../shared/api"
+import { findLast, findLastIndex, parsePartialArrayString } from "../../shared/array"
+import { AutoApprovalSettings } from "../../shared/AutoApprovalSettings"
+import { BrowserSettings } from "../../shared/BrowserSettings"
+import { ChatSettings } from "../../shared/ChatSettings"
+import { combineApiRequests } from "../../shared/combineApiRequests"
+import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "../../shared/combineCommandSequences"
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -43,42 +43,41 @@ import {
 	ClineSayBrowserAction,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
-} from "../shared/ExtensionMessage"
-import { getApiMetrics } from "../shared/getApiMetrics"
-import { HistoryItem } from "../shared/HistoryItem"
-import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessage"
-import { calculateApiCostAnthropic } from "../utils/cost"
-import { fileExistsAtPath, isDirectory } from "../utils/fs"
-import { arePathsEqual, getReadablePath } from "../utils/path"
-import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
-import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
-import { constructNewFileContent } from "./assistant-message/diff"
-import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "./ignore/ClineIgnoreController"
-import { parseMentions } from "./mentions"
-import { formatResponse } from "./prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
-import { ContextManager } from "./context-management/ContextManager"
-import { OpenAiHandler } from "../api/providers/openai"
-import { ApiStream } from "../api/transform/stream"
-import { ClineHandler } from "../api/providers/cline"
-import { ClineProvider } from "./webview/ClineProvider"
-import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
-import { telemetryService } from "../services/telemetry/TelemetryService"
-import { ConversationTelemetryService, TelemetryChatMessage } from "../services/telemetry/ConversationTelemetryService"
+} from "../../shared/ExtensionMessage"
+import { getApiMetrics } from "../../shared/getApiMetrics"
+import { HistoryItem } from "../../shared/HistoryItem"
+import { ClineAskResponse, ClineCheckpointRestore } from "../../shared/WebviewMessage"
+import { calculateApiCostAnthropic } from "../../utils/cost"
+import { fileExistsAtPath, isDirectory } from "../../utils/fs"
+import { arePathsEqual, getReadablePath } from "../../utils/path"
+import { fixModelHtmlEscaping, removeInvalidChars } from "../../utils/string"
+import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from ".././assistant-message"
+import { constructNewFileContent } from ".././assistant-message/diff"
+import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from ".././ignore/ClineIgnoreController"
+import { parseMentions } from ".././mentions"
+import { formatResponse } from ".././prompts/responses"
+import { addUserInstructions, SYSTEM_PROMPT } from ".././prompts/system"
+import { ContextManager } from ".././context-management/ContextManager"
+import { OpenAiHandler } from "../../api/providers/openai"
+import { ApiStream } from "../../api/transform/stream"
+import { ClineHandler } from "../../api/providers/cline"
+import { Controller } from "../controller"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../../shared/Languages"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 import pTimeout from "p-timeout"
-import { GlobalFileNames } from "../global-constants"
+import { GlobalFileNames } from "../../global-constants"
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
-} from "./context-management/context-error-handling"
-import { AnthropicHandler } from "../api/providers/anthropic"
+} from "../context-management/context-error-handling"
+import { AnthropicHandler } from "../../api/providers/anthropic"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
 
-export class Cline {
+export class Task {
 	readonly taskId: string
 	readonly apiProvider?: string
 	api: ApiHandler
@@ -100,7 +99,7 @@ export class Cline {
 	private lastMessageTs?: number
 	private consecutiveAutoApprovedRequestsCount: number = 0
 	private consecutiveMistakeCount: number = 0
-	private providerRef: WeakRef<ClineProvider>
+	private controllerRef: WeakRef<Controller>
 	private abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
@@ -127,7 +126,7 @@ export class Cline {
 	private didAutomaticallyRetryFailedApiRequest = false
 
 	constructor(
-		provider: ClineProvider,
+		controller: Controller,
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
@@ -141,27 +140,39 @@ export class Cline {
 		this.clineIgnoreController.initialize().catch((error) => {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 		})
-		this.providerRef = new WeakRef(provider)
+		this.controllerRef = new WeakRef(controller)
 		this.apiProvider = apiConfiguration.apiProvider
-		this.api = buildApiHandler(apiConfiguration)
 		this.terminalManager = new TerminalManager()
-		this.urlContentFetcher = new UrlContentFetcher(provider.context)
-		this.browserSession = new BrowserSession(provider.context, browserSettings)
+		this.urlContentFetcher = new UrlContentFetcher(controller.context)
+		this.browserSession = new BrowserSession(controller.context, browserSettings)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		this.autoApprovalSettings = autoApprovalSettings
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
+
+		// Initialize taskId first
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
-			this.resumeTaskFromHistory()
 		} else if (task || images) {
 			this.taskId = Date.now().toString()
-			this.startTask(task, images)
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
+		}
+
+		// Now that taskId is initialized, we can build the API handler
+		this.api = buildApiHandler({
+			...apiConfiguration,
+			taskId: this.taskId,
+		})
+
+		// Continue with task initialization
+		if (historyItem) {
+			this.resumeTaskFromHistory()
+		} else if (task || images) {
+			this.startTask(task, images)
 		}
 
 		if (historyItem) {
@@ -185,7 +196,7 @@ export class Cline {
 	// Storing task to disk for history
 
 	private async ensureTaskDirectoryExists(): Promise<string> {
-		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
+		const globalStoragePath = this.controllerRef.deref()?.context.globalStorageUri.fsPath
 		if (!globalStoragePath) {
 			throw new Error("Global storage uri is invalid")
 		}
@@ -273,7 +284,7 @@ export class Cline {
 			} catch (error) {
 				console.error("Failed to get task directory size:", taskDir, error)
 			}
-			await this.providerRef.deref()?.updateTaskHistory({
+			await this.controllerRef.deref()?.updateTaskHistory({
 				id: this.taskId,
 				ts: lastRelevantMessage.ts,
 				task: taskMessage.text ?? "",
@@ -310,13 +321,13 @@ export class Cline {
 					try {
 						this.checkpointTracker = await CheckpointTracker.create(
 							this.taskId,
-							this.providerRef.deref()?.context.globalStorageUri.fsPath,
+							this.controllerRef.deref()?.context.globalStorageUri.fsPath,
 						)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
 						console.error("Failed to initialize checkpoint tracker:", errorMessage)
 						this.checkpointTrackerErrorMessage = errorMessage
-						await this.providerRef.deref()?.postStateToWebview()
+						await this.controllerRef.deref()?.postStateToWebview()
 						vscode.window.showErrorMessage(errorMessage)
 						didWorkspaceRestoreFail = true
 					}
@@ -392,17 +403,17 @@ export class Cline {
 
 			await this.saveClineMessages()
 
-			await this.providerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
+			await this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
 
-			this.providerRef.deref()?.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
+			this.controllerRef.deref()?.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
 		} else {
-			await this.providerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
+			await this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
 		}
 	}
 
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
 		const relinquishButton = () => {
-			this.providerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
+			this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
 		}
 
 		console.log("presentMultifileDiff", messageTs)
@@ -425,13 +436,13 @@ export class Cline {
 			try {
 				this.checkpointTracker = await CheckpointTracker.create(
 					this.taskId,
-					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+					this.controllerRef.deref()?.context.globalStorageUri.fsPath,
 				)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 				this.checkpointTrackerErrorMessage = errorMessage
-				await this.providerRef.deref()?.postStateToWebview()
+				await this.controllerRef.deref()?.postStateToWebview()
 				vscode.window.showErrorMessage(errorMessage)
 				relinquishButton()
 				return
@@ -540,7 +551,7 @@ export class Cline {
 			try {
 				this.checkpointTracker = await CheckpointTracker.create(
 					this.taskId,
-					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+					this.controllerRef.deref()?.context.globalStorageUri.fsPath,
 				)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -612,8 +623,8 @@ export class Cline {
 					lastMessage.partial = partial
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessages()
-					// await this.providerRef.deref()?.postStateToWebview()
-					await this.providerRef.deref()?.postMessageToWebview({
+					// await this.controllerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					})
@@ -632,7 +643,7 @@ export class Cline {
 						text,
 						partial,
 					})
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 					throw new Error("Current ask promise was ignored 2")
 				}
 			} else {
@@ -655,8 +666,8 @@ export class Cline {
 					lastMessage.text = text
 					lastMessage.partial = false
 					await this.saveClineMessages()
-					// await this.providerRef.deref()?.postStateToWebview()
-					await this.providerRef.deref()?.postMessageToWebview({
+					// await this.controllerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					})
@@ -673,7 +684,7 @@ export class Cline {
 						ask: type,
 						text,
 					})
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 				}
 			}
 		} else {
@@ -690,7 +701,7 @@ export class Cline {
 				ask: type,
 				text,
 			})
-			await this.providerRef.deref()?.postStateToWebview()
+			await this.controllerRef.deref()?.postStateToWebview()
 		}
 
 		await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })
@@ -729,7 +740,7 @@ export class Cline {
 					lastMessage.text = text
 					lastMessage.images = images
 					lastMessage.partial = partial
-					await this.providerRef.deref()?.postMessageToWebview({
+					await this.controllerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					})
@@ -745,7 +756,7 @@ export class Cline {
 						images,
 						partial,
 					})
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 				}
 			} else {
 				// partial=false means its a complete version of a previously partial message
@@ -759,8 +770,8 @@ export class Cline {
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					await this.saveClineMessages()
-					// await this.providerRef.deref()?.postStateToWebview()
-					await this.providerRef.deref()?.postMessageToWebview({
+					// await this.controllerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					}) // more performant than an entire postStateToWebview
@@ -775,7 +786,7 @@ export class Cline {
 						text,
 						images,
 					})
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 				}
 			}
 		} else {
@@ -789,7 +800,7 @@ export class Cline {
 				text,
 				images,
 			})
-			await this.providerRef.deref()?.postStateToWebview()
+			await this.controllerRef.deref()?.postStateToWebview()
 		}
 	}
 
@@ -808,7 +819,7 @@ export class Cline {
 		if (lastMessage?.partial && lastMessage.type === type && (lastMessage.ask === askOrSay || lastMessage.say === askOrSay)) {
 			this.clineMessages.pop()
 			await this.saveClineMessages()
-			await this.providerRef.deref()?.postStateToWebview()
+			await this.controllerRef.deref()?.postStateToWebview()
 		}
 	}
 
@@ -820,7 +831,7 @@ export class Cline {
 		this.clineMessages = []
 		this.apiConversationHistory = []
 
-		await this.providerRef.deref()?.postStateToWebview()
+		await this.controllerRef.deref()?.postStateToWebview()
 
 		await this.say("text", task, images)
 
@@ -842,7 +853,7 @@ export class Cline {
 	private async resumeTaskFromHistory() {
 		// UPDATE: we don't need this anymore since most tasks are now created with checkpoints enabled
 		// right now we let users init checkpoints for old tasks, assuming they're continuing them from the same workspace (which we never tied to tasks, so no way for us to know if it's opened in the right workspace)
-		// const doesShadowGitExist = await CheckpointTracker.doesShadowGitExist(this.taskId, this.providerRef.deref())
+		// const doesShadowGitExist = await CheckpointTracker.doesShadowGitExist(this.taskId, this.controllerRef.deref())
 		// if (!doesShadowGitExist) {
 		// 	this.checkpointTrackerErrorMessage = "Checkpoints are only available for new tasks"
 		// }
@@ -1038,7 +1049,7 @@ export class Cline {
 						: ""
 				}` +
 				(responseText
-					? `\n\n${this.chatSettings?.mode === "plan" ? "New message to respond to with plan_mode_response tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
+					? `\n\n${this.chatSettings?.mode === "plan" ? "New message to respond to with plan_mode_respond tool (be sure to provide your response in the <response> parameter)" : "New instructions for task continuation"}:\n<user_message>\n${responseText}\n</user_message>`
 					: this.chatSettings.mode === "plan"
 						? "(The user did not provide a new message. Consider asking them how they'd like you to proceed, or to switch to Act mode to continue with the task.)"
 						: ""),
@@ -1277,11 +1288,11 @@ export class Cline {
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
-		await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
+		await pWaitFor(() => this.controllerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
 			console.error("MCP servers failed to connect in time")
 		})
 
-		const mcpHub = this.providerRef.deref()?.mcpHub
+		const mcpHub = this.controllerRef.deref()?.mcpHub
 		if (!mcpHub) {
 			throw new Error("MCP hub not available")
 		}
@@ -1354,25 +1365,6 @@ export class Cline {
 				preferredLanguageInstructions,
 			)
 		}
-
-		// Capture system prompt for telemetry,
-		// ONLY if user is opted in, in advanced settings
-		if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
-			const systemMessage: TelemetryChatMessage = {
-				role: "system",
-				content: systemPrompt,
-				ts: Date.now(), // we dont uniquely identify system messages, so we use the timestamp as the id
-			}
-
-			// no need for timeout here, as there's no timestamp to compare to
-			this.providerRef.deref()?.conversationTelemetryService.captureMessage(this.taskId, systemMessage, {
-				apiProvider: this.apiProvider,
-				model: this.api.getModel().id,
-				tokensIn: 0,
-				tokensOut: 0,
-			})
-		}
-
 		const contextManagementMetadata = this.contextManager.getNewContextMessagesAndMetadata(
 			this.apiConversationHistory,
 			this.clineMessages,
@@ -1572,7 +1564,7 @@ export class Cline {
 							return `[${block.name} for '${block.params.server_name}']`
 						case "ask_followup_question":
 							return `[${block.name} for '${block.params.question}']`
-						case "plan_mode_response":
+						case "plan_mode_respond":
 							return `[${block.name}]`
 						case "attempt_completion":
 							return `[${block.name}]`
@@ -1768,13 +1760,25 @@ export class Cline {
 									)
 								} catch (error) {
 									await this.say("diff_error", relPath)
+
+									// Extract error type from error message if possible, or use a generic type
+									const errorType =
+										error instanceof Error && error.message.includes("does not match anything")
+											? "search_not_found"
+											: "other_diff_error"
+
+									// Add telemetry for diff edit failure
+									telemetryService.captureDiffEditFailure(this.taskId, errorType)
+
 									pushToolResult(
 										formatResponse.toolError(
 											`${(error as Error)?.message}\n\n` +
 												`This is likely because the SEARCH block content doesn't match exactly with what's in the file, or if you used multiple SEARCH/REPLACE blocks they may not have been in the order they appear in the file.\n\n` +
 												`The file was reverted to its original state:\n\n` +
 												`<file_content path="${relPath.toPosix()}">\n${this.diffViewProvider.originalContent}\n</file_content>\n\n` +
-												`Try again with fewer/more precise SEARCH blocks.\n(If you run into this error two times in a row, you may use the write_to_file tool as a fallback.)`,
+												`First, make sure you call the read_file tool and re-read the file again in case any changes were made, to get its latest state. Then, make a proper, TARGETED search and replace edit using the write_to_file tool.` +
+												`You may want to try fewer/more precise SEARCH blocks.\n(If you run into this error three times in a row, you may use the write_to_file tool as a fallback. ` +
+												`Keep in mind, the write_to_file fallback is far from ideal, as this means you'll be re-writing the entire contents of the file just to make a few edits, which takes time and money. So let's bias towards using replace_in_file as effectively as possible)`,
 										),
 									)
 									await this.diffViewProvider.revertChanges()
@@ -1966,7 +1970,7 @@ export class Cline {
 								}
 
 								if (!fileExists) {
-									this.providerRef.deref()?.workspaceTracker?.populateFilePaths()
+									this.controllerRef.deref()?.workspaceTracker?.populateFilePaths()
 								}
 
 								await this.diffViewProvider.reset()
@@ -2530,7 +2534,7 @@ export class Cline {
 								}
 
 								// Re-populate file paths in case the command modified the workspace (vscode listeners do not trigger unless the user manually creates/deletes files)
-								this.providerRef.deref()?.workspaceTracker?.populateFilePaths()
+								this.controllerRef.deref()?.workspaceTracker?.populateFilePaths()
 
 								pushToolResult(result)
 
@@ -2612,7 +2616,7 @@ export class Cline {
 									arguments: mcp_arguments,
 								} satisfies ClineAskUseMcpServer)
 
-								const isToolAutoApproved = this.providerRef
+								const isToolAutoApproved = this.controllerRef
 									.deref()
 									?.mcpHub?.connections?.find((conn) => conn.server.name === server_name)
 									?.server.tools?.find((tool) => tool.name === tool_name)?.autoApprove
@@ -2634,7 +2638,7 @@ export class Cline {
 
 								// now execute the tool
 								await this.say("mcp_server_request_started") // same as browser_action_result
-								const toolResult = await this.providerRef
+								const toolResult = await this.controllerRef
 									.deref()
 									?.mcpHub?.callTool(server_name, tool_name, parsedArguments)
 
@@ -2724,7 +2728,7 @@ export class Cline {
 
 								// now execute the tool
 								await this.say("mcp_server_request_started")
-								const resourceResult = await this.providerRef.deref()?.mcpHub?.readResource(server_name, uri)
+								const resourceResult = await this.controllerRef.deref()?.mcpHub?.readResource(server_name, uri)
 								const resourceResultPretty =
 									resourceResult?.contents
 										.map((item) => {
@@ -2802,7 +2806,7 @@ export class Cline {
 							break
 						}
 					}
-					case "plan_mode_response": {
+					case "plan_mode_respond": {
 						const response: string | undefined = block.params.response
 						const optionsRaw: string | undefined = block.params.options
 						const sharedMessage = {
@@ -2811,12 +2815,12 @@ export class Cline {
 						} satisfies ClinePlanModeResponse
 						try {
 							if (block.partial) {
-								await this.ask("plan_mode_response", JSON.stringify(sharedMessage), block.partial).catch(() => {})
+								await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), block.partial).catch(() => {})
 								break
 							} else {
 								if (!response) {
 									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("plan_mode_response", "response"))
+									pushToolResult(await this.sayAndCreateMissingParamError("plan_mode_respond", "response"))
 									//
 									break
 								}
@@ -2830,7 +2834,7 @@ export class Cline {
 								// }
 
 								this.isAwaitingPlanResponse = true
-								let { text, images } = await this.ask("plan_mode_response", JSON.stringify(sharedMessage), false)
+								let { text, images } = await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), false)
 								this.isAwaitingPlanResponse = false
 
 								// webview invoke sendMessage will send this marker in order to put webview into the proper state (responding to an ask) and as a flag to extension that the user switched to ACT mode.
@@ -2842,7 +2846,7 @@ export class Cline {
 								if (optionsRaw && text && parsePartialArrayString(optionsRaw).includes(text)) {
 									// Valid option selected, don't show user message in UI
 									// Update last followup message with selected option
-									const lastPlanMessage = findLast(this.clineMessages, (m) => m.ask === "plan_mode_response")
+									const lastPlanMessage = findLast(this.clineMessages, (m) => m.ask === "plan_mode_respond")
 									if (lastPlanMessage) {
 										lastPlanMessage.text = JSON.stringify({
 											...sharedMessage,
@@ -3154,7 +3158,7 @@ export class Cline {
 		if (!this.checkpointTracker && !this.checkpointTrackerErrorMessage) {
 			try {
 				this.checkpointTracker = await pTimeout(
-					CheckpointTracker.create(this.taskId, this.providerRef.deref()?.context.globalStorageUri.fsPath),
+					CheckpointTracker.create(this.taskId, this.controllerRef.deref()?.context.globalStorageUri.fsPath),
 					{
 						milliseconds: 15_000,
 						message:
@@ -3190,46 +3194,13 @@ export class Cline {
 
 		telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "user")
 
-		// Capture message data for telemetry,
-		// ONLY if user is opted in, in advanced settings
-		if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
-			// Get the last message from apiConversationHistory
-			const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
-
-			// Get the corresponding timestamp from clineMessages
-			// The last message in clineMessages should be the one we just added
-
-			const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
-			const ts = lastClineMessage.ts
-
-			// Send individual message to telemetry
-			this.providerRef.deref()?.conversationTelemetryService.captureMessage(
-				this.taskId,
-				// Add the timestamp to the message object for telemetry
-				{
-					...lastMessage,
-					ts,
-				},
-				{
-					apiProvider: this.apiProvider,
-					model: this.api.getModel().id,
-					tokensIn: 0,
-					tokensOut: 0,
-				},
-			)
-
-			// Send entire conversation history to cleanup endpoint
-			// This ensures deleted messages are properly handled in telemetry
-			this.providerRef.deref()?.conversationTelemetryService.cleanupTask(this.taskId, this.clineMessages)
-		}
-
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
 		const lastApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 		this.clineMessages[lastApiReqIndex].text = JSON.stringify({
 			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClineApiReqInfo)
 		await this.saveClineMessages()
-		await this.providerRef.deref()?.postStateToWebview()
+		await this.controllerRef.deref()?.postStateToWebview()
 
 		try {
 			let cacheWriteTokens = 0
@@ -3299,36 +3270,6 @@ export class Cline {
 				await this.saveClineMessages()
 
 				telemetryService.captureConversationTurnEvent(this.taskId, this.apiProvider, this.api.getModel().id, "assistant")
-
-				// Capture message data for telemetry after assistant response
-				// ONLY if user is opted in, in advanced settings
-				if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
-					// Get the last message from apiConversationHistory
-					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
-
-					// Find the corresponding timestamp from clineMessages
-					// For assistant messages, we need to find the most recent "text" message
-					const lastTextMessage = findLast(this.clineMessages, (m) => m.say === "text")
-
-					// Add the timestamp to the message object for telemetry
-					if (!lastTextMessage) {
-						console.error("No text message found in clineMessages")
-					} else {
-						this.providerRef.deref()?.conversationTelemetryService.captureMessage(
-							this.taskId,
-							{
-								...lastMessage,
-								ts: lastTextMessage.ts,
-							},
-							{
-								apiProvider: this.apiProvider,
-								model: this.api.getModel().id,
-								tokensIn: inputTokens,
-								tokensOut: outputTokens,
-							},
-						)
-					}
-				}
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.didFinishAbortingStream = true
@@ -3419,10 +3360,10 @@ export class Cline {
 					const errorMessage = this.formatErrorWithStatusCode(error)
 
 					await abortStream("streaming_failed", errorMessage)
-					const history = await this.providerRef.deref()?.getTaskWithId(this.taskId)
+					const history = await this.controllerRef.deref()?.getTaskWithId(this.taskId)
 					if (history) {
-						await this.providerRef.deref()?.initClineWithHistoryItem(history.historyItem)
-						// await this.providerRef.deref()?.postStateToWebview()
+						await this.controllerRef.deref()?.initClineWithHistoryItem(history.historyItem)
+						// await this.controllerRef.deref()?.postStateToWebview()
 					}
 				}
 			} finally {
@@ -3442,7 +3383,7 @@ export class Cline {
 					}
 					updateApiReqMsg()
 					await this.saveClineMessages()
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 				})
 			}
 
@@ -3466,7 +3407,7 @@ export class Cline {
 
 			updateApiReqMsg()
 			await this.saveClineMessages()
-			await this.providerRef.deref()?.postStateToWebview()
+			await this.controllerRef.deref()?.postStateToWebview()
 
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
@@ -3478,32 +3419,6 @@ export class Cline {
 					role: "assistant",
 					content: [{ type: "text", text: assistantMessage }],
 				})
-
-				// Capture message data for telemetry after assistant response,
-				// ONLY if user is opted in, in advanced settings
-				if (this.providerRef.deref()?.conversationTelemetryService.isOptedInToConversationTelemetry()) {
-					// Get the last message from apiConversationHistory
-					const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
-
-					// Find the corresponding timestamp from clineMessages
-					const lastClineMessage = this.clineMessages[this.clineMessages.length - 1]
-
-					if (lastClineMessage) {
-						this.providerRef.deref()?.conversationTelemetryService.captureMessage(
-							this.taskId,
-							{
-								...lastMessage,
-								ts: lastClineMessage.ts,
-							},
-							{
-								apiProvider: this.apiProvider,
-								model: this.api.getModel().id,
-								tokensIn: inputTokens,
-								tokensOut: outputTokens,
-							},
-						)
-					}
-				}
 
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished
@@ -3740,7 +3655,7 @@ export class Cline {
 		if (this.chatSettings.mode === "plan") {
 			details += "\nPLAN MODE"
 			details +=
-				"\nIn this mode you should focus on information gathering, asking questions, and architecting a solution. Once you have a plan, use the plan_mode_response tool to engage in a conversational back and forth with the user. Do not use the plan_mode_response tool until you've gathered all the information you need e.g. with read_file or ask_followup_question."
+				"\nIn this mode you should focus on information gathering, asking questions, and architecting a solution. Once you have a plan, use the plan_mode_respond tool to engage in a conversational back and forth with the user. Do not use the plan_mode_respond tool until you've gathered all the information you need e.g. with read_file or ask_followup_question."
 			details +=
 				'\n(Remember: If it seems the user wants you to use tools only available in Act Mode, you should ask the user to "toggle to Act mode" (use those words) - they will have to manually do this themselves with the Plan/Act toggle button below. You do not have the ability to switch to Act Mode yourself, and must wait for the user to do it themselves once they are satisfied with the plan. You also cannot present an option to toggle to Act mode, as this will be something you need to direct the user to do manually themselves.)'
 		} else {

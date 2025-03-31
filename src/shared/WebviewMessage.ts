@@ -91,7 +91,7 @@ export interface WebviewMessage {
 	timeout?: number
 	// For toggleToolAutoApprove
 	serverName?: string
-	toolName?: string
+	toolNames?: string[]
 	autoApprove?: boolean
 
 	// For auth

@@ -733,7 +733,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						This key is stored locally and only used to make API requests from this extension.
 						{!apiConfiguration?.geminiApiKey && (
 							<VSCodeLink
-								href="https://ai.google.dev/"
+								href="https://aistudio.google.com/apikey"
 								style={{
 									display: "inline",
 									fontSize: "inherit",
@@ -845,6 +845,22 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									})
 								}}>
 								Supports Computer Use
+							</VSCodeCheckbox>
+							<VSCodeCheckbox
+								checked={!!apiConfiguration?.openAiModelInfo?.isR1FormatRequired}
+								onChange={(e: any) => {
+									const isChecked = e.target.checked === true
+									let modelInfo = apiConfiguration?.openAiModelInfo
+										? apiConfiguration.openAiModelInfo
+										: { ...openAiModelInfoSaneDefaults }
+									modelInfo = { ...modelInfo, isR1FormatRequired: isChecked }
+
+									setApiConfiguration({
+										...apiConfiguration,
+										openAiModelInfo: modelInfo,
+									})
+								}}>
+								Enable R1 messages format
 							</VSCodeCheckbox>
 							<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 								<VSCodeTextField
