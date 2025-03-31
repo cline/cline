@@ -2,7 +2,6 @@ import { mentionRegex } from "../../../src/shared/context-mentions"
 import { Fzf } from "fzf"
 import { ModeConfig } from "../../../src/shared/modes"
 import * as path from "path"
-import { formatPath } from "../../../src/shared/formatPath"
 
 export interface SearchResult {
 	path: string
@@ -83,24 +82,12 @@ export interface ContextMenuQueryItem {
 	icon?: string
 }
 
-function mapSearchResult(result: SearchResult, os?: string): ContextMenuQueryItem {
-	const formattedPath = formatPath(result.path, os)
-
-	return {
-		type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
-		value: formattedPath,
-		label: result.label || path.basename(result.path),
-		description: formattedPath,
-	}
-}
-
 export function getContextMenuOptions(
 	query: string,
 	selectedType: ContextMenuOptionType | null = null,
 	queryItems: ContextMenuQueryItem[],
 	dynamicSearchResults: SearchResult[] = [],
 	modes?: ModeConfig[],
-	os?: string,
 ): ContextMenuQueryItem[] {
 	// Handle slash commands for modes
 	if (query.startsWith("/")) {
@@ -242,24 +229,25 @@ export function getContextMenuOptions(
 	const gitMatches = matchingItems.filter((item) => item.type === ContextMenuOptionType.Git)
 
 	// Convert search results to queryItems format
-	const searchResultItems = dynamicSearchResults.map((result) => mapSearchResult(result, os))
+	const searchResultItems = dynamicSearchResults.map((result) => {
+		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
+
+		return {
+			type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
+			value: formattedPath,
+			label: result.label || path.basename(result.path),
+			description: formattedPath,
+		}
+	})
 
 	const allItems = [...suggestions, ...openedFileMatches, ...searchResultItems, ...gitMatches]
 
 	// Remove duplicates - normalize paths by ensuring all have leading slashes
 	const seen = new Set()
 	const deduped = allItems.filter((item) => {
-		const normalizedValue = item.value
-		let key = ""
-		if (
-			item.type === ContextMenuOptionType.File ||
-			item.type === ContextMenuOptionType.Folder ||
-			item.type === ContextMenuOptionType.OpenedFile
-		) {
-			key = normalizedValue!
-		} else {
-			key = `${item.type}-${normalizedValue}`
-		}
+		// Normalize paths for deduplication by ensuring leading slashes
+		const normalizedValue = item.value && !item.value.startsWith("/") ? `/${item.value}` : item.value
+		const key = `${item.type}-${normalizedValue}`
 		if (seen.has(key)) return false
 		seen.add(key)
 		return true

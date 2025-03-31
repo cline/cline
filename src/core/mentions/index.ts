@@ -1,18 +1,17 @@
 import * as vscode from "vscode"
 import * as path from "path"
-import fs from "fs/promises"
 import { openFile } from "../../integrations/misc/open-file"
 import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
-import { mentionRegexGlobal } from "../../shared/context-mentions"
-import { getWorkspacePath } from "../../utils/path"
-import { HandlerConfig, MentionContext, XmlTag } from "./types"
+import { mentionRegexGlobal, formatGitSuggestion, type MentionSuggestion } from "../../shared/context-mentions"
+import fs from "fs/promises"
 import { extractTextFromFile } from "../../integrations/misc/extract-text"
 import { isBinaryFile } from "isbinaryfile"
-import { getWorkingState, getCommitInfo } from "../../utils/git"
 import { diagnosticsToProblemsString } from "../../integrations/diagnostics"
+import { getCommitInfo, getWorkingState } from "../../utils/git"
 import { getLatestTerminalOutput } from "../../integrations/terminal/get-latest-output"
+import { getWorkspacePath } from "../../utils/path"
 
-export async function openMention(mention?: string, osInfo?: string): Promise<void> {
+export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
 		return
 	}
@@ -22,17 +21,10 @@ export async function openMention(mention?: string, osInfo?: string): Promise<vo
 		return
 	}
 
-	if ((osInfo !== "win32" && mention.startsWith("/")) || (osInfo === "win32" && mention.startsWith("\\"))) {
+	if (mention.startsWith("/")) {
 		const relPath = mention.slice(1)
-		let absPath = path.resolve(cwd, relPath)
-		if (absPath.includes(" ")) {
-			let escapedSpace = osInfo === "win32" ? "/ " : "\\ "
-			absPath = absPath.replaceAll(escapedSpace, " ")
-		}
-		if (
-			((osInfo === "unix" || osInfo === undefined) && mention.endsWith("/")) ||
-			(osInfo === "win32" && mention.endsWith("\\"))
-		) {
+		const absPath = path.resolve(cwd, relPath)
+		if (mention.endsWith("/")) {
 			vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath))
 		} else {
 			openFile(absPath)
@@ -45,29 +37,115 @@ export async function openMention(mention?: string, osInfo?: string): Promise<vo
 		vscode.env.openExternal(vscode.Uri.parse(mention))
 	}
 }
-// Utility functions
-export const createXmlTag = (name: string, attrs: Record<string, string> = {}): XmlTag => {
-	const attrString = Object.entries(attrs)
-		.map(([key, value]) => `${key}="${value}"`)
-		.join(" ")
-	return {
-		start: `\n\n<${name}${attrString ? " " + attrString : ""}>`,
-		end: `</${name}>`,
+
+export async function parseMentions(text: string, cwd: string, urlContentFetcher: UrlContentFetcher): Promise<string> {
+	const mentions: Set<string> = new Set()
+	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
+		mentions.add(mention)
+		if (mention.startsWith("http")) {
+			return `'${mention}' (see below for site content)`
+		} else if (mention.startsWith("/")) {
+			const mentionPath = mention.slice(1)
+			return mentionPath.endsWith("/")
+				? `'${mentionPath}' (see below for folder content)`
+				: `'${mentionPath}' (see below for file content)`
+		} else if (mention === "problems") {
+			return `Workspace Problems (see below for diagnostics)`
+		} else if (mention === "git-changes") {
+			return `Working directory changes (see below for details)`
+		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
+			return `Git commit '${mention}' (see below for commit info)`
+		} else if (mention === "terminal") {
+			return `Terminal Output (see below for output)`
+		}
+		return match
+	})
+
+	const urlMention = Array.from(mentions).find((mention) => mention.startsWith("http"))
+	let launchBrowserError: Error | undefined
+	if (urlMention) {
+		try {
+			await urlContentFetcher.launchBrowser()
+		} catch (error) {
+			launchBrowserError = error
+			vscode.window.showErrorMessage(`Error fetching content for ${urlMention}: ${error.message}`)
+		}
 	}
+
+	for (const mention of mentions) {
+		if (mention.startsWith("http")) {
+			let result: string
+			if (launchBrowserError) {
+				result = `Error fetching content: ${launchBrowserError.message}`
+			} else {
+				try {
+					const markdown = await urlContentFetcher.urlToMarkdown(mention)
+					result = markdown
+				} catch (error) {
+					vscode.window.showErrorMessage(`Error fetching content for ${mention}: ${error.message}`)
+					result = `Error fetching content: ${error.message}`
+				}
+			}
+			parsedText += `\n\n<url_content url="${mention}">\n${result}\n</url_content>`
+		} else if (mention.startsWith("/")) {
+			const mentionPath = mention.slice(1)
+			try {
+				const content = await getFileOrFolderContent(mentionPath, cwd)
+				if (mention.endsWith("/")) {
+					parsedText += `\n\n<folder_content path="${mentionPath}">\n${content}\n</folder_content>`
+				} else {
+					parsedText += `\n\n<file_content path="${mentionPath}">\n${content}\n</file_content>`
+				}
+			} catch (error) {
+				if (mention.endsWith("/")) {
+					parsedText += `\n\n<folder_content path="${mentionPath}">\nError fetching content: ${error.message}\n</folder_content>`
+				} else {
+					parsedText += `\n\n<file_content path="${mentionPath}">\nError fetching content: ${error.message}\n</file_content>`
+				}
+			}
+		} else if (mention === "problems") {
+			try {
+				const problems = await getWorkspaceProblems(cwd)
+				parsedText += `\n\n<workspace_diagnostics>\n${problems}\n</workspace_diagnostics>`
+			} catch (error) {
+				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
+			}
+		} else if (mention === "git-changes") {
+			try {
+				const workingState = await getWorkingState(cwd)
+				parsedText += `\n\n<git_working_state>\n${workingState}\n</git_working_state>`
+			} catch (error) {
+				parsedText += `\n\n<git_working_state>\nError fetching working state: ${error.message}\n</git_working_state>`
+			}
+		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
+			try {
+				const commitInfo = await getCommitInfo(mention, cwd)
+				parsedText += `\n\n<git_commit hash="${mention}">\n${commitInfo}\n</git_commit>`
+			} catch (error) {
+				parsedText += `\n\n<git_commit hash="${mention}">\nError fetching commit info: ${error.message}\n</git_commit>`
+			}
+		} else if (mention === "terminal") {
+			try {
+				const terminalOutput = await getLatestTerminalOutput()
+				parsedText += `\n\n<terminal_output>\n${terminalOutput}\n</terminal_output>`
+			} catch (error) {
+				parsedText += `\n\n<terminal_output>\nError fetching terminal output: ${error.message}\n</terminal_output>`
+			}
+		}
+	}
+
+	if (urlMention) {
+		try {
+			await urlContentFetcher.closeBrowser()
+		} catch (error) {
+			console.error(`Error closing browser: ${error.message}`)
+		}
+	}
+
+	return parsedText
 }
 
-export const wrapContent = (content: string, tag: XmlTag): string => `${tag.start}\n${content}\n${tag.end}`
-
-export const handleError = (error: Error, message: string): string => {
-	const errorMsg = `Error ${message}: ${error.message}`
-	if (error instanceof Error) {
-		vscode.window.showErrorMessage(errorMsg)
-	}
-	return errorMsg
-}
-
-// File utilities
-export async function getFileOrFolderContent(mentionPath: string, cwd: string, osInfo: string): Promise<string> {
+async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise<string> {
 	const absPath = path.resolve(cwd, mentionPath)
 
 	try {
@@ -99,7 +177,7 @@ export async function getFileOrFolderContent(mentionPath: string, cwd: string, o
 									return undefined
 								}
 								const content = await extractTextFromFile(absoluteFilePath)
-								return `<file_content path="${filePath}">\n${content}\n</file_content>`
+								return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
 							} catch (error) {
 								return undefined
 							}
@@ -121,8 +199,7 @@ export async function getFileOrFolderContent(mentionPath: string, cwd: string, o
 	}
 }
 
-// Workspace utilities
-export async function getWorkspaceProblems(cwd: string): Promise<string> {
+async function getWorkspaceProblems(cwd: string): Promise<string> {
 	const diagnostics = vscode.languages.getDiagnostics()
 	const result = await diagnosticsToProblemsString(
 		diagnostics,
@@ -133,194 +210,4 @@ export async function getWorkspaceProblems(cwd: string): Promise<string> {
 		return "No errors or warnings detected."
 	}
 	return result
-}
-
-// Handler implementations
-const urlHandler: HandlerConfig = {
-	name: "url",
-	test: (mention: string) => mention.startsWith("http"),
-	handler: async (mention, { urlContentFetcher, launchBrowserError }) => {
-		const tag = createXmlTag("url_content", { url: mention })
-		let content: string
-
-		if (launchBrowserError) {
-			content = handleError(launchBrowserError, "fetching content")
-		} else {
-			try {
-				content = await urlContentFetcher.urlToMarkdown(mention)
-			} catch (error) {
-				content = handleError(error, `fetching content for ${mention}`)
-			}
-		}
-		return wrapContent(content, tag)
-	},
-}
-
-const fileHandler: HandlerConfig = {
-	name: "file",
-	test: (mention: string, { osInfo }) => (osInfo !== "win32" ? mention.startsWith("/") : mention.startsWith("\\")),
-	handler: async (mention, { cwd, osInfo }) => {
-		let mentionPath = mention.slice(1)
-		const isFolder = osInfo === "win32" ? mention.endsWith("\\") : mention.endsWith("/")
-		const tag = createXmlTag(isFolder ? "folder_content" : "file_content", { path: mentionPath })
-
-		if (mentionPath.includes(" ")) {
-			let escapedSpace = osInfo === "win32" ? "/ " : "\\ "
-			mentionPath = mentionPath.replaceAll(escapedSpace, " ")
-		}
-
-		try {
-			const content = await getFileOrFolderContent(mentionPath, cwd, osInfo)
-			return wrapContent(content, tag)
-		} catch (error) {
-			return wrapContent(handleError(error, "fetching content"), tag)
-		}
-	},
-}
-
-const problemsHandler: HandlerConfig = {
-	name: "problems",
-	test: (mention: string) => mention === "problems",
-	handler: async (mention, { cwd }) => {
-		const tag = createXmlTag("workspace_diagnostics")
-		try {
-			const problems = await getWorkspaceProblems(cwd)
-			return wrapContent(problems, tag)
-		} catch (error) {
-			return wrapContent(handleError(error, "fetching diagnostics"), tag)
-		}
-	},
-}
-
-const gitChangesHandler: HandlerConfig = {
-	name: "git-changes",
-	test: (mention: string) => mention === "git-changes",
-	handler: async (mention, { cwd }) => {
-		const tag = createXmlTag("git_working_state")
-		try {
-			const workingState = await getWorkingState(cwd)
-			return wrapContent(workingState, tag)
-		} catch (error) {
-			return wrapContent(handleError(error, "fetching working state"), tag)
-		}
-	},
-}
-
-const commitHandler: HandlerConfig = {
-	name: "commit",
-	test: (mention: string) => /^[a-f0-9]{7,40}$/.test(mention),
-	handler: async (mention, { cwd }) => {
-		const tag = createXmlTag("git_commit", { hash: mention })
-		try {
-			const commitInfo = await getCommitInfo(mention, cwd)
-			return wrapContent(commitInfo, tag)
-		} catch (error) {
-			return wrapContent(handleError(error, "fetching commit info"), tag)
-		}
-	},
-}
-
-const terminalHandler: HandlerConfig = {
-	name: "terminal",
-	test: (mention: string) => mention === "terminal",
-	handler: async (mention) => {
-		const tag = createXmlTag("terminal_output")
-		try {
-			const terminalOutput = await getLatestTerminalOutput()
-			return wrapContent(terminalOutput, tag)
-		} catch (error) {
-			return wrapContent(handleError(error, "fetching terminal output"), tag)
-		}
-	},
-}
-
-// Define handlers array
-const handlers: HandlerConfig[] = [
-	urlHandler,
-	fileHandler,
-	problemsHandler,
-	gitChangesHandler,
-	commitHandler,
-	terminalHandler,
-]
-
-export async function parseMentions(
-	text: string,
-	cwd: string,
-	urlContentFetcher: UrlContentFetcher,
-	osInfo: string = "unix",
-): Promise<string> {
-	const mentions: Set<string> = new Set()
-	let parsedText = text.replace(mentionRegexGlobal, (match, mention) => {
-		mentions.add(mention)
-		if (mention.startsWith("http")) {
-			return `'${mention}' (see below for site content)`
-		}
-
-		if (
-			(osInfo !== "win32" && osInfo !== undefined && mention.startsWith("/")) ||
-			(osInfo === "win32" && mention.startsWith("\\"))
-		) {
-			const mentionPath = mention.slice(1)
-			return mentionPath.endsWith("/") || mentionPath.endsWith("\\")
-				? `'${mentionPath}' (see below for folder content)`
-				: `'${mentionPath}' (see below for file content)`
-		}
-
-		if (mention === "problems") {
-			return `Workspace Problems (see below for diagnostics)`
-		}
-		if (mention === "git-changes") {
-			return `Working directory changes (see below for details)`
-		}
-		if (/^[a-f0-9]{7,40}$/.test(mention)) {
-			return `Git commit '${mention}' (see below for commit info)`
-		}
-
-		if (mention === "terminal") {
-			return `Terminal Output (see below for output)`
-		}
-		return match
-	})
-
-	const urlMention = Array.from(mentions).find((mention) => mention.startsWith("http"))
-	let launchBrowserError: Error | undefined
-	if (urlMention) {
-		try {
-			await urlContentFetcher.launchBrowser()
-		} catch (error) {
-			launchBrowserError = error
-			vscode.window.showErrorMessage(`Error fetching content for ${urlMention}: ${error.message}`)
-		}
-	}
-
-	const context: MentionContext = {
-		cwd,
-		urlContentFetcher,
-		launchBrowserError,
-		osInfo,
-	}
-
-	const mentionResults = await Promise.all(
-		Array.from(mentions).map(async (mention) => {
-			for (const handler of handlers) {
-				if (handler.test(mention, context)) {
-					return handler.handler(mention, context)
-				}
-			}
-			return ""
-		}),
-	)
-
-	parsedText += mentionResults.join("")
-
-	if (urlMention) {
-		try {
-			await urlContentFetcher.closeBrowser()
-		} catch (error) {
-			console.error(`Error closing browser: ${error.message}`)
-		}
-	}
-
-	return parsedText
 }

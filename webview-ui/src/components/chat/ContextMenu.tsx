@@ -19,7 +19,6 @@ interface ContextMenuProps {
 	modes?: ModeConfig[]
 	loading?: boolean // New loading prop
 	dynamicSearchResults?: SearchResult[] // New dynamic search results prop
-	os?: string
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -33,13 +32,12 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	modes,
 	loading = false,
 	dynamicSearchResults = [],
-	os,
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
 
 	const filteredOptions = useMemo(() => {
-		return getContextMenuOptions(searchQuery, selectedType, queryItems, dynamicSearchResults, modes, os)
-	}, [searchQuery, selectedType, queryItems, dynamicSearchResults, modes, os])
+		return getContextMenuOptions(searchQuery, selectedType, queryItems, dynamicSearchResults, modes)
+	}, [searchQuery, selectedType, queryItems, dynamicSearchResults, modes])
 
 	useEffect(() => {
 		if (menuRef.current) {
@@ -113,8 +111,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 				if (option.value) {
 					return (
 						<>
-							{/* check os === window to add the leading slash	 */}
-							<span>{os === "win32" ? "\\" : "/"}</span>
+							<span>/</span>
 							{option.value?.startsWith("/.") && <span>.</span>}
 							<span
 								style={{

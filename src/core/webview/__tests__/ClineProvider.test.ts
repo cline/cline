@@ -388,7 +388,6 @@ describe("ClineProvider", () => {
 
 		const mockState: ExtensionState = {
 			version: "1.0.0",
-			osInfo: "unix",
 			clineMessages: [],
 			taskHistory: [],
 			shouldShowAnnouncement: false,

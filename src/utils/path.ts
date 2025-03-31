@@ -1,7 +1,6 @@
 import * as path from "path"
 import os from "os"
 import * as vscode from "vscode"
-import { formatPath } from "../shared/formatPath"
 
 /*
 The Node.js 'path' module resolves and normalizes paths differently depending on the platform:
@@ -103,17 +102,8 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 }
 
 export const toRelativePath = (filePath: string, cwd: string) => {
-	// Get the relative path
-	const relativePath = path.relative(cwd, filePath)
-
-	// Add trailing slash if the original path had one
-	const pathWithTrailingSlash =
-		filePath.endsWith("/") || filePath.endsWith("\\")
-			? relativePath + (process.platform === "win32" ? "\\" : "/")
-			: relativePath
-
-	// Format the path based on OS and handle spaces
-	return formatPath(pathWithTrailingSlash, process.platform)
+	const relativePath = path.relative(cwd, filePath).toPosix()
+	return filePath.endsWith("/") ? relativePath + "/" : relativePath
 }
 
 export const getWorkspacePath = (defaultCwdPath = "") => {

@@ -118,7 +118,6 @@ export const mergeExtensionState = (prevState: ExtensionState, newState: Extensi
 export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
-		osInfo: "",
 		clineMessages: [],
 		taskHistory: [],
 		shouldShowAnnouncement: false,

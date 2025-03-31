@@ -467,10 +467,7 @@ export const webviewMessageHandler = async (provider: ClineProvider, message: We
 			openFile(message.text!, message.values as { create?: boolean; content?: string })
 			break
 		case "openMention":
-			{
-				const { osInfo } = (await provider.getState()) || {}
-				openMention(message.text, osInfo)
-			}
+			openMention(message.text)
 			break
 		case "checkpointDiff":
 			const result = checkoutDiffPayloadSchema.safeParse(message.payload)
