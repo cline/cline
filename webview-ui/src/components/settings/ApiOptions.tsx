@@ -1702,6 +1702,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedModelId: apiConfiguration?.lmStudioModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
+		case "requesty":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.requestyModelId || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
 		case "vscode-lm":
 			return {
 				selectedProvider: provider,
