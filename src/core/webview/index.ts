@@ -5,6 +5,7 @@ import { getUri } from "./getUri"
 import { getTheme } from "../../integrations/theme/getTheme"
 import { Controller } from "../controller"
 import { findLast } from "../../shared/array"
+import { BrowserSession } from "../../services/browser/BrowserSession"
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
@@ -68,9 +69,8 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		// Listen for when the panel becomes visible
 		// https://github.com/microsoft/vscode-discussions/discussions/840
 		if ("onDidChangeViewState" in webviewView) {
-			// WebviewView and WebviewPanel have all the same properties except for this visibility listener
-			// panel
-			webviewView.onDidChangeViewState(
+			// WebviewPanel
+			;(webviewView as vscode.WebviewPanel).onDidChangeViewState(
 				() => {
 					if (this.view?.visible) {
 						this.controller.postMessageToWebview({
@@ -83,8 +83,8 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 				this.disposables,
 			)
 		} else if ("onDidChangeVisibility" in webviewView) {
-			// sidebar
-			webviewView.onDidChangeVisibility(
+			// WebviewView (sidebar)
+			;(webviewView as vscode.WebviewView).onDidChangeVisibility(
 				() => {
 					if (this.view?.visible) {
 						this.controller.postMessageToWebview({
