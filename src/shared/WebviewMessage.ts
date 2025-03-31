@@ -45,6 +45,7 @@ export interface WebviewMessage {
 		| "getLatestState"
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
+		| "showAccountViewClicked"
 		| "authStateChanged"
 		| "authCallback"
 		| "fetchMcpMarketplace"
@@ -61,8 +62,10 @@ export interface WebviewMessage {
 		| "invoke"
 		| "updateSettings"
 		| "clearAllTaskHistory"
+		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
+		| "taskFeedback"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -79,7 +82,7 @@ export interface WebviewMessage {
 	timeout?: number
 	// For toggleToolAutoApprove
 	serverName?: string
-	toolName?: string
+	toolNames?: string[]
 	autoApprove?: boolean
 
 	// For auth
@@ -90,8 +93,12 @@ export interface WebviewMessage {
 	planActSeparateModelsSetting?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
+	// For task feedback
+	feedbackType?: TaskFeedbackType
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
 
 export type ClineCheckpointRestore = "task" | "workspace" | "taskAndWorkspace"
+
+export type TaskFeedbackType = "thumbs_up" | "thumbs_down"
