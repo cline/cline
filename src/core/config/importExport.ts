@@ -30,15 +30,27 @@ export const importSettings = async ({ providerSettingsManager, contextProxy }: 
 	})
 
 	try {
-		const { providerProfiles, globalSettings } = schema.parse(
+		const previousProviderProfiles = await providerSettingsManager.export()
+
+		const { providerProfiles: newProviderProfiles, globalSettings } = schema.parse(
 			JSON.parse(await fs.readFile(uris[0].fsPath, "utf-8")),
 		)
 
-		const previousProviderProfiles = await providerSettingsManager.export()
+		const providerProfiles = {
+			currentApiConfigName: newProviderProfiles.currentApiConfigName,
+			apiConfigs: {
+				...previousProviderProfiles.apiConfigs,
+				...newProviderProfiles.apiConfigs,
+			},
+			modeApiConfigs: {
+				...previousProviderProfiles.modeApiConfigs,
+				...newProviderProfiles.modeApiConfigs,
+			},
+		}
+
+		await providerSettingsManager.import(newProviderProfiles)
 
 		await contextProxy.setValues(globalSettings)
-		await providerSettingsManager.import({ ...previousProviderProfiles, ...providerProfiles })
-
 		contextProxy.setValue("currentApiConfigName", providerProfiles.currentApiConfigName)
 		contextProxy.setValue("listApiConfigMeta", await providerSettingsManager.listConfig())
 
