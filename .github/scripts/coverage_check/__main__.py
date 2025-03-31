@@ -23,27 +23,30 @@ def setup_verbose_mode(args):
         log("Verbose mode enabled")
 
 def main():
-    # Create main parser
-    parser = argparse.ArgumentParser(description='Coverage utility script for GitHub Actions workflows')
-    parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
+    # Create parent parser with common arguments
+    parent_parser = argparse.ArgumentParser(add_help=False)
+    parent_parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
+
+    # Create main parser that inherits common arguments
+    parser = argparse.ArgumentParser(description='Coverage utility script for GitHub Actions workflows', parents=[parent_parser])
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
     
     # extract-coverage command - used directly in workflow
-    extract_parser = subparsers.add_parser('extract-coverage', help='Extract coverage percentage from a file')
+    extract_parser = subparsers.add_parser('extract-coverage', help='Extract coverage percentage from a file', parents=[parent_parser])
     extract_parser.add_argument('file_path', help='Path to the coverage report file')
     extract_parser.add_argument('--type', choices=['extension', 'webview'], default='extension',
                                help='Type of coverage report')
     extract_parser.add_argument('--github-output', action='store_true', help='Output in GitHub Actions format')
     
     # compare-coverage command - used by process-workflow
-    compare_parser = subparsers.add_parser('compare-coverage', help='Compare coverage percentages')
+    compare_parser = subparsers.add_parser('compare-coverage', help='Compare coverage percentages', parents=[parent_parser])
     compare_parser.add_argument('base_cov', help='Base branch coverage percentage')
     compare_parser.add_argument('pr_cov', help='PR branch coverage percentage')
     compare_parser.add_argument('--output-prefix', default='', help='Prefix for GitHub Actions output variables')
     compare_parser.add_argument('--github-output', action='store_true', help='Output in GitHub Actions format')
     
     # generate-comment command - used by process-workflow
-    comment_parser = subparsers.add_parser('generate-comment', help='Generate PR comment with coverage comparison')
+    comment_parser = subparsers.add_parser('generate-comment', help='Generate PR comment with coverage comparison', parents=[parent_parser])
     comment_parser.add_argument('base_ext_cov', help='Base branch extension coverage')
     comment_parser.add_argument('pr_ext_cov', help='PR branch extension coverage')
     comment_parser.add_argument('ext_decreased', help='Whether extension coverage decreased (true/false)')
@@ -54,14 +57,14 @@ def main():
     comment_parser.add_argument('web_diff', help='Webview coverage difference')
     
     # post-comment command - used by process-workflow
-    post_parser = subparsers.add_parser('post-comment', help='Post a comment to a GitHub PR')
+    post_parser = subparsers.add_parser('post-comment', help='Post a comment to a GitHub PR', parents=[parent_parser])
     post_parser.add_argument('comment_path', help='Path to the file containing the comment text')
     post_parser.add_argument('pr_number', help='PR number')
     post_parser.add_argument('repo', help='Repository in the format "owner/repo"')
     post_parser.add_argument('--token', help='GitHub token')
     
     # run-coverage command - used by process-workflow
-    run_parser = subparsers.add_parser('run-coverage', help='Run a coverage command and extract the coverage percentage')
+    run_parser = subparsers.add_parser('run-coverage', help='Run a coverage command and extract the coverage percentage', parents=[parent_parser])
     run_parser.add_argument('coverage_cmd', help='Command to run')
     run_parser.add_argument('output_file', help='File to save the output to')
     run_parser.add_argument('--type', choices=['extension', 'webview'], default='extension',
@@ -69,14 +72,14 @@ def main():
     run_parser.add_argument('--github-output', action='store_true', help='Output in GitHub Actions format')
     
     # process-workflow command - used directly in workflow
-    workflow_parser = subparsers.add_parser('process-workflow', help='Process the entire coverage workflow')
+    workflow_parser = subparsers.add_parser('process-workflow', help='Process the entire coverage workflow', parents=[parent_parser])
     workflow_parser.add_argument('--base-branch', required=True, help='Base branch name')
     workflow_parser.add_argument('--pr-number', help='PR number')
     workflow_parser.add_argument('--repo', help='Repository in the format "owner/repo"')
     workflow_parser.add_argument('--token', help='GitHub token')
     
     # set-github-output command - used by process-workflow
-    output_parser = subparsers.add_parser('set-github-output', help='Set GitHub Actions output variable')
+    output_parser = subparsers.add_parser('set-github-output', help='Set GitHub Actions output variable', parents=[parent_parser])
     output_parser.add_argument('name', help='Output variable name')
     output_parser.add_argument('value', help='Output variable value')
     
