@@ -547,7 +547,9 @@ export class ContextManager {
 			// looping over the outer indicies of messages
 			const message = apiMessages[i]
 
-			if (!message.content) continue
+			if (!message.content) {
+				continue
+			}
 
 			// `hasExistingAlterations` will also include the alterations we just made
 			const hasExistingAlterations = this.contextHistoryUpdates.has(i)
