@@ -234,7 +234,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 	): ApiStream {
 		if (this.options.openAiStreamingEnabled ?? true) {
 			const stream = await this.client.chat.completions.create({
-				model: "o3-mini",
+				model: modelId,
 				messages: [
 					{
 						role: "developer",
