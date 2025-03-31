@@ -252,37 +252,37 @@ export class McpHub {
 			this.connections.push(connection)
 
 			if (config.transportType === "stdio") {
-      
 				// transport.stderr is only available after the process has been started. However we can't start it separately from the .connect() call because it also starts the transport. And we can't place this after the connect call since we need to capture the stderr stream before the connection is established, in order to capture errors during the connection process.
-					// As a workaround, we start the transport ourselves, and then monkey-patch the start method to no-op so that .connect() doesn't try to start it again.
+				// As a workaround, we start the transport ourselves, and then monkey-patch the start method to no-op so that .connect() doesn't try to start it again.
 				await transport.start()
-					const stderrStream = (transport as StdioClientTransport).stderr
-					if (stderrStream) {
-						stderrStream.on("data", async (data: Buffer) => {
-							const output = data.toString()
-							// Check if output contains INFO level log
-							const isInfoLog = /INFO/i.test(output)
-		
-							if (isInfoLog) {
-								// Log normal informational messages
-								console.log(`Server "${name}" info:`, output)
-							} else {
-								// Treat as error log
-								console.error(`Server "${name}" stderr:`, output)
-								const connection = this.connections.find((conn) => conn.server.name === name)
-								if (connection) {
-									this.appendErrorMessage(connection, output)
-									// Only notify webview if server is already disconnected
-									if (connection.server.status === "disconnected") {
-										await this.notifyWebviewOfServerChanges()
-									}
-								}
-							}})
+				const stderrStream = (transport as StdioClientTransport).stderr
+				if (stderrStream) {
+					stderrStream.on("data", async (data: Buffer) => {
+						const output = data.toString()
+						// Check if output contains INFO level log
+						const isInfoLog = /INFO/i.test(output)
+
+						if (isInfoLog) {
+							// Log normal informational messages
+							console.log(`Server "${name}" info:`, output)
 						} else {
-							console.error(`No stderr stream for ${name}`)
+							// Treat as error log
+							console.error(`Server "${name}" stderr:`, output)
+							const connection = this.connections.find((conn) => conn.server.name === name)
+							if (connection) {
+								this.appendErrorMessage(connection, output)
+								// Only notify webview if server is already disconnected
+								if (connection.server.status === "disconnected") {
+									await this.notifyWebviewOfServerChanges()
+								}
+							}
 						}
-						transport.start = async () => {} // No-op now, .connect() won't fail
-					}
+					})
+				} else {
+					console.error(`No stderr stream for ${name}`)
+				}
+				transport.start = async () => {} // No-op now, .connect() won't fail
+			}
 
 			// Connect
 			await client.connect(transport)
