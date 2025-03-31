@@ -2,15 +2,20 @@ import React, { useState, useEffect } from "react"
 import styled from "styled-components"
 import { vscode } from "../../utils/vscode"
 import { TaskFeedbackType } from "../../../../src/shared/WebviewMessage"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import VSCodeButtonLink from "../common/VSCodeButtonLink"
 
 interface TaskFeedbackButtonsProps {
 	messageTs: number
-	isFromHistory?: boolean // New prop to indicate if this is from history
+	isFromHistory?: boolean
 }
+
+const IconWrapper = styled.span`
+	color: var(--vscode-descriptionForeground);
+`
 
 const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, isFromHistory = false }) => {
 	const [feedback, setFeedback] = useState<TaskFeedbackType | null>(null)
-	const [isAnimating, setIsAnimating] = useState(false)
 	const [shouldShow, setShouldShow] = useState<boolean>(true)
 
 	// Check localStorage on mount to see if feedback was already given for this message
@@ -36,7 +41,6 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 		if (feedback !== null) return // Already provided feedback
 
 		setFeedback(type)
-		setIsAnimating(true)
 
 		// Send feedback to extension
 		vscode.postMessage({
@@ -53,33 +57,42 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 		} catch (e) {
 			console.error("Error updating feedback history:", e)
 		}
-
-		// Reset animation after a delay
-		setTimeout(() => {
-			setIsAnimating(false)
-		}, 1000)
 	}
 
 	return (
 		<Container>
-			<FeedbackText>Did I successfully complete your task?</FeedbackText>
 			<ButtonsContainer>
-				<FeedbackButton
+				<VSCodeButton
+					appearance="icon"
 					onClick={() => handleFeedback("thumbs_up")}
 					disabled={feedback !== null}
-					selected={feedback === "thumbs_up"}
-					animate={isAnimating && feedback === "thumbs_up"}
-					title="Yes, this was helpful">
-					<span className="codicon codicon-thumbsup" />
-				</FeedbackButton>
-				<FeedbackButton
+					title="This was helpful"
+					aria-label="This was helpful">
+					<IconWrapper>
+						<span
+							className={`codicon ${feedback === "thumbs_up" ? "codicon-thumbsup-filled" : "codicon-thumbsup"}`}
+						/>
+					</IconWrapper>
+				</VSCodeButton>
+				<VSCodeButton
+					appearance="icon"
 					onClick={() => handleFeedback("thumbs_down")}
 					disabled={feedback !== null && feedback !== "thumbs_down"}
-					selected={feedback === "thumbs_down"}
-					animate={isAnimating && feedback === "thumbs_down"}
-					title="No, this wasn't helpful">
-					<span className="codicon codicon-thumbsdown" />
-				</FeedbackButton>
+					title="This wasn't helpful"
+					aria-label="This wasn't helpful">
+					<IconWrapper>
+						<span
+							className={`codicon ${feedback === "thumbs_down" ? "codicon-thumbsdown-filled" : "codicon-thumbsdown"}`}
+						/>
+					</IconWrapper>
+				</VSCodeButton>
+				{/* <VSCodeButtonLink
+					href="https://github.com/cline/cline/issues/new?template=bug_report.yml"
+					appearance="icon"
+					title="Report a bug"
+					aria-label="Report a bug">
+					<span className="codicon codicon-bug" />
+				</VSCodeButtonLink> */}
 			</ButtonsContainer>
 		</Container>
 	)
@@ -89,52 +102,12 @@ const Container = styled.div`
 	display: flex;
 	align-items: center;
 	margin-top: 20px;
-	gap: 8px;
-`
-
-const FeedbackText = styled.span`
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
+	justify-content: flex-end;
 `
 
 const ButtonsContainer = styled.div`
 	display: flex;
-	gap: 8px;
-`
-
-interface FeedbackButtonProps {
-	selected: boolean
-	animate: boolean
-}
-
-const FeedbackButton = styled.button<FeedbackButtonProps>`
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 28px;
-	height: 28px;
-	border-radius: 4px;
-	background-color: ${(props) => (props.selected ? "var(--vscode-button-background)" : "transparent")};
-	color: ${(props) => (props.selected ? "var(--vscode-button-foreground)" : "var(--vscode-foreground)")};
-	border: 1px solid ${(props) => (props.selected ? "var(--vscode-button-background)" : "var(--vscode-button-border)")};
-	cursor: ${(props) => (props.disabled ? "default" : "pointer")};
-	opacity: ${(props) => (props.disabled && !props.selected ? "0.5" : "1")};
-	transition: all 0.2s ease;
-	transform: ${(props) => (props.animate ? "scale(1.2)" : "scale(1)")};
-
-	&:hover:not(:disabled) {
-		background-color: ${(props) =>
-			props.selected ? "var(--vscode-button-hoverBackground)" : "var(--vscode-toolbar-hoverBackground)"};
-	}
-
-	&:focus {
-		outline: none;
-		border-color: var(--vscode-focusBorder);
-	}
-
-	.codicon {
-		font-size: 16px;
-	}
+	gap: 4px;
 `
 
 export default TaskFeedbackButtons
