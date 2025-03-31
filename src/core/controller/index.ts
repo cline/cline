@@ -42,7 +42,7 @@ import {
 	storeSecret,
 	updateApiConfiguration,
 	updateGlobalState,
-} from "../state"
+} from "../storage/state"
 import { WebviewProvider } from "../webview"
 
 /*
@@ -256,7 +256,8 @@ export class Controller {
 				if (message.browserSettings) {
 					await updateGlobalState(this.context, "browserSettings", message.browserSettings)
 					if (this.task) {
-						this.task.updateBrowserSettings(message.browserSettings)
+						this.task.browserSettings = message.browserSettings
+						this.task.browserSession.browserSettings = message.browserSettings
 					}
 					await this.postStateToWebview()
 				}
@@ -765,7 +766,7 @@ export class Controller {
 		await this.postStateToWebview()
 
 		if (this.task) {
-			this.task.updateChatSettings(chatSettings)
+			this.task.chatSettings = chatSettings
 			if (this.task.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
