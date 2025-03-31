@@ -9,7 +9,6 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import { buildApiHandler } from "../../api"
-import { GlobalFileNames } from "../../global-constants"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-preview"
@@ -44,6 +43,7 @@ import {
 	updateGlobalState,
 } from "../storage/state"
 import { WebviewProvider } from "../webview"
+import { GlobalFileNames } from "../storage/disk"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts

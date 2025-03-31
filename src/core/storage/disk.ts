@@ -2,9 +2,16 @@ import * as path from "path"
 import * as vscode from "vscode"
 import fs from "fs/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { GlobalFileNames } from "../../global-constants"
 import { fileExistsAtPath } from "../../utils/fs"
 import { ClineMessage } from "../../shared/ExtensionMessage"
+
+export const GlobalFileNames = {
+	apiConversationHistory: "api_conversation_history.json",
+	uiMessages: "ui_messages.json",
+	openRouterModels: "openrouter_models.json",
+	mcpSettings: "cline_mcp_settings.json",
+	clineRules: ".clinerules",
+}
 
 export async function ensureTaskDirectoryExists(context: vscode.ExtensionContext, taskId: string): Promise<string> {
 	const globalStoragePath = context.globalStorageUri.fsPath
