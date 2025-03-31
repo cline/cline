@@ -1,5 +1,30 @@
 # Roo Code Changelog
 
+## [3.11.0] - 2025-03-30
+
+- Replace single-block-diff with multi-block-diff fast editing strategy
+- Support project-level MCP config in .roo/mcp.json (thanks @aheizi!)
+- Show OpenRouter and Requesty key balance on the settings screen
+- Support import/export of settings
+- Add pinning and sorting for API configuration dropdown (thanks @jwcraig!)
+- Add Gemini 2.5 Pro to GCP Vertex AI provider (thanks @nbihan-mediware!)
+- Smarter retry logic for Gemini
+- Fix Gemini command escaping
+- Support @-mentions of files with spaces in the name (thanks @samhvw8!)
+- Improvements to partial file reads (thanks @KJ7LNW!)
+- Fix list_code_definition_names to support files (thanks @KJ7LNW!)
+- Refactor tool-calling logic to make the code a lot easier to work with (thanks @diarmidmackenzie, @bramburn, @KJ7LNW, and everyone else who helped!)
+- Prioritize “Add to Context” in the code actions and include line numbers (thanks @samhvw8!)
+- Add an activation command that other extensions can use to interface with Roo Code (thanks @gtaylor!)
+- Preserve language characters in file @-mentions (thanks @aheizi!)
+- Browser tool improvements (thanks @afshawnlotfi!)
+- Display info about partial reads in the chat row
+- Link to the settings page from the auto-approve toolbar
+- Link to provider docs from the API options
+- Fix switching profiles to ensure only the selected profile is switched (thanks @feifei325!)
+- Allow custom o3-mini-<reasoning> model from OpenAI-compatible providers (thanks @snoyiatk!)
+- Edit suggested answers before accepting them (thanks @samhvw8!)
+
 ## [3.10.5] - 2025-03-25
 
 - Updated value of max tokens for gemini-2.5-pro-03-25 to 65,536 (thanks @linegel!)
