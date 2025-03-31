@@ -31,6 +31,7 @@ import { arePathsEqual } from "../../utils/path"
 import { secondsToMs } from "../../utils/time"
 import { GlobalFileNames } from "../../core/storage/disk"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+import { Logger } from "../logging/Logger"
 
 // Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000
@@ -278,6 +279,7 @@ export class McpHub {
 
 			// Connect
 			await client.connect(transport)
+
 			connection.server.status = "connected"
 			connection.server.error = ""
 
@@ -625,6 +627,46 @@ export class McpHub {
 			console.error("Failed to update autoApprove settings:", error)
 			vscode.window.showErrorMessage("Failed to update autoApprove settings")
 			throw error // Re-throw to ensure the error is properly handled
+		}
+	}
+
+	public async addRemoteServer(serverName: string, serverUrl: string) {
+		try {
+			const settings = await this.readAndValidateMcpSettingsFile()
+			if (!settings) {
+				throw new Error("Failed to read MCP settings")
+			}
+
+			if (settings.mcpServers[serverName]) {
+				throw new Error(`An MCP server with the name "${serverName}" already exists`)
+			}
+
+			const urlValidation = z.string().url().safeParse(serverUrl)
+			if (!urlValidation.success) {
+				throw new Error(`Invalid server URL: ${serverUrl}. Please provide a valid URL.`)
+			}
+
+			const serverConfig = {
+				url: serverUrl,
+				disabled: false,
+				autoApprove: [],
+			}
+
+			settings.mcpServers[serverName] = serverConfig as unknown as McpServerConfig
+			const settingsPath = await this.getMcpSettingsFilePath()
+			await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2))
+
+			await this.updateServerConnections(settings.mcpServers)
+
+			vscode.window.showInformationMessage(`Added and connected to ${serverName} MCP server`)
+		} catch (error) {
+			console.error("Failed to add remote MCP server:", error)
+
+			vscode.window.showErrorMessage(
+				`Failed to add remote MCP server: ${error instanceof Error ? error.message : String(error)}`,
+			)
+
+			throw error
 		}
 	}
 
