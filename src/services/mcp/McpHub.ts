@@ -652,6 +652,10 @@ export class McpHub {
 				autoApprove: [],
 			}
 
+			// TS expects the server config to be a McpServerConfig, but we know it's valid
+			// The issue is that the type is not having the transportType field added to it
+
+			// ToDo: Add input types reflecting the non-transformed version
 			settings.mcpServers[serverName] = serverConfig as unknown as McpServerConfig
 			const settingsPath = await this.getMcpSettingsFilePath()
 			await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2))
