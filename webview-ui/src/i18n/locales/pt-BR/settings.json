@@ -321,7 +321,7 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
-		"DIFF_STRATEGY": {
+		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Usar estratégia diff unificada experimental",
 			"description": "Ativar a estratégia diff unificada experimental. Esta estratégia pode reduzir o número de novas tentativas causadas por erros do modelo, mas pode causar comportamento inesperado ou edições incorretas. Ative apenas se compreender os riscos e estiver disposto a revisar cuidadosamente todas as alterações."
 		},

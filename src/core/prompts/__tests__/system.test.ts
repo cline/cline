@@ -3,11 +3,11 @@ import * as vscode from "vscode"
 import { SYSTEM_PROMPT } from "../system"
 import { McpHub } from "../../../services/mcp/McpHub"
 import { ClineProvider } from "../../../core/webview/ClineProvider"
-import { SearchReplaceDiffStrategy } from "../../../core/diff/strategies/search-replace"
 import { defaultModeSlug, modes, Mode, ModeConfig } from "../../../shared/modes"
 import "../../../utils/path" // Import path utils to get access to toPosix string extension.
 import { addCustomInstructions } from "../sections/custom-instructions"
 import { EXPERIMENT_IDS } from "../../../shared/experiments"
+import { MultiSearchReplaceDiffStrategy } from "../../diff/strategies/multi-search-replace"
 
 // Mock the sections
 jest.mock("../sections/modes", () => ({
@@ -171,7 +171,7 @@ describe("SYSTEM_PROMPT", () => {
 	beforeEach(() => {
 		// Reset experiments before each test to ensure they're disabled by default
 		experiments = {
-			[EXPERIMENT_IDS.DIFF_STRATEGY_SEARCH_AND_REPLACE]: false,
+			[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: false,
 			[EXPERIMENT_IDS.INSERT_BLOCK]: false,
 		}
 	})
@@ -295,7 +295,7 @@ describe("SYSTEM_PROMPT", () => {
 			"/test/path",
 			false, // supportsComputerUse
 			undefined, // mcpHub
-			new SearchReplaceDiffStrategy(), // Use actual diff strategy from the codebase
+			new MultiSearchReplaceDiffStrategy(), // Use actual diff strategy from the codebase
 			undefined, // browserViewportSize
 			defaultModeSlug, // mode
 			undefined, // customModePrompts
@@ -316,7 +316,7 @@ describe("SYSTEM_PROMPT", () => {
 			"/test/path",
 			false, // supportsComputerUse
 			undefined, // mcpHub
-			new SearchReplaceDiffStrategy(), // Use actual diff strategy from the codebase
+			new MultiSearchReplaceDiffStrategy(), // Use actual diff strategy from the codebase
 			undefined, // browserViewportSize
 			defaultModeSlug, // mode
 			undefined, // customModePrompts
@@ -337,7 +337,7 @@ describe("SYSTEM_PROMPT", () => {
 			"/test/path",
 			false, // supportsComputerUse
 			undefined, // mcpHub
-			new SearchReplaceDiffStrategy(), // Use actual diff strategy from the codebase
+			new MultiSearchReplaceDiffStrategy(), // Use actual diff strategy from the codebase
 			undefined, // browserViewportSize
 			defaultModeSlug, // mode
 			undefined, // customModePrompts
@@ -482,7 +482,7 @@ describe("SYSTEM_PROMPT", () => {
 		it("should disable experimental tools by default", async () => {
 			// Set experiments to explicitly disable experimental tools
 			const experimentsConfig = {
-				[EXPERIMENT_IDS.DIFF_STRATEGY_SEARCH_AND_REPLACE]: false,
+				[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: false,
 				[EXPERIMENT_IDS.INSERT_BLOCK]: false,
 			}
 
@@ -516,7 +516,7 @@ describe("SYSTEM_PROMPT", () => {
 		it("should enable experimental tools when explicitly enabled", async () => {
 			// Set experiments for testing experimental features
 			const experimentsEnabled = {
-				[EXPERIMENT_IDS.DIFF_STRATEGY_SEARCH_AND_REPLACE]: true,
+				[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: true,
 				[EXPERIMENT_IDS.INSERT_BLOCK]: true,
 			}
 
@@ -552,7 +552,7 @@ describe("SYSTEM_PROMPT", () => {
 		it("should selectively enable experimental tools", async () => {
 			// Set experiments for testing selective enabling
 			const experimentsSelective = {
-				[EXPERIMENT_IDS.DIFF_STRATEGY_SEARCH_AND_REPLACE]: true,
+				[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: true,
 				[EXPERIMENT_IDS.INSERT_BLOCK]: false,
 			}
 
@@ -587,7 +587,7 @@ describe("SYSTEM_PROMPT", () => {
 
 		it("should list all available editing tools in base instruction", async () => {
 			const experiments = {
-				[EXPERIMENT_IDS.DIFF_STRATEGY_SEARCH_AND_REPLACE]: true,
+				[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: true,
 				[EXPERIMENT_IDS.INSERT_BLOCK]: true,
 			}
 
@@ -596,7 +596,7 @@ describe("SYSTEM_PROMPT", () => {
 				"/test/path",
 				false,
 				undefined,
-				new SearchReplaceDiffStrategy(),
+				new MultiSearchReplaceDiffStrategy(),
 				undefined,
 				defaultModeSlug,
 				undefined,
@@ -615,7 +615,7 @@ describe("SYSTEM_PROMPT", () => {
 		})
 		it("should provide detailed instructions for each enabled tool", async () => {
 			const experiments = {
-				[EXPERIMENT_IDS.DIFF_STRATEGY_SEARCH_AND_REPLACE]: true,
+				[EXPERIMENT_IDS.SEARCH_AND_REPLACE]: true,
 				[EXPERIMENT_IDS.INSERT_BLOCK]: true,
 			}
 
@@ -624,7 +624,7 @@ describe("SYSTEM_PROMPT", () => {
 				"/test/path",
 				false,
 				undefined,
-				new SearchReplaceDiffStrategy(),
+				new MultiSearchReplaceDiffStrategy(),
 				undefined,
 				defaultModeSlug,
 				undefined,

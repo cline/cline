@@ -321,7 +321,7 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
-		"DIFF_STRATEGY": {
+		"DIFF_STRATEGY_UNIFIED": {
 			"name": "使用实验性统一差异策略",
 			"description": "启用实验性统一差异策略。此策略可能减少由模型错误引起的重试次数，但可能导致意外行为或不正确的编辑。仅在您了解风险并愿意仔细审查所有更改时才启用。"
 		},

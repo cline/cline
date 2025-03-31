@@ -321,7 +321,7 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
-		"DIFF_STRATEGY": {
+		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Usa strategia diff unificata sperimentale",
 			"description": "Abilita la strategia diff unificata sperimentale. Questa strategia potrebbe ridurre il numero di tentativi causati da errori del modello, ma può causare comportamenti imprevisti o modifiche errate. Abilitala solo se comprendi i rischi e sei disposto a rivedere attentamente tutte le modifiche."
 		},

@@ -321,7 +321,7 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
-		"DIFF_STRATEGY": {
+		"DIFF_STRATEGY_UNIFIED": {
 			"name": "使用實驗性統一 diff 策略",
 			"description": "此實驗性策略可能減少模型錯誤導致的重試次數，但需謹慎使用"
 		},

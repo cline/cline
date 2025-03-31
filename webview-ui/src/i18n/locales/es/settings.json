@@ -321,7 +321,7 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
-		"DIFF_STRATEGY": {
+		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Usar estrategia de diff unificada experimental",
 			"description": "Habilitar la estrategia de diff unificada experimental. Esta estrategia podría reducir el número de reintentos causados por errores del modelo, pero puede causar comportamientos inesperados o ediciones incorrectas. Habilítela solo si comprende los riesgos y está dispuesto a revisar cuidadosamente todos los cambios."
 		},

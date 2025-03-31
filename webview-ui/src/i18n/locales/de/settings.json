@@ -321,7 +321,7 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
-		"DIFF_STRATEGY": {
+		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Experimentelle einheitliche Diff-Strategie verwenden",
 			"description": "Aktiviert die experimentelle einheitliche Diff-Strategie. Diese Strategie könnte die Anzahl der durch Modellfehler verursachten Wiederholungen reduzieren, kann aber unerwartetes Verhalten oder falsche Bearbeitungen verursachen. Nur aktivieren, wenn du die Risiken verstehst und bereit bist, alle Änderungen sorgfältig zu überprüfen."
 		},

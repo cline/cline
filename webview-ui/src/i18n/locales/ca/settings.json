@@ -321,7 +321,7 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
-		"DIFF_STRATEGY": {
+		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Utilitzar estratègia diff unificada experimental",
 			"description": "Activar l'estratègia diff unificada experimental. Aquesta estratègia podria reduir el nombre de reintents causats per errors del model, però pot causar comportaments inesperats o edicions incorrectes. Activeu-la només si enteneu els riscos i esteu disposats a revisar acuradament tots els canvis."
 		},

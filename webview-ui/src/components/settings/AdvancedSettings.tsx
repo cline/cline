@@ -6,7 +6,7 @@ import { Cog } from "lucide-react"
 import { EXPERIMENT_IDS, ExperimentId } from "../../../../src/shared/experiments"
 
 import { cn } from "@/lib/utils"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from "@/components/ui"
+import { Slider } from "@/components/ui"
 
 import { SetCachedStateField, SetExperimentEnabled } from "./types"
 import { SectionHeader } from "./SectionHeader"
@@ -67,9 +67,8 @@ export const AdvancedSettings = ({
 						onChange={(e: any) => {
 							setCachedStateField("diffEnabled", e.target.checked)
 							if (!e.target.checked) {
-								// Reset both experimental strategies when diffs are disabled.
+								// Reset experimental strategies when diffs are disabled.
 								setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED, false)
-								setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE, false)
 							}
 						}}>
 						<span className="font-medium">{t("settings:advanced.diff.label")}</span>
@@ -81,63 +80,6 @@ export const AdvancedSettings = ({
 
 				{diffEnabled && (
 					<div className="flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
-						<div>
-							<label className="block font-medium mb-1">
-								{t("settings:advanced.diff.strategy.label")}
-							</label>
-							<Select
-								value={
-									experiments[EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED]
-										? "unified"
-										: experiments[EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE]
-											? "multiBlock"
-											: "standard"
-								}
-								onValueChange={(value) => {
-									if (value === "standard") {
-										setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED, false)
-										setExperimentEnabled(
-											EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE,
-											false,
-										)
-									} else if (value === "unified") {
-										setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED, true)
-										setExperimentEnabled(
-											EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE,
-											false,
-										)
-									} else if (value === "multiBlock") {
-										setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED, false)
-										setExperimentEnabled(
-											EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE,
-											true,
-										)
-									}
-								}}>
-								<SelectTrigger className="w-full">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="standard">
-										{t("settings:advanced.diff.strategy.options.standard")}
-									</SelectItem>
-									<SelectItem value="multiBlock">
-										{t("settings:advanced.diff.strategy.options.multiBlock")}
-									</SelectItem>
-									<SelectItem value="unified">
-										{t("settings:advanced.diff.strategy.options.unified")}
-									</SelectItem>
-								</SelectContent>
-							</Select>
-							<div className="text-vscode-descriptionForeground text-sm mt-1">
-								{experiments[EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED]
-									? t("settings:advanced.diff.strategy.descriptions.unified")
-									: experiments[EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE]
-										? t("settings:advanced.diff.strategy.descriptions.multiBlock")
-										: t("settings:advanced.diff.strategy.descriptions.standard")}
-							</div>
-						</div>
-
 						<div>
 							<label className="block font-medium mb-1">
 								{t("settings:advanced.diff.matchPrecision.label")}

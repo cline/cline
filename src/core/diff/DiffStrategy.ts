@@ -1,5 +1,4 @@
 import type { DiffStrategy } from "./types"
-import { SearchReplaceDiffStrategy } from "./strategies/search-replace"
 import { NewUnifiedDiffStrategy } from "./strategies/new-unified"
 import { MultiSearchReplaceDiffStrategy } from "./strategies/multi-search-replace"
 import { EXPERIMENT_IDS, ExperimentId } from "../../shared/experiments"
@@ -12,7 +11,7 @@ export type { DiffStrategy }
  * @returns The appropriate diff strategy for the model
  */
 
-export type DiffStrategyName = "unified" | "multi-search-and-replace" | "search-and-replace"
+export type DiffStrategyName = "unified" | "multi-search-and-replace"
 
 type GetDiffStrategyOptions = {
 	model: string
@@ -23,6 +22,4 @@ type GetDiffStrategyOptions = {
 export const getDiffStrategy = ({ fuzzyMatchThreshold, experiments }: GetDiffStrategyOptions): DiffStrategy =>
 	experiments[EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED]
 		? new NewUnifiedDiffStrategy(fuzzyMatchThreshold)
-		: experiments[EXPERIMENT_IDS.DIFF_STRATEGY_MULTI_SEARCH_AND_REPLACE]
-			? new MultiSearchReplaceDiffStrategy(fuzzyMatchThreshold)
-			: new SearchReplaceDiffStrategy(fuzzyMatchThreshold)
+		: new MultiSearchReplaceDiffStrategy(fuzzyMatchThreshold)

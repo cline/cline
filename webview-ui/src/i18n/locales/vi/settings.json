@@ -321,7 +321,7 @@
 	},
 	"experimental": {
 		"warning": "⚠️",
-		"DIFF_STRATEGY": {
+		"DIFF_STRATEGY_UNIFIED": {
 			"name": "Sử dụng chiến lược diff thống nhất thử nghiệm",
 			"description": "Bật chiến lược diff thống nhất thử nghiệm. Chiến lược này có thể giảm số lần thử lại do lỗi mô hình nhưng có thể gây ra hành vi không mong muốn hoặc chỉnh sửa không chính xác. Chỉ bật nếu bạn hiểu rõ các rủi ro và sẵn sàng xem xét cẩn thận tất cả các thay đổi."
 		},
