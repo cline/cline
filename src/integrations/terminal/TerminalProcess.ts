@@ -71,7 +71,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					// remove ansi
 					data = stripAnsi(data)
 					// Split data by newlines
-					let lines = data ? data.split("\n") : []
+					const lines = data ? data.split("\n") : []
 					// Remove non-human readable characters from the first line
 					if (lines.length > 0) {
 						lines[0] = lines[0].replace(/[^\x20-\x7E]/g, "")

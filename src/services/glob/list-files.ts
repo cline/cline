@@ -68,8 +68,8 @@ Breadth-first traversal of directory structure level by level up to a limit:
    - Timeout mechanism prevents infinite loops
 */
 async function globbyLevelByLevel(limit: number, options?: Options) {
-	let results: Set<string> = new Set()
-	let queue: string[] = ["*"]
+	const results: Set<string> = new Set()
+	const queue: string[] = ["*"]
 
 	const globbingProcess = async () => {
 		while (queue.length > 0 && results.size < limit) {

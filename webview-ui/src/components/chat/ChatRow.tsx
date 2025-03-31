@@ -30,6 +30,7 @@ import CreditLimitError from "./CreditLimitError"
 import { OptionsButtons } from "./OptionsButtons"
 import { highlightMentions } from "./TaskHeader"
 import SuccessButton from "../common/SuccessButton"
+import TaskFeedbackButtons from "./TaskFeedbackButtons"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -1000,6 +1001,17 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								}}>
 								{icon}
 								{title}
+								<TaskFeedbackButtons
+									messageTs={message.ts}
+									isFromHistory={
+										!isLast ||
+										lastModifiedMessage?.ask === "resume_completed_task" ||
+										lastModifiedMessage?.ask === "resume_task"
+									}
+									style={{
+										marginLeft: "auto",
+									}}
+								/>
 							</div>
 							<div
 								style={{
@@ -1142,6 +1154,17 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									}}>
 									{icon}
 									{title}
+									<TaskFeedbackButtons
+										messageTs={message.ts}
+										isFromHistory={
+											!isLast ||
+											lastModifiedMessage?.ask === "resume_completed_task" ||
+											lastModifiedMessage?.ask === "resume_task"
+										}
+										style={{
+											marginLeft: "auto",
+										}}
+									/>
 								</div>
 								<div
 									style={{

@@ -397,7 +397,7 @@ export class BrowserSession {
 			interval: 100,
 		}).catch(() => {})
 
-		let options: ScreenshotOptions = {
+		const options: ScreenshotOptions = {
 			encoding: "base64",
 
 			// clip: {
