@@ -1,4 +1,5 @@
 import * as vscode from "vscode"
+import { ZodError } from "zod"
 
 import {
 	PROVIDER_SETTINGS_KEYS,
@@ -15,6 +16,7 @@ import {
 	isSecretStateKey,
 } from "../../schemas"
 import { logger } from "../../utils/logging"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 type GlobalStateKey = keyof GlobalState
 type SecretStateKey = keyof SecretState
@@ -157,8 +159,10 @@ export class ContextProxy {
 		try {
 			return globalSettingsSchema.parse(values)
 		} catch (error) {
-			// Log to Posthog?
-			// We'll want to know about bad type assumptions or bad ExtensionState data.
+			if (error instanceof ZodError) {
+				telemetryService.captureSchemaValidationError({ schemaName: "GlobalSettings", error })
+			}
+
 			return GLOBAL_SETTINGS_KEYS.reduce((acc, key) => ({ ...acc, [key]: values[key] }), {} as GlobalSettings)
 		}
 	}
@@ -173,8 +177,10 @@ export class ContextProxy {
 		try {
 			return providerSettingsSchema.parse(values)
 		} catch (error) {
-			// Log to Posthog?
-			// We'll want to know about bad type assumptions or bad ExtensionState data.
+			if (error instanceof ZodError) {
+				telemetryService.captureSchemaValidationError({ schemaName: "ProviderSettings", error })
+			}
+
 			return PROVIDER_SETTINGS_KEYS.reduce((acc, key) => ({ ...acc, [key]: values[key] }), {} as ProviderSettings)
 		}
 	}
@@ -225,7 +231,10 @@ export class ContextProxy {
 			const globalSettings = globalSettingsExportSchema.parse(this.getValues())
 			return Object.fromEntries(Object.entries(globalSettings).filter(([_, value]) => value !== undefined))
 		} catch (error) {
-			console.log(error.message)
+			if (error instanceof ZodError) {
+				telemetryService.captureSchemaValidationError({ schemaName: "GlobalSettings", error })
+			}
+
 			return undefined
 		}
 	}

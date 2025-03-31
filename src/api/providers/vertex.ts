@@ -230,7 +230,7 @@ export class VertexHandler extends BaseProvider implements SingleCompletionHandl
 		const result = await model.generateContentStream({
 			contents: messages.map(convertAnthropicMessageToVertexGemini),
 			generationConfig: {
-				maxOutputTokens: this.getModel().info.maxTokens,
+				maxOutputTokens: this.getModel().info.maxTokens ?? undefined,
 				temperature: this.options.modelTemperature ?? 0,
 			},
 		})

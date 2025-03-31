@@ -60,7 +60,7 @@ type TruncateOptions = {
 	messages: Anthropic.Messages.MessageParam[]
 	totalTokens: number
 	contextWindow: number
-	maxTokens?: number
+	maxTokens?: number | null
 	apiHandler: ApiHandler
 }
 

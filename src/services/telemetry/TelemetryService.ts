@@ -1,5 +1,7 @@
 import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
+import { ZodError } from "zod"
+
 import { logger } from "../../utils/logging"
 
 // This forward declaration is needed to avoid circular dependencies
@@ -25,6 +27,9 @@ class PostHogClient {
 			CHECKPOINT_CREATED: "Checkpoint Created",
 			CHECKPOINT_RESTORED: "Checkpoint Restored",
 			CHECKPOINT_DIFFED: "Checkpoint Diffed",
+		},
+		ERRORS: {
+			SCHEMA_VALIDATION_ERROR: "Schema Validation Error",
 		},
 	}
 
@@ -259,6 +264,14 @@ class TelemetryService {
 
 	public captureCheckpointRestored(taskId: string): void {
 		this.captureEvent(PostHogClient.EVENTS.TASK.CHECKPOINT_RESTORED, { taskId })
+	}
+
+	public captureSchemaValidationError({ schemaName, error }: { schemaName: string; error: ZodError }): void {
+		this.captureEvent(PostHogClient.EVENTS.ERRORS.SCHEMA_VALIDATION_ERROR, {
+			schemaName,
+			// https://zod.dev/ERROR_HANDLING?id=formatting-errors
+			error: error.format(),
+		})
 	}
 
 	/**

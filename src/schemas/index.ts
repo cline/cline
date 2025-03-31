@@ -100,7 +100,7 @@ export type TelemetrySetting = z.infer<typeof telemetrySettingsSchema>
  */
 
 export const modelInfoSchema = z.object({
-	maxTokens: z.number().optional(),
+	maxTokens: z.number().nullish(),
 	contextWindow: z.number(),
 	supportsImages: z.boolean().optional(),
 	supportsComputerUse: z.boolean().optional(),

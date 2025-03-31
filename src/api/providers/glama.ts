@@ -88,7 +88,7 @@ export class GlamaHandler extends BaseProvider implements SingleCompletionHandle
 		let maxTokens: number | undefined
 
 		if (this.getModel().id.startsWith("anthropic/")) {
-			maxTokens = this.getModel().info.maxTokens
+			maxTokens = this.getModel().info.maxTokens ?? undefined
 		}
 
 		const requestOptions: OpenAI.Chat.ChatCompletionCreateParams = {

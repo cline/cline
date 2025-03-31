@@ -43,7 +43,7 @@ export const ModelInfoView = ({
 				doesNotSupportLabel={t("settings:modelInfo.noPromptCache")}
 			/>
 		),
-		modelInfo.maxTokens !== undefined && modelInfo.maxTokens > 0 && (
+		typeof modelInfo.maxTokens === "number" && modelInfo.maxTokens > 0 && (
 			<>
 				<span className="font-medium">{t("settings:modelInfo.maxOutput")}:</span>{" "}
 				{modelInfo.maxTokens?.toLocaleString()} tokens

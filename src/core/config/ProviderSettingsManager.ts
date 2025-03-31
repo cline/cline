@@ -1,8 +1,9 @@
 import { ExtensionContext } from "vscode"
-import { z } from "zod"
+import { z, ZodError } from "zod"
 
 import { providerSettingsSchema, ApiConfigMeta } from "../../schemas"
 import { Mode, modes } from "../../shared/modes"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 const providerSettingsWithIdSchema = providerSettingsSchema.extend({ id: z.string().optional() })
 
@@ -272,6 +273,10 @@ export class ProviderSettingsManager {
 			const content = await this.context.secrets.get(this.secretsKey)
 			return content ? providerProfilesSchema.parse(JSON.parse(content)) : this.defaultProviderProfiles
 		} catch (error) {
+			if (error instanceof ZodError) {
+				telemetryService.captureSchemaValidationError({ schemaName: "ProviderProfiles", error })
+			}
+
 			throw new Error(`Failed to read provider profiles from secrets: ${error}`)
 		}
 	}

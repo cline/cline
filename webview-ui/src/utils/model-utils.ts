@@ -14,7 +14,7 @@ export interface ModelInfo {
 	/**
 	 * Maximum number of tokens the model can process
 	 */
-	maxTokens?: number
+	maxTokens?: number | null
 
 	/**
 	 * Whether the model supports thinking/reasoning capabilities
@@ -77,7 +77,7 @@ export const getMaxTokensForModel = (
 	if (modelInfo?.thinking) {
 		return apiConfig?.modelMaxTokens || DEFAULT_THINKING_MODEL_MAX_TOKENS
 	}
-	return modelInfo?.maxTokens
+	return modelInfo?.maxTokens ?? undefined
 }
 
 /**
