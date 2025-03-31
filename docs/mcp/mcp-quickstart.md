@@ -33,11 +33,11 @@ STOP! Before proceeding, you MUST verify these requirements:
 ### 1. 🛠️ Install Your First MCP Server
 
 1. From the Cline extension, click the `MCP Server` tab
-1. Click the `Edit MCP Settings` button
+1. Click the `Configure Global Servers` button (this opens the global settings file).
 
  <img src="https://github.com/user-attachments/assets/abf908b1-be98-4894-8dc7-ef3d27943a47" alt="MCP Server Panel" width="400" />
 
-1. The MCP settings files should be display in a tab in VS Code.
+1. The global MCP settings file (`cline_mcp_settings.json`) should be displayed in a tab in VS Code.
 1. Replace the file's contents with this code:
 
 For Windows:
@@ -116,6 +116,8 @@ _For a Windows machine:_
 ```
 
 You you can always check the status of your server by going to clients MCP server tab. See the image above
+
+**Note on Project-Specific Servers:** The steps above modify your *global* MCP settings. If you want to define servers only for the current project or override global ones, you can create a `.cline_mcp_servers.json` file in your project's root directory. Use the "Configure Local Servers (Project)" button in the MCP Hub UI to create/open this file. Configurations in the local file take precedence over the global file for the same server name within that project.
 
 That's it! 🎉 You've just given Cline some awesome new abilities!
 

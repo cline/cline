@@ -64,6 +64,18 @@ The potential of MCP servers is vast. They can be used for a variety of purposes
 -   **Customize Existing Servers:** Modify existing servers to fit your specific requirements
 -   **Build from Scratch:** Create completely custom servers for unique use cases
 
+### Project-Specific Configuration (Local Override)
+
+In addition to the global `cline_mcp_settings.json` file managed via the extension settings, you can define project-specific MCP servers or override global configurations by creating a `.cline_mcp_servers.json` file in the root directory of your workspace/project.
+
+-   **File Location:** Place `.cline_mcp_servers.json` in your project's root folder.
+-   **Format:** Use the same JSON structure as the global settings file (an object with a top-level `mcpServers` key).
+-   **Override Behavior:** If a server name exists in both the global and local files, the configuration defined in the local `.cline_mcp_servers.json` will take precedence for that specific project. Servers defined only locally will also be loaded.
+-   **UI Indicator:** Cline's UI (MCP Hub "Installed" tab and the chat popup) will indicate whether a server is loaded from the `(global)` or `(project)` configuration.
+-   **Configuration Access:** The MCP Hub UI provides separate buttons ("Configure Global Servers" and "Configure Local Servers (Project)") to easily open the respective configuration files. The "Local" button will create the file if it doesn't exist.
+
+This allows you to tailor MCP server behavior for individual projects, manage project-specific servers alongside your code, and easily share configurations within a team via version control.
+
 ## Integration with Cline
 
 Cline simplifies the building and use of MCP servers through its AI capabilities.
