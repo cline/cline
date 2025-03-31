@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import { Controller } from "../core/controller"
 import { ClineAPI } from "./cline"
-import { getGlobalState } from "../core/state"
+import { getGlobalState } from "../core/storage/state"
 
 export function createClineAPI(outputChannel: vscode.OutputChannel, sidebarController: Controller): ClineAPI {
 	const api: ClineAPI = {
