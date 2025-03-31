@@ -8,7 +8,7 @@ import {
 	VSCodeOption,
 	VSCodeCheckbox,
 } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState } from "react" // Remove useCallback
+import { useEffect, useState, useCallback, useMemo } from "react" // Added useCallback, useMemo
 import styled from "styled-components"
 import { DEFAULT_MCP_TIMEOUT_SECONDS, McpServer } from "../../../../src/shared/mcp"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -18,12 +18,15 @@ import McpMarketplaceView from "./marketplace/McpMarketplaceView"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
 import DangerButton from "../common/DangerButton"
+import Tooltip from "../common/Tooltip"
+import { MCP_SOURCE_PROJECT } from "../../../../src/shared/mcp" // Import constant
 
 type McpViewProps = {
 	onDone: () => void
 }
 
-const McpView = ({ onDone }: McpViewProps) => {
+export const McpView = ({ onDone }: McpViewProps) => {
+	// Added export keyword
 	const { mcpServers: servers, mcpMarketplaceEnabled } = useExtensionState()
 	const [activeTab, setActiveTab] = useState(mcpMarketplaceEnabled ? "marketplace" : "installed")
 
@@ -141,19 +144,39 @@ const McpView = ({ onDone }: McpViewProps) => {
 								</div>
 							)}
 
-							{/* Settings Section */}
-							<div style={{ marginBottom: "20px", marginTop: 10 }}>
+							{/* Settings Section - Updated Buttons */}
+							<div
+								style={{
+									marginBottom: "20px",
+									marginTop: 20,
+									display: "flex",
+									flexDirection: "column",
+									gap: "8px",
+								}}>
+								{/* Button for Global Settings */}
 								<VSCodeButton
 									appearance="secondary"
-									style={{ width: "100%", marginBottom: "5px" }}
+									style={{ width: "100%" }}
 									onClick={() => {
-										vscode.postMessage({ type: "openMcpSettings" })
+										vscode.postMessage({ type: "openMcpSettings" }) // Existing message for global
 									}}>
-									<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
-									Configure MCP Servers
+									<span className="codicon codicon-globe" style={{ marginRight: "6px" }}></span>
+									Configure Global Servers
 								</VSCodeButton>
 
-								<div style={{ textAlign: "center" }}>
+								{/* Button for Local Settings */}
+								<VSCodeButton
+									appearance="secondary"
+									style={{ width: "100%" }}
+									onClick={() => {
+										vscode.postMessage({ type: "openLocalMcpSettings" }) // New message type
+									}}>
+									<span className="codicon codicon-folder-opened" style={{ marginRight: "6px" }}></span>
+									Configure Local Servers (Project)
+								</VSCodeButton>
+
+								{/* Keep Advanced Settings Link */}
+								<div style={{ textAlign: "center", marginTop: "5px" }}>
 									<VSCodeLink
 										onClick={() => {
 											vscode.postMessage({
@@ -205,12 +228,100 @@ export const TabButton = ({
 	</StyledTabButton>
 )
 
-// Server Row Component
+// --- Styled Components for Inline ServerRow ---
+
+const ServerNameContainer = styled.div`
+	display: flex;
+	align-items: center;
+	gap: 6px; // Space between name and info icon
+	flex-shrink: 1;
+	overflow: hidden; // Ensure container handles overflow
+	margin-right: 4px; // Reduced margin to accommodate status dot
+`
+
+const ServerName = styled.span`
+	font-weight: normal;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin-right: 4px; // Add space before source indicator
+`
+
+// New styled component for the source indicator
+const SourceIndicator = styled.span`
+	font-size: 0.8em;
+	color: var(--vscode-descriptionForeground);
+	margin-right: 6px; // Space before info icon
+	font-style: italic;
+	flex-shrink: 0; // Prevent shrinking
+`
+
+const InfoIcon = styled.span`
+	cursor: help; // Indicate it's informative
+	color: var(--vscode-descriptionForeground);
+	&:hover {
+		color: var(--vscode-foreground);
+	}
+	flex-shrink: 0; // Prevent shrinking
+`
+
+const StatusDot = styled.div<{ status: McpServer["status"] }>`
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: ${(props) => {
+		switch (props.status) {
+			case "connected":
+				return "var(--vscode-testing-iconPassed)"
+			case "connecting":
+				return "var(--vscode-charts-yellow)"
+			case "disconnected":
+			default:
+				return "var(--vscode-testing-iconFailed)"
+		}
+	}};
+	margin-left: 8px; // Add margin if placing after actions
+`
+
+// Using the better toggle switch style from McpView.tsx (already present in McpServerRow)
+const ToggleSwitchContainer = styled.div`
+	display: flex;
+	align-items: center;
+	margin-left: 8px; // Keep spacing consistent
+`
+
+const ToggleSwitchBody = styled.div<{ disabled?: boolean; checked?: boolean }>`
+	width: 20px;
+	height: 10px;
+	background-color: ${(props) =>
+		props.checked ? "var(--vscode-testing-iconPassed)" : "var(--vscode-titleBar-inactiveForeground)"};
+	border-radius: 5px;
+	position: relative;
+	cursor: pointer;
+	transition: background-color 0.2s;
+	opacity: ${(props) => (props.disabled ? 0.5 : 0.9)};
+`
+
+const ToggleSwitchThumb = styled.div<{ checked?: boolean }>`
+	width: 6px;
+	height: 6px;
+	background-color: white;
+	border: 1px solid color-mix(in srgb, #666666 65%, transparent);
+	border-radius: 50%;
+	position: absolute;
+	top: 1px;
+	left: ${(props) => (props.checked ? "12px" : "2px")};
+	transition: left 0.2s;
+`
+
+// --- Inline Server Row Component (Restored and Enhanced) ---
 const ServerRow = ({ server }: { server: McpServer }) => {
 	const { mcpMarketplaceCatalog, autoApprovalSettings } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
+	const [isInfoHovering, setIsInfoHovering] = useState(false) // Added state
+	const [isSourceHovering, setIsSourceHovering] = useState(false) // Added state
 
 	const getStatusColor = () => {
 		switch (server.status) {
@@ -219,6 +330,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 			case "connecting":
 				return "var(--vscode-charts-yellow)"
 			case "disconnected":
+			default:
 				return "var(--vscode-testing-iconFailed)"
 		}
 	}
@@ -274,6 +386,15 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		})
 	}
 
+	const handleToggle = useCallback(() => {
+		// Use the specific message type for toggling
+		vscode.postMessage({
+			type: "toggleMcpServer",
+			serverName: server.name,
+			disabled: !server.disabled,
+		})
+	}, [server.name, server.disabled])
+
 	const handleAutoApproveChange = () => {
 		if (!server.name) return
 
@@ -284,6 +405,20 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 			autoApprove: !server.tools?.every((tool) => tool.autoApprove),
 		})
 	}
+
+	// Generate Tooltip Text for Info Icon
+	const tooltipText = useMemo(() => {
+		let text = ""
+		if (server.tools && server.tools.length > 0) {
+			text += "Tools:\n" + server.tools.map((t) => `- ${t.name}`).join("\n")
+		}
+		const resources = [...(server.resources ?? []), ...(server.resourceTemplates ?? [])]
+		if (resources.length > 0) {
+			if (text) text += "\n\n" // Add spacing if tools were listed
+			text += "Resources:\n" + resources.map((r) => `- ${r.name}`).join("\n")
+		}
+		return text || "No tools or resources listed."
+	}, [server.tools, server.resources, server.resourceTemplates])
 
 	return (
 		<div style={{ marginBottom: "10px" }}>
@@ -301,102 +436,81 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 				{!server.error && (
 					<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`} style={{ marginRight: "8px" }} />
 				)}
-				<span
-					style={{
-						flex: 1,
-						overflow: "hidden",
-						wordBreak: "break-all",
-						whiteSpace: "normal",
-						display: "flex",
-						alignItems: "center",
-						marginRight: "4px",
-					}}>
-					{getMcpServerDisplayName(server.name, mcpMarketplaceCatalog)}
-				</span>
+				<ServerNameContainer>
+					<ServerName title={server.name}>{getMcpServerDisplayName(server.name, mcpMarketplaceCatalog)}</ServerName>
+					{/* Add Source Indicator with its own Tooltip */}
+					{server.source && (
+						<Tooltip visible={isSourceHovering} tipText={`Defined in ${server.source} settings`} hintText="">
+							<SourceIndicator
+								onMouseEnter={() => setIsSourceHovering(true)}
+								onMouseLeave={() => setIsSourceHovering(false)}>
+								({server.source === MCP_SOURCE_PROJECT ? "project" : "global"}) {/* Use constant */}
+							</SourceIndicator>
+						</Tooltip>
+					)}
+					{/* Add Info Icon with its own Tooltip */}
+					<Tooltip visible={isInfoHovering} tipText={tooltipText} hintText="">
+						<InfoIcon
+							className="codicon codicon-info"
+							onMouseEnter={() => setIsInfoHovering(true)}
+							onMouseLeave={() => setIsInfoHovering(false)}
+						/>
+					</Tooltip>
+				</ServerNameContainer>
+
+				{/* Spacer to push actions to the right */}
+				<div style={{ flexGrow: 1 }}></div>
+
 				{/* Collapsed view controls */}
-				{!server.error && (
-					<div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "8px" }}>
-						<VSCodeButton
-							appearance="icon"
-							title="Restart Server"
-							onClick={(e) => {
-								e.stopPropagation()
-								handleRestart()
-							}}
-							disabled={server.status === "connecting"}>
-							<span className="codicon codicon-sync"></span>
-						</VSCodeButton>
-						<VSCodeButton
-							appearance="icon"
-							title="Delete Server"
-							onClick={(e) => {
-								e.stopPropagation()
-								handleDelete()
-							}}
-							disabled={isDeleting}>
-							<span className="codicon codicon-trash"></span>
-						</VSCodeButton>
-					</div>
-				)}
-				{/* Toggle Switch */}
-				<div style={{ display: "flex", alignItems: "center", marginLeft: "8px" }} onClick={(e) => e.stopPropagation()}>
-					<div
+				<div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "8px", flexShrink: 0 }}>
+					{!server.error && (
+						<>
+							<VSCodeButton
+								appearance="icon"
+								title="Restart Server"
+								onClick={(e) => {
+									e.stopPropagation()
+									handleRestart()
+								}}
+								disabled={server.status === "connecting"}>
+								<span className="codicon codicon-sync"></span>
+							</VSCodeButton>
+							<VSCodeButton
+								appearance="icon"
+								title="Delete Server"
+								onClick={(e) => {
+									e.stopPropagation()
+									handleDelete()
+								}}
+								disabled={isDeleting}>
+								<span className="codicon codicon-trash"></span>
+							</VSCodeButton>
+						</>
+					)}
+					{/* Toggle Switch */}
+					<ToggleSwitchContainer
 						role="switch"
 						aria-checked={!server.disabled}
 						tabIndex={0}
-						style={{
-							width: "20px",
-							height: "10px",
-							backgroundColor: server.disabled
-								? "var(--vscode-titleBar-inactiveForeground)"
-								: "var(--vscode-testing-iconPassed)",
-							borderRadius: "5px",
-							position: "relative",
-							cursor: "pointer",
-							transition: "background-color 0.2s",
-							opacity: server.disabled ? 0.5 : 0.9,
-						}}
-						onClick={() => {
-							vscode.postMessage({
-								type: "toggleMcpServer",
-								serverName: server.name,
-								disabled: !server.disabled,
-							})
+						title={server.disabled ? "Enable Server" : "Disable Server"}
+						onClick={(e) => {
+							e.stopPropagation() // Prevent row click/expansion
+							handleToggle()
 						}}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" || e.key === " ") {
 								e.preventDefault()
-								vscode.postMessage({
-									type: "toggleMcpServer",
-									serverName: server.name,
-									disabled: !server.disabled,
-								})
+								e.stopPropagation()
+								handleToggle()
 							}
 						}}>
-						<div
-							style={{
-								width: "6px",
-								height: "6px",
-								backgroundColor: "white",
-								border: "1px solid color-mix(in srgb, #666666 65%, transparent)",
-								borderRadius: "50%",
-								position: "absolute",
-								top: "1px",
-								left: server.disabled ? "2px" : "12px",
-								transition: "left 0.2s",
-							}}
-						/>
-					</div>
+						<ToggleSwitchBody checked={!server.disabled} disabled={false}>
+							<ToggleSwitchThumb checked={!server.disabled} />
+						</ToggleSwitchBody>
+					</ToggleSwitchContainer>
+					{/* Status Dot */}
+					<StatusDot status={server.status} />
 				</div>
-				<div
-					style={{
-						width: "8px",
-						height: "8px",
-						borderRadius: "50%",
-						background: getStatusColor(),
-						marginLeft: "8px",
-					}}
-				/>
 			</div>
 
 			{server.error ? (
@@ -411,9 +525,10 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 						style={{
 							color: "var(--vscode-testing-iconFailed)",
 							marginBottom: "8px",
-							padding: "0 10px",
+							padding: "8px 10px 0 10px", // Added top padding
 							overflowWrap: "break-word",
 							wordBreak: "break-word",
+							whiteSpace: "pre-wrap", // Ensure errors wrap
 						}}>
 						{server.error}
 					</div>
@@ -545,5 +660,3 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		</div>
 	)
 }
-
-export default McpView

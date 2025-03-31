@@ -13,6 +13,12 @@ export const GlobalFileNames = {
 	clineRules: ".clinerules",
 }
 
+// Filenames expected within the workspace root
+export const WorkspaceFileNames = {
+	mcpServers: ".cline_mcp_servers.json", // Using JSON extension for clarity
+	clineRules: ".clinerules", // Already defined globally, but useful here too
+}
+
 export async function ensureTaskDirectoryExists(context: vscode.ExtensionContext, taskId: string): Promise<string> {
 	const globalStoragePath = context.globalStorageUri.fsPath
 	const taskDir = path.join(globalStoragePath, "tasks", taskId)

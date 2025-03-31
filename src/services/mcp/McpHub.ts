@@ -25,11 +25,13 @@ import {
 	McpTool,
 	McpToolCallResponse,
 	MIN_MCP_TIMEOUT_SECONDS,
+	MCP_SOURCE_GLOBAL, // Import constants
+	MCP_SOURCE_PROJECT, // Import constants
 } from "../../shared/mcp"
 import { fileExistsAtPath } from "../../utils/fs"
 import { arePathsEqual } from "../../utils/path"
 import { secondsToMs } from "../../utils/time"
-import { GlobalFileNames } from "../../core/storage/disk"
+import { GlobalFileNames, WorkspaceFileNames } from "../../core/storage/disk"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 
 // Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
@@ -72,31 +74,41 @@ const StdioConfigSchema = BaseConfigSchema.extend({
 const ServerConfigSchema = z.union([StdioConfigSchema, SseConfigSchema])
 
 const McpSettingsSchema = z.object({
-	mcpServers: z.record(ServerConfigSchema),
+	mcpServers: z.record(ServerConfigSchema).default({}), // Default to empty object
 })
+type McpSettings = z.infer<typeof McpSettingsSchema>
 
+// Type for the merged server config including source
+type MergedServerConfig = McpServerConfig & { source: typeof MCP_SOURCE_GLOBAL | typeof MCP_SOURCE_PROJECT } // Use constants in type
+
+// --- McpHub Class ---
 export class McpHub {
 	private controllerRef: WeakRef<Controller>
 	private disposables: vscode.Disposable[] = []
-	private settingsWatcher?: vscode.FileSystemWatcher
-	private fileWatchers: Map<string, FSWatcher> = new Map()
+	// private settingsWatcher?: vscode.FileSystemWatcher // Replaced by onDidSaveTextDocument and chokidar
+	private fileWatchers: Map<string, FSWatcher> = new Map() // Now includes local settings watcher
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
 
 	constructor(controller: Controller) {
 		this.controllerRef = new WeakRef(controller)
-		this.watchMcpSettingsFile()
+		this.watchMcpSettingsFiles() // Renamed and updated function
 		this.initializeMcpServers()
 	}
 
+	// --- Public Getters ---
+
 	getServers(): McpServer[] {
-		// Only return enabled servers
-		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
+		// Return servers sorted by original definition order (global first, then local)
+		// Note: This sorting happens during notifyWebviewOfServerChanges now
+		return this.connections.map((conn) => conn.server)
 	}
 
 	getMode(): McpMode {
 		return vscode.workspace.getConfiguration("cline.mcp").get<McpMode>("mode", "full")
 	}
+
+	// --- File Path Helpers ---
 
 	async getMcpServersPath(): Promise<string> {
 		const provider = this.controllerRef.deref()
@@ -107,90 +119,167 @@ export class McpHub {
 		return mcpServersPath
 	}
 
-	async getMcpSettingsFilePath(): Promise<string> {
+	async getGlobalMcpSettingsFilePath(): Promise<string> {
 		const provider = this.controllerRef.deref()
 		if (!provider) {
 			throw new Error("Provider not available")
 		}
-		const mcpSettingsFilePath = path.join(await provider.ensureSettingsDirectoryExists(), GlobalFileNames.mcpSettings)
+		const globalSettingsDir = await provider.ensureSettingsDirectoryExists()
+		const mcpSettingsFilePath = path.join(globalSettingsDir, GlobalFileNames.mcpSettings)
 		const fileExists = await fileExistsAtPath(mcpSettingsFilePath)
 		if (!fileExists) {
-			await fs.writeFile(
-				mcpSettingsFilePath,
-				`{
-  "mcpServers": {
-    
-  }
-}`,
-			)
+			// Create default empty file if it doesn't exist
+			await fs.writeFile(mcpSettingsFilePath, JSON.stringify({ mcpServers: {} }, null, 2))
+			console.log("Created default global MCP settings file.")
 		}
 		return mcpSettingsFilePath
 	}
 
-	private async readAndValidateMcpSettingsFile(): Promise<z.infer<typeof McpSettingsSchema> | undefined> {
+	// Made public
+	public getLocalMcpSettingsFilePath(): string | undefined {
+		const workspaceFolders = vscode.workspace.workspaceFolders
+		if (!workspaceFolders || workspaceFolders.length === 0) {
+			return undefined // No workspace open
+		}
+		// Use the first workspace folder as the project root
+		const projectRoot = workspaceFolders[0].uri.fsPath
+		return path.join(projectRoot, WorkspaceFileNames.mcpServers)
+	}
+
+	// --- Settings Reading and Merging ---
+
+	// Reads and validates a specific settings file
+	private async readAndValidateMcpSettingsFile(filePath: string): Promise<McpSettings | undefined> {
 		try {
-			const settingsPath = await this.getMcpSettingsFilePath()
-			const content = await fs.readFile(settingsPath, "utf-8")
+			// Use standard fs.readFile
+			const content = await fs.readFile(filePath, "utf-8")
 
-			let config: any
-
-			// Parse JSON file content
+			let configJson: any
 			try {
-				config = JSON.parse(content)
+				configJson = JSON.parse(content)
 			} catch (error) {
+				vscode.window.showErrorMessage(`Invalid JSON format in ${path.basename(filePath)}. Please check the file.`)
+				return undefined
+			}
+
+			const result = McpSettingsSchema.safeParse(configJson)
+			if (!result.success) {
+				console.error(`Invalid MCP settings schema in ${filePath}:`, result.error.errors)
 				vscode.window.showErrorMessage(
-					"Invalid MCP settings format. Please ensure your settings follow the correct JSON format.",
+					`Invalid MCP settings schema in ${path.basename(filePath)}. Please check the structure.`,
 				)
 				return undefined
 			}
-
-			// Validate against schema
-			const result = McpSettingsSchema.safeParse(config)
-			if (!result.success) {
-				vscode.window.showErrorMessage("Invalid MCP settings schema.")
-				return undefined
-			}
-
 			return result.data
 		} catch (error) {
-			console.error("Failed to read MCP settings:", error)
+			// Don't log error if file just doesn't exist (ENOENT)
+			if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+				console.error(`Failed to read MCP settings file at ${filePath}:`, error)
+			}
 			return undefined
 		}
 	}
 
-	private async watchMcpSettingsFile(): Promise<void> {
-		const settingsPath = await this.getMcpSettingsFilePath()
+	// Merges global and local settings, prioritizing local
+	private async loadAndMergeMcpSettings(): Promise<Record<string, MergedServerConfig>> {
+		const globalSettingsPath = await this.getGlobalMcpSettingsFilePath()
+		const localSettingsPath = this.getLocalMcpSettingsFilePath()
+
+		const globalData = await this.readAndValidateMcpSettingsFile(globalSettingsPath)
+		const localData = localSettingsPath ? await this.readAndValidateMcpSettingsFile(localSettingsPath) : undefined
+
+		const globalServers = globalData?.mcpServers ?? {}
+		const localServers = localData?.mcpServers ?? {}
+
+		const mergedServers: Record<string, MergedServerConfig> = {}
+
+		// Add global servers first
+		for (const [name, config] of Object.entries(globalServers)) {
+			mergedServers[name] = { ...config, source: MCP_SOURCE_GLOBAL } // Use constant
+		}
+
+		// Add/override with local servers
+		for (const [name, config] of Object.entries(localServers)) {
+			mergedServers[name] = { ...config, source: MCP_SOURCE_PROJECT } // Use constant
+		}
+
+		return mergedServers
+	}
+
+	// --- File Watching ---
+
+	// Watches both global and local settings files
+	private async watchMcpSettingsFiles(): Promise<void> {
+		const globalSettingsPath = await this.getGlobalMcpSettingsFilePath()
+		const localSettingsPath = this.getLocalMcpSettingsFilePath()
+
+		const handleSettingsChange = async (changedPath: string | undefined) => {
+			console.log(
+				`Detected change relevant to MCP settings ${changedPath ? `(${path.basename(changedPath)})` : ""}. Reloading...`,
+			)
+			const mergedSettings = await this.loadAndMergeMcpSettings()
+			// mergedSettings should always be defined unless both files fail validation catastrophically
+			try {
+				vscode.window.showInformationMessage("Updating MCP servers due to settings change...")
+				await this.updateServerConnections(mergedSettings) // Pass the merged result
+				vscode.window.showInformationMessage("MCP servers updated.")
+			} catch (error) {
+				console.error("Failed to process MCP settings change:", error)
+				vscode.window.showErrorMessage("Error updating MCP servers after settings change.")
+			}
+		}
+
+		// Watch global file saves (using VS Code API is fine here)
 		this.disposables.push(
 			vscode.workspace.onDidSaveTextDocument(async (document) => {
-				if (arePathsEqual(document.uri.fsPath, settingsPath)) {
-					const settings = await this.readAndValidateMcpSettingsFile()
-					if (settings) {
-						try {
-							vscode.window.showInformationMessage("Updating MCP servers...")
-							await this.updateServerConnections(settings.mcpServers)
-							vscode.window.showInformationMessage("MCP servers updated")
-						} catch (error) {
-							console.error("Failed to process MCP settings change:", error)
-						}
-					}
+				if (arePathsEqual(document.uri.fsPath, globalSettingsPath)) {
+					await handleSettingsChange(globalSettingsPath)
 				}
 			}),
 		)
-	}
 
-	private async initializeMcpServers(): Promise<void> {
-		const settings = await this.readAndValidateMcpSettingsFile()
-		if (settings) {
-			await this.updateServerConnections(settings.mcpServers)
+		// Watch local file changes (using chokidar for create/delete/change)
+		if (localSettingsPath) {
+			// Ensure directory exists before watching (though it should if workspace exists)
+			try {
+				// Watch the specific file path
+				const watcher = chokidar.watch(localSettingsPath, {
+					ignoreInitial: true,
+					awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
+					// If the file doesn't exist, chokidar might error or not watch correctly.
+					// A more robust approach might involve watching the directory and filtering events,
+					// but let's keep it simple first and watch the path directly.
+					// Chokidar *should* handle file creation if watching the path.
+				})
+
+				watcher
+					.on("add", () => handleSettingsChange(localSettingsPath))
+					.on("change", () => handleSettingsChange(localSettingsPath))
+					.on("unlink", () => handleSettingsChange(undefined)) // Pass undefined on unlink to signal reload needed
+					.on("error", (error) => console.error(`Local MCP settings watcher error: ${error}`))
+
+				this.fileWatchers.set("local_settings", watcher) // Use a distinct key
+				console.log(`Watching local MCP settings file: ${localSettingsPath}`)
+			} catch (watchError) {
+				console.error(`Failed to set up watcher for local MCP settings at ${localSettingsPath}:`, watchError)
+			}
 		}
 	}
 
-	private async connectToServer(
-		name: string,
-		config: z.infer<typeof StdioConfigSchema> | z.infer<typeof SseConfigSchema>,
-	): Promise<void> {
-		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
+	// --- Server Connection Management ---
+
+	private async initializeMcpServers(): Promise<void> {
+		const mergedSettings = await this.loadAndMergeMcpSettings()
+		await this.updateServerConnections(mergedSettings)
+	}
+
+	// Accepts the merged config type
+	private async connectToServer(name: string, config: MergedServerConfig): Promise<void> {
+		// Remove existing connection if it exists
 		this.connections = this.connections.filter((conn) => conn.server.name !== name)
+
+		// Destructure config, excluding 'source' for storage in McpServer.config
+		const { source, ...serverConfigToStore } = config
 
 		try {
 			// Each MCP server requires its own transport connection and has unique capabilities, configurations, and error handling. Having separate clients also allows proper scoping of resources/tools and independent server management like reconnection.
@@ -242,9 +331,11 @@ export class McpHub {
 			const connection: McpConnection = {
 				server: {
 					name,
-					config: JSON.stringify(config),
+					config: JSON.stringify(serverConfigToStore), // Store config without source
 					status: "connecting",
 					disabled: config.disabled,
+					source: source, // Include the source
+					timeout: config.timeout, // Ensure timeout is stored
 				},
 				client,
 				transport,
@@ -313,11 +404,9 @@ export class McpHub {
 				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
 			})
 
-			// Get autoApprove settings
-			const settingsPath = await this.getMcpSettingsFilePath()
-			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
-			const autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
+			// Get autoApprove settings from the *stored* config for this server
+			const serverConfig: McpServerConfig = JSON.parse(connection.server.config)
+			const autoApproveConfig = serverConfig.autoApprove || []
 
 			// Mark tools as always allowed based on settings
 			const tools = (response?.tools || []).map((tool) => ({
@@ -328,34 +417,73 @@ export class McpHub {
 			// console.log(`[MCP] Fetched tools for ${serverName}:`, tools)
 			return tools
 		} catch (error) {
-			// console.error(`Failed to fetch tools for ${serverName}:`, error)
+			const connection = this.connections.find((conn) => conn.server.name === serverName) // Find connection within catch block
+			console.error(`Failed to fetch tools for ${serverName}:`, error)
+			if (connection) {
+				// Check if connection exists before using it
+				this.appendErrorMessage(
+					connection,
+					`Failed to fetch tools: ${error instanceof Error ? error.message : String(error)}`,
+				)
+				connection.server.status = "disconnected" // Assume disconnect if basic requests fail
+				await this.notifyWebviewOfServerChanges()
+			}
 			return []
 		}
 	}
 
 	private async fetchResourcesList(serverName: string): Promise<McpResource[]> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection || connection.server.status !== "connected") {
+			return []
+		}
 		try {
-			const response = await this.connections
-				.find((conn) => conn.server.name === serverName)
-				?.client.request({ method: "resources/list" }, ListResourcesResultSchema, { timeout: DEFAULT_REQUEST_TIMEOUT_MS })
+			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema, {
+				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+			})
 			return response?.resources || []
 		} catch (error) {
+			// const connection = this.connections.find((conn) => conn.server.name === serverName) // Find connection within catch block
 			// console.error(`Failed to fetch resources for ${serverName}:`, error)
+			// if (connection) {
+			// 	// Check if connection exists
+			// 	this.appendErrorMessage(
+			// 		connection,
+			// 		`Failed to fetch resources: ${error instanceof Error ? error.message : String(error)}`,
+			// 	)
+			// 	connection.server.status = "disconnected"
+			// 	await this.notifyWebviewOfServerChanges()
+			// }
 			return []
 		}
 	}
 
 	private async fetchResourceTemplatesList(serverName: string): Promise<McpResourceTemplate[]> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection || connection.server.status !== "connected") {
+			return []
+		}
 		try {
-			const response = await this.connections
-				.find((conn) => conn.server.name === serverName)
-				?.client.request({ method: "resources/templates/list" }, ListResourceTemplatesResultSchema, {
+			const response = await connection.client.request(
+				{ method: "resources/templates/list" },
+				ListResourceTemplatesResultSchema,
+				{
 					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
-				})
-
+				},
+			)
 			return response?.resourceTemplates || []
 		} catch (error) {
+			// const connection = this.connections.find((conn) => conn.server.name === serverName) // Find connection within catch block
 			// console.error(`Failed to fetch resource templates for ${serverName}:`, error)
+			// if (connection) {
+			// 	// Check if connection exists
+			// 	this.appendErrorMessage(
+			// 		connection,
+			// 		`Failed to fetch resource templates: ${error instanceof Error ? error.message : String(error)}`,
+			// 	)
+			// 	connection.server.status = "disconnected"
+			// 	await this.notifyWebviewOfServerChanges()
+			//}
 			return []
 		}
 	}
@@ -367,148 +495,255 @@ export class McpHub {
 				await connection.transport.close()
 				await connection.client.close()
 			} catch (error) {
-				console.error(`Failed to close transport for ${name}:`, error)
+				// Log error but continue cleanup
+				console.error(`Error closing transport/client for ${name}:`, error)
 			}
 			this.connections = this.connections.filter((conn) => conn.server.name !== name)
+			// Remove associated build file watcher if it exists
+			const buildWatcherKey = `build_${name}`
+			const buildWatcher = this.fileWatchers.get(buildWatcherKey)
+			if (buildWatcher) {
+				await buildWatcher.close()
+				this.fileWatchers.delete(buildWatcherKey)
+			}
 		}
 	}
 
-	async updateServerConnections(newServers: Record<string, McpServerConfig>): Promise<void> {
+	// Accepts the merged server configurations
+	async updateServerConnections(newServers: Record<string, MergedServerConfig>): Promise<void> {
+		if (this.isConnecting) {
+			console.warn("MCP Hub is already connecting/updating, skipping redundant update.")
+			return
+		}
 		this.isConnecting = true
-		this.removeAllFileWatchers()
+		console.log("Updating MCP server connections...")
+
+		// Stop watching build files for servers that might be removed or changed
+		this.removeAllBuildFileWatchers() // Keep settings watcher active
+
 		const currentNames = new Set(this.connections.map((conn) => conn.server.name))
 		const newNames = new Set(Object.keys(newServers))
 
 		// Delete removed servers
-		for (const name of currentNames) {
-			if (!newNames.has(name)) {
-				await this.deleteConnection(name)
-				console.log(`Deleted MCP server: ${name}`)
-			}
+		const serversToDelete = [...currentNames].filter((name) => !newNames.has(name))
+		for (const name of serversToDelete) {
+			await this.deleteConnection(name)
+			console.log(`Deleted MCP server connection: ${name}`)
 		}
 
 		// Update or add servers
-		for (const [name, config] of Object.entries(newServers)) {
+		const connectPromises: Promise<void>[] = []
+		for (const [name, mergedConfig] of Object.entries(newServers)) {
 			const currentConnection = this.connections.find((conn) => conn.server.name === name)
+			const storedConfig = currentConnection ? JSON.parse(currentConnection.server.config) : undefined
+			const { source, ...newConfigToStore } = mergedConfig // Prepare config without source for comparison/storage
 
+			let needsUpdate = false
 			if (!currentConnection) {
-				// New server
-				try {
-					if (config.transportType === "stdio") {
-						this.setupFileWatcher(name, config)
-					}
-					await this.connectToServer(name, config)
-				} catch (error) {
-					console.error(`Failed to connect to new MCP server ${name}:`, error)
-				}
-			} else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
-				// Existing server with changed config
-				try {
-					if (config.transportType === "stdio") {
-						this.setupFileWatcher(name, config)
-					}
-					await this.deleteConnection(name)
-					await this.connectToServer(name, config)
-					console.log(`Reconnected MCP server with updated config: ${name}`)
-				} catch (error) {
-					console.error(`Failed to reconnect MCP server ${name}:`, error)
+				needsUpdate = true // New server
+				console.log(`New MCP server detected: ${name} (source: ${source})`)
+			} else if (currentConnection.server.source !== source || !deepEqual(storedConfig, newConfigToStore)) {
+				// Check if source OR the config (excluding source) changed
+				needsUpdate = true // Config or source changed
+				console.log(`MCP server config/source changed for: ${name} (new source: ${source})`)
+			}
+
+			if (needsUpdate) {
+				// Connect (or reconnect)
+				connectPromises.push(
+					(async () => {
+						if (currentConnection) {
+							await this.deleteConnection(name) // Ensure old connection is fully closed first
+						}
+						// Setup build watcher *before* connecting if it's stdio
+						if (mergedConfig.transportType === "stdio") {
+							this.setupBuildFileWatcher(name, mergedConfig)
+						}
+						await this.connectToServer(name, mergedConfig) // Pass the full merged config
+					})(),
+				)
+			} else {
+				// Config and source are the same, just ensure build watcher is set up if needed
+				if (mergedConfig.transportType === "stdio" && !this.fileWatchers.has(`build_${name}`)) {
+					this.setupBuildFileWatcher(name, mergedConfig)
 				}
 			}
-			// If server exists with same config, do nothing
 		}
-		await this.notifyWebviewOfServerChanges()
+
+		await Promise.allSettled(connectPromises) // Wait for all connections/reconnections
+
+		console.log("Finished updating MCP server connections.")
+		await this.notifyWebviewOfServerChanges() // Notify webview once after all updates
 		this.isConnecting = false
 	}
 
-	private setupFileWatcher(name: string, config: any) {
-		const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
-		if (filePath) {
-			// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or Cline (and we want to detect save events, not every file change)
-			const watcher = chokidar.watch(filePath, {
-				// persistent: true,
-				// ignoreInitial: true,
-				// awaitWriteFinish: true, // This helps with atomic writes
-			})
-
-			watcher.on("change", () => {
-				console.log(`Detected change in ${filePath}. Restarting server ${name}...`)
-				this.restartConnection(name)
-			})
-
-			this.fileWatchers.set(name, watcher)
-		}
-	}
-
-	private removeAllFileWatchers() {
-		this.fileWatchers.forEach((watcher) => watcher.close())
-		this.fileWatchers.clear()
-	}
-
-	async restartConnection(serverName: string): Promise<void> {
-		this.isConnecting = true
-		const provider = this.controllerRef.deref()
-		if (!provider) {
+	// Watches the build output file for stdio servers
+	private setupBuildFileWatcher(name: string, config: McpServerConfig) {
+		// Accepts McpServerConfig (no source)
+		if (config.transportType !== "stdio") {
 			return
 		}
 
-		// Get existing connection and update its status
-		const connection = this.connections.find((conn) => conn.server.name === serverName)
-		const config = connection?.server.config
-		if (config) {
-			vscode.window.showInformationMessage(`Restarting ${serverName} MCP server...`)
-			connection.server.status = "connecting"
-			connection.server.error = ""
-			await this.notifyWebviewOfServerChanges()
-			await setTimeoutPromise(500) // artificial delay to show user that server is restarting
-			try {
-				await this.deleteConnection(serverName)
-				// Try to connect again using existing config
-				await this.connectToServer(serverName, JSON.parse(config))
-				vscode.window.showInformationMessage(`${serverName} MCP server connected`)
-			} catch (error) {
-				console.error(`Failed to restart connection for ${serverName}:`, error)
-				vscode.window.showErrorMessage(`Failed to connect to ${serverName} MCP server`)
+		const buildWatcherKey = `build_${name}`
+		if (this.fileWatchers.has(buildWatcherKey)) {
+			return // Already watching
+		}
+
+		// Try to find the main script path in args (heuristic)
+		// Use absolute paths if possible, otherwise assume relative to workspace root? Needs careful handling.
+		// For now, let's assume args might contain a relative or absolute path.
+		const scriptArg = config.args?.find((arg) => /\.(js|mjs|cjs)$/i.test(arg) && !arg.startsWith("-"))
+		if (!scriptArg) {
+			// console.warn(`Could not determine script path for watcher for server ${name}.`);
+			return
+		}
+
+		// Resolve the path - this is tricky. Assume relative to workspace if not absolute.
+		let absoluteScriptPath: string | undefined = undefined
+		if (path.isAbsolute(scriptArg)) {
+			absoluteScriptPath = scriptArg
+		} else {
+			const workspaceFolders = vscode.workspace.workspaceFolders
+			if (workspaceFolders && workspaceFolders.length > 0) {
+				absoluteScriptPath = path.resolve(workspaceFolders[0].uri.fsPath, scriptArg)
 			}
 		}
 
-		await this.notifyWebviewOfServerChanges()
-		this.isConnecting = false
+		if (absoluteScriptPath) {
+			// Check existence before watching? Chokidar might handle non-existent paths.
+			try {
+				const watcher = chokidar.watch(absoluteScriptPath, {
+					ignoreInitial: true,
+					awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
+				})
+
+				watcher.on("change", () => {
+					console.log(`Detected build change for ${absoluteScriptPath}. Restarting server ${name}...`)
+					// Debounce restarts slightly
+					setTimeout(() => this.restartConnection(name), 500)
+				})
+				watcher.on("error", (error) => console.error(`Build file watcher error for ${name}: ${error}`))
+
+				this.fileWatchers.set(buildWatcherKey, watcher)
+				console.log(`Watching build file for ${name}: ${absoluteScriptPath}`)
+			} catch (watchError) {
+				console.error(`Failed to set up build file watcher for ${name} at ${absoluteScriptPath}:`, watchError)
+			}
+		} else {
+			// console.warn(`Could not resolve absolute build script path for watcher for server ${name}.`);
+		}
+	}
+
+	private removeAllBuildFileWatchers() {
+		this.fileWatchers.forEach((watcher, key) => {
+			if (key.startsWith("build_")) {
+				watcher.close()
+				this.fileWatchers.delete(key)
+			}
+		})
+	}
+
+	async restartConnection(serverName: string): Promise<void> {
+		if (this.isConnecting) {
+			console.warn(`Restart for ${serverName} skipped, hub is busy.`)
+			return
+		}
+		this.isConnecting = true // Prevent concurrent restarts
+
+		const currentConnection = this.connections.find((conn) => conn.server.name === serverName)
+		if (currentConnection?.server.disabled) {
+			console.log(`Skipping restart for disabled server: ${serverName}`)
+			this.isConnecting = false
+			return
+		}
+
+		vscode.window.showInformationMessage(`Restarting ${serverName} MCP server...`)
+
+		// Get the latest merged config for this server
+		const mergedSettings = await this.loadAndMergeMcpSettings()
+		const config = mergedSettings[serverName] // This is MergedServerConfig
+
+		if (!config) {
+			console.error(`Config not found for server ${serverName} during restart attempt.`)
+			vscode.window.showErrorMessage(`Failed to find config for ${serverName} to restart.`)
+			this.isConnecting = false
+			return
+		}
+
+		// Update status immediately for UI feedback
+		if (currentConnection) {
+			currentConnection.server.status = "connecting"
+			currentConnection.server.error = "" // Clear previous errors
+			await this.notifyWebviewOfServerChanges()
+			await setTimeoutPromise(300) // Short delay for UI
+		}
+
+		try {
+			await this.deleteConnection(serverName) // Close existing connection fully
+			// Re-setup build watcher if needed
+			if (config.transportType === "stdio") {
+				this.setupBuildFileWatcher(serverName, config) // Pass config without source
+			}
+			await this.connectToServer(serverName, config) // Connect with the full merged config
+			// Message shown by connectToServer on success/failure now
+			// vscode.window.showInformationMessage(`${serverName} MCP server reconnected`)
+		} catch (error) {
+			// Error should be handled within connectToServer, just log here
+			console.error(`Error during restartConnection process for ${serverName}:`, error)
+			// vscode.window.showErrorMessage(`Failed to reconnect to ${serverName} MCP server`)
+		} finally {
+			await this.notifyWebviewOfServerChanges() // Ensure final state is sent
+			this.isConnecting = false
+		}
 	}
 
 	async restartAllEnabledConnections(): Promise<void> {
 		vscode.window.showInformationMessage("Restarting all enabled MCP servers...")
-		const restartPromises = this.connections
-			.filter((conn) => !conn.server.disabled)
-			.map((conn) => this.restartConnection(conn.server.name))
+		const enabledServers = this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server.name)
 
-		const results = await Promise.allSettled(restartPromises)
+		// Restart sequentially to avoid overwhelming system/network
+		for (const serverName of enabledServers) {
+			await this.restartConnection(serverName)
+		}
 
-		results.forEach((result, index) => {
-			if (result.status === "rejected") {
-				const serverName = this.connections.filter((conn) => !conn.server.disabled)[index]?.server.name
-				console.error(`Failed to restart server ${serverName}:`, result.reason)
-				// Optionally show an error message for each failed restart
-			}
-		})
 		vscode.window.showInformationMessage("Finished restarting enabled MCP servers.")
-		// Final notification is handled by individual restartConnection calls
 	}
 
+	// Sends the current state, respecting original definition order and including source
 	private async notifyWebviewOfServerChanges(): Promise<void> {
-		// servers should always be sorted in the order they are defined in the settings file
-		const settingsPath = await this.getMcpSettingsFilePath()
-		const content = await fs.readFile(settingsPath, "utf-8")
-		const config = JSON.parse(content)
-		const serverOrder = Object.keys(config.mcpServers || {})
+		const mergedSettings = await this.loadAndMergeMcpSettings() // Get merged settings to determine order/source
+		const serverOrder = Object.keys(mergedSettings) // Use merged keys for potential local-only servers
+
+		const sortedConnections = [...this.connections].sort((a, b) => {
+			const indexA = serverOrder.indexOf(a.server.name)
+			const indexB = serverOrder.indexOf(b.server.name)
+			// Handle cases where a connection might exist but isn't in the latest settings (should be rare)
+			if (indexA === -1 && indexB === -1) {
+				return a.server.name.localeCompare(b.server.name)
+			}
+			if (indexA === -1) {
+				return 1
+			}
+			if (indexB === -1) {
+				return -1
+			}
+			return indexA - indexB
+		})
+
+		// Ensure the 'source' is correctly set based on the latest merged settings
+		const serversToSend = sortedConnections.map((conn) => {
+			const mergedConfig = mergedSettings[conn.server.name]
+			// Fallback logic: if somehow not in merged, keep existing source or default to global
+			const source = mergedConfig?.source ?? conn.server.source ?? MCP_SOURCE_GLOBAL // Use constant
+			return {
+				...conn.server,
+				source: source, // Ensure source is correctly typed here
+			}
+		})
+
 		await this.controllerRef.deref()?.postMessageToWebview({
 			type: "mcpServers",
-			mcpServers: [...this.connections]
-				.sort((a, b) => {
-					const indexA = serverOrder.indexOf(a.server.name)
-					const indexB = serverOrder.indexOf(b.server.name)
-					return indexA - indexB
-				})
-				.map((connection) => connection.server),
+			mcpServers: serversToSend,
 		})
 	}
 
@@ -516,41 +751,7 @@ export class McpHub {
 		await this.notifyWebviewOfServerChanges()
 	}
 
-	// Using server
-
-	// Public methods for server management
-
-	public async toggleServerDisabled(serverName: string, disabled: boolean): Promise<void> {
-		try {
-			const config = await this.readAndValidateMcpSettingsFile()
-			if (!config) {
-				throw new Error("Failed to read or validate MCP settings")
-			}
-
-			if (config.mcpServers[serverName]) {
-				config.mcpServers[serverName].disabled = disabled
-
-				const settingsPath = await this.getMcpSettingsFilePath()
-				await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
-
-				const connection = this.connections.find((conn) => conn.server.name === serverName)
-				if (connection) {
-					connection.server.disabled = disabled
-				}
-
-				await this.notifyWebviewOfServerChanges()
-			}
-		} catch (error) {
-			console.error("Failed to update server disabled state:", error)
-			if (error instanceof Error) {
-				console.error("Error details:", error.message, error.stack)
-			}
-			vscode.window.showErrorMessage(
-				`Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
-			)
-			throw error
-		}
-	}
+	// --- Server Interaction ---
 
 	async readResource(serverName: string, uri: string): Promise<McpResourceResponse> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -560,16 +761,11 @@ export class McpHub {
 		if (connection.server.disabled) {
 			throw new Error(`Server "${serverName}" is disabled`)
 		}
+		if (connection.server.status !== "connected") {
+			throw new Error(`Server "${serverName}" is not connected`)
+		}
 
-		return await connection.client.request(
-			{
-				method: "resources/read",
-				params: {
-					uri,
-				},
-			},
-			ReadResourceResultSchema,
-		)
+		return await connection.client.request({ method: "resources/read", params: { uri } }, ReadResourceResultSchema)
 	}
 
 	async callTool(serverName: string, toolName: string, toolArguments?: Record<string, unknown>): Promise<McpToolCallResponse> {
@@ -579,150 +775,256 @@ export class McpHub {
 				`No connection found for server: ${serverName}. Please make sure to use MCP servers available under 'Connected MCP Servers'.`,
 			)
 		}
-
 		if (connection.server.disabled) {
-			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
+			throw new Error(`Server "${serverName}" is disabled`)
+		}
+		if (connection.server.status !== "connected") {
+			throw new Error(`Server "${serverName}" is not connected`)
 		}
 
-		let timeout = secondsToMs(DEFAULT_MCP_TIMEOUT_SECONDS) // sdk expects ms
-
-		try {
-			const config = JSON.parse(connection.server.config)
-			const parsedConfig = ServerConfigSchema.parse(config)
-			timeout = secondsToMs(parsedConfig.timeout)
-		} catch (error) {
-			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
-		}
+		const timeout = secondsToMs(connection.server.timeout ?? DEFAULT_MCP_TIMEOUT_SECONDS)
 
 		return await connection.client.request(
-			{
-				method: "tools/call",
-				params: {
-					name: toolName,
-					arguments: toolArguments,
-				},
-			},
+			{ method: "tools/call", params: { name: toolName, arguments: toolArguments } },
 			CallToolResultSchema,
-			{
-				timeout,
-			},
+			{ timeout },
 		)
 	}
 
-	async toggleToolAutoApprove(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<void> {
+	// --- Settings Modification Helpers ---
+
+	// Helper to read, modify, and write a specific settings file
+	private async modifySettingsFile(
+		filePath: string,
+		modification: (settings: McpSettings) => McpSettings | undefined,
+	): Promise<boolean> {
 		try {
-			const settingsPath = await this.getMcpSettingsFilePath()
-			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
+			const currentSettings = await this.readAndValidateMcpSettingsFile(filePath)
+			// If file doesn't exist or is invalid, create/use a default empty structure
+			const settingsToModify = currentSettings ?? { mcpServers: {} }
 
-			// Initialize autoApprove if it doesn't exist
-			if (!config.mcpServers[serverName].autoApprove) {
-				config.mcpServers[serverName].autoApprove = []
-			}
+			const modifiedSettings = modification(settingsToModify)
 
-			const autoApprove = config.mcpServers[serverName].autoApprove
-			for (const toolName of toolNames) {
-				const toolIndex = autoApprove.indexOf(toolName)
-
-				if (shouldAllow && toolIndex === -1) {
-					// Add tool to autoApprove list
-					autoApprove.push(toolName)
-				} else if (!shouldAllow && toolIndex !== -1) {
-					// Remove tool from autoApprove list
-					autoApprove.splice(toolIndex, 1)
+			if (modifiedSettings) {
+				// Validate before writing
+				const validationResult = McpSettingsSchema.safeParse(modifiedSettings)
+				if (!validationResult.success) {
+					console.error("Validation failed before writing settings:", validationResult.error)
+					vscode.window.showErrorMessage("Internal error: Settings modification resulted in invalid schema.")
+					return false
 				}
+				// Ensure the directory exists before writing (important for local file creation)
+				await fs.mkdir(path.dirname(filePath), { recursive: true })
+				await fs.writeFile(filePath, JSON.stringify(validationResult.data, null, 2))
+				return true
 			}
-
-			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
-
-			// Update the tools list to reflect the change
-			const connection = this.connections.find((conn) => conn.server.name === serverName)
-			if (connection) {
-				await this.notifyWebviewOfServerChanges()
-			}
+			return false // No modification was made
 		} catch (error) {
-			console.error("Failed to update autoApprove settings:", error)
-			vscode.window.showErrorMessage("Failed to update autoApprove settings")
-			throw error // Re-throw to ensure the error is properly handled
+			console.error(`Failed to modify settings file ${filePath}:`, error)
+			vscode.window.showErrorMessage(`Failed to update settings in ${path.basename(filePath)}.`)
+			return false
 		}
 	}
 
-	public async deleteServer(serverName: string) {
-		try {
-			const settingsPath = await this.getMcpSettingsFilePath()
-			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
-			if (!config.mcpServers || typeof config.mcpServers !== "object") {
-				config.mcpServers = {}
+	// Determines which settings file (global or local) defines a server based on in-memory state
+	private async _getServerSourceFilePath(serverName: string): Promise<string | undefined> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		const source = connection?.server.source ?? MCP_SOURCE_GLOBAL // Default to global if not found (e.g., during deletion)
+
+		if (source === MCP_SOURCE_PROJECT) {
+			// Use constant
+			return this.getLocalMcpSettingsFilePath() // Might be undefined if no workspace
+		} else {
+			return await this.getGlobalMcpSettingsFilePath()
+		}
+	}
+
+	// --- Public Methods for Server Management (Now use _getServerSourceFilePath) ---
+
+	public async toggleServerDisabled(serverName: string, disabled: boolean): Promise<void> {
+		const filePath = await this._getServerSourceFilePath(serverName)
+		if (!filePath) {
+			vscode.window.showErrorMessage(`Cannot toggle state for "${serverName}": Source file path not found.`)
+			return
+		}
+
+		const success = await this.modifySettingsFile(filePath, (settings) => {
+			if (settings.mcpServers?.[serverName]) {
+				settings.mcpServers[serverName].disabled = disabled
+				return settings
 			}
-			if (config.mcpServers[serverName]) {
-				delete config.mcpServers[serverName]
-				const updatedConfig = {
-					mcpServers: config.mcpServers,
+			console.warn(`Server "${serverName}" not found in ${path.basename(filePath)} during toggle disable.`)
+			return undefined // Server not found in this specific file
+		})
+
+		if (success) {
+			// Update in-memory state immediately
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			if (connection) {
+				connection.server.disabled = disabled
+				// Update stored config string as well
+				try {
+					const config = JSON.parse(connection.server.config)
+					config.disabled = disabled
+					connection.server.config = JSON.stringify(config)
+				} catch (e) {
+					console.error("Failed to update stored config disabled state", e)
 				}
-				await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
-				await this.updateServerConnections(config.mcpServers)
-				vscode.window.showInformationMessage(`Deleted ${serverName} MCP server`)
-			} else {
-				vscode.window.showWarningMessage(`${serverName} not found in MCP configuration`)
+				await this.notifyWebviewOfServerChanges() // Notify UI
 			}
-		} catch (error) {
-			vscode.window.showErrorMessage(
-				`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`,
-			)
-			throw error
+		} else {
+			vscode.window.showErrorMessage(`Failed to update disabled state for "${serverName}" in ${path.basename(filePath)}.`)
+		}
+	}
+
+	async toggleToolAutoApprove(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<void> {
+		const filePath = await this._getServerSourceFilePath(serverName)
+		if (!filePath) {
+			vscode.window.showErrorMessage(`Cannot update auto-approve for "${serverName}": Source file path not found.`)
+			return
+		}
+
+		const success = await this.modifySettingsFile(filePath, (settings) => {
+			const serverConf = settings.mcpServers?.[serverName]
+			if (!serverConf) {
+				console.warn(`Server "${serverName}" not found in ${path.basename(filePath)} during toggle auto-approve.`)
+				return undefined
+			}
+
+			// Ensure autoApprove array exists and is mutable
+			const autoApproveList = serverConf.autoApprove ? [...serverConf.autoApprove] : []
+
+			let changed = false
+			for (const toolName of toolNames) {
+				const index = autoApproveList.indexOf(toolName)
+				if (shouldAllow && index === -1) {
+					autoApproveList.push(toolName)
+					changed = true
+				} else if (!shouldAllow && index !== -1) {
+					autoApproveList.splice(index, 1)
+					changed = true
+				}
+			}
+
+			if (changed) {
+				settings.mcpServers[serverName].autoApprove = autoApproveList
+				return settings
+			}
+			return undefined // No changes needed
+		})
+
+		if (success) {
+			// Update in-memory state
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			if (connection?.server.tools) {
+				const currentAutoApprove = JSON.parse(connection.server.config).autoApprove ?? []
+				// Update the autoApprove flag on the in-memory tools
+				connection.server.tools = connection.server.tools.map((tool) => ({
+					...tool,
+					autoApprove: currentAutoApprove.includes(tool.name),
+				}))
+				// Update the stored config string
+				try {
+					const config = JSON.parse(connection.server.config)
+					config.autoApprove = currentAutoApprove // Use the updated list
+					connection.server.config = JSON.stringify(config)
+				} catch (e) {
+					console.error("Failed to update stored config autoApprove", e)
+				}
+				await this.notifyWebviewOfServerChanges()
+			}
+		} else {
+			// Only show error if modification failed, not if no changes were needed
+			// Need better error handling in modifySettingsFile to distinguish
+		}
+	}
+
+	public async deleteServer(serverName: string): Promise<void> {
+		const filePath = await this._getServerSourceFilePath(serverName)
+		if (!filePath) {
+			vscode.window.showWarningMessage(`Cannot delete: Server "${serverName}" not found in configuration.`)
+			return
+		}
+
+		const success = await this.modifySettingsFile(filePath, (settings) => {
+			if (settings.mcpServers?.[serverName]) {
+				delete settings.mcpServers[serverName]
+				return settings
+			}
+			return undefined // Server wasn't in this file
+		})
+
+		if (success) {
+			vscode.window.showInformationMessage(`Deleted server "${serverName}" from ${path.basename(filePath)}.`)
+			// File watcher should trigger reload. If it doesn't, manual reload might be needed.
+			// For now, rely on the watcher.
+		} else {
+			vscode.window.showWarningMessage(`Server "${serverName}" not found in ${path.basename(filePath)} for deletion.`)
 		}
 	}
 
 	public async updateServerTimeout(serverName: string, timeout: number): Promise<void> {
-		try {
-			// Validate timeout against schema
-			const setConfigResult = BaseConfigSchema.shape.timeout.safeParse(timeout)
-			if (!setConfigResult.success) {
-				throw new Error(`Invalid timeout value: ${timeout}. Must be at minimum ${MIN_MCP_TIMEOUT_SECONDS} seconds.`)
+		const validation = BaseConfigSchema.shape.timeout.safeParse(timeout)
+		if (!validation.success) {
+			vscode.window.showErrorMessage(`Invalid timeout value: ${validation.error.errors[0]?.message}`)
+			return
+		}
+
+		const filePath = await this._getServerSourceFilePath(serverName)
+		if (!filePath) {
+			vscode.window.showErrorMessage(`Cannot update timeout for "${serverName}": Source file path not found.`)
+			return
+		}
+
+		const success = await this.modifySettingsFile(filePath, (settings) => {
+			if (settings.mcpServers?.[serverName]) {
+				settings.mcpServers[serverName].timeout = timeout
+				return settings
 			}
+			console.warn(`Server "${serverName}" not found in ${path.basename(filePath)} during update timeout.`)
+			return undefined
+		})
 
-			const settingsPath = await this.getMcpSettingsFilePath()
-			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
-
-			if (!config.mcpServers?.[serverName]) {
-				throw new Error(`Server "${serverName}" not found in settings`)
+		if (success) {
+			// Update in-memory state
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			if (connection) {
+				connection.server.timeout = timeout
+				// Update stored config string
+				try {
+					const config = JSON.parse(connection.server.config)
+					config.timeout = timeout
+					connection.server.config = JSON.stringify(config)
+				} catch (e) {
+					console.error("Failed to update stored config timeout", e)
+				}
+				await this.notifyWebviewOfServerChanges()
 			}
-
-			config.mcpServers[serverName] = {
-				...config.mcpServers[serverName],
-				timeout,
-			}
-
-			await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
-
-			await this.updateServerConnections(config.mcpServers)
-		} catch (error) {
-			console.error("Failed to update server timeout:", error)
-			if (error instanceof Error) {
-				console.error("Error details:", error.message, error.stack)
-			}
-			vscode.window.showErrorMessage(
-				`Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
-			)
-			throw error
+		} else {
+			vscode.window.showErrorMessage(`Failed to update timeout for "${serverName}" in ${path.basename(filePath)}.`)
 		}
 	}
+
+	// --- Disposal ---
 
 	async dispose(): Promise<void> {
-		this.removeAllFileWatchers()
-		for (const connection of this.connections) {
-			try {
-				await this.deleteConnection(connection.server.name)
-			} catch (error) {
-				console.error(`Failed to close connection for ${connection.server.name}:`, error)
-			}
-		}
+		console.log("Disposing McpHub...")
+		this.fileWatchers.forEach((watcher) => watcher.close()) // Close all watchers
+		this.fileWatchers.clear()
+		// Close connections gracefully
+		const closePromises = this.connections.map((conn) => this.deleteConnection(conn.server.name))
+		await Promise.allSettled(closePromises)
 		this.connections = []
-		if (this.settingsWatcher) {
-			this.settingsWatcher.dispose()
-		}
 		this.disposables.forEach((d) => d.dispose())
+		console.log("McpHub disposed.")
 	}
 }
+
+// Define handleSettingsChange globally or pass it around if needed within the class scope
+// This needs careful handling if watchMcpSettingsFiles is async and relies on instance state
+// For simplicity, let's assume handleSettingsChange can access `this` correctly when called by watchers.
+// A potentially safer pattern involves binding or passing `this`.
+// Let's refine the watcher setup slightly.
+
+// Re-declare handleSettingsChange within the class scope or ensure proper binding if needed.
+// The current implementation inside watchMcpSettingsFiles should work as it captures `this`.

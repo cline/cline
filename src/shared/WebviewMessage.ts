@@ -35,7 +35,8 @@ export interface WebviewMessage {
 		| "cancelTask"
 		| "refreshOpenRouterModels"
 		| "refreshOpenAiModels"
-		| "openMcpSettings"
+		| "openMcpSettings" // Opens global settings
+		| "openLocalMcpSettings" // Opens local project settings
 		| "restartMcpServer"
 		| "deleteMcpServer"
 		| "autoApprovalSettings"

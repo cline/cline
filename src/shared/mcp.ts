@@ -2,6 +2,11 @@ export const DEFAULT_MCP_TIMEOUT_SECONDS = 60 // matches Anthropic's default tim
 export const MIN_MCP_TIMEOUT_SECONDS = 1
 export type McpMode = "full" | "server-use-only" | "off"
 
+// Constants for MCP Server Source
+export const MCP_SOURCE_GLOBAL = "global" as const
+export const MCP_SOURCE_PROJECT = "project" as const
+export type McpServerSource = typeof MCP_SOURCE_GLOBAL | typeof MCP_SOURCE_PROJECT
+
 export type McpServer = {
 	name: string
 	config: string
@@ -12,6 +17,7 @@ export type McpServer = {
 	resourceTemplates?: McpResourceTemplate[]
 	disabled?: boolean
 	timeout?: number
+	source?: McpServerSource // Use the defined type
 }
 
 export type McpTool = {

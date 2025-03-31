@@ -429,9 +429,31 @@ export class Controller {
 				break
 			}
 			case "openMcpSettings": {
-				const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
+				// Handles Global settings
+				const mcpSettingsFilePath = await this.mcpHub?.getGlobalMcpSettingsFilePath()
 				if (mcpSettingsFilePath) {
 					openFile(mcpSettingsFilePath)
+				}
+				break
+			}
+			case "openLocalMcpSettings": {
+				// Handles Local project settings
+				const localPath = this.mcpHub?.getLocalMcpSettingsFilePath()
+				if (localPath) {
+					try {
+						// Ensure file exists, create if not
+						const exists = await fileExistsAtPath(localPath)
+						if (!exists) {
+							await fs.writeFile(localPath, JSON.stringify({ mcpServers: {} }, null, 2))
+							console.log("Created default local MCP settings file.")
+						}
+						openFile(localPath)
+					} catch (error) {
+						console.error("Error opening or creating local MCP settings file:", error)
+						vscode.window.showErrorMessage("Could not open or create local MCP settings file.")
+					}
+				} else {
+					vscode.window.showWarningMessage("No workspace folder open. Cannot open local MCP settings.")
 				}
 				break
 			}

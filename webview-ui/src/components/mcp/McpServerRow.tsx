@@ -1,9 +1,9 @@
-import React, { useState, useCallback, useMemo } from "react" // Added useMemo
+import React, { useState, useCallback, useMemo } from "react"
 import styled from "styled-components"
-import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { McpServer } from "../../../../src/shared/mcp"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react" // Removed VSCodeCheckbox
+import { McpServer, MCP_SOURCE_PROJECT, MCP_SOURCE_GLOBAL } from "../../../../src/shared/mcp" // Import constants
 import { vscode } from "../../utils/vscode"
-import Tooltip from "../common/Tooltip" // Import Tooltip
+import Tooltip from "../common/Tooltip"
 
 // --- Styled Components (Copied from McpServerStatusPopup/McpView as needed) ---
 
@@ -28,6 +28,15 @@ const ServerName = styled.span`
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	margin-right: 4px; // Add space before source indicator
+`
+
+// New styled component for the source indicator
+const SourceIndicator = styled.span`
+	font-size: 0.8em;
+	color: var(--vscode-descriptionForeground);
+	margin-right: 6px; // Space before info icon
+	font-style: italic;
 `
 
 const InfoIcon = styled.span`
@@ -102,6 +111,7 @@ interface McpServerRowProps {
 
 const McpServerRow: React.FC<McpServerRowProps> = ({ server }) => {
 	const [isInfoHovering, setIsInfoHovering] = useState(false)
+	const [isSourceHovering, setIsSourceHovering] = useState(false) // State for source tooltip
 
 	const handleToggle = useCallback(() => {
 		const action = server.disabled ? "enable" : "disable"
@@ -136,6 +146,16 @@ const McpServerRow: React.FC<McpServerRowProps> = ({ server }) => {
 		<ServerRowContainer>
 			<ServerNameContainer>
 				<ServerName title={server.name}>{server.name}</ServerName>
+				{/* Add Source Indicator with its own Tooltip */}
+				{server.source && (
+					<Tooltip visible={isSourceHovering} tipText={`Defined in ${server.source} settings`} hintText="">
+						<SourceIndicator
+							onMouseEnter={() => setIsSourceHovering(true)}
+							onMouseLeave={() => setIsSourceHovering(false)}>
+							({server.source === MCP_SOURCE_PROJECT ? "project" : "global"}) {/* Use constants for display text */}
+						</SourceIndicator>
+					</Tooltip>
+				)}
 				<Tooltip visible={isInfoHovering} tipText={tooltipText} hintText="">
 					<InfoIcon
 						className="codicon codicon-info"

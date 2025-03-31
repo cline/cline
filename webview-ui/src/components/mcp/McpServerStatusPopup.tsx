@@ -70,11 +70,25 @@ const McpServerStatusPopup: React.FC<McpServerStatusPopupProps> = ({ onClose }) 
 			{/* Render footer directly after the list */}
 			<PopupFooter>
 				<VSCodeButton appearance="secondary" onClick={handleRestartAll}>
-					Restart All Enabled
+					Restart All
 				</VSCodeButton>
-				<VSCodeButton appearance="secondary" onClick={handleOpenConfig}>
-					Open Config
-				</VSCodeButton>
+				{/* Add separate buttons for global/local config */}
+				<div style={{ display: "flex", gap: "5px" }}>
+					<VSCodeButton
+						appearance="secondary"
+						title="Open global MCP settings file"
+						onClick={() => vscode.postMessage({ type: "openMcpSettings" })}>
+						<span className="codicon codicon-globe" style={{ marginRight: "3px" }}></span>
+						Global Config
+					</VSCodeButton>
+					<VSCodeButton
+						appearance="secondary"
+						title="Open local project MCP settings file (.cline_mcp_servers.json)"
+						onClick={() => vscode.postMessage({ type: "openLocalMcpSettings" })}>
+						<span className="codicon codicon-folder-opened" style={{ marginRight: "3px" }}></span>
+						Local Config
+					</VSCodeButton>
+				</div>
 			</PopupFooter>
 		</div>
 	)
