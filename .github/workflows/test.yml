@@ -35,7 +35,6 @@ jobs:
               run: |
                   python -m pip install --upgrade pip
                   pip install requests
-                  cd .github/scripts && pip install -e . && cd ../..
 
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
@@ -80,7 +79,7 @@ jobs:
               continue-on-error: true
               run: |
                   xvfb-run -a npm run test:coverage > extension_coverage.txt 2>&1 || true
-                  python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
+                  PYTHONPATH=.github/scripts python -m coverage_check extract-coverage extension_coverage.txt --type=extension --github-output --verbose
 
             # Run webview tests with coverage
             - name: Webview Tests with Coverage
@@ -91,8 +90,8 @@ jobs:
                   # Ensure coverage dependency is installed
                   npm install --no-save @vitest/coverage-v8
                   npm run test:coverage > webview_coverage.txt 2>&1 || true
-                  python -m coverage_check extract-coverage webview_coverage.txt --type=webview --github-output --verbose
                   cd ..
+                  PYTHONPATH=.github/scripts python -m coverage_check extract-coverage webview-ui/webview_coverage.txt --type=webview --github-output --verbose
 
             # Save coverage reports as artifacts (workflow-scoped)
             - name: Save Coverage Reports
@@ -125,7 +124,6 @@ jobs:
               run: |
                   python -m pip install --upgrade pip
                   pip install requests
-                  cd .github/scripts && pip install -e . && cd ../..
 
             # Download coverage artifacts from test job
             - name: Download Coverage Reports
@@ -141,8 +139,8 @@ jobs:
                   # Extract PR number from GITHUB_REF
                   PR_NUMBER=$(echo "$GITHUB_REF" | sed -e 's/refs\/pull\///' -e 's/\/merge//')
 
-                  # Run the coverage workflow
-                  python -m coverage_check process-workflow \
+                  # Run the coverage workflow from root directory
+                  PYTHONPATH=.github/scripts python -m coverage_check process-workflow \
                     --base-branch ${{ github.base_ref }} \
                     --pr-number $PR_NUMBER \
                     --repo $GITHUB_REPOSITORY \
