@@ -8,26 +8,26 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
-import { ApiHandler, buildApiHandler } from "../api"
-import { OpenRouterHandler } from "../api/providers/openrouter"
-import CheckpointTracker from "../integrations/checkpoints/CheckpointTracker"
-import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../integrations/editor/DiffViewProvider"
-import { formatContentBlockToMarkdown } from "../integrations/misc/export-markdown"
-import { extractTextFromFile } from "../integrations/misc/extract-text"
-import { showSystemNotification } from "../integrations/notifications"
-import { TerminalManager } from "../integrations/terminal/TerminalManager"
-import { BrowserSession } from "../services/browser/BrowserSession"
-import { UrlContentFetcher } from "../services/browser/UrlContentFetcher"
-import { listFiles } from "../services/glob/list-files"
-import { regexSearchFiles } from "../services/ripgrep"
-import { parseSourceCodeForDefinitionsTopLevel } from "../services/tree-sitter"
-import { ApiConfiguration } from "../shared/api"
-import { findLast, findLastIndex, parsePartialArrayString } from "../shared/array"
-import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
-import { BrowserSettings } from "../shared/BrowserSettings"
-import { ChatSettings } from "../shared/ChatSettings"
-import { combineApiRequests } from "../shared/combineApiRequests"
-import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "../shared/combineCommandSequences"
+import { ApiHandler, buildApiHandler } from "../../api"
+import { OpenRouterHandler } from "../../api/providers/openrouter"
+import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
+import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
+import { formatContentBlockToMarkdown } from "../../integrations/misc/export-markdown"
+import { extractTextFromFile } from "../../integrations/misc/extract-text"
+import { showSystemNotification } from "../../integrations/notifications"
+import { TerminalManager } from "../../integrations/terminal/TerminalManager"
+import { BrowserSession } from "../../services/browser/BrowserSession"
+import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
+import { listFiles } from "../../services/glob/list-files"
+import { regexSearchFiles } from "../../services/ripgrep"
+import { parseSourceCodeForDefinitionsTopLevel } from "../../services/tree-sitter"
+import { ApiConfiguration } from "../../shared/api"
+import { findLast, findLastIndex, parsePartialArrayString } from "../../shared/array"
+import { AutoApprovalSettings } from "../../shared/AutoApprovalSettings"
+import { BrowserSettings } from "../../shared/BrowserSettings"
+import { ChatSettings } from "../../shared/ChatSettings"
+import { combineApiRequests } from "../../shared/combineApiRequests"
+import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "../../shared/combineCommandSequences"
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -43,41 +43,41 @@ import {
 	ClineSayBrowserAction,
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
-} from "../shared/ExtensionMessage"
-import { getApiMetrics } from "../shared/getApiMetrics"
-import { HistoryItem } from "../shared/HistoryItem"
-import { ClineAskResponse, ClineCheckpointRestore } from "../shared/WebviewMessage"
-import { calculateApiCostAnthropic } from "../utils/cost"
-import { fileExistsAtPath, isDirectory } from "../utils/fs"
-import { arePathsEqual, getReadablePath } from "../utils/path"
-import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
-import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
-import { constructNewFileContent } from "./assistant-message/diff"
-import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "./ignore/ClineIgnoreController"
-import { parseMentions } from "./mentions"
-import { formatResponse } from "./prompts/responses"
-import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
-import { ContextManager } from "./context-management/ContextManager"
-import { OpenAiHandler } from "../api/providers/openai"
-import { ApiStream } from "../api/transform/stream"
-import { ClineHandler } from "../api/providers/cline"
-import { ClineProvider } from "./webview/ClineProvider"
-import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../shared/Languages"
-import { telemetryService } from "../services/telemetry/TelemetryService"
+} from "../../shared/ExtensionMessage"
+import { getApiMetrics } from "../../shared/getApiMetrics"
+import { HistoryItem } from "../../shared/HistoryItem"
+import { ClineAskResponse, ClineCheckpointRestore } from "../../shared/WebviewMessage"
+import { calculateApiCostAnthropic } from "../../utils/cost"
+import { fileExistsAtPath, isDirectory } from "../../utils/fs"
+import { arePathsEqual, getReadablePath } from "../../utils/path"
+import { fixModelHtmlEscaping, removeInvalidChars } from "../../utils/string"
+import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from ".././assistant-message"
+import { constructNewFileContent } from ".././assistant-message/diff"
+import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from ".././ignore/ClineIgnoreController"
+import { parseMentions } from ".././mentions"
+import { formatResponse } from ".././prompts/responses"
+import { addUserInstructions, SYSTEM_PROMPT } from ".././prompts/system"
+import { ContextManager } from ".././context-management/ContextManager"
+import { OpenAiHandler } from "../../api/providers/openai"
+import { ApiStream } from "../../api/transform/stream"
+import { ClineHandler } from "../../api/providers/cline"
+import { Controller } from "../controller"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../../shared/Languages"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 import pTimeout from "p-timeout"
-import { GlobalFileNames } from "../global-constants"
+import { GlobalFileNames } from "../../global-constants"
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
-} from "./context-management/context-error-handling"
-import { AnthropicHandler } from "../api/providers/anthropic"
+} from "../context-management/context-error-handling"
+import { AnthropicHandler } from "../../api/providers/anthropic"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
 type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
 
-export class Cline {
+export class Task {
 	readonly taskId: string
 	readonly apiProvider?: string
 	api: ApiHandler
@@ -99,7 +99,7 @@ export class Cline {
 	private lastMessageTs?: number
 	private consecutiveAutoApprovedRequestsCount: number = 0
 	private consecutiveMistakeCount: number = 0
-	private providerRef: WeakRef<ClineProvider>
+	private controllerRef: WeakRef<Controller>
 	private abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
@@ -126,7 +126,7 @@ export class Cline {
 	private didAutomaticallyRetryFailedApiRequest = false
 
 	constructor(
-		provider: ClineProvider,
+		controller: Controller,
 		apiConfiguration: ApiConfiguration,
 		autoApprovalSettings: AutoApprovalSettings,
 		browserSettings: BrowserSettings,
@@ -140,11 +140,11 @@ export class Cline {
 		this.clineIgnoreController.initialize().catch((error) => {
 			console.error("Failed to initialize ClineIgnoreController:", error)
 		})
-		this.providerRef = new WeakRef(provider)
+		this.controllerRef = new WeakRef(controller)
 		this.apiProvider = apiConfiguration.apiProvider
 		this.terminalManager = new TerminalManager()
-		this.urlContentFetcher = new UrlContentFetcher(provider.context)
-		this.browserSession = new BrowserSession(provider.context, browserSettings)
+		this.urlContentFetcher = new UrlContentFetcher(controller.context)
+		this.browserSession = new BrowserSession(controller.context, browserSettings)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
@@ -196,7 +196,7 @@ export class Cline {
 	// Storing task to disk for history
 
 	private async ensureTaskDirectoryExists(): Promise<string> {
-		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath
+		const globalStoragePath = this.controllerRef.deref()?.context.globalStorageUri.fsPath
 		if (!globalStoragePath) {
 			throw new Error("Global storage uri is invalid")
 		}
@@ -284,7 +284,7 @@ export class Cline {
 			} catch (error) {
 				console.error("Failed to get task directory size:", taskDir, error)
 			}
-			await this.providerRef.deref()?.updateTaskHistory({
+			await this.controllerRef.deref()?.updateTaskHistory({
 				id: this.taskId,
 				ts: lastRelevantMessage.ts,
 				task: taskMessage.text ?? "",
@@ -321,13 +321,13 @@ export class Cline {
 					try {
 						this.checkpointTracker = await CheckpointTracker.create(
 							this.taskId,
-							this.providerRef.deref()?.context.globalStorageUri.fsPath,
+							this.controllerRef.deref()?.context.globalStorageUri.fsPath,
 						)
 					} catch (error) {
 						const errorMessage = error instanceof Error ? error.message : "Unknown error"
 						console.error("Failed to initialize checkpoint tracker:", errorMessage)
 						this.checkpointTrackerErrorMessage = errorMessage
-						await this.providerRef.deref()?.postStateToWebview()
+						await this.controllerRef.deref()?.postStateToWebview()
 						vscode.window.showErrorMessage(errorMessage)
 						didWorkspaceRestoreFail = true
 					}
@@ -403,17 +403,17 @@ export class Cline {
 
 			await this.saveClineMessages()
 
-			await this.providerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
+			await this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
 
-			this.providerRef.deref()?.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
+			this.controllerRef.deref()?.cancelTask() // the task is already cancelled by the provider beforehand, but we need to re-init to get the updated messages
 		} else {
-			await this.providerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
+			await this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
 		}
 	}
 
 	async presentMultifileDiff(messageTs: number, seeNewChangesSinceLastTaskCompletion: boolean) {
 		const relinquishButton = () => {
-			this.providerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
+			this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
 		}
 
 		console.log("presentMultifileDiff", messageTs)
@@ -436,13 +436,13 @@ export class Cline {
 			try {
 				this.checkpointTracker = await CheckpointTracker.create(
 					this.taskId,
-					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+					this.controllerRef.deref()?.context.globalStorageUri.fsPath,
 				)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 				this.checkpointTrackerErrorMessage = errorMessage
-				await this.providerRef.deref()?.postStateToWebview()
+				await this.controllerRef.deref()?.postStateToWebview()
 				vscode.window.showErrorMessage(errorMessage)
 				relinquishButton()
 				return
@@ -551,7 +551,7 @@ export class Cline {
 			try {
 				this.checkpointTracker = await CheckpointTracker.create(
 					this.taskId,
-					this.providerRef.deref()?.context.globalStorageUri.fsPath,
+					this.controllerRef.deref()?.context.globalStorageUri.fsPath,
 				)
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -623,8 +623,8 @@ export class Cline {
 					lastMessage.partial = partial
 					// todo be more efficient about saving and posting only new data or one whole message at a time so ignore partial for saves, and only post parts of partial message instead of whole array in new listener
 					// await this.saveClineMessages()
-					// await this.providerRef.deref()?.postStateToWebview()
-					await this.providerRef.deref()?.postMessageToWebview({
+					// await this.controllerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					})
@@ -643,7 +643,7 @@ export class Cline {
 						text,
 						partial,
 					})
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 					throw new Error("Current ask promise was ignored 2")
 				}
 			} else {
@@ -666,8 +666,8 @@ export class Cline {
 					lastMessage.text = text
 					lastMessage.partial = false
 					await this.saveClineMessages()
-					// await this.providerRef.deref()?.postStateToWebview()
-					await this.providerRef.deref()?.postMessageToWebview({
+					// await this.controllerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					})
@@ -684,7 +684,7 @@ export class Cline {
 						ask: type,
 						text,
 					})
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 				}
 			}
 		} else {
@@ -701,7 +701,7 @@ export class Cline {
 				ask: type,
 				text,
 			})
-			await this.providerRef.deref()?.postStateToWebview()
+			await this.controllerRef.deref()?.postStateToWebview()
 		}
 
 		await pWaitFor(() => this.askResponse !== undefined || this.lastMessageTs !== askTs, { interval: 100 })
@@ -740,7 +740,7 @@ export class Cline {
 					lastMessage.text = text
 					lastMessage.images = images
 					lastMessage.partial = partial
-					await this.providerRef.deref()?.postMessageToWebview({
+					await this.controllerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					})
@@ -756,7 +756,7 @@ export class Cline {
 						images,
 						partial,
 					})
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 				}
 			} else {
 				// partial=false means its a complete version of a previously partial message
@@ -770,8 +770,8 @@ export class Cline {
 
 					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
 					await this.saveClineMessages()
-					// await this.providerRef.deref()?.postStateToWebview()
-					await this.providerRef.deref()?.postMessageToWebview({
+					// await this.controllerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postMessageToWebview({
 						type: "partialMessage",
 						partialMessage: lastMessage,
 					}) // more performant than an entire postStateToWebview
@@ -786,7 +786,7 @@ export class Cline {
 						text,
 						images,
 					})
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 				}
 			}
 		} else {
@@ -800,7 +800,7 @@ export class Cline {
 				text,
 				images,
 			})
-			await this.providerRef.deref()?.postStateToWebview()
+			await this.controllerRef.deref()?.postStateToWebview()
 		}
 	}
 
@@ -819,7 +819,7 @@ export class Cline {
 		if (lastMessage?.partial && lastMessage.type === type && (lastMessage.ask === askOrSay || lastMessage.say === askOrSay)) {
 			this.clineMessages.pop()
 			await this.saveClineMessages()
-			await this.providerRef.deref()?.postStateToWebview()
+			await this.controllerRef.deref()?.postStateToWebview()
 		}
 	}
 
@@ -831,7 +831,7 @@ export class Cline {
 		this.clineMessages = []
 		this.apiConversationHistory = []
 
-		await this.providerRef.deref()?.postStateToWebview()
+		await this.controllerRef.deref()?.postStateToWebview()
 
 		await this.say("text", task, images)
 
@@ -853,7 +853,7 @@ export class Cline {
 	private async resumeTaskFromHistory() {
 		// UPDATE: we don't need this anymore since most tasks are now created with checkpoints enabled
 		// right now we let users init checkpoints for old tasks, assuming they're continuing them from the same workspace (which we never tied to tasks, so no way for us to know if it's opened in the right workspace)
-		// const doesShadowGitExist = await CheckpointTracker.doesShadowGitExist(this.taskId, this.providerRef.deref())
+		// const doesShadowGitExist = await CheckpointTracker.doesShadowGitExist(this.taskId, this.controllerRef.deref())
 		// if (!doesShadowGitExist) {
 		// 	this.checkpointTrackerErrorMessage = "Checkpoints are only available for new tasks"
 		// }
@@ -1288,11 +1288,11 @@ export class Cline {
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
 		// Wait for MCP servers to be connected before generating system prompt
-		await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
+		await pWaitFor(() => this.controllerRef.deref()?.mcpHub?.isConnecting !== true, { timeout: 10_000 }).catch(() => {
 			console.error("MCP servers failed to connect in time")
 		})
 
-		const mcpHub = this.providerRef.deref()?.mcpHub
+		const mcpHub = this.controllerRef.deref()?.mcpHub
 		if (!mcpHub) {
 			throw new Error("MCP hub not available")
 		}
@@ -1970,7 +1970,7 @@ export class Cline {
 								}
 
 								if (!fileExists) {
-									this.providerRef.deref()?.workspaceTracker?.populateFilePaths()
+									this.controllerRef.deref()?.workspaceTracker?.populateFilePaths()
 								}
 
 								await this.diffViewProvider.reset()
@@ -2534,7 +2534,7 @@ export class Cline {
 								}
 
 								// Re-populate file paths in case the command modified the workspace (vscode listeners do not trigger unless the user manually creates/deletes files)
-								this.providerRef.deref()?.workspaceTracker?.populateFilePaths()
+								this.controllerRef.deref()?.workspaceTracker?.populateFilePaths()
 
 								pushToolResult(result)
 
@@ -2616,7 +2616,7 @@ export class Cline {
 									arguments: mcp_arguments,
 								} satisfies ClineAskUseMcpServer)
 
-								const isToolAutoApproved = this.providerRef
+								const isToolAutoApproved = this.controllerRef
 									.deref()
 									?.mcpHub?.connections?.find((conn) => conn.server.name === server_name)
 									?.server.tools?.find((tool) => tool.name === tool_name)?.autoApprove
@@ -2638,7 +2638,7 @@ export class Cline {
 
 								// now execute the tool
 								await this.say("mcp_server_request_started") // same as browser_action_result
-								const toolResult = await this.providerRef
+								const toolResult = await this.controllerRef
 									.deref()
 									?.mcpHub?.callTool(server_name, tool_name, parsedArguments)
 
@@ -2728,7 +2728,7 @@ export class Cline {
 
 								// now execute the tool
 								await this.say("mcp_server_request_started")
-								const resourceResult = await this.providerRef.deref()?.mcpHub?.readResource(server_name, uri)
+								const resourceResult = await this.controllerRef.deref()?.mcpHub?.readResource(server_name, uri)
 								const resourceResultPretty =
 									resourceResult?.contents
 										.map((item) => {
@@ -3158,7 +3158,7 @@ export class Cline {
 		if (!this.checkpointTracker && !this.checkpointTrackerErrorMessage) {
 			try {
 				this.checkpointTracker = await pTimeout(
-					CheckpointTracker.create(this.taskId, this.providerRef.deref()?.context.globalStorageUri.fsPath),
+					CheckpointTracker.create(this.taskId, this.controllerRef.deref()?.context.globalStorageUri.fsPath),
 					{
 						milliseconds: 15_000,
 						message:
@@ -3200,7 +3200,7 @@ export class Cline {
 			request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n"),
 		} satisfies ClineApiReqInfo)
 		await this.saveClineMessages()
-		await this.providerRef.deref()?.postStateToWebview()
+		await this.controllerRef.deref()?.postStateToWebview()
 
 		try {
 			let cacheWriteTokens = 0
@@ -3360,10 +3360,10 @@ export class Cline {
 					const errorMessage = this.formatErrorWithStatusCode(error)
 
 					await abortStream("streaming_failed", errorMessage)
-					const history = await this.providerRef.deref()?.getTaskWithId(this.taskId)
+					const history = await this.controllerRef.deref()?.getTaskWithId(this.taskId)
 					if (history) {
-						await this.providerRef.deref()?.initClineWithHistoryItem(history.historyItem)
-						// await this.providerRef.deref()?.postStateToWebview()
+						await this.controllerRef.deref()?.initClineWithHistoryItem(history.historyItem)
+						// await this.controllerRef.deref()?.postStateToWebview()
 					}
 				}
 			} finally {
@@ -3383,7 +3383,7 @@ export class Cline {
 					}
 					updateApiReqMsg()
 					await this.saveClineMessages()
-					await this.providerRef.deref()?.postStateToWebview()
+					await this.controllerRef.deref()?.postStateToWebview()
 				})
 			}
 
@@ -3407,7 +3407,7 @@ export class Cline {
 
 			updateApiReqMsg()
 			await this.saveClineMessages()
-			await this.providerRef.deref()?.postStateToWebview()
+			await this.controllerRef.deref()?.postStateToWebview()
 
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
