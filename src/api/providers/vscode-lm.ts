@@ -99,6 +99,22 @@ declare module "vscode" {
 	}
 }
 
+export async function getModels(selector: vscode.LanguageModelChatSelector = {}): Promise<vscode.LanguageModelChat[]> {
+	const models = await vscode.lm.selectChatModels(selector)
+
+	const modelFilter = (model: any) => {
+		// Filter out models that are not supported
+		switch (model.id) {
+			case "claude-3.7-sonnet":
+			case "claude-3.7-sonnet-thought":
+				return false
+		}
+		return true
+	}
+
+	return models.filter(modelFilter) || []
+}
+
 /**
  * Handles interaction with VS Code's Language Model API for chat-based operations.
  * This handler implements the ApiHandler interface to provide VS Code LM specific functionality.
@@ -173,7 +189,7 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 	 */
 	async createClient(selector: vscode.LanguageModelChatSelector): Promise<vscode.LanguageModelChat> {
 		try {
-			const models = await vscode.lm.selectChatModels(selector)
+			const models = await getModels(selector)
 
 			// Use first available model or create a minimal model object
 			if (models && Array.isArray(models) && models.length > 0) {

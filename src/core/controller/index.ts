@@ -21,7 +21,6 @@ import { ClineAccountService } from "../../services/account/ClineAccountService"
 import { McpHub } from "../../services/mcp/McpHub"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "../../shared/api"
-import { findLast } from "../../shared/array"
 import { ChatContent } from "../../shared/ChatContent"
 import { ChatSettings } from "../../shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
@@ -44,6 +43,7 @@ import {
 	updateGlobalState,
 } from "../state"
 import { WebviewProvider } from "../webview"
+import { getModels as vsCodeLMGetModels } from "../../api/providers/vscode-lm"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -874,11 +874,9 @@ export class Controller {
 	}
 
 	// VSCode LM API
-
 	private async getVsCodeLmModels() {
 		try {
-			const models = await vscode.lm.selectChatModels({})
-			return models || []
+			return vsCodeLMGetModels()
 		} catch (error) {
 			console.error("Error fetching VS Code LM models:", error)
 			return []
