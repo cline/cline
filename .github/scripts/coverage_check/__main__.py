@@ -23,6 +23,7 @@ def setup_verbose_mode(args):
         log("Verbose mode enabled")
 
 def main():
+    # Create main parser
     parser = argparse.ArgumentParser(description='Coverage utility script for GitHub Actions workflows')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
