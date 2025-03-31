@@ -37,12 +37,6 @@ jobs:
                   pip install requests
                   cd .github/scripts && pip install -e . && cd ../..
 
-            # # Install VSCode test dependencies
-            # - name: Install VSCode test dependencies
-            #   run: |
-            #       sudo apt-get update
-            #       sudo apt-get install -y xvfb libasound2t64 libgbm1 libgtk-3-0 libnss3 libxss1 libxtst6 libx11-xcb1 libxkbfile1
-
             # Cache root dependencies - only reuse if package-lock.json exactly matches
             - name: Cache root dependencies
               uses: actions/cache@v4
@@ -138,7 +132,7 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   name: pr-coverage-reports
-                  path: .
+                  path: . # Download to root directory to match expected paths
 
             # Process coverage workflow
             - name: Process coverage workflow
