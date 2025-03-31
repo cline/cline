@@ -36,7 +36,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 				x.dispose()
 			}
 		}
-		this.controller.dispose()
+		await this.controller.dispose()
 		WebviewProvider.activeInstances.delete(this)
 	}
 
