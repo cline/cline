@@ -51,7 +51,6 @@ export function removeMention(text: string, position: number): { newText: string
 }
 
 export enum ContextMenuOptionType {
-	OpenedFile = "openedFile",
 	File = "file",
 	Folder = "folder",
 	Problems = "problems",
@@ -84,7 +83,7 @@ export function getContextMenuOptions(
 	if (query === "") {
 		if (selectedType === ContextMenuOptionType.File) {
 			const files = queryItems
-				.filter((item) => item.type === ContextMenuOptionType.File || item.type === ContextMenuOptionType.OpenedFile)
+				.filter((item) => item.type === ContextMenuOptionType.File)
 				.map((item) => ({
 					type: item.type,
 					value: item.value,
@@ -180,9 +179,6 @@ export function getContextMenuOptions(
 			item.type !== ContextMenuOptionType.Folder &&
 			item.type !== ContextMenuOptionType.Git,
 	)
-
-	// Separate matches by type
-	//const openedFileMatches = matchingItems.filter((item) => item.type === ContextMenuOptionType.OpenedFile)
 
 	// Convert search results to queryItems format
 	console.log("context-mentions.ts: (0) dynamicSearchResults:", {
