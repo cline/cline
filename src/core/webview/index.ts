@@ -2,7 +2,9 @@ import axios from "axios"
 import * as vscode from "vscode"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
-
+import { getTheme } from "../../integrations/theme/getTheme"
+import { Controller } from "../controller"
+import { findLast } from "../../shared/array"
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
@@ -11,19 +13,18 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 export class WebviewProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
-
+	private static activeInstances: Set<WebviewProvider> = new Set()
 	public view?: vscode.WebviewView | vscode.WebviewPanel
 	private disposables: vscode.Disposable[] = []
+	controller: Controller
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		readonly listeners: {
-			didResolveWebview: () => void
-			onDidBecomeVisible: () => void
-			onDidDispose: () => any
-			messageListener: (message: any) => void
-		},
-	) {}
+		private readonly outputChannel: vscode.OutputChannel,
+	) {
+		WebviewProvider.activeInstances.add(this)
+		this.controller = new Controller(context, outputChannel, this)
+	}
 
 	async dispose() {
 		if (this.view && "dispose" in this.view) {
@@ -35,7 +36,12 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 				x.dispose()
 			}
 		}
-		this.listeners.onDidDispose()
+		this.controller.dispose()
+		WebviewProvider.activeInstances.delete(this)
+	}
+
+	public static getVisibleInstance(): WebviewProvider | undefined {
+		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
 	}
 
 	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
@@ -67,7 +73,10 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			webviewView.onDidChangeViewState(
 				() => {
 					if (this.view?.visible) {
-						this.listeners.onDidBecomeVisible()
+						this.controller.postMessageToWebview({
+							type: "action",
+							action: "didBecomeVisible",
+						})
 					}
 				},
 				null,
@@ -78,7 +87,10 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 			webviewView.onDidChangeVisibility(
 				() => {
 					if (this.view?.visible) {
-						this.listeners.onDidBecomeVisible()
+						this.controller.postMessageToWebview({
+							type: "action",
+							action: "didBecomeVisible",
+						})
 					}
 				},
 				null,
@@ -98,7 +110,31 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 
 		// // if the extension is starting a new session, clear previous task state
 		// this.clearTask()
-		this.listeners.didResolveWebview()
+		{
+			// Listen for configuration changes
+			vscode.workspace.onDidChangeConfiguration(
+				async (e) => {
+					if (e && e.affectsConfiguration("workbench.colorTheme")) {
+						// Sends latest theme name to webview
+						await this.controller.postMessageToWebview({
+							type: "theme",
+							text: JSON.stringify(await getTheme()),
+						})
+					}
+					if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
+						// Update state when marketplace tab setting changes
+						await this.controller.postStateToWebview()
+					}
+				},
+				null,
+				this.disposables,
+			)
+
+			// if the extension is starting a new session, clear previous task state
+			this.controller.clearTask()
+
+			this.outputChannel.appendLine("Webview view resolved")
+		}
 	}
 
 	/**
@@ -257,6 +293,6 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 	 * @param webview A reference to the extension webview
 	 */
 	private setWebviewMessageListener(webview: vscode.Webview) {
-		webview.onDidReceiveMessage(this.listeners.messageListener, null, this.disposables)
+		webview.onDidReceiveMessage(this.controller.handleWebviewMessage, null, this.disposables)
 	}
 }

@@ -8,32 +8,32 @@ import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import { buildApiHandler } from "../api"
-import { GlobalFileNames } from "../global-constants"
-import { cleanupLegacyCheckpoints } from "../integrations/checkpoints/CheckpointMigration"
-import { downloadTask } from "../integrations/misc/export-markdown"
-import { fetchOpenGraphData, isImageUrl } from "../integrations/misc/link-preview"
-import { openFile, openImage } from "../integrations/misc/open-file"
-import { selectImages } from "../integrations/misc/process-images"
-import { getTheme } from "../integrations/theme/getTheme"
-import WorkspaceTracker from "../integrations/workspace/WorkspaceTracker"
-import { ClineAccountService } from "../services/account/ClineAccountService"
-import { McpHub } from "../services/mcp/McpHub"
-import { telemetryService } from "../services/telemetry/TelemetryService"
-import { ApiProvider, ModelInfo } from "../shared/api"
-import { findLast } from "../shared/array"
-import { ChatContent } from "../shared/ChatContent"
-import { ChatSettings } from "../shared/ChatSettings"
-import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../shared/ExtensionMessage"
-import { HistoryItem } from "../shared/HistoryItem"
-import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../shared/mcp"
-import { TelemetrySetting } from "../shared/TelemetrySetting"
-import { ClineCheckpointRestore, WebviewMessage } from "../shared/WebviewMessage"
-import { fileExistsAtPath } from "../utils/fs"
-import { searchCommits } from "../utils/git"
-import { getTotalTasksSize } from "../utils/storage"
-import { Task } from "./task"
-import { openMention } from "./mentions"
+import { buildApiHandler } from "../../api"
+import { GlobalFileNames } from "../../global-constants"
+import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
+import { downloadTask } from "../../integrations/misc/export-markdown"
+import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-preview"
+import { openFile, openImage } from "../../integrations/misc/open-file"
+import { selectImages } from "../../integrations/misc/process-images"
+import { getTheme } from "../../integrations/theme/getTheme"
+import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
+import { ClineAccountService } from "../../services/account/ClineAccountService"
+import { McpHub } from "../../services/mcp/McpHub"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
+import { ApiProvider, ModelInfo } from "../../shared/api"
+import { findLast } from "../../shared/array"
+import { ChatContent } from "../../shared/ChatContent"
+import { ChatSettings } from "../../shared/ChatSettings"
+import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
+import { HistoryItem } from "../../shared/HistoryItem"
+import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
+import { TelemetrySetting } from "../../shared/TelemetrySetting"
+import { ClineCheckpointRestore, WebviewMessage } from "../../shared/WebviewMessage"
+import { fileExistsAtPath } from "../../utils/fs"
+import { searchCommits } from "../../utils/git"
+import { getTotalTasksSize } from "../../utils/storage"
+import { Task } from "../task"
+import { openMention } from "../mentions"
 import {
 	getAllExtensionState,
 	getGlobalState,
@@ -42,8 +42,8 @@ import {
 	storeSecret,
 	updateApiConfiguration,
 	updateGlobalState,
-} from "./state"
-import { WebviewProvider } from "./webview"
+} from "../state"
+import { WebviewProvider } from "../webview"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -52,65 +52,25 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class Controller {
-	private static activeInstances: Set<Controller> = new Set()
 	private disposables: vscode.Disposable[] = []
-	webviewProvider: WebviewProvider
 	private task?: Task
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	accountService?: ClineAccountService
 	private latestAnnouncementId = "march-22-2025" // update to some unique identifier when we add a new announcement
+	private webviewProviderRef: WeakRef<WebviewProvider>
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
+		webviewProvider: WebviewProvider,
 	) {
 		this.outputChannel.appendLine("ClineProvider instantiated")
-		Controller.activeInstances.add(this)
+		this.webviewProviderRef = new WeakRef(webviewProvider)
+
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.mcpHub = new McpHub(this)
 		this.accountService = new ClineAccountService(this)
-		this.webviewProvider = new WebviewProvider(this.context, {
-			didResolveWebview: () => {
-				// Listen for configuration changes
-				vscode.workspace.onDidChangeConfiguration(
-					async (e) => {
-						if (e && e.affectsConfiguration("workbench.colorTheme")) {
-							// Sends latest theme name to webview
-							await this.postMessageToWebview({
-								type: "theme",
-								text: JSON.stringify(await getTheme()),
-							})
-						}
-						if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
-							// Update state when marketplace tab setting changes
-							await this.postStateToWebview()
-						}
-					},
-					null,
-					this.disposables,
-				)
-
-				// if the extension is starting a new session, clear previous task state
-				this.clearTask()
-
-				this.outputChannel.appendLine("Webview view resolved")
-			},
-			onDidBecomeVisible: () => {
-				this.postMessageToWebview({
-					type: "action",
-					action: "didBecomeVisible",
-				})
-			},
-			onDidDispose: () => {
-				// since we use vscode's webview extension api, when webview is disposed–it indicates that the extension or tab is closed
-				// this is a good opportunity to clean up resources
-				this.dispose()
-			},
-			messageListener: (message: WebviewMessage) => {
-				this.handleWebviewMessage(message)
-			},
-		})
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {
@@ -139,7 +99,7 @@ export class Controller {
 		this.mcpHub = undefined
 		this.accountService = undefined
 		this.outputChannel.appendLine("Disposed all disposables")
-		Controller.activeInstances.delete(this)
+
 		console.error("Controller disposed")
 	}
 
@@ -157,10 +117,6 @@ export class Controller {
 
 	async setUserInfo(info?: { displayName: string | null; email: string | null; photoURL: string | null }) {
 		await updateGlobalState(this.context, "userInfo", info)
-	}
-
-	public static getVisibleInstance(): Controller | undefined {
-		return findLast(Array.from(this.activeInstances), (instance) => instance.webviewProvider.view?.visible === true)
 	}
 
 	async initClineWithTask(task?: string, images?: string[]) {
@@ -198,7 +154,7 @@ export class Controller {
 
 	// Send any JSON serializable data to the react app
 	async postMessageToWebview(message: ExtensionMessage) {
-		await this.webviewProvider.view?.webview.postMessage(message)
+		await this.webviewProviderRef.deref()?.view?.webview.postMessage(message)
 	}
 
 	/**
