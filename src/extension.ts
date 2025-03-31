@@ -253,8 +253,8 @@ export function activate(context: vscode.ExtensionContext) {
 			const filePath = editor.document.uri.fsPath
 			const languageId = editor.document.languageId
 
-			// Send to sidebar provider
-			await sidebarWebview.controller.addSelectedCodeToChat(
+			const visibleWebview = WebviewProvider.getVisibleInstance()
+			await visibleWebview?.controller.addSelectedCodeToChat(
 				selectedText,
 				filePath,
 				languageId,
