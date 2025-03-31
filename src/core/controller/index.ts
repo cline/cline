@@ -9,7 +9,6 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
 import { buildApiHandler } from "../../api"
-import { GlobalFileNames } from "../../global-constants"
 import { cleanupLegacyCheckpoints } from "../../integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "../../integrations/misc/export-markdown"
 import { fetchOpenGraphData, isImageUrl } from "../../integrations/misc/link-preview"
@@ -41,9 +40,10 @@ import {
 	storeSecret,
 	updateApiConfiguration,
 	updateGlobalState,
-} from "../state"
+} from "../storage/state"
 import { WebviewProvider } from "../webview"
 import { getModels as vsCodeLMGetModels } from "../../api/providers/vscode-lm"
+import { GlobalFileNames } from "../storage/disk"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -256,7 +256,8 @@ export class Controller {
 				if (message.browserSettings) {
 					await updateGlobalState(this.context, "browserSettings", message.browserSettings)
 					if (this.task) {
-						this.task.updateBrowserSettings(message.browserSettings)
+						this.task.browserSettings = message.browserSettings
+						this.task.browserSession.browserSettings = message.browserSettings
 					}
 					await this.postStateToWebview()
 				}
@@ -765,7 +766,7 @@ export class Controller {
 		await this.postStateToWebview()
 
 		if (this.task) {
-			this.task.updateChatSettings(chatSettings)
+			this.task.chatSettings = chatSettings
 			if (this.task.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
