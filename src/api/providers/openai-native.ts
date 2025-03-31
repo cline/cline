@@ -12,7 +12,7 @@ import {
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { calculateApiCostOpenAI } from "../../utils/cost"
 import { ApiStream } from "../transform/stream"
-import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions.mjs"
+import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 
 export class OpenAiNativeHandler implements ApiHandler {
 	private options: ApiHandlerOptions
