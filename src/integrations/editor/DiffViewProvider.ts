@@ -158,7 +158,6 @@ export class DiffViewProvider {
 			await updatedDocument.save()
 		}
 
-		// await delay(100)
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = updatedDocument.getText()
 

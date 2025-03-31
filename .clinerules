@@ -252,7 +252,7 @@ class Cline {
     } catch (error) {
       // 4. Error handling with retry
       if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
-        await delay(1000)
+        await setTimeoutPromise(1000)
         this.didAutomaticallyRetryFailedApiRequest = true
         yield* this.attemptApiRequest(previousApiReqIndex)
         return

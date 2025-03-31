@@ -28,7 +28,7 @@ export function convertToOllamaMessages(anthropicMessages: Anthropic.Messages.Me
 				)
 
 				// Process tool result messages FIRST since they must follow the tool use messages
-				let toolResultImages: string[] = []
+				const toolResultImages: string[] = []
 				toolMessages.forEach((toolMessage) => {
 					// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the Ollama SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
 					let content: string
