@@ -11,7 +11,7 @@ import traceback
 
 from .extraction import run_coverage, compare_coverage, extract_coverage
 from .github_api import generate_comment, post_comment, set_github_output
-from .util import log, file_exists, get_file_size, list_directory
+from .util import log, file_exists, get_file_size, list_directory, run_command
 
 def is_valid_branch_name(branch_name: str) -> bool:
     """
