@@ -48,7 +48,7 @@ export const DEFAULT_AUTOCOMPLETE_OPTS: TabAutocompleteOptions = {
 	useRecentlyEdited: true,
 	disableInFiles: undefined,
 	useImports: true,
-	transform: false,
+	transform: true,
 	showWhateverWeHaveAtXMs: 300,
 	experimental_includeClipboard: true,
 	experimental_includeRecentlyVisitedRanges: true,
@@ -147,7 +147,6 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 				}),
 				getWorkspaceDirs(),
 			])
-			console.log("start2")
 
 			const { prompt, prefix, suffix, completionOptions } = renderPrompt({
 				snippetPayload,
@@ -160,36 +159,38 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 
 			// const cache = await autocompleteCache
 			// const cachedCompletion = helper.options.useCache ? await cache.get(helper.prunedPrefix) : undefined
-			// let cacheHit = false
-			// if (cachedCompletion) {
-			// 	// Cache
-			// 	cacheHit = true
-			// 	completion = cachedCompletion
-			// } else {
-			const multiline = !helper.options.transform || shouldCompleteMultiline(helper)
+			let cacheHit = false
+			const cachedCompletion = undefined
+			if (cachedCompletion) {
+				// Cache
+				cacheHit = true
+				completion = cachedCompletion
+			} else {
+				const multiline = !helper.options.transform || shouldCompleteMultiline(helper)
 
-			const completionStream = this.completionStreamer.streamCompletionWithFilters(
-				token,
-				llm,
-				prefix,
-				suffix,
-				prompt,
-				multiline,
-				completionOptions,
-				helper,
-			)
+				const completionStream = this.completionStreamer.streamCompletionWithFilters(
+					token,
+					llm,
+					prefix,
+					suffix,
+					prompt,
+					multiline,
+					completionOptions,
+					helper,
+				)
 
-			for await (const update of completionStream) {
-				completion += update
+				for await (const update of completionStream) {
+					completion += update
+				}
+
+				console.log("completion", completion)
 			}
 
-			console.log("completion", completion)
-
 			// Don't postprocess if aborted
-			// if (token.aborted) {
-			// 	console.log("aborting")
-			// 	return undefined
-			// }
+			if (token.aborted) {
+				console.log("aborting")
+				return undefined
+			}
 
 			const processedCompletion = helper.options.transform
 				? postprocessCompletion({
@@ -201,7 +202,6 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 				: completion
 
 			completion = processedCompletion
-			console.log("processed", processedCompletion)
 
 			if (!completion) {
 				return undefined
@@ -226,8 +226,6 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 				...helper.options,
 			}
 
-			console.log("OUTCOME", outcome)
-
 			//////////
 
 			// // TODO Save to cache
@@ -239,7 +237,6 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 		} catch (e: any) {
 			this.onError(e)
 		} finally {
-			console.log("butwhy2")
 			this.loggingService.deleteAbortController(input.completionId)
 		}
 	}
@@ -251,7 +248,6 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 		token: vscode.CancellationToken,
 		//@ts-ignore
 	): ProviderResult<InlineCompletionItem[] | InlineCompletionList> {
-		console.log("start")
 		// TODO: Add status bar to disable autocomplete
 		// const enableTabAutocomplete = getStatusBarStatus() === StatusBarStatus.Enabled
 		if (token.isCancellationRequested) {
@@ -293,7 +289,6 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 			const abortController = new AbortController()
 			const signal = abortController.signal
 			token.onCancellationRequested(() => {
-				console.log("cancellation requested")
 				abortController.abort()
 			})
 
@@ -354,9 +349,6 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 			// setupStatusBar(undefined, true)
 			const outcome = await this._provideInlineCompletionItems(input, signal)
 
-			console.log(!outcome)
-			console.log(outcome && !outcome.completion)
-			console.log(outcome)
 			if (!outcome || !outcome.completion) {
 				return null
 			}
@@ -377,15 +369,14 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 			if (selectedCompletionInfo) {
 				outcome.completion = selectedCompletionInfo.text + outcome.completion
 			}
-			// const willDisplay = this.willDisplay(document, selectedCompletionInfo, signal, outcome)
-			// console.log("willdisplay", willDisplay)
-			// if (!willDisplay) {
-			// return null
-			// }
+			const willDisplay = this.willDisplay(document, selectedCompletionInfo, signal, outcome)
+			console.log("willdisplay", willDisplay)
+			if (!willDisplay) {
+				return null
+			}
 
 			// Mark displayed
 			this.markDisplayed(input.completionId, outcome)
-			this._lastShownCompletion = outcome
 
 			// Construct the range/text to show
 			const startPos = selectedCompletionInfo?.range.start ?? position
@@ -399,7 +390,6 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 
 				const result = processSingleLineCompletion(lastLineOfCompletionText, currentText, startPos.character)
 
-				console.log(result)
 				if (result === undefined) {
 					return undefined
 				}
@@ -415,8 +405,6 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 				// Extend the range to the end of the line for multiline completions
 				range = new vscode.Range(startPos, document.lineAt(startPos).range.end)
 			}
-
-			console.log("completiontext", completionText)
 
 			const completionItem = new vscode.InlineCompletionItem(
 				completionText,

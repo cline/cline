@@ -35,11 +35,10 @@ export class CompletionStreamer {
 		// LLM
 		const generatorWithCancellation = async function* () {
 			for await (const update of generator) {
-				console.log("withcancel", update)
-				// if (token.aborted) {
-				// 	console.log("abort")
-				// 	return
-				// }
+				if (token.aborted) {
+					console.log("abort")
+					return
+				}
 				yield update
 			}
 		}
@@ -58,7 +57,6 @@ export class CompletionStreamer {
 			: initialGenerator
 
 		for await (const update of transformedGenerator) {
-			console.log("transformed", update)
 			yield update
 		}
 	}

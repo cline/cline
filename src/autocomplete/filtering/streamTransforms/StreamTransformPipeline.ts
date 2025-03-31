@@ -66,7 +66,6 @@ export class StreamTransformPipeline {
 
 		const finalGenerator = streamWithNewLines(lineGenerator)
 		for await (const update of finalGenerator) {
-			console.log("FINAL", update)
 			yield update
 		}
 	}

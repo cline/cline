@@ -1,4 +1,4 @@
-import { countTokens, pruneLinesFromBottom, pruneLinesFromTop } from "../../llm/countTokens"
+import { countTokens, pruneLinesFromBottom, pruneLinesFromTop, pruneWithBinarySearch } from "../../llm/countTokens"
 import { getWorkspaceDirs, readFile } from "../../utils/vscode"
 import { AutocompleteLanguageInfo, languageForFilepath } from "../constants/AutocompleteLanguageInfo"
 import { constructInitialPrefixSuffix } from "../templating/constructPrefixSuffix"
@@ -47,11 +47,9 @@ export class HelperVars {
 		const { prefix: fullPrefix, suffix: fullSuffix } = await constructInitialPrefixSuffix(this.input)
 		this._fullPrefix = fullPrefix
 		this._fullSuffix = fullSuffix
-
 		const { prunedPrefix, prunedSuffix } = this.prunePrefixSuffix()
 		this._prunedPrefix = prunedPrefix
 		this._prunedSuffix = prunedSuffix
-
 		try {
 			const ast = await getAst(this.filepath, fullPrefix + fullSuffix)
 			if (ast) {
@@ -69,16 +67,30 @@ export class HelperVars {
 	}
 
 	prunePrefixSuffix() {
-		// Construct basic prefix
 		const maxPrefixTokens = this.options.maxPromptTokens * this.options.prefixPercentage
-		const prunedPrefix = pruneLinesFromTop(this.fullPrefix, maxPrefixTokens, this.modelName)
 
-		// Construct suffix
-		const maxSuffixTokens = Math.min(
-			this.options.maxPromptTokens - countTokens(prunedPrefix, this.modelName),
-			this.options.maxSuffixPercentage * this.options.maxPromptTokens,
+		// Use binary search for prefix pruning - keep bottom portion
+		const prunedPrefix = pruneWithBinarySearch(
+			this.fullPrefix,
+			maxPrefixTokens,
+			this.modelName,
+			true, // fromBottom = true to keep the most recent content
 		)
-		const prunedSuffix = pruneLinesFromBottom(this.fullSuffix, maxSuffixTokens, this.modelName)
+
+		// Calculate remaining tokens for suffix
+		const prefixTokenCount = countTokens(prunedPrefix, this.modelName)
+		const maxSuffixTokens = Math.min(
+			this.options.maxPromptTokens - prefixTokenCount,
+			this.options.maxPromptTokens * this.options.maxSuffixPercentage,
+		)
+
+		// Use binary search for suffix pruning - keep top portion
+		const prunedSuffix = pruneWithBinarySearch(
+			this.fullSuffix,
+			maxSuffixTokens,
+			this.modelName,
+			false, // fromBottom = false to keep the content closest to cursor
+		)
 
 		return {
 			prunedPrefix,

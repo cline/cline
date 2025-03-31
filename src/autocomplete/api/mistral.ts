@@ -519,7 +519,6 @@ class Mistral {
 		signal: AbortSignal,
 		options: CompletionOptions,
 	): AsyncGenerator<string> {
-		// console.log(prefix, suffix, options.model)
 		const endpoint = new URL("fim/completions", this.apiBase)
 		const resp = await this.fetch(endpoint, {
 			method: "POST",
