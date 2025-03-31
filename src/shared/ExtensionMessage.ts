@@ -96,6 +96,7 @@ export const DEFAULT_PLATFORM = "unknown"
 
 export interface ExtensionState {
 	apiConfiguration?: ApiConfiguration
+	isWorkspaceProviderActive?: boolean
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
