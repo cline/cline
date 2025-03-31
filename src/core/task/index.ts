@@ -1403,8 +1403,8 @@ export class Task {
 				await this.saveClineMessages()
 
 				this.didAutomaticallyRetryFailedApiRequest = true
-			} else if (isOpenRouter && !this.didAutomaticallyRetryFailedApiRequest) {
-				if (isOpenRouterContextWindowError) {
+			} else if ((isOpenRouter || isAnthropic) && !this.didAutomaticallyRetryFailedApiRequest) {
+				if (isOpenRouterContextWindowError || (isAnthropic && isAnthropicContextWindowError)) {
 					this.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
 						this.apiConversationHistory,
 						this.conversationHistoryDeletedRange,
