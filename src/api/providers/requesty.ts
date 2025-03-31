@@ -26,7 +26,7 @@ export class RequestyHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const modelId = this.options.requestyModelId ?? ""
 
-		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
