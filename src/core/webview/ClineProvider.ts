@@ -951,36 +951,26 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const workspacePath = getWorkspacePath()
 
 						if (!workspacePath) {
-							// Handle case where workspace path is not available
 							await this.postMessageToWebview({
 								type: "fileSearchResults",
 								results: [],
-								mentionsRequestId: message.mentionsRequestId,
 								error: "No workspace path available",
 							})
 							break
 						}
 
 						try {
-							// Start streaming search results
-							const searchStream = searchWorkspaceFiles(message.query || "", workspacePath, 20)
-
-							// Process results as they arrive
-							for await (const results of searchStream) {
-								await this.postMessageToWebview({
-									type: "fileSearchResults",
-									results,
-									mentionsRequestId: message.mentionsRequestId,
-								})
-							}
+							const results = await searchWorkspaceFiles(message.query || "", workspacePath, 20)
+							await this.postMessageToWebview({
+								type: "fileSearchResults",
+								results,
+							})
 						} catch (error) {
-							// Send error response to webview
 							const errorMessage = error instanceof Error ? error.message : String(error)
 							await this.postMessageToWebview({
 								type: "fileSearchResults",
 								results: [],
 								error: errorMessage,
-								mentionsRequestId: message.mentionsRequestId,
 							})
 						}
 						break

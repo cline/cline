@@ -256,8 +256,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [selectedType, searchQuery])
 
-		const currentSearchRequestId = useRef("")
-
 		const handleMessage = useCallback((event: MessageEvent) => {
 			const message: ExtensionMessage = event.data
 			switch (message.type) {
@@ -274,29 +272,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 
 				case "fileSearchResults": {
-					//console.log("[Search] Received results:", {
-					//	requestId: message.mentionsRequestId,
-					//	currentRequestId: currentSearchRequestId.current,
-					//	resultCount: message.results?.length || 0,
-					//})
-
-					if (message.mentionsRequestId === currentSearchRequestId.current) {
-						// Each batch represents the complete set of results for this search request
-						// No need to merge with previous results
-						console.log("[Search] Processing results:", {
-							resultCount: message.results?.length || 0,
-							requestId: message.mentionsRequestId,
-						})
-						setFileSearchResults(message.results || [])
-						setSearchLoading(false)
-					} else {
-						console.log(
-							"[Search] Skipping results from request:",
-							message.mentionsRequestId,
-							"current:",
-							currentSearchRequestId.current,
-						)
-					}
+					setFileSearchResults(message.results || [])
+					setSearchLoading(false)
+					break
 				}
 			}
 		}, [])
@@ -532,25 +510,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							clearTimeout(searchTimeoutRef.current)
 						}
 
-						// Clear previous results immediately when starting a new search
-						console.log("[Search] Clearing results for new search:", query)
 						setFileSearchResults([])
 						setSearchLoading(true)
 
 						// Set a timeout to debounce the search requests
 						searchTimeoutRef.current = setTimeout(() => {
-							// Generate and store request ID in ref
-							currentSearchRequestId.current = Math.random().toString(36).substring(2, 9)
-							console.log("[Search] Sending search request:", {
-								query,
-								requestId: currentSearchRequestId.current,
-							})
-
-							// Send message to extension to search files
 							vscode.postMessage({
 								type: "searchFiles",
-								query: query,
-								mentionsRequestId: currentSearchRequestId.current,
+								query: query
 							})
 						}, 200) // 200ms debounce
 					} else {
