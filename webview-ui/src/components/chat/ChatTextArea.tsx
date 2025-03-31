@@ -517,7 +517,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						searchTimeoutRef.current = setTimeout(() => {
 							vscode.postMessage({
 								type: "searchFiles",
-								query: query
+								query: query,
 							})
 						}, 200) // 200ms debounce
 					} else {
