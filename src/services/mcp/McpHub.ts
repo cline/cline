@@ -14,7 +14,7 @@ import * as fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { z } from "zod"
-import { ClineProvider } from "../../core/webview/ClineProvider"
+import { Controller } from "../../core/controller"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
 	McpMode,
@@ -31,6 +31,9 @@ import { arePathsEqual } from "../../utils/path"
 import { secondsToMs } from "../../utils/time"
 import { GlobalFileNames } from "../../global-constants"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+
+// Default timeout for internal MCP data requests in milliseconds; is not the same as the user facing timeout stored as DEFAULT_MCP_TIMEOUT_SECONDS
+const DEFAULT_REQUEST_TIMEOUT_MS = 5000
 
 export type McpConnection = {
 	server: McpServer
@@ -73,15 +76,15 @@ const McpSettingsSchema = z.object({
 })
 
 export class McpHub {
-	private providerRef: WeakRef<ClineProvider>
+	private controllerRef: WeakRef<Controller>
 	private disposables: vscode.Disposable[] = []
 	private settingsWatcher?: vscode.FileSystemWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
 
-	constructor(provider: ClineProvider) {
-		this.providerRef = new WeakRef(provider)
+	constructor(controller: Controller) {
+		this.controllerRef = new WeakRef(controller)
 		this.watchMcpSettingsFile()
 		this.initializeMcpServers()
 	}
@@ -96,7 +99,7 @@ export class McpHub {
 	}
 
 	async getMcpServersPath(): Promise<string> {
-		const provider = this.providerRef.deref()
+		const provider = this.controllerRef.deref()
 		if (!provider) {
 			throw new Error("Provider not available")
 		}
@@ -105,7 +108,7 @@ export class McpHub {
 	}
 
 	async getMcpSettingsFilePath(): Promise<string> {
-		const provider = this.providerRef.deref()
+		const provider = this.controllerRef.deref()
 		if (!provider) {
 			throw new Error("Provider not available")
 		}
@@ -194,7 +197,7 @@ export class McpHub {
 			const client = new Client(
 				{
 					name: "Cline",
-					version: this.providerRef.deref()?.context.extension?.packageJSON?.version ?? "1.0.0",
+					version: this.controllerRef.deref()?.context.extension?.packageJSON?.version ?? "1.0.0",
 				},
 				{
 					capabilities: {},
@@ -300,9 +303,15 @@ export class McpHub {
 
 	private async fetchToolsList(serverName: string): Promise<McpTool[]> {
 		try {
-			const response = await this.connections
-				.find((conn) => conn.server.name === serverName)
-				?.client.request({ method: "tools/list" }, ListToolsResultSchema)
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+
+			if (!connection) {
+				throw new Error(`No connection found for server: ${serverName}`)
+			}
+
+			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema, {
+				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+			})
 
 			// Get autoApprove settings
 			const settingsPath = await this.getMcpSettingsFilePath()
@@ -328,7 +337,7 @@ export class McpHub {
 		try {
 			const response = await this.connections
 				.find((conn) => conn.server.name === serverName)
-				?.client.request({ method: "resources/list" }, ListResourcesResultSchema)
+				?.client.request({ method: "resources/list" }, ListResourcesResultSchema, { timeout: DEFAULT_REQUEST_TIMEOUT_MS })
 			return response?.resources || []
 		} catch (error) {
 			// console.error(`Failed to fetch resources for ${serverName}:`, error)
@@ -340,7 +349,10 @@ export class McpHub {
 		try {
 			const response = await this.connections
 				.find((conn) => conn.server.name === serverName)
-				?.client.request({ method: "resources/templates/list" }, ListResourceTemplatesResultSchema)
+				?.client.request({ method: "resources/templates/list" }, ListResourceTemplatesResultSchema, {
+					timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+				})
+
 			return response?.resourceTemplates || []
 		} catch (error) {
 			// console.error(`Failed to fetch resource templates for ${serverName}:`, error)
@@ -434,7 +446,7 @@ export class McpHub {
 
 	async restartConnection(serverName: string): Promise<void> {
 		this.isConnecting = true
-		const provider = this.providerRef.deref()
+		const provider = this.controllerRef.deref()
 		if (!provider) {
 			return
 		}
@@ -469,7 +481,7 @@ export class McpHub {
 		const content = await fs.readFile(settingsPath, "utf-8")
 		const config = JSON.parse(content)
 		const serverOrder = Object.keys(config.mcpServers || {})
-		await this.providerRef.deref()?.postMessageToWebview({
+		await this.controllerRef.deref()?.postMessageToWebview({
 			type: "mcpServers",
 			mcpServers: [...this.connections]
 				.sort((a, b) => {
@@ -490,64 +502,21 @@ export class McpHub {
 	// Public methods for server management
 
 	public async toggleServerDisabled(serverName: string, disabled: boolean): Promise<void> {
-		let settingsPath: string
 		try {
-			settingsPath = await this.getMcpSettingsFilePath()
-
-			// Ensure the settings file exists and is accessible
-			try {
-				await fs.access(settingsPath)
-			} catch (error) {
-				console.error("Settings file not accessible:", error)
-				throw new Error("Settings file not accessible")
-			}
-			const content = await fs.readFile(settingsPath, "utf-8")
-			const config = JSON.parse(content)
-
-			// Validate the config structure
-			if (!config || typeof config !== "object") {
-				throw new Error("Invalid config structure")
-			}
-
-			if (!config.mcpServers || typeof config.mcpServers !== "object") {
-				config.mcpServers = {}
+			const config = await this.readAndValidateMcpSettingsFile()
+			if (!config) {
+				throw new Error("Failed to read or validate MCP settings")
 			}
 
 			if (config.mcpServers[serverName]) {
-				// Create a new server config object to ensure clean structure
-				const serverConfig = {
-					...config.mcpServers[serverName],
-					disabled,
-				}
+				config.mcpServers[serverName].disabled = disabled
 
-				// Ensure required fields exist
-				if (!serverConfig.autoApprove) {
-					serverConfig.autoApprove = []
-				}
-
-				config.mcpServers[serverName] = serverConfig
-
-				// Write the entire config back
-				const updatedConfig = {
-					mcpServers: config.mcpServers,
-				}
-
-				await fs.writeFile(settingsPath, JSON.stringify(updatedConfig, null, 2))
+				const settingsPath = await this.getMcpSettingsFilePath()
+				await fs.writeFile(settingsPath, JSON.stringify(config, null, 2))
 
 				const connection = this.connections.find((conn) => conn.server.name === serverName)
 				if (connection) {
-					try {
-						connection.server.disabled = disabled
-
-						// Only refresh capabilities if connected
-						if (connection.server.status === "connected") {
-							connection.server.tools = await this.fetchToolsList(serverName)
-							connection.server.resources = await this.fetchResourcesList(serverName)
-							connection.server.resourceTemplates = await this.fetchResourceTemplatesList(serverName)
-						}
-					} catch (error) {
-						console.error(`Failed to refresh capabilities for ${serverName}:`, error)
-					}
+					connection.server.disabled = disabled
 				}
 
 				await this.notifyWebviewOfServerChanges()
@@ -650,7 +619,6 @@ export class McpHub {
 			// Update the tools list to reflect the change
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
 			if (connection) {
-				connection.server.tools = await this.fetchToolsList(serverName)
 				await this.notifyWebviewOfServerChanges()
 			}
 		} catch (error) {
