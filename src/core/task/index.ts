@@ -1,15 +1,20 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import fs from "fs/promises"
 import getFolderSize from "get-folder-size"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import os from "os"
+import pTimeout from "p-timeout"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { serializeError } from "serialize-error"
 import * as vscode from "vscode"
 import { ApiHandler, buildApiHandler } from "../../api"
+import { AnthropicHandler } from "../../api/providers/anthropic"
+import { ClineHandler } from "../../api/providers/cline"
 import { OpenRouterHandler } from "../../api/providers/openrouter"
+import { ApiStream } from "../../api/transform/stream"
+import { GlobalFileNames } from "../../global-constants"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "../../integrations/misc/export-markdown"
@@ -20,6 +25,7 @@ import { BrowserSession } from "../../services/browser/BrowserSession"
 import { UrlContentFetcher } from "../../services/browser/UrlContentFetcher"
 import { listFiles } from "../../services/glob/list-files"
 import { regexSearchFiles } from "../../services/ripgrep"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { parseSourceCodeForDefinitionsTopLevel } from "../../services/tree-sitter"
 import { ApiConfiguration } from "../../shared/api"
 import { findLast, findLastIndex, parsePartialArrayString } from "../../shared/array"
@@ -46,6 +52,7 @@ import {
 } from "../../shared/ExtensionMessage"
 import { getApiMetrics } from "../../shared/getApiMetrics"
 import { HistoryItem } from "../../shared/HistoryItem"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "../../shared/Languages"
 import { ClineAskResponse, ClineCheckpointRestore } from "../../shared/WebviewMessage"
 import { calculateApiCostAnthropic } from "../../utils/cost"
 import { fileExistsAtPath, isDirectory } from "../../utils/fs"
@@ -53,24 +60,17 @@ import { arePathsEqual, getReadablePath } from "../../utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "../../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from ".././assistant-message"
 import { constructNewFileContent } from ".././assistant-message/diff"
+import { ContextManager } from ".././context-management/ContextManager"
 import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from ".././ignore/ClineIgnoreController"
 import { parseMentions } from ".././mentions"
 import { formatResponse } from ".././prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from ".././prompts/system"
-import { ContextManager } from ".././context-management/ContextManager"
-import { OpenAiHandler } from "../../api/providers/openai"
-import { ApiStream } from "../../api/transform/stream"
-import { ClineHandler } from "../../api/providers/cline"
-import { Controller } from "../controller"
-import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay, LanguageKey } from "../../shared/Languages"
-import { telemetryService } from "../../services/telemetry/TelemetryService"
-import pTimeout from "p-timeout"
-import { GlobalFileNames } from "../../global-constants"
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
 } from "../context-management/context-error-handling"
-import { AnthropicHandler } from "../../api/providers/anthropic"
+import { Controller } from "../controller"
+import { ensureTaskDirectoryExists } from "../storage/disk"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -88,8 +88,8 @@ export class Task {
 	private didEditFile: boolean = false
 	customInstructions?: string
 	autoApprovalSettings: AutoApprovalSettings
-	private browserSettings: BrowserSettings
-	private chatSettings: ChatSettings
+	browserSettings: BrowserSettings
+	chatSettings: ChatSettings
 	apiConversationHistory: Anthropic.MessageParam[] = []
 	clineMessages: ClineMessage[] = []
 	private clineIgnoreController: ClineIgnoreController
@@ -184,29 +184,21 @@ export class Task {
 		}
 	}
 
-	updateBrowserSettings(browserSettings: BrowserSettings) {
-		this.browserSettings = browserSettings
-		this.browserSession.browserSettings = browserSettings
-	}
-
-	updateChatSettings(chatSettings: ChatSettings) {
-		this.chatSettings = chatSettings
+	private getContext(): vscode.ExtensionContext {
+		const context = this.controllerRef.deref()?.context
+		if (!context) {
+			throw new Error("Unable to access extension context")
+		}
+		return context
 	}
 
 	// Storing task to disk for history
 
-	private async ensureTaskDirectoryExists(): Promise<string> {
-		const globalStoragePath = this.controllerRef.deref()?.context.globalStorageUri.fsPath
-		if (!globalStoragePath) {
-			throw new Error("Global storage uri is invalid")
-		}
-		const taskDir = path.join(globalStoragePath, "tasks", this.taskId)
-		await fs.mkdir(taskDir, { recursive: true })
-		return taskDir
-	}
-
 	private async getSavedApiConversationHistory(): Promise<Anthropic.MessageParam[]> {
-		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
+		const filePath = path.join(
+			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+			GlobalFileNames.apiConversationHistory,
+		)
 		const fileExists = await fileExistsAtPath(filePath)
 		if (fileExists) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
@@ -226,7 +218,10 @@ export class Task {
 
 	private async saveApiConversationHistory() {
 		try {
-			const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.apiConversationHistory)
+			const filePath = path.join(
+				await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+				GlobalFileNames.apiConversationHistory,
+			)
 			await fs.writeFile(filePath, JSON.stringify(this.apiConversationHistory))
 		} catch (error) {
 			// in the off chance this fails, we don't want to stop the task
@@ -235,12 +230,12 @@ export class Task {
 	}
 
 	private async getSavedClineMessages(): Promise<ClineMessage[]> {
-		const filePath = path.join(await this.ensureTaskDirectoryExists(), GlobalFileNames.uiMessages)
+		const filePath = path.join(await ensureTaskDirectoryExists(this.getContext(), this.taskId), GlobalFileNames.uiMessages)
 		if (await fileExistsAtPath(filePath)) {
 			return JSON.parse(await fs.readFile(filePath, "utf8"))
 		} else {
 			// check old location
-			const oldPath = path.join(await this.ensureTaskDirectoryExists(), "claude_messages.json")
+			const oldPath = path.join(await ensureTaskDirectoryExists(this.getContext(), this.taskId), "claude_messages.json")
 			if (await fileExistsAtPath(oldPath)) {
 				const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
 				await fs.unlink(oldPath) // remove old file
@@ -266,7 +261,7 @@ export class Task {
 
 	private async saveClineMessages() {
 		try {
-			const taskDir = await this.ensureTaskDirectoryExists()
+			const taskDir = await ensureTaskDirectoryExists(this.getContext(), this.taskId)
 			const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
 			await fs.writeFile(filePath, JSON.stringify(this.clineMessages))
 			// combined as they are in ChatView
