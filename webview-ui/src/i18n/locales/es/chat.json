@@ -211,14 +211,14 @@
 		"copyToInput": "Copiar a la entrada (o Shift + clic)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.10 publicado",
-		"description": "¡Roo Code 3.10 trae potentes mejoras de productividad!",
+		"title": "🎉 Roo Code 3.11 publicado",
+		"description": "¡Roo Code 3.11 trae mejoras significativas de rendimiento y nuevas funcionalidades!",
 		"whatsNew": "Novedades",
-		"feature1": "Respuestas sugeridas a preguntas",
-		"feature2": "Mejor manejo de archivos grandes",
-		"feature3": "Búsquedas de archivos con @-mención reconstruidas",
-		"feature4": "",
-		"feature5": "",
+		"feature1": "Ediciones rápidas: Las ediciones ahora se aplican mucho más rápido. Menos espera, más codificación.",
+		"feature2": "Saldos de claves API: Visualiza tus saldos de OpenRouter y Requesty en la configuración.",
+		"feature3": "Configuración MCP a nivel de proyecto: Ahora puedes configurarlo por proyecto/espacio de trabajo.",
+		"feature4": "Soporte mejorado para Gemini: Reintentos más inteligentes, escape corregido, añadido al proveedor Vertex.",
+		"feature5": "Importación/Exportación de configuración: Respalda o comparte fácilmente tu configuración entre diferentes entornos.",
 		"hideButton": "Ocultar anuncio",
 		"detailsDiscussLinks": "Obtén más detalles y participa en <discordLink>Discord</discordLink> y <redditLink>Reddit</redditLink> 🚀"
 	},

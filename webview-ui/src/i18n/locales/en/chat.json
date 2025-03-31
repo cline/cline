@@ -204,14 +204,14 @@
 		}
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.10 Released",
-		"description": "Roo Code 3.10 brings powerful productivity enhancements!",
+		"title": "🎉 Roo Code 3.11 Released",
+		"description": "Roo Code 3.11 brings significant performance improvements and new features!",
 		"whatsNew": "What's New",
-		"feature1": "Suggested responses to questions",
-		"feature2": "Improved large file handling",
-		"feature3": "Rebuilt @-mention file lookups",
-		"feature4": "",
-		"feature5": "",
+		"feature1": "Fast Edits: Edits now apply way faster. Less waiting, more coding.",
+		"feature2": "API Key Balances: View your OpenRouter and Requesty balances in settings.",
+		"feature3": "Project-Level MCP Config: Now you can configure it per project/workspace.",
+		"feature4": "Improved Gemini Support: Smarter retries, fixed escaping, added to Vertex provider.",
+		"feature5": "Import/Export Settings: Easily back up or share your config across setups.",
 		"hideButton": "Hide announcement",
 		"detailsDiscussLinks": "Get more details and discuss in <discordLink>Discord</discordLink> and <redditLink>Reddit</redditLink> 🚀"
 	},
