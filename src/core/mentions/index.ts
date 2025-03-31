@@ -59,7 +59,7 @@ const NOTE_SECTION_REGEX = new RegExp(`^${NOTE_SECTION_HEADER}\\s*\\n`, "m") // 
 export async function processNotes(
 	text: string,
 	cwd: string,
-	fsModule: any = fsPromises,
+	fsModule: FsFunctions = fsPromises,
 ): Promise<{ success: boolean; message: string } | undefined> {
 	const noteMatches = Array.from(text.matchAll(NOTE_REGEX_GLOBAL))
 	if (noteMatches.length === 0) {
