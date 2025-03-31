@@ -553,7 +553,7 @@ export class ContextManager {
 
 			// `hasExistingAlterations` will also include the alterations we just made
 			const hasExistingAlterations = this.contextHistoryUpdates.has(i)
-			const hasNewAlterations = uniqueFileReadIndices.has(i) // we don't consider changes to the first assistant message for now
+			const hasNewAlterations = uniqueFileReadIndices.has(i)
 
 			if (Array.isArray(message.content)) {
 				for (let blockIndex = 0; blockIndex < message.content.length; blockIndex++) {
@@ -561,8 +561,8 @@ export class ContextManager {
 					const block = message.content[blockIndex]
 
 					if (block.type === "text" && block.text) {
+						// true if we just altered it, or it was altered before
 						if (hasExistingAlterations) {
-							// true if we just altered it, or it was altered before
 							const innerMap = this.contextHistoryUpdates.get(i)
 							const updates = innerMap?.get(blockIndex)
 
@@ -585,7 +585,7 @@ export class ContextManager {
 								totalCharCount += block.text.length
 							}
 						} else {
-							// reach here if there's no alterations for this outer block
+							// reach here if there's no alterations for this outer index
 							totalCharCount += block.text.length
 						}
 					} else if (block.type === "image" && block.source) {
