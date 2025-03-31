@@ -39,8 +39,16 @@ describe("removeInvalidChars", () => {
 		removeInvalidChars("hello\uFFFDworld").should.equal("helloworld")
 	})
 
+	it("should remove � characters", () => {
+		removeInvalidChars("hello�world").should.equal("helloworld")
+	})
+
 	it("should remove multiple replacement characters", () => {
 		removeInvalidChars("h\uFFFDe\uFFFDl\uFFFDl\uFFFDo").should.equal("hello")
+	})
+
+	it("should remove multiple � characters", () => {
+		removeInvalidChars("h�e�l�lo").should.equal("hello")
 	})
 
 	it("should return unchanged string when no replacement characters are present", () => {
