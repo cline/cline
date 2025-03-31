@@ -1001,6 +1001,17 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								}}>
 								{icon}
 								{title}
+								<TaskFeedbackButtons
+									messageTs={message.ts}
+									isFromHistory={
+										!isLast ||
+										lastModifiedMessage?.ask === "resume_completed_task" ||
+										lastModifiedMessage?.ask === "resume_task"
+									}
+									style={{
+										marginLeft: "auto",
+									}}
+								/>
 							</div>
 							<div
 								style={{
@@ -1009,37 +1020,25 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 								}}>
 								<Markdown markdown={text} />
 							</div>
-							{message.partial !== true && (
-								<>
-									{hasChanges && (
-										<div style={{ paddingTop: 17 }}>
-											<SuccessButton
-												disabled={seeNewChangesDisabled}
-												onClick={() => {
-													setSeeNewChangesDisabled(true)
-													vscode.postMessage({
-														type: "taskCompletionViewChanges",
-														number: message.ts,
-													})
-												}}
-												style={{
-													cursor: seeNewChangesDisabled ? "wait" : "pointer",
-													width: "100%",
-												}}>
-												<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
-												See new changes
-											</SuccessButton>
-										</div>
-									)}
-									<TaskFeedbackButtons
-										messageTs={message.ts}
-										isFromHistory={
-											!isLast ||
-											lastModifiedMessage?.ask === "resume_completed_task" ||
-											lastModifiedMessage?.ask === "resume_task"
-										}
-									/>
-								</>
+							{message.partial !== true && hasChanges && (
+								<div style={{ paddingTop: 17 }}>
+									<SuccessButton
+										disabled={seeNewChangesDisabled}
+										onClick={() => {
+											setSeeNewChangesDisabled(true)
+											vscode.postMessage({
+												type: "taskCompletionViewChanges",
+												number: message.ts,
+											})
+										}}
+										style={{
+											cursor: seeNewChangesDisabled ? "wait" : "pointer",
+											width: "100%",
+										}}>
+										<i className="codicon codicon-new-file" style={{ marginRight: 6 }} />
+										See new changes
+									</SuccessButton>
+								</div>
 							)}
 						</>
 					)
@@ -1155,6 +1154,17 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									}}>
 									{icon}
 									{title}
+									<TaskFeedbackButtons
+										messageTs={message.ts}
+										isFromHistory={
+											!isLast ||
+											lastModifiedMessage?.ask === "resume_completed_task" ||
+											lastModifiedMessage?.ask === "resume_task"
+										}
+										style={{
+											marginLeft: "auto",
+										}}
+									/>
 								</div>
 								<div
 									style={{
