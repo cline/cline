@@ -12,6 +12,7 @@ import { BrowserActionResult } from "../../shared/ExtensionMessage"
 import { BrowserSettings } from "../../shared/BrowserSettings"
 import { discoverChromeInstances, testBrowserConnection } from "./BrowserDiscovery"
 import * as chromeLauncher from "chrome-launcher"
+import { Controller } from "../../core/controller"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -101,7 +102,7 @@ export class BrowserSession {
 		return stats
 	}
 
-	async relaunchChromeDebugMode(webview?: vscode.Webview) {
+	async relaunchChromeDebugMode(controller: Controller) {
 		const result = await vscode.window.showWarningMessage(
 			"This will close your existing Chrome tabs and relaunch Chrome in debug mode. Are you sure?",
 			{ modal: true },
@@ -109,7 +110,11 @@ export class BrowserSession {
 		)
 
 		if (result !== "Yes") {
-			webview?.postMessage({ type: "browserRelaunchResult", success: false, text: "Operation cancelled by user" })
+			controller?.postMessageToWebview({
+				type: "browserRelaunchResult",
+				success: false,
+				text: "Operation cancelled by user",
+			})
 			return
 		}
 
@@ -150,13 +155,13 @@ export class BrowserSession {
 
 			await launcher.launch()
 
-			webview?.postMessage({
+			controller?.postMessageToWebview({
 				type: "browserRelaunchResult",
 				success: true,
 				text: `Browser successfully launched with debug mode\nUsing: ${installation}`,
 			})
 		} catch (error) {
-			webview?.postMessage({
+			controller?.postMessageToWebview({
 				type: "browserRelaunchResult",
 				success: false,
 				text: `Failed to relaunch Chrome: ${error instanceof Error ? error.message : String(error)}`,

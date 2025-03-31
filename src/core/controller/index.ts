@@ -44,6 +44,8 @@ import {
 	updateGlobalState,
 } from "../state"
 import { WebviewProvider } from "../webview"
+import { BrowserSession } from "../../services/browser/BrowserSession"
+import { discoverChromeInstances } from "../../services/browser/BrowserDiscovery"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -261,6 +263,140 @@ export class Controller {
 					await this.postStateToWebview()
 				}
 				break
+			case "remoteBrowserHost":
+				await updateGlobalState(this.context, "remoteBrowserHost", message.text)
+				await this.postStateToWebview()
+				break
+			case "remoteBrowserEnabled":
+				// Store the preference in global state
+				// remoteBrowserEnabled now means "enable remote browser connection"
+				await updateGlobalState(this.context, "remoteBrowserEnabled", message.bool ?? false)
+				// If disabling remote browser connection, clear the remoteBrowserHost
+				if (!message.bool) {
+					await updateGlobalState(this.context, "remoteBrowserHost", undefined)
+				}
+				await this.postStateToWebview()
+				break
+			case "getBrowserConnectionInfo":
+				try {
+					// Get the current browser session from Cline if it exists
+					if (this.task?.browserSession) {
+						const connectionInfo = this.task.browserSession.getConnectionInfo()
+						await this.postMessageToWebview({
+							type: "browserConnectionInfo",
+							isConnected: connectionInfo.isConnected,
+							isRemote: connectionInfo.isRemote,
+							host: connectionInfo.host,
+							isHeadless: connectionInfo.isHeadless,
+						})
+					} else {
+						// If no active browser session, just return the settings
+						const { browserSettings } = await getAllExtensionState(this.context)
+						await this.postMessageToWebview({
+							type: "browserConnectionInfo",
+							isConnected: false,
+							isRemote: !!browserSettings.remoteBrowserEnabled,
+							host: browserSettings.remoteBrowserHost,
+							isHeadless: !!browserSettings.headless,
+						})
+					}
+				} catch (error) {
+					console.error("Error getting browser connection info:", error)
+					await this.postMessageToWebview({
+						type: "browserConnectionInfo",
+						isConnected: false,
+						isRemote: false,
+						isHeadless: true,
+					})
+				}
+				break
+			case "testBrowserConnection":
+				try {
+					const { browserSettings } = await getAllExtensionState(this.context)
+					const browserSession = new BrowserSession(this.context, browserSettings)
+					// If no text is provided, try auto-discovery
+					if (!message.text) {
+						try {
+							const discoveredHost = await discoverChromeInstances()
+							if (discoveredHost) {
+								// Test the connection to the discovered host
+								const result = await browserSession.testConnection(discoveredHost)
+								// Send the result back to the webview
+								await this.postMessageToWebview({
+									type: "browserConnectionResult",
+									success: result.success,
+									text: `Auto-discovered and tested connection to Chrome at ${discoveredHost}: ${result.message}`,
+									values: { endpoint: result.endpoint },
+								})
+							} else {
+								await this.postMessageToWebview({
+									type: "browserConnectionResult",
+									success: false,
+									text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+								})
+							}
+						} catch (error) {
+							await this.postMessageToWebview({
+								type: "browserConnectionResult",
+								success: false,
+								text: `Error during auto-discovery: ${error instanceof Error ? error.message : String(error)}`,
+							})
+						}
+					} else {
+						// Test the provided URL
+						const result = await browserSession.testConnection(message.text)
+
+						// Send the result back to the webview
+						await this.postMessageToWebview({
+							type: "browserConnectionResult",
+							success: result.success,
+							text: result.message,
+							values: { endpoint: result.endpoint },
+						})
+					}
+				} catch (error) {
+					await this.postMessageToWebview({
+						type: "browserConnectionResult",
+						success: false,
+						text: `Error testing connection: ${error instanceof Error ? error.message : String(error)}`,
+					})
+				}
+				break
+			case "discoverBrowser":
+				try {
+					const discoveredHost = await discoverChromeInstances()
+
+					if (discoveredHost) {
+						// Don't update the remoteBrowserHost state when auto-discovering
+						// This way we don't override the user's preference
+
+						// Test the connection to get the endpoint
+						const { browserSettings } = await getAllExtensionState(this.context)
+						const browserSession = new BrowserSession(this.context, browserSettings)
+						const result = await browserSession.testConnection(discoveredHost)
+
+						// Send the result back to the webview
+						await this.postMessageToWebview({
+							type: "browserConnectionResult",
+							success: true,
+							text: `Successfully discovered and connected to Chrome at ${discoveredHost}`,
+							values: { endpoint: result.endpoint },
+						})
+					} else {
+						await this.postMessageToWebview({
+							type: "browserConnectionResult",
+							success: false,
+							text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+						})
+					}
+				} catch (error) {
+					await this.postMessageToWebview({
+						type: "browserConnectionResult",
+						success: false,
+						text: `Error discovering browser: ${error instanceof Error ? error.message : String(error)}`,
+					})
+				}
+				break
 			case "togglePlanActMode":
 				if (message.chatSettings) {
 					await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
@@ -273,11 +409,11 @@ export class Controller {
 					text: message.text,
 				})
 				break
-			// case "relaunchChromeDebugMode":
-			// 	if (this.task) {
-			// 		this.task.browserSession.relaunchChromeDebugMode()
-			// 	}
-			// 	break
+			case "relaunchChromeDebugMode":
+				const { browserSettings } = await getAllExtensionState(this.context)
+				const browserSession = new BrowserSession(this.context, browserSettings)
+				await browserSession.relaunchChromeDebugMode(this)
+				break
 			case "askResponse":
 				this.task?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 				break
@@ -592,6 +728,13 @@ export class Controller {
 				})
 				break
 			}
+			case "scrollToSettings": {
+				await this.postMessageToWebview({
+					type: "scrollToSettings",
+					text: message.text,
+				})
+				break
+			}
 			case "telemetrySetting": {
 				if (message.telemetrySetting) {
 					await this.updateTelemetrySetting(message.telemetrySetting)
@@ -630,6 +773,55 @@ export class Controller {
 				await this.postStateToWebview()
 				this.refreshTotalTasksSize()
 				this.postMessageToWebview({ type: "relinquishControl" })
+				break
+			}
+			case "getBrowserConnectionInfo": {
+				try {
+					// Get the current browser session from Cline if it exists
+					if (this.task?.browserSession) {
+						const connectionInfo = this.task.browserSession.getConnectionInfo()
+						await this.postMessageToWebview({
+							type: "browserConnectionInfo",
+							isConnected: connectionInfo.isConnected,
+							isRemote: connectionInfo.isRemote,
+							host: connectionInfo.host,
+							isHeadless: connectionInfo.isHeadless,
+						})
+					} else {
+						// If no active browser session, just return the settings
+						const { browserSettings } = await getAllExtensionState(this.context)
+						await this.postMessageToWebview({
+							type: "browserConnectionInfo",
+							isConnected: false,
+							isRemote: !!browserSettings.remoteBrowserEnabled,
+							host: browserSettings.remoteBrowserHost,
+							isHeadless: !!browserSettings.headless,
+						})
+					}
+				} catch (error) {
+					console.error("Error getting browser connection info:", error)
+					await this.postMessageToWebview({
+						type: "browserConnectionInfo",
+						isConnected: false,
+						isRemote: false,
+						isHeadless: true,
+					})
+				}
+				break
+			}
+			case "getDetectedChromePath": {
+				try {
+					const { browserSettings } = await getAllExtensionState(this.context)
+					const browserSession = new BrowserSession(this.context, browserSettings)
+					const { path, isBundled } = await browserSession.getDetectedChromePath()
+					await this.postMessageToWebview({
+						type: "detectedChromePath",
+						text: path,
+						isBundled,
+					})
+				} catch (error) {
+					console.error("Error getting detected Chrome path:", error)
+				}
 				break
 			}
 			// Add more switch case statements here as more webview message commands
