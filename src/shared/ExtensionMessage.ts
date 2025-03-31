@@ -81,7 +81,7 @@ export interface ExtensionMessage {
 	userCreditsUsage?: UsageTransaction[]
 	userCreditsPayments?: PaymentTransaction[]
 	totalTasksSize?: number | null
-	requestId?: string
+	mentionsRequestId?: string
 	results?: Array<{
 		path: string
 		type: "file" | "folder"

@@ -522,7 +522,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							vscode.postMessage({
 								type: "searchFiles",
 								query: query,
-								requestId: reqId,
+								mentionsRequestId: reqId,
 							})
 						}, 200) // 200ms debounce
 					} else {

@@ -180,14 +180,6 @@ export function getContextMenuOptions(
 			item.type !== ContextMenuOptionType.Git,
 	)
 
-	// Convert search results to queryItems format
-	console.log("context-mentions.ts: (0) dynamicSearchResults:", {
-		length: dynamicSearchResults.length,
-		firstItem: dynamicSearchResults[0],
-		query,
-		selectedType,
-	})
-
 	const searchResultItems = dynamicSearchResults.map((result) => {
 		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
 		const item = {
@@ -196,18 +188,11 @@ export function getContextMenuOptions(
 			label: result.label || path.basename(result.path),
 			description: formattedPath,
 		}
-		console.log("context-mentions.ts: Mapped item:", item)
 		return item
-	})
-
-	console.log("context-mentions.ts: (1) searchResultItems:", {
-		length: searchResultItems.length,
-		firstItem: searchResultItems[0],
 	})
 
 	// Combine all items in the desired order
 	if (suggestions.length > 0 || matchingItems.length > 0 || searchResultItems.length > 0) {
-		console.log("context-mentions.ts: (2) searchResultItems length: ", searchResultItems.length) // why is this zero?
 		const allItems = [...suggestions, ...searchResultItems, ...fileMatches, ...gitMatches, ...otherMatches]
 
 		// Remove duplicates - normalize paths by ensuring all have leading slashes

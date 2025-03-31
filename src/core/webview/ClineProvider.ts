@@ -955,7 +955,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.postMessageToWebview({
 								type: "fileSearchResults",
 								results: [],
-								requestId: message.requestId,
+								mentionsRequestId: message.mentionsRequestId,
 								error: "No workspace path available",
 							})
 							break
@@ -968,14 +968,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								20, // Use default limit, as filtering is now done in the backend
 							)
 
-							// debug logging to be removed
-							console.log(`ClineProvider.ts: Search results: ${results.length}`)
-
 							// Send results back to webview
 							await this.postMessageToWebview({
 								type: "fileSearchResults",
 								results,
-								requestId: message.requestId,
+								mentionsRequestId: message.mentionsRequestId,
 							})
 						} catch (error) {
 							const errorMessage = error instanceof Error ? error.message : String(error)
@@ -985,7 +982,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								type: "fileSearchResults",
 								results: [],
 								error: errorMessage,
-								requestId: message.requestId,
+								mentionsRequestId: message.mentionsRequestId,
 							})
 						}
 						break
