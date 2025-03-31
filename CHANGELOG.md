@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.11.3] - 2025-03-31
+
+- Revert mention changes in case they're causing performance issues/crashes
+
 ## [3.11.2] - 2025-03-31
 
 - Fix bug in loading Requesty key balance
