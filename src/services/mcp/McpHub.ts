@@ -264,7 +264,7 @@ export class McpHub {
 
 						if (isInfoLog) {
 							// Log normal informational messages
-							console.log(`Server "${name}" info:`, output)
+							console.info(`Server "${name}" info:`, output)
 						} else {
 							// Treat as error log
 							console.error(`Server "${name}" stderr:`, output)
