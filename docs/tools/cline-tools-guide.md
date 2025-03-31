@@ -20,8 +20,9 @@ Cline is your AI assistant that can:
 
 2. **Provide Context**
 
-    - Use @ mentions to add files, folders, or URLs
-    - Example: "@file:src/components/App.tsx"
+    - Use @ mentions to add files, folders, URLs, diagnostics, terminal output, and more
+    - Example: "@/src/components/App.tsx"
+    - See the [Mentions Feature Guide](./mentions-guide.md) for details
 
 3. **Review Changes**
     - Cline will show diffs before making changes
