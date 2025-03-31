@@ -42,7 +42,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData }: CreditsHist
 												Date
 											</VSCodeDataGridCell>
 											<VSCodeDataGridCell cell-type="columnheader" grid-column="2">
-												Model
+												模型
 											</VSCodeDataGridCell>
 											{/* <VSCodeDataGridCell cell-type="columnheader" grid-column="3">
 												Tokens Used

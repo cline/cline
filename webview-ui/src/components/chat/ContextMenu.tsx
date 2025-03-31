@@ -53,7 +53,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			case ContextMenuOptionType.URL:
 				return <span>粘贴URL获取内容</span>
 			case ContextMenuOptionType.NoResults:
-				return <span>No results found</span>
+				return <span>未找到匹配结果</span>
 			case ContextMenuOptionType.Git:
 				if (option.value) {
 					return (
@@ -95,7 +95,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						</>
 					)
 				} else {
-					return <span>Add {option.type === ContextMenuOptionType.File ? "File" : "Folder"}</span>
+					return <span>添加{option.type === ContextMenuOptionType.File ? "文件" : "文件夹"}</span>
 				}
 		}
 	}

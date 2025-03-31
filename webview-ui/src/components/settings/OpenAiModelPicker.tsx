@@ -349,7 +349,7 @@ export const ModelDescriptionMarkdown = memo(
 									backgroundColor: "var(--vscode-sideBar-background)",
 								}}
 								onClick={() => setIsExpanded(true)}>
-								See more
+								查看更多
 							</VSCodeLink>
 						</div>
 					)}

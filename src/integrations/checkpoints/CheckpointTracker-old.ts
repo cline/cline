@@ -53,7 +53,7 @@ class CheckpointTracker {
 	private static async getWorkingDirectory(): Promise<string> {
 		const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 		if (!cwd) {
-			throw new Error("No workspace detected. Please open Cline in a workspace to use checkpoints.")
+			throw new Error("未检测到工作区，请在工作区中打开Cline以使用检查点功能")
 		}
 		const homedir = os.homedir()
 		const desktopPath = path.join(homedir, "Desktop")

@@ -20,13 +20,13 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({ currentBalance, tot
 				borderRadius: "4px",
 				marginBottom: "12px",
 			}}>
-			<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "8px" }}>{message}</div>
+			<div style={{ color: "var(--vscode-errorForeground)", marginBottom: "8px" }}>积分余额不足</div>
 			<div style={{ marginBottom: "12px" }}>
 				<div style={{ color: "var(--vscode-foreground)" }}>
-					Current Balance: <span style={{ fontWeight: "bold" }}>${currentBalance.toFixed(2)}</span>
+					当前余额: <span style={{ fontWeight: "bold" }}>${currentBalance.toFixed(2)}</span>
 				</div>
-				<div style={{ color: "var(--vscode-foreground)" }}>Total Spent: ${totalSpent.toFixed(2)}</div>
-				<div style={{ color: "var(--vscode-foreground)" }}>Total Promotions: ${totalPromotions.toFixed(2)}</div>
+				<div style={{ color: "var(--vscode-foreground)" }}>总消费: ${totalSpent.toFixed(2)}</div>
+				<div style={{ color: "var(--vscode-foreground)" }}>总优惠: ${totalPromotions.toFixed(2)}</div>
 			</div>
 
 			<VSCodeButtonLink
@@ -36,7 +36,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({ currentBalance, tot
 					marginBottom: "8px",
 				}}>
 				<span className="codicon codicon-credit-card" style={{ fontSize: "14px", marginRight: "6px" }} />
-				Buy Credits
+				购买积分
 			</VSCodeButtonLink>
 
 			<VSCodeButton
@@ -51,7 +51,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({ currentBalance, tot
 					width: "100%",
 				}}>
 				<span className="codicon codicon-refresh" style={{ fontSize: "14px", marginRight: "6px" }} />
-				Retry Request
+				重试请求
 			</VSCodeButton>
 		</div>
 	)

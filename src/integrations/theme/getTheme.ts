@@ -137,5 +137,5 @@ export function mergeJson(
 }
 
 function getExtensionUri(): vscode.Uri {
-	return vscode.extensions.getExtension("saoudrizwan.cline-cn")!.extensionUri
+	return vscode.extensions.getExtension("617694668.cline-cn")!.extensionUri
 }

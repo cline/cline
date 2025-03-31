@@ -14,10 +14,10 @@ Key components:
 2. execRipgrep: Executes the ripgrep command and returns the output.
 3. regexSearchFiles: The main function that performs regex searches on files.
    - Parameters:
-     * cwd: The current working directory (for relative path calculation)
-     * directoryPath: The directory to search in
-     * regex: The regular expression to search for (Rust regex syntax)
-     * filePattern: Optional glob pattern to filter files (default: '*')
+	 * cwd: The current working directory (for relative path calculation)
+	 * directoryPath: The directory to search in
+	 * regex: The regular expression to search for (Rust regex syntax)
+	 * filePattern: Optional glob pattern to filter files (default: '*')
    - Returns: A formatted string containing search results with context
 
 The search results include:
@@ -135,7 +135,7 @@ export async function regexSearchFiles(
 	try {
 		output = await execRipgrep(rgPath, args)
 	} catch {
-		return "No results found"
+		return "未找到匹配结果"
 	}
 	const results: SearchResult[] = []
 	let currentResult: Partial<SearchResult> | null = null

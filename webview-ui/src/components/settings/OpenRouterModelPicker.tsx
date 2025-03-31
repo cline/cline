@@ -163,7 +163,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 			</style>
 			<div style={{ display: "flex", flexDirection: "column" }}>
 				<label htmlFor="model-search">
-					<span style={{ fontWeight: 500 }}>Model</span>
+					<span style={{ fontWeight: 500 }}>模型</span>
 				</label>
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
@@ -212,7 +212,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 										setIsDropdownVisible(false)
 									}}
 									dangerouslySetInnerHTML={{
-										__html: item.html,
+										__html: item.html.includes(":free")
+											? `[免费]${item.html.replace(":free", "")}<span class="model-item-highlight">:free</span>`
+											: item.html,
 									}}
 								/>
 							))}
@@ -431,7 +433,7 @@ export const ModelDescriptionMarkdown = memo(
 									backgroundColor: isPopup ? CODE_BLOCK_BG_COLOR : "var(--vscode-sideBar-background)",
 								}}
 								onClick={() => setIsExpanded(true)}>
-								See more
+								查看更多
 							</VSCodeLink>
 						</div>
 					)}

@@ -718,7 +718,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const uriScheme = vscode.env.uriScheme
 
 						const authUrl = vscode.Uri.parse(
-							`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.cline-cn/auth`)}`,
+							`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://617694668.cline-cn/auth`)}`,
 						)
 						vscode.env.openExternal(authUrl)
 						break
@@ -887,7 +887,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						const settingsFilter = message.text || ""
 						await vscode.commands.executeCommand(
 							"workbench.action.openSettings",
-							`@ext:saoudrizwan.cline-cn ${settingsFilter}`.trim(), // trim whitespace if no settings filter
+							`@ext:617694668.cline-cn ${settingsFilter}`.trim(), // trim whitespace if no settings filter
 						)
 						break
 					}
@@ -1392,7 +1392,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			// vscode.window.showInformationMessage("Successfully logged in to Cline")
 		} catch (error) {
 			console.error("Failed to handle auth callback:", error)
-			vscode.window.showErrorMessage("Failed to log in to Cline")
+			vscode.window.showErrorMessage("登录Cline失败")
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
 		}
@@ -1923,7 +1923,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			}
 		} catch (error) {
 			vscode.window.showErrorMessage(
-				`Encountered error while deleting task history, there may be some files left behind. Error: ${error instanceof Error ? error.message : String(error)}`,
+				`删除任务历史记录时出错，可能遗留了一些文件。错误: ${error instanceof Error ? error.message : String(error)}`,
 			)
 		}
 		// await this.postStateToWebview()

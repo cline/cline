@@ -103,6 +103,26 @@ export class Cline {
 	private abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
+
+	private async handleConsecutiveMistakes(): Promise<void> {
+		if (this.consecutiveMistakeCount >= 3) {
+			if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+				showSystemNotification({
+					subtitle: "错误",
+					message: `Cline 已自动批准 ${this.autoApprovalSettings.maxRequests.toString()} 个API请求。`,
+				})
+			}
+			const { response, text, images } = await this.ask(
+				"mistake_limit_reached",
+				this.api.getModel().id.includes("claude")
+					? `这可能表明AI思维过程出现故障或工具使用不当，可通过用户指导缓解（例如："尝试将任务分解为更小的步骤"）。`
+					: "Cline使用复杂提示词和迭代任务执行流程，对低性能模型可能具有挑战性。推荐使用Claude 3.7 Sonnet模型以获得最佳效果，该模型具备先进的自主编码能力。",
+			)
+			if (response === "messageResponse") {
+				// Empty block kept as is since it appears to be intentional
+			}
+		}
+	}
 	private diffViewProvider: DiffViewProvider
 	private checkpointTracker?: CheckpointTracker
 	checkpointTrackerErrorMessage?: string
@@ -2507,8 +2527,7 @@ export class Cline {
 									timeoutId = setTimeout(() => {
 										showSystemNotification({
 											subtitle: "Command is still running",
-											message:
-												"An auto-approved command has been running for 30s, and may need your attention.",
+											message: "自动批准命令已运行30秒，可能需要人工干预",
 										})
 									}, 30_000)
 								}
@@ -3080,15 +3099,15 @@ export class Cline {
 		if (this.consecutiveMistakeCount >= 3) {
 			if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
-					subtitle: "Error",
-					message: "Cline is having trouble. Would you like to continue the task?",
+					subtitle: "错误Error",
+					message: "Cline 运行遇到问题，是否继续执行任务？",
 				})
 			}
 			const { response, text, images } = await this.ask(
 				"mistake_limit_reached",
 				this.api.getModel().id.includes("claude")
-					? `This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
-					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 3.7 Sonnet for its advanced agentic coding capabilities.",
+					? `这可能表明AI思维过程出现故障或工具使用不当，可通过用户指导缓解（例如："尝试将任务分解为更小的步骤"）。This may indicate a failure in his thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
+					: "Cline使用复杂提示词和迭代任务执行流程，对低性能模型可能具有挑战性。推荐使用Claude 3.7 Sonnet模型以获得最佳效果，该模型具备先进的自主编码能力。Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 3.7 Sonnet for its advanced agentic coding capabilities.",
 			)
 			if (response === "messageResponse") {
 				userContent.push(

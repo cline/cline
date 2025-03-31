@@ -328,8 +328,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							padding: 0,
 						}}>
 						如果您有任何问题或反馈，请随时在{" "}
-						<VSCodeLink href="https://github.com/cline/cline" style={{ display: "inline" }}>
-							https://github.com/cline/cline
+						<VSCodeLink href="https://github.com/dxdw2021/cline" style={{ display: "inline" }}>
+							https://github.com/dxdw2021/cline
 						</VSCodeLink>
 					</p>
 					<p

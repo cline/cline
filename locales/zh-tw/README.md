@@ -12,7 +12,7 @@
 <table>
 <tbody>
 <td align="center">
-<a href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.cline-cn" target="_blank"><strong>從 VS Marketplace 下載</strong></a>
+<a href="https://marketplace.visualstudio.com/items?itemName=617694668.cline-cn" target="_blank"><strong>從 VS Marketplace 下載</strong></a>
 </td>
 <td align="center">
 <a href="https://discord.gg/cline" target="_blank"><strong>Discord</strong></a>

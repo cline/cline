@@ -7,7 +7,7 @@ The Cline extension exposes an API that can be used by other extensions. To use 
 3. Get access to the API with the following code:
 
     ```ts
-    const clineExtension = vscode.extensions.getExtension<ClineAPI>("saoudrizwan.cline-cn")
+    const clineExtension = vscode.extensions.getExtension<ClineAPI>("617694668.cline-cn")
 
     if (!clineExtension?.isActive) {
     	throw new Error("Cline extension is not activated")
@@ -44,11 +44,11 @@ The Cline extension exposes an API that can be used by other extensions. To use 
     }
     ```
 
-    **Note:** To ensure that the `saoudrizwan.cline-cn` extension is activated before your extension, add it to the `extensionDependencies` in your `package.json`:
+    **Note:** To ensure that the `617694668.cline-cn` extension is activated before your extension, add it to the `extensionDependencies` in your `package.json`:
 
     ```json
     "extensionDependencies": [
-        "saoudrizwan.cline-cn"
+        "617694668.cline-cn"
     ]
     ```
 

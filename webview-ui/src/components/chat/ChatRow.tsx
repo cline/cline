@@ -49,7 +49,7 @@ interface ChatRowProps {
 	onHeightChange: (isTaller: boolean) => void
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> { }
 
 export const ProgressIndicator = () => (
 	<div
@@ -290,21 +290,21 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					(() => {
 						if (apiReqCancelReason != null) {
 							return apiReqCancelReason === "user_cancelled" ? (
-								<span style={{ color: normalColor, fontWeight: "bold" }}>API Request Cancelled</span>
+								<span style={{ color: normalColor, fontWeight: "bold" }}>API请求已取消</span>
 							) : (
-								<span style={{ color: errorColor, fontWeight: "bold" }}>API Streaming Failed</span>
+								<span style={{ color: errorColor, fontWeight: "bold" }}>API流式传输失败</span>
 							)
 						}
 
 						if (cost != null) {
-							return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request</span>
+							return <span style={{ color: normalColor, fontWeight: "bold" }}>API请求</span>
 						}
 
 						if (apiRequestFailedMessage) {
-							return <span style={{ color: errorColor, fontWeight: "bold" }}>API Request Failed</span>
+							return <span style={{ color: errorColor, fontWeight: "bold" }}>API请求失败</span>
 						}
 
-						return <span style={{ color: normalColor, fontWeight: "bold" }}>API Request...</span>
+						return <span style={{ color: normalColor, fontWeight: "bold" }}>API请求中...</span>
 					})(),
 				]
 			case "followup":
@@ -605,8 +605,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 							fontSize: "12px",
 							color: "var(--vscode-editorWarning-foreground)",
 						}}>
-						<i className="codicon codicon-warning"></i>
-						<span>The model has determined this command requires explicit approval.</span>
+						<i className="codicon codicon-warning"></i>·{" "}
 					</div>
 				)}
 			</>

@@ -373,7 +373,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<div>
 					<DropdownContainer className="dropdown-container" style={{ position: "inherit" }}>
 						<label htmlFor="qwen-line-provider">
-							<span style={{ fontWeight: 500, marginTop: 5 }}>Alibaba API Line</span>
+							<span style={{ fontWeight: 500, marginTop: 5 }}>阿里巴巴 API 线路</span>
 						</label>
 						<VSCodeDropdown
 							id="qwen-line-provider"
@@ -383,8 +383,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								minWidth: 130,
 								position: "relative",
 							}}>
-							<VSCodeOption value="china">China API</VSCodeOption>
-							<VSCodeOption value="international">International API</VSCodeOption>
+							<VSCodeOption value="china">中国区 API</VSCodeOption>
+							<VSCodeOption value="international">国际区 API</VSCodeOption>
 						</VSCodeDropdown>
 					</DropdownContainer>
 					<p
@@ -393,8 +393,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Please select the appropriate API interface based on your location. If you are in China, choose the China
-						API interface. Otherwise, choose the International API interface.
+						请根据您的地理位置选择合适的 API 接口。如果您在中国境内，请选择中国区 API 接口；如果您在境外，请选择国际区 API 接口。
 					</p>
 					<VSCodeTextField
 						value={apiConfiguration?.qwenApiKey || ""}
@@ -1178,18 +1177,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						LM Studio allows you to run models locally on your computer. For instructions on how to get started, see
-						their
+						LM Studio 允许您在本地计算机上运行模型。要开始使用，请参阅其
 						<VSCodeLink href="https://lmstudio.ai/docs" style={{ display: "inline", fontSize: "inherit" }}>
-							quickstart guide.
+							快速入门指南
 						</VSCodeLink>
-						You will also need to start LM Studio's{" "}
+						。您还需要启动 LM Studio 的{" "}
 						<VSCodeLink
 							href="https://lmstudio.ai/docs/basics/server"
 							style={{ display: "inline", fontSize: "inherit" }}>
-							local server
+							本地服务器
 						</VSCodeLink>{" "}
-						feature to use it with this extension.{" "}
+						功能才能与此扩展一起使用。{" "}
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
 							(<span style={{ fontWeight: 500 }}>注意:</span> Cline使用复杂提示词，在Claude模型上效果最佳。
 							性能较低的模型可能无法达到预期效果。) 性能较低的模型可能无法达到预期效果。)
@@ -1229,11 +1227,11 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						LiteLLM provides a unified interface to access various LLM providers' models. See their{" "}
+						LiteLLM 提供了一个统一的接口来访问各种 LLM 提供商的模型。查看其{" "}
 						<VSCodeLink href="https://docs.litellm.ai/docs/" style={{ display: "inline", fontSize: "inherit" }}>
-							quickstart guide
+							快速入门指南
 						</VSCodeLink>{" "}
-						for more information.
+						了解更多信息。
 					</p>
 				</div>
 			)}
@@ -1291,12 +1289,11 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: "5px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Ollama allows you to run models locally on your computer. For instructions on how to get started, see
-						their
+						Ollama 允许您在本地计算机上运行模型。要开始使用，请参阅其
 						<VSCodeLink
 							href="https://github.com/ollama/ollama/blob/main/README.md"
 							style={{ display: "inline", fontSize: "inherit" }}>
-							quickstart guide.
+							快速入门指南
 						</VSCodeLink>
 						<span style={{ color: "var(--vscode-errorForeground)" }}>
 							(<span style={{ fontWeight: 500 }}>注意:</span> Cline使用复杂提示词，在Claude模型上效果最佳。
@@ -1325,7 +1322,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						此密钥仅存储在本地，仅用于本扩展程序的API请求。
 						{!apiConfiguration?.xaiApiKey && (
 							<VSCodeLink href="https://x.ai" style={{ display: "inline", fontSize: "inherit" }}>
-								You can get an X AI API key by signing up here.
+								您可以在此注册获取 X AI API 密钥。
 							</VSCodeLink>
 						)}
 					</p>
@@ -1370,7 +1367,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									display: "inline",
 									fontSize: "inherit",
 								}}>
-								You can get a SambaNova API key by signing up here.
+								您可以在此注册获取 SambaNova API 密钥。
 							</VSCodeLink>
 						)}
 					</p>
@@ -1472,8 +1469,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
 							(selectedProvider === "bedrock" && selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
 							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
-							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
-						)}
+								<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+							)}
 
 						<ModelInfoView
 							selectedModelId={selectedModelId}
@@ -1504,7 +1501,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 }
 
 export function getOpenRouterAuthUrl(uriScheme?: string) {
-	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://cline-cn.cline-cn/openrouter`
+	return `https://openrouter.ai/auth?callback_url=${uriScheme || "vscode"}://617694668.cline-cn/openrouter`
 }
 
 export const formatPrice = (price: number) => {
@@ -1589,10 +1586,10 @@ export const ModelInfoView = ({
 		),
 		isGemini && (
 			<span key="geminiInfo" style={{ fontStyle: "italic" }}>
-				* Free up to {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} requests per minute. After that,
-				billing depends on prompt size.{" "}
+				* 每分钟免费请求数量上限为 {selectedModelId && selectedModelId.includes("flash") ? "15" : "2"} 次。超过后，
+				计费取决于提示词大小。{" "}
 				<VSCodeLink href="https://ai.google.dev/pricing" style={{ display: "inline", fontSize: "inherit" }}>
-					For more info, see pricing details.
+					查看详细定价信息。
 				</VSCodeLink>
 			</span>
 		),
