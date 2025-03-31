@@ -207,6 +207,9 @@
 		"thinking": "考え中",
 		"seconds": "{{count}}秒"
 	},
+	"followUpSuggest": {
+		"copyToInput": "入力欄にコピー（またはShift + クリック）"
+	},
 	"announcement": {
 		"title": "🎉 Roo Code 3.10 リリース",
 		"description": "Roo Code 3.10は強力な生産性向上機能をもたらします！",

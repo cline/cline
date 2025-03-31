@@ -207,6 +207,9 @@
 		"thinking": "Đang suy nghĩ",
 		"seconds": "{{count}} giây"
 	},
+	"followUpSuggest": {
+		"copyToInput": "Sao chép vào ô nhập liệu (hoặc Shift + nhấp chuột)"
+	},
 	"announcement": {
 		"title": "🎉 Roo Code 3.10 Đã phát hành",
 		"description": "Roo Code 3.10 mang đến những cải tiến năng suất mạnh mẽ!",

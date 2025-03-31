@@ -207,6 +207,9 @@
 		"thinking": "Pensando",
 		"seconds": "{{count}}s"
 	},
+	"followUpSuggest": {
+		"copyToInput": "Copiar para entrada (ou Shift + clique)"
+	},
 	"announcement": {
 		"title": "🎉 Roo Code 3.10 Lançado",
 		"description": "Roo Code 3.10 traz poderosas melhorias de produtividade!",

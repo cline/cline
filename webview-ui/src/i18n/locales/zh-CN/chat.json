@@ -207,6 +207,9 @@
 		"thinking": "思考中",
 		"seconds": "{{count}}秒"
 	},
+	"followUpSuggest": {
+		"copyToInput": "复制到输入框（或按住Shift点击）"
+	},
 	"announcement": {
 		"title": "🎉 Roo Code 3.10 已发布",
 		"description": "Roo Code 3.10带来强大的生产力提升！",

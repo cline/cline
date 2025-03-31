@@ -207,6 +207,9 @@
 		"thinking": "Düşünüyor",
 		"seconds": "{{count}}sn"
 	},
+	"followUpSuggest": {
+		"copyToInput": "Giriş alanına kopyala (veya Shift + tıklama)"
+	},
 	"announcement": {
 		"title": "🎉 Roo Code 3.10 Yayınlandı",
 		"description": "Roo Code 3.10 güçlü üretkenlik iyileştirmeleri getiriyor!",

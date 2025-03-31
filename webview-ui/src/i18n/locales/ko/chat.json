@@ -207,6 +207,9 @@
 		"thinking": "생각 중",
 		"seconds": "{{count}}초"
 	},
+	"followUpSuggest": {
+		"copyToInput": "입력창에 복사 (또는 Shift + 클릭)"
+	},
 	"announcement": {
 		"title": "🎉 Roo Code 3.10 출시",
 		"description": "Roo Code 3.10이 강력한 생산성 향상 기능을 제공합니다!",
