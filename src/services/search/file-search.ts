@@ -129,7 +129,16 @@ export async function* searchWorkspaceFiles(
 
 			// Add new items to fzf search map
 			for (const item of batch) {
-				const searchStr = `${item.path} ${item.label || ""}`
+				const label = item.label || ""
+				// Boost priority files in the search string itself
+				const searchStr = `${
+					// Boost exact filename matches with high priority
+					label === query ? "AAAAA_EXACT_" : ""
+				}${
+					// Boost files with matching filename
+					label.includes(query) ? "BBBBB_MATCH_" : ""
+				}${item.path} ${label}`
+
 				fzfItems.set(item.path, { original: item, searchStr })
 			}
 
@@ -140,12 +149,22 @@ export async function* searchWorkspaceFiles(
 				limit: limit,
 			})
 
-			// Get matching results
-			const fzfResults = fzf.find(query).map((result) => result.item.original)
+			// Get matching results and log scores
+			const fzfResults = fzf.find(query)
+			console.log(
+				"[Search] Scores:",
+				fzfResults.map((result) => ({
+					path: result.item.original.path,
+					label: result.item.original.label,
+					searchStr: result.item.searchStr,
+					score: result.score,
+				})),
+			)
+			const results = fzfResults.map((result) => result.item.original)
 
 			// Verify types of results
 			const verifiedResults = await Promise.all(
-				fzfResults.map(async (result) => {
+				results.map(async (result) => {
 					const fullPath = path.join(workspacePath, result.path)
 					if (fs.existsSync(fullPath)) {
 						const isDirectory = fs.lstatSync(fullPath).isDirectory()

@@ -274,26 +274,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 
 				case "fileSearchResults": {
-					console.log("[Search] Received results:", {
-						requestId: message.mentionsRequestId,
-						currentRequestId: currentSearchRequestId.current,
-						resultCount: message.results?.length || 0,
-					})
+					//console.log("[Search] Received results:", {
+					//	requestId: message.mentionsRequestId,
+					//	currentRequestId: currentSearchRequestId.current,
+					//	resultCount: message.results?.length || 0,
+					//})
 
 					if (message.mentionsRequestId === currentSearchRequestId.current) {
-						// Only merge results if they're from the current search
-						setFileSearchResults((prevResults) => {
-							const newResults = message.results || []
-							const existingPaths = new Set(prevResults.map((r) => r.path))
-							const uniqueNewResults = newResults.filter((r) => !existingPaths.has(r.path))
-							console.log("[Search] Processing batch:", {
-								previousCount: prevResults.length,
-								newCount: newResults.length,
-								uniqueNewCount: uniqueNewResults.length,
-								finalCount: prevResults.length + uniqueNewResults.length,
-							})
-							return [...prevResults, ...uniqueNewResults]
+						// Each batch represents the complete set of results for this search request
+						// No need to merge with previous results
+						console.log("[Search] Processing results:", {
+							resultCount: message.results?.length || 0,
+							requestId: message.mentionsRequestId,
 						})
+						setFileSearchResults(message.results || [])
 						setSearchLoading(false)
 					} else {
 						console.log(

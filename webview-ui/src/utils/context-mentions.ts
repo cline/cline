@@ -191,9 +191,16 @@ export function getContextMenuOptions(
 		return item
 	})
 
-	// Combine all items in the desired order
-	if (suggestions.length > 0 || matchingItems.length > 0 || searchResultItems.length > 0) {
-		const allItems = [...suggestions, ...searchResultItems, ...fileMatches, ...gitMatches, ...otherMatches]
+	// If we have dynamic search results, prioritize those
+	if (dynamicSearchResults.length > 0) {
+		// Only show suggestions and dynamic results
+		const allItems = [...suggestions, ...searchResultItems]
+		return allItems.length > 0 ? allItems : [{ type: ContextMenuOptionType.NoResults }]
+	}
+
+	// Otherwise fall back to local fuzzy search
+	if (suggestions.length > 0 || matchingItems.length > 0) {
+		const allItems = [...suggestions, ...fileMatches, ...gitMatches, ...otherMatches]
 
 		// Remove duplicates - normalize paths by ensuring all have leading slashes
 		const seen = new Set()
