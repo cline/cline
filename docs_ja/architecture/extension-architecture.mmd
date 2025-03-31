@@ -1,0 +1,41 @@
+graph TB
+    subgraph VSCode拡張機能ホスト
+        subgraph コア拡張機能
+            ExtensionEntry[拡張機能エントリー<br/>src/extension.ts]
+            ClineProvider[ClineProvider<br/>src/core/webview/ClineProvider.ts]
+            ClineClass[Clineクラス<br/>src/core/Cline.ts]
+            GlobalState[VSCodeグローバル状態]
+            SecretsStorage[VSCodeシークレットストレージ]
+        end
+
+        subgraph ウェブビューUI
+            WebviewApp[Reactアプリ<br/>webview-ui/src/App.tsx]
+            ExtStateContext[ExtensionStateContext<br/>webview-ui/src/context/ExtensionStateContext.tsx]
+            ReactComponents[Reactコンポーネント]
+        end
+
+        subgraph ストレージ
+            TaskStorage[タスクストレージ<br/>タスクごとのファイルと履歴]
+            CheckpointSystem[Gitベースのチェックポイント]
+        end
+    end
+
+    %% コア拡張機能データフロー
+    ExtensionEntry --> ClineProvider
+    ClineProvider --> ClineClass
+    ClineClass --> GlobalState
+    ClineClass --> SecretsStorage
+    ClineClass --> TaskStorage
+    ClineClass --> CheckpointSystem
+
+    %% ウェブビューデータフロー
+    WebviewApp --> ExtStateContext
+    ExtStateContext --> ReactComponents
+
+    %% 双方向通信
+    ClineProvider <-->|postMessage| ExtStateContext
+
+    style GlobalState fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style SecretsStorage fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style ExtStateContext fill:#0066ff,stroke:#333,stroke-width:2px,color:#ffffff
+    style ClineProvider fill:#00cc66,stroke:#333,stroke-width:2px,color:#ffffff

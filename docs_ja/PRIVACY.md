@@ -1,0 +1,1 @@
+プライバシーポリシーについては、[https://cline.bot/privacy](https://cline.bot/privacy) をご覧ください。
