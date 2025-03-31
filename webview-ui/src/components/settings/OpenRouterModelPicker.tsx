@@ -60,8 +60,12 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [])
 
 	const modelIds = useMemo(() => {
-		return Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
-	}, [openRouterModels])
+		const unfilteredModelIds = Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
+
+		return apiConfiguration?.apiProvider === "cline"
+			? unfilteredModelIds.filter((id) => !id.includes(":free"))
+			: unfilteredModelIds
+	}, [openRouterModels, apiConfiguration?.apiProvider])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -83,7 +87,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [searchableItems])
 
 	const modelSearchResults = useMemo(() => {
-		let results: { id: string; html: string }[] = searchTerm
+		const results: { id: string; html: string }[] = searchTerm
 			? highlight(fuse.search(searchTerm), "model-item-highlight")
 			: searchableItems
 		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
