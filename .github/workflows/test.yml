@@ -125,6 +125,39 @@ jobs:
                   python -m pip install --upgrade pip
                   pip install requests
 
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20.15.1
+
+            # Cache root dependencies - only reuse if package-lock.json exactly matches
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
+            - name: Cache webview-ui dependencies
+              uses: actions/cache@v4
+              id: webview-cache
+              with:
+                  path: webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+            - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
+              run: npm ci
+
+            - name: Install webview-ui dependencies
+              if: steps.webview-cache.outputs.cache-hit != 'true'
+              run: cd webview-ui && npm ci
+
+            # Build the extension before running tests
+            - name: Build Extension
+              run: npm run compile
+
             # Download coverage artifacts from test job
             - name: Download Coverage Reports
               uses: actions/download-artifact@v4
