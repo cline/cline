@@ -11,13 +11,15 @@ type McpToolRowProps = {
 const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 
-	const handleAutoApproveChange = () => {
-		if (!serverName) return
+	// Accept the event object
+	const handleAutoApproveChange = (event: any) => {
+		// Only proceed if the event was triggered by a direct user interaction
+		if (!serverName || !event.isTrusted) return
 
 		vscode.postMessage({
 			type: "toggleToolAutoApprove",
 			serverName,
-			toolName: tool.name,
+			toolNames: [tool.name],
 			autoApprove: !tool.autoApprove,
 		})
 	}

@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { ClineProvider } from "../../core/webview/ClineProvider"
+import { Controller } from "../../core/controller"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { ClineMessage } from "../../shared/ExtensionMessage"
 
@@ -9,7 +9,7 @@ import { ClineMessage } from "../../shared/ExtensionMessage"
  * Registers development-only commands for task manipulation.
  * These are only activated in development mode.
  */
-export function registerTaskCommands(context: vscode.ExtensionContext, provider: ClineProvider): vscode.Disposable[] {
+export function registerTaskCommands(context: vscode.ExtensionContext, controller: Controller): vscode.Disposable[] {
 	return [
 		vscode.commands.registerCommand("cline.dev.createTestTasks", async () => {
 			const count = await vscode.window.showInputBox({
@@ -88,13 +88,13 @@ export function registerTaskCommands(context: vscode.ExtensionContext, provider:
 						}
 
 						// Update task history in global state
-						await provider.updateTaskHistory(historyItem)
+						await controller.updateTaskHistory(historyItem)
 
 						progress.report({ increment: 100 / tasksCount })
 					}
 
 					// Update the UI to show the new tasks
-					await provider.postStateToWebview()
+					await controller.postStateToWebview()
 
 					vscode.window.showInformationMessage(`Created ${tasksCount} test tasks`)
 				},

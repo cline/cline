@@ -24,6 +24,7 @@ export interface ApiHandlerOptions {
 	apiModelId?: string
 	apiKey?: string // anthropic
 	clineApiKey?: string
+	taskId?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
 	liteLlmApiKey?: string
@@ -367,9 +368,9 @@ export const vertexModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"gemini-2.0-pro-exp-02-05": {
-		maxTokens: 8192,
-		contextWindow: 2_097_152,
+	"gemini-2.5-pro-exp-03-25": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0,
