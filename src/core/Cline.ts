@@ -54,7 +54,8 @@ import { fixModelHtmlEscaping, removeInvalidChars } from "../utils/string"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { constructNewFileContent } from "./assistant-message/diff"
 import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "./ignore/ClineIgnoreController"
-import { parseMentions } from "./mentions"
+import { parseMentions, processNotes } from "./mentions" // Migrated from ./notes
+import { defaultFileSystem } from "../utils/fileSystem" // Import the default wrapper
 import { formatResponse } from "./prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from "./prompts/system"
 import { ContextManager } from "./context-management/ContextManager"
@@ -3445,6 +3446,18 @@ export class Cline {
 	}
 
 	async loadContext(userContent: UserContent, includeFileDetails: boolean = false) {
+		// Process @note patterns in user content
+		for (const block of userContent) {
+			if (block.type === "text") {
+				// Pass the imported fs object for dependency injection
+				const noteResult = await processNotes(block.text, cwd, defaultFileSystem)
+				if (noteResult) {
+					// Display notification to user about note status
+					await this.say(noteResult.success ? "text" : "error", noteResult.message)
+				}
+			}
+		}
+
 		return await Promise.all([
 			// This is a temporary solution to dynamically load context mentions from tool results. It checks for the presence of tags that indicate that the tool was rejected and feedback was provided (see formatToolDeniedFeedback, attemptCompletion, executeCommand, and consecutiveMistakeCount >= 3) or "<answer>" (see askFollowupQuestion), we place all user generated content in these tags so they can effectively be used as markers for when we should parse mentions). However if we allow multiple tools responses in the future, we will need to parse mentions specifically within the user content tags.
 			// (Note: this caused the @/ import alias bug where file contents were being parsed as well, since v2 converted tool results to text blocks)
