@@ -51,7 +51,7 @@ There are multiple places online to find MCP servers:
         -   **User:** "This server requires an API key. Can you find where it should be added?"
         -   Cline may automatically update the `cline_mcp_settings.json` file or other relevant files based on your instructions.
     -   **Building the Server:** Cline will run the appropriate build command for the server, which is commonly `npm run build`.
-    -   **Adding Server to Settings:** Cline will add the server’s configuration to the `cline_mcp_settings.json` file.
+    -   **Adding Server to Settings:** Cline will add the server’s configuration to the global `cline_mcp_settings.json` file by default. You can instruct Cline to add it to a project-specific `.cline_mcp_servers.json` file instead if you prefer.
 
 ## **Testing and Troubleshooting**
 
