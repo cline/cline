@@ -2,6 +2,8 @@ import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
 import { version as extensionVersion } from "../../../package.json"
 
+import type { TaskFeedbackType } from "../../shared/WebviewMessage"
+
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension
  * Uses PostHog analytics to track user interactions and system events
@@ -18,6 +20,8 @@ class PostHogClient {
 			RESTARTED: "task.restarted",
 			// Tracks when a task is finished, with acceptance or rejection status
 			COMPLETED: "task.completed",
+			// Tracks user feedback on completed tasks
+			FEEDBACK: "task.feedback",
 			// Tracks when a message is sent in a conversation
 			CONVERSATION_TURN: "task.conversation_turn",
 			// Tracks token consumption for cost and usage analysis
@@ -232,6 +236,22 @@ class PostHogClient {
 			properties: {
 				taskId,
 				mode,
+			},
+		})
+	}
+
+	/**
+	 * Records user feedback on completed tasks
+	 * @param taskId Unique identifier for the task
+	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
+	 */
+	public captureTaskFeedback(taskId: string, feedbackType: TaskFeedbackType) {
+		console.info("TelemetryService: Capturing task feedback", { taskId, feedbackType })
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.FEEDBACK,
+			properties: {
+				taskId,
+				feedbackType,
 			},
 		})
 	}
