@@ -69,7 +69,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		// Listen for when the panel becomes visible
 		// https://github.com/microsoft/vscode-discussions/discussions/840
 		if ("onDidChangeViewState" in webviewView) {
-			// WebviewPanel
+			// WebviewPanel and WebviewPanel have all the same properties except for this visibility listener panel
 			;(webviewView as vscode.WebviewPanel).onDidChangeViewState(
 				() => {
 					if (this.view?.visible) {
