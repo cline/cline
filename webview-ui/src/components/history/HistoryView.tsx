@@ -85,7 +85,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 									: `${t("history:enterSelectionMode")}`
 							}>
 							<span
-								className={`codicon ${isSelectionMode ? "codicon-check-all" : "codicon-checklist"}`}
+								className={`codicon ${isSelectionMode ? "codicon-check-all" : "codicon-checklist"} mr-1`}
 							/>
 							{isSelectionMode ? t("history:exitSelection") : t("history:selectionMode")}
 						</VSCodeButton>
