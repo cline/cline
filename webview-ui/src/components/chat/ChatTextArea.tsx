@@ -930,7 +930,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					onDragOver={onDragOver}>
 					{showContextMenu && (
 						<div ref={contextMenuContainerRef}>
-							{/* Add debug logging before rendering */}
 							{(() => {
 								return (
 									<ContextMenu
