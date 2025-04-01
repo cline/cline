@@ -165,6 +165,15 @@ export class Controller {
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
 		switch (message.type) {
+			case "addRemoteServer": {
+				try {
+					await this.mcpHub?.addRemoteServer(message.serverName!, message.serverUrl!)
+				} catch (error) {
+					// We handle the errorin McpHub.ts where the function is defined
+					console.error(`Failed to add remote server ${message.serverName}:`, error)
+				}
+				break
+			}
 			case "authStateChanged":
 				await this.setUserInfo(message.user || undefined)
 				await this.postStateToWebview()

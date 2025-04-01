@@ -14,6 +14,7 @@ export interface ManageMcpServerPayload {
 
 export interface WebviewMessage {
 	type:
+		| "addRemoteServer"
 		| "apiConfiguration"
 		| "webviewDidLaunch"
 		| "newTask"
@@ -92,6 +93,7 @@ export interface WebviewMessage {
 	timeout?: number
 	// For toggleToolAutoApprove
 	serverName?: string
+	serverUrl?: string
 	toolNames?: string[]
 	autoApprove?: boolean
 
