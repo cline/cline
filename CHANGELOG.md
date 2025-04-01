@@ -8,6 +8,8 @@
 -   Add task feedback telemetry (thumbs up/down on task completion)
 -   Add toggle disabled for remote servers
 -   Move the MCP Restart and Delete buttons and add an auto-approve all toggle
+-   Update Requestly UX for model selection (thanks @arafatkatze!)
+-   Add escape for html content for gemini when running commands
 -   Improve search and replace edit failure behaviors
 
 ## [3.8.4]
