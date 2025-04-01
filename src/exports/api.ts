@@ -60,6 +60,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 
 	public async clearCurrentTask(lastMessage?: string) {
 		await this.provider.finishSubTask(lastMessage)
+		await this.provider.postStateToWebview()
 	}
 
 	public async cancelCurrentTask() {
