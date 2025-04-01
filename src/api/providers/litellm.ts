@@ -59,10 +59,16 @@ export class LiteLlmHandler implements ApiHandler {
 		}
 		const modelId = this.options.liteLlmModelId || liteLlmDefaultModelId
 		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini")
+
+		// Configuration for extended thinking
+		const budget_tokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = budget_tokens !== 0 ? true : false
+		const thinking_config = reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined
+
 		let temperature: number | undefined = 0
 
-		if (isOminiModel) {
-			temperature = undefined // does not support temperature
+		if (isOminiModel && reasoningOn) {
+			temperature = undefined // Thinking mode doesn't support temperature
 		}
 
 		const stream = await this.client.chat.completions.create({
@@ -71,6 +77,7 @@ export class LiteLlmHandler implements ApiHandler {
 			temperature,
 			stream: true,
 			stream_options: { include_usage: true },
+			...(thinking_config && { thinking: thinking_config }), // Add thinking configuration when applicable
 		})
 
 		const inputCost = (await this.calculateCost(1e6, 0)) || 0
@@ -78,6 +85,8 @@ export class LiteLlmHandler implements ApiHandler {
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
+
+			// Handle normal text content
 			if (delta?.content) {
 				yield {
 					type: "text",
@@ -85,6 +94,17 @@ export class LiteLlmHandler implements ApiHandler {
 				}
 			}
 
+			// Handle reasoning events (thinking)
+			// @ts-ignore - thinking is not in the types but may be in the response
+			if (delta?.thinking) {
+				yield {
+					type: "reasoning",
+					// @ts-ignore
+					reasoning: delta.thinking,
+				}
+			}
+
+			// Handle token usage information
 			if (chunk.usage) {
 				const totalCost =
 					(inputCost * chunk.usage.prompt_tokens) / 1e6 + (outputCost * chunk.usage.completion_tokens) / 1e6
