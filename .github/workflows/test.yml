@@ -217,4 +217,3 @@ jobs:
               run: |
                   echo "::warning::Code complexity metrics have degraded in this PR"
                   echo "Please review the complexity report in the PR comments"
-
