@@ -301,7 +301,10 @@ Only use a single line of '=======' between search and replacement content, beca
 			replaceContent = this.unescapeMarkers(replaceContent)
 
 			// Strip line numbers from search and replace content if every line starts with a line number
-			if (everyLineHasLineNumbers(searchContent) && everyLineHasLineNumbers(replaceContent)) {
+			if (
+				(everyLineHasLineNumbers(searchContent) && everyLineHasLineNumbers(replaceContent)) ||
+				(everyLineHasLineNumbers(searchContent) && replaceContent.trim() === "")
+			) {
 				searchContent = stripLineNumbers(searchContent)
 				replaceContent = stripLineNumbers(replaceContent)
 			}

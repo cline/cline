@@ -1486,6 +1486,23 @@ function five() {
 }`)
 				}
 			})
+
+			it("should delete a line when search block has line number prefix and replace is empty", async () => {
+				const originalContent = "line 1\nline to delete\nline 3"
+				const diffContent = `
+<<<<<<< SEARCH
+:start_line:2
+:end_line:2
+-------
+2 | line to delete
+=======
+>>>>>>> REPLACE`
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe("line 1\nline 3")
+				}
+			})
 		})
 
 		describe("insertion", () => {
