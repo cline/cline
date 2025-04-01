@@ -37,6 +37,13 @@ export const FirebaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 			setUser(user)
 			setIsInitialized(true)
 
+			console.log("onAuthStateChanged user", user)
+
+			if (!user) {
+				// when opening the extension in a new webview (ie if you logged in to sidebar webview but then open a popout tab webview) this effect will trigger without the original webview's session, resulting in us clearing out the user info object.
+				// we rely on this object to determine if the user is logged in, so we only want to clear it when the user logs out, rather than whenever a webview without a session is opened.
+				return
+			}
 			// Sync auth state with extension
 			vscode.postMessage({
 				type: "authStateChanged",
