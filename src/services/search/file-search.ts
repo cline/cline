@@ -7,8 +7,8 @@ import { getBinPath } from "../ripgrep"
 import type { Fzf, FzfResultItem } from "fzf"
 
 // Wrapper function for childProcess.spawn
-export type SpawnFunction = typeof childProcess.spawn;
-export const getSpawnFunction = (): SpawnFunction => childProcess.spawn;
+export type SpawnFunction = typeof childProcess.spawn
+export const getSpawnFunction = (): SpawnFunction => childProcess.spawn
 
 export async function executeRipgrepForFiles(
 	rgPath: string,
@@ -132,19 +132,21 @@ export async function searchWorkspaceFiles(
 			.slice(0, limit)
 
 		// Verify if the path exists and is actually a directory
-		const verifiedResultsPromises = filteredResults.map(async ({ item }: { item: { path: string; type: "file" | "folder"; label?: string } }) => {
-			const fullPath = path.join(workspacePath, item.path)
-			let type = item.type
+		const verifiedResultsPromises = filteredResults.map(
+			async ({ item }: { item: { path: string; type: "file" | "folder"; label?: string } }) => {
+				const fullPath = path.join(workspacePath, item.path)
+				let type = item.type
 
-			try {
-				const stats = await fs.promises.lstat(fullPath)
-				type = stats.isDirectory() ? "folder" : "file"
-			} catch {
-				// Keep original type if path doesn't exist
-			}
+				try {
+					const stats = await fs.promises.lstat(fullPath)
+					type = stats.isDirectory() ? "folder" : "file"
+				} catch {
+					// Keep original type if path doesn't exist
+				}
 
-			return { ...item, type }
-		})
+				return { ...item, type }
+			},
+		)
 
 		return await Promise.all(verifiedResultsPromises)
 	} catch (error) {
