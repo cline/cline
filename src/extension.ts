@@ -42,33 +42,24 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.plusButtonClicked", async () => {
-			Logger.log("Plus button Clicked")
-			const visibleWebview = WebviewProvider.getVisibleInstance()
-			if (!visibleWebview) {
-				Logger.log("Cannot find any visible Cline instances.")
-				return
-			}
-
-			await visibleWebview.controller.clearTask()
-			await visibleWebview.controller.postStateToWebview()
-			await visibleWebview.controller.postMessageToWebview({
-				type: "action",
-				action: "chatButtonClicked",
+			WebviewProvider.getAllInstances().forEach(async (instance) => {
+				await instance.controller.clearTask()
+				await instance.controller.postStateToWebview()
+				await instance.controller.postMessageToWebview({
+					type: "action",
+					action: "chatButtonClicked",
+				})
 			})
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.mcpButtonClicked", () => {
-			const visibleWebview = WebviewProvider.getVisibleInstance()
-			if (!visibleWebview) {
-				Logger.log("Cannot find any visible Cline instances.")
-				return
-			}
-
-			visibleWebview.controller.postMessageToWebview({
-				type: "action",
-				action: "mcpButtonClicked",
+			WebviewProvider.getAllInstances().forEach((instance) => {
+				instance.controller.postMessageToWebview({
+					type: "action",
+					action: "mcpButtonClicked",
+				})
 			})
 		}),
 	)
@@ -111,46 +102,33 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.settingsButtonClicked", () => {
-			//vscode.window.showInformationMessage(message)
-			const visibleWebview = WebviewProvider.getVisibleInstance()
-			if (!visibleWebview) {
-				Logger.log("Cannot find any visible Cline instances.")
-				return
-			}
-
-			visibleWebview.controller.postMessageToWebview({
-				type: "action",
-				action: "settingsButtonClicked",
+			WebviewProvider.getAllInstances().forEach((instance) => {
+				instance.controller.postMessageToWebview({
+					type: "action",
+					action: "settingsButtonClicked",
+				})
 			})
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.historyButtonClicked", () => {
-			const visibleWebview = WebviewProvider.getVisibleInstance()
-			if (!visibleWebview) {
-				Logger.log("Cannot find any visible Cline instances.")
-				return
-			}
-
-			visibleWebview.controller.postMessageToWebview({
-				type: "action",
-				action: "historyButtonClicked",
+			WebviewProvider.getAllInstances().forEach((instance) => {
+				instance.controller.postMessageToWebview({
+					type: "action",
+					action: "historyButtonClicked",
+				})
 			})
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.accountButtonClicked", () => {
-			const visibleWebview = WebviewProvider.getVisibleInstance()
-			if (!visibleWebview) {
-				Logger.log("Cannot find any visible Cline instances.")
-				return
-			}
-
-			visibleWebview.controller.postMessageToWebview({
-				type: "action",
-				action: "accountButtonClicked",
+			WebviewProvider.getAllInstances().forEach((instance) => {
+				instance.controller.postMessageToWebview({
+					type: "action",
+					action: "accountButtonClicked",
+				})
 			})
 		}),
 	)
