@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.9.0
+
+### Minor Changes
+
+-   80d53e7: add coverage tests to github workflows
+-   6324982: Create UI for adding remote servers
+
+### Patch Changes
+
+-   f19143e: Fix bug where menu would open in sidebar and open tab
+-   e05cd8c: Fix issue with Cline accounts not showing user info in popout tabs
+-   ed16aff: add Mentions Feature Guide and update related documentation
+
 ## [3.8.5]
 
 -   Add support for remote MCP Servers using SSE
