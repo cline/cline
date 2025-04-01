@@ -662,7 +662,7 @@ export class Controller {
 					)
 
 					// debug logging to be removed
-					console.log(`ClineProvider.ts: Search results: ${results.length}`)
+					//console.log(`controller/index.ts: Search results: ${results.length}`)
 
 					// Send results back to webview
 					await this.postMessageToWebview({
