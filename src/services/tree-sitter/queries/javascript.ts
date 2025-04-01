@@ -3,6 +3,7 @@
 - method definitions
 - named function declarations
 - arrow functions and function expressions assigned to variables
+- JSON object and array definitions (for JSON files)
 */
 export default `
 (
@@ -62,4 +63,24 @@ export default `
   (#strip! @doc "^[\\s\\*/]+|^[\\s\\*/]$")
   (#select-adjacent! @doc @definition.function)
 )
+
+; JSON object definitions
+(object) @object.definition
+
+; JSON object key-value pairs
+(pair
+  key: (string) @property.name.definition
+  value: [
+    (object) @object.value
+    (array) @array.value
+    (string) @string.value
+    (number) @number.value
+    (true) @boolean.value
+    (false) @boolean.value
+    (null) @null.value
+  ]
+) @property.definition
+
+; JSON array definitions
+(array) @array.definition
 `

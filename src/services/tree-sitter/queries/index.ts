@@ -1,5 +1,6 @@
 export { default as phpQuery } from "./php"
 export { default as typescriptQuery } from "./typescript"
+export { default as tsxQuery } from "./tsx"
 export { default as pythonQuery } from "./python"
 export { default as javascriptQuery } from "./javascript"
 export { default as javaQuery } from "./java"

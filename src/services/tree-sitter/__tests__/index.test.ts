@@ -46,13 +46,15 @@ describe("Tree-sitter Service", () => {
 			const mockQuery = {
 				captures: jest.fn().mockReturnValue([
 					{
+						// Must span 4 lines to meet MIN_COMPONENT_LINES
 						node: {
 							startPosition: { row: 0 },
-							endPosition: { row: 0 },
+							endPosition: { row: 3 },
 							parent: {
 								startPosition: { row: 0 },
-								endPosition: { row: 0 },
+								endPosition: { row: 3 },
 							},
+							text: () => "export class TestClass",
 						},
 						name: "name.definition",
 					},
@@ -88,22 +90,24 @@ describe("Tree-sitter Service", () => {
 					{
 						node: {
 							startPosition: { row: 0 },
-							endPosition: { row: 0 },
+							endPosition: { row: 3 },
 							parent: {
 								startPosition: { row: 0 },
-								endPosition: { row: 0 },
+								endPosition: { row: 3 },
 							},
+							text: () => "class TestClass",
 						},
 						name: "name.definition.class",
 					},
 					{
 						node: {
 							startPosition: { row: 2 },
-							endPosition: { row: 2 },
+							endPosition: { row: 5 },
 							parent: {
-								startPosition: { row: 0 },
-								endPosition: { row: 0 },
+								startPosition: { row: 2 },
+								endPosition: { row: 5 },
 							},
+							text: () => "testMethod()",
 						},
 						name: "name.definition.function",
 					},
@@ -145,6 +149,171 @@ describe("Tree-sitter Service", () => {
 
 			const result = await parseSourceCodeForDefinitionsTopLevel("/test/path")
 			expect(result).toBe("No source code definitions found.")
+		})
+
+		it("should capture arrow functions in JSX attributes with 4+ lines", async () => {
+			const mockFiles = ["/test/path/jsx-arrow.tsx"]
+			;(listFiles as jest.Mock).mockResolvedValue([mockFiles, new Set()])
+
+			// Embed the fixture content directly
+			const fixtureContent = `import React from 'react';
+
+export const CheckboxExample = () => (
+		<VSCodeCheckbox
+		  checked={isCustomTemperature}
+		  onChange={(e: any) => {
+		    const isChecked = e.target.checked
+		    setIsCustomTemperature(isChecked)
+		
+		    if (!isChecked) {
+		      setInputValue(null) // Unset the temperature
+		    } else {
+		      setInputValue(value ?? 0) // Use value from config
+		    }
+		  }}>
+		  <label className="block font-medium mb-1">
+		    {t("settings:temperature.useCustom")}
+		  </label>
+		</VSCodeCheckbox>
+);`
+			;(fs.readFile as jest.Mock).mockResolvedValue(fixtureContent)
+
+			const lines = fixtureContent.split("\n")
+
+			// Define the node type for proper TypeScript support
+			interface TreeNode {
+				type?: string
+				toString?: () => string
+				text?: () => string
+				startPosition?: { row: number }
+				endPosition?: { row: number }
+				children?: TreeNode[]
+				fields?: () => Record<string, any>
+				printTree?: (depth?: number) => string
+			}
+
+			// Create a more detailed mock rootNode for debugging Tree-sitter structure
+			// Helper function to print tree nodes
+			const printTree = (node: TreeNode, depth = 0): string => {
+				let result = ""
+				const indent = "  ".repeat(depth)
+
+				// Print node details
+				result += `${indent}Type: ${node.type || "ROOT"}\n`
+				result += `${indent}Text: "${node.text ? node.text() : "root"}"`
+
+				// Print fields if available
+				if (node.fields) {
+					result += "\n" + indent + "Fields: " + JSON.stringify(node.fields(), null, 2)
+				}
+
+				// Print children recursively
+				if (node.children && node.children.length > 0) {
+					result += "\n" + indent + "Children:"
+					for (const child of node.children) {
+						result += "\n" + printTree(child, depth + 1)
+					}
+				}
+
+				return result
+			}
+
+			const mockRootNode: TreeNode = {
+				toString: () => fixtureContent,
+				text: () => fixtureContent,
+				printTree: function (depth = 0) {
+					return printTree(this, depth)
+				},
+				children: [
+					{
+						type: "class_declaration",
+						text: () => "class TestComponent extends React.Component",
+						startPosition: { row: 0 },
+						endPosition: { row: 20 },
+						printTree: function (depth = 0) {
+							return printTree(this, depth)
+						},
+						children: [
+							{
+								type: "type_identifier",
+								text: () => "TestComponent",
+								printTree: function (depth = 0) {
+									return printTree(this, depth)
+								},
+							},
+							{
+								type: "extends_clause",
+								text: () => "extends React.Component",
+								printTree: function (depth = 0) {
+									return printTree(this, depth)
+								},
+								children: [
+									{
+										type: "generic_type",
+										text: () => "React.Component",
+										children: [{ type: "member_expression", text: () => "React.Component" }],
+									},
+								],
+							},
+						],
+						// Debug output to see field names
+						fields: () => {
+							return {
+								name: [{ type: "type_identifier", text: () => "TestComponent" }],
+								class_heritage: [{ type: "extends_clause", text: () => "extends React.Component" }],
+							}
+						},
+					},
+				],
+			}
+
+			const mockParser = {
+				parse: jest.fn().mockReturnValue({
+					rootNode: mockRootNode,
+				}),
+			}
+
+			const mockQuery = {
+				captures: jest.fn().mockImplementation(() => {
+					// Log tree structure for debugging
+					console.log("TREE STRUCTURE:")
+					if (mockRootNode.printTree) {
+						console.log(mockRootNode.printTree())
+					} else {
+						console.log("Tree structure:", JSON.stringify(mockRootNode, null, 2))
+					}
+
+					return [
+						{
+							node: {
+								startPosition: { row: 4 },
+								endPosition: { row: 14 },
+								text: () => lines[4],
+								parent: {
+									startPosition: { row: 4 },
+									endPosition: { row: 14 },
+									text: () => lines[4],
+								},
+							},
+							name: "definition.lambda",
+						},
+					]
+				}),
+			}
+
+			;(loadRequiredLanguageParsers as jest.Mock).mockResolvedValue({
+				tsx: { parser: mockParser, query: mockQuery },
+			})
+
+			const result = await parseSourceCodeForDefinitionsTopLevel("/test/path")
+
+			// Verify function found and correctly parsed
+			expect(result).toContain("jsx-arrow.tsx")
+			expect(result).toContain("4--14 |")
+
+			// Verify line count
+			const capture = mockQuery.captures.mock.results[0].value[0]
+			expect(capture.node.endPosition.row - capture.node.startPosition.row).toBeGreaterThanOrEqual(4)
 		})
 
 		it("should respect file limit", async () => {
@@ -197,11 +366,12 @@ describe("Tree-sitter Service", () => {
 					{
 						node: {
 							startPosition: { row: 0 },
-							endPosition: { row: 0 },
+							endPosition: { row: 3 },
 							parent: {
 								startPosition: { row: 0 },
-								endPosition: { row: 0 },
+								endPosition: { row: 3 },
 							},
+							text: () => "function test() {}",
 						},
 						name: "name",
 					},
@@ -245,11 +415,12 @@ describe("Tree-sitter Service", () => {
 					{
 						node: {
 							startPosition: { row: 0 },
-							endPosition: { row: 0 },
+							endPosition: { row: 3 },
 							parent: {
 								startPosition: { row: 0 },
-								endPosition: { row: 0 },
+								endPosition: { row: 3 },
 							},
+							text: () => "class Test {}",
 						},
 						name: "name",
 					},

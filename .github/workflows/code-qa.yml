@@ -76,6 +76,8 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm run install:all
+      - name: Compile (to build and copy WASM files)
+        run: npm run compile
       - name: Run unit tests
         run: npx jest --silent
 
