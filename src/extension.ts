@@ -41,26 +41,37 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.plusButtonClicked", async () => {
-			WebviewProvider.getAllInstances().forEach(async (instance) => {
-				await instance.controller.clearTask()
-				await instance.controller.postStateToWebview()
-				await instance.controller.postMessageToWebview({
+		vscode.commands.registerCommand("cline.plusButtonClicked", async (webview: any) => {
+			const openChat = async (instance?: WebviewProvider) => {
+				await instance?.controller.clearTask()
+				await instance?.controller.postStateToWebview()
+				await instance?.controller.postMessageToWebview({
 					type: "action",
 					action: "chatButtonClicked",
 				})
-			})
+			}
+			const isSidebar = !webview
+			if (isSidebar) {
+				openChat(WebviewProvider.getSidebarInstance())
+			} else {
+				WebviewProvider.getTabInstances().forEach(openChat)
+			}
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.mcpButtonClicked", () => {
-			WebviewProvider.getAllInstances().forEach((instance) => {
-				instance.controller.postMessageToWebview({
+		vscode.commands.registerCommand("cline.mcpButtonClicked", (webview: any) => {
+			const openMcp = (instance?: WebviewProvider) =>
+				instance?.controller.postMessageToWebview({
 					type: "action",
 					action: "mcpButtonClicked",
 				})
-			})
+			const isSidebar = !webview
+			if (isSidebar) {
+				openMcp(WebviewProvider.getSidebarInstance())
+			} else {
+				WebviewProvider.getTabInstances().forEach(openMcp)
+			}
 		}),
 	)
 
@@ -101,34 +112,58 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand("cline.openInNewTab", openClineInNewTab))
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.settingsButtonClicked", () => {
+		vscode.commands.registerCommand("cline.settingsButtonClicked", (webview: any) => {
 			WebviewProvider.getAllInstances().forEach((instance) => {
-				instance.controller.postMessageToWebview({
-					type: "action",
-					action: "settingsButtonClicked",
-				})
+				const openSettings = async (instance?: WebviewProvider) => {
+					instance?.controller.postMessageToWebview({
+						type: "action",
+						action: "settingsButtonClicked",
+					})
+				}
+				const isSidebar = !webview
+				if (isSidebar) {
+					openSettings(WebviewProvider.getSidebarInstance())
+				} else {
+					WebviewProvider.getTabInstances().forEach(openSettings)
+				}
 			})
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.historyButtonClicked", () => {
+		vscode.commands.registerCommand("cline.historyButtonClicked", (webview: any) => {
 			WebviewProvider.getAllInstances().forEach((instance) => {
-				instance.controller.postMessageToWebview({
-					type: "action",
-					action: "historyButtonClicked",
-				})
+				const openHistory = async (instance?: WebviewProvider) => {
+					instance?.controller.postMessageToWebview({
+						type: "action",
+						action: "historyButtonClicked",
+					})
+				}
+				const isSidebar = !webview
+				if (isSidebar) {
+					openHistory(WebviewProvider.getSidebarInstance())
+				} else {
+					WebviewProvider.getTabInstances().forEach(openHistory)
+				}
 			})
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.accountButtonClicked", () => {
+		vscode.commands.registerCommand("cline.accountButtonClicked", (webview: any) => {
 			WebviewProvider.getAllInstances().forEach((instance) => {
-				instance.controller.postMessageToWebview({
-					type: "action",
-					action: "accountButtonClicked",
-				})
+				const openAccount = async (instance?: WebviewProvider) => {
+					instance?.controller.postMessageToWebview({
+						type: "action",
+						action: "accountButtonClicked",
+					})
+				}
+				const isSidebar = !webview
+				if (isSidebar) {
+					openAccount(WebviewProvider.getSidebarInstance())
+				} else {
+					WebviewProvider.getTabInstances().forEach(openAccount)
+				}
 			})
 		}),
 	)
