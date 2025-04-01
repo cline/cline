@@ -986,12 +986,11 @@ export class McpHub {
 				autoApprove: [],
 			}
 
-			// TS expects the server config to be a McpServerConfig, but we know it's valid
-			// The issue is that the type is not having the transportType field added to it
+			const parsedConfig = ServerConfigSchema.parse(serverConfig)
 
 			// ToDo: Add input types reflecting the non-transformed version
 			settings.mcpServers[serverName] = serverConfig as unknown as McpServerConfig
-			await fs.writeFile(globalSettingsPath, JSON.stringify(settings, null, 2))
+			await fs.writeFile(globalSettingsPath, JSON.stringify({ mcpServers: { ...settings.mcpServers, [serverName]: serverConfig } }, null, 2))
 
 			const mergedSettings = await this.loadAndMergeMcpSettings()
 			// mergedSettings should always be defined unless both files fail validation catastrophically
@@ -1004,13 +1003,9 @@ export class McpHub {
 				vscode.window.showErrorMessage("Error updating MCP servers after settings change.")
 			}
 
-			vscode.window.showInformationMessage(`Added and connected to ${serverName} MCP server`)
+			vscode.window.showInformationMessage(`Added ${serverName} MCP server`)
 		} catch (error) {
 			console.error("Failed to add remote MCP server:", error)
-
-			vscode.window.showErrorMessage(
-				`Failed to add remote MCP server: ${error instanceof Error ? error.message : String(error)}`,
-			)
 
 			throw error
 		}

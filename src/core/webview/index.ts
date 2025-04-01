@@ -44,6 +44,18 @@ export class WebviewProvider implements vscode.WebviewViewProvider {
 		return findLast(Array.from(this.activeInstances), (instance) => instance.view?.visible === true)
 	}
 
+	public static getAllInstances(): WebviewProvider[] {
+		return Array.from(this.activeInstances)
+	}
+
+	public static getSidebarInstance() {
+		return Array.from(this.activeInstances).find((instance) => instance.view && "onDidChangeVisibility" in instance.view)
+	}
+
+	public static getTabInstances(): WebviewProvider[] {
+		return Array.from(this.activeInstances).filter((instance) => instance.view && "onDidChangeViewState" in instance.view)
+	}
+
 	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
 		this.view = webviewView
 
