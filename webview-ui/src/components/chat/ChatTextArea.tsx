@@ -272,8 +272,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 
 				case "fileSearchResults": {
-					setFileSearchResults(message.results || [])
-					setSearchLoading(false)
+					// Only update results if they match the current query or if there's no mentionsRequestId - better UX
+					if (!message.mentionsRequestId || message.mentionsRequestId === currentSearchQueryRef.current) {
+						setFileSearchResults(message.results || [])
+						setSearchLoading(false)
+					}
 					break
 				}
 			}
@@ -488,6 +491,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
+		const currentSearchQueryRef = useRef<string>("");
+
 		const handleInputChange = useCallback(
 			(e: React.ChangeEvent<HTMLTextAreaElement>) => {
 				const newValue = e.target.value
@@ -501,6 +506,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
 					const query = newValue.slice(lastAtIndex + 1, newCursorPosition)
 					setSearchQuery(query)
+					currentSearchQueryRef.current = query;
+
 					if (query.length > 0 && !selectedType) {
 						console.log("searching for:", query)
 						setSelectedMenuIndex(0)
@@ -510,7 +517,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							clearTimeout(searchTimeoutRef.current)
 						}
 
-						setFileSearchResults([])
 						setSearchLoading(true)
 
 						// Set a timeout to debounce the search requests
@@ -518,6 +524,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							vscode.postMessage({
 								type: "searchFiles",
 								query: query,
+								mentionsRequestId: query
 							})
 						}, 200) // 200ms debounce
 					} else {
