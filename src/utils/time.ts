@@ -1,3 +1,3 @@
 export function secondsToMs(seconds: number): number {
-	return seconds * 1000
+    return seconds * 1000
 }

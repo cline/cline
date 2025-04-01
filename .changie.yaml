@@ -4,8 +4,8 @@ headerPath: header.tpl.md
 changelogPath: CHANGELOG.md
 versionExt: md
 versionFormat: '## {{.Version}} - {{.Time.Format "2006-01-02"}}'
-kindFormat: "### {{.Kind}}"
-changeFormat: "* {{.Body}}"
+kindFormat: '### {{.Kind}}'
+changeFormat: '* {{.Body}}'
 kinds:
     - label: Added
       auto: minor

@@ -1,33 +1,18 @@
-### Description
+## Problem
 
-<!-- Describe your changes in detail. What problem does this PR solve? -->
+<!-- Who are we building for, what are their needs, why is this important? -->
 
-### Test Procedure
+<!-- Does this fix an issue? Uncomment the line below with the issue ID to automatically close it when merged -->
+<!-- Closes #ISSUE_ID -->
 
-<!-- How did you test this? Are you confident that it will not introduce bugs? If so, why? -->
+## Changes
 
-### Type of Change
+<!-- If there are frontend changes, please include screenshots. -->
+<!-- If a reference design was involved, include a link to the relevant Figma frame! -->
 
-<!-- Put an 'x' in all boxes that apply -->
+👉 _Stay up-to-date with [PostHog coding conventions](https://posthog.com/docs/contribute/coding-conventions) for a smoother review._
 
--   [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
--   [ ] ✨ New feature (non-breaking change which adds functionality)
--   [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
--   [ ] 📚 Documentation update
+## How did you test this code?
 
-### Pre-flight Checklist
-
-<!-- Put an 'x' in all boxes that apply -->
-
--   [ ] Changes are limited to a single feature, bugfix or chore (split larger changes into separate PRs)
--   [ ] Tests are passing (`npm test`) and code is formatted and linted (`npm run format && npm run lint`)
--   [ ] I have created a changeset using `npm run changeset` (required for user-facing changes)
--   [ ] I have reviewed [contributor guidelines](https://github.com/cline/cline/blob/main/CONTRIBUTING.md)
-
-### Screenshots
-
-<!-- For UI changes, add screenshots here -->
-
-### Additional Notes
-
-<!-- Add any additional notes for reviewers -->
+<!-- Briefly describe the steps you took. -->
+<!-- Include automated tests if possible, otherwise describe the manual testing routine. -->

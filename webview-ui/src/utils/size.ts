@@ -1,9 +1,9 @@
-import prettyBytes from "pretty-bytes"
+import prettyBytes from 'pretty-bytes'
 
 export function formatSize(bytes?: number) {
-	if (bytes === undefined) {
-		return "--kb"
-	}
+    if (bytes === undefined) {
+        return '--kb'
+    }
 
-	return prettyBytes(bytes)
+    return prettyBytes(bytes)
 }

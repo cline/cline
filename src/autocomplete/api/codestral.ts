@@ -1,10 +1,13 @@
-import { dedent } from "../../utils/dedent"
-import { ChatMessage } from "../types"
+import { dedent } from '../../utils/dedent'
+import { ChatMessage } from '../types'
 
-export type PromptTemplateFunction = (history: ChatMessage[], otherData: Record<string, string>) => string | ChatMessage[]
+export type PromptTemplateFunction = (
+    history: ChatMessage[],
+    otherData: Record<string, string>
+) => string | ChatMessage[]
 
 const codestralInsertionEditPrompt: PromptTemplateFunction = (_, otherData) => {
-	return dedent`
+    return dedent`
     \`\`\`${otherData.language}
     ${otherData.prefix}[BLANK]${otherData.codeToEdit}${otherData.suffix}
     \`\`\`
@@ -17,7 +20,7 @@ const codestralInsertionEditPrompt: PromptTemplateFunction = (_, otherData) => {
 }
 
 const codestralFullFileEditPrompt: PromptTemplateFunction = (_, otherData) => {
-	return dedent`
+    return dedent`
     \`\`\`${otherData.language}
     ${otherData.codeToEdit}
     \`\`\`
@@ -30,31 +33,31 @@ const codestralFullFileEditPrompt: PromptTemplateFunction = (_, otherData) => {
 }
 
 export const codestralEditPrompt: PromptTemplateFunction = (history, otherData) => {
-	if (otherData?.codeToEdit?.trim().length === 0) {
-		return codestralInsertionEditPrompt(history, otherData)
-	} else if (otherData?.prefix?.trim().length === 0 && otherData?.suffix?.trim().length === 0) {
-		return codestralFullFileEditPrompt(history, otherData)
-	}
+    if (otherData?.codeToEdit?.trim().length === 0) {
+        return codestralInsertionEditPrompt(history, otherData)
+    } else if (otherData?.prefix?.trim().length === 0 && otherData?.suffix?.trim().length === 0) {
+        return codestralFullFileEditPrompt(history, otherData)
+    }
 
-	const paragraphs = ["The user has requested a section of code in a file to be rewritten."]
+    const paragraphs = ['The user has requested a section of code in a file to be rewritten.']
 
-	if (otherData.prefix?.trim().length > 0) {
-		paragraphs.push(dedent`
+    if (otherData.prefix?.trim().length > 0) {
+        paragraphs.push(dedent`
         This is the prefix of the file:
         \`\`\`${otherData.language}
         ${otherData.prefix}
         \`\`\``)
-	}
+    }
 
-	if (otherData.suffix?.trim().length > 0) {
-		paragraphs.push(dedent`
+    if (otherData.suffix?.trim().length > 0) {
+        paragraphs.push(dedent`
         This is the suffix of the file:
         \`\`\`${otherData.language}
         ${otherData.suffix}
         \`\`\``)
-	}
+    }
 
-	paragraphs.push(dedent`
+    paragraphs.push(dedent`
         This is the "code to rewrite":
         \`\`\`${otherData.language}
         ${otherData.codeToEdit}
@@ -64,5 +67,5 @@ export const codestralEditPrompt: PromptTemplateFunction = (history, otherData) 
 
         Here is the new version of "code to rewrite". Make sure not to rewrite any of the prefix or suffix:`)
 
-	return paragraphs.join("\n\n")
+    return paragraphs.join('\n\n')
 }

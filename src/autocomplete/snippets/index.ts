@@ -1,1 +1,1 @@
-export * from "./getAllSnippets"
+export * from './getAllSnippets'

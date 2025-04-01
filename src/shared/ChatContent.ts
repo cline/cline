@@ -1,4 +1,4 @@
 export interface ChatContent {
-	message?: string
-	images?: string[]
+    message?: string
+    images?: string[]
 }

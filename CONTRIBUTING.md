@@ -1,122 +1,31 @@
-# Contributing to Cline
+There are many ways to contribute to PostHog. We want to help developers know exactly how users are interacting with their stuff, in a way that doesn't send data to 3rd parties.
 
-We're thrilled you're interested in contributing to Cline. Whether you're fixing a bug, adding a feature, or improving our docs, every contribution makes Cline smarter! To keep our community vibrant and welcoming, all members must adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
+# Creating a PR
 
-## Reporting Bugs or Issues
+Just create a new pull request if you want to make an update.
 
-Bug reports help make Cline better for everyone! Before creating a new issue, please [search existing ones](https://github.com/cline/cline/issues) to avoid duplicates. When you're ready to report a bug, head over to our [issues page](https://github.com/cline/cline/issues/new/choose) where you'll find a template to help you with filling out the relevant information.
+We recommend you create an issue if one doesn't already exist, and continue the conversation on the issue to get more info/alignment on what to build.
 
-<blockquote class='warning-note'>
-     🔐 <b>Important:</b> If you discover a security vulnerability, please use the <a href="https://github.com/cline/cline/security/advisories/new">Github security tool to report it privately</a>.
-</blockquote>
+For more information on how we review PRs, please refer to our [handbook](https://posthog.com/handbook/engineering/how-we-review).
 
-## Deciding What to Work On
+# Issues
 
-Looking for a good first contribution? Check out issues labeled ["good first issue"](https://github.com/cline/cline/labels/good%20first%20issue) or ["help wanted"](https://github.com/cline/cline/labels/help%20wanted). These are specifically curated for new contributors and areas where we'd love some help!
+Spotted a bug? Has deployment gone wrong? Do you have user feedback? Raise an issue for the fastest response.
 
-We also welcome contributions to our [documentation](https://github.com/cline/cline/tree/main/docs)! Whether it's fixing typos, improving existing guides, or creating new educational content - we'd love to build a community-driven repository of resources that helps everyone get the most out of Cline. You can start by diving into `/docs` and looking for areas that need improvement.
+... or pick up and fix an issue if you want to do a Pull Request.
 
-If you're planning to work on a bigger feature, please create a [feature request](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop) first so we can discuss whether it aligns with Cline's vision.
+## Issues with paid features
 
-## Development Setup
+We prefer not to accept external contributions for paid features. If you don't see the feature on your local build, it's most probably paid.
 
-1. **VS Code Extensions**
+# Feature requests
 
-    - When opening the project, VS Code will prompt you to install recommended extensions
-    - These extensions are required for development - please accept all installation prompts
-    - If you dismissed the prompts, you can install them manually from the Extensions panel
+Raise an issue for these and tag it as an Enhancement. We love every idea. Please give us as much context on the why as possible.
 
-2. **Local Development**
-    - Run `npm run install:all` to install dependencies
-    - Run `npm run test` to run tests locally
-    - Before submitting PR, run `npm run format:fix` to format your code
+# Features
 
-3. **Linux-specific Setup**
-    VS Code extension tests on Linux require the following system libraries:
+We don't, yet, have a prescriptive roadmap laid out.
 
-    - `libatk1.0-0`
-    - `libatk-bridge2.0-0`
-    - `libxkbfile1`
-    - `libx11-xcb1`
-    - `libxcomposite1`
-    - `libxdamage1`
-    - `libxfixes3`
-    - `libxrandr2`
-    - `libgbm1`
-    - `libdrm2`
-    - `libgtk-3-0`
-    - `dbus`
-    - `xvfb`
+As a rule of thumb - if it fits with helping developers understand product usage, we'll generally like it.
 
-    These libraries provide necessary GUI components and system services for the test environment.
-
-    For example, on Debian-based distributions (e.g., Ubuntu), you can install these libraries using apt:
-    ```bash
-    sudo apt update
-    sudo apt install -y \
-      libatk1.0-0 libatk-bridge2.0-0 libxkbfile1 libx11-xcb1 \
-      libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
-      libdrm2 libgtk-3-0 dbus xvfb
-    ```
-
-    - Run `npm run test:ci` to run tests locally
-
-## Writing and Submitting Code
-
-Anyone can contribute code to Cline, but we ask that you follow these guidelines to ensure your contributions can be smoothly integrated:
-
-1. **Keep Pull Requests Focused**
-
-    - Limit PRs to a single feature or bug fix
-    - Split larger changes into smaller, related PRs
-    - Break changes into logical commits that can be reviewed independently
-
-2. **Code Quality**
-
-    - Run `npm run lint` to check code style
-    - Run `npm run format` to automatically format code
-    - All PRs must pass CI checks which include both linting and formatting
-    - Address any ESLint warnings or errors before submitting
-    - Follow TypeScript best practices and maintain type safety
-
-3. **Testing**
-
-    - Add tests for new features
-    - Run `npm test` to ensure all tests pass
-    - Update existing tests if your changes affect them
-    - Include both unit tests and integration tests where appropriate
-
-4. **Version Management with Changesets**
-
-    - Create a changeset for any user-facing changes using `npm run changeset`
-    - Choose the appropriate version bump:
-        - `major` for breaking changes (1.0.0 → 2.0.0)
-        - `minor` for new features (1.0.0 → 1.1.0)
-        - `patch` for bug fixes (1.0.0 → 1.0.1)
-    - Write clear, descriptive changeset messages that explain the impact
-    - Documentation-only changes don't require changesets
-
-5. **Commit Guidelines**
-
-    - Write clear, descriptive commit messages
-    - Use conventional commit format (e.g., "feat:", "fix:", "docs:")
-    - Reference relevant issues in commits using #issue-number
-
-6. **Before Submitting**
-
-    - Rebase your branch on the latest main
-    - Ensure your branch builds successfully
-    - Double-check all tests are passing
-    - Review your changes for any debugging code or console logs
-
-7. **Pull Request Description**
-    - Clearly describe what your changes do
-    - Include steps to test the changes
-    - List any breaking changes
-    - Add screenshots for UI changes
-
-## Contribution Agreement
-
-By submitting a pull request, you agree that your contributions will be licensed under the same license as the project ([Apache 2.0](LICENSE)).
-
-Remember: Contributing to Cline isn't just about writing code - it's about being part of a community that's shaping the future of AI-assisted development. Let's build something amazing together! 🚀
+If you are at all unsure, just raise it as an enhancement issue first, and we'll very quickly respond.

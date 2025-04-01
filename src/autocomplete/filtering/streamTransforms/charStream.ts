@@ -9,32 +9,32 @@
  * @returns {AsyncGenerator<string>} An async generator that yields characters.
  */
 export async function* onlyWhitespaceAfterEndOfLine(
-	stream: AsyncGenerator<string>,
-	endOfLine: string[],
-	fullStop: () => void,
+    stream: AsyncGenerator<string>,
+    endOfLine: string[],
+    fullStop: () => void
 ): AsyncGenerator<string> {
-	let pending = ""
+    let pending = ''
 
-	for await (let chunk of stream) {
-		chunk = pending + chunk
-		pending = ""
+    for await (let chunk of stream) {
+        chunk = pending + chunk
+        pending = ''
 
-		for (let i = 0; i < chunk.length - 1; i++) {
-			if (endOfLine.includes(chunk[i]) && chunk[i + 1].trim() === chunk[i + 1]) {
-				yield chunk.slice(0, i + 1)
-				fullStop()
-				return
-			}
-		}
+        for (let i = 0; i < chunk.length - 1; i++) {
+            if (endOfLine.includes(chunk[i]) && chunk[i + 1].trim() === chunk[i + 1]) {
+                yield chunk.slice(0, i + 1)
+                fullStop()
+                return
+            }
+        }
 
-		if (endOfLine.includes(chunk[chunk.length - 1])) {
-			pending = chunk[chunk.length - 1]
-			yield chunk.slice(0, chunk.length - 1)
-		} else {
-			yield chunk
-		}
-	}
-	yield pending
+        if (endOfLine.includes(chunk[chunk.length - 1])) {
+            pending = chunk[chunk.length - 1]
+            yield chunk.slice(0, chunk.length - 1)
+        } else {
+            yield chunk
+        }
+    }
+    yield pending
 }
 
 /**
@@ -43,16 +43,16 @@ export async function* onlyWhitespaceAfterEndOfLine(
  * @yields {string} Characters from the stream.
  */
 export async function* noFirstCharNewline(stream: AsyncGenerator<string>) {
-	let first = true
-	for await (const char of stream) {
-		if (first) {
-			first = false
-			if (char.startsWith("\n") || char.startsWith("\r")) {
-				return
-			}
-		}
-		yield char
-	}
+    let first = true
+    for await (const char of stream) {
+        if (first) {
+            first = false
+            if (char.startsWith('\n') || char.startsWith('\r')) {
+                return
+            }
+        }
+        yield char
+    }
 }
 
 /**
@@ -71,43 +71,43 @@ export async function* noFirstCharNewline(stream: AsyncGenerator<string>) {
  * 6. Yields any remaining buffered characters.
  */
 export async function* stopAtStopTokens(stream: AsyncGenerator<string>, stopTokens: string[]): AsyncGenerator<string> {
-	if (stopTokens.length === 0) {
-		for await (const char of stream) {
-			yield char
-		}
-		return
-	}
+    if (stopTokens.length === 0) {
+        for await (const char of stream) {
+            yield char
+        }
+        return
+    }
 
-	const maxStopTokenLength = Math.max(...stopTokens.map((token) => token.length))
-	let buffer = ""
+    const maxStopTokenLength = Math.max(...stopTokens.map((token) => token.length))
+    let buffer = ''
 
-	for await (const chunk of stream) {
-		buffer += chunk
+    for await (const chunk of stream) {
+        buffer += chunk
 
-		while (buffer.length >= maxStopTokenLength) {
-			let found = false
-			for (const stopToken of stopTokens) {
-				if (buffer.startsWith(stopToken)) {
-					found = true
-					return
-				}
-			}
+        while (buffer.length >= maxStopTokenLength) {
+            let found = false
+            for (const stopToken of stopTokens) {
+                if (buffer.startsWith(stopToken)) {
+                    found = true
+                    return
+                }
+            }
 
-			if (!found) {
-				yield buffer[0]
-				buffer = buffer.slice(1)
-			}
-		}
-	}
-	// Filter out the possible stop tokens from remaining buffer
-	stopTokens.forEach((token) => {
-		buffer = buffer.replace(token, "")
-	})
+            if (!found) {
+                yield buffer[0]
+                buffer = buffer.slice(1)
+            }
+        }
+    }
+    // Filter out the possible stop tokens from remaining buffer
+    stopTokens.forEach((token) => {
+        buffer = buffer.replace(token, '')
+    })
 
-	// Yield any remaining characters in the buffer
-	for (const char of buffer) {
-		yield char
-	}
+    // Yield any remaining characters in the buffer
+    for (const char of buffer) {
+        yield char
+    }
 }
 
 /**
@@ -115,39 +115,39 @@ export async function* stopAtStopTokens(stream: AsyncGenerator<string>, stopToke
  * Stops if the beginning of the suffix is detected in the stream.
  */
 export async function* stopAtStartOf(
-	stream: AsyncGenerator<string>,
-	suffix: string,
-	sequenceLength: number = 20,
+    stream: AsyncGenerator<string>,
+    suffix: string,
+    sequenceLength: number = 20
 ): AsyncGenerator<string> {
-	if (suffix.length < sequenceLength) {
-		for await (const chunk of stream) {
-			yield chunk
-		}
-		return
-	}
-	// We use sequenceLength * 1.5 as a heuristic to make sure we don't miss the sequence if the
-	// stream is not perfectly aligned with the sequence (small whitespace differences etc).
-	const targetPart = suffix.trimStart().slice(0, Math.floor(sequenceLength * 1.5))
+    if (suffix.length < sequenceLength) {
+        for await (const chunk of stream) {
+            yield chunk
+        }
+        return
+    }
+    // We use sequenceLength * 1.5 as a heuristic to make sure we don't miss the sequence if the
+    // stream is not perfectly aligned with the sequence (small whitespace differences etc).
+    const targetPart = suffix.trimStart().slice(0, Math.floor(sequenceLength * 1.5))
 
-	let buffer = ""
+    let buffer = ''
 
-	for await (const chunk of stream) {
-		buffer += chunk
+    for await (const chunk of stream) {
+        buffer += chunk
 
-		// Check if the targetPart contains contains the buffer at any point
-		if (buffer.length >= sequenceLength && targetPart.includes(buffer)) {
-			return // Stop processing when the sequence is found
-		}
+        // Check if the targetPart contains contains the buffer at any point
+        if (buffer.length >= sequenceLength && targetPart.includes(buffer)) {
+            return // Stop processing when the sequence is found
+        }
 
-		// Yield chunk by chunk, ensuring not to exceed sequenceLength in the buffer
-		while (buffer.length > sequenceLength) {
-			yield buffer[0]
-			buffer = buffer.slice(1)
-		}
-	}
+        // Yield chunk by chunk, ensuring not to exceed sequenceLength in the buffer
+        while (buffer.length > sequenceLength) {
+            yield buffer[0]
+            buffer = buffer.slice(1)
+        }
+    }
 
-	// Yield the remaining buffer if it is not contained in the `targetPart`
-	if (buffer.length > 0) {
-		yield buffer
-	}
+    // Yield the remaining buffer if it is not contained in the `targetPart`
+    if (buffer.length > 0) {
+        yield buffer
+    }
 }

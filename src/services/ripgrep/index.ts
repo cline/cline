@@ -1,9 +1,9 @@
-import * as vscode from "vscode"
-import * as childProcess from "child_process"
-import * as path from "path"
-import * as readline from "readline"
-import { fileExistsAtPath } from "../../utils/fs"
-import { ClineIgnoreController } from "../../core/ignore/ClineIgnoreController"
+import * as vscode from 'vscode'
+import * as childProcess from 'child_process'
+import * as path from 'path'
+import * as readline from 'readline'
+import { fileExistsAtPath } from '../../utils/fs'
+import { PostHogIgnoreController } from '../../core/ignore/PostHogIgnoreController'
 
 /*
 This file provides functionality to perform regex searches on files using ripgrep.
@@ -48,174 +48,174 @@ rel/path/to/helper.ts
 */
 
 const isWindows = /^win/.test(process.platform)
-const binName = isWindows ? "rg.exe" : "rg"
+const binName = isWindows ? 'rg.exe' : 'rg'
 
 interface SearchResult {
-	filePath: string
-	line: number
-	column: number
-	match: string
-	beforeContext: string[]
-	afterContext: string[]
+    filePath: string
+    line: number
+    column: number
+    match: string
+    beforeContext: string[]
+    afterContext: string[]
 }
 
 const MAX_RESULTS = 300
 
 async function getBinPath(vscodeAppRoot: string): Promise<string | undefined> {
-	const checkPath = async (pkgFolder: string) => {
-		const fullPath = path.join(vscodeAppRoot, pkgFolder, binName)
-		return (await fileExistsAtPath(fullPath)) ? fullPath : undefined
-	}
+    const checkPath = async (pkgFolder: string) => {
+        const fullPath = path.join(vscodeAppRoot, pkgFolder, binName)
+        return (await fileExistsAtPath(fullPath)) ? fullPath : undefined
+    }
 
-	return (
-		(await checkPath("node_modules/@vscode/ripgrep/bin/")) ||
-		(await checkPath("node_modules/vscode-ripgrep/bin")) ||
-		(await checkPath("node_modules.asar.unpacked/vscode-ripgrep/bin/")) ||
-		(await checkPath("node_modules.asar.unpacked/@vscode/ripgrep/bin/"))
-	)
+    return (
+        (await checkPath('node_modules/@vscode/ripgrep/bin/')) ||
+        (await checkPath('node_modules/vscode-ripgrep/bin')) ||
+        (await checkPath('node_modules.asar.unpacked/vscode-ripgrep/bin/')) ||
+        (await checkPath('node_modules.asar.unpacked/@vscode/ripgrep/bin/'))
+    )
 }
 
 async function execRipgrep(bin: string, args: string[]): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const rgProcess = childProcess.spawn(bin, args)
-		// cross-platform alternative to head, which is ripgrep author's recommendation for limiting output.
-		const rl = readline.createInterface({
-			input: rgProcess.stdout,
-			crlfDelay: Infinity, // treat \r\n as a single line break even if it's split across chunks. This ensures consistent behavior across different operating systems.
-		})
+    return new Promise((resolve, reject) => {
+        const rgProcess = childProcess.spawn(bin, args)
+        // cross-platform alternative to head, which is ripgrep author's recommendation for limiting output.
+        const rl = readline.createInterface({
+            input: rgProcess.stdout,
+            crlfDelay: Infinity, // treat \r\n as a single line break even if it's split across chunks. This ensures consistent behavior across different operating systems.
+        })
 
-		let output = ""
-		let lineCount = 0
-		const maxLines = MAX_RESULTS * 5 // limiting ripgrep output with max lines since there's no other way to limit results. it's okay that we're outputting as json, since we're parsing it line by line and ignore anything that's not part of a match. This assumes each result is at most 5 lines.
+        let output = ''
+        let lineCount = 0
+        const maxLines = MAX_RESULTS * 5 // limiting ripgrep output with max lines since there's no other way to limit results. it's okay that we're outputting as json, since we're parsing it line by line and ignore anything that's not part of a match. This assumes each result is at most 5 lines.
 
-		rl.on("line", (line) => {
-			if (lineCount < maxLines) {
-				output += line + "\n"
-				lineCount++
-			} else {
-				rl.close()
-				rgProcess.kill()
-			}
-		})
+        rl.on('line', (line) => {
+            if (lineCount < maxLines) {
+                output += line + '\n'
+                lineCount++
+            } else {
+                rl.close()
+                rgProcess.kill()
+            }
+        })
 
-		let errorOutput = ""
-		rgProcess.stderr.on("data", (data) => {
-			errorOutput += data.toString()
-		})
-		rl.on("close", () => {
-			if (errorOutput) {
-				reject(new Error(`ripgrep process error: ${errorOutput}`))
-			} else {
-				resolve(output)
-			}
-		})
-		rgProcess.on("error", (error) => {
-			reject(new Error(`ripgrep process error: ${error.message}`))
-		})
-	})
+        let errorOutput = ''
+        rgProcess.stderr.on('data', (data) => {
+            errorOutput += data.toString()
+        })
+        rl.on('close', () => {
+            if (errorOutput) {
+                reject(new Error(`ripgrep process error: ${errorOutput}`))
+            } else {
+                resolve(output)
+            }
+        })
+        rgProcess.on('error', (error) => {
+            reject(new Error(`ripgrep process error: ${error.message}`))
+        })
+    })
 }
 
 export async function regexSearchFiles(
-	cwd: string,
-	directoryPath: string,
-	regex: string,
-	filePattern?: string,
-	clineIgnoreController?: ClineIgnoreController,
+    cwd: string,
+    directoryPath: string,
+    regex: string,
+    filePattern?: string,
+    posthogIgnoreController?: PostHogIgnoreController
 ): Promise<string> {
-	const vscodeAppRoot = vscode.env.appRoot
-	const rgPath = await getBinPath(vscodeAppRoot)
+    const vscodeAppRoot = vscode.env.appRoot
+    const rgPath = await getBinPath(vscodeAppRoot)
 
-	if (!rgPath) {
-		throw new Error("Could not find ripgrep binary")
-	}
+    if (!rgPath) {
+        throw new Error('Could not find ripgrep binary')
+    }
 
-	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", directoryPath]
+    const args = ['--json', '-e', regex, '--glob', filePattern || '*', '--context', '1', directoryPath]
 
-	let output: string
-	try {
-		output = await execRipgrep(rgPath, args)
-	} catch {
-		return "No results found"
-	}
-	const results: SearchResult[] = []
-	let currentResult: Partial<SearchResult> | null = null
+    let output: string
+    try {
+        output = await execRipgrep(rgPath, args)
+    } catch {
+        return 'No results found'
+    }
+    const results: SearchResult[] = []
+    let currentResult: Partial<SearchResult> | null = null
 
-	output.split("\n").forEach((line) => {
-		if (line) {
-			try {
-				const parsed = JSON.parse(line)
-				if (parsed.type === "match") {
-					if (currentResult) {
-						results.push(currentResult as SearchResult)
-					}
-					currentResult = {
-						filePath: parsed.data.path.text,
-						line: parsed.data.line_number,
-						column: parsed.data.submatches[0].start,
-						match: parsed.data.lines.text,
-						beforeContext: [],
-						afterContext: [],
-					}
-				} else if (parsed.type === "context" && currentResult) {
-					if (parsed.data.line_number < currentResult.line!) {
-						currentResult.beforeContext!.push(parsed.data.lines.text)
-					} else {
-						currentResult.afterContext!.push(parsed.data.lines.text)
-					}
-				}
-			} catch (error) {
-				console.error("Error parsing ripgrep output:", error)
-			}
-		}
-	})
+    output.split('\n').forEach((line) => {
+        if (line) {
+            try {
+                const parsed = JSON.parse(line)
+                if (parsed.type === 'match') {
+                    if (currentResult) {
+                        results.push(currentResult as SearchResult)
+                    }
+                    currentResult = {
+                        filePath: parsed.data.path.text,
+                        line: parsed.data.line_number,
+                        column: parsed.data.submatches[0].start,
+                        match: parsed.data.lines.text,
+                        beforeContext: [],
+                        afterContext: [],
+                    }
+                } else if (parsed.type === 'context' && currentResult) {
+                    if (parsed.data.line_number < currentResult.line!) {
+                        currentResult.beforeContext!.push(parsed.data.lines.text)
+                    } else {
+                        currentResult.afterContext!.push(parsed.data.lines.text)
+                    }
+                }
+            } catch (error) {
+                console.error('Error parsing ripgrep output:', error)
+            }
+        }
+    })
 
-	if (currentResult) {
-		results.push(currentResult as SearchResult)
-	}
+    if (currentResult) {
+        results.push(currentResult as SearchResult)
+    }
 
-	// Filter results using ClineIgnoreController if provided
-	const filteredResults = clineIgnoreController
-		? results.filter((result) => clineIgnoreController.validateAccess(result.filePath))
-		: results
+    // Filter results using PostHogIgnoreController if provided
+    const filteredResults = posthogIgnoreController
+        ? results.filter((result) => posthogIgnoreController.validateAccess(result.filePath))
+        : results
 
-	return formatResults(filteredResults, cwd)
+    return formatResults(filteredResults, cwd)
 }
 
 function formatResults(results: SearchResult[], cwd: string): string {
-	const groupedResults: { [key: string]: SearchResult[] } = {}
+    const groupedResults: { [key: string]: SearchResult[] } = {}
 
-	let output = ""
-	if (results.length >= MAX_RESULTS) {
-		output += `Showing first ${MAX_RESULTS} of ${MAX_RESULTS}+ results. Use a more specific search if necessary.\n\n`
-	} else {
-		output += `Found ${results.length === 1 ? "1 result" : `${results.length.toLocaleString()} results`}.\n\n`
-	}
+    let output = ''
+    if (results.length >= MAX_RESULTS) {
+        output += `Showing first ${MAX_RESULTS} of ${MAX_RESULTS}+ results. Use a more specific search if necessary.\n\n`
+    } else {
+        output += `Found ${results.length === 1 ? '1 result' : `${results.length.toLocaleString()} results`}.\n\n`
+    }
 
-	// Group results by file name
-	results.slice(0, MAX_RESULTS).forEach((result) => {
-		const relativeFilePath = path.relative(cwd, result.filePath)
-		if (!groupedResults[relativeFilePath]) {
-			groupedResults[relativeFilePath] = []
-		}
-		groupedResults[relativeFilePath].push(result)
-	})
+    // Group results by file name
+    results.slice(0, MAX_RESULTS).forEach((result) => {
+        const relativeFilePath = path.relative(cwd, result.filePath)
+        if (!groupedResults[relativeFilePath]) {
+            groupedResults[relativeFilePath] = []
+        }
+        groupedResults[relativeFilePath].push(result)
+    })
 
-	for (const [filePath, fileResults] of Object.entries(groupedResults)) {
-		output += `${filePath.toPosix()}\n│----\n`
+    for (const [filePath, fileResults] of Object.entries(groupedResults)) {
+        output += `${filePath.toPosix()}\n│----\n`
 
-		fileResults.forEach((result, index) => {
-			const allLines = [...result.beforeContext, result.match, ...result.afterContext]
-			allLines.forEach((line) => {
-				output += `│${line?.trimEnd() ?? ""}\n`
-			})
+        fileResults.forEach((result, index) => {
+            const allLines = [...result.beforeContext, result.match, ...result.afterContext]
+            allLines.forEach((line) => {
+                output += `│${line?.trimEnd() ?? ''}\n`
+            })
 
-			if (index < fileResults.length - 1) {
-				output += "│----\n"
-			}
-		})
+            if (index < fileResults.length - 1) {
+                output += '│----\n'
+            }
+        })
 
-		output += "│----\n\n"
-	}
+        output += '│----\n\n'
+    }
 
-	return output.trim()
+    return output.trim()
 }
