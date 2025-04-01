@@ -208,7 +208,9 @@ export function getContextMenuOptions(
 			// Normalize paths for deduplication by ensuring leading slashes
 			const normalizedValue = item.value && !item.value.startsWith("/") ? `/${item.value}` : item.value
 			const key = `${item.type}-${normalizedValue}`
-			if (seen.has(key)) return false
+			if (seen.has(key)) {
+				return false
+			}
 			seen.add(key)
 			return true
 		})
