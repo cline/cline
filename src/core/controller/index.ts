@@ -107,6 +107,7 @@ export class Controller {
 	async handleSignOut() {
 		try {
 			await storeSecret(this.context, "clineApiKey", undefined)
+			await updateGlobalState(this.context, "userInfo", undefined)
 			await updateGlobalState(this.context, "apiProvider", "openrouter")
 			await this.postStateToWebview()
 			vscode.window.showInformationMessage("Successfully logged out of Cline")
