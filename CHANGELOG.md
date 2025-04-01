@@ -2,13 +2,8 @@
 
 ## 3.9.0
 
-### Minor Changes
-
 -   301c524: Add extension handler for adding remote server
 -   d8af586: Add remote server programatically
-
-### Patch Changes
-
 -   5fd0725: fix bug in Requestly UX for model selection
 -   4875a54: Add support for bad commitHashes already stored in ui_messages.json
 -   94ccde5: Escape html content for gemini when running commands
