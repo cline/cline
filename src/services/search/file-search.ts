@@ -3,7 +3,7 @@ import * as path from "path"
 import * as fs from "fs"
 import * as childProcess from "child_process"
 import * as readline from "readline"
-import { byLengthAsc, Fzf } from "fzf"
+import { byLengthAsc, Fzf, FzfResultItem } from "fzf"
 import { getBinPath } from "../ripgrep"
 
 async function executeRipgrepForFiles(
@@ -21,6 +21,8 @@ async function executeRipgrepForFiles(
 			"!**/node_modules/**",
 			"-g",
 			"!**/.git/**",
+			"-g",
+			"!/.github**",
 			"-g",
 			"!**/out/**",
 			"-g",
@@ -90,10 +92,8 @@ async function executeRipgrepForFiles(
 
 		rl.on("close", () => {
 			if (errorOutput && fileResults.length === 0) {
-				//console.timeEnd("rg_process")
 				reject(new Error(`ripgrep process error: ${errorOutput}`))
 			} else {
-				//console.time("process_dirs")
 				// Convert directory set to array of directory objects
 				const dirResults = Array.from(dirSet).map((dirPath) => ({
 					path: dirPath,
@@ -103,14 +103,11 @@ async function executeRipgrepForFiles(
 
 				// Combine files and directories and resolve
 				const results = [...fileResults, ...dirResults]
-				//console.timeEnd("process_dirs")
-				//console.timeEnd("rg_process")
 				resolve(results)
 			}
 		})
 
 		rgProcess.on("error", (error) => {
-			//console.timeEnd("rg_process")
 			reject(new Error(`ripgrep process error: ${error.message}`))
 		})
 	})
@@ -122,51 +119,64 @@ export async function searchWorkspaceFiles(
 	limit: number = 20,
 ): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
 	try {
-		//console.time("total_search")
-		//console.time("get_rg_path")
 		const vscodeAppRoot = vscode.env.appRoot
 		const rgPath = await getBinPath(vscodeAppRoot)
-		//console.timeEnd("get_rg_path")
 
 		if (!rgPath) {
 			throw new Error("Could not find ripgrep binary")
 		}
 
-		//console.time("rg_file_search")
 		// Get all files and directories (from our modified function)
 		const allItems = await executeRipgrepForFiles(rgPath, workspacePath, 5000)
-		//console.timeEnd("rg_file_search")
 
 		// If no query, just return the top items
 		if (!query.trim()) {
-			//console.timeEnd("total_search")
 			return allItems.slice(0, limit)
 		}
 
-		//console.time("prepare_fzf")
-		// Create search items for all files AND directories
 		const searchItems = allItems.map((item) => ({
 			original: item,
-			searchStr: `${item.path} ${item.label || ""}`,
+			// Match Scoring - Prioritize the label (filename) by including it twice in the search string
+			searchStr: `${item.label || ""} ${item.label || ""} ${item.path}`,
 		}))
 
-		// Run fzf search on all items
+		// Run fzf search on all candidates
 		const fzf = new Fzf(searchItems, {
 			selector: (item) => item.searchStr,
-			tiebreakers: [byLengthAsc],
-			limit: limit,
+			// Use multiple tiebreakers in order of importance: Match score, then length of match (shorter=better)
+			tiebreakers: [OrderbyMatchScore, byLengthAsc],
+			limit: limit * 2, // Get more results than needed for filtering, we pick the top half after sort
 		})
-		//console.timeEnd("prepare_fzf")
 
-		//console.time("fzf_search")
-		// Get all matching results from fzf
-		const fzfResults = fzf.find(query).map((result) => result.item.original)
-		//console.timeEnd("fzf_search")
+		const fzfResults = fzf.find(query)
+		
+		// The min threshold value will require some testing and tuning as the scores are exponential, and exagerated
+		const MIN_SCORE_THRESHOLD = 100;
 
-		//console.time("verify_results")
-		// Verify types of the shortest results
+
+		fzfResults.slice(0, 10).forEach((result, index) => {
+			const rawScore = result.score;
+			const normalizedScore = Math.exp(result.score / 20); // Exponential scaling
+			
+		});
+		
+		// Filter results by score and map to original items
+		const filteredResults = fzfResults
+			.filter((result, index) => {
+				// Use exponential scaling for normalization
+				// This gives a more dramatic difference between good and bad matches
+				const normalizedScore = Math.exp(result.score / 20);
+				const passes = normalizedScore >= MIN_SCORE_THRESHOLD;
+				
+				return passes;
+			})
+			.map(result => result.item.original)
+			.slice(0, limit); // Apply the original limit after filtering, removing up to half of the candidates
+			
+		console.log(`[File Mentions Debug] After filtering: ${filteredResults.length} results passed threshold of ${MIN_SCORE_THRESHOLD}`);
+
 		const verifiedResults = await Promise.all(
-			fzfResults.map(async (result) => {
+			filteredResults.map(async (result) => {
 				const fullPath = path.join(workspacePath, result.path)
 				// Verify if the path exists and is actually a directory
 				if (fs.existsSync(fullPath)) {
@@ -190,3 +200,24 @@ export async function searchWorkspaceFiles(
 		return []
 	}
 }
+
+// Custom match scoring for results ordering
+// Candidate score tiebreaker - fewer gaps between matched characters scores higher
+const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) => {
+	const countGaps = (positions: readonly number[]) => {
+		let gaps = 0;
+		for (let i = 1; i < positions.length; i++) {
+			if (positions[i] - positions[i - 1] > 1) {
+				gaps++;
+			}
+		}
+		return gaps;
+	};
+	
+	const aPositions = Array.isArray(a.positions) ? a.positions : Array.from(a.positions);
+	const bPositions = Array.isArray(b.positions) ? b.positions : Array.from(b.positions);
+	
+	const aGaps = countGaps(aPositions);
+	const bGaps = countGaps(bPositions);
+	return aGaps - bGaps;
+};
