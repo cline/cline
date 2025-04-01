@@ -332,21 +332,50 @@ export class BrowserSession {
 		)
 	}
 
+	/**
+	 * Gracefully close the browser session, handling both local and remote connections.
+	 * This ensures proper state saving and cleanup when VSCode is closed.
+	 */
 	async closeBrowser(): Promise<BrowserActionResult> {
-		if (this.browser || this.page) {
+		if (!this.browser && !this.page) {
+			return {}
+		}
+
+		try {
 			if (this.isConnectedToRemote && this.browser) {
-				// Close the page/tab first if it exists
+				// For remote connections, close pages first then disconnect
 				if (this.page) {
-					await this.page.close().catch(() => {})
+					// Give the page time to save any state
+					await new Promise((resolve) => setTimeout(resolve, 500))
+					await this.page.close().catch((err) => {
+						console.log("Error closing remote browser tab:", err)
+					})
 					console.log("closed remote browser tab...")
 				}
-				await this.browser.disconnect().catch(() => {})
+				await this.browser.disconnect().catch((err) => {
+					console.log("Error disconnecting from remote browser:", err)
+				})
 				console.log("disconnected from remote browser...")
 			} else {
-				await this.browser?.close().catch(() => {})
+				// For local browser, ensure graceful shutdown
+				if (this.page) {
+					await new Promise((resolve) => setTimeout(resolve, 500))
+					await this.page.close().catch((err) => {
+						console.log("Error closing local browser page:", err)
+					})
+				}
+				await this.browser?.close().catch((err) => {
+					console.log("Error closing local browser:", err)
+				})
 				console.log("closed local browser...")
-			}
 
+				// Additional cleanup for local browser processes
+				await this.killAllChromeBrowsers()
+			}
+		} catch (error) {
+			console.error("Error during browser cleanup:", error)
+		} finally {
+			// Always clean up references
 			this.browser = undefined
 			this.page = undefined
 			this.currentMousePosition = undefined
