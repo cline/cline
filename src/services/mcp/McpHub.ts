@@ -659,23 +659,26 @@ export class McpHub {
 				autoApprove: [],
 			}
 
-			// TS expects the server config to be a McpServerConfig, but we know it's valid
-			// The issue is that the type is not having the transportType field added to it
+			const parsedConfig = ServerConfigSchema.parse(serverConfig)
 
-			// ToDo: Add input types reflecting the non-transformed version
-			settings.mcpServers[serverName] = serverConfig as unknown as McpServerConfig
+			settings.mcpServers[serverName] = parsedConfig
 			const settingsPath = await this.getMcpSettingsFilePath()
-			await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2))
+
+			// We don't write the zod-transformed version to the file.
+			// The above parse() call adds the transportType field to the server config
+			// It would be fine if this was written, but we don't want to clutter up the file with internal details
+
+			// ToDo: We could benefit from input / output types reflecting the non-transformed / transformed versions
+			await fs.writeFile(
+				settingsPath,
+				JSON.stringify({ mcpServers: { ...settings.mcpServers, [serverName]: serverConfig } }, null, 2),
+			)
 
 			await this.updateServerConnections(settings.mcpServers)
 
-			vscode.window.showInformationMessage(`Added and connected to ${serverName} MCP server`)
+			vscode.window.showInformationMessage(`Added ${serverName} MCP server`)
 		} catch (error) {
 			console.error("Failed to add remote MCP server:", error)
-
-			vscode.window.showErrorMessage(
-				`Failed to add remote MCP server: ${error instanceof Error ? error.message : String(error)}`,
-			)
 
 			throw error
 		}

@@ -18,6 +18,7 @@ import McpMarketplaceView from "./marketplace/McpMarketplaceView"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
 import DangerButton from "../common/DangerButton"
+import AddRemoteServerForm from "./tabs/AddRemoteServerForm"
 
 type McpViewProps = {
 	onDone: () => void
@@ -81,6 +82,9 @@ const McpView = ({ onDone }: McpViewProps) => {
 							Marketplace
 						</TabButton>
 					)}
+					<TabButton isActive={activeTab === "addRemote"} onClick={() => handleTabChange("addRemote")}>
+						Remote Servers
+					</TabButton>
 					<TabButton isActive={activeTab === "installed"} onClick={() => handleTabChange("installed")}>
 						Installed
 					</TabButton>
@@ -89,6 +93,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 				{/* Content container */}
 				<div style={{ width: "100%" }}>
 					{mcpMarketplaceEnabled && activeTab === "marketplace" && <McpMarketplaceView />}
+					{activeTab === "addRemote" && <AddRemoteServerForm onServerAdded={() => handleTabChange("installed")} />}
 					{activeTab === "installed" && (
 						<div style={{ padding: "16px 20px" }}>
 							<div
