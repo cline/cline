@@ -289,15 +289,25 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 				if (streamEvent?.trace?.promptRouter?.invokedModelId) {
 					try {
 						const invokedModelId = streamEvent.trace.promptRouter.invokedModelId
-						const modelMatch = invokedModelId.match(/\/([^\/]+)(?::|$)/)
+						// Create a platform-independent regex that doesn't use forward slash as both delimiter and matcher
+						const modelMatch = invokedModelId.match(new RegExp("[\\/\\\\]([^\\/\\\\]+)(?::|$)"))
 						if (modelMatch && modelMatch[1]) {
 							let modelName = modelMatch[1]
 
 							// Get a new modelConfig from getModel() using invokedModelId.. remove the region first
 							let region = modelName.slice(0, 3)
 
+							// Check for all region prefixes (us., eu., and apac prefix)
 							if (region === "us." || region === "eu.") modelName = modelName.slice(3)
+							else if (modelName.startsWith("apac.")) modelName = modelName.slice(5)
 							this.costModelConfig = this.getModelByName(modelName)
+
+							// Log successful model extraction to help with debugging
+							logger.debug("Successfully extracted model from invokedModelId", {
+								ctx: "bedrock",
+								invokedModelId,
+								extractedModelName: modelName,
+							})
 						}
 
 						// Handle metadata events for the promptRouter.
@@ -513,15 +523,19 @@ Please check:
 
 		// If custom ARN is provided, use it
 		if (this.options.awsCustomArn) {
-			// Extract the model name from the ARN
+			// Extract the model name from the ARN using platform-independent regex
 			const arnMatch = this.options.awsCustomArn.match(
-				/^arn:aws:bedrock:([^:]+):(\d+):(inference-profile|foundation-model|provisioned-model)\/(.+)$/,
+				new RegExp(
+					"^arn:aws:bedrock:([^:]+):(\\d+):(inference-profile|foundation-model|provisioned-model|default-prompt-router|prompt-router)[/\\\\](.+)$",
+				),
 			)
 
 			let modelName = arnMatch ? arnMatch[4] : ""
 			if (modelName) {
 				let region = modelName.slice(0, 3)
+				// Check for all region prefixes (us., eu., and apac prefix)
 				if (region === "us." || region === "eu.") modelName = modelName.slice(3)
+				else if (modelName.startsWith("apac.")) modelName = modelName.slice(5)
 
 				let modelData = this.getModelByName(modelName)
 				modelData.id = this.options.awsCustomArn

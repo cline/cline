@@ -157,6 +157,8 @@ export async function applyGitFallback(hunk: Hunk, content: string[]): Promise<E
 		await git.init()
 		await git.addConfig("user.name", "Temp")
 		await git.addConfig("user.email", "temp@example.com")
+		// Prevent Git from automatically converting line endings
+		await git.addConfig("core.autocrlf", "false")
 
 		const filePath = path.join(tmpDir.name, "file.txt")
 
@@ -168,6 +170,7 @@ export async function applyGitFallback(hunk: Hunk, content: string[]): Promise<E
 			.filter((change) => change.type === "context" || change.type === "add")
 			.map((change) => change.originalLine || change.indent + change.content)
 
+		// Ensure consistent line endings (LF only) in all text operations
 		const searchText = searchLines.join("\n")
 		const replaceText = replaceLines.join("\n")
 		const originalText = content.join("\n")
@@ -195,7 +198,9 @@ export async function applyGitFallback(hunk: Hunk, content: string[]): Promise<E
 				await git.raw(["cherry-pick", "--minimal", replaceCommit.commit])
 
 				const newText = fs.readFileSync(filePath, "utf-8")
-				const newLines = newText.split("\n")
+				// Normalize line endings to LF before splitting
+				const normalizedText = newText.replace(/\r\n/g, "\n")
+				const newLines = normalizedText.split("\n")
 				return {
 					confidence: 1,
 					result: newLines,
@@ -212,6 +217,8 @@ export async function applyGitFallback(hunk: Hunk, content: string[]): Promise<E
 			await git.init()
 			await git.addConfig("user.name", "Temp")
 			await git.addConfig("user.email", "temp@example.com")
+			// Prevent Git from automatically converting line endings
+			await git.addConfig("core.autocrlf", "false")
 
 			fs.writeFileSync(filePath, searchText)
 			await git.add("file.txt")
@@ -237,7 +244,9 @@ export async function applyGitFallback(hunk: Hunk, content: string[]): Promise<E
 				await git.raw(["cherry-pick", "--minimal", replaceHash])
 
 				const newText = fs.readFileSync(filePath, "utf-8")
-				const newLines = newText.split("\n")
+				// Normalize line endings to LF before splitting
+				const normalizedText = newText.replace(/\r\n/g, "\n")
+				const newLines = normalizedText.split("\n")
 				return {
 					confidence: 1,
 					result: newLines,

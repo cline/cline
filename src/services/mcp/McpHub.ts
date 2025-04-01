@@ -1191,8 +1191,12 @@ export class McpHub {
 				configPath = await this.getMcpSettingsFilePath()
 			}
 
+			// Normalize path for cross-platform compatibility
+			// Use a consistent path format for both reading and writing
+			const normalizedPath = process.platform === "win32" ? configPath.replace(/\\/g, "/") : configPath
+
 			// Read the appropriate config file
-			const content = await fs.readFile(configPath, "utf-8")
+			const content = await fs.readFile(normalizedPath, "utf-8")
 			const config = JSON.parse(content)
 
 			// Initialize mcpServers if it doesn't exist
@@ -1202,7 +1206,11 @@ export class McpHub {
 
 			// Initialize server config if it doesn't exist
 			if (!config.mcpServers[serverName]) {
-				config.mcpServers[serverName] = {}
+				config.mcpServers[serverName] = {
+					type: "stdio",
+					command: "node",
+					args: [], // Default to an empty array; can be set later if needed
+				}
 			}
 
 			// Initialize alwaysAllow if it doesn't exist
@@ -1222,7 +1230,7 @@ export class McpHub {
 			}
 
 			// Write updated config back to file
-			await fs.writeFile(configPath, JSON.stringify(config, null, 2))
+			await fs.writeFile(normalizedPath, JSON.stringify(config, null, 2))
 
 			// Update the tools list to reflect the change
 			if (connection) {

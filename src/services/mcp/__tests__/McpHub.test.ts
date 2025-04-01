@@ -34,10 +34,16 @@ jest.mock("../../../core/webview/ClineProvider")
 describe("McpHub", () => {
 	let mcpHub: McpHubType
 	let mockProvider: Partial<ClineProvider>
+
+	// Store original console methods
+	const originalConsoleError = console.error
 	const mockSettingsPath = "/mock/settings/path/mcp_settings.json"
 
 	beforeEach(() => {
 		jest.clearAllMocks()
+
+		// Mock console.error to suppress error messages during tests
+		console.error = jest.fn()
 
 		const mockUri: Uri = {
 			scheme: "file",
@@ -103,6 +109,11 @@ describe("McpHub", () => {
 		mcpHub = new McpHub(mockProvider as ClineProvider)
 	})
 
+	afterEach(() => {
+		// Restore original console methods
+		console.error = originalConsoleError
+	})
+
 	describe("toggleToolAlwaysAllow", () => {
 		it("should add tool to always allow list when enabling", async () => {
 			const mockConfig = {
@@ -122,8 +133,19 @@ describe("McpHub", () => {
 			await mcpHub.toggleToolAlwaysAllow("test-server", "global", "new-tool", true)
 
 			// Verify the config was updated correctly
-			const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]
-			const writtenConfig = JSON.parse(writeCall[1])
+			const writeCalls = (fs.writeFile as jest.Mock).mock.calls
+			expect(writeCalls.length).toBeGreaterThan(0)
+
+			// Find the write call
+			const callToUse = writeCalls[writeCalls.length - 1]
+			expect(callToUse).toBeTruthy()
+
+			// The path might be normalized differently on different platforms,
+			// so we'll just check that we have a call with valid content
+			const writtenConfig = JSON.parse(callToUse[1])
+			expect(writtenConfig.mcpServers).toBeDefined()
+			expect(writtenConfig.mcpServers["test-server"]).toBeDefined()
+			expect(Array.isArray(writtenConfig.mcpServers["test-server"].alwaysAllow)).toBe(true)
 			expect(writtenConfig.mcpServers["test-server"].alwaysAllow).toContain("new-tool")
 		})
 
@@ -145,8 +167,19 @@ describe("McpHub", () => {
 			await mcpHub.toggleToolAlwaysAllow("test-server", "global", "existing-tool", false)
 
 			// Verify the config was updated correctly
-			const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]
-			const writtenConfig = JSON.parse(writeCall[1])
+			const writeCalls = (fs.writeFile as jest.Mock).mock.calls
+			expect(writeCalls.length).toBeGreaterThan(0)
+
+			// Find the write call
+			const callToUse = writeCalls[writeCalls.length - 1]
+			expect(callToUse).toBeTruthy()
+
+			// The path might be normalized differently on different platforms,
+			// so we'll just check that we have a call with valid content
+			const writtenConfig = JSON.parse(callToUse[1])
+			expect(writtenConfig.mcpServers).toBeDefined()
+			expect(writtenConfig.mcpServers["test-server"]).toBeDefined()
+			expect(Array.isArray(writtenConfig.mcpServers["test-server"].alwaysAllow)).toBe(true)
 			expect(writtenConfig.mcpServers["test-server"].alwaysAllow).not.toContain("existing-tool")
 		})
 
@@ -167,8 +200,15 @@ describe("McpHub", () => {
 			await mcpHub.toggleToolAlwaysAllow("test-server", "global", "new-tool", true)
 
 			// Verify the config was updated with initialized alwaysAllow
-			const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]
-			const writtenConfig = JSON.parse(writeCall[1])
+			// Find the write call with the normalized path
+			const normalizedSettingsPath = "/mock/settings/path/cline_mcp_settings.json"
+			const writeCalls = (fs.writeFile as jest.Mock).mock.calls
+
+			// Find the write call with the normalized path
+			const writeCall = writeCalls.find((call) => call[0] === normalizedSettingsPath)
+			const callToUse = writeCall || writeCalls[0]
+
+			const writtenConfig = JSON.parse(callToUse[1])
 			expect(writtenConfig.mcpServers["test-server"].alwaysAllow).toBeDefined()
 			expect(writtenConfig.mcpServers["test-server"].alwaysAllow).toContain("new-tool")
 		})
@@ -193,8 +233,15 @@ describe("McpHub", () => {
 			await mcpHub.toggleServerDisabled("test-server", true)
 
 			// Verify the config was updated correctly
-			const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]
-			const writtenConfig = JSON.parse(writeCall[1])
+			// Find the write call with the normalized path
+			const normalizedSettingsPath = "/mock/settings/path/cline_mcp_settings.json"
+			const writeCalls = (fs.writeFile as jest.Mock).mock.calls
+
+			// Find the write call with the normalized path
+			const writeCall = writeCalls.find((call) => call[0] === normalizedSettingsPath)
+			const callToUse = writeCall || writeCalls[0]
+
+			const writtenConfig = JSON.parse(callToUse[1])
 			expect(writtenConfig.mcpServers["test-server"].disabled).toBe(true)
 		})
 
@@ -403,8 +450,15 @@ describe("McpHub", () => {
 				await mcpHub.updateServerTimeout("test-server", 120)
 
 				// Verify the config was updated correctly
-				const writeCall = (fs.writeFile as jest.Mock).mock.calls[0]
-				const writtenConfig = JSON.parse(writeCall[1])
+				// Find the write call with the normalized path
+				const normalizedSettingsPath = "/mock/settings/path/cline_mcp_settings.json"
+				const writeCalls = (fs.writeFile as jest.Mock).mock.calls
+
+				// Find the write call with the normalized path
+				const writeCall = writeCalls.find((call) => call[0] === normalizedSettingsPath)
+				const callToUse = writeCall || writeCalls[0]
+
+				const writtenConfig = JSON.parse(callToUse[1])
 				expect(writtenConfig.mcpServers["test-server"].timeout).toBe(120)
 			})
 
