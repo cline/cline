@@ -17,3 +17,4 @@ pnpm-lock.yaml
 coverage
 # But don't ignore the coverage scripts in .github/scripts/
 !.github/scripts/coverage/
+complexity-report.json
