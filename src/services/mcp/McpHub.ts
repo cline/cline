@@ -963,6 +963,59 @@ export class McpHub {
 		}
 	}
 
+	public async addRemoteServer(serverName: string, serverUrl: string) {
+		try {
+			const globalSettingsPath = await this.getGlobalMcpSettingsFilePath()
+			const settings = await this.readAndValidateMcpSettingsFile(globalSettingsPath)
+			if (!settings) {
+				throw new Error("Failed to read MCP settings")
+			}
+
+			if (settings.mcpServers[serverName]) {
+				throw new Error(`An MCP server with the name "${serverName}" already exists`)
+			}
+
+			const urlValidation = z.string().url().safeParse(serverUrl)
+			if (!urlValidation.success) {
+				throw new Error(`Invalid server URL: ${serverUrl}. Please provide a valid URL.`)
+			}
+
+			const serverConfig = {
+				url: serverUrl,
+				disabled: false,
+				autoApprove: [],
+			}
+
+			// TS expects the server config to be a McpServerConfig, but we know it's valid
+			// The issue is that the type is not having the transportType field added to it
+
+			// ToDo: Add input types reflecting the non-transformed version
+			settings.mcpServers[serverName] = serverConfig as unknown as McpServerConfig
+			await fs.writeFile(globalSettingsPath, JSON.stringify(settings, null, 2))
+
+			const mergedSettings = await this.loadAndMergeMcpSettings()
+			// mergedSettings should always be defined unless both files fail validation catastrophically
+			try {
+				vscode.window.showInformationMessage("Updating MCP servers due to settings change...")
+				await this.updateServerConnections(mergedSettings) // Pass the merged result
+				vscode.window.showInformationMessage("MCP servers updated.")
+			} catch (error) {
+				console.error("Failed to process MCP settings change:", error)
+				vscode.window.showErrorMessage("Error updating MCP servers after settings change.")
+			}
+
+			vscode.window.showInformationMessage(`Added and connected to ${serverName} MCP server`)
+		} catch (error) {
+			console.error("Failed to add remote MCP server:", error)
+
+			vscode.window.showErrorMessage(
+				`Failed to add remote MCP server: ${error instanceof Error ? error.message : String(error)}`,
+			)
+
+			throw error
+		}
+	}
+
 	public async updateServerTimeout(serverName: string, timeout: number): Promise<void> {
 		const validation = BaseConfigSchema.shape.timeout.safeParse(timeout)
 		if (!validation.success) {
