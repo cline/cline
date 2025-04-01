@@ -204,14 +204,17 @@ export async function searchWorkspaceFiles(
 // Custom match scoring for results ordering
 // Candidate score tiebreaker - fewer gaps between matched characters scores higher
 const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) => {
-    const countGaps = (positions: Iterable<number>) => {
-        let gaps = 0, prev = -Infinity
-        for (const pos of positions) {
-            if (prev !== -Infinity && pos - prev > 1) gaps++
-            prev = pos
-        }
-        return gaps
-    }
+	const countGaps = (positions: Iterable<number>) => {
+		let gaps = 0,
+			prev = -Infinity
+		for (const pos of positions) {
+			if (prev !== -Infinity && pos - prev > 1) {
+				gaps++
+			}
+			prev = pos
+		}
+		return gaps
+	}
 
-    return countGaps(a.positions) - countGaps(b.positions)
+	return countGaps(a.positions) - countGaps(b.positions)
 }
