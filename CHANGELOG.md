@@ -1,13 +1,5 @@
 # Changelog
 
-## 3.9.0
-
--   301c524: Add extension handler for adding remote server
--   d8af586: Add remote server programatically
--   5fd0725: fix bug in Requestly UX for model selection
--   4875a54: Add support for bad commitHashes already stored in ui_messages.json
--   94ccde5: Escape html content for gemini when running commands
-
 ## [3.8.5]
 
 -   Add support for remote MCP Servers using SSE
@@ -16,6 +8,8 @@
 -   Add task feedback telemetry (thumbs up/down on task completion)
 -   Add toggle disabled for remote servers
 -   Move the MCP Restart and Delete buttons and add an auto-approve all toggle
+-   Update Requestly UX for model selection (thanks @arafatkatze!)
+-   Add escape for html content for gemini when running commands
 -   Improve search and replace edit failure behaviors
 
 ## [3.8.4]
