@@ -106,7 +106,7 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 					onEscapeKeyDown={() => setOpen(false)}
 					onInteractOutside={() => setOpen(false)}
 					container={portalContainer}
-					className={contentClassName}>
+					className={cn("overflow-y-auto max-h-[80vh]", contentClassName)}>
 					{options.map((option, index) => {
 						if (option.type === DropdownOptionType.SEPARATOR) {
 							return <DropdownMenuSeparator key={`sep-${index}`} />
