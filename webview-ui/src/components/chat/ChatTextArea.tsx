@@ -509,7 +509,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					currentSearchQueryRef.current = query
 
 					if (query.length > 0 && !selectedType) {
-						console.log("searching for:", query)
 						setSelectedMenuIndex(0)
 
 						// Clear any existing timeout
