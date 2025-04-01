@@ -2,8 +2,10 @@ graph TB
     subgraph VSCode Extension Host
         subgraph Core Extension
             ExtensionEntry[Extension Entry<br/>src/extension.ts]
-            ClineProvider[ClineProvider<br/>src/core/webview/ClineProvider.ts]
-            ClineClass[Cline Class<br/>src/core/Cline.ts]
+            WebviewProvider[WebviewProvider<br/>src/core/webview/index.ts]
+            Controller[Controller<br/>src/core/controller/index.ts]
+            TaskClass[Task Class<br/>src/core/task/index.ts]
+            Storage[Storage<br/>src/core/storage/state.ts]
             GlobalState[VSCode Global State]
             SecretsStorage[VSCode Secrets Storage]
         end
@@ -21,21 +23,25 @@ graph TB
     end
 
     %% Core Extension Data Flow
-    ExtensionEntry --> ClineProvider
-    ClineProvider --> ClineClass
-    ClineClass --> GlobalState
-    ClineClass --> SecretsStorage
-    ClineClass --> TaskStorage
-    ClineClass --> CheckpointSystem
+    ExtensionEntry --> WebviewProvider
+    WebviewProvider --> Controller
+    Controller --> TaskClass
+    Controller --> Storage
+    Storage --> GlobalState
+    Storage --> SecretsStorage
+    TaskClass --> TaskStorage
+    TaskClass --> CheckpointSystem
 
     %% Webview Data Flow
     WebviewApp --> ExtStateContext
     ExtStateContext --> ReactComponents
 
     %% Bidirectional Communication
-    ClineProvider <-->|postMessage| ExtStateContext
+    WebviewProvider <-->|postMessage| ExtStateContext
+    Controller <--> WebviewProvider
 
     style GlobalState fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
     style SecretsStorage fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
     style ExtStateContext fill:#0066ff,stroke:#333,stroke-width:2px,color:#ffffff
-    style ClineProvider fill:#00cc66,stroke:#333,stroke-width:2px,color:#ffffff
+    style WebviewProvider fill:#00cc66,stroke:#333,stroke-width:2px,color:#ffffff
+    style Controller fill:#ff9900,stroke:#333,stroke-width:2px,color:#ffffff

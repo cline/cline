@@ -11,8 +11,10 @@ graph TB
     subgraph VSCode Extension Host
         subgraph Core Extension
             ExtensionEntry[Extension Entry<br/>src/extension.ts]
-            ClineProvider[ClineProvider<br/>src/core/webview/ClineProvider.ts]
-            ClineClass[Cline Class<br/>src/core/Cline.ts]
+            WebviewProvider[WebviewProvider<br/>src/core/webview/index.ts]
+            Controller[Controller<br/>src/core/controller/index.ts]
+            TaskClass[Task Class<br/>src/core/task/index.ts]
+            Storage[Storage<br/>src/core/storage/state.ts]
             GlobalState[VSCode Global State]
             SecretsStorage[VSCode Secrets Storage]
         end
@@ -30,42 +32,46 @@ graph TB
     end
 
     %% Core Extension Data Flow
-    ExtensionEntry --> ClineProvider
-    ClineProvider --> ClineClass
-    ClineClass --> GlobalState
-    ClineClass --> SecretsStorage
-    ClineClass --> TaskStorage
-    ClineClass --> CheckpointSystem
+    ExtensionEntry --> WebviewProvider
+    WebviewProvider --> Controller
+    Controller --> TaskClass
+    Controller --> Storage
+    Storage --> GlobalState
+    Storage --> SecretsStorage
+    TaskClass --> TaskStorage
+    TaskClass --> CheckpointSystem
 
     %% Webview Data Flow
     WebviewApp --> ExtStateContext
     ExtStateContext --> ReactComponents
 
     %% Bidirectional Communication
-    ClineProvider <-->|postMessage| ExtStateContext
+    WebviewProvider <-->|postMessage| ExtStateContext
+    Controller <--> WebviewProvider
 
     style GlobalState fill:#f9f,stroke:#333,stroke-width:2px
     style SecretsStorage fill:#f9f,stroke:#333,stroke-width:2px
     style ExtStateContext fill:#bbf,stroke:#333,stroke-width:2px
-    style ClineProvider fill:#bfb,stroke:#333,stroke-width:2px
+    style WebviewProvider fill:#bfb,stroke:#333,stroke-width:2px
+    style Controller fill:#fdb,stroke:#333,stroke-width:2px
 ```
 
 ## Definitions 
 
-- core extension: Anything inside the src folder starting with the Cline.ts file
-- core extension state: Managed by the ClineProvider class in src/core/webview/ClineProvider.ts, which serves as the single source of truth for the extension's state. It manages multiple types of persistent storage (global state, workspace state, and secrets), handles state distribution to both the core extension and webview components, and coordinates state across multiple extension instances. This includes managing API configurations, task history, settings, and MCP configurations.
-- webview: Anything inside the webview-ui. All the react or view's seen by the user and user interaction compone
+- core extension: Anything inside the src folder, with the main components being found in core/task, core/controller, and core/webview directories
+- core extension state: Managed by the storage/state.ts module and utilized by the Controller class in src/core/controller/index.ts, which serves as the single source of truth for the extension's state. It manages multiple types of persistent storage (global state, workspace state, and secrets), handles state distribution to both the core extension and webview components, and coordinates state across multiple extension instances. This includes managing API configurations, task history, settings, and MCP configurations.
+- webview: Anything inside the webview-ui. All the react or view components seen by the user and user interaction elements
 - webview state: Managed by ExtensionStateContext in webview-ui/src/context/ExtensionStateContext.tsx, which provides React components with access to the extension's state through a context provider pattern. It maintains local state for UI components, handles real-time updates through message events, manages partial message updates, and provides methods for state modifications. The context includes extension version, messages, task history, theme, API configurations, MCP servers, marketplace catalog, and workspace file paths. It synchronizes with the core extension through VSCode's message passing system and provides type-safe access to state through a custom hook (useExtensionState).
 
 ### Core Extension State
 
-The `ClineProvider` class manages multiple types of persistent storage:
+The state management has been extracted into the `storage/state.ts` module, which is utilized by the `Controller` class. This system manages multiple types of persistent storage:
 
 - **Global State:** Stored across all VSCode instances. Used for settings and data that should persist globally.
 - **Workspace State:** Specific to the current workspace. Used for task-specific data and settings.
 - **Secrets:** Secure storage for sensitive information like API keys.
 
-The `ClineProvider` handles the distribution of state to both the core extension and webview components. It also coordinates state across multiple extension instances, ensuring consistency.
+The `Controller` handles the distribution of state to both the core extension and webview components through the `WebviewProvider`. It also coordinates state across multiple extension instances, ensuring consistency.
 
 ### Webview State
 
@@ -82,17 +88,23 @@ The `ExtensionStateContext` in `webview-ui/src/context/ExtensionStateContext.tsx
 
 It synchronizes with the core extension through VSCode's message passing system and provides type-safe access to the state via a custom hook (`useExtensionState`).
 
-## Core Extension (Cline.ts)
+## Core Extension Structure
 
-The Cline class is the heart of the extension, managing task execution, state persistence, and tool coordination. Each task runs in its own instance of the Cline class, ensuring isolation and proper state management.
+The core extension has been refactored into a more modular architecture with clear separation of concerns:
+
+- **WebviewProvider** (`src/core/webview/index.ts`): Manages webview lifecycle, HTML content, and initial message handling
+- **Controller** (`src/core/controller/index.ts`): Handles business logic, webview messages, task management, and coordinates state
+- **Task** (`src/core/task/index.ts`): Executes API requests, manages tool operations, and handles the execution loop
+
+Each task runs in its own instance of the Task class, ensuring isolation and proper state management. The Controller acts as the central coordinator between the webview and task execution.
 
 ### Task Execution Loop
 
-The core task execution loop follows this pattern:
+The core task execution loop follows this pattern, now implemented in the Task class:
 
 ```typescript
-class Cline {
-  async initiateTaskLoop(userContent: UserContent, isNewTask: boolean) {
+class Task {
+  async initiateTaskLoop(userContent: UserContent) {
     while (!this.abort) {
       // 1. Make API request and stream response
       const stream = this.attemptApiRequest()
@@ -123,10 +135,10 @@ class Cline {
 
 ### Message Streaming System
 
-The streaming system handles real-time updates and partial content:
+The streaming system handles real-time updates and partial content, now implemented in the Task class:
 
 ```typescript
-class Cline {
+class Task {
   async presentAssistantMessage() {
     // Handle streaming locks to prevent race conditions
     if (this.presentAssistantMessageLocked) {
@@ -158,10 +170,10 @@ class Cline {
 
 ### Tool Execution Flow
 
-Tools follow a strict execution pattern:
+Tools follow a strict execution pattern, now implemented in the Task class:
 
 ```typescript
-class Cline {
+class Task {
   async executeToolWithApproval(block: ToolBlock) {
     // 1. Check auto-approval settings
     if (this.shouldAutoApproveTool(block.name)) {
@@ -190,10 +202,10 @@ class Cline {
 
 ### Error Handling & Recovery
 
-The system includes robust error handling:
+The system includes robust error handling, now implemented in the Task class:
 
 ```typescript
-class Cline {
+class Task {
   async handleError(action: string, error: Error) {
     // 1. Check if task was abandoned
     if (this.abandoned) return
@@ -216,13 +228,13 @@ class Cline {
 
 ### API Request & Token Management
 
-The Cline class handles API requests with built-in retry, streaming, and token management:
+The Task class handles API requests with built-in retry, streaming, and token management:
 
 ```typescript
-class Cline {
+class Task {
   async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
     // 1. Wait for MCP servers to connect
-    await pWaitFor(() => this.providerRef.deref()?.mcpHub?.isConnecting !== true)
+    await pWaitFor(() => this.controllerRef.deref()?.mcpHub?.isConnecting !== true)
 
     // 2. Manage context window
     const previousRequest = this.clineMessages[previousApiReqIndex]
@@ -301,14 +313,14 @@ Key features:
 
 ### Task State & Resumption
 
-The Cline class provides robust task state management and resumption capabilities:
+The Task class provides robust task state management and resumption capabilities:
 
 ```typescript
-class Cline {
+class Task {
   async resumeTaskFromHistory() {
     // 1. Load saved state
-    this.clineMessages = await this.getSavedClineMessages()
-    this.apiConversationHistory = await this.getSavedApiConversationHistory()
+    this.clineMessages = await getSavedClineMessages(this.getContext(), this.taskId)
+    this.apiConversationHistory = await getSavedApiConversationHistory(this.getContext(), this.taskId)
 
     // 2. Handle interrupted tool executions
     const lastMessage = this.apiConversationHistory[this.apiConversationHistory.length - 1]
@@ -333,19 +345,18 @@ class Cline {
     })
 
     // 4. Resume task execution
-    await this.initiateTaskLoop(newUserContent, false)
+    await this.initiateTaskLoop(newUserContent)
   }
 
-  private async saveTaskState() {
+  private async saveClineMessagesAndUpdateHistory() {
     // Save conversation history
-    await this.saveApiConversationHistory()
-    await this.saveClineMessages()
+    await saveClineMessages(this.getContext(), this.taskId, this.clineMessages)
     
     // Create checkpoint
     const commitHash = await this.checkpointTracker?.commit()
     
     // Update task history
-    await this.providerRef.deref()?.updateTaskHistory({
+    await this.controllerRef.deref()?.updateTaskHistory({
       id: this.taskId,
       ts: lastMessage.ts,
       task: taskMessage.text,
@@ -385,19 +396,26 @@ Key aspects of task state management:
 
 ### Core Extension Role
 
-The core extension (ClineProvider) acts as the single source of truth for all persistent state. It:
-- Manages VSCode global state and secrets storage
-- Coordinates state updates between components
-- Ensures state consistency across webview reloads
-- Handles task-specific state persistence
-- Manages checkpoint creation and restoration
+The core extension is now divided into distinct responsibilities:
+
+- **Controller**: Acts as the central coordinator and manages the overall state flow
+- **WebviewProvider**: Handles webview creation, HTML content, and messaging
+- **Task**: Manages task execution, API interaction, and tool operations
+- **Storage (state.ts)**: Provides utility functions for persistent state management
+
+Together, these components:
+- Manage VSCode global state and secrets storage
+- Coordinate state updates between components
+- Ensure state consistency across webview reloads
+- Handle task-specific state persistence
+- Manage checkpoint creation and restoration
 
 ### Terminal Management
 
-The Cline class manages terminal instances and command execution:
+The Task class manages terminal instances and command execution:
 
 ```typescript
-class Cline {
+class Task {
   async executeCommandTool(command: string): Promise<[boolean, ToolResponse]> {
     // 1. Get or create terminal
     const terminalInfo = await this.terminalManager.getOrCreateTerminal(cwd)
@@ -453,10 +471,10 @@ Key features:
 
 ### Browser Session Management
 
-The Cline class handles browser automation through Puppeteer:
+The Task class handles browser automation through Puppeteer:
 
 ```typescript
-class Cline {
+class Task {
   async executeBrowserAction(action: BrowserAction): Promise<BrowserActionResult> {
     switch (action) {
       case "launch":
