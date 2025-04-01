@@ -1,12 +1,12 @@
-name: "Publish Release"
+name: 'Publish Release'
 
 on:
     workflow_dispatch:
         inputs:
             release-type:
-                description: "Choose release type (release or pre-release)"
+                description: 'Choose release type (release or pre-release)'
                 required: true
-                default: "release"
+                default: 'release'
                 type: choice
                 options:
                     - pre-release
@@ -84,15 +84,7 @@ jobs:
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
               run: |
                   # Required to generate the .vsix
-                  vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"
-
-                  if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
-                    npm run publish:marketplace:prerelease
-                    echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
-                  else
-                    npm run publish:marketplace
-                    echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace and Open VSX Registry"
-                  fi
+                  vsce package --out "posthog-extension-${{ steps.get_version.outputs.version }}.vsix"
 
             # - name: Get Changelog Entry
             #   id: changelog
@@ -107,7 +99,7 @@ jobs:
               uses: softprops/action-gh-release@v1
               with:
                   tag_name: ${{ steps.create_tag.outputs.tag }}
-                  files: "*.vsix"
+                  files: '*.vsix'
                   # body: ${{ steps.changelog.outputs.content }}
                   generate_release_notes: true
                   prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}

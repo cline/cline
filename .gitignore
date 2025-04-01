@@ -10,4 +10,4 @@ tmp
 
 pnpm-lock.yaml
 
-.clineignore
+.posthogignore

@@ -1,95 +1,97 @@
-import * as fs from "fs/promises"
-import * as path from "path"
-import { listFiles } from "../glob/list-files"
-import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
-import { fileExistsAtPath } from "../../utils/fs"
-import { ClineIgnoreController } from "../../core/ignore/ClineIgnoreController"
+import * as fs from 'fs/promises'
+import * as path from 'path'
+import { listFiles } from '../glob/list-files'
+import { LanguageParser, loadRequiredLanguageParsers } from './languageParser'
+import { fileExistsAtPath } from '../../utils/fs'
+import { PostHogIgnoreController } from '../../core/ignore/PostHogIgnoreController'
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(
-	dirPath: string,
-	clineIgnoreController?: ClineIgnoreController,
+    dirPath: string,
+    posthogIgnoreController?: PostHogIgnoreController
 ): Promise<string> {
-	// check if the path exists
-	const dirExists = await fileExistsAtPath(path.resolve(dirPath))
-	if (!dirExists) {
-		return "This directory does not exist or you do not have permission to access it."
-	}
+    // check if the path exists
+    const dirExists = await fileExistsAtPath(path.resolve(dirPath))
+    if (!dirExists) {
+        return 'This directory does not exist or you do not have permission to access it.'
+    }
 
-	// Get all files at top level (not gitignored)
-	const [allFiles, _] = await listFiles(dirPath, false, 200)
+    // Get all files at top level (not gitignored)
+    const [allFiles, _] = await listFiles(dirPath, false, 200)
 
-	let result = ""
+    let result = ''
 
-	// Separate files to parse and remaining files
-	const { filesToParse, remainingFiles } = separateFiles(allFiles)
+    // Separate files to parse and remaining files
+    const { filesToParse, remainingFiles } = separateFiles(allFiles)
 
-	const languageParsers = await loadRequiredLanguageParsers(filesToParse)
+    const languageParsers = await loadRequiredLanguageParsers(filesToParse)
 
-	// Parse specific files we have language parsers for
-	// const filesWithoutDefinitions: string[] = []
+    // Parse specific files we have language parsers for
+    // const filesWithoutDefinitions: string[] = []
 
-	// Filter filepaths for access if controller is provided
-	const allowedFilesToParse = clineIgnoreController ? clineIgnoreController.filterPaths(filesToParse) : filesToParse
+    // Filter filepaths for access if controller is provided
+    const allowedFilesToParse = posthogIgnoreController
+        ? posthogIgnoreController.filterPaths(filesToParse)
+        : filesToParse
 
-	for (const filePath of allowedFilesToParse) {
-		const definitions = await parseFile(filePath, languageParsers, clineIgnoreController)
-		if (definitions) {
-			result += `${path.relative(dirPath, filePath).toPosix()}\n${definitions}\n`
-		}
-		// else {
-		// 	filesWithoutDefinitions.push(file)
-		// }
-	}
+    for (const filePath of allowedFilesToParse) {
+        const definitions = await parseFile(filePath, languageParsers, posthogIgnoreController)
+        if (definitions) {
+            result += `${path.relative(dirPath, filePath).toPosix()}\n${definitions}\n`
+        }
+        // else {
+        // 	filesWithoutDefinitions.push(file)
+        // }
+    }
 
-	// List remaining files' paths
-	// let didFindUnparsedFiles = false
-	// filesWithoutDefinitions
-	// 	.concat(remainingFiles)
-	// 	.sort()
-	// 	.forEach((file) => {
-	// 		if (!didFindUnparsedFiles) {
-	// 			result += "# Unparsed Files\n\n"
-	// 			didFindUnparsedFiles = true
-	// 		}
-	// 		result += `${path.relative(dirPath, file)}\n`
-	// 	})
+    // List remaining files' paths
+    // let didFindUnparsedFiles = false
+    // filesWithoutDefinitions
+    // 	.concat(remainingFiles)
+    // 	.sort()
+    // 	.forEach((file) => {
+    // 		if (!didFindUnparsedFiles) {
+    // 			result += "# Unparsed Files\n\n"
+    // 			didFindUnparsedFiles = true
+    // 		}
+    // 		result += `${path.relative(dirPath, file)}\n`
+    // 	})
 
-	return result ? result : "No source code definitions found."
+    return result ? result : 'No source code definitions found.'
 }
 
 function separateFiles(allFiles: string[]): {
-	filesToParse: string[]
-	remainingFiles: string[]
+    filesToParse: string[]
+    remainingFiles: string[]
 } {
-	const extensions = [
-		"js",
-		"jsx",
-		"ts",
-		"tsx",
-		"py",
-		// Rust
-		"rs",
-		"go",
-		// C
-		"c",
-		"h",
-		// C++
-		"cpp",
-		"hpp",
-		// C#
-		"cs",
-		// Ruby
-		"rb",
-		"java",
-		"php",
-		"swift",
-		// Kotlin
-		"kt",
-	].map((e) => `.${e}`)
-	const filesToParse = allFiles.filter((file) => extensions.includes(path.extname(file))).slice(0, 50) // 50 files max
-	const remainingFiles = allFiles.filter((file) => !filesToParse.includes(file))
-	return { filesToParse, remainingFiles }
+    const extensions = [
+        'js',
+        'jsx',
+        'ts',
+        'tsx',
+        'py',
+        // Rust
+        'rs',
+        'go',
+        // C
+        'c',
+        'h',
+        // C++
+        'cpp',
+        'hpp',
+        // C#
+        'cs',
+        // Ruby
+        'rb',
+        'java',
+        'php',
+        'swift',
+        // Kotlin
+        'kt',
+    ].map((e) => `.${e}`)
+    const filesToParse = allFiles.filter((file) => extensions.includes(path.extname(file))).slice(0, 50) // 50 files max
+    const remainingFiles = allFiles.filter((file) => !filesToParse.includes(file))
+    return { filesToParse, remainingFiles }
 }
 
 /*
@@ -109,72 +111,72 @@ This approach allows us to focus on the most relevant parts of the code (defined
 - https://tree-sitter.github.io/tree-sitter/code-navigation-systems
 */
 async function parseFile(
-	filePath: string,
-	languageParsers: LanguageParser,
-	clineIgnoreController?: ClineIgnoreController,
+    filePath: string,
+    languageParsers: LanguageParser,
+    posthogIgnoreController?: PostHogIgnoreController
 ): Promise<string | null> {
-	if (clineIgnoreController && !clineIgnoreController.validateAccess(filePath)) {
-		return null
-	}
-	const fileContent = await fs.readFile(filePath, "utf8")
-	const ext = path.extname(filePath).toLowerCase().slice(1)
+    if (posthogIgnoreController && !posthogIgnoreController.validateAccess(filePath)) {
+        return null
+    }
+    const fileContent = await fs.readFile(filePath, 'utf8')
+    const ext = path.extname(filePath).toLowerCase().slice(1)
 
-	const { parser, query } = languageParsers[ext] || {}
-	if (!parser || !query) {
-		return `Unsupported file type: ${filePath}`
-	}
+    const { parser, query } = languageParsers[ext] || {}
+    if (!parser || !query) {
+        return `Unsupported file type: ${filePath}`
+    }
 
-	let formattedOutput = ""
+    let formattedOutput = ''
 
-	try {
-		// Parse the file content into an Abstract Syntax Tree (AST), a tree-like representation of the code
-		const tree = parser.parse(fileContent)
+    try {
+        // Parse the file content into an Abstract Syntax Tree (AST), a tree-like representation of the code
+        const tree = parser.parse(fileContent)
 
-		// Apply the query to the AST and get the captures
-		// Captures are specific parts of the AST that match our query patterns, each capture represents a node in the AST that we're interested in.
-		const captures = query.captures(tree.rootNode)
+        // Apply the query to the AST and get the captures
+        // Captures are specific parts of the AST that match our query patterns, each capture represents a node in the AST that we're interested in.
+        const captures = query.captures(tree.rootNode)
 
-		// Sort captures by their start position
-		captures.sort((a, b) => a.node.startPosition.row - b.node.startPosition.row)
+        // Sort captures by their start position
+        captures.sort((a, b) => a.node.startPosition.row - b.node.startPosition.row)
 
-		// Split the file content into individual lines
-		const lines = fileContent.split("\n")
+        // Split the file content into individual lines
+        const lines = fileContent.split('\n')
 
-		// Keep track of the last line we've processed
-		let lastLine = -1
+        // Keep track of the last line we've processed
+        let lastLine = -1
 
-		captures.forEach((capture) => {
-			const { node, name } = capture
-			// Get the start and end lines of the current AST node
-			const startLine = node.startPosition.row
-			const endLine = node.endPosition.row
-			// Once we've retrieved the nodes we care about through the language query, we filter for lines with definition names only.
-			// name.startsWith("name.reference.") > refs can be used for ranking purposes, but we don't need them for the output
-			// previously we did `name.startsWith("name.definition.")` but this was too strict and excluded some relevant definitions
+        captures.forEach((capture) => {
+            const { node, name } = capture
+            // Get the start and end lines of the current AST node
+            const startLine = node.startPosition.row
+            const endLine = node.endPosition.row
+            // Once we've retrieved the nodes we care about through the language query, we filter for lines with definition names only.
+            // name.startsWith("name.reference.") > refs can be used for ranking purposes, but we don't need them for the output
+            // previously we did `name.startsWith("name.definition.")` but this was too strict and excluded some relevant definitions
 
-			// Add separator if there's a gap between captures
-			if (lastLine !== -1 && startLine > lastLine + 1) {
-				formattedOutput += "|----\n"
-			}
-			// Only add the first line of the definition
-			// query captures includes the definition name and the definition implementation, but we only want the name (I found discrepencies in the naming structure for various languages, i.e. javascript names would be 'name' and typescript names would be 'name.definition)
-			if (name.includes("name") && lines[startLine]) {
-				formattedOutput += `│${lines[startLine]}\n`
-			}
-			// Adds all the captured lines
-			// for (let i = startLine; i <= endLine; i++) {
-			// 	formattedOutput += `│${lines[i]}\n`
-			// }
-			//}
+            // Add separator if there's a gap between captures
+            if (lastLine !== -1 && startLine > lastLine + 1) {
+                formattedOutput += '|----\n'
+            }
+            // Only add the first line of the definition
+            // query captures includes the definition name and the definition implementation, but we only want the name (I found discrepencies in the naming structure for various languages, i.e. javascript names would be 'name' and typescript names would be 'name.definition)
+            if (name.includes('name') && lines[startLine]) {
+                formattedOutput += `│${lines[startLine]}\n`
+            }
+            // Adds all the captured lines
+            // for (let i = startLine; i <= endLine; i++) {
+            // 	formattedOutput += `│${lines[i]}\n`
+            // }
+            //}
 
-			lastLine = endLine
-		})
-	} catch (error) {
-		console.log(`Error parsing file: ${error}\n`)
-	}
+            lastLine = endLine
+        })
+    } catch (error) {
+        console.log(`Error parsing file: ${error}\n`)
+    }
 
-	if (formattedOutput.length > 0) {
-		return `|----\n${formattedOutput}|----\n`
-	}
-	return null
+    if (formattedOutput.length > 0) {
+        return `|----\n${formattedOutput}|----\n`
+    }
+    return null
 }

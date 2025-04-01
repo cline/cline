@@ -1,7 +1,7 @@
 export interface ChatSettings {
-	mode: "plan" | "act"
+    mode: 'plan' | 'act'
 }
 
 export const DEFAULT_CHAT_SETTINGS: ChatSettings = {
-	mode: "act",
+    mode: 'act',
 }

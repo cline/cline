@@ -50,5 +50,5 @@ Mention regex:
 
 */
 export const mentionRegex =
-	/@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|terminal\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/
-export const mentionRegexGlobal = new RegExp(mentionRegex.source, "g")
+    /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|terminal\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/
+export const mentionRegexGlobal = new RegExp(mentionRegex.source, 'g')

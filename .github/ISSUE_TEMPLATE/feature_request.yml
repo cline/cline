@@ -1,0 +1,16 @@
+name: Feature request
+description: 'Suggest a feature for PostHog Extension'
+labels: ['enhancement, feature']
+body:
+    - type: textarea
+      id: feature_request
+      attributes:
+          label: Feature request
+          value:
+              "## Is your feature request related to a problem?\n\n*Please describe.*\n\n## Describe the solution you'd like\n\n\n## Describe alternatives you've considered\n\n\n## Additional context\n\n\n
+
+              "
+
+    - type: markdown
+      attributes:
+          value: '#### *Thank you* for your feature request – we love each and every one!'

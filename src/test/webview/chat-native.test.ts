@@ -1,20 +1,20 @@
-import * as vscode from "vscode"
-import { describe, it, beforeEach, afterEach } from "mocha"
-import { strict as assert } from "assert"
-import { join } from "path"
-describe("Chat Integration Tests", () => {
-	let panel: vscode.WebviewPanel
-	let disposables: vscode.Disposable[] = []
+import * as vscode from 'vscode'
+import { describe, it, beforeEach, afterEach } from 'mocha'
+import { strict as assert } from 'assert'
+import { join } from 'path'
+describe('Chat Integration Tests', () => {
+    let panel: vscode.WebviewPanel
+    let disposables: vscode.Disposable[] = []
 
-	beforeEach(async () => {
-		// Create VSCode webview panel
-		panel = vscode.window.createWebviewPanel("testWebview", "Chat Test", vscode.ViewColumn.One, {
-			enableScripts: true,
-			retainContextWhenHidden: true,
-		})
+    beforeEach(async () => {
+        // Create VSCode webview panel
+        panel = vscode.window.createWebviewPanel('testWebview', 'Chat Test', vscode.ViewColumn.One, {
+            enableScripts: true,
+            retainContextWhenHidden: true,
+        })
 
-		// Set up minimal test webview
-		panel.webview.html = `
+        // Set up minimal test webview
+        panel.webview.html = `
             <!DOCTYPE html>
             <html>
                 <head>
@@ -50,92 +50,92 @@ describe("Chat Integration Tests", () => {
                 </body>
             </html>
         `
-	})
+    })
 
-	afterEach(() => {
-		panel.dispose()
-		disposables.forEach((d) => d.dispose())
-		disposables = []
-	})
+    afterEach(() => {
+        panel.dispose()
+        disposables.forEach((d) => d.dispose())
+        disposables = []
+    })
 
-	it("should send chat messages", async () => {
-		// Set up message listener
-		const messagePromise = new Promise<any>((resolve) => {
-			panel.webview.onDidReceiveMessage((message) => {
-				if (message.type === "newTask") {
-					resolve(message)
-				}
-			})
-		})
+    it('should send chat messages', async () => {
+        // Set up message listener
+        const messagePromise = new Promise<any>((resolve) => {
+            panel.webview.onDidReceiveMessage((message) => {
+                if (message.type === 'newTask') {
+                    resolve(message)
+                }
+            })
+        })
 
-		// Trigger send message
-		await panel.webview.postMessage({
-			type: "sendMessage",
-			text: "Create a hello world app",
-		})
+        // Trigger send message
+        await panel.webview.postMessage({
+            type: 'sendMessage',
+            text: 'Create a hello world app',
+        })
 
-		// Verify message was sent
-		const message = await messagePromise
-		assert.equal(message.type, "newTask")
-		assert.equal(message.text, "Create a hello world app")
-	})
+        // Verify message was sent
+        const message = await messagePromise
+        assert.equal(message.type, 'newTask')
+        assert.equal(message.text, 'Create a hello world app')
+    })
 
-	it("should toggle between plan and act modes", async () => {
-		// Set up state change listener
-		const stateChangePromise = new Promise<any>((resolve) => {
-			panel.webview.onDidReceiveMessage((message) => {
-				if (message.type === "togglePlanActMode") {
-					resolve(message)
-				}
-			})
-		})
+    it('should toggle between plan and act modes', async () => {
+        // Set up state change listener
+        const stateChangePromise = new Promise<any>((resolve) => {
+            panel.webview.onDidReceiveMessage((message) => {
+                if (message.type === 'togglePlanActMode') {
+                    resolve(message)
+                }
+            })
+        })
 
-		// Trigger mode toggle
-		await panel.webview.postMessage({ type: "toggleMode" })
+        // Trigger mode toggle
+        await panel.webview.postMessage({ type: 'toggleMode' })
 
-		// Verify mode changed
-		const stateChange = await stateChangePromise
-		assert.equal(stateChange.chatSettings.mode, "act")
-	})
+        // Verify mode changed
+        const stateChange = await stateChangePromise
+        assert.equal(stateChange.chatSettings.mode, 'act')
+    })
 
-	it("should toggle between plan and act modes with messages", async () => {
-		// Set up state change listener
-		const stateChangePromise = new Promise<any>((resolve) => {
-			panel.webview.onDidReceiveMessage((message) => {
-				if (message.type === "togglePlanActMode") {
-					resolve(message)
-				}
-			})
-		})
+    it('should toggle between plan and act modes with messages', async () => {
+        // Set up state change listener
+        const stateChangePromise = new Promise<any>((resolve) => {
+            panel.webview.onDidReceiveMessage((message) => {
+                if (message.type === 'togglePlanActMode') {
+                    resolve(message)
+                }
+            })
+        })
 
-		// Trigger mode toggle
-		await panel.webview.postMessage({ type: "toggleMode" })
+        // Trigger mode toggle
+        await panel.webview.postMessage({ type: 'toggleMode' })
 
-		// Verify mode changed
-		const stateChange = await stateChangePromise
-		assert.equal(stateChange.chatSettings.mode, "act")
-		assert.equal(stateChange.chatContent.message, "message test")
-	})
+        // Verify mode changed
+        const stateChange = await stateChangePromise
+        assert.equal(stateChange.chatSettings.mode, 'act')
+        assert.equal(stateChange.chatContent.message, 'message test')
+    })
 
-	it("should handle tool approval flow", async () => {
-		// Set up approval listener
-		const approvalPromise = new Promise<any>((resolve) => {
-			panel.webview.onDidReceiveMessage((message) => {
-				if (message.type === "askResponse") {
-					resolve(message)
-				}
-			})
-		})
+    it('should handle tool approval flow', async () => {
+        // Set up approval listener
+        const approvalPromise = new Promise<any>((resolve) => {
+            panel.webview.onDidReceiveMessage((message) => {
+                if (message.type === 'askResponse') {
+                    resolve(message)
+                }
+            })
+        })
 
-		// Trigger tool approval
-		await panel.webview.postMessage({
-			type: "invoke",
-			invoke: "primaryButtonClick",
-		})
+        // Trigger tool approval
+        await panel.webview.postMessage({
+            type: 'invoke',
+            invoke: 'primaryButtonClick',
+        })
 
-		// Verify approval was sent
-		const response = await approvalPromise
-		assert.equal(response.type, "askResponse")
-		assert.equal(response.askResponse, "yesButtonClicked")
-	})
+        // Verify approval was sent
+        const response = await approvalPromise
+        assert.equal(response.type, 'askResponse')
+        assert.equal(response.askResponse, 'yesButtonClicked')
+    })
 })

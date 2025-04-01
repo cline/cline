@@ -15,7 +15,6 @@ vsc-extension-quickstart.md
 **/.vscode-test.*
 
 # Custom
-demo.gif
 .nvmrc
 .gitattributes
 .prettierignore
@@ -29,9 +28,6 @@ webview-ui/package.json
 webview-ui/package-lock.json
 webview-ui/node_modules/**
 **/.gitignore
-
-# Ignore docs
-docs/**
 
 # Fix issue where codicons don't get packaged (https://github.com/microsoft/vscode-extension-samples/issues/692)
 !node_modules/@vscode/codicons/dist/codicon.css

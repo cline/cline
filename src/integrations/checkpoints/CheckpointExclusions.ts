@@ -1,12 +1,12 @@
-import fs from "fs/promises"
-import { join } from "path"
-import { fileExistsAtPath } from "../../utils/fs"
-import { GIT_DISABLED_SUFFIX } from "./CheckpointGitOperations"
+import fs from 'fs/promises'
+import { join } from 'path'
+import { fileExistsAtPath } from '../../utils/fs'
+import { GIT_DISABLED_SUFFIX } from './CheckpointGitOperations'
 
 /**
  * CheckpointExclusions Module
  *
- * A specialized module within Cline's Checkpoints system that manages file exclusion rules
+ * A specialized module within PostHog's Checkpoints system that manages file exclusion rules
  * for the checkpoint tracking process. It provides:
  *
  * File Filtering:
@@ -39,33 +39,33 @@ import { GIT_DISABLED_SUFFIX } from "./CheckpointGitOperations"
  * @todo Make this configurable by the user
  */
 export const getDefaultExclusions = (lfsPatterns: string[] = []): string[] => [
-	// Build and Development Artifacts
-	".git/",
-	`.git${GIT_DISABLED_SUFFIX}/`,
-	...getBuildArtifactPatterns(),
+    // Build and Development Artifacts
+    '.git/',
+    `.git${GIT_DISABLED_SUFFIX}/`,
+    ...getBuildArtifactPatterns(),
 
-	// Media Files
-	...getMediaFilePatterns(),
+    // Media Files
+    ...getMediaFilePatterns(),
 
-	// Cache and Temporary Files
-	...getCacheFilePatterns(),
+    // Cache and Temporary Files
+    ...getCacheFilePatterns(),
 
-	// Environment and Config Files
-	...getConfigFilePatterns(),
+    // Environment and Config Files
+    ...getConfigFilePatterns(),
 
-	// Large Data Files
-	...getLargeDataFilePatterns(),
+    // Large Data Files
+    ...getLargeDataFilePatterns(),
 
-	// Database Files
-	...getDatabaseFilePatterns(),
+    // Database Files
+    ...getDatabaseFilePatterns(),
 
-	// Geospatial Datasets
-	...getGeospatialPatterns(),
+    // Geospatial Datasets
+    ...getGeospatialPatterns(),
 
-	// Log Files
-	...getLogFilePatterns(),
+    // Log Files
+    ...getLogFilePatterns(),
 
-	...lfsPatterns,
+    ...lfsPatterns,
 ]
 
 /**
@@ -73,35 +73,35 @@ export const getDefaultExclusions = (lfsPatterns: string[] = []): string[] => [
  * @returns Array of glob patterns for build artifacts
  */
 function getBuildArtifactPatterns(): string[] {
-	return [
-		".gradle/",
-		".idea/",
-		".parcel-cache/",
-		".pytest_cache/",
-		".next/",
-		".nuxt/",
-		".sass-cache/",
-		".vs/",
-		".vscode/",
-		"Pods/",
-		"__pycache__/",
-		"bin/",
-		"build/",
-		"bundle/",
-		"coverage/",
-		"deps/",
-		"dist/",
-		"env/",
-		"node_modules/",
-		"obj/",
-		"out/",
-		"pkg/",
-		"pycache/",
-		"target/dependency/",
-		"temp/",
-		"vendor/",
-		"venv/",
-	]
+    return [
+        '.gradle/',
+        '.idea/',
+        '.parcel-cache/',
+        '.pytest_cache/',
+        '.next/',
+        '.nuxt/',
+        '.sass-cache/',
+        '.vs/',
+        '.vscode/',
+        'Pods/',
+        '__pycache__/',
+        'bin/',
+        'build/',
+        'bundle/',
+        'coverage/',
+        'deps/',
+        'dist/',
+        'env/',
+        'node_modules/',
+        'obj/',
+        'out/',
+        'pkg/',
+        'pycache/',
+        'target/dependency/',
+        'temp/',
+        'vendor/',
+        'venv/',
+    ]
 }
 
 /**
@@ -109,47 +109,47 @@ function getBuildArtifactPatterns(): string[] {
  * @returns Array of glob patterns for media files
  */
 function getMediaFilePatterns(): string[] {
-	return [
-		"*.jpg",
-		"*.jpeg",
-		"*.png",
-		"*.gif",
-		"*.bmp",
-		"*.ico",
-		"*.webp",
-		"*.tiff",
-		"*.tif",
-		// "*.svg",
-		"*.raw",
-		"*.heic",
-		"*.avif",
-		"*.eps",
-		"*.psd",
-		"*.3gp",
-		"*.aac",
-		"*.aiff",
-		"*.asf",
-		"*.avi",
-		"*.divx",
-		"*.flac",
-		"*.m4a",
-		"*.m4v",
-		"*.mkv",
-		"*.mov",
-		"*.mp3",
-		"*.mp4",
-		"*.mpeg",
-		"*.mpg",
-		"*.ogg",
-		"*.opus",
-		"*.rm",
-		"*.rmvb",
-		"*.vob",
-		"*.wav",
-		"*.webm",
-		"*.wma",
-		"*.wmv",
-	]
+    return [
+        '*.jpg',
+        '*.jpeg',
+        '*.png',
+        '*.gif',
+        '*.bmp',
+        '*.ico',
+        '*.webp',
+        '*.tiff',
+        '*.tif',
+        // "*.svg",
+        '*.raw',
+        '*.heic',
+        '*.avif',
+        '*.eps',
+        '*.psd',
+        '*.3gp',
+        '*.aac',
+        '*.aiff',
+        '*.asf',
+        '*.avi',
+        '*.divx',
+        '*.flac',
+        '*.m4a',
+        '*.m4v',
+        '*.mkv',
+        '*.mov',
+        '*.mp3',
+        '*.mp4',
+        '*.mpeg',
+        '*.mpg',
+        '*.ogg',
+        '*.opus',
+        '*.rm',
+        '*.rmvb',
+        '*.vob',
+        '*.wav',
+        '*.webm',
+        '*.wma',
+        '*.wmv',
+    ]
 }
 
 /**
@@ -157,28 +157,28 @@ function getMediaFilePatterns(): string[] {
  * @returns Array of glob patterns for cache files
  */
 function getCacheFilePatterns(): string[] {
-	return [
-		"*.DS_Store",
-		"*.bak",
-		"*.cache",
-		"*.crdownload",
-		"*.dmp",
-		"*.dump",
-		"*.eslintcache",
-		"*.lock",
-		"*.log",
-		"*.old",
-		"*.part",
-		"*.partial",
-		"*.pyc",
-		"*.pyo",
-		"*.stackdump",
-		"*.swo",
-		"*.swp",
-		"*.temp",
-		"*.tmp",
-		"*.Thumbs.db",
-	]
+    return [
+        '*.DS_Store',
+        '*.bak',
+        '*.cache',
+        '*.crdownload',
+        '*.dmp',
+        '*.dump',
+        '*.eslintcache',
+        '*.lock',
+        '*.log',
+        '*.old',
+        '*.part',
+        '*.partial',
+        '*.pyc',
+        '*.pyo',
+        '*.stackdump',
+        '*.swo',
+        '*.swp',
+        '*.temp',
+        '*.tmp',
+        '*.Thumbs.db',
+    ]
 }
 
 /**
@@ -186,7 +186,7 @@ function getCacheFilePatterns(): string[] {
  * @returns Array of glob patterns for config files
  */
 function getConfigFilePatterns(): string[] {
-	return ["*.env*", "*.local", "*.development", "*.production"]
+    return ['*.env*', '*.local', '*.development', '*.production']
 }
 
 /**
@@ -194,22 +194,22 @@ function getConfigFilePatterns(): string[] {
  * @returns Array of glob patterns for large data files
  */
 function getLargeDataFilePatterns(): string[] {
-	return [
-		"*.zip",
-		"*.tar",
-		"*.gz",
-		"*.rar",
-		"*.7z",
-		"*.iso",
-		"*.bin",
-		"*.exe",
-		"*.dll",
-		"*.so",
-		"*.dylib",
-		"*.dat",
-		"*.dmg",
-		"*.msi",
-	]
+    return [
+        '*.zip',
+        '*.tar',
+        '*.gz',
+        '*.rar',
+        '*.7z',
+        '*.iso',
+        '*.bin',
+        '*.exe',
+        '*.dll',
+        '*.so',
+        '*.dylib',
+        '*.dat',
+        '*.dmg',
+        '*.msi',
+    ]
 }
 
 /**
@@ -217,29 +217,29 @@ function getLargeDataFilePatterns(): string[] {
  * @returns Array of glob patterns for database files
  */
 function getDatabaseFilePatterns(): string[] {
-	return [
-		"*.arrow",
-		"*.accdb",
-		"*.aof",
-		"*.avro",
-		"*.bak",
-		"*.bson",
-		"*.csv",
-		"*.db",
-		"*.dbf",
-		"*.dmp",
-		"*.frm",
-		"*.ibd",
-		"*.mdb",
-		"*.myd",
-		"*.myi",
-		"*.orc",
-		"*.parquet",
-		"*.pdb",
-		"*.rdb",
-		"*.sql",
-		"*.sqlite",
-	]
+    return [
+        '*.arrow',
+        '*.accdb',
+        '*.aof',
+        '*.avro',
+        '*.bak',
+        '*.bson',
+        '*.csv',
+        '*.db',
+        '*.dbf',
+        '*.dmp',
+        '*.frm',
+        '*.ibd',
+        '*.mdb',
+        '*.myd',
+        '*.myi',
+        '*.orc',
+        '*.parquet',
+        '*.pdb',
+        '*.rdb',
+        '*.sql',
+        '*.sqlite',
+    ]
 }
 
 /**
@@ -247,35 +247,35 @@ function getDatabaseFilePatterns(): string[] {
  * @returns Array of glob patterns for geospatial files
  */
 function getGeospatialPatterns(): string[] {
-	return [
-		"*.shp",
-		"*.shx",
-		"*.dbf",
-		"*.prj",
-		"*.sbn",
-		"*.sbx",
-		"*.shp.xml",
-		"*.cpg",
-		"*.gdb",
-		"*.mdb",
-		"*.gpkg",
-		"*.kml",
-		"*.kmz",
-		"*.gml",
-		"*.geojson",
-		"*.dem",
-		"*.asc",
-		"*.img",
-		"*.ecw",
-		"*.las",
-		"*.laz",
-		"*.mxd",
-		"*.qgs",
-		"*.grd",
-		"*.csv",
-		"*.dwg",
-		"*.dxf",
-	]
+    return [
+        '*.shp',
+        '*.shx',
+        '*.dbf',
+        '*.prj',
+        '*.sbn',
+        '*.sbx',
+        '*.shp.xml',
+        '*.cpg',
+        '*.gdb',
+        '*.mdb',
+        '*.gpkg',
+        '*.kml',
+        '*.kmz',
+        '*.gml',
+        '*.geojson',
+        '*.dem',
+        '*.asc',
+        '*.img',
+        '*.ecw',
+        '*.las',
+        '*.laz',
+        '*.mxd',
+        '*.qgs',
+        '*.grd',
+        '*.csv',
+        '*.dwg',
+        '*.dxf',
+    ]
 }
 
 /**
@@ -283,7 +283,7 @@ function getGeospatialPatterns(): string[] {
  * @returns Array of glob patterns for log files
  */
 function getLogFilePatterns(): string[] {
-	return ["*.error", "*.log", "*.logs", "*.npm-debug.log*", "*.out", "*.stdout", "yarn-debug.log*", "yarn-error.log*"]
+    return ['*.error', '*.log', '*.logs', '*.npm-debug.log*', '*.out', '*.stdout', 'yarn-debug.log*', 'yarn-error.log*']
 }
 
 /**
@@ -294,11 +294,11 @@ function getLogFilePatterns(): string[] {
  * @param lfsPatterns - Optional array of Git LFS patterns to include
  */
 export const writeExcludesFile = async (gitPath: string, lfsPatterns: string[] = []): Promise<void> => {
-	const excludesPath = join(gitPath, "info", "exclude")
-	await fs.mkdir(join(gitPath, "info"), { recursive: true })
+    const excludesPath = join(gitPath, 'info', 'exclude')
+    await fs.mkdir(join(gitPath, 'info'), { recursive: true })
 
-	const patterns = getDefaultExclusions(lfsPatterns)
-	await fs.writeFile(excludesPath, patterns.join("\n"))
+    const patterns = getDefaultExclusions(lfsPatterns)
+    await fs.writeFile(excludesPath, patterns.join('\n'))
 }
 
 /**
@@ -309,17 +309,17 @@ export const writeExcludesFile = async (gitPath: string, lfsPatterns: string[] =
  * @returns Array of Git LFS patterns found in .gitattributes
  */
 export const getLfsPatterns = async (workspacePath: string): Promise<string[]> => {
-	try {
-		const attributesPath = join(workspacePath, ".gitattributes")
-		if (await fileExistsAtPath(attributesPath)) {
-			const attributesContent = await fs.readFile(attributesPath, "utf8")
-			return attributesContent
-				.split("\n")
-				.filter((line) => line.includes("filter=lfs"))
-				.map((line) => line.split(" ")[0].trim())
-		}
-	} catch (error) {
-		console.warn("Failed to read .gitattributes:", error)
-	}
-	return []
+    try {
+        const attributesPath = join(workspacePath, '.gitattributes')
+        if (await fileExistsAtPath(attributesPath)) {
+            const attributesContent = await fs.readFile(attributesPath, 'utf8')
+            return attributesContent
+                .split('\n')
+                .filter((line) => line.includes('filter=lfs'))
+                .map((line) => line.split(' ')[0].trim())
+        }
+    } catch (error) {
+        console.warn('Failed to read .gitattributes:', error)
+    }
+    return []
 }

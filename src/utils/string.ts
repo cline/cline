@@ -4,12 +4,12 @@
  * @returns String with HTML entities converted back to normal characters
  */
 export function fixModelHtmlEscaping(text: string): string {
-	return text
-		.replace(/&gt;/g, ">")
-		.replace(/&lt;/g, "<")
-		.replace(/&quot;/g, '"')
-		.replace(/&amp;/g, "&")
-		.replace(/&apos;/g, "'")
+    return text
+        .replace(/&gt;/g, '>')
+        .replace(/&lt;/g, '<')
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&')
+        .replace(/&apos;/g, "'")
 }
 
 /**
@@ -18,5 +18,5 @@ export function fixModelHtmlEscaping(text: string): string {
  * @returns String with invalid characters removed
  */
 export function removeInvalidChars(text: string): string {
-	return text.replace(/\uFFFD/g, "")
+    return text.replace(/\uFFFD/g, '')
 }
