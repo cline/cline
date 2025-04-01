@@ -96,7 +96,6 @@ export interface WebviewMessage {
 	customInstructionsSetting?: string
 	// For task feedback
 	feedbackType?: TaskFeedbackType
-	requestId?: string
 	mentionsRequestId?: string
 	query?: string
 }
