@@ -201,7 +201,7 @@ jobs:
 
             - name: Run Complexity Analysis
               id: complexity
-              run: node .github/scripts/analyze-complexity.js
+              run: npm run complexity
 
             - name: Post PR Comment
               if: always()

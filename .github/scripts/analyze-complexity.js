@@ -12,8 +12,8 @@ function analyzeBranch(branchName) {
 	// Checkout the branch
 	execSync(`git checkout ${branchName}`, { stdio: "inherit" })
 
-	// Run ESLint complexity check
-	execSync("npm run lint:complexity", { stdio: "inherit" })
+	// Run ESLint complexity check from root directory
+	execSync("npm run lint:complexity", { stdio: "inherit", cwd: process.cwd() })
 	const eslintReport = JSON.parse(fs.readFileSync("complexity-report.json", "utf8"))
 
 	// Get complexity violations
