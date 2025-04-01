@@ -80,7 +80,7 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 	return (
 		<div className="p-4 px-5">
 			<div className="text-[var(--vscode-foreground)] text-sm mb-4 mt-1 max-w-lg">
-				Add a remote MCP server by providing a name and its SSE URL endpoint.
+				Add a remote MCP server by providing a name and its URL endpoint.
 			</div>
 
 			<form onSubmit={handleSubmit}>
