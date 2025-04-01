@@ -61,9 +61,9 @@ export class LiteLlmHandler implements ApiHandler {
 		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini")
 
 		// Configuration for extended thinking
-		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = budget_tokens !== 0 ? true : false
-		const thinking_config = reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined
+		const budgetTokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = budgetTokens !== 0 ? true : false
+		const thinkingConfig = reasoningOn ? { type: "enabled", budget_tokens: budgetTokens } : undefined
 
 		let temperature: number | undefined = 0
 
@@ -77,7 +77,7 @@ export class LiteLlmHandler implements ApiHandler {
 			temperature,
 			stream: true,
 			stream_options: { include_usage: true },
-			...(thinking_config && { thinking: thinking_config }), // Add thinking configuration when applicable
+			...(thinkingConfig && { thinking: thinkingConfig }), // Add thinking configuration when applicable
 		})
 
 		const inputCost = (await this.calculateCost(1e6, 0)) || 0
@@ -95,12 +95,15 @@ export class LiteLlmHandler implements ApiHandler {
 			}
 
 			// Handle reasoning events (thinking)
-			// @ts-ignore - thinking is not in the types but may be in the response
-			if (delta?.thinking) {
+			// Thinking is not in the standard types but may be in the response
+			interface ThinkingDelta {
+				thinking?: string
+			}
+
+			if ((delta as ThinkingDelta)?.thinking) {
 				yield {
 					type: "reasoning",
-					// @ts-ignore
-					reasoning: delta.thinking,
+					reasoning: (delta as ThinkingDelta).thinking || "",
 				}
 			}
 
