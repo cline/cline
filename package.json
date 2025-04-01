@@ -323,6 +323,7 @@
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
 		"@types/pdf-parse": "^1.1.4",
+		"@types/proxyquire": "^1.3.31",
 		"@types/should": "^11.2.0",
 		"@types/sinon": "^17.0.4",
 		"@types/turndown": "^5.0.5",
@@ -337,6 +338,7 @@
 		"husky": "^9.1.7",
 		"npm-run-all": "^4.1.5",
 		"prettier": "^3.3.3",
+		"proxyquire": "^2.1.3",
 		"should": "^13.2.3",
 		"sinon": "^19.0.2",
 		"typescript": "^5.4.5"

@@ -3,10 +3,14 @@ import * as path from "path"
 import * as fs from "fs"
 import * as childProcess from "child_process"
 import * as readline from "readline"
-import { byLengthAsc, Fzf, FzfResultItem } from "fzf"
 import { getBinPath } from "../ripgrep"
+import type { Fzf, FzfResultItem } from "fzf"
 
-async function executeRipgrepForFiles(
+// Wrapper function for childProcess.spawn
+export type SpawnFunction = typeof childProcess.spawn;
+export const getSpawnFunction = (): SpawnFunction => childProcess.spawn;
+
+export async function executeRipgrepForFiles(
 	rgPath: string,
 	workspacePath: string,
 	limit: number = 5000,
@@ -23,7 +27,7 @@ async function executeRipgrepForFiles(
 		]
 
 		// Spawn the ripgrep process with the specified arguments
-		const rgProcess = childProcess.spawn(rgPath, args)
+		const rgProcess = getSpawnFunction()(rgPath, args)
 		const rl = readline.createInterface({ input: rgProcess.stdout })
 
 		// Array to store file results and Set to track unique directories
@@ -109,9 +113,10 @@ export async function searchWorkspaceFiles(
 		// Match Scoring - Prioritize the label (filename) by including it twice in the search string
 		// Use multiple tiebreakers in order of importance: Match score, then length of match (shorter=better)
 		// Get more (2x) results than needed for filtering, we pick the top half after sorting
-		const fzf = new Fzf(allItems, {
-			selector: (item) => `${item.label || ""} ${item.label || ""} ${item.path}`,
-			tiebreakers: [OrderbyMatchScore, byLengthAsc],
+		const fzfModule = await import("fzf")
+		const fzf = new fzfModule.Fzf(allItems, {
+			selector: (item: { label?: string; path: string }) => `${item.label || ""} ${item.label || ""} ${item.path}`,
+			tiebreakers: [OrderbyMatchScore, fzfModule.byLengthAsc],
 			limit: limit * 2,
 		})
 
@@ -123,11 +128,11 @@ export async function searchWorkspaceFiles(
 		// This gives a more dramatic difference between good and bad matches
 		const filteredResults = fzf
 			.find(query)
-			.filter(({ score }) => Math.exp(score / 20) >= MIN_SCORE_THRESHOLD)
+			.filter(({ score }: { score: number }) => Math.exp(score / 20) >= MIN_SCORE_THRESHOLD)
 			.slice(0, limit)
 
 		// Verify if the path exists and is actually a directory
-		const verifiedResultsPromises = filteredResults.map(async ({ item }) => {
+		const verifiedResultsPromises = filteredResults.map(async ({ item }: { item: { path: string; type: "file" | "folder"; label?: string } }) => {
 			const fullPath = path.join(workspacePath, item.path)
 			let type = item.type
 
@@ -150,7 +155,7 @@ export async function searchWorkspaceFiles(
 
 // Custom match scoring for results ordering
 // Candidate score tiebreaker - fewer gaps between matched characters scores higher
-const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) => {
+export const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) => {
 	const countGaps = (positions: Iterable<number>) => {
 		let gaps = 0,
 			prev = -Infinity
