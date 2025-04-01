@@ -928,9 +928,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					onDrop={onDrop}
 					onDragOver={onDragOver}>
 					{showContextMenu && (
-						// setTimeout to prevent immediate invocation of the context menu
 						<div ref={contextMenuContainerRef}>
-							( settimeout(
 							<ContextMenu
 								onSelect={handleMentionSelect}
 								searchQuery={searchQuery}
@@ -942,7 +940,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								dynamicSearchResults={fileSearchResults}
 								isLoading={searchLoading}
 							/>
-							) )
 						</div>
 					)}
 					{!isTextAreaFocused && (
