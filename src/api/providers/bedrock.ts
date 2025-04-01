@@ -25,7 +25,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
-		let modelId = await this.getModelId()
+		const modelId = await this.getModelId()
 		const model = this.getModel()
 
 		// This baseModelId is used to indicate the capabilities of the model.
@@ -46,7 +46,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			return
 		}
 
-		let budget_tokens = this.options.thinkingBudgetTokens || 0
+		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = baseModelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
 		// Get model info and message indices for caching
@@ -267,7 +267,7 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	async getModelId(): Promise<string> {
 		if (this.options.awsUseCrossRegionInference) {
-			let regionPrefix = this.getRegion().slice(0, 3)
+			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
 				case "us-":
 					return `us.${this.getModel().id}`

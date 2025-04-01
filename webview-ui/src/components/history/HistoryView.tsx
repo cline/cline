@@ -85,7 +85,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [presentableTasks])
 
 	const taskHistorySearchResults = useMemo(() => {
-		let results = searchQuery ? highlight(fuse.search(searchQuery)) : presentableTasks
+		const results = searchQuery ? highlight(fuse.search(searchQuery)) : presentableTasks
 
 		results.sort((a, b) => {
 			switch (sortOption) {
