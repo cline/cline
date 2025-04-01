@@ -165,10 +165,404 @@ export class Controller {
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
 		switch (message.type) {
+			case "accountLoginClicked": {
+				// Generate nonce for state validation
+				const nonce = crypto.randomBytes(32).toString("hex")
+				await storeSecret(this.context, "authNonce", nonce)
+
+				// Open browser for authentication with state param
+				console.log("Login button clicked in account page")
+				console.log("Opening auth page with state param")
+
+				const uriScheme = vscode.env.uriScheme
+
+				const authUrl = vscode.Uri.parse(
+					`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`,
+				)
+				vscode.env.openExternal(authUrl)
+				break
+			}
+			case "accountLogoutClicked": {
+				await this.handleSignOut()
+				break
+			}
+			case "apiConfiguration":
+				if (message.apiConfiguration) {
+					await updateApiConfiguration(this.context, message.apiConfiguration)
+					if (this.task) {
+						this.task.api = buildApiHandler(message.apiConfiguration)
+					}
+				}
+				await this.postStateToWebview()
+				break
+			case "askResponse":
+				this.task?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
+				break
 			case "authStateChanged":
 				await this.setUserInfo(message.user || undefined)
 				await this.postStateToWebview()
 				break
+			case "autoApprovalSettings":
+				if (message.autoApprovalSettings) {
+					await updateGlobalState(this.context, "autoApprovalSettings", message.autoApprovalSettings)
+					if (this.task) {
+						this.task.autoApprovalSettings = message.autoApprovalSettings
+					}
+					await this.postStateToWebview()
+				}
+				break
+			case "browserSettings":
+				if (message.browserSettings) {
+					await updateGlobalState(this.context, "browserSettings", message.browserSettings)
+					if (this.task) {
+						this.task.browserSettings = message.browserSettings
+						this.task.browserSession.browserSettings = message.browserSettings
+					}
+					await this.postStateToWebview()
+				}
+				break
+			case "cancelTask":
+				this.cancelTask()
+				break
+			case "checkpointDiff": {
+				if (message.number) {
+					await this.task?.presentMultifileDiff(message.number, false)
+				}
+				break
+			}
+			case "checkpointRestore": {
+				await this.cancelTask() // we cannot alter message history say if the task is active, as it could be in the middle of editing a file or running a command, which expect the ask to be responded to rather than being superceded by a new message eg add deleted_api_reqs
+				// cancel task waits for any open editor to be reverted and starts a new cline instance
+				if (message.number) {
+					// wait for messages to be loaded
+					await pWaitFor(() => this.task?.isInitialized === true, {
+						timeout: 3_000,
+					}).catch(() => {
+						console.error("Failed to init new cline instance")
+					})
+					// NOTE: cancelTask awaits abortTask, which awaits diffViewProvider.revertChanges, which reverts any edited files, allowing us to reset to a checkpoint rather than running into a state where the revertChanges function is called alongside or after the checkpoint reset
+					await this.task?.restoreCheckpoint(message.number, message.text! as ClineCheckpointRestore)
+				}
+				break
+			}
+			case "checkIsImageUrl":
+				this.checkIsImageUrl(message.text!)
+				break
+			case "clearAllTaskHistory": {
+				await this.deleteAllTaskHistory()
+				await this.postStateToWebview()
+				this.refreshTotalTasksSize()
+				this.postMessageToWebview({ type: "relinquishControl" })
+				break
+			}
+			case "clearTask":
+				// newTask will start a new task with a given task text, while clear task resets the current session and allows for a new task to be started
+				await this.clearTask()
+				await this.postStateToWebview()
+				break
+
+			case "deleteMcpServer": {
+				if (message.serverName) {
+					this.mcpHub?.deleteServer(message.serverName)
+				}
+				break
+			}
+			case "deleteTaskWithId":
+				this.deleteTaskWithId(message.text!)
+				break
+
+			case "didShowAnnouncement":
+				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)
+				await this.postStateToWebview()
+				break
+
+			case "downloadMcp": {
+				if (message.mcpId) {
+					// 1. Toggle to act mode if we are in plan mode
+					const { chatSettings } = await this.getStateToPostToWebview()
+					if (chatSettings.mode === "plan") {
+						await this.togglePlanActModeWithChatSettings({ mode: "act" })
+					}
+
+					// 2. Enable MCP settings if disabled
+					// Enable MCP mode if disabled
+					const mcpConfig = vscode.workspace.getConfiguration("cline.mcp")
+					if (mcpConfig.get<string>("mode") !== "full") {
+						await mcpConfig.update("mode", "full", true)
+					}
+
+					// 3. download MCP
+					await this.downloadMcp(message.mcpId)
+				}
+				break
+			}
+			case "exportCurrentTask":
+				const currentTaskId = this.task?.taskId
+				if (currentTaskId) {
+					this.exportTaskWithId(currentTaskId)
+				}
+				break
+
+			case "exportTaskWithId":
+				this.exportTaskWithId(message.text!)
+				break
+
+			case "fetchLatestMcpServersFromHub": {
+				this.mcpHub?.sendLatestMcpServers()
+				break
+			}
+
+			case "fetchMcpMarketplace": {
+				await this.fetchMcpMarketplace(message.bool)
+				break
+			}
+
+			case "fetchOpenGraphData":
+				this.fetchOpenGraphData(message.text!)
+				break
+
+			case "fetchUserCreditsData": {
+				await this.fetchUserCreditsData()
+				break
+			}
+
+			case "getLatestState":
+				await this.postStateToWebview()
+				break
+
+			case "invoke": {
+				if (message.text) {
+					await this.postMessageToWebview({
+						type: "invoke",
+						invoke: message.text as Invoke,
+					})
+				}
+				break
+			}
+
+			case "newTask":
+				// Code that should run in response to the hello message command
+				//vscode.window.showInformationMessage(message.text!)
+
+				// Send a message to our webview.
+				// You can send any JSON serializable data.
+				// Could also do this in extension .ts
+				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
+				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
+				await this.initClineWithTask(message.text, message.images)
+				break
+
+			case "openExtensionSettings": {
+				const settingsFilter = message.text || ""
+				await vscode.commands.executeCommand(
+					"workbench.action.openSettings",
+					`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
+				)
+				break
+			}
+
+			case "openFile":
+				openFile(message.text!)
+				break
+
+			case "openImage":
+				openImage(message.text!)
+				break
+
+			case "openInBrowser":
+				if (message.url) {
+					vscode.env.openExternal(vscode.Uri.parse(message.url))
+				}
+				break
+
+			case "openMention":
+				openMention(message.text)
+				break
+
+			case "openMcpSettings": {
+				const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
+				if (mcpSettingsFilePath) {
+					openFile(mcpSettingsFilePath)
+				}
+				break
+			}
+			case "openSettings": {
+				await this.postMessageToWebview({
+					type: "action",
+					action: "settingsButtonClicked",
+				})
+				break
+			}
+			case "optionsResponse":
+				await this.postMessageToWebview({
+					type: "invoke",
+					invoke: "sendMessage",
+					text: message.text,
+				})
+				break
+			case "refreshOpenAiModels":
+				const { apiConfiguration } = await getAllExtensionState(this.context)
+				const openAiModels = await this.getOpenAiModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
+				this.postMessageToWebview({ type: "openAiModels", openAiModels })
+				break
+			case "refreshOpenRouterModels":
+				await this.refreshOpenRouterModels()
+				break
+			case "requestLmStudioModels":
+				const lmStudioModels = await this.getLmStudioModels(message.text)
+				this.postMessageToWebview({
+					type: "lmStudioModels",
+					lmStudioModels,
+				})
+				break
+			case "requestOllamaModels":
+				const ollamaModels = await this.getOllamaModels(message.text)
+				this.postMessageToWebview({
+					type: "ollamaModels",
+					ollamaModels,
+				})
+				break
+			case "requestTotalTasksSize": {
+				this.refreshTotalTasksSize()
+				break
+			}
+			case "requestVsCodeLmModels":
+				const vsCodeLmModels = await this.getVsCodeLmModels()
+				this.postMessageToWebview({ type: "vsCodeLmModels", vsCodeLmModels })
+				break
+			case "resetState":
+				await this.resetState()
+				break
+			case "restartMcpServer": {
+				try {
+					await this.mcpHub?.restartConnection(message.text!)
+				} catch (error) {
+					console.error(`Failed to retry connection for ${message.text}:`, error)
+				}
+				break
+			}
+			case "searchCommits": {
+				const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
+				if (cwd) {
+					try {
+						const commits = await searchCommits(message.text || "", cwd)
+						await this.postMessageToWebview({
+							type: "commitSearchResults",
+							commits,
+						})
+					} catch (error) {
+						console.error(`Error searching commits: ${JSON.stringify(error)}`)
+					}
+				}
+				break
+			}
+
+			case "selectImages":
+				const images = await selectImages()
+				await this.postMessageToWebview({
+					type: "selectedImages",
+					images,
+				})
+				break
+			case "showAccountViewClicked": {
+				await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
+				break
+			}
+			case "showMcpView": {
+				await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked" })
+				break
+			}
+			case "showTaskWithId":
+				this.showTaskWithId(message.text!)
+				break
+			case "silentlyRefreshMcpMarketplace": {
+				await this.silentlyRefreshMcpMarketplace()
+				break
+			}
+			case "taskCompletionViewChanges": {
+				if (message.number) {
+					await this.task?.presentMultifileDiff(message.number, true)
+				}
+				break
+			}
+			case "taskFeedback":
+				if (message.feedbackType && this.task?.taskId) {
+					telemetryService.captureTaskFeedback(this.task.taskId, message.feedbackType)
+				}
+				break
+			case "telemetrySetting": {
+				if (message.telemetrySetting) {
+					await this.updateTelemetrySetting(message.telemetrySetting)
+				}
+				await this.postStateToWebview()
+				break
+			}
+			case "toggleMcpServer": {
+				try {
+					await this.mcpHub?.toggleServerDisabled(message.serverName!, message.disabled!)
+				} catch (error) {
+					console.error(`Failed to toggle MCP server ${message.serverName}:`, error)
+				}
+				break
+			}
+			case "togglePlanActMode":
+				if (message.chatSettings) {
+					await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
+				}
+				break
+
+			case "toggleToolAutoApprove": {
+				try {
+					await this.mcpHub?.toggleToolAutoApprove(message.serverName!, message.toolNames!, message.autoApprove!)
+				} catch (error) {
+					if (message.toolNames?.length === 1) {
+						console.error(
+							`Failed to toggle auto-approve for server ${message.serverName} with tool ${message.toolNames[0]}:`,
+							error,
+						)
+					} else {
+						console.error(`Failed to toggle auto-approve tools for server ${message.serverName}:`, error)
+					}
+				}
+				break
+			}
+			case "updateMcpTimeout": {
+				try {
+					if (message.serverName && message.timeout) {
+						await this.mcpHub?.updateServerTimeout(message.serverName, message.timeout)
+					}
+				} catch (error) {
+					console.error(`Failed to update timeout for server ${message.serverName}:`, error)
+				}
+				break
+			}
+
+			case "updateSettings": {
+				// api config
+				if (message.apiConfiguration) {
+					await updateApiConfiguration(this.context, message.apiConfiguration)
+					if (this.task) {
+						this.task.api = buildApiHandler(message.apiConfiguration)
+					}
+				}
+
+				// custom instructions
+				await this.updateCustomInstructions(message.customInstructionsSetting)
+
+				// telemetry setting
+				if (message.telemetrySetting) {
+					await this.updateTelemetrySetting(message.telemetrySetting)
+				}
+
+				// plan act setting
+				await updateGlobalState(this.context, "planActSeparateModelsSetting", message.planActSeparateModelsSetting)
+
+				// after settings are updated, post state to webview
+				await this.postStateToWebview()
+
+				await this.postMessageToWebview({ type: "didUpdateSettings" })
+				break
+			}
 			case "webviewDidLaunch":
 				this.postStateToWebview()
 				this.workspaceTracker?.populateFilePaths() // don't await
@@ -223,423 +617,11 @@ export class Controller {
 					telemetryService.updateTelemetryState(isOptedIn)
 				})
 				break
-			case "newTask":
-				// Code that should run in response to the hello message command
-				//vscode.window.showInformationMessage(message.text!)
 
-				// Send a message to our webview.
-				// You can send any JSON serializable data.
-				// Could also do this in extension .ts
-				//this.postMessageToWebview({ type: "text", text: `Extension: ${Date.now()}` })
-				// initializing new instance of Cline will make sure that any agentically running promises in old instance don't affect our new task. this essentially creates a fresh slate for the new task
-				await this.initClineWithTask(message.text, message.images)
-				break
-			case "apiConfiguration":
-				if (message.apiConfiguration) {
-					await updateApiConfiguration(this.context, message.apiConfiguration)
-					if (this.task) {
-						this.task.api = buildApiHandler(message.apiConfiguration)
-					}
-				}
-				await this.postStateToWebview()
-				break
-			case "autoApprovalSettings":
-				if (message.autoApprovalSettings) {
-					await updateGlobalState(this.context, "autoApprovalSettings", message.autoApprovalSettings)
-					if (this.task) {
-						this.task.autoApprovalSettings = message.autoApprovalSettings
-					}
-					await this.postStateToWebview()
-				}
-				break
-			case "browserSettings":
-				if (message.browserSettings) {
-					await updateGlobalState(this.context, "browserSettings", message.browserSettings)
-					if (this.task) {
-						this.task.browserSettings = message.browserSettings
-						this.task.browserSession.browserSettings = message.browserSettings
-					}
-					await this.postStateToWebview()
-				}
-				break
-			case "togglePlanActMode":
-				if (message.chatSettings) {
-					await this.togglePlanActModeWithChatSettings(message.chatSettings, message.chatContent)
-				}
-				break
-			case "optionsResponse":
-				await this.postMessageToWebview({
-					type: "invoke",
-					invoke: "sendMessage",
-					text: message.text,
-				})
-				break
-			// case "relaunchChromeDebugMode":
-			// 	if (this.task) {
-			// 		this.task.browserSession.relaunchChromeDebugMode()
-			// 	}
-			// 	break
-			case "askResponse":
-				this.task?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
-				break
-			case "clearTask":
-				// newTask will start a new task with a given task text, while clear task resets the current session and allows for a new task to be started
-				await this.clearTask()
-				await this.postStateToWebview()
-				break
-			case "didShowAnnouncement":
-				await updateGlobalState(this.context, "lastShownAnnouncementId", this.latestAnnouncementId)
-				await this.postStateToWebview()
-				break
-			case "selectImages":
-				const images = await selectImages()
-				await this.postMessageToWebview({
-					type: "selectedImages",
-					images,
-				})
-				break
-			case "exportCurrentTask":
-				const currentTaskId = this.task?.taskId
-				if (currentTaskId) {
-					this.exportTaskWithId(currentTaskId)
-				}
-				break
-			case "showTaskWithId":
-				this.showTaskWithId(message.text!)
-				break
-			case "deleteTaskWithId":
-				this.deleteTaskWithId(message.text!)
-				break
-			case "exportTaskWithId":
-				this.exportTaskWithId(message.text!)
-				break
-			case "resetState":
-				await this.resetState()
-				break
-			case "requestOllamaModels":
-				const ollamaModels = await this.getOllamaModels(message.text)
-				this.postMessageToWebview({
-					type: "ollamaModels",
-					ollamaModels,
-				})
-				break
-			case "requestLmStudioModels":
-				const lmStudioModels = await this.getLmStudioModels(message.text)
-				this.postMessageToWebview({
-					type: "lmStudioModels",
-					lmStudioModels,
-				})
-				break
-			case "requestVsCodeLmModels":
-				const vsCodeLmModels = await this.getVsCodeLmModels()
-				this.postMessageToWebview({ type: "vsCodeLmModels", vsCodeLmModels })
-				break
-			case "refreshOpenRouterModels":
-				await this.refreshOpenRouterModels()
-				break
-			case "refreshOpenAiModels":
-				const { apiConfiguration } = await getAllExtensionState(this.context)
-				const openAiModels = await this.getOpenAiModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
-				this.postMessageToWebview({ type: "openAiModels", openAiModels })
-				break
-			case "openImage":
-				openImage(message.text!)
-				break
-			case "openInBrowser":
-				if (message.url) {
-					vscode.env.openExternal(vscode.Uri.parse(message.url))
-				}
-				break
-			case "fetchOpenGraphData":
-				this.fetchOpenGraphData(message.text!)
-				break
-			case "checkIsImageUrl":
-				this.checkIsImageUrl(message.text!)
-				break
-			case "openFile":
-				openFile(message.text!)
-				break
-			case "openMention":
-				openMention(message.text)
-				break
-			case "checkpointDiff": {
-				if (message.number) {
-					await this.task?.presentMultifileDiff(message.number, false)
-				}
-				break
-			}
-			case "checkpointRestore": {
-				await this.cancelTask() // we cannot alter message history say if the task is active, as it could be in the middle of editing a file or running a command, which expect the ask to be responded to rather than being superceded by a new message eg add deleted_api_reqs
-				// cancel task waits for any open editor to be reverted and starts a new cline instance
-				if (message.number) {
-					// wait for messages to be loaded
-					await pWaitFor(() => this.task?.isInitialized === true, {
-						timeout: 3_000,
-					}).catch(() => {
-						console.error("Failed to init new cline instance")
-					})
-					// NOTE: cancelTask awaits abortTask, which awaits diffViewProvider.revertChanges, which reverts any edited files, allowing us to reset to a checkpoint rather than running into a state where the revertChanges function is called alongside or after the checkpoint reset
-					await this.task?.restoreCheckpoint(message.number, message.text! as ClineCheckpointRestore)
-				}
-				break
-			}
-			case "taskCompletionViewChanges": {
-				if (message.number) {
-					await this.task?.presentMultifileDiff(message.number, true)
-				}
-				break
-			}
-			case "cancelTask":
-				this.cancelTask()
-				break
-			case "getLatestState":
-				await this.postStateToWebview()
-				break
-			case "accountLoginClicked": {
-				// Generate nonce for state validation
-				const nonce = crypto.randomBytes(32).toString("hex")
-				await storeSecret(this.context, "authNonce", nonce)
-
-				// Open browser for authentication with state param
-				console.log("Login button clicked in account page")
-				console.log("Opening auth page with state param")
-
-				const uriScheme = vscode.env.uriScheme
-
-				const authUrl = vscode.Uri.parse(
-					`https://app.cline.bot/auth?state=${encodeURIComponent(nonce)}&callback_url=${encodeURIComponent(`${uriScheme || "vscode"}://saoudrizwan.claude-dev/auth`)}`,
-				)
-				vscode.env.openExternal(authUrl)
-				break
-			}
-			case "accountLogoutClicked": {
-				await this.handleSignOut()
-				break
-			}
-			case "showAccountViewClicked": {
-				await this.postMessageToWebview({ type: "action", action: "accountButtonClicked" })
-				break
-			}
-			case "fetchUserCreditsData": {
-				await this.fetchUserCreditsData()
-				break
-			}
-			case "showMcpView": {
-				await this.postMessageToWebview({ type: "action", action: "mcpButtonClicked" })
-				break
-			}
-			case "openMcpSettings": {
-				const mcpSettingsFilePath = await this.mcpHub?.getMcpSettingsFilePath()
-				if (mcpSettingsFilePath) {
-					openFile(mcpSettingsFilePath)
-				}
-				break
-			}
-			case "fetchMcpMarketplace": {
-				await this.fetchMcpMarketplace(message.bool)
-				break
-			}
-			case "downloadMcp": {
-				if (message.mcpId) {
-					// 1. Toggle to act mode if we are in plan mode
-					const { chatSettings } = await this.getStateToPostToWebview()
-					if (chatSettings.mode === "plan") {
-						await this.togglePlanActModeWithChatSettings({ mode: "act" })
-					}
-
-					// 2. Enable MCP settings if disabled
-					// Enable MCP mode if disabled
-					const mcpConfig = vscode.workspace.getConfiguration("cline.mcp")
-					if (mcpConfig.get<string>("mode") !== "full") {
-						await mcpConfig.update("mode", "full", true)
-					}
-
-					// 3. download MCP
-					await this.downloadMcp(message.mcpId)
-				}
-				break
-			}
-			case "silentlyRefreshMcpMarketplace": {
-				await this.silentlyRefreshMcpMarketplace()
-				break
-			}
-			case "taskFeedback":
-				if (message.feedbackType && this.task?.taskId) {
-					telemetryService.captureTaskFeedback(this.task.taskId, message.feedbackType)
-				}
-				break
-			// case "openMcpMarketplaceServerDetails": {
-			// 	if (message.text) {
-			// 		const response = await fetch(`https://api.cline.bot/v1/mcp/marketplace/item?mcpId=${message.mcpId}`)
-			// 		const details: McpDownloadResponse = await response.json()
-
-			// 		if (details.readmeContent) {
-			// 			// Disable markdown preview markers
-			// 			const config = vscode.workspace.getConfiguration("markdown")
-			// 			await config.update("preview.markEditorSelection", false, true)
-
-			// 			// Create URI with base64 encoded markdown content
-			// 			const uri = vscode.Uri.parse(
-			// 				`${DIFF_VIEW_URI_SCHEME}:${details.name} README?${Buffer.from(details.readmeContent).toString("base64")}`,
-			// 			)
-
-			// 			// close existing
-			// 			const tabs = vscode.window.tabGroups.all
-			// 				.flatMap((tg) => tg.tabs)
-			// 				.filter((tab) => tab.label && tab.label.includes("README") && tab.label.includes("Preview"))
-			// 			for (const tab of tabs) {
-			// 				await vscode.window.tabGroups.close(tab)
-			// 			}
-
-			// 			// Show only the preview
-			// 			await vscode.commands.executeCommand("markdown.showPreview", uri, {
-			// 				sideBySide: true,
-			// 				preserveFocus: true,
-			// 			})
-			// 		}
-			// 	}
-
-			// 	this.postMessageToWebview({ type: "relinquishControl" })
-
-			// 	break
-			// }
-			case "toggleMcpServer": {
-				try {
-					await this.mcpHub?.toggleServerDisabled(message.serverName!, message.disabled!)
-				} catch (error) {
-					console.error(`Failed to toggle MCP server ${message.serverName}:`, error)
-				}
-				break
-			}
-			case "toggleToolAutoApprove": {
-				try {
-					await this.mcpHub?.toggleToolAutoApprove(message.serverName!, message.toolNames!, message.autoApprove!)
-				} catch (error) {
-					if (message.toolNames?.length === 1) {
-						console.error(
-							`Failed to toggle auto-approve for server ${message.serverName} with tool ${message.toolNames[0]}:`,
-							error,
-						)
-					} else {
-						console.error(`Failed to toggle auto-approve tools for server ${message.serverName}:`, error)
-					}
-				}
-				break
-			}
-			case "requestTotalTasksSize": {
-				this.refreshTotalTasksSize()
-				break
-			}
-			case "restartMcpServer": {
-				try {
-					await this.mcpHub?.restartConnection(message.text!)
-				} catch (error) {
-					console.error(`Failed to retry connection for ${message.text}:`, error)
-				}
-				break
-			}
-			case "deleteMcpServer": {
-				if (message.serverName) {
-					this.mcpHub?.deleteServer(message.serverName)
-				}
-				break
-			}
-			case "fetchLatestMcpServersFromHub": {
-				this.mcpHub?.sendLatestMcpServers()
-				break
-			}
-			case "searchCommits": {
-				const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
-				if (cwd) {
-					try {
-						const commits = await searchCommits(message.text || "", cwd)
-						await this.postMessageToWebview({
-							type: "commitSearchResults",
-							commits,
-						})
-					} catch (error) {
-						console.error(`Error searching commits: ${JSON.stringify(error)}`)
-					}
-				}
-				break
-			}
-			case "updateMcpTimeout": {
-				try {
-					if (message.serverName && message.timeout) {
-						await this.mcpHub?.updateServerTimeout(message.serverName, message.timeout)
-					}
-				} catch (error) {
-					console.error(`Failed to update timeout for server ${message.serverName}:`, error)
-				}
-				break
-			}
-			case "openExtensionSettings": {
-				const settingsFilter = message.text || ""
-				await vscode.commands.executeCommand(
-					"workbench.action.openSettings",
-					`@ext:saoudrizwan.claude-dev ${settingsFilter}`.trim(), // trim whitespace if no settings filter
-				)
-				break
-			}
-			case "invoke": {
-				if (message.text) {
-					await this.postMessageToWebview({
-						type: "invoke",
-						invoke: message.text as Invoke,
-					})
-				}
-				break
-			}
-			// telemetry
-			case "openSettings": {
-				await this.postMessageToWebview({
-					type: "action",
-					action: "settingsButtonClicked",
-				})
-				break
-			}
-			case "telemetrySetting": {
-				if (message.telemetrySetting) {
-					await this.updateTelemetrySetting(message.telemetrySetting)
-				}
-				await this.postStateToWebview()
-				break
-			}
-			case "updateSettings": {
-				// api config
-				if (message.apiConfiguration) {
-					await updateApiConfiguration(this.context, message.apiConfiguration)
-					if (this.task) {
-						this.task.api = buildApiHandler(message.apiConfiguration)
-					}
-				}
-
-				// custom instructions
-				await this.updateCustomInstructions(message.customInstructionsSetting)
-
-				// telemetry setting
-				if (message.telemetrySetting) {
-					await this.updateTelemetrySetting(message.telemetrySetting)
-				}
-
-				// plan act setting
-				await updateGlobalState(this.context, "planActSeparateModelsSetting", message.planActSeparateModelsSetting)
-
-				// after settings are updated, post state to webview
-				await this.postStateToWebview()
-
-				await this.postMessageToWebview({ type: "didUpdateSettings" })
-				break
-			}
-			case "clearAllTaskHistory": {
-				await this.deleteAllTaskHistory()
-				await this.postStateToWebview()
-				this.refreshTotalTasksSize()
-				this.postMessageToWebview({ type: "relinquishControl" })
-				break
-			}
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
+
+			// Put them in alphabetical order or Santa will not come to your house
 		}
 	}
 
