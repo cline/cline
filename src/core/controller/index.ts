@@ -186,6 +186,15 @@ export class Controller {
 				await this.handleSignOut()
 				break
 			}
+			case "addRemoteServer": {
+				try {
+					await this.mcpHub?.addRemoteServer(message.serverName!, message.serverUrl!)
+				} catch (error) {
+					// We handle the errorin McpHub.ts where the function is defined
+					console.error(`Failed to add remote server ${message.serverName}:`, error)
+				}
+				break
+			}
 			case "apiConfiguration":
 				if (message.apiConfiguration) {
 					await updateApiConfiguration(this.context, message.apiConfiguration)
