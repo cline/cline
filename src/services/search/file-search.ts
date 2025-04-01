@@ -149,31 +149,31 @@ export async function searchWorkspaceFiles(
 		})
 
 		const fzfResults = fzf.find(query)
-		
-		// The min threshold value will require some testing and tuning as the scores are exponential, and exagerated
-		const MIN_SCORE_THRESHOLD = 100;
 
+		// The min threshold value will require some testing and tuning as the scores are exponential, and exagerated
+		const MIN_SCORE_THRESHOLD = 100
 
 		fzfResults.slice(0, 10).forEach((result, index) => {
-			const rawScore = result.score;
-			const normalizedScore = Math.exp(result.score / 20); // Exponential scaling
-			
-		});
-		
+			const rawScore = result.score
+			const normalizedScore = Math.exp(result.score / 20) // Exponential scaling
+		})
+
 		// Filter results by score and map to original items
 		const filteredResults = fzfResults
 			.filter((result, index) => {
 				// Use exponential scaling for normalization
 				// This gives a more dramatic difference between good and bad matches
-				const normalizedScore = Math.exp(result.score / 20);
-				const passes = normalizedScore >= MIN_SCORE_THRESHOLD;
-				
-				return passes;
+				const normalizedScore = Math.exp(result.score / 20)
+				const passes = normalizedScore >= MIN_SCORE_THRESHOLD
+
+				return passes
 			})
-			.map(result => result.item.original)
-			.slice(0, limit); // Apply the original limit after filtering, removing up to half of the candidates
-			
-		console.log(`[File Mentions Debug] After filtering: ${filteredResults.length} results passed threshold of ${MIN_SCORE_THRESHOLD}`);
+			.map((result) => result.item.original)
+			.slice(0, limit) // Apply the original limit after filtering, removing up to half of the candidates
+
+		console.log(
+			`[File Mentions Debug] After filtering: ${filteredResults.length} results passed threshold of ${MIN_SCORE_THRESHOLD}`,
+		)
 
 		const verifiedResults = await Promise.all(
 			filteredResults.map(async (result) => {
@@ -205,19 +205,19 @@ export async function searchWorkspaceFiles(
 // Candidate score tiebreaker - fewer gaps between matched characters scores higher
 const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) => {
 	const countGaps = (positions: readonly number[]) => {
-		let gaps = 0;
+		let gaps = 0
 		for (let i = 1; i < positions.length; i++) {
 			if (positions[i] - positions[i - 1] > 1) {
-				gaps++;
+				gaps++
 			}
 		}
-		return gaps;
-	};
-	
-	const aPositions = Array.isArray(a.positions) ? a.positions : Array.from(a.positions);
-	const bPositions = Array.isArray(b.positions) ? b.positions : Array.from(b.positions);
-	
-	const aGaps = countGaps(aPositions);
-	const bGaps = countGaps(bPositions);
-	return aGaps - bGaps;
-};
+		return gaps
+	}
+
+	const aPositions = Array.isArray(a.positions) ? a.positions : Array.from(a.positions)
+	const bPositions = Array.isArray(b.positions) ? b.positions : Array.from(b.positions)
+
+	const aGaps = countGaps(aPositions)
+	const bGaps = countGaps(bPositions)
+	return aGaps - bGaps
+}

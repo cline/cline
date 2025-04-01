@@ -491,7 +491,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 		const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-		const currentSearchQueryRef = useRef<string>("");
+		const currentSearchQueryRef = useRef<string>("")
 
 		const handleInputChange = useCallback(
 			(e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -506,7 +506,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
 					const query = newValue.slice(lastAtIndex + 1, newCursorPosition)
 					setSearchQuery(query)
-					currentSearchQueryRef.current = query;
+					currentSearchQueryRef.current = query
 
 					if (query.length > 0 && !selectedType) {
 						console.log("searching for:", query)
@@ -524,7 +524,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							vscode.postMessage({
 								type: "searchFiles",
 								query: query,
-								mentionsRequestId: query
+								mentionsRequestId: query,
 							})
 						}, 200) // 200ms debounce
 					} else {
