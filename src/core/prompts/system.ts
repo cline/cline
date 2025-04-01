@@ -239,6 +239,15 @@ Your final result description here
 <command>Command to demonstrate result (optional)</command>
 </attempt_completion>
 
+## new_task
+Description: Request to create a new task with preloaded context. This tool is useful when the context window is approaching capacity or when you want to suggest a new focused task based on the current conversation. The user will be presented with a preview of the context and can choose to create a new task or continue the current conversation.
+Parameters:
+- context: (required) The context to preload the new task with. This should include relevant information from the current conversation that would be helpful for the new task.
+Usage:
+<new_task>
+<context>context to preload new task with</context>
+</new_task>
+
 ## plan_mode_respond
 Description: Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should be used when you need to provide a response to a question or statement from the user about how you plan to accomplish the task. This tool is only available in PLAN MODE. The environment_details will specify the current mode, if it is not PLAN MODE then you should not use this tool. Depending on the user's message, you may ask questions to get clarification about the user's request, architect a solution to the task, and to brainstorm ideas with the user. For example, if the user's task is to create a website, you may start by asking some clarifying questions, then present a detailed plan for how you will accomplish the task given the context, and perhaps engage in a back and forth to finalize the details before the user switches you to ACT MODE to implement the solution.
 Parameters:

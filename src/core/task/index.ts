@@ -2678,6 +2678,51 @@ export class Task {
 							break
 						}
 					}
+					case "new_task": {
+						const context: string | undefined = block.params.context
+						try {
+							if (block.partial) {
+								await this.ask("new_task", removeClosingTag("context", context), block.partial).catch(() => {})
+								break
+							} else {
+								if (!context) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("new_task", "context"))
+									break
+								}
+								this.consecutiveMistakeCount = 0
+
+								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+									showSystemNotification({
+										subtitle: "Cline wants to create a new task...",
+										message: "Cline is suggesting to create a new task with preloaded context.",
+									})
+								}
+
+								const { text, images } = await this.ask("new_task", context, false)
+
+								// If the user provided a response, treat it as feedback
+								if (text || images?.length) {
+									await this.say("user_feedback", text ?? "", images)
+									pushToolResult(
+										formatResponse.toolResult(
+											`The user provided feedback instead of creating a new task:\n<feedback>\n${text}\n</feedback>`,
+											images,
+										),
+									)
+								} else {
+									// If no response, the user clicked the "Create New Task" button
+									pushToolResult(
+										formatResponse.toolResult(`The user has created a new task with the provided context.`),
+									)
+								}
+								break
+							}
+						} catch (error) {
+							await handleError("creating new task", error)
+							break
+						}
+					}
 					case "plan_mode_respond": {
 						const response: string | undefined = block.params.response
 						const optionsRaw: string | undefined = block.params.options

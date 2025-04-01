@@ -31,6 +31,7 @@ import { OptionsButtons } from "./OptionsButtons"
 import { highlightMentions } from "./TaskHeader"
 import SuccessButton from "../common/SuccessButton"
 import TaskFeedbackButtons from "./TaskFeedbackButtons"
+import NewTaskPreview from "./NewTaskPreview"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
@@ -1231,6 +1232,24 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									isActive={isLast && lastModifiedMessage?.ask === "followup"}
 								/>
 							</div>
+						</>
+					)
+				case "new_task":
+					return (
+						<>
+							<div style={headerStyle}>
+								<span
+									className="codicon codicon-new-file"
+									style={{
+										color: normalColor,
+										marginBottom: "-1.5px",
+									}}></span>
+								<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to create a new task:</span>
+							</div>
+							<NewTaskPreview
+								context={message.text || ""}
+								isActive={isLast && lastModifiedMessage?.ask === "new_task"}
+							/>
 						</>
 					)
 				case "plan_mode_respond": {

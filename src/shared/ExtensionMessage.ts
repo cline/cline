@@ -142,6 +142,7 @@ export type ClineAsk =
 	| "auto_approval_max_req_reached"
 	| "browser_action_launch"
 	| "use_mcp_server"
+	| "new_task"
 
 export type ClineSay =
 	| "task"
@@ -220,6 +221,10 @@ export interface ClineAskQuestion {
 	question: string
 	options?: string[]
 	selected?: string
+}
+
+export interface ClineAskNewTask {
+	context: string
 }
 
 export interface ClineApiReqInfo {
