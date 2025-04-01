@@ -1,5 +1,116 @@
 # Changelog
 
+## [3.8.5]
+
+-   Add support for remote MCP Servers using SSE
+-   Add gemini-2.5-pro-exp-03-25 to Vertex AI (thanks @arri-cc!)
+-   Add access to history, mcp, and new task buttons in popout view
+-   Add task feedback telemetry (thumbs up/down on task completion)
+-   Add toggle disabled for remote servers
+-   Move the MCP Restart and Delete buttons and add an auto-approve all toggle
+-   Update Requestly UX for model selection (thanks @arafatkatze!)
+-   Add escape for html content for gemini when running commands
+-   Improve search and replace edit failure behaviors
+
+## [3.8.4]
+
+-   Add Sambanova Deepseek-V3-0324
+-   Add cost calculation support for LiteLLM provider
+-   Fix bug where Cline would use plan_mode_response bug without response parameter
+
+## [3.8.3]
+
+-   Add support for SambaNova QwQ-32B model
+-   Add OpenAI "dynamic" model chatgpt-4o-latest
+-   Add Amazon Nova models to AWS Bedrock
+-   Improve file handling for NextJS folder naming (fixes issues with parentheses in folder names)
+-   Add Gemini 2.5 Pro to Google AI Studio available models
+-   Handle "input too large" errors for Anthropic
+-   Fix "See more" not showing up for tasks after task un-fold
+-   Fix gpt-4.5-preview's supportsPromptCache value to true
+
+## [3.8.2]
+
+-   Fix bug where switching to plan/act would result in VS Code LM/OpenRouter model being reset
+
+## [3.8.0]
+
+-   Add 'Add to Cline' as an option when you right-click in a file or the terminal, making it easier to add context to your current task
+-   Add 'Fix with Cline' code action - when you see a lightbulb icon in your editor, you can now select 'Fix with Cline' to send the code and associated errors for Cline to fix. (Cursor users can also use the 'Quick Fix (CMD + .)' menu to see this option)
+-   Add Account view to display billing and usage history for Cline account users. You can now keep track of credits used and transaction history right in the extension!
+-   Add 'Sort underling provider routing' setting to Cline/OpenRouter allowing you to sort provider used by throughput, price, latency, or the default (combination of price and uptime)
+-   Improve rich MCP display with dynamic image loading and support for GIFs
+-   Add 'Documentation' menu item to easily access Cline's docs
+-   Add OpenRouter's new usage_details feature for more reliable cost reporting
+-   Display total space Cline takes on disk next to 'Delete all Tasks' button in History view
+-   Fix 'Context Window Exceeded' error for OpenRouter/Cline Accounts (additional support coming soon)
+-   Fix bug where OpenRouter model ID would be set to invalid value
+-   Add button to delete MCP servers in a failure state
+
+## [3.7.1]
+
+-   Fix issue with 'See more' button in task header not showing when starting new tasks
+-   Fix issue with checkpoints using local git commit hooks
+
+## [3.7.0]
+
+-   Cline now displays selectable options when asking questions or presenting a plan, saving you from having to type out responses!
+-   Add support for a `.clinerules/` directory to load multiple files at once (thanks @ryo-ma!)
+-   Prevent Cline from reading extremely large files into context that would overload context window
+-   Improve checkpoints loading performance and display warning for large projects not suited for checkpoints
+-   Add SambaNova API provider (thanks @saad-noodleseed!)
+-   Add VPC endpoint option for AWS Bedrock profiles (thanks @minorunara!)
+-   Add DeepSeek-R1 to AWS Bedrock (thanks @watany-dev!)
+
+## [3.6.5]
+
+-   Add 'Delete all Task History' button to History view
+-   Add toggle to disable model switching between Plan/Act modes in Settings (new users default to disabled)
+-   Add temperature option to OpenAI Compatible
+-   Add Kotlin support to tree-sitter parser (thanks @fumiya-kume!)
+
+## [3.6.3]
+
+-   Improve QwQ support for Alibaba (thanks @meglinge!) and OpenRouter
+-   Improve diff edit prompting to prevent immediately reverting to write_to_file when a model uses search patterns that don't match anything in the file
+-   Fix bug where new checkpoints system would revert file changes when switching between tasks
+-   Fix issue with incorrect token count for some OpenAI compatible providers
+
+## [3.6.0]
+
+-   Add Cline API as a provider option, allowing new users to sign up and get started with Cline for free
+-   Optimize checkpoints with branch-per-task strategy, reducing storage required and first task load times
+-   Fix problem with Plan/Act toggle keyboard shortcut not working in Windows (thanks @yt3trees!)
+-   Add new Gemini models to GCP Vertex (thanks @shohei-ihaya!) and Claude models AskSage (thanks @swhite24!)
+-   Improve OpenRouter/Cline error reporting
+
+## [3.5.1]
+
+-   Add timeout option to MCP servers
+-   Add Gemini Flash models to Vertex provider (thanks @jpaodev!)
+-   Add prompt caching support for AWS Bedrock provider (thanks @buger!)
+-   Add AskSage provider (thanks @swhite24!)
+
+## [3.5.0]
+
+-   Add 'Enable extended thinking' option for Claude 3.7 Sonnet, with ability to set different budgets for Plan and Act modes
+-   Add support for rich MCP responses with automatic image previews, website thumbnails, and WolframAlpha visualizations
+-   Add language preference option in Advanced Settings
+-   Add xAI Provider Integration with support for all Grok models (thanks @andrewmonostate!)
+-   Fix issue with Linux XDG pointing to incorrect path for Document folder (thanks @jonatkinson!)
+
+## [3.4.10]
+
+-   Add support for GPT-4.5 preview model
+
+## [3.4.9]
+
+-   Add toggle to let users opt-in to anonymous telemetry and error reporting
+
+## [3.4.6]
+
+-   Add support for Claude 3.7 Sonnet
+
 ## [3.4.0]
 
 -   Introducing MCP Marketplace! You can now discover and install the best MCP servers right from within the extension, with new servers added regularly

@@ -1,0 +1,41 @@
+graph TB
+    subgraph VSCode Extension Host
+        subgraph Core Extension
+            ExtensionEntry[Extension Entry<br/>src/extension.ts]
+            ClineProvider[ClineProvider<br/>src/core/webview/ClineProvider.ts]
+            ClineClass[Cline Class<br/>src/core/Cline.ts]
+            GlobalState[VSCode Global State]
+            SecretsStorage[VSCode Secrets Storage]
+        end
+
+        subgraph Webview UI
+            WebviewApp[React App<br/>webview-ui/src/App.tsx]
+            ExtStateContext[ExtensionStateContext<br/>webview-ui/src/context/ExtensionStateContext.tsx]
+            ReactComponents[React Components]
+        end
+
+        subgraph Storage
+            TaskStorage[Task Storage<br/>Per-Task Files & History]
+            CheckpointSystem[Git-based Checkpoints]
+        end
+    end
+
+    %% Core Extension Data Flow
+    ExtensionEntry --> ClineProvider
+    ClineProvider --> ClineClass
+    ClineClass --> GlobalState
+    ClineClass --> SecretsStorage
+    ClineClass --> TaskStorage
+    ClineClass --> CheckpointSystem
+
+    %% Webview Data Flow
+    WebviewApp --> ExtStateContext
+    ExtStateContext --> ReactComponents
+
+    %% Bidirectional Communication
+    ClineProvider <-->|postMessage| ExtStateContext
+
+    style GlobalState fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style SecretsStorage fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
+    style ExtStateContext fill:#0066ff,stroke:#333,stroke-width:2px,color:#ffffff
+    style ClineProvider fill:#00cc66,stroke:#333,stroke-width:2px,color:#ffffff

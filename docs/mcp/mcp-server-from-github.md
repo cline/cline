@@ -28,7 +28,7 @@ There are multiple places online to find MCP servers:
 2.  **Example Interaction with Cline:**
 
     ```
-    User: "Cline, I want to add the MCP server for Brave browser control. Here's the GitHub link: https://github.com/modelcontextprotocol/servers/tree/main/src/brave Can you add it?"
+    User: "Cline, I want to add the MCP server for Brave browser control. Here's the GitHub link: https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search Can you add it?"
 
     Cline: "OK. Cloning the repository to the MCP directory. It needs to be built because it has a 'package.json' file. Should I run 'npm run build'?"
 

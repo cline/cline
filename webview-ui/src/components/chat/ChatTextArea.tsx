@@ -742,8 +742,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const unknownModel = "unknown"
 			if (!apiConfiguration) return unknownModel
 			switch (selectedProvider) {
-				case "anthropic":
-				case "openrouter":
+				case "cline":
 					return `${selectedProvider}:${selectedModelId}`
 				case "openai":
 					return `openai-compat:${selectedModelId}`
@@ -758,7 +757,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				case "litellm":
 					return `${selectedProvider}:${apiConfiguration.liteLlmModelId}`
 				case "requesty":
-					return `${selectedProvider}:${apiConfiguration.requestyModelId}`
+				case "anthropic":
+				case "openrouter":
 				default:
 					return `${selectedProvider}:${selectedModelId}`
 			}
@@ -1132,6 +1132,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</ModelContainer>
 					</ButtonGroup>
 					<Tooltip
+						style={{ zIndex: 1000 }}
 						visible={shownTooltipMode !== null}
 						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
 						hintText={`Toggle w/ ${metaKeyChar}+Shift+A`}>

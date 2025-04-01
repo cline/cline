@@ -1,4 +1,4 @@
-import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
 import { useRemark } from "react-remark"
@@ -8,8 +8,9 @@ import { openRouterDefaultModelId } from "../../../../src/shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { highlight } from "../history/HistoryView"
-import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
+import { DropdownContainer, ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 
 export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
@@ -59,8 +60,12 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [])
 
 	const modelIds = useMemo(() => {
-		return Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
-	}, [openRouterModels])
+		const unfilteredModelIds = Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
+
+		return apiConfiguration?.apiProvider === "cline"
+			? unfilteredModelIds.filter((id) => !id.includes(":free"))
+			: unfilteredModelIds
+	}, [openRouterModels, apiConfiguration?.apiProvider])
 
 	const searchableItems = useMemo(() => {
 		return modelIds.map((id) => ({
@@ -82,7 +87,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [searchableItems])
 
 	const modelSearchResults = useMemo(() => {
-		let results: { id: string; html: string }[] = searchTerm
+		const results: { id: string; html: string }[] = searchTerm
 			? highlight(fuse.search(searchTerm), "model-item-highlight")
 			: searchableItems
 		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
@@ -116,7 +121,11 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}
 
 	const hasInfo = useMemo(() => {
-		return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
+		try {
+			return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
+		} catch {
+			return false
+		}
 	}, [modelIds, searchTerm])
 
 	useEffect(() => {
@@ -134,6 +143,13 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 			})
 		}
 	}, [selectedIndex])
+
+	const showBudgetSlider = useMemo(() => {
+		return (
+			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
+			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet")
+		)
+	}, [selectedModelId])
 
 	return (
 		<div style={{ width: "100%" }}>
@@ -206,13 +222,19 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 			</div>
 
 			{hasInfo ? (
-				<ModelInfoView
-					selectedModelId={selectedModelId}
-					modelInfo={selectedModelInfo}
-					isDescriptionExpanded={isDescriptionExpanded}
-					setIsDescriptionExpanded={setIsDescriptionExpanded}
-					isPopup={isPopup}
-				/>
+				<>
+					{showBudgetSlider && (
+						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+					)}
+
+					<ModelInfoView
+						selectedModelId={selectedModelId}
+						modelInfo={selectedModelInfo}
+						isDescriptionExpanded={isDescriptionExpanded}
+						setIsDescriptionExpanded={setIsDescriptionExpanded}
+						isPopup={isPopup}
+					/>
+				</>
 			) : (
 				<p
 					style={{
@@ -228,8 +250,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 						If you're unsure which model to choose, Cline works best with{" "}
 						<VSCodeLink
 							style={{ display: "inline", fontSize: "inherit" }}
-							onClick={() => handleModelChange("anthropic/claude-3.5-sonnet")}>
-							anthropic/claude-3.5-sonnet.
+							onClick={() => handleModelChange("anthropic/claude-3.7-sonnet")}>
+							anthropic/claude-3.7-sonnet.
 						</VSCodeLink>
 						You can also try searching "free" for no-cost options currently available.
 					</>

@@ -38,7 +38,7 @@ export function convertToOpenAiMessages(
 				)
 
 				// Process tool result messages FIRST since they must follow the tool use messages
-				let toolResultImages: Anthropic.Messages.ImageBlockParam[] = []
+				const toolResultImages: Anthropic.Messages.ImageBlockParam[] = []
 				toolMessages.forEach((toolMessage) => {
 					// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the OpenAI SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
 					let content: string
@@ -127,7 +127,7 @@ export function convertToOpenAiMessages(
 				}
 
 				// Process tool use messages
-				let tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = toolMessages.map((toolMessage) => ({
+				const tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = toolMessages.map((toolMessage) => ({
 					id: toolMessage.id,
 					type: "function",
 					function: {
@@ -161,6 +161,7 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 			{
 				type: "text",
 				text: openAiMessage.content || "",
+				citations: null,
 			},
 		],
 		model: completion.model,
@@ -181,6 +182,8 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 		usage: {
 			input_tokens: completion.usage?.prompt_tokens || 0,
 			output_tokens: completion.usage?.completion_tokens || 0,
+			cache_creation_input_tokens: null,
+			cache_read_input_tokens: null,
 		},
 	}
 

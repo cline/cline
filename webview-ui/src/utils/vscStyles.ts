@@ -1,4 +1,5 @@
 export const VSC_INPUT_BACKGROUND = "--vscode-input-background"
+export const VSC_INPUT_FOREGROUND = "--vscode-input-foreground"
 export const VSC_SIDEBAR_BACKGROUND = "--vscode-sideBar-background"
 export const VSC_FOREGROUND = "--vscode-foreground"
 export const VSC_EDITOR_FOREGROUND = "--vscode-editor-foreground"
@@ -34,7 +35,9 @@ export function hexToRGB(hexColor: string): { r: number; g: number; b: number } 
 
 export function colorToHex(colorVar: string): string {
 	const value = getComputedStyle(document.documentElement).getPropertyValue(colorVar).trim()
-	if (value.startsWith("#")) return value.slice(0, 7)
+	if (value.startsWith("#")) {
+		return value.slice(0, 7)
+	}
 
 	const rgbValues = value.match(/\d+/g)?.slice(0, 3).map(Number) || []
 	return `#${rgbValues.map((x) => x.toString(16).padStart(2, "0")).join("")}`
