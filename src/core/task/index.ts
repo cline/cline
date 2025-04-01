@@ -2338,7 +2338,7 @@ export class Task {
 						}
 					}
 					case "execute_command": {
-						const command: string | undefined = block.params.command
+						let command: string | undefined = block.params.command
 						const requiresApprovalRaw: string | undefined = block.params.requires_approval
 						const requiresApproval = requiresApprovalRaw?.toLowerCase() === "true"
 
@@ -2373,6 +2373,11 @@ export class Task {
 									break
 								}
 								this.consecutiveMistakeCount = 0
+
+								// gemini models tend to use unescaped html entities in commands
+								if (this.api.getModel().id.includes("gemini")) {
+									command = fixModelHtmlEscaping(command)
+								}
 
 								const ignoredFileAttemptedToAccess = this.clineIgnoreController.validateCommand(command)
 								if (ignoredFileAttemptedToAccess) {
