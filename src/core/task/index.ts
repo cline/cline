@@ -2694,8 +2694,8 @@ export class Task {
 
 								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 									showSystemNotification({
-										subtitle: "Cline wants to create a new task...",
-										message: "Cline is suggesting to create a new task with preloaded context.",
+										subtitle: "Cline wants to start a new task...",
+										message: "Cline is suggesting to start a new task with preloaded context.",
 									})
 								}
 

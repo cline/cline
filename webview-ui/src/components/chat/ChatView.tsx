@@ -195,6 +195,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 							setSecondaryButtonText(undefined)
 							setDidClickCancel(false)
 							break
+						case "new_task":
+							setTextAreaDisabled(isPartial)
+							setClineAsk("new_task")
+							setEnableButtons(!isPartial)
+							setPrimaryButtonText("Start New Task with Context")
+							setSecondaryButtonText(undefined)
+							break
 					}
 					break
 				case "say":
@@ -295,6 +302,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "resume_task":
 						case "resume_completed_task":
 						case "mistake_limit_reached":
+						case "new_task": // user can provide feedback or reject the new task suggestion
 							vscode.postMessage({
 								type: "askResponse",
 								askResponse: "messageResponse",
@@ -360,6 +368,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					// extension waiting for feedback. but we can just present a new task button
 					startNewTask()
 					break
+				case "new_task":
+					console.log("new task button clicked!", { lastMessage, messages, clineAsk, text })
+					vscode.postMessage({
+						type: "newTask",
+						text: lastMessage?.text,
+					})
+					break
 			}
 			setTextAreaDisabled(true)
 			setClineAsk(undefined)
@@ -368,7 +383,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			// setSecondaryButtonText(undefined)
 			disableAutoScrollRef.current = false
 		},
-		[clineAsk, startNewTask],
+		[clineAsk, startNewTask, lastMessage],
 	)
 
 	const handleSecondaryButtonClick = useCallback(

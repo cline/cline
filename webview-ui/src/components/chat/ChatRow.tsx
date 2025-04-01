@@ -1244,7 +1244,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 										color: normalColor,
 										marginBottom: "-1.5px",
 									}}></span>
-								<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to create a new task:</span>
+								<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to start a new task:</span>
 							</div>
 							<NewTaskPreview
 								context={message.text || ""}
