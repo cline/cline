@@ -5,12 +5,12 @@ import { useClickAway, useEvent, useWindowSize } from "react-use"
 import styled from "styled-components"
 import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
-import { WebviewMessage } from "../../../../src/shared/WebviewMessage" // Corrected import path
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptions,
 	insertMention,
+	insertMentionDirectly,
 	removeMention,
 	shouldShowContextMenu,
 } from "../../utils/context-mentions"
@@ -239,6 +239,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [arrowPosition, setArrowPosition] = useState(0)
 		const [menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
+		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
 
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 
@@ -270,34 +271,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						setGitCommits(commits)
 						break
 					}
-					case "relativePathResponse": {
-						if (message.relativePath && textAreaRef.current) {
-							// Use the stored cursor position from the onDrop handler
-							const { newValue, mentionIndex } = insertMention(
-								textAreaRef.current.value,
-								cursorPosition,
-								message.relativePath,
-							)
-							setInputValue(newValue)
-							// Calculate new cursor position after the inserted mention + space
-							const newCursorPosition = mentionIndex + message.relativePath.length + 2 // +1 for @, +1 for space
-							setIntendedCursorPosition(newCursorPosition) // Use state to set cursor after render
-							// Focus and scroll after state update
-							setTimeout(() => {
-								if (textAreaRef.current) {
-									textAreaRef.current.blur()
-									textAreaRef.current.focus()
-									// Ensure the cursor is set correctly after focus
-									textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition)
-								}
-							}, 0)
+					case "relativePathsResponse": {
+						// New case for batch response
+						const validPaths = message.paths?.filter((path): path is string => !!path) || []
+						if (validPaths.length > 0) {
+							setPendingInsertions((prev) => [...prev, ...validPaths])
 						}
 						break
 					}
 				}
 			},
-			[setInputValue, cursorPosition],
-		) // Added dependencies
+			[setInputValue],
+		)
 
 		useEvent("message", handleMessage)
 
@@ -496,12 +481,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			],
 		)
 
+		// Effect to set cursor position after state updates
 		useLayoutEffect(() => {
 			if (intendedCursorPosition !== null && textAreaRef.current) {
 				textAreaRef.current.setSelectionRange(intendedCursorPosition, intendedCursorPosition)
-				setIntendedCursorPosition(null) // Reset the state
+				setIntendedCursorPosition(null) // Reset the state after applying
 			}
-		}, [inputValue, intendedCursorPosition])
+		}, [intendedCursorPosition])
+
+		useEffect(() => {
+			if (pendingInsertions.length === 0 || !textAreaRef.current) {
+				return
+			}
+
+			const path = pendingInsertions[0]
+			const currentTextArea = textAreaRef.current
+			const currentValue = currentTextArea.value
+			const currentCursorPos =
+				intendedCursorPosition ??
+				(currentTextArea.selectionStart >= 0 ? currentTextArea.selectionStart : currentValue.length)
+
+			const { newValue, mentionIndex } = insertMentionDirectly(currentValue, currentCursorPos, path)
+
+			setInputValue(newValue)
+
+			const newCursorPosition = mentionIndex + path.length + 2
+			setIntendedCursorPosition(newCursorPosition)
+
+			setPendingInsertions((prev) => prev.slice(1))
+		}, [pendingInsertions, setInputValue])
 
 		const handleInputChange = useCallback(
 			(e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -838,29 +846,47 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		 */
 		const onDrop = async (e: React.DragEvent) => {
 			e.preventDefault()
+			e.stopPropagation()
 
 			const files = Array.from(e.dataTransfer.files)
 			const text = e.dataTransfer.getData("text")
-			const uriList = e.dataTransfer.getData("text/uri-list")
+			const vscodeUriList = e.dataTransfer.getData("application/vnd.code.uri-list")
+			const textUriList = e.dataTransfer.getData("text/uri-list")
 
-			// 1. Handle file/folder drop from VSCode Explorer (priority)
-			if (uriList) {
-				const firstUri = uriList.split("\n")[0]?.trim() // Get the first URI and trim whitespace
-				if (firstUri?.startsWith("file:")) {
-					// Store cursor position *before* async operation/message posting
-					if (textAreaRef.current) {
-						setCursorPosition(textAreaRef.current.selectionStart)
-					}
-					// Request relative path from the extension
-					vscode.postMessage({
-						type: "getRelativePath",
-						uri: firstUri,
-					} satisfies WebviewMessage)
-				}
-				return // Don't process as image or text if it's a VSCode resource drop
+			let uris: string[] = []
+
+			// Fallback to 'application/vnd.code.uri-list' (newline separated)
+			if (uris.length === 0 && vscodeUriList) {
+				uris = vscodeUriList.split("\n").map((uri) => uri.trim())
 			}
 
-			// 2. Handle image file drop from OS file system
+			// Final fallback to 'text/uri-list' (single item)
+			if (uris.length === 0 && textUriList) {
+				const singleUri = textUriList.trim()
+				if (singleUri) {
+					uris = [singleUri]
+				}
+			}
+
+			// Filter for valid schemes
+			const validUris = uris.filter((uri) => uri.startsWith("vscode-file:") || uri.startsWith("file:"))
+
+			if (validUris.length > 0) {
+				setPendingInsertions([]) // Clear queue for new drop
+				let initialCursorPos = inputValue.length // Default fallback
+				if (textAreaRef.current) {
+					initialCursorPos = textAreaRef.current.selectionStart
+				}
+				setIntendedCursorPosition(initialCursorPos)
+
+				vscode.postMessage({
+					type: "getRelativePaths",
+					uris: validUris, // Send the filtered valid URIs
+				})
+				return // Don't process as image or text if it's a VSCode resource drop
+			}
+			// --- End of VSCode Explorer Drop Handling ---
+
 			const acceptedTypes = ["png", "jpeg", "webp"]
 			const imageFiles = files.filter((file) => {
 				const [type, subtype] = file.type.split("/")

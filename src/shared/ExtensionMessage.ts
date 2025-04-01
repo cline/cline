@@ -41,8 +41,10 @@ export interface ExtensionMessage {
 		| "totalTasksSize"
 		| "addToInput"
 		| "relativePathResponse" // Added for drag-and-drop file path response
+		| "relativePathsResponse" // New: For batch response
 	text?: string
 	relativePath?: string // Added for drag-and-drop file path response
+	paths?: (string | null)[] // Added for relativePathsResponse
 	action?:
 		| "chatButtonClicked"
 		| "mcpButtonClicked"

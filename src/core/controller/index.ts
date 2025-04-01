@@ -664,10 +664,12 @@ export class Controller {
 								relativePath: fileUri.fsPath, // Send fsPath as fallback
 							})
 						} else {
+							// Prepend leading slash and normalize to forward slashes
+							const formattedPath = "/" + relativePath.replace(/\\/g, "/")
 							// Send the calculated relative path back
 							await this.postMessageToWebview({
 								type: "relativePathResponse",
-								relativePath: relativePath.replace(/\\/g, "/"), // Normalize to forward slashes
+								relativePath: formattedPath,
 							})
 						}
 					} catch (error) {
@@ -678,6 +680,42 @@ export class Controller {
 							error: `Failed to get relative path: ${error instanceof Error ? error.message : String(error)}`,
 						})
 					}
+				}
+				break
+			}
+			case "getRelativePaths": {
+				if (message.uris && message.uris.length > 0) {
+					const resolvedPaths = await Promise.all(
+						message.uris.map(async (uriString) => {
+							try {
+								const fileUri = vscode.Uri.parse(uriString, true)
+								const relativePath = vscode.workspace.asRelativePath(fileUri, false)
+
+								if (path.isAbsolute(relativePath)) {
+									console.warn(`Dropped file ${relativePath} is outside the workspace. Sending original path.`)
+									return fileUri.fsPath.replace(/\\/g, "/")
+								} else {
+									let finalPath = "/" + relativePath.replace(/\\/g, "/")
+									try {
+										const stat = await vscode.workspace.fs.stat(fileUri)
+										if (stat.type === vscode.FileType.Directory) {
+											finalPath += "/"
+										}
+									} catch (statError) {
+										console.error(`Error stating file ${fileUri.fsPath}:`, statError)
+									}
+									return finalPath
+								}
+							} catch (error) {
+								console.error(`Error calculating relative path for ${uriString}:`, error)
+								return null
+							}
+						}),
+					)
+					await this.postMessageToWebview({
+						type: "relativePathsResponse",
+						paths: resolvedPaths,
+					})
 				}
 				break
 			}
