@@ -171,9 +171,9 @@ export async function searchWorkspaceFiles(
 			.map((result) => result.item.original)
 			.slice(0, limit) // Apply the original limit after filtering, removing up to half of the candidates
 
-		console.log(
-			`[File Mentions Debug] After filtering: ${filteredResults.length} results passed threshold of ${MIN_SCORE_THRESHOLD}`,
-		)
+		//console.log(
+		//	`[File Mentions Debug] After filtering: ${filteredResults.length} results passed threshold of ${MIN_SCORE_THRESHOLD}`,
+		//)
 
 		const verifiedResults = await Promise.all(
 			filteredResults.map(async (result) => {
@@ -204,20 +204,14 @@ export async function searchWorkspaceFiles(
 // Custom match scoring for results ordering
 // Candidate score tiebreaker - fewer gaps between matched characters scores higher
 const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) => {
-	const countGaps = (positions: readonly number[]) => {
-		let gaps = 0
-		for (let i = 1; i < positions.length; i++) {
-			if (positions[i] - positions[i - 1] > 1) {
-				gaps++
-			}
-		}
-		return gaps
-	}
+    const countGaps = (positions: Iterable<number>) => {
+        let gaps = 0, prev = -Infinity
+        for (const pos of positions) {
+            if (prev !== -Infinity && pos - prev > 1) gaps++
+            prev = pos
+        }
+        return gaps
+    }
 
-	const aPositions = Array.isArray(a.positions) ? a.positions : Array.from(a.positions)
-	const bPositions = Array.isArray(b.positions) ? b.positions : Array.from(b.positions)
-
-	const aGaps = countGaps(aPositions)
-	const bGaps = countGaps(bPositions)
-	return aGaps - bGaps
+    return countGaps(a.positions) - countGaps(b.positions)
 }
