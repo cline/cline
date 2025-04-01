@@ -168,9 +168,22 @@ export class Controller {
 			case "addRemoteServer": {
 				try {
 					await this.mcpHub?.addRemoteServer(message.serverName!, message.serverUrl!)
+					await this.postMessageToWebview({
+						type: "addRemoteServerResult",
+						addRemoteServerResult: {
+							success: true,
+							serverName: message.serverName!,
+						},
+					})
 				} catch (error) {
-					// We handle the errorin McpHub.ts where the function is defined
-					console.error(`Failed to add remote server ${message.serverName}:`, error)
+					await this.postMessageToWebview({
+						type: "addRemoteServerResult",
+						addRemoteServerResult: {
+							success: false,
+							serverName: message.serverName!,
+							error: error.message,
+						},
+					})
 				}
 				break
 			}
