@@ -21,7 +21,7 @@ function analyzeBranch(branchName) {
 	const cognitiveViolations = eslintReport.filter((msg) => msg.ruleId === "sonarjs/cognitive-complexity").length
 
 	// Run maintainability analysis
-	execSync("node scripts/complexity-analysis.js", { stdio: "inherit" })
+	execSync("node .github/scripts/complexity-analysis.js", { stdio: "inherit" })
 	const maintainabilityReport = JSON.parse(fs.readFileSync("maintainability-report.json", "utf8"))
 	const maintainabilityIndex = maintainabilityReport.summary.averageMaintainabilityIndex
 
