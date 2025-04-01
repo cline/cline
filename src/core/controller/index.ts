@@ -647,6 +647,40 @@ export class Controller {
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
 			}
+			case "getRelativePath": {
+				if (message.uri) {
+					try {
+						const fileUri = vscode.Uri.parse(message.uri, true) // Use strict parsing
+						// Use asRelativePath which handles finding the correct workspace folder
+						const relativePath = vscode.workspace.asRelativePath(fileUri, false)
+
+						// Ensure it's not an absolute path (which happens if the file is outside the workspace)
+						if (path.isAbsolute(relativePath)) {
+							console.warn(`Dropped file ${relativePath} is outside the workspace.`)
+							// Optionally send back the absolute path or an empty string/error
+							// For now, let's send back the original URI's fsPath as a fallback
+							await this.postMessageToWebview({
+								type: "relativePathResponse",
+								relativePath: fileUri.fsPath, // Send fsPath as fallback
+							})
+						} else {
+							// Send the calculated relative path back
+							await this.postMessageToWebview({
+								type: "relativePathResponse",
+								relativePath: relativePath.replace(/\\/g, "/"), // Normalize to forward slashes
+							})
+						}
+					} catch (error) {
+						console.error("Error calculating relative path:", error)
+						// Optionally send an error message back to the webview
+						await this.postMessageToWebview({
+							type: "relativePathResponse",
+							error: `Failed to get relative path: ${error instanceof Error ? error.message : String(error)}`,
+						})
+					}
+				}
+				break
+			}
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}

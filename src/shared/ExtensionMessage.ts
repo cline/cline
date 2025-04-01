@@ -40,7 +40,9 @@ export interface ExtensionMessage {
 		| "userCreditsPayments"
 		| "totalTasksSize"
 		| "addToInput"
+		| "relativePathResponse" // Added for drag-and-drop file path response
 	text?: string
+	relativePath?: string // Added for drag-and-drop file path response
 	action?:
 		| "chatButtonClicked"
 		| "mcpButtonClicked"

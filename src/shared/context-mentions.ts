@@ -49,6 +49,12 @@ Mention regex:
   - `mentionRegexGlobal`: Creates a global version of the `mentionRegex` to find all matches within a given string.
 
 */
+// Updated regex to better handle relative file paths that might not start with '/' (e.g., on Windows)
+// It matches:
+// 1. Paths starting with word chars, '.', '/', '\', or '-' followed by non-@/whitespace chars.
+// 2. Specific keywords: problems, terminal, git-changes.
+// 3. Git commit hashes (7-40 hex chars).
+// It still uses a lookahead to exclude trailing punctuation from the match.
 export const mentionRegex =
-	/@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|terminal\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/
+	/@((?:[\w./\\-][^@\s]*)|problems\b|terminal\b|git-changes\b|[a-f0-9]{7,40}\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/
 export const mentionRegexGlobal = new RegExp(mentionRegex.source, "g")

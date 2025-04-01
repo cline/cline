@@ -5,6 +5,7 @@ import { useClickAway, useEvent, useWindowSize } from "react-use"
 import styled from "styled-components"
 import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
+import { WebviewMessage } from "../../../../src/shared/WebviewMessage" // Corrected import path
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import {
 	ContextMenuOptionType,
@@ -254,22 +255,49 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [selectedType, searchQuery])
 
-		const handleMessage = useCallback((event: MessageEvent) => {
-			const message: ExtensionMessage = event.data
-			switch (message.type) {
-				case "commitSearchResults": {
-					const commits =
-						message.commits?.map((commit: any) => ({
-							type: ContextMenuOptionType.Git,
-							value: commit.hash,
-							label: commit.subject,
-							description: `${commit.shortHash} by ${commit.author} on ${commit.date}`,
-						})) || []
-					setGitCommits(commits)
-					break
+		const handleMessage = useCallback(
+			(event: MessageEvent) => {
+				const message: ExtensionMessage = event.data
+				switch (message.type) {
+					case "commitSearchResults": {
+						const commits =
+							message.commits?.map((commit: any) => ({
+								type: ContextMenuOptionType.Git,
+								value: commit.hash,
+								label: commit.subject,
+								description: `${commit.shortHash} by ${commit.author} on ${commit.date}`,
+							})) || []
+						setGitCommits(commits)
+						break
+					}
+					case "relativePathResponse": {
+						if (message.relativePath && textAreaRef.current) {
+							// Use the stored cursor position from the onDrop handler
+							const { newValue, mentionIndex } = insertMention(
+								textAreaRef.current.value,
+								cursorPosition,
+								message.relativePath,
+							)
+							setInputValue(newValue)
+							// Calculate new cursor position after the inserted mention + space
+							const newCursorPosition = mentionIndex + message.relativePath.length + 2 // +1 for @, +1 for space
+							setIntendedCursorPosition(newCursorPosition) // Use state to set cursor after render
+							// Focus and scroll after state update
+							setTimeout(() => {
+								if (textAreaRef.current) {
+									textAreaRef.current.blur()
+									textAreaRef.current.focus()
+									// Ensure the cursor is set correctly after focus
+									textAreaRef.current.setSelectionRange(newCursorPosition, newCursorPosition)
+								}
+							}, 0)
+						}
+						break
+					}
 				}
-			}
-		}, [])
+			},
+			[setInputValue, cursorPosition],
+		) // Added dependencies
 
 		useEvent("message", handleMessage)
 
@@ -813,12 +841,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 			const files = Array.from(e.dataTransfer.files)
 			const text = e.dataTransfer.getData("text")
+			const uriList = e.dataTransfer.getData("text/uri-list")
 
-			if (text) {
-				handleTextDrop(text)
-				return
+			// 1. Handle file/folder drop from VSCode Explorer (priority)
+			if (uriList) {
+				const firstUri = uriList.split("\n")[0]?.trim() // Get the first URI and trim whitespace
+				if (firstUri?.startsWith("file:")) {
+					// Store cursor position *before* async operation/message posting
+					if (textAreaRef.current) {
+						setCursorPosition(textAreaRef.current.selectionStart)
+					}
+					// Request relative path from the extension
+					vscode.postMessage({
+						type: "getRelativePath",
+						uri: firstUri,
+					} satisfies WebviewMessage)
+				}
+				return // Don't process as image or text if it's a VSCode resource drop
 			}
 
+			// 2. Handle image file drop from OS file system
 			const acceptedTypes = ["png", "jpeg", "webp"]
 			const imageFiles = files.filter((file) => {
 				const [type, subtype] = file.type.split("/")

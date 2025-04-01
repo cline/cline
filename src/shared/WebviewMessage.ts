@@ -67,8 +67,10 @@ export interface WebviewMessage {
 		| "optionsResponse"
 		| "requestTotalTasksSize"
 		| "taskFeedback"
+		| "getRelativePath" // Added for drag-and-drop file path request
 	// | "relaunchChromeDebugMode"
 	text?: string
+	uri?: string // Added for getRelativePath
 	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
