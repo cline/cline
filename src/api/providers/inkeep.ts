@@ -10,8 +10,6 @@ export class InkeepHandler implements ApiHandler {
     private client: OpenAI
     private modelId: string = 'inkeep-context-expert'
     private modelInfo: ModelInfo = {
-        maxTokens: 8192,
-        contextWindow: 128_000,
         supportsImages: false,
         supportsPromptCache: false,
         inputPrice: 0,
