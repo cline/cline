@@ -1212,7 +1212,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							style={{
 								fontSize: "12px",
 								marginTop: "5px",
-								color: "var(--vscode-charts-green)",
+								color: "var(--vscode-descriptionForeground)",
 							}}>
 							Extended thinking is available for models as Sonnet-3-7, o3-mini, Deepseek R1, etc. More info on{" "}
 							<VSCodeLink

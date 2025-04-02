@@ -19,6 +19,7 @@ import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
 import DangerButton from "../common/DangerButton"
 import AddRemoteServerForm from "./tabs/AddRemoteServerForm"
+import AddLocalServerForm from "./tabs/AddLocalServerForm"
 
 type McpViewProps = {
 	onDone: () => void
@@ -27,6 +28,7 @@ type McpViewProps = {
 const McpView = ({ onDone }: McpViewProps) => {
 	const { mcpServers: servers, mcpMarketplaceEnabled } = useExtensionState()
 	const [activeTab, setActiveTab] = useState(mcpMarketplaceEnabled ? "marketplace" : "installed")
+	const [activeSubTab, setActiveSubTab] = useState("remote")
 
 	const handleTabChange = (tab: string) => {
 		setActiveTab(tab)
@@ -83,7 +85,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 						</TabButton>
 					)}
 					<TabButton isActive={activeTab === "addRemote"} onClick={() => handleTabChange("addRemote")}>
-						Remote Servers
+						Add Server
 					</TabButton>
 					<TabButton isActive={activeTab === "installed"} onClick={() => handleTabChange("installed")}>
 						Installed
@@ -93,7 +95,33 @@ const McpView = ({ onDone }: McpViewProps) => {
 				{/* Content container */}
 				<div style={{ width: "100%" }}>
 					{mcpMarketplaceEnabled && activeTab === "marketplace" && <McpMarketplaceView />}
-					{activeTab === "addRemote" && <AddRemoteServerForm onServerAdded={() => handleTabChange("installed")} />}
+					{activeTab === "addRemote" && (
+						<div style={{ padding: "5px 0 0 0" }}>
+							<div
+								style={{
+									display: "flex",
+									gap: "1px",
+									padding: "0 20px 0 20px",
+									borderBottom: "1px solid var(--vscode-panel-border)",
+								}}>
+								<TabButton isActive={activeSubTab === "remote"} onClick={() => setActiveSubTab("remote")}>
+									Remote (SSE)
+								</TabButton>
+								<TabButton isActive={activeSubTab === "local"} onClick={() => setActiveSubTab("local")}>
+									Local (Command)
+								</TabButton>
+							</div>
+
+							<div>
+								{activeSubTab === "remote" && (
+									<AddRemoteServerForm onServerAdded={() => handleTabChange("installed")} />
+								)}
+								{activeSubTab === "local" && (
+									<AddLocalServerForm onServerAdded={() => handleTabChange("installed")} />
+								)}
+							</div>
+						</div>
+					)}
 					{activeTab === "installed" && (
 						<div style={{ padding: "16px 20px" }}>
 							<div
@@ -153,8 +181,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 									onClick={() => {
 										vscode.postMessage({ type: "openMcpSettings" })
 									}}>
-									<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
-									Configure MCP Servers
+									Edit Configuration
 								</VSCodeButton>
 
 								<div style={{ textAlign: "center" }}>
