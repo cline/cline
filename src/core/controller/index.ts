@@ -21,6 +21,7 @@ import { McpHub } from "../../services/mcp/McpHub"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
 import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
+import { CommandAutoApproveRule } from "../../shared/CommandAutoApproveRule"
 import { ChatContent } from "../../shared/ChatContent"
 import { ChatSettings } from "../../shared/ChatSettings"
 import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
@@ -1610,7 +1611,43 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 		this.postMessageToWebview({ type: "state", state })
 	}
 
+	async readCommandAutoApproveRules(): Promise<void> {
+		try {
+			// Read the command auto-approve rules from VSCode settings
+			const config = vscode.workspace.getConfiguration("cline")
+			const commandAutoApproveRules = config.get<CommandAutoApproveRule[]>("commandAutoApproveRules") || []
+			
+			// Get current autoApprovalSettings
+			const { autoApprovalSettings } = await getAllExtensionState(this.context)
+			
+			// Update autoApprovalSettings with the rules
+			const updatedSettings = {
+				...autoApprovalSettings,
+				commandAutoApproveRules: Array.isArray(commandAutoApproveRules) ? commandAutoApproveRules : []
+			}
+			
+			// Save the updated settings
+			await updateGlobalState(this.context, "autoApprovalSettings", updatedSettings)
+			
+			// Update the task if it exists
+			if (this.task) {
+				this.task.autoApprovalSettings = updatedSettings
+			}
+			
+			// Log that rules were loaded
+			console.log(`Loaded ${commandAutoApproveRules.length} command auto-approve rules from settings`)
+			
+			// Post updated state to webview
+			await this.postStateToWebview()
+		} catch (error) {
+			console.error("Error reading command auto-approve rules:", error)
+		}
+	}
+
 	async getStateToPostToWebview(): Promise<ExtensionState> {
+		// Read the latest command auto-approve rules before getting state
+		await this.readCommandAutoApproveRules()
+		
 		const {
 			apiConfiguration,
 			lastShownAnnouncementId,

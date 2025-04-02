@@ -1134,7 +1134,7 @@ export class Task {
 		}
 	}
 
-	shouldAutoApproveTool(toolName: ToolUseName): boolean {
+	shouldAutoApproveTool(toolName: ToolUseName, commandString?: string): boolean {
 		if (this.autoApprovalSettings.enabled) {
 			switch (toolName) {
 				case "read_file":
@@ -1146,6 +1146,13 @@ export class Task {
 				case "replace_in_file":
 					return this.autoApprovalSettings.actions.editFiles
 				case "execute_command":
+					// If command string is provided and executeCommands is enabled, check command-specific rules
+					if (commandString && this.autoApprovalSettings.actions.executeCommands) {
+						const { shouldAutoApproveCommand } = require("../../shared/CommandAutoApproveRule")
+						const rules = this.autoApprovalSettings.commandAutoApproveRules || []
+						// If rule-based matching returns true, auto-approve; otherwise fall back to global setting
+						return shouldAutoApproveCommand(commandString, rules)
+					}
 					return this.autoApprovalSettings.actions.executeCommands
 				case "browser_action":
 					return this.autoApprovalSettings.actions.useBrowser
@@ -2365,11 +2372,14 @@ export class Task {
 
 								let didAutoApprove = false
 
-								if (!requiresApproval && this.shouldAutoApproveTool(block.name)) {
+								if (!requiresApproval && this.shouldAutoApproveTool(block.name, command)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "command")
 									await this.say("command", command, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 									didAutoApprove = true
+									
+									// Log auto-approved command
+									console.log(`Auto-approved command based on rules: ${command}`)
 								} else {
 									showNotificationForApprovalIfAutoApprovalEnabled(
 										`Cline wants to execute a command: ${command}`,

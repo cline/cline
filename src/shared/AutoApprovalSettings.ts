@@ -1,3 +1,5 @@
+import { CommandAutoApproveRule } from './CommandAutoApproveRule'
+
 export interface AutoApprovalSettings {
 	// Whether auto-approval is enabled
 	enabled: boolean
@@ -12,6 +14,8 @@ export interface AutoApprovalSettings {
 	// Global settings
 	maxRequests: number // Maximum number of auto-approved requests
 	enableNotifications: boolean // Show notifications for approval and task completion
+	// Command auto-approve rules
+	commandAutoApproveRules?: CommandAutoApproveRule[] // Rules for command auto-approval
 }
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
@@ -25,4 +29,5 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	},
 	maxRequests: 20,
 	enableNotifications: false,
+	commandAutoApproveRules: [],
 }
