@@ -3,10 +3,20 @@ import { ApiHandlerOptions } from "../../../shared/api"
 
 // Mock the AWS SDK
 jest.mock("@aws-sdk/client-bedrock-runtime", () => {
+	const mockResponse = {
+		output: {
+			message: {
+				content: [
+					{
+						text: "Test response",
+					},
+				],
+			},
+		},
+	}
+
 	const mockSend = jest.fn().mockImplementation(() => {
-		return Promise.resolve({
-			output: new TextEncoder().encode(JSON.stringify({ content: "Test response" })),
-		})
+		return Promise.resolve(mockResponse)
 	})
 
 	return {

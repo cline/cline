@@ -399,14 +399,20 @@ describe("AwsBedrockHandler", () => {
 		})
 	})
 
+	//response.output.message.content[0].text
+
 	describe("completePrompt", () => {
 		it("should complete prompt successfully", async () => {
 			const mockResponse = {
-				output: new TextEncoder().encode(
-					JSON.stringify({
-						content: "Test response",
-					}),
-				),
+				output: {
+					message: {
+						content: [
+							{
+								text: "Test response",
+							},
+						],
+					},
+				},
 			}
 
 			const mockSend = jest.fn().mockResolvedValue(mockResponse)
@@ -450,7 +456,9 @@ describe("AwsBedrockHandler", () => {
 
 		it("should handle invalid response format", async () => {
 			const mockResponse = {
-				output: new TextEncoder().encode("invalid json"),
+				output: {
+					message: {},
+				},
 			}
 
 			const mockSend = jest.fn().mockResolvedValue(mockResponse)
@@ -464,9 +472,16 @@ describe("AwsBedrockHandler", () => {
 
 		it("should handle empty response", async () => {
 			const mockResponse = {
-				output: new TextEncoder().encode(JSON.stringify({})),
+				output: {
+					message: {
+						content: [
+							{
+								text: "",
+							},
+						],
+					},
+				},
 			}
-
 			const mockSend = jest.fn().mockResolvedValue(mockResponse)
 			handler["client"] = {
 				send: mockSend,
@@ -486,11 +501,15 @@ describe("AwsBedrockHandler", () => {
 			})
 
 			const mockResponse = {
-				output: new TextEncoder().encode(
-					JSON.stringify({
-						content: "Test response",
-					}),
-				),
+				output: {
+					message: {
+						content: [
+							{
+								text: "Test response",
+							},
+						],
+					},
+				},
 			}
 
 			const mockSend = jest.fn().mockResolvedValue(mockResponse)
@@ -519,11 +538,15 @@ describe("AwsBedrockHandler", () => {
 			})
 
 			const mockResponse = {
-				output: new TextEncoder().encode(
-					JSON.stringify({
-						content: "Test response",
-					}),
-				),
+				output: {
+					message: {
+						content: [
+							{
+								text: "Test response",
+							},
+						],
+					},
+				},
 			}
 
 			const mockSend = jest.fn().mockResolvedValue(mockResponse)
@@ -552,13 +575,16 @@ describe("AwsBedrockHandler", () => {
 			})
 
 			const mockResponse = {
-				output: new TextEncoder().encode(
-					JSON.stringify({
-						content: "Test response",
-					}),
-				),
+				output: {
+					message: {
+						content: [
+							{
+								text: "Test response",
+							},
+						],
+					},
+				},
 			}
-
 			const mockSend = jest.fn().mockResolvedValue(mockResponse)
 			handler["client"] = {
 				send: mockSend,
@@ -585,11 +611,15 @@ describe("AwsBedrockHandler", () => {
 			})
 
 			const mockResponse = {
-				output: new TextEncoder().encode(
-					JSON.stringify({
-						content: "Test response",
-					}),
-				),
+				output: {
+					message: {
+						content: [
+							{
+								text: "Test response",
+							},
+						],
+					},
+				},
 			}
 
 			const mockSend = jest.fn().mockResolvedValue(mockResponse)
