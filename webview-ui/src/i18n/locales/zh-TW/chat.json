@@ -1,34 +1,34 @@
 {
-	"greeting": "Roo能為您做什麼？",
+	"greeting": "Roo 可以為您做些什麼？",
 	"task": {
-		"title": "任務",
-		"seeMore": "查看更多",
-		"seeLess": "查看更少",
+		"title": "工作",
+		"seeMore": "顯示更多",
+		"seeLess": "顯示較少",
 		"tokens": "Tokens:",
-		"cache": "快取:",
-		"apiCost": "API成本:",
-		"contextWindow": "上下文視窗:",
-		"closeAndStart": "關閉任務並開始新任務",
-		"export": "匯出任務歷史",
-		"delete": "刪除任務（Shift + 點擊跳過確認）"
+		"cache": "快取：",
+		"apiCost": "API 費用：",
+		"contextWindow": "上下文視窗：",
+		"closeAndStart": "關閉現有工作並開始一項新的工作",
+		"export": "匯出工作紀錄",
+		"delete": "刪除工作（按住 Shift 並點選可跳過確認）"
 	},
 	"unpin": "取消置頂",
 	"pin": "置頂",
 	"tokenProgress": {
-		"availableSpace": "可用空間: {{amount}} tokens",
-		"tokensUsed": "已使用tokens: {{used}} / {{total}}",
-		"reservedForResponse": "為模型回應保留: {{amount}} tokens"
+		"availableSpace": "可用空間：{{amount}} tokens",
+		"tokensUsed": "已使用 tokens: {{used}} / {{total}}",
+		"reservedForResponse": "為模型回應保留：{{amount}} tokens"
 	},
 	"retry": {
 		"title": "重試",
 		"tooltip": "再次嘗試操作"
 	},
 	"startNewTask": {
-		"title": "開始新任務",
-		"tooltip": "開始一個新任務"
+		"title": "開始新工作",
+		"tooltip": "開始一項新工作"
 	},
 	"proceedAnyways": {
-		"title": "仍繼續",
+		"title": "仍要繼續",
 		"tooltip": "在命令執行時繼續"
 	},
 	"save": {
@@ -39,10 +39,10 @@
 		"title": "拒絕",
 		"tooltip": "拒絕此操作"
 	},
-	"completeSubtaskAndReturn": "完成子任務並返回",
+	"completeSubtaskAndReturn": "完成子工作並返回",
 	"approve": {
-		"title": "批准",
-		"tooltip": "批准此操作"
+		"title": "核准",
+		"tooltip": "核准此操作"
 	},
 	"runCommand": {
 		"title": "執行命令",
@@ -50,121 +50,121 @@
 	},
 	"proceedWhileRunning": {
 		"title": "執行時繼續",
-		"tooltip": "儘管有警告仍繼續"
+		"tooltip": "儘管有警告仍繼續執行"
 	},
 	"resumeTask": {
-		"title": "恢復任務",
-		"tooltip": "繼續當前任務"
+		"title": "繼續工作",
+		"tooltip": "繼續目前的工作"
 	},
 	"terminate": {
 		"title": "終止",
-		"tooltip": "結束當前任務"
+		"tooltip": "結束目前的工作"
 	},
 	"cancel": {
 		"title": "取消",
-		"tooltip": "取消當前操作"
+		"tooltip": "取消目前操作"
 	},
-	"scrollToBottom": "捲動到聊天底部",
-	"aboutMe": "由於代理編碼能力的最新突破，我可以逐步處理複雜的軟體開發任務。透過允許我創建和編輯檔案、探索複雜專案、使用瀏覽器和執行終端命令（在您授權後）的工具，我可以以超越程式碼補全或技術支援的方式幫助您。我甚至可以使用MCP創建新工具並擴展自己的能力。",
+	"scrollToBottom": "捲動至對話框底部",
+	"aboutMe": "由於程式代理功能的最新突破，我能夠逐步處理複雜的軟體開發工作。透過允許我建立和編輯檔案、探索複雜專案、使用瀏覽器和執行終端機命令（在您授權後）的工具，我可以以超越程式碼補全或技術支援的方式協助您。我甚至可以使用 MCP 建立新工具並擴展自己的能力。",
 	"selectMode": "選擇互動模式",
-	"selectApiConfig": "選擇API配置",
-	"enhancePrompt": "使用附加上下文增強提示",
-	"addImages": "添加圖片到訊息",
-	"sendMessage": "發送訊息",
+	"selectApiConfig": "選擇 API 設定",
+	"enhancePrompt": "使用額外內容增強提示",
+	"addImages": "新增圖片到訊息中",
+	"sendMessage": "傳送訊息",
 	"typeMessage": "輸入訊息...",
-	"typeTask": "在此處輸入您的任務...",
-	"addContext": "@添加上下文，/切換模式",
-	"dragFiles": "按住shift拖動檔案",
-	"dragFilesImages": "按住shift拖動檔案/圖片",
-	"enhancePromptDescription": "'增強提示'按鈕透過提供額外上下文、澄清或重新表述來幫助改進您的請求。嘗試在此處輸入請求，然後再次點擊按鈕查看其工作原理。",
-	"errorReadingFile": "讀取檔案時出錯:",
-	"noValidImages": "沒有處理有效圖片",
-	"separator": "分隔符",
+	"typeTask": "在此處輸入您的工作...",
+	"addContext": "輸入 @ 新增內容，輸入 / 切換模式",
+	"dragFiles": "按住 Shift 鍵拖曳檔案",
+	"dragFilesImages": "按住 Shift 鍵拖曳檔案/圖片",
+	"enhancePromptDescription": "「增強提示」按鈕透過提供額外內容、說明或重新表述來幫助改進您的請求。嘗試在此處輸入請求，然後再次點選按鈕以了解其運作方式。",
+	"errorReadingFile": "讀取檔案時發生錯誤：",
+	"noValidImages": "未處理到任何有效圖片",
+	"separator": "分隔符號",
 	"edit": "編輯...",
 	"forNextMode": "用於下一個模式",
 	"error": "錯誤",
-	"troubleMessage": "Roo遇到問題...",
+	"troubleMessage": "Roo 遇到問題...",
 	"apiRequest": {
-		"title": "API請求",
-		"failed": "API請求失敗",
-		"streaming": "API請求...",
-		"cancelled": "API請求已取消",
-		"streamingFailed": "API串流傳輸失敗"
+		"title": "API 請求",
+		"failed": "API 請求失敗",
+		"streaming": "正在處理 API 請求...",
+		"cancelled": "API 請求已取消",
+		"streamingFailed": "API 串流處理失敗"
 	},
 	"checkpoint": {
 		"initial": "初始檢查點",
 		"regular": "檢查點",
 		"menu": {
-			"viewDiff": "查看差異",
+			"viewDiff": "檢視差異",
 			"restore": "還原檢查點",
 			"restoreFiles": "還原檔案",
-			"restoreFilesDescription": "將您的專案檔案還原到此時點拍攝的快照。",
-			"restoreFilesAndTask": "還原檔案和任務",
+			"restoreFilesDescription": "將您的專案檔案還原到此時的快照。",
+			"restoreFilesAndTask": "還原檔案和工作",
 			"confirm": "確認",
 			"cancel": "取消",
-			"cannotUndo": "此操作無法撤銷。",
-			"restoreFilesAndTaskDescription": "將您的專案檔案還原到此時點拍攝的快照，並刪除此點之後的所有訊息。"
+			"cannotUndo": "此操作無法復原。",
+			"restoreFilesAndTaskDescription": "將您的專案檔案還原到此時的快照，並刪除此點之後的所有訊息。"
 		},
-		"current": "當前"
+		"current": "目前"
 	},
 	"instructions": {
-		"wantsToFetch": "Roo想要獲取詳細指示以協助目前任務"
+		"wantsToFetch": "Roo 想要取得詳細指示以協助目前任務"
 	},
 	"fileOperations": {
-		"wantsToRead": "Roo想讀取此檔案:",
-		"wantsToReadOutsideWorkspace": "Roo想讀取此工作區外的檔案:",
-		"didRead": "Roo已讀取此檔案:",
-		"wantsToEdit": "Roo想編輯此檔案:",
-		"wantsToEditOutsideWorkspace": "Roo想編輯此工作區外的檔案:",
-		"wantsToCreate": "Roo想創建新檔案:"
+		"wantsToRead": "Roo 想要讀取此檔案：",
+		"wantsToReadOutsideWorkspace": "Roo 想要讀取此工作區外的檔案：",
+		"didRead": "Roo 已讀取此檔案：",
+		"wantsToEdit": "Roo 想要編輯此檔案：",
+		"wantsToEditOutsideWorkspace": "Roo 想要編輯此工作區外的檔案：",
+		"wantsToCreate": "Roo 想要建立新檔案："
 	},
 	"directoryOperations": {
-		"wantsToViewTopLevel": "Roo想查看此目錄中的頂層檔案:",
-		"didViewTopLevel": "Roo已查看此目錄中的頂層檔案:",
-		"wantsToViewRecursive": "Roo想遞迴查看此目錄中的所有檔案:",
-		"didViewRecursive": "Roo已遞迴查看此目錄中的所有檔案:",
-		"wantsToViewDefinitions": "Roo想查看此目錄中使用的原始碼定義名稱:",
-		"didViewDefinitions": "Roo已查看此目錄中使用的原始碼定義名稱:",
-		"wantsToSearch": "Roo想在此目錄中搜尋 <code>{{regex}}</code>:",
-		"didSearch": "Roo已在此目錄中搜尋 <code>{{regex}}</code>:"
+		"wantsToViewTopLevel": "Roo 想要檢視此目錄中的頂層檔案：",
+		"didViewTopLevel": "Roo 已檢視此目錄中的頂層檔案：",
+		"wantsToViewRecursive": "Roo 想要遞迴檢視此目錄中的所有檔案：",
+		"didViewRecursive": "Roo 已遞迴檢視此目錄中的所有檔案：",
+		"wantsToViewDefinitions": "Roo 想要檢視此目錄中使用的原始碼定義名稱：",
+		"didViewDefinitions": "Roo 已檢視此目錄中使用的原始碼定義名稱：",
+		"wantsToSearch": "Roo 想要在此目錄中搜尋 <code>{{regex}}</code>：",
+		"didSearch": "Roo 已在此目錄中搜尋 <code>{{regex}}</code>："
 	},
 	"commandOutput": "命令輸出",
 	"response": "回應",
 	"arguments": "參數",
 	"mcp": {
-		"wantsToUseTool": "Roo想在{{serverName}} MCP伺服器上使用工具:",
-		"wantsToAccessResource": "Roo想存取{{serverName}} MCP伺服器上的資源:"
+		"wantsToUseTool": "Roo 想要在 {{serverName}} MCP 伺服器上使用工具：",
+		"wantsToAccessResource": "Roo 想要存取 {{serverName}} MCP 伺服器上的資源："
 	},
 	"modes": {
-		"wantsToSwitch": "Roo想切換到<code>{{mode}}</code>模式",
-		"wantsToSwitchWithReason": "Roo想切換到<code>{{mode}}</code>模式，原因: {{reason}}",
-		"didSwitch": "Roo已切換到<code>{{mode}}</code>模式",
-		"didSwitchWithReason": "Roo已切換到<code>{{mode}}</code>模式，原因: {{reason}}"
+		"wantsToSwitch": "Roo 想要切換至 <code>{{mode}}</code> 模式",
+		"wantsToSwitchWithReason": "Roo 想要切換至 <code>{{mode}}</code> 模式，原因：{{reason}}",
+		"didSwitch": "Roo 已切換至 <code>{{mode}}</code> 模式",
+		"didSwitchWithReason": "Roo 已切換至 <code>{{mode}}</code> 模式，原因：{{reason}}"
 	},
 	"subtasks": {
-		"wantsToCreate": "Roo想在<code>{{mode}}</code>模式下創建新子任務:",
-		"wantsToFinish": "Roo想完成此子任務"
+		"wantsToCreate": "Roo 想要在 <code>{{mode}}</code> 模式下建立新的子工作：",
+		"wantsToFinish": "Roo 想要完成此子工作"
 	},
 	"questions": {
-		"hasQuestion": "Roo有一個問題:"
+		"hasQuestion": "Roo 有一個問題："
 	},
-	"taskCompleted": "任務完成",
+	"taskCompleted": "工作完成",
 	"shellIntegration": {
-		"unavailable": "Shell整合不可用",
+		"unavailable": "Shell 整合功能無法使用",
 		"troubleshooting": "仍有問題嗎？"
 	},
 	"powershell": {
-		"issues": "看起來您遇到了Windows PowerShell問題，請參閱此"
+		"issues": "看起來您遇到了 Windows PowerShell 的問題，請參考此處"
 	},
 	"autoApprove": {
-		"title": "自動批准:",
+		"title": "自動核准：",
 		"none": "無",
-		"description": "自動批准允許Roo Code無需請求許可即可執行操作。僅為您完全信任的操作啟用。更詳細的配置可在<settingsLink>設定</settingsLink>中查看。",
+		"description": "自動核准讓 Roo Code 可以在無需徵求您同意的情況下執行動作。請僅對您完全信任的動作啟用此功能。您可以在<settingsLink>設定</settingsLink>中進行更詳細的調整。",
 		"actions": {
 			"readFiles": {
 				"label": "讀取檔案和目錄",
 				"shortName": "讀取",
-				"description": "允許存取讀取電腦上的任何檔案。"
+				"description": "允許存取電腦上的任何檔案。"
 			},
 			"editFiles": {
 				"label": "編輯檔案",
@@ -172,34 +172,34 @@
 				"description": "允許修改電腦上的任何檔案。"
 			},
 			"executeCommands": {
-				"label": "執行已批准的命令",
+				"label": "執行已核准的命令",
 				"shortName": "命令",
-				"description": "允許執行已批准的終端命令。您可以在設置面板中配置此項。"
+				"description": "允許執行已核准的終端機命令。您可以在設定面板中調整此設定。"
 			},
 			"useBrowser": {
 				"label": "使用瀏覽器",
 				"shortName": "瀏覽器",
-				"description": "允許在無頭瀏覽器中啟動並與任何網站互動的能力。"
+				"description": "允許在無介面瀏覽器中啟動並與任何網站互動。"
 			},
 			"useMcp": {
-				"label": "使用MCP伺服器",
+				"label": "使用 MCP 伺服器",
 				"shortName": "MCP",
-				"description": "允許使用可能修改檔案系統或與API互動的已配置MCP伺服器。"
+				"description": "允許使用已設定的 MCP 伺服器，這些伺服器可能會修改檔案系統或與 API 進行互動。"
 			},
 			"switchModes": {
 				"label": "切換模式",
 				"shortName": "模式",
-				"description": "允許在不需要批准的情況下自動切換不同模式。"
+				"description": "允許在不需要核准的情況下自動切換不同模式。"
 			},
 			"subtasks": {
-				"label": "創建和完成子任務",
-				"shortName": "子任務",
-				"description": "允許在不需要批准的情況下創建和完成子任務。"
+				"label": "建立和完成子工作",
+				"shortName": "子工作",
+				"description": "允許在不需要核准的情況下建立和完成子工作。"
 			},
 			"retryRequests": {
 				"label": "重試失敗的請求",
 				"shortName": "重試",
-				"description": "當提供者返回錯誤回應時自動重試失敗的API請求。"
+				"description": "當服務提供者回傳錯誤回應時自動重試失敗的 API 請求。"
 			}
 		}
 	},
@@ -208,25 +208,25 @@
 		"seconds": "{{count}}秒"
 	},
 	"followUpSuggest": {
-		"copyToInput": "複製到輸入框（或按住Shift點擊）"
+		"copyToInput": "複製到輸入框（或按住 Shift 並點選）"
 	},
 	"announcement": {
 		"title": "🎉 Roo Code 3.11 已發布",
-		"description": "Roo Code 3.11帶來顯著的效能改進和新功能！",
+		"description": "Roo Code 3.11 帶來顯著的效能提升與全新功能！",
 		"whatsNew": "新功能",
-		"feature1": "快速編輯 - 編輯現在套用得更快。減少等待，增加編碼。",
-		"feature2": "API金鑰餘額 - 在設定中查看您的OpenRouter和Requesty餘額。",
-		"feature3": "專案級MCP設定 - 現在您可以依專案/工作區進行設定。",
-		"feature4": "改進的Gemini支援 - 更智慧的重試，修復了轉義問題，加入至Vertex提供者。",
-		"feature5": "匯入/匯出設定 - 輕鬆備份或跨設定共享您的配置。",
+		"feature1": "快速編輯 - 編輯套用速度大幅提升，減少等待時間，讓您專注於功能開發。",
+		"feature2": "API 金鑰餘額 - 現在可在設定中檢視您的 OpenRouter 和 Requesty 餘額。",
+		"feature3": "專案級 MCP 設定 - 支援依據專案或工作區進行個別設定。",
+		"feature4": "改進的 Gemini 支援 - 更智慧的重試機制，修正轉義問題，並新增至 Vertex 提供者。",
+		"feature5": "匯入/匯出設定 - 輕鬆備份或跨環境分享您的設定。",
 		"hideButton": "隱藏公告",
-		"detailsDiscussLinks": "在<discordLink>Discord</discordLink>和<redditLink>Reddit</redditLink>取得更多詳情並參與討論 🚀"
+		"detailsDiscussLinks": "在 <discordLink>Discord</discordLink> 和 <redditLink>Reddit</redditLink> 取得更多詳細資訊並參與討論 🚀"
 	},
 	"browser": {
-		"rooWantsToUse": "Roo想使用瀏覽器:",
+		"rooWantsToUse": "Roo 想要使用瀏覽器：",
 		"consoleLogs": "主控台記錄",
-		"noNewLogs": "(沒有新記錄)",
-		"screenshot": "瀏覽器截圖",
+		"noNewLogs": "（沒有新記錄）",
+		"screenshot": "瀏覽器螢幕擷圖",
 		"cursor": "游標",
 		"navigation": {
 			"step": "步驟 {{current}} / {{total}}",
@@ -235,10 +235,10 @@
 		},
 		"sessionStarted": "瀏覽器工作階段已啟動",
 		"actions": {
-			"title": "瀏覽器動作: ",
+			"title": "瀏覽器動作：",
 			"launch": "在 {{url}} 啟動瀏覽器",
-			"click": "點擊 ({{coordinate}})",
-			"type": "輸入 \"{{text}}\"",
+			"click": "點選 ({{coordinate}})",
+			"type": "輸入「{{text}}」",
 			"scrollDown": "向下捲動",
 			"scrollUp": "向上捲動",
 			"close": "關閉瀏覽器"

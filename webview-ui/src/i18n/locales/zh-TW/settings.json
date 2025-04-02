@@ -10,17 +10,17 @@
 		"title": "設定",
 		"saveButtonTooltip": "儲存變更",
 		"nothingChangedTooltip": "無任何變更",
-		"doneButtonTooltip": "取消未保存的變更並關閉設定面板"
+		"doneButtonTooltip": "捨棄未儲存的變更並關閉設定面板"
 	},
 	"unsavedChangesDialog": {
-		"title": "未保存的變更",
+		"title": "未儲存的變更",
 		"description": "是否要取消變更並繼續？",
 		"cancelButton": "取消",
 		"discardButton": "取消變更"
 	},
 	"sections": {
-		"providers": "提供者",
-		"autoApprove": "自動批准",
+		"providers": "供應商",
+		"autoApprove": "自動核准",
 		"browser": "瀏覽器/電腦使用",
 		"checkpoints": "檢查點",
 		"notifications": "通知",
@@ -32,81 +32,81 @@
 		"about": "關於 Roo Code"
 	},
 	"autoApprove": {
-		"description": "允許 Roo 無需批准即執行操作。僅在您完全信任 AI 並了解相關安全風險時啟用這些設定。",
+		"description": "允許 Roo 無需核准即執行操作。僅在您完全信任 AI 並了解相關安全風險時啟用這些設定。",
 		"readOnly": {
-			"label": "始終批准只讀操作",
-			"description": "啟用後，Roo 將自動查看目錄內容和讀取文件，無需點擊批准按鈕。",
+			"label": "始終核准唯讀操作",
+			"description": "啟用後，Roo 將自動檢視目錄內容並讀取檔案，無需點選核准按鈕。",
 			"outsideWorkspace": {
 				"label": "包含工作區外的檔案",
-				"description": "允許 Roo 讀取當前工作區外的檔案，無需批准。"
+				"description": "允許 Roo 讀取目前工作區外的檔案，無需核准。"
 			}
 		},
 		"write": {
-			"label": "始終批准寫入操作",
-			"description": "自動建立和編輯文件而無需批准",
-			"delayLabel": "寫入後延遲以允許診斷檢測潛在問題",
+			"label": "始終核准寫入操作",
+			"description": "自動建立和編輯文件而無需核准",
+			"delayLabel": "寫入後延遲以允許診斷偵測潛在問題",
 			"outsideWorkspace": {
 				"label": "包含工作區外的檔案",
-				"description": "允許 Roo 在當前工作區外建立和編輯檔案，無需批准。"
+				"description": "允許 Roo 在目前工作區外建立和編輯檔案，無需核准。"
 			}
 		},
 		"browser": {
-			"label": "始終批准瀏覽器操作",
-			"description": "自動執行瀏覽器操作而無需批准",
+			"label": "始終核准瀏覽器操作",
+			"description": "自動執行瀏覽器操作而無需核准",
 			"note": "注意：僅適用於模型支援電腦使用時"
 		},
 		"retry": {
 			"label": "始終重試失敗的 API 請求",
-			"description": "當伺服器返回錯誤響應時自動重試失敗的 API 請求",
+			"description": "當伺服器回傳錯誤回應時自動重試失敗的 API 請求",
 			"delayLabel": "重試請求前的延遲"
 		},
 		"mcp": {
-			"label": "始終批准 MCP 工具",
-			"description": "在 MCP 伺服器檢視中啟用單個 MCP 工具的自動批准（需要此設定和工具的「始終允許」核取方框）"
+			"label": "始終核准 MCP 工具",
+			"description": "在 MCP 伺服器檢視中啟用個別 MCP 工具的自動核准（需要此設定和工具的「始終允許」核取方塊）"
 		},
 		"modeSwitch": {
-			"label": "始終批准模式切換",
-			"description": "自動在不同模式之間切換而無需批准"
+			"label": "始終核准模式切換",
+			"description": "自動在不同模式之間切換而無需核准"
 		},
 		"subtasks": {
-			"label": "始終批准子任務的建立與完成",
-			"description": "允許建立和完成子任務而無需批准"
+			"label": "始終核准子工作的建立和完成",
+			"description": "允許建立和完成子工作而無需核准"
 		},
 		"execute": {
-			"label": "始終批准允許的執行操作",
-			"description": "自動執行允許的終端機指令而無需批准",
-			"allowedCommands": "允許自動執行的指令",
-			"allowedCommandsDescription": "當「始終批准執行操作」啟用時可自動執行的指令前綴。加入 * 以允許所有指令（謹慎使用）。",
-			"commandPlaceholder": "輸入指令前綴（例如：git ）",
+			"label": "始終核准允許的執行操作",
+			"description": "自動執行允許的終端機命令而無需核准",
+			"allowedCommands": "允許自動執行的命令",
+			"allowedCommandsDescription": "當「始終核准執行操作」啟用時可以自動執行的命令前綴。新增 * 以允許所有命令（請謹慎使用）。",
+			"commandPlaceholder": "輸入命令前綴（例如 'git '）",
 			"addButton": "新增"
 		}
 	},
 	"providers": {
 		"configProfile": "配置設定檔",
 		"providerDocumentation": "{{provider}} 文件",
-		"description": "儲存不同的 API 設定以快速切換提供者和設定。",
-		"apiProvider": "API 提供者",
+		"description": "儲存不同的 API 設定以快速切換供應商和設定。",
+		"apiProvider": "API 供應商",
 		"model": "模型",
-		"nameEmpty": "名稱不可為空",
+		"nameEmpty": "名稱不能為空",
 		"nameExists": "已存在同名的設定檔",
 		"deleteProfile": "刪除設定檔",
 		"invalidArnFormat": "ARN 格式無效。請檢查上方示例。",
 		"enterNewName": "輸入新名稱",
 		"addProfile": "新增設定檔",
 		"renameProfile": "重新命名設定檔",
-		"newProfile": "新配置設定檔",
+		"newProfile": "新建設定檔",
 		"enterProfileName": "輸入設定檔名稱",
 		"createProfile": "建立設定檔",
 		"cannotDeleteOnlyProfile": "無法刪除唯一的設定檔",
-		"vscodeLmDescription": "VS Code 語言模型 API 可讓您執行其他擴充功能（如 GitHub Copilot）提供的模型。最快捷的方式是從 VS Code 市集安裝 Copilot 和 Copilot Chat 擴充功能。",
-		"awsCustomArnUse": "輸入要使用的模型有效 AWS Bedrock ARN。格式範例：",
-		"awsCustomArnDesc": "確保 ARN 中的區域與您選擇的 AWS 區域相符。",
+		"vscodeLmDescription": "VS Code 語言模型 API 可以讓您使用其他擴充功能（如 GitHub Copilot）提供的模型。最簡單的方式是從 VS Code Marketplace 安裝 Copilot 和 Copilot Chat 擴充套件。",
+		"awsCustomArnUse": "輸入您要使用的模型的有效 AWS Bedrock ARN。格式範例：",
+		"awsCustomArnDesc": "確保 ARN 中的區域與您上面選擇的 AWS 區域相符。",
 		"openRouterApiKey": "OpenRouter API 金鑰",
 		"getOpenRouterApiKey": "取得 OpenRouter API 金鑰",
 		"apiKeyStorageNotice": "API 金鑰安全儲存於 VSCode 金鑰儲存中",
 		"glamaApiKey": "Glama API 金鑰",
 		"getGlamaApiKey": "取得 Glama API 金鑰",
-		"useCustomBaseUrl": "使用自定義基礎 URL",
+		"useCustomBaseUrl": "使用自訂基礎 URL",
 		"requestyApiKey": "Requesty API 金鑰",
 		"getRequestyApiKey": "取得 Requesty API 金鑰",
 		"openRouterTransformsText": "將提示和訊息鏈壓縮到上下文大小 (<a>OpenRouter 轉換</a>)",
@@ -121,108 +121,108 @@
 		"getOpenAiApiKey": "取得 OpenAI API 金鑰",
 		"mistralApiKey": "Mistral API 金鑰",
 		"getMistralApiKey": "取得 Mistral/Codestral API 金鑰",
-		"codestralBaseUrl": "Codestral 基礎 URL（可選）",
-		"codestralBaseUrlDesc": "設置 Codestral 模型的替代 URL。",
+		"codestralBaseUrl": "Codestral 基礎 URL（選用）",
+		"codestralBaseUrlDesc": "設定 Codestral 模型的替代 URL。",
 		"awsCredentials": "AWS 認證",
-		"awsProfile": "AWS 個人設定",
-		"awsProfileName": "AWS 個人設定名稱",
-		"awsAccessKey": "AWS 存取金鑰",
-		"awsSecretKey": "AWS 機密金鑰",
-		"awsSessionToken": "AWS 會話權杖",
+		"awsProfile": "AWS Profile",
+		"awsProfileName": "AWS Profile 名稱",
+		"awsAccessKey": "AWS Access Key",
+		"awsSecretKey": "AWS Secret Key",
+		"awsSessionToken": "AWS 工作階段權杖",
 		"awsRegion": "AWS 區域",
 		"awsCrossRegion": "使用跨區域推論",
 		"vscodeLmModel": "語言模型",
-		"vscodeLmWarning": "注意：此為實驗性整合，提供者支援可能不同。若遇到模型不支援錯誤，請聯繫提供者。",
+		"vscodeLmWarning": "注意：此整合功能仍處於實驗階段，各供應商的支援程度可能不同。如果出現模型不支援的錯誤，通常是供應商方面的問題。",
 		"googleCloudSetup": {
 			"title": "要使用 Google Cloud Vertex AI，您需要：",
-			"step1": "1. 建立 Google Cloud 帳戶，啟用 Vertex AI API 並啟用所需 Claude 模型。",
+			"step1": "1. 建立 Google Cloud 帳戶，啟用 Vertex AI API 並啟用所需的 Claude 模型。",
 			"step2": "2. 安裝 Google Cloud CLI 並設定應用程式預設憑證。",
-			"step3": "3. 或建立具憑證的服務帳戶。"
+			"step3": "3. 或建立具有憑證的服務帳戶。"
 		},
 		"googleCloudCredentials": "Google Cloud 憑證",
 		"googleCloudKeyFile": "Google Cloud 金鑰檔案路徑",
 		"googleCloudProjectId": "Google Cloud 專案 ID",
 		"googleCloudRegion": "Google Cloud 區域",
 		"lmStudio": {
-			"baseUrl": "基礎 URL（可選）",
+			"baseUrl": "基礎 URL（選用）",
 			"modelId": "模型 ID",
 			"speculativeDecoding": "啟用預測性解碼",
 			"draftModelId": "草稿模型 ID",
 			"draftModelDesc": "草稿模型必須來自相同模型系列才能正確運作。",
 			"selectDraftModel": "選擇草稿模型",
-			"noModelsFound": "未找到草稿模型。請確保 LM Studio 以伺服器模式運行。",
-			"description": "LM Studio 允許您在本地電腦運行模型。詳細資訊請參閱快速入門指南。您需要啟動 LM Studio 的本地伺服器功能才能與此擴充功能搭配使用。<span>注意：</span> Roo Code 使用複雜提示，與 Claude 模型搭配最佳。功能較弱的模型可能無法正常運作。"
+			"noModelsFound": "未找到草稿模型。請確保 LM Studio 以伺服器模式執行。",
+			"description": "LM Studio 允許您在本機電腦執行模型。詳細資訊請參閱快速入門指南。您需要啟動 LM Studio 的本機伺服器功能才能與此擴充功能搭配使用。<span>注意：</span> Roo Code 使用複雜提示，與 Claude 模型搭配最佳。功能較弱的模型可能無法正常運作。"
 		},
 		"ollama": {
-			"baseUrl": "基礎 URL（可選）",
+			"baseUrl": "基礎 URL（選用）",
 			"modelId": "模型 ID",
-			"description": "Ollama 允許您在本地電腦運行模型。請參閱快速入門指南。",
+			"description": "Ollama 允許您在本機電腦執行模型。請參閱快速入門指南。",
 			"warning": "注意：Roo Code 使用複雜提示，與 Claude 模型搭配最佳。功能較弱的模型可能無法正常運作。"
 		},
 		"unboundApiKey": "Unbound API 金鑰",
 		"getUnboundApiKey": "取得 Unbound API 金鑰",
 		"humanRelay": {
-			"description": "無需 API 金鑰，但使用者需協助將資訊複製到網頁聊天 AI。",
-			"instructions": "使用期間，對話方格會彈出且當前訊息會自動複製到剪貼簿。您需將其貼到 ChatGPT 或 Claude 網頁版，再將 AI 回應複製回對話方塊並點擊確認按鈕。"
+			"description": "不需要 API 金鑰，但使用者需要協助將資訊複製並貼上到網頁聊天 AI。",
+			"instructions": "使用期間會彈出對話框，並自動將目前訊息複製到剪貼簿。您需要將這些內容貼上到網頁版 AI（如 ChatGPT 或 Claude），然後將 AI 的回覆複製回對話框並點選確認按鈕。"
 		},
 		"openRouter": {
 			"providerRouting": {
-				"title": "OpenRouter 提供者路由",
-				"description": "OpenRouter 會將請求路由到適合模型的最佳提供者。預設會在頂尖提供者之間負載平衡以確保正常運作時間。您可為此模型選擇特定提供者。",
-				"learnMore": "了解更多關於提供者路由"
+				"title": "OpenRouter 供應商路由",
+				"description": "OpenRouter 會將請求路由到適合您模型的最佳可用供應商。預設情況下，請求會在頂尖供應商之間進行負載平衡以最大化正常運作時間。您也可以為此模型選擇特定的供應商。",
+				"learnMore": "了解更多關於供應商路由的資訊"
 			}
 		},
 		"customModel": {
-			"capabilities": "設定自定義 OpenAI 相容模型的功能和定價。指定功能時需謹慎。",
+			"capabilities": "設定自訂 OpenAI 相容模型的功能和定價。請謹慎設定模型功能，因為這會影響 Roo Code 的運作方式。",
 			"maxTokens": {
-				"label": "最大輸出トークン",
-				"description": "模型回應可產生的最大トークン數。（指定 -1 使用伺服器設定最大值）"
+				"label": "最大輸出 Token",
+				"description": "模型能在一則回應中產生的最大 Token 數量。（設為 -1 則由伺服器決定最大值）"
 			},
 			"contextWindow": {
 				"label": "上下文視窗大小",
-				"description": "模型可處理的總トークン數（輸入+輸出）"
+				"description": "模型能處理的總 Token 數量（包含輸入和輸出）"
 			},
 			"imageSupport": {
 				"label": "影像支援",
-				"description": "此模型是否能處理和理解影像？"
+				"description": "此模型是否能夠處理和理解影像？"
 			},
 			"computerUse": {
 				"label": "電腦使用",
-				"description": "此模型能否與瀏覽器互動？（例如 Claude 3.7 Sonnet）"
+				"description": "此模型是否能夠與瀏覽器互動？（例如 Claude 3.7 Sonnet）"
 			},
 			"promptCache": {
 				"label": "提示快取",
-				"description": "此模型是否能快取提示？"
+				"description": "此模型是否能夠快取提示？"
 			},
 			"pricing": {
 				"input": {
 					"label": "輸入價格",
-					"description": "每百萬輸入/提示トークン的費用"
+					"description": "輸入/提示每百萬 Token 的費用。這會影響向模型傳送內容和指令時的費用。"
 				},
 				"output": {
 					"label": "輸出價格",
-					"description": "模型回應每百萬トークン的費用"
+					"description": "模型回應每百萬 Token 的費用。這會影響模型產生內容的費用。"
 				},
 				"cacheReads": {
 					"label": "快取讀取價格",
-					"description": "讀取快取時的費用"
+					"description": "每百萬 Token 的快取讀取費用。當從快取中取得已儲存的回應時，會收取此費用。"
 				},
 				"cacheWrites": {
 					"label": "快取寫入價格",
-					"description": "首次將提示寫入快取時的費用"
+					"description": "每百萬 Token 的快取寫入費用。當提示首次被儲存至快取時，會收取此費用。"
 				}
 			},
-			"resetDefaults": "重設預設值"
+			"resetDefaults": "重設為預設值"
 		}
 	},
 	"browser": {
 		"enable": {
 			"label": "啟用瀏覽器工具",
-			"description": "啟用後，Roo 可在使用支援電腦使用的模型時使用瀏覽器互動。"
+			"description": "啟用後，Roo 可在使用支援電腦使用的模型時使用瀏覽器與網站互動。"
 		},
 		"viewport": {
-			"label": "視口大小",
-			"description": "選擇瀏覽器互動的視口大小。",
+			"label": "視窗大小",
+			"description": "選擇瀏覽器互動的視窗大小。這會影響網站的顯示方式和互動方式。",
 			"options": {
 				"largeDesktop": "大型桌面 (1280x800)",
 				"smallDesktop": "小型桌面 (900x600)",
@@ -232,48 +232,48 @@
 		},
 		"screenshotQuality": {
 			"label": "截圖品質",
-			"description": "調整瀏覽器截圖的 WebP 品質。較高值會增加 token 使用量。"
+			"description": "調整瀏覽器截圖的 WebP 品質。數值越高截圖越清晰，但會增加 token 用量。"
 		},
 		"remote": {
 			"label": "使用遠端瀏覽器連線",
 			"description": "連線到啟用遠端除錯的 Chrome 瀏覽器（--remote-debugging-port=9222）。",
-			"urlPlaceholder": "自定義 URL（例如 http://localhost:9222）",
+			"urlPlaceholder": "自訂 URL（例如 http://localhost:9222）",
 			"testButton": "測試連線",
 			"testingButton": "測試中...",
-			"instructions": "輸入 DevTools 協定主機位址或留空以自動發現本機 Chrome 執行個體。"
+			"instructions": "請輸入 DevTools Protocol 主機位址，或留空以自動偵測本機 Chrome 執行個體。「測試連線」按鈕將嘗試連線至您提供的自訂 URL，若未提供則會自動偵測。"
 		}
 	},
 	"checkpoints": {
 		"enable": {
 			"label": "啟用自動檢查點",
-			"description": "啟用後，Roo 將在任務執行期間自動建立檢查點。"
+			"description": "啟用後，Roo 將在工作執行期間自動建立檢查點，使審核變更或回到早期狀態變得容易。"
 		}
 	},
 	"notifications": {
 		"sound": {
 			"label": "啟用音效",
-			"description": "啟用後，Roo 將為通知播放音效",
+			"description": "啟用後，Roo 將為通知和事件播放音效。",
 			"volumeLabel": "音量"
 		},
 		"tts": {
 			"label": "啟用文字轉語音",
-			"description": "啟用後，Roo 將使用文字轉語音朗讀回應",
+			"description": "啟用後，Roo 將使用文字轉語音功能朗讀其回應。",
 			"speedLabel": "速度"
 		}
 	},
 	"contextManagement": {
-		"description": "控制 AI 上下文視窗包含的資訊，影響 token 使用和回應品質",
+		"description": "控制 AI 上下文視窗中要包含哪些資訊，會影響 token 用量和回應品質",
 		"openTabs": {
-			"label": "開啟的分頁上下文限制",
-			"description": "最多包含的 VSCode 開啟分頁數"
+			"label": "開啟分頁的上下文限制",
+			"description": "上下文中最多包含多少個 VS Code 開啟的分頁。數值越高提供的上下文越多，但 token 用量也會增加。"
 		},
 		"workspaceFiles": {
-			"label": "工作區檔案上下文限制",
-			"description": "最多包含的當前工作目錄詳細資訊檔案數"
+			"label": "工作區檔案的上下文限制",
+			"description": "目前工作目錄中最多包含多少個檔案。數值越高提供的上下文越多，但 token 用量也會增加。"
 		},
 		"rooignore": {
-			"label": "顯示 .rooignore 檔案",
-			"description": "啟用後，符合 .rooignore 模式之檔案會顯示上鎖符號"
+			"label": "在列表和搜尋中顯示被 .rooignore 排除的檔案",
+			"description": "啟用後，符合 .rooignore 規則的檔案會在列表中顯示並標示鎖定圖示。停用後，這些檔案將完全從檔案列表和搜尋結果中隱藏。"
 		},
 		"maxReadFile": {
 			"label": "檔案讀取自動截斷閾值",
@@ -284,12 +284,12 @@
 	},
 	"terminal": {
 		"outputLineLimit": {
-			"label": "終端機輸出限制",
-			"description": "執行指令時包含的最大行數"
+			"label": "終端機輸出行數限制",
+			"description": "執行命令時終端機輸出的最大行數。超過此限制時，會從中間移除多餘的行數，以節省 token 用量。"
 		},
 		"shellIntegrationTimeout": {
-			"label": "終端機 shell 綜合超時",
-			"description": "shell 綜合初始化的最長等待時間"
+			"label": "終端機 Shell 整合逾時",
+			"description": "執行命令前等待 Shell 整合初始化的最長時間。如果您的 Shell 啟動較慢，且終端機出現「Shell 整合無法使用」的錯誤訊息，可能需要提高此數值。"
 		}
 	},
 	"advanced": {
@@ -298,52 +298,52 @@
 			"description": "API 請求間的最短時間"
 		},
 		"diff": {
-			"label": "啟用 diff 編輯",
-			"description": "啟用後可更快編輯文件並自動拒絕不完整的完整文件寫入",
+			"label": "透過差異比對編輯",
+			"description": "啟用後，Roo 可更快速地編輯檔案，並自動拒絕不完整的整檔覆寫。搭配最新的 Claude 3.7 Sonnet 模型效果最佳。",
 			"strategy": {
-				"label": "diff 策略",
+				"label": "差異比對策略",
 				"options": {
 					"standard": "標準（單一區塊）",
-					"multiBlock": "實驗性：多區塊 diff",
-					"unified": "實驗性：統一 diff"
+					"multiBlock": "實驗性：多區塊差異",
+					"unified": "實驗性：統一差異"
 				},
 				"descriptions": {
-					"standard": "每次修改單一程式區塊",
-					"multiBlock": "單次請求更新多個程式區塊",
-					"unified": "多種 diff 方法選擇最佳方案"
+					"standard": "標準策略一次只修改一個程式碼區塊。",
+					"unified": "統一差異策略會嘗試多種比對方式，並選擇最佳方案。",
+					"multiBlock": "多區塊策略可在單一請求中更新檔案內的多個程式碼區塊。"
 				}
 			},
 			"matchPrecision": {
-				"label": "匹配精確度",
-				"description": "此滑桿控制應用 diff 時程式區塊的匹配精確度"
+				"label": "比對精確度",
+				"description": "此滑桿控制套用差異時程式碼區段的比對精確度。較低的數值允許更彈性的比對，但也會增加錯誤取代的風險。使用低於 100% 的數值時請特別謹慎。"
 			}
 		}
 	},
 	"experimental": {
 		"warning": "⚠️",
 		"DIFF_STRATEGY_UNIFIED": {
-			"name": "使用實驗性統一 diff 策略",
-			"description": "此實驗性策略可能減少模型錯誤導致的重試次數，但需謹慎使用"
+			"name": "使用實驗性統一差異比對策略",
+			"description": "啟用實驗性的統一差異比對策略。此策略可能減少因模型錯誤而導致的重試次數，但也可能導致意外行為或錯誤的編輯。請務必了解風險，並願意仔細檢查所有變更後再啟用。"
 		},
 		"SEARCH_AND_REPLACE": {
 			"name": "使用實驗性搜尋與取代工具",
-			"description": "允許 Roo 在單一請求中取代多個搜尋詞實例"
+			"description": "啟用實驗性的搜尋與取代工具，允許 Roo 在單一請求中取代多個符合的內容。"
 		},
 		"INSERT_BLOCK": {
 			"name": "使用實驗性插入內容工具",
-			"description": "允許在特定行號插入內容而無需建立 diff"
+			"description": "啟用實驗性的插入內容工具，允許 Roo 直接在指定行號插入內容，而無需產生差異比對。"
 		},
 		"POWER_STEERING": {
-			"name": "使用實驗性「動力轉向」模式",
-			"description": "此模式會更頻繁地提醒模型其角色定義"
+			"name": "使用實驗性「動力輔助」模式",
+			"description": "啟用後，Roo 將更頻繁地提醒模型目前模式的詳細設定。這能讓模型更嚴格遵守角色定義和自訂指令，但每則訊息會使用更多 token。"
 		},
 		"MULTI_SEARCH_AND_REPLACE": {
-			"name": "使用實驗性多區塊 diff 工具",
-			"description": "單次請求更新檔案中的多個程式區塊"
+			"name": "使用實驗性多區塊差異比對工具",
+			"description": "啟用後，Roo 將使用多區塊差異比對工具，嘗試在單一請求中更新檔案內的多個程式碼區塊。"
 		}
 	},
 	"temperature": {
-		"useCustom": "使用自定義溫度",
+		"useCustom": "使用自訂溫度",
 		"description": "控制模型回應的隨機性",
 		"rangeDescription": "較高值使輸出更隨機，較低值更確定"
 	},
@@ -359,29 +359,28 @@
 		"outputPrice": "輸出價格",
 		"cacheReadsPrice": "快取讀取價格",
 		"cacheWritesPrice": "快取寫入價格",
-		"enableStreaming": "啟用串流",
-		"enableR1Format": "啟用R1模型參數",
-		"enableR1FormatTips": "當使用QWQ等類R1模型時需啟用，防止400錯誤",
+		"enableStreaming": "啟用串流輸出",
+		"enableR1Format": "啟用 R1 模型參數",
+		"enableR1FormatTips": "使用 QWQ 等 R1 模型時必須啟用，以避免發生 400 錯誤",
 		"useAzure": "使用 Azure",
 		"azureApiVersion": "設定 Azure API 版本",
 		"gemini": {
-			"freeRequests": "* 每分鐘免費 {{count}} 次請求。超過後依提示大小計費。",
-			"pricingDetails": "查看定價細節"
+			"freeRequests": "* 每分鐘可免費使用 {{count}} 次請求，超過後將依提示大小計費。",
+			"pricingDetails": "詳細資訊請參閱定價說明。"
 		}
 	},
 	"modelPicker": {
-		"automaticFetch": "擴充功能會自動取得 {{serviceName}} 上最新模型列表。若不確定選擇，Roo Code 與 {{defaultModelId}} 搭配最佳。",
+		"automaticFetch": "此擴充功能會自動從 <serviceLink>{{serviceName}}</serviceLink> 取得最新的可用模型清單。如果不確定要選哪個模型，建議使用 <defaultModelLink>{{defaultModelId}}</defaultModelLink>，這是與 Roo Code 最佳搭配的模型。您也可以搜尋「free」來檢視目前可用的免費選項。",
 		"label": "模型",
 		"searchPlaceholder": "搜尋",
-		"noMatchFound": "未找到相符項目",
-		"useCustomModel": "使用自定義模型：{{modelId}}"
+		"noMatchFound": "找不到符合的項目",
+		"useCustomModel": "使用自訂模型：{{modelId}}"
 	},
 	"footer": {
-		"feedback": "若有問題或建議，請在 <githubLink>GitHub</githubLink> 建立 issue 或加入 <discordLink>Discord</discordLink>",
-		"version": "Roo Code v{{version}}",
+		"feedback": "若您有任何問題或建議，歡迎至 <githubLink>github.com/RooVetGit/Roo-Code</githubLink> 提出 issue，或加入 <redditLink>reddit.com/r/RooCode</redditLink> 或 <discordLink>discord.gg/roocode</discordLink> 討論。",
 		"telemetry": {
-			"label": "允許匿名錯誤和使用報告",
-			"description": "匿名資料協助改善 Roo Code，絕不傳送程式碼或個人資訊"
+			"label": "允許匿名錯誤與使用情況回報",
+			"description": "透過傳送匿名的使用資料與錯誤回報，協助改善 Roo Code。我們絕不會傳送您的程式碼、提示或個人資訊。詳細資訊請參閱我們的隱私權政策。"
 		},
 		"settings": {
 			"import": "匯入",
@@ -394,40 +393,40 @@
 		"maxThinkingTokens": "最大思考 token 數"
 	},
 	"validation": {
-		"apiKey": "需要有效 API 金鑰",
-		"awsRegion": "請選擇 AWS 區域",
-		"googleCloud": "需要有效的 Google Cloud 專案 ID 和區域",
-		"modelId": "需要有效模型 ID",
-		"modelSelector": "需要有效模型選擇器",
-		"openAi": "需要有效的基礎 URL、API 金鑰和模型 ID",
+		"apiKey": "請提供有效的 API 金鑰。",
+		"awsRegion": "請選擇要用於 AWS Bedrock 的區域。",
+		"googleCloud": "請提供有效的 Google Cloud 專案 ID 和區域。",
+		"modelId": "請提供有效的模型 ID。",
+		"modelSelector": "請提供有效的模型選擇器。",
+		"openAi": "請提供有效的基礎 URL、API 金鑰和模型 ID。",
 		"arn": {
-			"invalidFormat": "ARN 格式無效",
-			"regionMismatch": "ARN 區域與選擇的區域不匹配"
+			"invalidFormat": "ARN 格式無效，請檢查格式要求。",
+			"regionMismatch": "警告：您 ARN 中的區域 ({{arnRegion}}) 與您選擇的區域 ({{region}}) 不符，可能導致存取問題。系統將使用 ARN 中指定的區域。"
 		},
-		"modelAvailability": "該模型 ID 不可用"
+		"modelAvailability": "您指定的模型 ID ({{modelId}}) 目前無法使用，請選擇其他模型。"
 	},
 	"placeholders": {
-		"apiKey": "輸入 API 金鑰...",
-		"profileName": "輸入設定檔名稱",
-		"accessKey": "輸入存取金鑰...",
-		"secretKey": "輸入機密金鑰...",
-		"sessionToken": "輸入會話權杖...",
-		"credentialsJson": "輸入憑證 JSON...",
-		"keyFilePath": "輸入金鑰檔案路徑...",
-		"projectId": "輸入專案 ID...",
-		"customArn": "ARN 範例：arn:aws:bedrock:...",
-		"baseUrl": "輸入基礎 URL...",
+		"apiKey": "請輸入 API 金鑰...",
+		"profileName": "請輸入設定檔名稱",
+		"accessKey": "請輸入存取金鑰...",
+		"secretKey": "請輸入金鑰...",
+		"sessionToken": "請輸入工作階段權杖...",
+		"credentialsJson": "請輸入憑證 JSON...",
+		"keyFilePath": "請輸入金鑰檔案路徑...",
+		"projectId": "請輸入專案 ID...",
+		"customArn": "請輸入 ARN（例：arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model）",
+		"baseUrl": "請輸入基礎 URL...",
 		"modelId": {
-			"lmStudio": "範例：meta-llama-3.1-8b-instruct",
-			"lmStudioDraft": "範例：lmstudio-community/llama-3.2-1b-instruct",
-			"ollama": "範例：llama3.1"
+			"lmStudio": "例：meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "例：lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "例：llama3.1"
 		},
 		"numbers": {
-			"maxTokens": "範例：4096",
-			"contextWindow": "範例：128000",
-			"inputPrice": "範例：0.0001",
-			"outputPrice": "範例：0.0002",
-			"cacheWritePrice": "範例：0.00005"
+			"maxTokens": "例：4096",
+			"contextWindow": "例：128000",
+			"inputPrice": "例：0.0001",
+			"outputPrice": "例：0.0002",
+			"cacheWritePrice": "例：0.00005"
 		}
 	},
 	"defaults": {
@@ -436,7 +435,7 @@
 		"geminiUrl": "預設：https://generativelanguage.googleapis.com"
 	},
 	"labels": {
-		"customArn": "自定義 ARN",
-		"useCustomArn": "使用自定義 ARN..."
+		"customArn": "自訂 ARN",
+		"useCustomArn": "使用自訂 ARN..."
 	}
 }

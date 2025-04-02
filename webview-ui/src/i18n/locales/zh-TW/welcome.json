@@ -1,27 +1,27 @@
 {
 	"greeting": "嗨，我是 Roo！",
-	"introduction": "由於最新的代理編碼能力突破，以及能夠讓我創建和編輯文件、探索複雜項目、使用瀏覽器和執行終端命令的工具（當然是在你的許可下），我可以完成各種任務。我甚至可以使用 MCP 創建新工具並擴展自己的能力。",
-	"notice": "要開始使用，此擴展需要一個 API 提供者。",
-	"start": "我們開始吧！",
+	"introduction": "由於程式代理功能的最新突破，以及能夠讓我建立和編輯檔案、探索複雜專案、使用瀏覽器和執行終端機命令的工具（在您授權後），我能完成各種工作。我甚至可以使用 MCP 建立新工具並擴展自己的功能。",
+	"notice": "要開始使用，此擴充功能需要一個 API 提供者。",
+	"start": "讓我們開始吧！",
 	"chooseProvider": "選擇一個 API 提供者開始：",
 	"routers": {
 		"requesty": {
-			"description": "你的優化 LLM 路由器",
+			"description": "您的最佳化 LLM 路由器",
 			"incentive": "$1 免費額度"
 		},
 		"openrouter": {
-			"description": "LLM 的統一接口"
+			"description": "LLM 的統一介面"
 		}
 	},
-	"startRouter": "通過路由器快速設置",
-	"startCustom": "使用你自己的 API 密鑰",
+	"startRouter": "透過路由器快速設定",
+	"startCustom": "使用您自己的 API 金鑰",
 	"telemetry": {
-		"title": "幫助改進 Roo Code",
-		"anonymousTelemetry": "發送匿名的錯誤和使用數據，以幫助我們修復錯誤並改進擴展功能。不會發送任何代碼、提示或個人信息。",
-		"changeSettings": "你隨時可以在<settingsLink>設置</settingsLink>底部更改此選項",
-		"settings": "設置",
+		"title": "協助改進 Roo Code",
+		"anonymousTelemetry": "傳送匿名的錯誤和使用資料，以協助我們修復錯誤並改進擴充功能。我們絕不會傳送任何程式碼、提示或個人資訊。",
+		"changeSettings": "您隨時可以在<settingsLink>設定</settingsLink>底端更改此選項",
+		"settings": "設定",
 		"allow": "允許",
 		"deny": "拒絕"
 	},
-	"or": "或"
+	"or": "或是"
 }
