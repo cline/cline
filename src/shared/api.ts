@@ -28,6 +28,7 @@ export interface ApiHandlerOptions {
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
 	liteLlmApiKey?: string
+	liteLlmUsePromptCache?: boolean
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
 	openRouterModelId?: string
@@ -1193,9 +1194,11 @@ export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	maxTokens: -1,
 	contextWindow: 128_000,
 	supportsImages: true,
-	supportsPromptCache: false,
+	supportsPromptCache: true,
 	inputPrice: 0,
 	outputPrice: 0,
+	cacheWritesPrice: 0,
+	cacheReadsPrice: 0,
 }
 
 // AskSage Models

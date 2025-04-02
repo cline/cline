@@ -100,6 +100,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		vsCodeLmModelSelector,
 		liteLlmBaseUrl,
 		liteLlmModelId,
+		liteLlmUsePromptCache,
 		userInfo,
 		previousModeApiProvider,
 		previousModeModelId,
@@ -164,6 +165,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 		getGlobalState(context, "liteLlmBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "liteLlmModelId") as Promise<string | undefined>,
+		getGlobalState(context, "liteLlmUsePromptCache") as Promise<boolean | undefined>,
 		getGlobalState(context, "userInfo") as Promise<UserInfo | undefined>,
 		getGlobalState(context, "previousModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "previousModeModelId") as Promise<string | undefined>,
@@ -265,6 +267,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			liteLlmBaseUrl,
 			liteLlmModelId,
 			liteLlmApiKey,
+			liteLlmUsePromptCache,
 			asksageApiKey,
 			asksageApiUrl,
 			xaiApiKey,
@@ -332,6 +335,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		liteLlmBaseUrl,
 		liteLlmModelId,
 		liteLlmApiKey,
+		liteLlmUsePromptCache,
 		qwenApiLine,
 		asksageApiKey,
 		asksageApiUrl,
@@ -381,6 +385,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "vsCodeLmModelSelector", vsCodeLmModelSelector)
 	await updateGlobalState(context, "liteLlmBaseUrl", liteLlmBaseUrl)
 	await updateGlobalState(context, "liteLlmModelId", liteLlmModelId)
+	await updateGlobalState(context, "liteLlmUsePromptCache", liteLlmUsePromptCache)
 	await updateGlobalState(context, "qwenApiLine", qwenApiLine)
 	await updateGlobalState(context, "requestyModelId", requestyModelId)
 	await updateGlobalState(context, "togetherModelId", togetherModelId)
