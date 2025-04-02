@@ -990,7 +990,10 @@ export class McpHub {
 
 			// ToDo: Add input types reflecting the non-transformed version
 			settings.mcpServers[serverName] = serverConfig as unknown as McpServerConfig
-			await fs.writeFile(globalSettingsPath, JSON.stringify({ mcpServers: { ...settings.mcpServers, [serverName]: serverConfig } }, null, 2))
+			await fs.writeFile(
+				globalSettingsPath,
+				JSON.stringify({ mcpServers: { ...settings.mcpServers, [serverName]: serverConfig } }, null, 2),
+			)
 
 			const mergedSettings = await this.loadAndMergeMcpSettings()
 			// mergedSettings should always be defined unless both files fail validation catastrophically
