@@ -130,6 +130,15 @@ Usage:
 <recursive>true or false (optional)</recursive>
 </list_files>
 
+## search_docs
+Description: Request to search the PostHog documentation for the specified query.
+Parameters:
+- query: (required) The query to search the documentation for.
+Usage:
+<search_docs>
+<query>Your search query here</query>
+</search_docs>
+
 ## list_code_definition_names
 Description: Request to list definition names (classes, functions, methods, etc.) used in source code files at the top level of the specified directory. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.
 Parameters:

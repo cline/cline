@@ -97,6 +97,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
                     return 'You must provide a valid API key or choose a different provider.'
                 }
                 break
+            case 'inkeep':
+                if (!apiConfiguration.inkeepApiKey) {
+                    return 'You must provide a valid API key or choose a different provider.'
+                }
+                break
         }
     }
     return undefined
