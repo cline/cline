@@ -1,0 +1,31 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"globalDependencies": ["**/.env.*local"],
+	"globalEnv": [
+		"NODE_ENV",
+		"NEXT_RUNTIME",
+		"TASK_ID",
+		"OPENROUTER_API_KEY",
+		"OPENROUTER_MODEL_ID",
+		"PROMPT_PATH",
+		"WORKSPACE_PATH",
+		"BENCHMARKS_DB_PATH"
+	],
+	"tasks": {
+		"lint": {},
+		"check-types": {
+			"dependsOn": []
+		},
+		"test": {},
+		"format": {},
+		"dev": {
+			"dependsOn": [],
+			"cache": false,
+			"persistent": true
+		},
+		"build": {
+			"dependsOn": ["^build"],
+			"outputs": [".next/**", "!.next/cache/**", "dist/**"]
+		}
+	}
+}

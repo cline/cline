@@ -346,7 +346,6 @@
 		"clean:extension": "rimraf bin dist out",
 		"clean:webview": "cd webview-ui && npm run clean",
 		"clean:e2e": "cd e2e && npm run clean",
-		"clean:benchmark": "cd benchmark && npm run clean",
 		"vscode-test": "npm-run-all -l -p vscode-test:*",
 		"vscode-test:extension": "tsc -p . --outDir out && node esbuild.js",
 		"vscode-test:webview": "cd webview-ui && npm run build",

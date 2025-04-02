@@ -1,0 +1,25 @@
+{
+	"name": "@evals/cli",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"lint": "eslint src --ext ts --max-warnings=0",
+		"check-types": "tsc --noEmit",
+		"format": "prettier --write src",
+		"dev": "dotenvx run -f ../../.env -- tsx src/index.ts"
+	},
+	"dependencies": {
+		"@evals/db": "workspace:^",
+		"@evals/ipc": "workspace:^",
+		"@evals/lib": "workspace:^",
+		"@evals/types": "workspace:^",
+		"execa": "^9.5.2",
+		"gluegun": "^5.1.2",
+		"p-map": "^7.0.3",
+		"p-wait-for": "^5.0.2"
+	},
+	"devDependencies": {
+		"@evals/eslint-config": "workspace:^",
+		"@evals/typescript-config": "workspace:^"
+	}
+}
