@@ -176,6 +176,8 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 
 			cline.on("message", (message) => this.emit(RooCodeEventName.Message, { taskId: cline.taskId, ...message }))
 
+			cline.on("taskModeSwitched", (taskId, mode) => this.emit(RooCodeEventName.TaskModeSwitched, taskId, mode))
+
 			cline.on("taskTokenUsageUpdated", (_, usage) =>
 				this.emit(RooCodeEventName.TaskTokenUsageUpdated, cline.taskId, usage),
 			)

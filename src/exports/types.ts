@@ -479,6 +479,7 @@ type RooCodeEvents = {
 	]
 	taskCreated: [string]
 	taskStarted: [string]
+	taskModeSwitched: [string, string]
 	taskPaused: [string]
 	taskUnpaused: [string]
 	taskAskResponded: [string]

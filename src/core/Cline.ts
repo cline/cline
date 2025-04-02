@@ -87,6 +87,7 @@ type UserContent = Array<Anthropic.Messages.ContentBlockParam>
 export type ClineEvents = {
 	message: [{ action: "created" | "updated"; message: ClineMessage }]
 	taskStarted: []
+	taskModeSwitched: [taskId: string, mode: string]
 	taskPaused: []
 	taskUnpaused: []
 	taskAskResponded: []

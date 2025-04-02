@@ -740,10 +740,11 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	 */
 	public async handleModeSwitch(newMode: Mode) {
 		// Capture mode switch telemetry event
-		const currentTaskId = this.getCurrentCline()?.taskId
+		const cline = this.getCurrentCline()
 
-		if (currentTaskId) {
-			telemetryService.captureModeSwitch(currentTaskId, newMode)
+		if (cline) {
+			telemetryService.captureModeSwitch(cline.taskId, newMode)
+			cline.emit("taskModeSwitched", cline.taskId, newMode)
 		}
 
 		await this.updateGlobalState("mode", newMode)

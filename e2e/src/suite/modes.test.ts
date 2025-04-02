@@ -13,10 +13,16 @@ suite("Roo Code Modes", () => {
 		 */
 
 		const switchModesPrompt =
-			"For each mode (Code, Architect, Ask) respond with the mode name and what it specializes in after switching to that mode. " +
-			"Do not start with the current mode."
+			"For each mode (Architect, Ask, Debug) respond with the mode name and what it specializes in after switching to that mode."
 
 		let messages: ClineMessage[] = []
+
+		const modeSwitches: string[] = []
+
+		api.on("taskModeSwitched", (_taskId, mode) => {
+			console.log("taskModeSwitched", mode)
+			modeSwitches.push(mode)
+		})
 
 		api.on("message", ({ message }) => {
 			if (message.type === "say" && message.partial === false) {
@@ -25,36 +31,15 @@ suite("Roo Code Modes", () => {
 		})
 
 		const switchModesTaskId = await api.startNewTask({
-			configuration: { mode: "Code", alwaysAllowModeSwitch: true, autoApprovalEnabled: true },
+			configuration: { mode: "code", alwaysAllowModeSwitch: true, autoApprovalEnabled: true },
 			text: switchModesPrompt,
 		})
 
-		await waitUntilCompleted({ api, taskId: switchModesTaskId, timeout: 60_000 })
-
-		/**
-		 * Grade the response.
-		 */
-
-		const response = messages
-			.filter(({ type, say, partial }) => say === "text")
-			.map(({ text }) => text ?? "")
-			.join("\n")
-
-		const gradePrompt = `Given this prompt: ${switchModesPrompt} grade the response from 1 to 10 in the format of "Grade: (1-10)". For example: Grade 7\n\nResponse: ${response}`
-
-		messages = []
-
-		const gradeTaskId = await api.startNewTask({ configuration: { mode: "Ask" }, text: gradePrompt })
-		await waitUntilCompleted({ api, taskId: gradeTaskId })
-
-		const completion = messages.find(({ type, say, partial }) => say === "completion_result")
-		const match = completion?.text?.match(/Grade: (\d+)/)
-		const score = parseInt(match?.[1] ?? "0")
-		assert.ok(
-			score >= 7 && score <= 10,
-			`Grade must be between 7 and 10. DEBUG: score = ${score}, completion = ${completion?.text}`,
-		)
-
+		await waitUntilCompleted({ api, taskId: switchModesTaskId })
 		await api.cancelCurrentTask()
+
+		assert.ok(modeSwitches.includes("architect"))
+		assert.ok(modeSwitches.includes("ask"))
+		assert.ok(modeSwitches.includes("debug"))
 	})
 })

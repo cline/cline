@@ -470,6 +470,7 @@ type RooCodeEvents = {
 	]
 	taskCreated: [string]
 	taskStarted: [string]
+	taskModeSwitched: [string, string]
 	taskPaused: [string]
 	taskUnpaused: [string]
 	taskAskResponded: [string]
@@ -506,6 +507,7 @@ declare enum RooCodeEventName {
 	Message = "message",
 	TaskCreated = "taskCreated",
 	TaskStarted = "taskStarted",
+	TaskModeSwitched = "taskModeSwitched",
 	TaskPaused = "taskPaused",
 	TaskUnpaused = "taskUnpaused",
 	TaskAskResponded = "taskAskResponded",
