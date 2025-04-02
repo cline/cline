@@ -83,7 +83,7 @@ export const SelectDropdown = React.forwardRef<React.ElementRef<typeof DropdownM
 		}
 
 		return (
-			<DropdownMenu open={open} onOpenChange={setOpen}>
+			<DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
 				<DropdownMenuTrigger
 					ref={ref}
 					disabled={disabled}
