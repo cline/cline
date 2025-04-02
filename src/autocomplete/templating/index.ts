@@ -1,26 +1,15 @@
 import Handlebars from 'handlebars'
 
 import { AutocompleteLanguageInfo } from '../constants/AutocompleteLanguageInfo'
-import { HelperVars } from '../util/HelperVars'
+import { AutocompleteHelperVars } from '../util/AutocompleteHelperVars'
 
 import { SnippetPayload } from '../snippets'
-import { AutocompleteTemplate, getTemplateForModel } from './AutocompleteTemplate'
 import { getSnippets } from './filtering'
 import { formatSnippets } from './formatting'
 import { getStopTokens } from './getStopTokens'
 import { getUriPathBasename } from '../../utils/uri'
-import { CompletionOptions } from '../api/mistral'
-
-function getTemplate(helper: HelperVars): AutocompleteTemplate {
-    if (helper.options.template) {
-        return {
-            template: helper.options.template,
-            completionOptions: {},
-            compilePrefixSuffix: undefined,
-        }
-    }
-    return getTemplateForModel(helper.modelName)
-}
+import { codestralMultifileFimTemplate } from './AutocompleteTemplate'
+import { CompletionOptions } from '../types'
 
 function renderStringTemplate(
     template: string,
@@ -49,7 +38,7 @@ export function renderPrompt({
 }: {
     snippetPayload: SnippetPayload
     workspaceDirs: string[]
-    helper: HelperVars
+    helper: AutocompleteHelperVars
 }): {
     prompt: string
     prefix: string
@@ -65,7 +54,7 @@ export function renderPrompt({
 
     const reponame = getUriPathBasename(workspaceDirs[0] ?? 'myproject')
 
-    const { template, compilePrefixSuffix, completionOptions } = getTemplate(helper)
+    const { template, compilePrefixSuffix, completionOptions } = codestralMultifileFimTemplate
 
     const snippets = getSnippets(helper, snippetPayload)
 

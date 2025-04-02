@@ -8,7 +8,7 @@ import pWaitFor from 'p-wait-for'
 import * as path from 'path'
 import { serializeError } from 'serialize-error'
 import * as vscode from 'vscode'
-import { ApiHandler, buildApiHandler } from '../api'
+import { ApiHandler, buildApiHandler, buildCompletionApiHandler, CompletionApiHandler } from '../api'
 import { OpenRouterHandler } from '../api/providers/openrouter'
 import CheckpointTracker from '../integrations/checkpoints/CheckpointTracker'
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from '../integrations/editor/DiffViewProvider'
@@ -80,7 +80,9 @@ type UserContent = Array<Anthropic.ContentBlockParam>
 export class PostHog {
     readonly taskId: string
     readonly apiProvider?: string
+    readonly completionApiProvider?: string
     api: ApiHandler
+    completionApi: CompletionApiHandler
     private terminalManager: TerminalManager
     private urlContentFetcher: UrlContentFetcher
     browserSession: BrowserSession
@@ -142,7 +144,9 @@ export class PostHog {
         })
         this.providerRef = new WeakRef(provider)
         this.apiProvider = apiConfiguration.apiProvider
+        this.completionApiProvider = apiConfiguration.completionApiProvider
         this.api = buildApiHandler(apiConfiguration)
+        this.completionApi = buildCompletionApiHandler(apiConfiguration)
         this.terminalManager = new TerminalManager()
         this.urlContentFetcher = new UrlContentFetcher(provider.context)
         this.browserSession = new BrowserSession(provider.context, browserSettings)

@@ -246,6 +246,16 @@
                     ],
                     "default": "English",
                     "description": "The language that PostHog should use for communication."
+                },
+                "posthog.enableTabAutocomplete": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable PostHog's tab autocomplete feature."
+                },
+                "posthog.pauseTabAutocompleteOnBattery": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Pause PostHog's tab autocomplete feature when on battery."
                 }
             }
         }
@@ -279,6 +289,7 @@
         "@changesets/cli": "^2.27.12",
         "@types/chai": "^5.0.1",
         "@types/diff": "^5.2.1",
+        "@types/follow-redirects": "^1.14.4",
         "@types/mocha": "^10.0.7",
         "@types/node": "20.x",
         "@types/should": "^11.2.0",
@@ -330,10 +341,13 @@
         "follow-redirects": "^1.15.9",
         "get-folder-size": "^5.0.0",
         "globby": "^14.0.2",
+        "handlebars": "^4.7.8",
         "ignore": "^7.0.3",
         "isbinaryfile": "^5.0.2",
+        "js-tiktoken": "^1.0.19",
         "mammoth": "^1.8.0",
         "monaco-vscode-textmate-theme-converter": "^0.1.7",
+        "node-machine-id": "^1.1.12",
         "ollama": "^0.5.13",
         "open-graph-scraper": "^6.9.0",
         "openai": "^4.83.0",
@@ -347,6 +361,7 @@
         "serialize-error": "^11.0.3",
         "simple-git": "^3.27.0",
         "strip-ansi": "^7.1.0",
+        "systeminformation": "^5.25.11",
         "tree-sitter-wasms": "^0.1.11",
         "turndown": "^7.2.0",
         "web-tree-sitter": "^0.22.6",

@@ -1,12 +1,31 @@
 import { globalAgent } from 'https'
 import * as fs from 'node:fs'
 import tls from 'node:tls'
+import * as z from 'zod'
 
 import * as followRedirects from 'follow-redirects'
 import { HttpProxyAgent } from 'http-proxy-agent'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import fetch, { RequestInit, Response } from 'node-fetch'
-import { RequestOptions } from './openai'
+
+export const clientCertificateOptionsSchema = z.object({
+    cert: z.string(),
+    key: z.string(),
+    passphrase: z.string().optional(),
+})
+
+export const requestOptionsSchema = z.object({
+    timeout: z.number().optional(),
+    verifySsl: z.boolean().optional(),
+    caBundlePath: z.union([z.string(), z.array(z.string())]).optional(),
+    proxy: z.string().optional(),
+    headers: z.record(z.string()).optional(),
+    extraBodyProperties: z.record(z.any()).optional(),
+    noProxy: z.array(z.string()).optional(),
+    clientCertificate: clientCertificateOptionsSchema.optional(),
+})
+
+export type RequestOptions = z.infer<typeof requestOptionsSchema>
 
 const { http, https } = (followRedirects as any).default
 
@@ -105,4 +124,28 @@ export function fetchwithRequestOptions(
     })
 
     return resp
+}
+
+export interface APIError extends Error {
+    response?: Response
+}
+export const RETRY_AFTER_HEADER = 'Retry-After'
+
+export const withExponentialBackoff = async <T>(apiCall: () => Promise<T>, maxTries = 5, initialDelaySeconds = 1) => {
+    for (let attempt = 0; attempt < maxTries; attempt++) {
+        try {
+            const result = await apiCall()
+            return result
+        } catch (error: any) {
+            if ((error as APIError).response?.status === 429) {
+                const retryAfter = (error as APIError).response?.headers.get(RETRY_AFTER_HEADER)
+                const delay = retryAfter ? parseInt(retryAfter, 10) : initialDelaySeconds * 2 ** attempt
+                console.log(`Hit rate limit. Retrying in ${delay} seconds (attempt ${attempt + 1})`)
+                await new Promise((resolve) => setTimeout(resolve, delay * 1000))
+            } else {
+                throw error // Re-throw other errors
+            }
+        }
+    }
+    throw new Error(`Failed to make API call after ${maxTries} retries`)
 }

@@ -103,7 +103,6 @@ export class BracketMatchingService {
             }
 
             all += chunk
-            const allLines = all.split('\n')
             for (let i = 0; i < chunk.length; i++) {
                 const char = chunk[i]
                 if (Object.values(BRACKETS).includes(char)) {

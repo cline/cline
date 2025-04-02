@@ -1,7 +1,7 @@
 import { getRangeInString } from '../../utils/ranges'
 import { readFile } from '../../utils/vscode'
 import { languageForFilepath } from '../constants/AutocompleteLanguageInfo'
-import { AutocompleteInput } from '../util/types'
+import { AutocompleteInput } from '../types'
 
 /**
  * We have to handle a few edge cases in getting the entire prefix/suffix for the current file.

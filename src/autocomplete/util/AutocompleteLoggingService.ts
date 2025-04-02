@@ -1,6 +1,6 @@
-// import { DataLogger } from "../../data/log";
-
-import { AutocompleteOutcome } from './types'
+import { telemetryService } from '../../services/telemetry/TelemetryService'
+import { getUriFileExtension } from '../../utils/uri'
+import { AutocompleteOutcome } from '../types'
 
 export const COUNT_COMPLETION_REJECTED_AFTER = 10_000
 
@@ -37,7 +37,7 @@ export class AutocompleteLoggingService {
         if (this._outcomes.has(completionId)) {
             const outcome = this._outcomes.get(completionId)!
             outcome.accepted = true
-            // this.logAutocompleteOutcome(outcome);
+            this.logAutocompleteOutcome(outcome)
             this._outcomes.delete(completionId)
             return outcome
         }
@@ -89,32 +89,20 @@ export class AutocompleteLoggingService {
     }
 
     private logAutocompleteOutcome(outcome: AutocompleteOutcome) {
-        // void DataLogger.getInstance().logDevData({
-        //   name: "autocomplete",
-        //   data: {
-        //     ...outcome,
-        //     useFileSuffix: true, // from outdated schema
-        //   },
-        // });
-        // const { prompt, completion, prefix, suffix, ...restOfOutcome } = outcome;
-        // void Telemetry.capture(
-        //   "autocomplete",
-        //   {
-        //     accepted: restOfOutcome.accepted,
-        //     cacheHit: restOfOutcome.cacheHit,
-        //     completionId: restOfOutcome.completionId,
-        //     completionOptions: restOfOutcome.completionOptions,
-        //     debounceDelay: restOfOutcome.debounceDelay,
-        //     fileExtension: getUriFileExtension(restOfOutcome.filepath),
-        //     maxPromptTokens: restOfOutcome.maxPromptTokens,
-        //     modelName: restOfOutcome.modelName,
-        //     modelProvider: restOfOutcome.modelProvider,
-        //     multilineCompletions: restOfOutcome.multilineCompletions,
-        //     time: restOfOutcome.time,
-        //     useRecentlyEdited: restOfOutcome.useRecentlyEdited,
-        //     numLines: restOfOutcome.numLines,
-        //   },
-        //   true,
-        // );
+        void telemetryService.captureAutocomplete({
+            accepted: outcome.accepted,
+            cacheHit: outcome.cacheHit,
+            completionId: outcome.completionId,
+            completionOptions: outcome.completionOptions,
+            debounceDelay: outcome.debounceDelay,
+            fileExtension: getUriFileExtension(outcome.filepath),
+            maxPromptTokens: outcome.maxPromptTokens,
+            modelName: outcome.modelName,
+            modelProvider: outcome.modelProvider,
+            multilineCompletions: outcome.multilineCompletions,
+            time: outcome.time,
+            useRecentlyEdited: outcome.useRecentlyEdited,
+            numLines: outcome.numLines,
+        })
     }
 }

@@ -4,10 +4,9 @@ import { LRUCache } from 'lru-cache'
 import Parser from 'web-tree-sitter'
 
 import { getFullLanguageName, getQueryForFile, IGNORE_PATH_PATTERNS, LanguageName } from '../../util/treeSitter'
-import { AutocompleteCodeSnippet, AutocompleteSnippetType } from '../../snippets/types'
 import { AstPath } from '../../util/ast'
 import { ImportDefinitionsService } from '../ImportDefinitionsService'
-import { AutocompleteSnippetWithScore } from '../../types'
+import { AutocompleteCodeSnippet, AutocompleteSnippetType, AutocompleteSnippetWithScore } from '../../types'
 import { gotoDefinition, readRangeInFile } from '../../../utils/vscode'
 
 export class RootPathContextService {

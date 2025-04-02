@@ -1,4 +1,4 @@
-import { HelperVars } from '../../util/HelperVars'
+import { AutocompleteHelperVars } from '../../util/AutocompleteHelperVars'
 import { streamLines } from '../../util/stream'
 
 import { stopAtStartOf, stopAtStopTokens } from './charStream'
@@ -25,7 +25,7 @@ export class StreamTransformPipeline {
         multiline: boolean,
         stopTokens: string[],
         fullStop: () => void,
-        helper: HelperVars
+        helper: AutocompleteHelperVars
     ): AsyncGenerator<string> {
         let charGenerator = generator
 
@@ -70,7 +70,7 @@ export class StreamTransformPipeline {
         }
     }
 
-    private getLineBelowCursor(helper: HelperVars): string {
+    private getLineBelowCursor(helper: AutocompleteHelperVars): string {
         let lineBelowCursor = ''
         let i = 1
         while (lineBelowCursor.trim() === '' && helper.pos.line + i <= helper.fileLines.length - 1) {

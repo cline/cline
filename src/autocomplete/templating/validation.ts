@@ -1,4 +1,4 @@
-import { AutocompleteClipboardSnippet, AutocompleteSnippet, AutocompleteSnippetType } from '../snippets/types'
+import { AutocompleteClipboardSnippet, AutocompleteSnippet, AutocompleteSnippetType } from '../types'
 
 const MAX_CLIPBOARD_AGE = 5 * 60 * 1000
 
@@ -11,7 +11,9 @@ const isValidClipboardSnippet = (snippet: AutocompleteClipboardSnippet): boolean
 }
 
 export const isValidSnippet = (snippet: AutocompleteSnippet): boolean => {
-    if (snippet.content.trim() === '') return false
+    if (snippet.content.trim() === '') {
+        return false
+    }
 
     if (snippet.type === AutocompleteSnippetType.Clipboard) {
         return isValidClipboardSnippet(snippet)

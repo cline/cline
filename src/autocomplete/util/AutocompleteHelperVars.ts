@@ -1,17 +1,16 @@
-import { countTokens, pruneLinesFromBottom, pruneLinesFromTop, pruneWithBinarySearch } from '../../llm/countTokens'
+import { countTokens, pruneLinesFromBottom, pruneLinesFromTop, pruneWithBinarySearch } from './countTokens'
 import { getWorkspaceDirs, readFile } from '../../utils/vscode'
 import { AutocompleteLanguageInfo, languageForFilepath } from '../constants/AutocompleteLanguageInfo'
 import { constructInitialPrefixSuffix } from '../templating/constructPrefixSuffix'
-import { TabAutocompleteOptions } from '../types'
+import { AutocompleteInput, TabAutocompleteOptions } from '../types'
 
 import { AstPath, getAst, getTreePathAtCursor } from './ast'
-import { AutocompleteInput } from './types'
 
 /**
  * A collection of variables that are often accessed throughout the autocomplete pipeline
  * It's noisy to re-calculate all the time or inject them into each function
  */
-export class HelperVars {
+export class AutocompleteHelperVars {
     lang: AutocompleteLanguageInfo
     treePath: AstPath | undefined
     workspaceUris: string[] = []
@@ -64,8 +63,8 @@ export class HelperVars {
         input: AutocompleteInput,
         options: TabAutocompleteOptions,
         modelName: string
-    ): Promise<HelperVars> {
-        const instance = new HelperVars(input, options, modelName)
+    ): Promise<AutocompleteHelperVars> {
+        const instance = new AutocompleteHelperVars(input, options, modelName)
         await instance.init()
         return instance
     }
@@ -77,12 +76,11 @@ export class HelperVars {
         const prunedPrefix = pruneWithBinarySearch(
             this.fullPrefix,
             maxPrefixTokens,
-            this.modelName,
             true // fromBottom = true to keep the most recent content
         )
 
         // Calculate remaining tokens for suffix
-        const prefixTokenCount = countTokens(prunedPrefix, this.modelName)
+        const prefixTokenCount = countTokens(prunedPrefix)
         const maxSuffixTokens = Math.min(
             this.options.maxPromptTokens - prefixTokenCount,
             this.options.maxPromptTokens * this.options.maxSuffixPercentage
@@ -92,7 +90,6 @@ export class HelperVars {
         const prunedSuffix = pruneWithBinarySearch(
             this.fullSuffix,
             maxSuffixTokens,
-            this.modelName,
             false // fromBottom = false to keep the content closest to cursor
         )
 

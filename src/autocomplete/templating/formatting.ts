@@ -5,14 +5,14 @@ import {
     AutocompleteDiffSnippet,
     AutocompleteSnippet,
     AutocompleteSnippetType,
-} from '../snippets/types'
-import { HelperVars } from '../util/HelperVars'
+} from '../types'
+import { AutocompleteHelperVars } from '../util/AutocompleteHelperVars'
 
-const getCommentMark = (helper: HelperVars) => {
+const getCommentMark = (helper: AutocompleteHelperVars) => {
     return helper.lang.singleLineComment
 }
 
-const addCommentMarks = (text: string, helper: HelperVars) => {
+const addCommentMarks = (text: string, helper: AutocompleteHelperVars) => {
     const commentMark = getCommentMark(helper)
     return text
         .trim()
@@ -46,7 +46,7 @@ const formatDiffSnippet = (snippet: AutocompleteDiffSnippet): AutocompleteDiffSn
     return snippet
 }
 
-const commentifySnippet = (helper: HelperVars, snippet: AutocompleteSnippet): AutocompleteSnippet => {
+const commentifySnippet = (helper: AutocompleteHelperVars, snippet: AutocompleteSnippet): AutocompleteSnippet => {
     return {
         ...snippet,
         content: addCommentMarks(snippet.content, helper),
@@ -54,7 +54,7 @@ const commentifySnippet = (helper: HelperVars, snippet: AutocompleteSnippet): Au
 }
 
 export const formatSnippets = (
-    helper: HelperVars,
+    helper: AutocompleteHelperVars,
     snippets: AutocompleteSnippet[],
     workspaceDirs: string[]
 ): string => {

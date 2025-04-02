@@ -1,7 +1,6 @@
 import * as vscode from 'vscode'
 import * as URI from 'uri-js'
 import { RangeInFile, Location, Range } from '../autocomplete/types'
-import { executeGotoProvider } from '../autocomplete/lsp'
 import { machineIdSync } from 'node-machine-id'
 
 const MAX_BYTES = 100000
@@ -58,15 +57,51 @@ export async function getWorkspaceDirs(): Promise<string[]> {
     return vscode.workspace.workspaceFolders?.map((folder) => folder.uri.toString()) || []
 }
 
+const MAX_CACHE_SIZE = 500
+const gotoCache = new Map<string, RangeInFile[]>()
+
 export async function gotoDefinition(location: Location): Promise<RangeInFile[]> {
-    const result = await executeGotoProvider({
+    const input = {
         uri: vscode.Uri.parse(location.filepath),
         line: location.position.line,
         character: location.position.character,
         name: 'vscode.executeDefinitionProvider',
-    })
+    }
+    const cacheKey = `${input.name}${input.uri.toString()}${input.line}${input.character}`
+    const cached = gotoCache.get(cacheKey)
+    if (cached) {
+        return cached
+    }
 
-    return result
+    try {
+        const definitions = (await vscode.commands.executeCommand(
+            input.name,
+            input.uri,
+            new vscode.Position(input.line, input.character)
+        )) as any
+
+        const results = definitions
+            .filter((d: any) => (d.targetUri || d.uri) && (d.targetRange || d.range))
+            .map((d: any) => ({
+                filepath: (d.targetUri || d.uri).toString(),
+                range: d.targetRange || d.range,
+            }))
+
+        // Add to cache
+        if (gotoCache.size >= MAX_CACHE_SIZE) {
+            // Remove the oldest item from the cache
+            const oldestKey = gotoCache.keys().next().value
+            if (oldestKey) {
+                gotoCache.delete(oldestKey)
+            }
+        }
+        gotoCache.set(cacheKey, results)
+
+        return results
+    } catch (e) {
+        console.warn(`Error executing ${input.name}:`, e)
+        return []
+    }
 }
 
 export async function readRangeInFile(fileUri: string, range: Range): Promise<string> {

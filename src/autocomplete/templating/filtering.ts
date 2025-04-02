@@ -1,12 +1,12 @@
-import { countTokens } from '../../llm/countTokens'
+import { countTokens } from '../util/countTokens'
 import { SnippetPayload } from '../snippets'
-import { AutocompleteCodeSnippet, AutocompleteSnippet } from '../snippets/types'
-import { HelperVars } from '../util/HelperVars'
+import { AutocompleteCodeSnippet, AutocompleteSnippet } from '../types'
+import { AutocompleteHelperVars } from '../util/AutocompleteHelperVars'
 
 import { isValidSnippet } from './validation'
 
-const getRemainingTokenCount = (helper: HelperVars): number => {
-    const tokenCount = countTokens(helper.prunedCaretWindow, helper.modelName)
+const getRemainingTokenCount = (helper: AutocompleteHelperVars): number => {
+    const tokenCount = countTokens(helper.prunedCaretWindow)
 
     return helper.options.maxPromptTokens - tokenCount
 }
@@ -33,7 +33,7 @@ function filterSnippetsAlreadyInCaretWindow(
     return snippets.filter((s) => s.content.trim() !== '' && !caretWindow.includes(s.content.trim()))
 }
 
-export const getSnippets = (helper: HelperVars, payload: SnippetPayload): AutocompleteSnippet[] => {
+export const getSnippets = (helper: AutocompleteHelperVars, payload: SnippetPayload): AutocompleteSnippet[] => {
     const snippets = {
         clipboard: payload.clipboardSnippets,
         recentlyVisitedRanges: payload.recentlyVisitedRangesSnippets,
@@ -106,25 +106,11 @@ export const getSnippets = (helper: HelperVars, payload: SnippetPayload): Autoco
         }))
         .sort((a, b) => a.priority - b.priority)
 
-    // Log the snippet order for debugging - uncomment if needed
-    /* console.log(
-    'Snippet processing order:',
-    snippetOrder
-      .map(({ key, priority }) => `${key} (priority: ${priority})`).join("\n")
-  ); */
-
     // Convert configs to prioritized snippets
     let prioritizedSnippets = snippetOrder
         .flatMap(({ key, priority }) => snippets[key].map((snippet) => ({ snippet, priority })))
         .sort((a, b) => a.priority - b.priority)
         .map(({ snippet }) => snippet)
-
-    // Exclude Continue's own output as it makes it super-hard for users to test the autocomplete feature
-    // while looking at the prompts in the Continue's output
-    prioritizedSnippets = prioritizedSnippets.filter(
-        (snippet) =>
-            !(snippet as AutocompleteCodeSnippet).filepath?.startsWith('output:extension-output-Continue.continue')
-    )
 
     const finalSnippets = []
     let remainingTokenCount = getRemainingTokenCount(helper)
@@ -135,7 +121,7 @@ export const getSnippets = (helper: HelperVars, payload: SnippetPayload): Autoco
             continue
         }
 
-        const snippetSize = countTokens(snippet.content, helper.modelName) + TOKEN_BUFFER
+        const snippetSize = countTokens(snippet.content) + TOKEN_BUFFER
 
         if (remainingTokenCount >= snippetSize) {
             finalSnippets.push(snippet)

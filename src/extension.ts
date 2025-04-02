@@ -10,6 +10,17 @@ import assert from 'node:assert'
 import { telemetryService } from './services/telemetry/TelemetryService'
 import { PostHogProvider } from './core/webview/PostHogProvider'
 import { CompletionProvider } from './autocomplete/CompletionProvider'
+import {
+    getStatusBarStatus,
+    getStatusBarStatusFromQuickPickItemLabel,
+    monitorBatteryChanges,
+    quickPickStatusText,
+    setupStatusBar,
+    StatusBarStatus,
+} from './autocomplete/statusBar'
+import { Battery } from './utils/battery'
+import { getMetaKeyLabel } from './utils/util'
+import { buildCompletionApiHandler } from './api'
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -34,6 +45,11 @@ export function activate(context: vscode.ExtensionContext) {
     const sidebarProvider = new PostHogProvider(context, outputChannel)
 
     vscode.commands.executeCommand('setContext', 'posthog.isDevMode', IS_DEV && IS_DEV === 'true')
+
+    // Battery
+    const battery = new Battery()
+    context.subscriptions.push(battery)
+    context.subscriptions.push(monitorBatteryChanges(battery))
 
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(PostHogProvider.sideBarId, sidebarProvider, {
@@ -123,8 +139,28 @@ export function activate(context: vscode.ExtensionContext) {
         })
     )
 
+    // Tab autocomplete
+    const config = vscode.workspace.getConfiguration('posthog')
+    const enabled = config.get<boolean>('enableTabAutocomplete')
+
+    // Register inline completion provider
+    setupStatusBar(enabled ? StatusBarStatus.Enabled : StatusBarStatus.Disabled)
     context.subscriptions.push(
-        vscode.languages.registerInlineCompletionItemProvider([{ pattern: '**' }], new CompletionProvider(context))
+        vscode.languages.registerInlineCompletionItemProvider(
+            [{ pattern: '**' }],
+            new CompletionProvider(context, async () => {
+                // const completionApiProvider = await sidebarProvider.getGlobalState('completionApiProvider')
+                // if (!completionApiProvider) {
+                // 	throw new Error('No API completion provider found')
+                // }
+                // Default to codestral
+                const state = await sidebarProvider.getState()
+                return buildCompletionApiHandler({
+                    ...state.apiConfiguration,
+                    completionApiProvider: 'codestral',
+                })
+            })
+        )
     )
 
     const registerCopyBufferSpy = (context: vscode.ExtensionContext) => {
@@ -358,6 +394,89 @@ export function activate(context: vscode.ExtensionContext) {
 
             // Send to sidebar provider with diagnostics
             await sidebarProvider.fixWithPostHog(selectedText, filePath, languageId, diagnostics)
+        })
+    )
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'posthog.logAutocompleteOutcome',
+            (completionId: string, completionProvider: CompletionProvider) => {
+                completionProvider.accept(completionId)
+            }
+        )
+    )
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('posthog.toggleTabAutocompleteEnabled', () => {
+            telemetryService.captureAutocompleteEnabled()
+
+            const config = vscode.workspace.getConfiguration('posthog')
+            const enabled = config.get('enableTabAutocomplete')
+            const pauseOnBattery = config.get<boolean>('pauseTabAutocompleteOnBattery')
+            if (!pauseOnBattery || battery.isACConnected()) {
+                config.update('enableTabAutocomplete', !enabled, vscode.ConfigurationTarget.Global)
+            } else {
+                if (enabled) {
+                    const paused = getStatusBarStatus() === StatusBarStatus.Paused
+                    if (paused) {
+                        setupStatusBar(StatusBarStatus.Enabled)
+                    } else {
+                        config.update('enableTabAutocomplete', false, vscode.ConfigurationTarget.Global)
+                    }
+                } else {
+                    setupStatusBar(StatusBarStatus.Paused)
+                    config.update('enableTabAutocomplete', true, vscode.ConfigurationTarget.Global)
+                }
+            }
+        })
+    )
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('posthog.openTabAutocompleteConfigMenu', async () => {
+            telemetryService.captureOpenTabAutocompleteConfigMenu()
+
+            const config = vscode.workspace.getConfiguration('posthog')
+            const quickPick = vscode.window.createQuickPick()
+
+            // Toggle between Disabled, Paused, and Enabled
+            const pauseOnBattery = config.get<boolean>('pauseTabAutocompleteOnBattery') && !battery.isACConnected()
+            const currentStatus = getStatusBarStatus()
+
+            let targetStatus: StatusBarStatus | undefined
+            if (pauseOnBattery) {
+                // Cycle from Disabled -> Paused -> Enabled
+                targetStatus =
+                    currentStatus === StatusBarStatus.Paused
+                        ? StatusBarStatus.Enabled
+                        : currentStatus === StatusBarStatus.Disabled
+                          ? StatusBarStatus.Paused
+                          : StatusBarStatus.Disabled
+            } else {
+                // Toggle between Disabled and Enabled
+                targetStatus =
+                    currentStatus === StatusBarStatus.Disabled ? StatusBarStatus.Enabled : StatusBarStatus.Disabled
+            }
+
+            quickPick.items = [
+                {
+                    label: quickPickStatusText(targetStatus),
+                },
+            ]
+            quickPick.onDidAccept(() => {
+                const selectedOption = quickPick.selectedItems[0].label
+                const targetStatus = getStatusBarStatusFromQuickPickItemLabel(selectedOption)
+
+                if (targetStatus !== undefined) {
+                    setupStatusBar(targetStatus)
+                    config.update(
+                        'enableTabAutocomplete',
+                        targetStatus === StatusBarStatus.Enabled,
+                        vscode.ConfigurationTarget.Global
+                    )
+                }
+                quickPick.dispose()
+            })
+            quickPick.show()
         })
     )
 

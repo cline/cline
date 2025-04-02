@@ -1,6 +1,7 @@
-import Mistral, { CompletionOptions } from '../api/mistral'
+import { CompletionApiHandler } from '../../api'
 import { StreamTransformPipeline } from '../filtering/streamTransforms/StreamTransformPipeline'
-import { HelperVars } from '../util/HelperVars'
+import { CompletionOptions } from '../types'
+import { AutocompleteHelperVars } from '../util/AutocompleteHelperVars'
 
 import { GeneratorReuseManager } from './GeneratorReuseManager'
 
@@ -14,18 +15,18 @@ export class CompletionStreamer {
 
     async *streamCompletionWithFilters(
         token: AbortSignal,
-        llm: Mistral,
+        completionApiHandler: CompletionApiHandler,
         prefix: string,
         suffix: string,
-        prompt: string,
         multiline: boolean,
         completionOptions: Partial<CompletionOptions> | undefined,
-        helper: HelperVars
+        helper: AutocompleteHelperVars
     ) {
         // Try to reuse pending requests if what the user typed matches start of completion
         const generator = this.generatorReuseManager.getGenerator(
             prefix,
-            (abortSignal: AbortSignal) => llm.streamFim(prefix, suffix, abortSignal, completionOptions),
+            (abortSignal: AbortSignal) =>
+                completionApiHandler.streamFim(prefix, suffix, abortSignal, completionOptions),
             multiline
         )
 
@@ -36,7 +37,6 @@ export class CompletionStreamer {
         const generatorWithCancellation = async function* () {
             for await (const update of generator) {
                 if (token.aborted) {
-                    console.log('abort')
                     return
                 }
                 yield update

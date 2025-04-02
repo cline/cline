@@ -1,6 +1,6 @@
 import ignore from 'ignore'
 
-import { HelperVars } from '../util/HelperVars'
+import { AutocompleteHelperVars } from '../util/AutocompleteHelperVars'
 import { getWorkspaceDirs } from '../../utils/vscode'
 import { findUriInDirs } from '../../utils/uri'
 
@@ -19,7 +19,7 @@ async function isDisabledForFile(currentFilepath: string, disableInFiles: string
     return false
 }
 
-export async function shouldPrefilter(helper: HelperVars): Promise<boolean> {
+export async function shouldPrefilter(helper: AutocompleteHelperVars): Promise<boolean> {
     // Allow disabling autocomplete from config.json
     if (helper.options.disable) {
         return true

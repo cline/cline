@@ -1,6 +1,5 @@
 import * as vscode from 'vscode'
-import { RecentlyEditedRange } from './util/types'
-import { RangeInFileWithContents } from './types'
+import { RangeInFileWithContents, RecentlyEditedRange } from './types'
 
 type VsCodeRecentlyEditedRange = {
     uri: vscode.Uri

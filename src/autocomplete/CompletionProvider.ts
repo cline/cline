@@ -7,21 +7,20 @@ import { postprocessCompletion } from './postprocessing/index.js'
 import { shouldPrefilter } from './prefiltering/index.js'
 import { RecentlyEditedTracker } from './recentlyEdited.js'
 import { RecentlyVisitedRangesService } from './RecentlyVisitedRangesService.js'
-import { getAllSnippets } from './snippets/index.js'
 import { renderPrompt } from './templating/index.js'
-import { TabAutocompleteOptions } from './types.js'
+import { AutocompleteInput, AutocompleteOutcome, TabAutocompleteOptions } from './types.js'
 import { AutocompleteDebouncer } from './util/AutocompleteDebouncer.js'
-// import { AutocompleteLoggingService } from "./util/AutocompleteLoggingService.js"
 // import AutocompleteLruCache from "./util/AutocompleteLruCache.js"
-import { HelperVars } from './util/HelperVars.js'
-import { AutocompleteInput, AutocompleteOutcome } from './util/types.js'
+import { AutocompleteHelperVars } from './util/AutocompleteHelperVars.js'
 import * as vscode from 'vscode'
 import { v4 as uuidv4 } from 'uuid'
 import { getRepoName, getUniqueId, getWorkspaceDirs } from '../utils/vscode.js'
 import * as URI from 'uri-js'
 import { processSingleLineCompletion } from './util/processSingleLineCompletion.js'
 import { AutocompleteLoggingService } from './util/AutocompleteLoggingService.js'
-import Mistral from './api/mistral.js'
+import { getStatusBarStatus, setupStatusBar, StatusBarStatus, stopStatusBarLoading } from './statusBar.js'
+import { CompletionApiHandler } from '../api/index.js'
+import { getAllSnippets } from './snippets/index.js'
 
 // const autocompleteCache = AutocompleteLruCache.get()
 
@@ -69,12 +68,14 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
     private contextRetrievalService: ContextRetrievalService
     private recentlyVisitedRanges: RecentlyVisitedRangesService
     private recentlyEditedTracker = new RecentlyEditedTracker()
+    private getCompletionApiProvider: () => Promise<CompletionApiHandler>
 
-    constructor(context: vscode.ExtensionContext) {
+    constructor(context: vscode.ExtensionContext, completionApiProviderPromise: () => Promise<CompletionApiHandler>) {
         this.context = context
         this.completionStreamer = new CompletionStreamer(this.onError.bind(this))
         this.contextRetrievalService = new ContextRetrievalService()
         this.recentlyVisitedRanges = new RecentlyVisitedRangesService()
+        this.getCompletionApiProvider = completionApiProviderPromise
     }
     _lastShownCompletion: AutocompleteOutcome | undefined
 
@@ -129,12 +130,9 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
                 return undefined
             }
 
-            const llm = new Mistral({
-                model: AUTOCOMPLETE_MODEL,
-            })
-            llm.apiKey = 'TBD'
+            const completionApiProvider = await this.getCompletionApiProvider()
 
-            const helper = await HelperVars.create(input, options, AUTOCOMPLETE_MODEL)
+            const helper = await AutocompleteHelperVars.create(input, options, AUTOCOMPLETE_MODEL)
 
             if (await shouldPrefilter(helper)) {
                 return undefined
@@ -170,10 +168,9 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
 
                 const completionStream = this.completionStreamer.streamCompletionWithFilters(
                     token,
-                    llm,
+                    completionApiProvider,
                     prefix,
                     suffix,
-                    prompt,
                     multiline,
                     completionOptions,
                     helper
@@ -182,13 +179,10 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
                 for await (const update of completionStream) {
                     completion += update
                 }
-
-                console.log('completion', completion)
             }
 
             // Don't postprocess if aborted
             if (token.aborted) {
-                console.log('aborting')
                 return undefined
             }
 
@@ -236,6 +230,7 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
             return outcome
         } catch (e: any) {
             this.onError(e)
+            return undefined
         } finally {
             this.loggingService.deleteAbortController(input.completionId)
         }
@@ -248,9 +243,8 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
         token: vscode.CancellationToken
         //@ts-ignore
     ): ProviderResult<InlineCompletionItem[] | InlineCompletionList> {
-        // TODO: Add status bar to disable autocomplete
-        // const enableTabAutocomplete = getStatusBarStatus() === StatusBarStatus.Enabled
-        if (token.isCancellationRequested) {
+        const enableTabAutocomplete = getStatusBarStatus() === StatusBarStatus.Enabled
+        if (token.isCancellationRequested || !enableTabAutocomplete) {
             return null
         }
 
@@ -345,8 +339,7 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
                 recentlyEditedRanges: await this.recentlyEditedTracker.getRecentlyEditedRanges(),
             }
 
-            // TODO: Add status bar status
-            // setupStatusBar(undefined, true)
+            setupStatusBar(undefined, true)
             const outcome = await this._provideInlineCompletionItems(input, signal)
 
             if (!outcome || !outcome.completion) {
@@ -370,7 +363,6 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
                 outcome.completion = selectedCompletionInfo.text + outcome.completion
             }
             const willDisplay = this.willDisplay(document, selectedCompletionInfo, signal, outcome)
-            console.log('willdisplay', willDisplay)
             if (!willDisplay) {
                 return null
             }
@@ -406,20 +398,16 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
                 range = new vscode.Range(startPos, document.lineAt(startPos).range.end)
             }
 
-            const completionItem = new vscode.InlineCompletionItem(
-                completionText,
-                range
-                // 	{
-                // 	title: "Log Autocomplete Outcome",
-                // 	command: "continue.logAutocompleteOutcome",
-                // 	arguments: [input.completionId, this.completionProvider],
-                // }
-            )
+            const completionItem = new vscode.InlineCompletionItem(completionText, range, {
+                title: 'Log Autocomplete Outcome',
+                command: 'posthog.logAutocompleteOutcome',
+                arguments: [input.completionId, this],
+            })
 
             ;(completionItem as any).completeBracketPairs = true
             return [completionItem]
         } finally {
-            // stopStatusBarLoading()
+            stopStatusBarLoading()
         }
     }
 

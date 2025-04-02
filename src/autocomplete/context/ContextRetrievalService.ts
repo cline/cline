@@ -1,9 +1,17 @@
-import { AutocompleteCodeSnippet, AutocompleteSnippetType } from '../snippets/types'
-import { HelperVars } from '../util/HelperVars'
+import { AutocompleteCodeSnippet, AutocompleteSnippetType } from '../types'
+import { AutocompleteHelperVars } from '../util/AutocompleteHelperVars'
 
 import { ImportDefinitionsService } from './ImportDefinitionsService'
-import { getSymbolsForSnippet } from './ranking'
 import { RootPathContextService } from './root-path-context/RootPathContextService'
+
+const rx = /[\s.,\/#!$%\^&\*;:{}=\-_`~()\[\]]/g
+function getSymbolsForSnippet(snippet: string): Set<string> {
+    const symbols = snippet
+        .split(rx)
+        .map((s) => s.trim())
+        .filter((s) => s !== '')
+    return new Set(symbols)
+}
 
 export class ContextRetrievalService {
     private importDefinitionsService: ImportDefinitionsService
@@ -14,7 +22,7 @@ export class ContextRetrievalService {
         this.rootPathContextService = new RootPathContextService(this.importDefinitionsService)
     }
 
-    public async getSnippetsFromImportDefinitions(helper: HelperVars): Promise<AutocompleteCodeSnippet[]> {
+    public async getSnippetsFromImportDefinitions(helper: AutocompleteHelperVars): Promise<AutocompleteCodeSnippet[]> {
         if (helper.options.useImports === false) {
             return []
         }
@@ -49,7 +57,7 @@ export class ContextRetrievalService {
         return importSnippets
     }
 
-    public async getRootPathSnippets(helper: HelperVars): Promise<AutocompleteCodeSnippet[]> {
+    public async getRootPathSnippets(helper: AutocompleteHelperVars): Promise<AutocompleteCodeSnippet[]> {
         if (!helper.treePath) {
             return []
         }

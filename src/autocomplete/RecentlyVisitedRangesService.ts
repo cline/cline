@@ -1,7 +1,7 @@
-import { AutocompleteCodeSnippet, AutocompleteSnippetType } from './snippets/types'
 import { LRUCache } from 'lru-cache'
 import * as vscode from 'vscode'
 import { readFile } from '../utils/vscode'
+import { AutocompleteCodeSnippet, AutocompleteSnippetType } from './types'
 
 /**
  * Service to keep track of recently visited ranges in files.
@@ -19,10 +19,6 @@ export class RecentlyVisitedRangesService {
             max: this.maxRecentFiles,
         })
 
-        void this.initWithPostHog()
-    }
-
-    private async initWithPostHog() {
         vscode.window.onDidChangeTextEditorSelection(this.cacheCurrentSelectionContext)
     }
 
@@ -81,14 +77,7 @@ export class RecentlyVisitedRangesService {
         }
 
         return allSnippets
-            .filter(
-                (s) =>
-                    !currentFilepath ||
-                    (s.filepath !== currentFilepath &&
-                        // Exclude Continue's own output as it makes it super-hard for users to test the autocomplete feature
-                        // while looking at the prompts in the Continue's output
-                        !s.filepath.startsWith('output:extension-output-Continue.continue'))
-            )
+            .filter((s) => !currentFilepath || s.filepath !== currentFilepath)
             .sort((a, b) => b.timestamp - a.timestamp)
             .map(({ timestamp, ...snippet }) => snippet)
     }
