@@ -35,6 +35,7 @@ export interface ExtensionMessage {
 		| "openGraphData"
 		| "isImageUrlResult"
 		| "didUpdateSettings"
+		| "addRemoteServerResult"
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
@@ -87,6 +88,11 @@ export interface ExtensionMessage {
 		type: "file" | "folder"
 		label?: string
 	}>
+	addRemoteServerResult?: {
+		success: boolean
+		serverName: string
+		error?: string
+	}
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
