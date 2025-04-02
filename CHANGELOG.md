@@ -1,12 +1,13 @@
 # Changelog
 
-## 3.9.0
+## [3.8.6]
 
--   80d53e7: add coverage tests to github workflows
--   6324982: Create UI for adding remote servers
--   f19143e: Fix bug where menu would open in sidebar and open tab
--   e05cd8c: Fix issue with Cline accounts not showing user info in popout tabs
--   ed16aff: add Mentions Feature Guide and update related documentation
+-   Add coverage tests to github workflows
+-   Add UI for adding remote servers
+-   Add Mentions Feature Guide and update related documentation
+-   Fix bug where menu would open in sidebar and open tab
+-   Fix issue with Cline accounts not showing user info in popout tabs
+-   Fix bug where menu buttons wouldn't open view in sidebar
 
 ## [3.8.5]
 
