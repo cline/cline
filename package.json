@@ -5,7 +5,8 @@
     "version": "1.0.0",
     "icon": "assets/icons/icon.png",
     "engines": {
-        "vscode": "^1.84.0"
+        "vscode": "^1.84.0",
+        "node": ">=16.0.0"
     },
     "author": {
         "name": "PostHog Inc."
@@ -287,6 +288,7 @@
     },
     "devDependencies": {
         "@changesets/cli": "^2.27.12",
+        "@types/better-sqlite3": "^7.6.12",
         "@types/chai": "^5.0.1",
         "@types/diff": "^5.2.1",
         "@types/follow-redirects": "^1.14.4",
@@ -329,6 +331,7 @@
         "@types/pdf-parse": "^1.1.4",
         "@types/turndown": "^5.0.5",
         "@vscode/codicons": "^0.0.36",
+        "async-mutex": "^0.5.0",
         "axios": "^1.8.2",
         "cheerio": "^1.0.0",
         "chokidar": "^4.0.1",
@@ -360,6 +363,7 @@
         "puppeteer-core": "^23.4.0",
         "serialize-error": "^11.0.3",
         "simple-git": "^3.27.0",
+        "sqlite3": "^5.1.7",
         "strip-ansi": "^7.1.0",
         "systeminformation": "^5.25.11",
         "tree-sitter-wasms": "^0.1.11",

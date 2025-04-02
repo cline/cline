@@ -1,111 +1,123 @@
-// import { Mutex } from "async-mutex";
-// import { open } from "sqlite";
-// import sqlite3 from "sqlite3";
+import { Mutex } from 'async-mutex'
+import { DatabaseService } from '../../services/database/DatabaseService.js'
+import * as vscode from 'vscode'
 
-// import {
-//   DatabaseConnection,
-//   truncateSqliteLikePattern,
-// } from "../../indexing/refreshIndex.js";
-// import { getTabAutocompleteCacheSqlitePath } from "../../util/paths.js";
+const SQLITE_MAX_LIKE_PATTERN_LENGTH = 50000
 
-// export class AutocompleteLruCache {
-//   private static capacity = 1000;
-//   private mutex = new Mutex();
+function truncateToLastNBytes(input: string, maxBytes: number): string {
+    let bytes = 0
+    let startIndex = 0
 
-//   constructor(private db: DatabaseConnection) {}
+    for (let i = input.length - 1; i >= 0; i--) {
+        bytes += new TextEncoder().encode(input[i]).length
+        if (bytes > maxBytes) {
+            startIndex = i + 1
+            break
+        }
+    }
 
-//   static async get(): Promise<AutocompleteLruCache> {
-//     const db = await open({
-//       filename: getTabAutocompleteCacheSqlitePath(),
-//       driver: sqlite3.Database,
-//     });
+    return input.substring(startIndex, input.length)
+}
 
-//     await db.exec("PRAGMA busy_timeout = 3000;");
+function truncateSqliteLikePattern(input: string) {
+    return truncateToLastNBytes(input, SQLITE_MAX_LIKE_PATTERN_LENGTH)
+}
 
-//     await db.run(`
-//       CREATE TABLE IF NOT EXISTS cache (
-//         key TEXT PRIMARY KEY,
-//         value TEXT NOT NULL,
-//         timestamp INTEGER NOT NULL
-//       )
-//     `);
+export class AutocompleteLruCache {
+    private static capacity = 1000
+    private mutex = new Mutex()
+    private db: DatabaseService
+    private static instance: AutocompleteLruCache
 
-//     return new AutocompleteLruCache(db);
-//   }
+    private constructor(context: vscode.ExtensionContext) {
+        DatabaseService.setExtensionContext(context)
+        this.db = DatabaseService.getInstance()
+        this.initializeDatabase()
+    }
 
-//   async get(prefix: string): Promise<string | undefined> {
-//     // NOTE: Right now prompts with different suffixes will be considered the same
+    private async initializeDatabase(): Promise<void> {
+        await this.db.exec(`
+      CREATE TABLE IF NOT EXISTS autocomplete_cache (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      )
+    `)
+    }
 
-//     // If the query is "co" and we have "c" -> "ontinue" in the cache,
-//     // we should return "ntinue" as the completion.
-//     // Have to make sure we take the key with shortest length
-//     const result = await this.db.get(
-//       "SELECT key, value FROM cache WHERE ? LIKE key || '%' ORDER BY LENGTH(key) DESC LIMIT 1",
-//       truncateSqliteLikePattern(prefix),
-//     );
+    static initialize(context: vscode.ExtensionContext): AutocompleteLruCache {
+        if (!AutocompleteLruCache.instance) {
+            AutocompleteLruCache.instance = new AutocompleteLruCache(context)
+        }
+        return AutocompleteLruCache.instance
+    }
 
-//     // Validate that the cached compeltion is a valid completion for the prefix
-//     if (result && result.value.startsWith(prefix.slice(result.key.length))) {
-//       await this.db.run(
-//         "UPDATE cache SET timestamp = ? WHERE key = ?",
-//         Date.now(),
-//         prefix,
-//       );
-//       // And then truncate so we aren't writing something that's already there
-//       return result.value.slice(prefix.length - result.key.length);
-//     }
+    async get(prefix: string): Promise<string | undefined> {
+        // NOTE: Right now prompts with different suffixes will be considered the same
 
-//     return undefined;
-//   }
+        // If the query is "co" and we have "c" -> "ontinue" in the cache,
+        // we should return "ntinue" as the completion.
+        // Have to make sure we take the key with shortest length
+        const result = (await this.db.prepare(
+            "SELECT key, value FROM autocomplete_cache WHERE ? LIKE key || '%' ORDER BY LENGTH(key) DESC LIMIT 1",
+            [truncateSqliteLikePattern(prefix)]
+        )) as { key: string; value: string } | undefined
 
-//   async put(prefix: string, completion: string) {
-//     const release = await this.mutex.acquire();
-//     try {
-//       await this.db.run("BEGIN TRANSACTION");
+        // Validate that the cached completion is a valid completion for the prefix
+        if (result && result.value.startsWith(prefix.slice(result.key.length))) {
+            await this.db.prepare('UPDATE autocomplete_cache SET timestamp = ? WHERE key = ?', [Date.now(), prefix])
+            // And then truncate so we aren't writing something that's already there
+            return result.value.slice(prefix.length - result.key.length)
+        }
 
-//       try {
-//         const result = await this.db.get(
-//           "SELECT key FROM cache WHERE key = ?",
-//           prefix,
-//         );
+        return undefined
+    }
 
-//         if (result) {
-//           await this.db.run(
-//             "UPDATE cache SET value = ?, timestamp = ? WHERE key = ?",
-//             completion,
-//             Date.now(),
-//             prefix,
-//           );
-//         } else {
-//           const count = await this.db.get(
-//             "SELECT COUNT(*) as count FROM cache",
-//           );
+    async put(prefix: string, completion: string) {
+        const release = await this.mutex.acquire()
+        try {
+            await this.db.exec('BEGIN TRANSACTION')
 
-//           if (count.count >= AutocompleteLruCache.capacity) {
-//             await this.db.run(
-//               "DELETE FROM cache WHERE key = (SELECT key FROM cache ORDER BY timestamp ASC LIMIT 1)",
-//             );
-//           }
+            try {
+                const result = (await this.db.prepare('SELECT key FROM autocomplete_cache WHERE key = ?', [prefix])) as
+                    | { key: string }
+                    | undefined
 
-//           await this.db.run(
-//             "INSERT INTO cache (key, value, timestamp) VALUES (?, ?, ?)",
-//             prefix,
-//             completion,
-//             Date.now(),
-//           );
-//         }
+                if (result) {
+                    await this.db.prepare('UPDATE autocomplete_cache SET value = ?, timestamp = ? WHERE key = ?', [
+                        completion,
+                        Date.now(),
+                        prefix,
+                    ])
+                } else {
+                    const count = (await this.db.prepare('SELECT COUNT(*) as count FROM autocomplete_cache')) as {
+                        count: number
+                    }
 
-//         await this.db.run("COMMIT");
-//       } catch (error) {
-//         await this.db.run("ROLLBACK");
-//         throw error;
-//       }
-//     } catch (e) {
-//       console.error("Error creating transaction: ", e);
-//     } finally {
-//       release();
-//     }
-//   }
-// }
+                    if (count.count >= AutocompleteLruCache.capacity) {
+                        await this.db.exec(
+                            'DELETE FROM autocomplete_cache WHERE key = (SELECT key FROM autocomplete_cache ORDER BY timestamp ASC LIMIT 1)'
+                        )
+                    }
 
-// export default AutocompleteLruCache;
+                    await this.db.prepare('INSERT INTO autocomplete_cache (key, value, timestamp) VALUES (?, ?, ?)', [
+                        prefix,
+                        completion,
+                        Date.now(),
+                    ])
+                }
+
+                await this.db.exec('COMMIT')
+            } catch (error) {
+                await this.db.exec('ROLLBACK')
+                throw error
+            }
+        } catch (e) {
+            console.error('Error creating transaction: ', e)
+        } finally {
+            release()
+        }
+    }
+}
+
+export default AutocompleteLruCache

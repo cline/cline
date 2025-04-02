@@ -10,7 +10,7 @@ import { RecentlyVisitedRangesService } from './RecentlyVisitedRangesService.js'
 import { renderPrompt } from './templating/index.js'
 import { AutocompleteInput, AutocompleteOutcome, TabAutocompleteOptions } from './types.js'
 import { AutocompleteDebouncer } from './util/AutocompleteDebouncer.js'
-// import AutocompleteLruCache from "./util/AutocompleteLruCache.js"
+import AutocompleteLruCache from './util/AutocompleteLruCache.js'
 import { AutocompleteHelperVars } from './util/AutocompleteHelperVars.js'
 import * as vscode from 'vscode'
 import { v4 as uuidv4 } from 'uuid'
@@ -21,8 +21,6 @@ import { AutocompleteLoggingService } from './util/AutocompleteLoggingService.js
 import { getStatusBarStatus, setupStatusBar, StatusBarStatus, stopStatusBarLoading } from './statusBar.js'
 import { CompletionApiHandler } from '../api/index.js'
 import { getAllSnippets } from './snippets/index.js'
-
-// const autocompleteCache = AutocompleteLruCache.get()
 
 // Errors that can be expected on occasion even during normal functioning should not be shown.
 // Not worth disrupting the user to tell them that a single autocomplete request didn't go through
@@ -59,7 +57,7 @@ export const DEFAULT_AUTOCOMPLETE_OPTS: TabAutocompleteOptions = {
 
 export class CompletionProvider implements vscode.InlineCompletionItemProvider {
     private context: vscode.ExtensionContext
-    // private autocompleteCache = AutocompleteLruCache.get()
+    private autocompleteCache: AutocompleteLruCache
     public errorsShown: Set<string> = new Set()
     private bracketMatchingService = new BracketMatchingService()
     private debouncer = new AutocompleteDebouncer()
@@ -76,6 +74,7 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
         this.contextRetrievalService = new ContextRetrievalService()
         this.recentlyVisitedRanges = new RecentlyVisitedRangesService()
         this.getCompletionApiProvider = completionApiProviderPromise
+        this.autocompleteCache = AutocompleteLruCache.initialize(context)
     }
     _lastShownCompletion: AutocompleteOutcome | undefined
 
@@ -155,10 +154,9 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
             // Completion
             let completion: string | undefined = ''
 
-            // const cache = await autocompleteCache
-            // const cachedCompletion = helper.options.useCache ? await cache.get(helper.prunedPrefix) : undefined
+            const cache = this.autocompleteCache
+            const cachedCompletion = helper.options.useCache ? await cache.get(helper.prunedPrefix) : undefined
             let cacheHit = false
-            const cachedCompletion = undefined
             if (cachedCompletion) {
                 // Cache
                 cacheHit = true
@@ -220,12 +218,10 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
                 ...helper.options,
             }
 
-            //////////
-
-            // // TODO Save to cache
-            // if (!outcome.cacheHit && helper.options.useCache) {
-            // 	;(await this.autocompleteCache).put(outcome.prefix, outcome.completion)
-            // }
+            // Save to cache
+            if (!outcome.cacheHit && helper.options.useCache) {
+                await this.autocompleteCache.put(helper.prunedPrefix, outcome.completion)
+            }
 
             return outcome
         } catch (e: any) {

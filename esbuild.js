@@ -25,16 +25,38 @@ const esbuildProblemMatcherPlugin = {
     },
 }
 
+const copyNativeModules = {
+    name: 'copy-native-modules',
+    setup(build) {
+        build.onEnd(() => {
+            const distDir = path.join(__dirname, 'dist')
+            const nodeModulesDir = path.join(__dirname, 'node_modules')
+
+            // Copy SQLite3 binary
+            const sqliteBinaryPath = require.resolve('sqlite3')
+            const sqliteBinaryDir = path.dirname(sqliteBinaryPath)
+            const binaryFiles = fs.readdirSync(sqliteBinaryDir).filter((file) => file.endsWith('.node'))
+
+            binaryFiles.forEach((file) => {
+                const sourcePath = path.join(sqliteBinaryDir, file)
+                const targetPath = path.join(distDir, file)
+                fs.copyFileSync(sourcePath, targetPath)
+            })
+        })
+    },
+}
+
 const copyWasmFiles = {
     name: 'copy-wasm-files',
     setup(build) {
         build.onEnd(() => {
+            const distDir = path.join(__dirname, 'dist')
+
             // tree sitter
             const sourceDir = path.join(__dirname, 'node_modules', 'web-tree-sitter')
-            const targetDir = path.join(__dirname, 'dist')
 
             // Copy tree-sitter.wasm
-            fs.copyFileSync(path.join(sourceDir, 'tree-sitter.wasm'), path.join(targetDir, 'tree-sitter.wasm'))
+            fs.copyFileSync(path.join(sourceDir, 'tree-sitter.wasm'), path.join(distDir, 'tree-sitter.wasm'))
 
             // Copy language-specific WASM files
             const languageWasmDir = path.join(__dirname, 'node_modules', 'tree-sitter-wasms', 'out')
@@ -57,7 +79,7 @@ const copyWasmFiles = {
 
             languages.forEach((lang) => {
                 const filename = `tree-sitter-${lang}.wasm`
-                fs.copyFileSync(path.join(languageWasmDir, filename), path.join(targetDir, filename))
+                fs.copyFileSync(path.join(languageWasmDir, filename), path.join(distDir, filename))
             })
         })
     },
@@ -68,17 +90,15 @@ const extensionConfig = {
     minify: production,
     sourcemap: !production,
     logLevel: 'silent',
-    plugins: [
-        copyWasmFiles,
-        /* add to the end of plugins array */
-        esbuildProblemMatcherPlugin,
-    ],
+    plugins: [copyWasmFiles, copyNativeModules, esbuildProblemMatcherPlugin],
     entryPoints: ['src/extension.ts'],
     format: 'cjs',
     sourcesContent: false,
     platform: 'node',
     outfile: 'dist/extension.js',
-    external: ['vscode'],
+    external: ['vscode', 'sqlite3'],
+    target: 'node16',
+    mainFields: ['main', 'module'],
 }
 
 async function main() {
