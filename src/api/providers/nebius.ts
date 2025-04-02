@@ -6,12 +6,12 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 import { convertToR1Format } from "../transform/r1-format"
 import {
-	nebiusModelId,
 	nebiusDefaultURL,
 	nebiusDefaultModelId,
 	nebiusModels,
 	ModelInfo,
 	ApiHandlerOptions,
+	nebiusModelId,
 } from "../../shared/api"
 
 export class NebiusHandler implements ApiHandler {
@@ -73,8 +73,8 @@ export class NebiusHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId
+	getModel(): { id: nebiusModelId; info: ModelInfo } {
+		const modelId = this.options.nebiusModelId ?? ""
 		if (modelId && modelId in nebiusModels) {
 			const id = modelId as nebiusModelId
 			return { id, info: nebiusModels[id] }

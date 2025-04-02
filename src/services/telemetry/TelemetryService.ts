@@ -2,6 +2,8 @@ import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
 import { version as extensionVersion } from "../../../package.json"
 
+import type { TaskFeedbackType } from "../../shared/WebviewMessage"
+
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension
  * Uses PostHog analytics to track user interactions and system events
@@ -18,6 +20,8 @@ class PostHogClient {
 			RESTARTED: "task.restarted",
 			// Tracks when a task is finished, with acceptance or rejection status
 			COMPLETED: "task.completed",
+			// Tracks user feedback on completed tasks
+			FEEDBACK: "task.feedback",
 			// Tracks when a message is sent in a conversation
 			CONVERSATION_TURN: "task.conversation_turn",
 			// Tracks token consumption for cost and usage analysis
@@ -32,6 +36,8 @@ class PostHogClient {
 			HISTORICAL_LOADED: "task.historical_loaded",
 			// Tracks when the retry button is clicked for failed operations
 			RETRY_CLICKED: "task.retry_clicked",
+			// Tracks when a diff edit (replace_in_file) operation fails
+			DIFF_EDIT_FAILED: "task.diff_edit_failed",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -234,6 +240,22 @@ class PostHogClient {
 		})
 	}
 
+	/**
+	 * Records user feedback on completed tasks
+	 * @param taskId Unique identifier for the task
+	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
+	 */
+	public captureTaskFeedback(taskId: string, feedbackType: TaskFeedbackType) {
+		console.info("TelemetryService: Capturing task feedback", { taskId, feedbackType })
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.FEEDBACK,
+			properties: {
+				taskId,
+				feedbackType,
+			},
+		})
+	}
+
 	// Tool events
 	/**
 	 * Records when a tool is used during task execution
@@ -373,6 +395,21 @@ class PostHogClient {
 			event: PostHogClient.EVENTS.UI.TASK_POPPED,
 			properties: {
 				taskId,
+			},
+		})
+	}
+
+	/**
+	 * Records when a diff edit (replace_in_file) operation fails
+	 * @param taskId Unique identifier for the task
+	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
+	 */
+	public captureDiffEditFailure(taskId: string, errorType?: string) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.DIFF_EDIT_FAILED,
+			properties: {
+				taskId,
+				errorType,
 			},
 		})
 	}
