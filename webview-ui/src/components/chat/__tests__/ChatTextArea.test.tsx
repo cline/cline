@@ -47,6 +47,7 @@ describe("ChatTextArea", () => {
 		setInputValue: jest.fn(),
 		onSend: jest.fn(),
 		textAreaDisabled: false,
+		selectApiConfigDisabled: false,
 		onSelectImages: jest.fn(),
 		shouldDisableImages: false,
 		placeholderText: "Type a message...",
@@ -406,6 +407,23 @@ describe("ChatTextArea", () => {
 
 			// Verify setInputValue was not called
 			expect(setInputValue).not.toHaveBeenCalled()
+		})
+	})
+
+	describe("selectApiConfig", () => {
+		// Helper function to get the API config dropdown
+		const getApiConfigDropdown = () => {
+			return screen.getByTitle("chat:selectApiConfig")
+		}
+		it("should be enabled independently of textAreaDisabled", () => {
+			render(<ChatTextArea {...defaultProps} textAreaDisabled={true} selectApiConfigDisabled={false} />)
+			const apiConfigDropdown = getApiConfigDropdown()
+			expect(apiConfigDropdown).not.toHaveAttribute("disabled")
+		})
+		it("should be disabled when selectApiConfigDisabled is true", () => {
+			render(<ChatTextArea {...defaultProps} textAreaDisabled={true} selectApiConfigDisabled={true} />)
+			const apiConfigDropdown = getApiConfigDropdown()
+			expect(apiConfigDropdown).toHaveAttribute("disabled")
 		})
 	})
 })
