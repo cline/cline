@@ -275,13 +275,13 @@ function processCaptures(captures: any[], lines: string[], minComponentLines: nu
 
 			// Add component name to output regardless of HTML filtering
 			if (!processedLines.has(lineKey) && componentName) {
-				formattedOutput += `${startLine}--${endLine} | ${lines[startLine]}\n`
+				formattedOutput += `${startLine + 1}--${endLine + 1} | ${lines[startLine]}\n`
 				processedLines.add(lineKey)
 			}
 		}
 		// For other component definitions
 		else if (isNotHtmlElement(startLineContent)) {
-			formattedOutput += `${startLine}--${endLine} | ${lines[startLine]}\n`
+			formattedOutput += `${startLine + 1}--${endLine + 1} | ${lines[startLine]}\n`
 			processedLines.add(lineKey)
 
 			// If this is part of a larger definition, include its non-HTML context
@@ -294,7 +294,7 @@ function processCaptures(captures: any[], lines: string[], minComponentLines: nu
 					// Add the full range first
 					const rangeKey = `${node.parent.startPosition.row}-${contextEnd}`
 					if (!processedLines.has(rangeKey)) {
-						formattedOutput += `${node.parent.startPosition.row}--${contextEnd} | ${lines[node.parent.startPosition.row]}\n`
+						formattedOutput += `${node.parent.startPosition.row + 1}--${contextEnd + 1} | ${lines[node.parent.startPosition.row]}\n`
 						processedLines.add(rangeKey)
 					}
 				}

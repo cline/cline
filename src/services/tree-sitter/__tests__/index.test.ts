@@ -309,7 +309,7 @@ export const CheckboxExample = () => (
 
 			// Verify function found and correctly parsed
 			expect(result).toContain("jsx-arrow.tsx")
-			expect(result).toContain("4--14 |")
+			expect(result).toContain("5--15 |")
 
 			// Verify line count
 			const capture = mockQuery.captures.mock.results[0].value[0]

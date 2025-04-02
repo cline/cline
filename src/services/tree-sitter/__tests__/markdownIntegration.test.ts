@@ -36,10 +36,10 @@ describe("Markdown Integration Tests", () => {
 		// Check the result
 		expect(result).toBeDefined()
 		expect(result).toContain("# test.md")
-		expect(result).toContain("0--4 | # Main Header")
-		expect(result).toContain("5--9 | ## Section 1")
-		expect(result).toContain("10--14 | ### Subsection 1.1")
-		expect(result).toContain("15--19 | ## Section 2")
+		expect(result).toContain("1--5 | # Main Header")
+		expect(result).toContain("6--10 | ## Section 1")
+		expect(result).toContain("11--15 | ### Subsection 1.1")
+		expect(result).toContain("16--20 | ## Section 2")
 	})
 
 	it("should handle markdown files with no headers", async () => {
@@ -93,7 +93,7 @@ describe("Markdown Integration Tests", () => {
 		// Check the result
 		expect(result).toBeDefined()
 		expect(result).toContain("# mixed-headers.md")
-		expect(result).toContain("0--3 | # ATX Header")
-		expect(result).toContain("4--8 | Setext Header")
+		expect(result).toContain("1--4 | # ATX Header")
+		expect(result).toContain("5--9 | Setext Header")
 	})
 })
