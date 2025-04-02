@@ -636,7 +636,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 											awsBedrockUsePromptCache: isChecked,
 										})
 									}}>
-									Use prompt caching (Beta)
+									Use prompt caching
 								</VSCodeCheckbox>
 							</>
 						)}
