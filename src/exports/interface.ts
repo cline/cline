@@ -1,23 +1,12 @@
 import { EventEmitter } from "events"
 
-import type { ProviderSettings, GlobalSettings, ClineMessage, TokenUsage } from "./types"
+import type { ProviderSettings, GlobalSettings, ClineMessage, TokenUsage, RooCodeEvents } from "./types"
+export type { RooCodeSettings, ProviderSettings, GlobalSettings, ClineMessage, TokenUsage, RooCodeEvents }
+
+import { RooCodeEventName } from "../schemas"
+export type { RooCodeEventName }
 
 type RooCodeSettings = GlobalSettings & ProviderSettings
-
-export type { RooCodeSettings, ProviderSettings, GlobalSettings, ClineMessage, TokenUsage }
-
-export interface RooCodeEvents {
-	message: [{ taskId: string; action: "created" | "updated"; message: ClineMessage }]
-	taskCreated: [taskId: string]
-	taskStarted: [taskId: string]
-	taskPaused: [taskId: string]
-	taskUnpaused: [taskId: string]
-	taskAskResponded: [taskId: string]
-	taskAborted: [taskId: string]
-	taskSpawned: [taskId: string, childTaskId: string]
-	taskCompleted: [taskId: string, usage: TokenUsage]
-	taskTokenUsageUpdated: [taskId: string, usage: TokenUsage]
-}
 
 export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	/**
@@ -26,7 +15,17 @@ export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	 * @param images Optional array of image data URIs (e.g., "data:image/webp;base64,...").
 	 * @returns The ID of the new task.
 	 */
-	startNewTask(task?: string, images?: string[]): Promise<string>
+	startNewTask({
+		configuration,
+		text,
+		images,
+		newTab,
+	}: {
+		configuration?: RooCodeSettings
+		text?: string
+		images?: string[]
+		newTab?: boolean
+	}): Promise<string>
 
 	/**
 	 * Returns the current task stack.
@@ -77,24 +76,4 @@ export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	 * Returns true if the API is ready to use.
 	 */
 	isReady(): boolean
-
-	/**
-	 * Returns the messages for a given task.
-	 * @param taskId The ID of the task.
-	 * @returns An array of ClineMessage objects.
-	 */
-	getMessages(taskId: string): ClineMessage[]
-
-	/**
-	 * Returns the token usage for a given task.
-	 * @param taskId The ID of the task.
-	 * @returns A TokenUsage object.
-	 */
-	getTokenUsage(taskId: string): TokenUsage
-
-	/**
-	 * Logs a message to the output channel.
-	 * @param message The message to log.
-	 */
-	log(message: string): void
 }

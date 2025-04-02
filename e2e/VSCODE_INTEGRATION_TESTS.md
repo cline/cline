@@ -156,7 +156,7 @@ while (Date.now() - startTime < timeout) {
 6. **Grading**: When grading tests, use the `Grade:` format to ensure the test is graded correctly (See modes.test.ts for an example).
 
 ```typescript
-await globalThis.api.startNewTask(
-	`Given this prompt: ${testPrompt} grade the response from 1 to 10 in the format of "Grade: (1-10)": ${output} \n Be sure to say 'I AM DONE GRADING' after the task is complete`,
-)
+await globalThis.api.startNewTask({
+	text: `Given this prompt: ${testPrompt} grade the response from 1 to 10 in the format of "Grade: (1-10)": ${output} \n Be sure to say 'I AM DONE GRADING' after the task is complete`,
+})
 ```

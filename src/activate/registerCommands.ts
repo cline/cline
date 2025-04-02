@@ -95,7 +95,7 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 	}
 }
 
-const openClineInNewTab = async ({ context, outputChannel }: Omit<RegisterCommandOptions, "provider">) => {
+export const openClineInNewTab = async ({ context, outputChannel }: Omit<RegisterCommandOptions, "provider">) => {
 	// (This example uses webviewProvider activation event which is necessary to
 	// deserialize cached webview, but since we use retainContextWhenHidden, we
 	// don't need to use that event).
@@ -139,4 +139,6 @@ const openClineInNewTab = async ({ context, outputChannel }: Omit<RegisterComman
 	// Lock the editor group so clicking on files doesn't open them over the panel.
 	await delay(100)
 	await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
+
+	return tabProvider
 }
