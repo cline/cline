@@ -49,7 +49,7 @@ interface ChatRowProps {
 	onHeightChange: (isTaller: boolean) => void
 }
 
-interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> { }
+interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
 export const ProgressIndicator = () => (
 	<div

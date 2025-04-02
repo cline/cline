@@ -393,7 +393,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							marginTop: 3,
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						请根据您的地理位置选择合适的 API 接口。如果您在中国境内，请选择中国区 API 接口；如果您在境外，请选择国际区 API 接口。
+						请根据您的地理位置选择合适的 API 接口。如果您在中国境内，请选择中国区 API 接口；如果您在境外，请选择国际区
+						API 接口。
 					</p>
 					<VSCodeTextField
 						value={apiConfiguration?.qwenApiKey || ""}
@@ -1469,8 +1470,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						{((selectedProvider === "anthropic" && selectedModelId === "claude-3-7-sonnet-20250219") ||
 							(selectedProvider === "bedrock" && selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
 							(selectedProvider === "vertex" && selectedModelId === "claude-3-7-sonnet@20250219")) && (
-								<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
-							)}
+							<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+						)}
 
 						<ModelInfoView
 							selectedModelId={selectedModelId}
