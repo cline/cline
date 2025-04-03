@@ -10,6 +10,8 @@ import { BrowserSettings } from "../../shared/BrowserSettings"
 import { ChatSettings } from "../../shared/ChatSettings"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { UserInfo } from "../../shared/UserInfo"
+import { CustomInstructionMode } from "../../shared/CustomInstructionMode" // Removed DEFAULT import
+import { getSavedCustomInstructionModes } from "./disk" // Import disk function
 /*
 	Storage
 	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
@@ -93,6 +95,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		openRouterProviderSorting,
 		lastShownAnnouncementId,
 		customInstructions,
+		customInstructionModes,
+		selectedModeIds,
 		taskHistory,
 		autoApprovalSettings,
 		browserSettings,
@@ -157,6 +161,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "openRouterProviderSorting") as Promise<string | undefined>,
 		getGlobalState(context, "lastShownAnnouncementId") as Promise<string | undefined>,
 		getGlobalState(context, "customInstructions") as Promise<string | undefined>,
+		getSavedCustomInstructionModes(context), // Load modes from disk
+		getGlobalState(context, "selectedModeIds") as Promise<string[] | undefined>,
 		getGlobalState(context, "taskHistory") as Promise<HistoryItem[] | undefined>,
 		getGlobalState(context, "autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
 		getGlobalState(context, "browserSettings") as Promise<BrowserSettings | undefined>,
@@ -272,6 +278,8 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		},
 		lastShownAnnouncementId,
 		customInstructions,
+		customInstructionModes, // Already has default handling in getSavedCustomInstructionModes
+		selectedModeIds: selectedModeIds || [],
 		taskHistory,
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 		browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,

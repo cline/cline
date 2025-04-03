@@ -4,6 +4,7 @@ import fs from "fs/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { fileExistsAtPath } from "../../utils/fs"
 import { ClineMessage } from "../../shared/ExtensionMessage"
+import { CustomInstructionMode, DEFAULT_CUSTOM_INSTRUCTION_MODES } from "../../shared/CustomInstructionMode"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -11,7 +12,10 @@ export const GlobalFileNames = {
 	openRouterModels: "openrouter_models.json",
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
+	customInstructionModes: "custom_instruction_modes.json", // Added filename for modes
 }
+
+// --- Task Specific Storage ---
 
 export async function ensureTaskDirectoryExists(context: vscode.ExtensionContext, taskId: string): Promise<string> {
 	const globalStoragePath = context.globalStorageUri.fsPath
@@ -69,5 +73,46 @@ export async function saveClineMessages(context: vscode.ExtensionContext, taskId
 		await fs.writeFile(filePath, JSON.stringify(uiMessages))
 	} catch (error) {
 		console.error("Failed to save ui messages:", error)
+	}
+}
+
+// --- Global Storage (Disk) ---
+
+export async function ensureGlobalStorageDirectoryExists(context: vscode.ExtensionContext): Promise<string> {
+	const globalStoragePath = context.globalStorageUri.fsPath
+	// Ensure the base global storage directory exists
+	await fs.mkdir(globalStoragePath, { recursive: true })
+	return globalStoragePath
+}
+
+export async function getSavedCustomInstructionModes(context: vscode.ExtensionContext): Promise<CustomInstructionMode[]> {
+	const filePath = path.join(await ensureGlobalStorageDirectoryExists(context), GlobalFileNames.customInstructionModes)
+	if (await fileExistsAtPath(filePath)) {
+		try {
+			const content = await fs.readFile(filePath, "utf8")
+			const modes = JSON.parse(content)
+			// Basic validation to ensure it's an array
+			if (Array.isArray(modes)) {
+				return modes
+			}
+			console.error("Invalid format for custom instruction modes file. Returning default.")
+		} catch (error) {
+			console.error("Failed to read or parse custom instruction modes file:", error)
+		}
+	}
+	return DEFAULT_CUSTOM_INSTRUCTION_MODES // Return default if file doesn't exist or is invalid
+}
+
+export async function saveCustomInstructionModes(
+	context: vscode.ExtensionContext,
+	modes: CustomInstructionMode[],
+): Promise<void> {
+	try {
+		const filePath = path.join(await ensureGlobalStorageDirectoryExists(context), GlobalFileNames.customInstructionModes)
+		await fs.writeFile(filePath, JSON.stringify(modes, null, 2)) // Pretty print for readability
+	} catch (error) {
+		console.error("Failed to save custom instruction modes:", error)
+		// Optionally notify the user?
+		vscode.window.showErrorMessage("Failed to save custom instruction modes.")
 	}
 }

@@ -6,6 +6,7 @@ import {
 	VSCodePanels,
 	VSCodePanelTab,
 	VSCodePanelView,
+	// VSCodeButton is already imported above
 } from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
@@ -13,6 +14,7 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import SettingsButton from "../common/SettingsButton"
 import ApiOptions from "./ApiOptions"
+import CustomModesEditor from "./CustomModesEditor"
 import { TabButton } from "../mcp/McpView"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
@@ -34,51 +36,54 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		chatSettings,
 		planActSeparateModelsSetting,
 		setPlanActSeparateModelsSetting,
+		// Add modes state
+		customInstructionModes,
+		selectedModeIds,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const [pendingTabChange, setPendingTabChange] = useState<"plan" | "act" | null>(null)
 
-	const handleSubmit = (withoutDone: boolean = false) => {
-		const apiValidationResult = validateApiConfiguration(apiConfiguration)
-		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
+	// Reinstated original handleSubmit logic
+	const handleSubmit = useCallback(
+		(withoutDone: boolean = false) => {
+			const apiValidationResult = validateApiConfiguration(apiConfiguration)
+			const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
-		// setApiErrorMessage(apiValidationResult)
-		// setModelIdErrorMessage(modelIdValidationResult)
+			setApiErrorMessage(apiValidationResult)
+			setModelIdErrorMessage(modelIdValidationResult)
 
-		let apiConfigurationToSubmit = apiConfiguration
-		if (!apiValidationResult && !modelIdValidationResult) {
-			// vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			// vscode.postMessage({
-			// 	type: "customInstructions",
-			// 	text: customInstructions,
-			// })
-			// vscode.postMessage({
-			// 	type: "telemetrySetting",
-			// 	text: telemetrySetting,
-			// })
-			// console.log("handleSubmit", withoutDone)
-			// vscode.postMessage({
-			// 	type: "separateModeSetting",
-			// 	text: separateModeSetting,
-			// })
-		} else {
-			// if the api configuration is invalid, we don't save it
-			apiConfigurationToSubmit = undefined
-		}
+			// Get the latest modes state directly from context when submitting
+			// This avoids needing modes in the SettingsView state directly
+			// Use the state variables destructured from the hook call
+			const apiConfigurationToSubmit = apiValidationResult || modelIdValidationResult ? undefined : apiConfiguration
 
-		vscode.postMessage({
-			type: "updateSettings",
+			vscode.postMessage({
+				type: "updateSettings",
+				planActSeparateModelsSetting,
+				customInstructionsSetting: customInstructions,
+				telemetrySetting,
+				apiConfiguration: apiConfigurationToSubmit,
+				// Include modes state in the payload
+				customInstructionModes: customInstructionModes,
+				selectedModeIds: selectedModeIds,
+			})
+
+			if (!withoutDone) {
+				onDone()
+			}
+		},
+		[
+			apiConfiguration,
+			openRouterModels,
 			planActSeparateModelsSetting,
-			customInstructionsSetting: customInstructions,
+			customInstructions,
+			customInstructionModes, // Add modes to dependency array
+			selectedModeIds, // Add selected IDs to dependency array
 			telemetrySetting,
-			apiConfiguration: apiConfigurationToSubmit,
-		})
-
-		if (!withoutDone) {
-			onDone()
-		}
-	}
+			onDone,
+		],
+	)
 
 	useEffect(() => {
 		setApiErrorMessage(undefined)
@@ -129,6 +134,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			return
 		}
 		setPendingTabChange(tab)
+		// Call handleSubmit directly to save settings before switching tab
 		handleSubmit(true)
 	}
 
@@ -154,7 +160,13 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					paddingRight: 17,
 				}}>
 				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>Settings</h3>
-				<VSCodeButton onClick={() => handleSubmit(false)}>Done</VSCodeButton>
+				{/* Update header buttons */}
+				<div>
+					{/* Removed Save Settings button. Done button now handles saving. */}
+					<VSCodeButton appearance="secondary" onClick={() => handleSubmit(false)}>
+						Done
+					</VSCodeButton>
+				</div>
 			</div>
 			<div
 				style={{
@@ -209,25 +221,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 					/>
 				)}
 
-				<div style={{ marginBottom: 5 }}>
-					<VSCodeTextArea
-						value={customInstructions ?? ""}
-						style={{ width: "100%" }}
-						resize="vertical"
-						rows={4}
-						placeholder={'e.g. "Run unit tests at the end", "Use TypeScript with async/await", "Speak in Spanish"'}
-						onInput={(e: any) => setCustomInstructions(e.target?.value ?? "")}>
-						<span style={{ fontWeight: "500" }}>Custom Instructions</span>
-					</VSCodeTextArea>
-					<p
-						style={{
-							fontSize: "12px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						These instructions are added to the end of the system prompt sent with every request.
-					</p>
-				</div>
+				{/* Custom Instruction Modes Editor */}
+				<CustomModesEditor />
 
 				<div style={{ marginBottom: 5 }}>
 					<VSCodeCheckbox

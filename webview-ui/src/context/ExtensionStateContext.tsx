@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../src/shared/AutoApprovalSettings"
+import { CustomInstructionMode } from "../../../src/shared/CustomInstructionMode"
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "../../../src/shared/ExtensionMessage"
 import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
@@ -26,6 +27,12 @@ interface ExtensionStateContextType extends ExtensionState {
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
+	// Custom instruction modes management
+	addCustomInstructionMode: (mode: Omit<CustomInstructionMode, "id">) => void
+	updateCustomInstructionMode: (id: string, mode: Partial<Omit<CustomInstructionMode, "id">>) => void
+	removeCustomInstructionMode: (id: string) => void
+	setSelectedModeIds: (ids: string[]) => void
+	toggleModeSelection: (id: string) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -45,6 +52,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		telemetrySetting: "unset",
 		vscMachineId: "",
 		planActSeparateModelsSetting: true,
+		customInstructionModes: [], // Initialize custom instruction modes
+		selectedModeIds: [], // Initialize selected mode IDs
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -188,6 +197,65 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				shouldShowAnnouncement: value,
 			})),
+		// --- Custom instruction modes management (Local State Only) ---
+
+		// Add Mode
+		addCustomInstructionMode: (mode) => {
+			setState((prevState) => {
+				const id = crypto.randomUUID() // Use crypto for better uniqueness
+				const newModes = [...prevState.customInstructionModes, { id, ...mode }]
+				// ONLY update local state
+				return {
+					...prevState,
+					customInstructionModes: newModes,
+				}
+			})
+		},
+
+		// Update Mode
+		updateCustomInstructionMode: (id, mode) => {
+			setState((prevState) => ({
+				...prevState,
+				customInstructionModes: prevState.customInstructionModes.map((m) => (m.id === id ? { ...m, ...mode } : m)),
+			}))
+		},
+
+		// Remove Mode
+		removeCustomInstructionMode: (id) => {
+			setState((prevState) => {
+				const newModes = prevState.customInstructionModes.filter((m) => m.id !== id)
+				const newSelectedIds = prevState.selectedModeIds.filter((modeId) => modeId !== id)
+				// ONLY update local state
+				return {
+					...prevState,
+					customInstructionModes: newModes,
+					selectedModeIds: newSelectedIds,
+				}
+			})
+		},
+
+		// Set Selected Modes
+		setSelectedModeIds: (ids) => {
+			setState((prevState) => ({
+				...prevState,
+				selectedModeIds: ids,
+			}))
+		},
+
+		// Toggle Single Mode Selection
+		toggleModeSelection: (id) => {
+			setState((prevState) => {
+				const isSelected = prevState.selectedModeIds.includes(id)
+				const nextSelectedIds = isSelected
+					? prevState.selectedModeIds.filter((modeId) => modeId !== id)
+					: [...prevState.selectedModeIds, id]
+				// ONLY update local state
+				return {
+					...prevState,
+					selectedModeIds: nextSelectedIds,
+				}
+			})
+		},
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

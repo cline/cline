@@ -5,6 +5,7 @@ import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
 import { TelemetrySetting } from "./TelemetrySetting"
+import { CustomInstructionMode } from "./CustomInstructionMode" // Import added
 
 export interface WebviewMessage {
 	type:
@@ -67,6 +68,8 @@ export interface WebviewMessage {
 		| "optionsResponse"
 		| "requestTotalTasksSize"
 		| "taskFeedback"
+		| "updateCustomInstructionModes" // Added new type
+		| "updateSelectedModeIds" // Added new type
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -95,6 +98,8 @@ export interface WebviewMessage {
 	planActSeparateModelsSetting?: boolean
 	telemetrySetting?: TelemetrySetting
 	customInstructionsSetting?: string
+	customInstructionModes?: CustomInstructionMode[] // Added for multi-mode support
+	selectedModeIds?: string[] // IDs of selected modes
 	// For task feedback
 	feedbackType?: TaskFeedbackType
 }

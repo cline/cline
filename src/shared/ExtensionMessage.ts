@@ -5,6 +5,7 @@ import { ApiConfiguration, ModelInfo } from "./api"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { BrowserSettings } from "./BrowserSettings"
 import { ChatSettings } from "./ChatSettings"
+import { CustomInstructionMode } from "./CustomInstructionMode"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
 import { TelemetrySetting } from "./TelemetrySetting"
@@ -103,6 +104,8 @@ export interface ExtensionState {
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
 	customInstructions?: string
+	customInstructionModes: CustomInstructionMode[] // Added for multi-mode support
+	selectedModeIds: string[] // IDs of selected modes
 	mcpMarketplaceEnabled?: boolean
 	planActSeparateModelsSetting: boolean
 	platform: Platform
