@@ -3,7 +3,7 @@
     "displayName": "PostHog",
     "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
     "version": "1.0.0",
-    "icon": "assets/icons/icon.png",
+    "icon": "assets/icons/posthog-icon.png",
     "engines": {
         "vscode": "^1.84.0",
         "node": ">=16.0.0"
@@ -280,6 +280,8 @@
         "dev:webview": "cd webview-ui && npm run dev",
         "build:webview": "cd webview-ui && npm run build",
         "test:webview": "cd webview-ui && npm run test",
+        "publish:marketplace": "vsce publish",
+        "publish:marketplace:prerelease": "vsce publish --pre-release",
         "prepare": "husky",
         "changeset": "changeset",
         "version-packages": "changeset version"

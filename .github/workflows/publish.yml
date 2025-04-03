@@ -61,7 +61,7 @@ jobs:
               run: cd webview-ui && npm ci
 
             - name: Install Publishing Tools
-              run: npm install -g vsce ovsx
+              run: npm install -g vsce
 
             - name: Get Version
               id: get_version
@@ -81,26 +81,23 @@ jobs:
             - name: Package and Publish Extension
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
-                  OVSX_PAT: ${{ secrets.OVSX_PAT }}
               run: |
                   # Required to generate the .vsix
                   vsce package --out "posthog-extension-${{ steps.get_version.outputs.version }}.vsix"
 
-            # - name: Get Changelog Entry
-            #   id: changelog
-            #   uses: mindsers/changelog-reader-action@v2
-            #   with:
-            #       # This expects a standard Keep a Changelog format
-            #       # "latest" means it will read whichever is the most recent version
-            #       # set in "## [1.2.3] - 2025-01-28" style
-            #       version: latest
+                  if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
+                    npm run publish:marketplace:prerelease
+                    echo "Successfully published pre-release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace"
+                  else
+                    npm run publish:marketplace
+                    echo "Successfully published release version ${{ steps.get_version.outputs.version }} to VS Code Marketplace"
+                  fi
 
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v1
               with:
                   tag_name: ${{ steps.create_tag.outputs.tag }}
                   files: '*.vsix'
-                  # body: ${{ steps.changelog.outputs.content }}
                   generate_release_notes: true
                   prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
               env:
