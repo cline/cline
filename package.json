@@ -280,6 +280,8 @@
         "dev:webview": "cd webview-ui && npm run dev",
         "build:webview": "cd webview-ui && npm run build",
         "test:webview": "cd webview-ui && npm run test",
+        "publish:marketplace": "vsce publish",
+        "publish:marketplace:prerelease": "vsce publish --pre-release",
         "prepare": "husky",
         "changeset": "changeset",
         "version-packages": "changeset version"
