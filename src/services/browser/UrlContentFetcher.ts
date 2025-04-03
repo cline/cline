@@ -32,11 +32,18 @@ export class UrlContentFetcher {
 		if (!dirExists) {
 			await fs.mkdir(puppeteerDir, { recursive: true })
 		}
-		// if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")
-		// if it does exist it will return the path to existing chromium
-		const stats: PCRStats = await PCR({
-			downloadPath: puppeteerDir,
-		})
+		
+		const chromeExecutablePath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
+		if (chromeExecutablePath && !(await fileExistsAtPath(chromeExecutablePath))) {
+			throw new Error(`Chrome executable not found at path: ${chromeExecutablePath}`)
+		}
+		
+		const stats: PCRStats = chromeExecutablePath
+			? { puppeteer: require("puppeteer-core"), executablePath: chromeExecutablePath }
+			: // if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")
+			  // if it does exist it will return the path to existing chromium
+			  await PCR({ downloadPath: puppeteerDir })
+		
 		return stats
 	}
 
