@@ -30,6 +30,7 @@ export interface ApiHandler {
     getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
 }
 export interface CompletionApiHandler {
+    apiKey?: string
     getModel(): { id: string; info: ModelInfo }
     streamFim(prefix: string, suffix: string, signal: AbortSignal, options?: CompletionOptions): AsyncGenerator<string>
 }

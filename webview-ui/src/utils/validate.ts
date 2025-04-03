@@ -103,13 +103,6 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
                 }
                 break
         }
-        switch (apiConfiguration.completionApiProvider) {
-            case 'codestral':
-                if (!apiConfiguration.codestralApiKey) {
-                    return 'You must provide a valid API key or choose a different provider.'
-                }
-                break
-        }
     }
     return undefined
 }
