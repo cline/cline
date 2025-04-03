@@ -1,5 +1,5 @@
 import React from "react"
-import { render, waitFor } from "@testing-library/react"
+import { render, waitFor, act } from "@testing-library/react"
 import ChatView from "../ChatView"
 import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext"
 import { vscode } from "../../../utils/vscode"
@@ -60,17 +60,25 @@ interface ChatTextAreaProps {
 	shouldDisableImages?: boolean
 }
 
+const mockInputRef = React.createRef<HTMLInputElement>()
+const mockFocus = jest.fn()
+
 jest.mock("../ChatTextArea", () => {
 	const mockReact = require("react")
 	return {
 		__esModule: true,
 		default: mockReact.forwardRef(function MockChatTextArea(
 			props: ChatTextAreaProps,
-			ref: React.ForwardedRef<HTMLInputElement>,
+			ref: React.ForwardedRef<{ focus: () => void }>,
 		) {
+			// Use useImperativeHandle to expose the mock focus method
+			React.useImperativeHandle(ref, () => ({
+				focus: mockFocus,
+			}))
+
 			return (
 				<div data-testid="chat-textarea">
-					<input ref={ref} type="text" onChange={(e) => props.onSend(e.target.value)} />
+					<input ref={mockInputRef} type="text" onChange={(e) => props.onSend(e.target.value)} />
 				</div>
 			)
 		}),
@@ -1085,5 +1093,106 @@ describe("ChatView - Sound Playing Tests", () => {
 				audioType: "progress_loop",
 			})
 		})
+	})
+})
+
+describe("ChatView - Focus Grabbing Tests", () => {
+	beforeEach(() => {
+		jest.clearAllMocks()
+	})
+
+	it("does not grab focus when follow-up question presented", async () => {
+		const sleep = async (timeout: number) => {
+			await act(async () => {
+				await new Promise((resolve) => setTimeout(resolve, timeout))
+			})
+		}
+
+		render(
+			<ExtensionStateContextProvider>
+				<ChatView
+					isHidden={false}
+					showAnnouncement={false}
+					hideAnnouncement={() => {}}
+					showHistoryView={() => {}}
+				/>
+			</ExtensionStateContextProvider>,
+		)
+
+		// First hydrate state with initial task and streaming
+		mockPostMessage({
+			autoApprovalEnabled: true,
+			alwaysAllowBrowser: true,
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now(),
+					text: "Initial task",
+				},
+				{
+					type: "say",
+					say: "api_req_started",
+					ts: Date.now(),
+					text: JSON.stringify({}),
+					partial: true,
+				},
+			],
+		})
+
+		// process messages
+		await sleep(0)
+		// wait for focus updates (can take 50msecs)
+		await sleep(100)
+
+		const FOCUS_CALLS_ON_INIT = 2
+		expect(mockFocus).toHaveBeenCalledTimes(FOCUS_CALLS_ON_INIT)
+
+		// Finish task, and send the followup ask message (streaming unfinished)
+		mockPostMessage({
+			autoApprovalEnabled: true,
+			alwaysAllowBrowser: true,
+			clineMessages: [
+				{
+					type: "say",
+					say: "task",
+					ts: Date.now(),
+					text: "Initial task",
+				},
+				{
+					type: "ask",
+					ask: "followup",
+					ts: Date.now(),
+					text: JSON.stringify({}),
+					partial: true,
+				},
+			],
+		})
+
+		// allow messages to be processed
+		await sleep(0)
+
+		// Finish the followup ask message (streaming finished)
+		mockPostMessage({
+			autoApprovalEnabled: true,
+			alwaysAllowBrowser: true,
+			clineMessages: [
+				{
+					type: "ask",
+					ask: "followup",
+					ts: Date.now(),
+					text: JSON.stringify({}),
+				},
+			],
+		})
+
+		// allow messages to be processed
+		await sleep(0)
+
+		// wait for focus updates (can take 50msecs)
+		await sleep(100)
+
+		// focus() should not have been called again
+		expect(mockFocus).toHaveBeenCalledTimes(FOCUS_CALLS_ON_INIT)
 	})
 })
