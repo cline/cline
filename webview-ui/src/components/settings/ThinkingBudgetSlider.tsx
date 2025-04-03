@@ -123,11 +123,12 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 			{isEnabled && (
 				<>
 					<LabelContainer>
-						<Label>
+						<Label htmlFor="thinking-budget-slider">
 							<strong>预算:</strong> {localValue.toLocaleString()} 令牌
 						</Label>
 					</LabelContainer>
 					<RangeInput
+						id="thinking-budget-slider"
 						type="range"
 						min={MIN_VALID_TOKENS}
 						max={maxSliderValue}
@@ -139,9 +140,16 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 						$value={localValue}
 						$min={MIN_VALID_TOKENS}
 						$max={maxSliderValue}
+						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
+						aria-valuemin={MIN_VALID_TOKENS}
+						aria-valuemax={maxSliderValue}
+						aria-valuenow={localValue}
+						aria-describedby="thinking-budget-description"
 					/>
 
-					<Description>更高的预算可以让AI进行更全面和细致的推理</Description>
+					<Description id="thinking-budget-description">
+						更高的预算可以让AI进行更全面和细致的推理
+					</Description>
 				</>
 			)}
 		</Container>

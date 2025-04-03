@@ -1,20 +1,20 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
-import { ClineProvider } from "../../core/webview/ClineProvider"
+import { Controller } from "../../core/controller"
 import type { BalanceResponse, PaymentTransaction, UsageTransaction } from "../../shared/ClineAccount"
 
 export class ClineAccountService {
 	private readonly baseUrl = "https://api.cline.bot/v1"
-	private providerRef: WeakRef<ClineProvider>
+	private controllerRef: WeakRef<Controller>
 
-	constructor(provider: ClineProvider) {
-		this.providerRef = new WeakRef(provider)
+	constructor(controller: Controller) {
+		this.controllerRef = new WeakRef(controller)
 	}
 
 	/**
 	 * Get the user's Cline Account key from the apiConfiguration
 	 */
 	private async getClineApiKey(): Promise<string | undefined> {
-		const provider = this.providerRef.deref()
+		const provider = this.controllerRef.deref()
 		if (!provider) {
 			return undefined
 		}
@@ -64,7 +64,7 @@ export class ClineAccountService {
 			const data = await this.authenticatedRequest<BalanceResponse>("/user/credits/balance")
 
 			// Post to webview
-			await this.providerRef.deref()?.postMessageToWebview({
+			await this.controllerRef.deref()?.postMessageToWebview({
 				type: "userCreditsBalance",
 				userCreditsBalance: data,
 			})
@@ -84,7 +84,7 @@ export class ClineAccountService {
 			const data = await this.authenticatedRequest<UsageTransaction[]>("/user/credits/usage")
 
 			// Post to webview
-			await this.providerRef.deref()?.postMessageToWebview({
+			await this.controllerRef.deref()?.postMessageToWebview({
 				type: "userCreditsUsage",
 				userCreditsUsage: data,
 			})
@@ -104,7 +104,7 @@ export class ClineAccountService {
 			const data = await this.authenticatedRequest<PaymentTransaction[]>("/user/credits/payments")
 
 			// Post to webview
-			await this.providerRef.deref()?.postMessageToWebview({
+			await this.controllerRef.deref()?.postMessageToWebview({
 				type: "userCreditsPayments",
 				userCreditsPayments: data,
 			})

@@ -307,7 +307,7 @@ function parseToolCall(toolName: string, content: string): ToolCall | null {
 
 	// Parse nested XML elements
 	const paramRegex = /<(\w+)>([\s\S]*?)<\/\1>/gs
-	let match
+	let match: RegExpExecArray | null
 
 	while ((match = paramRegex.exec(innerContent)) !== null) {
 		const [, paramName, paramValue] = match
