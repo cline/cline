@@ -112,6 +112,9 @@ export const modelInfoSchema = z.object({
 	description: z.string().optional(),
 	reasoningEffort: z.enum(["low", "medium", "high"]).optional(),
 	thinking: z.boolean().optional(),
+	minTokensPerCachePoint: z.number().optional(),
+	maxCachePoints: z.number().optional(),
+	cachableFields: z.array(z.string()).optional(),
 })
 
 export type ModelInfo = z.infer<typeof modelInfoSchema>

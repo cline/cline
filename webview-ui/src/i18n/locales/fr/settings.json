@@ -131,6 +131,9 @@
 		"awsSessionToken": "Jeton de session AWS",
 		"awsRegion": "Région AWS",
 		"awsCrossRegion": "Utiliser l'inférence inter-régions",
+		"enablePromptCaching": "Activer la mise en cache des prompts",
+		"enablePromptCachingTitle": "Activer la mise en cache des prompts pour améliorer les performances et réduire les coûts pour les modèles pris en charge.",
+		"cacheUsageNote": "Remarque : Si vous ne voyez pas l'utilisation du cache, essayez de sélectionner un modèle différent puis de sélectionner à nouveau votre modèle souhaité.",
 		"vscodeLmModel": "Modèle de langage",
 		"vscodeLmWarning": "Remarque : Il s'agit d'une intégration très expérimentale et le support des fournisseurs variera. Si vous recevez une erreur concernant un modèle non pris en charge, c'est un problème du côté du fournisseur.",
 		"googleCloudSetup": {

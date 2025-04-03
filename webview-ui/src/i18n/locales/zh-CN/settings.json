@@ -131,6 +131,9 @@
 		"awsSessionToken": "AWS 会话令牌",
 		"awsRegion": "AWS 区域",
 		"awsCrossRegion": "使用跨区域推理",
+		"enablePromptCaching": "启用提示缓存",
+		"enablePromptCachingTitle": "启用提示缓存以提高支持的模型的性能并降低成本。",
+		"cacheUsageNote": "注意：如果您没有看到缓存使用情况，请尝试选择其他模型，然后重新选择您想要的模型。",
 		"vscodeLmModel": "VSCode LM 模型",
 		"vscodeLmWarning": "注意：这是一个非常实验性的集成，提供商支持会有所不同。如果您收到有关不支持模型的错误，则这是提供商方面的问题。",
 		"googleCloudSetup": {

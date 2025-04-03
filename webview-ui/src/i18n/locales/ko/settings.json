@@ -131,6 +131,9 @@
 		"awsSessionToken": "AWS 세션 토큰",
 		"awsRegion": "AWS 리전",
 		"awsCrossRegion": "교차 리전 추론 사용",
+		"enablePromptCaching": "프롬프트 캐시 활성화",
+		"enablePromptCachingTitle": "지원되는 모델의 성능을 향상시키고 비용을 절감하기 위해 프롬프트 캐시를 활성화합니다.",
+		"cacheUsageNote": "참고: 캐시 사용이 표시되지 않는 경우, 다른 모델을 선택한 다음 원하는 모델을 다시 선택해 보세요.",
 		"vscodeLmModel": "언어 모델",
 		"vscodeLmWarning": "참고: 이는 매우 실험적인 통합이며, 공급자 지원은 다를 수 있습니다. 모델이 지원되지 않는다는 오류가 발생하면, 이는 공급자 측의 문제입니다.",
 		"googleCloudSetup": {

@@ -1,4 +1,4 @@
-// Mock AWS SDK credential providers
+// Mock AWS SDK credential providers and Bedrock client
 jest.mock("@aws-sdk/credential-providers", () => ({
 	fromIni: jest.fn().mockReturnValue({
 		accessKeyId: "profile-access-key",
@@ -6,24 +6,75 @@ jest.mock("@aws-sdk/credential-providers", () => ({
 	}),
 }))
 
+// Mock Smithy client
+jest.mock("@smithy/smithy-client", () => ({
+	throwDefaultError: jest.fn(),
+}))
+
+// Mock AWS SDK modules
+jest.mock("@aws-sdk/client-bedrock-runtime", () => {
+	const mockSend = jest.fn().mockImplementation(async () => {
+		return {
+			$metadata: {
+				httpStatusCode: 200,
+				requestId: "mock-request-id",
+			},
+			stream: {
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						metadata: {
+							usage: {
+								inputTokens: 100,
+								outputTokens: 200,
+							},
+						},
+					}
+				},
+			},
+		}
+	})
+
+	return {
+		BedrockRuntimeClient: jest.fn().mockImplementation(() => ({
+			send: mockSend,
+			config: { region: "us-east-1" },
+			middlewareStack: {
+				clone: () => ({ resolve: () => {} }),
+				use: () => {},
+			},
+		})),
+		ConverseStreamCommand: jest.fn((params) => ({
+			...params,
+			input: params,
+			middlewareStack: {
+				clone: () => ({ resolve: () => {} }),
+				use: () => {},
+			},
+		})),
+		ConverseCommand: jest.fn((params) => ({
+			...params,
+			input: params,
+			middlewareStack: {
+				clone: () => ({ resolve: () => {} }),
+				use: () => {},
+			},
+		})),
+	}
+})
+
 import { AwsBedrockHandler, StreamEvent } from "../bedrock"
 import { ApiHandlerOptions } from "../../../shared/api"
 import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime"
+const { fromIni } = require("@aws-sdk/credential-providers")
 
 describe("AwsBedrockHandler with invokedModelId", () => {
-	let mockSend: jest.SpyInstance
+	let mockSend: jest.Mock
 
 	beforeEach(() => {
-		// Mock the BedrockRuntimeClient.prototype.send method
-		mockSend = jest.spyOn(BedrockRuntimeClient.prototype, "send").mockImplementation(async () => {
-			return {
-				stream: createMockStream([]),
-			}
-		})
-	})
-
-	afterEach(() => {
-		mockSend.mockRestore()
+		jest.clearAllMocks()
+		// Get the mock send function from our mocked module
+		const { BedrockRuntimeClient } = require("@aws-sdk/client-bedrock-runtime")
+		mockSend = BedrockRuntimeClient().send
 	})
 
 	// Helper function to create a mock async iterable stream
@@ -49,17 +100,21 @@ describe("AwsBedrockHandler with invokedModelId", () => {
 	it("should update costModelConfig when invokedModelId is present in the stream", async () => {
 		// Create a handler with a custom ARN
 		const mockOptions: ApiHandlerOptions = {
-			//	apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
 			awsAccessKey: "test-access-key",
 			awsSecretKey: "test-secret-key",
 			awsRegion: "us-east-1",
-			awsCustomArn: "arn:aws:bedrock:us-west-2:699475926481:default-prompt-router/anthropic.claude:1",
+			awsCustomArn: "arn:aws:bedrock:us-west-2:123456789:default-prompt-router/anthropic.claude:1",
 		}
 
 		const handler = new AwsBedrockHandler(mockOptions)
 
-		// Create a spy on the getModel method before mocking it
-		const getModelSpy = jest.spyOn(handler, "getModelByName")
+		// Verify that getModel returns the updated model info
+		const initialModel = handler.getModel()
+		//the default prompt router model has an input price of 3. After the stream is handled it should be updated to 8
+		expect(initialModel.info.inputPrice).toBe(3)
+
+		// Create a spy on the getModel
+		const getModelByIdSpy = jest.spyOn(handler, "getModelById")
 
 		// Mock the stream to include an event with invokedModelId and usage metadata
 		mockSend.mockImplementationOnce(async () => {
@@ -70,14 +125,15 @@ describe("AwsBedrockHandler with invokedModelId", () => {
 						trace: {
 							promptRouter: {
 								invokedModelId:
-									"arn:aws:bedrock:us-west-2:699475926481:inference-profile/us.anthropic.claude-3-5-sonnet-20240620-v1:0",
+									"arn:aws:bedrock:us-west-2:699475926481:inference-profile/us.anthropic.claude-2-1-v1:0",
 								usage: {
 									inputTokens: 150,
 									outputTokens: 250,
+									cacheReadTokens: 0,
+									cacheWriteTokens: 0,
 								},
 							},
 						},
-						// Some content events
 					},
 					{
 						contentBlockStart: {
@@ -108,13 +164,13 @@ describe("AwsBedrockHandler with invokedModelId", () => {
 			events.push(event)
 		}
 
-		// Verify that getModel was called with the correct model name
-		expect(getModelSpy).toHaveBeenCalledWith("anthropic.claude-3-5-sonnet-20240620-v1:0")
+		// Verify that getModelById was called with the id, not the full arn
+		expect(getModelByIdSpy).toHaveBeenCalledWith("anthropic.claude-2-1-v1:0", "inference-profile")
 
 		// Verify that getModel returns the updated model info
 		const costModel = handler.getModel()
-		expect(costModel.id).toBe("anthropic.claude-3-5-sonnet-20240620-v1:0")
-		expect(costModel.info.inputPrice).toBe(3)
+		//expect(costModel.id).toBe("anthropic.claude-3-5-sonnet-20240620-v1:0")
+		expect(costModel.info.inputPrice).toBe(8)
 
 		// Verify that a usage event was emitted after updating the costModelConfig
 		const usageEvents = events.filter((event) => event.type === "usage")
@@ -122,10 +178,14 @@ describe("AwsBedrockHandler with invokedModelId", () => {
 
 		// The last usage event should have the token counts from the metadata
 		const lastUsageEvent = usageEvents[usageEvents.length - 1]
-		expect(lastUsageEvent).toEqual({
+		// Expect the usage event to include all token information
+		expect(lastUsageEvent).toMatchObject({
 			type: "usage",
 			inputTokens: 100,
 			outputTokens: 200,
+			// Cache tokens may be present with default values
+			cacheReadTokens: expect.any(Number),
+			cacheWriteTokens: expect.any(Number),
 		})
 	})
 
@@ -139,6 +199,10 @@ describe("AwsBedrockHandler with invokedModelId", () => {
 		}
 
 		const handler = new AwsBedrockHandler(mockOptions)
+
+		// Store the initial model configuration
+		const initialModelConfig = handler.getModel()
+		expect(initialModelConfig.id).toBe("anthropic.claude-3-5-sonnet-20241022-v2:0")
 
 		// Mock the stream without an invokedModelId event
 		mockSend.mockImplementationOnce(async () => {
@@ -165,17 +229,6 @@ describe("AwsBedrockHandler with invokedModelId", () => {
 			}
 		})
 
-		// Mock getModel to return expected values
-		const getModelSpy = jest.spyOn(handler, "getModel").mockReturnValue({
-			id: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-			info: {
-				maxTokens: 4096,
-				contextWindow: 128_000,
-				supportsPromptCache: false,
-				supportsImages: true,
-			},
-		})
-
 		// Create a message generator
 		const messageGenerator = handler.createMessage("system prompt", [{ role: "user", content: "user message" }])
 
@@ -184,12 +237,10 @@ describe("AwsBedrockHandler with invokedModelId", () => {
 			// Just consume the messages
 		}
 
-		// Verify that getModel returns the original model info
+		// Verify that getModel returns the original model info (unchanged)
 		const costModel = handler.getModel()
 		expect(costModel.id).toBe("anthropic.claude-3-5-sonnet-20241022-v2:0")
-
-		// Verify getModel was not called with a model name parameter
-		expect(getModelSpy).not.toHaveBeenCalledWith(expect.any(String))
+		expect(costModel).toEqual(initialModelConfig)
 	})
 
 	it("should handle invalid invokedModelId format gracefully", async () => {

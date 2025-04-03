@@ -130,6 +130,9 @@
 		"awsSessionToken": "Token phiên AWS",
 		"awsRegion": "Vùng AWS",
 		"awsCrossRegion": "Sử dụng suy luận liên vùng",
+		"enablePromptCaching": "Bật bộ nhớ đệm lời nhắc",
+		"enablePromptCachingTitle": "Bật bộ nhớ đệm lời nhắc để cải thiện hiệu suất và giảm chi phí cho các mô hình được hỗ trợ.",
+		"cacheUsageNote": "Lưu ý: Nếu bạn không thấy việc sử dụng bộ nhớ đệm, hãy thử chọn một mô hình khác và sau đó chọn lại mô hình mong muốn của bạn.",
 		"vscodeLmModel": "Mô hình ngôn ngữ",
 		"vscodeLmWarning": "Lưu ý: Đây là tích hợp thử nghiệm và hỗ trợ nhà cung cấp có thể khác nhau. Nếu bạn nhận được lỗi về mô hình không được hỗ trợ, đó là vấn đề từ phía nhà cung cấp.",
 		"googleCloudSetup": {

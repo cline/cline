@@ -131,6 +131,9 @@
 		"awsSessionToken": "AWS Session Token",
 		"awsRegion": "AWS Region",
 		"awsCrossRegion": "Use cross-region inference",
+		"enablePromptCaching": "Enable prompt caching",
+		"enablePromptCachingTitle": "Enable prompt caching to improve performance and reduce costs for supported models.",
+		"cacheUsageNote": "Note: If you don't see cache usage, try selecting a different model and then selecting your desired model again.",
 		"vscodeLmModel": "Language Model",
 		"vscodeLmWarning": "Note: This is a very experimental integration and provider support will vary. If you get an error about a model not being supported, that's an issue on the provider's end.",
 		"googleCloudSetup": {
