@@ -5,6 +5,7 @@ import { validateApiConfiguration } from '../../utils/validate'
 import { vscode } from '../../utils/vscode'
 import ApiOptions from '../settings/ApiOptions'
 import PostHogLogoWhite from '../../assets/PostHogLogoWhite'
+import AutocompleteOptions from '../settings/AutocompleteOptions'
 
 const WelcomeView = () => {
     const { apiConfiguration } = useExtensionState()
@@ -17,6 +18,7 @@ const WelcomeView = () => {
         vscode.postMessage({ type: 'apiConfiguration', apiConfiguration })
     }
 
+    console.log(apiConfiguration)
     useEffect(() => {
         setApiErrorMessage(validateApiConfiguration(apiConfiguration))
     }, [apiConfiguration])
@@ -74,6 +76,7 @@ const WelcomeView = () => {
                     {showApiOptions && (
                         <div>
                             <ApiOptions showModelOptions={false} />
+                            <AutocompleteOptions />
                             <VSCodeButton
                                 onClick={handleSubmit}
                                 disabled={disableLetsGoButton}
@@ -81,6 +84,9 @@ const WelcomeView = () => {
                             >
                                 Let's go!
                             </VSCodeButton>
+                            {apiErrorMessage && (
+                                <p style={{ color: 'var(--vscode-errorForeground)' }}>{apiErrorMessage}</p>
+                            )}
                         </div>
                     )}
                 </div>
