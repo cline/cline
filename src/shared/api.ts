@@ -20,6 +20,8 @@ export type ApiProvider =
     | 'sambanova'
     | 'inkeep'
 
+export type CompletionApiProvider = 'codestral'
+
 export interface ApiHandlerOptions {
     apiModelId?: string
     apiKey?: string // anthropic
@@ -70,10 +72,12 @@ export interface ApiHandlerOptions {
     thinkingBudgetTokens?: number
     sambanovaApiKey?: string
     inkeepApiKey?: string
+    codestralApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
     apiProvider?: ApiProvider
+    completionApiProvider?: CompletionApiProvider
 }
 
 // Models
@@ -1175,6 +1179,14 @@ export const mistralModels = {
         outputPrice: 0.15,
     },
     'codestral-2501': {
+        maxTokens: 256_000,
+        contextWindow: 256_000,
+        supportsImages: false,
+        supportsPromptCache: false,
+        inputPrice: 0.3,
+        outputPrice: 0.9,
+    },
+    'codestral-latest': {
         maxTokens: 256_000,
         contextWindow: 256_000,
         supportsImages: false,

@@ -21,11 +21,17 @@ import { AskSageHandler } from './providers/asksage'
 import { XAIHandler } from './providers/xai'
 import { SambanovaHandler } from './providers/sambanova'
 import { InkeepHandler } from './providers/inkeep'
+import { CodestralHandler } from './providers/codestral'
+import { CompletionOptions } from '../autocomplete/types'
 
 export interface ApiHandler {
     createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
     getModel(): { id: string; info: ModelInfo }
     getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
+}
+export interface CompletionApiHandler {
+    getModel(): { id: string; info: ModelInfo }
+    streamFim(prefix: string, suffix: string, signal: AbortSignal, options?: CompletionOptions): AsyncGenerator<string>
 }
 
 export interface SingleCompletionHandler {
@@ -77,5 +83,15 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
             return new InkeepHandler(options)
         default:
             return new AnthropicHandler(options)
+    }
+}
+
+export function buildCompletionApiHandler(configuration: ApiConfiguration): CompletionApiHandler {
+    const { completionApiProvider, ...options } = configuration
+    switch (completionApiProvider) {
+        case 'codestral':
+            return new CodestralHandler(options)
+        default:
+            return new CodestralHandler(options)
     }
 }

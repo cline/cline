@@ -15,7 +15,7 @@ import { getTheme } from '../../integrations/theme/getTheme'
 import WorkspaceTracker from '../../integrations/workspace/WorkspaceTracker'
 import { McpHub } from '../../services/mcp/McpHub'
 import { UserInfo } from '../../shared/UserInfo'
-import { ApiConfiguration, ApiProvider, ModelInfo } from '../../shared/api'
+import { ApiConfiguration, ApiProvider, CompletionApiProvider, ModelInfo } from '../../shared/api'
 import { findLast } from '../../shared/array'
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from '../../shared/AutoApprovalSettings'
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from '../../shared/BrowserSettings'
@@ -65,8 +65,10 @@ type SecretKey =
     | 'xaiApiKey'
     | 'sambanovaApiKey'
     | 'inkeepApiKey'
+    | 'codestralApiKey'
 type GlobalStateKey =
     | 'apiProvider'
+    | 'completionApiProvider'
     | 'apiModelId'
     | 'awsRegion'
     | 'awsUseCrossRegionInference'
@@ -1055,6 +1057,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             thinkingBudgetTokens,
             sambanovaApiKey,
             inkeepApiKey,
+            codestralApiKey,
         } = apiConfiguration
         await this.updateGlobalState('apiProvider', apiProvider)
         await this.updateGlobalState('apiModelId', apiModelId)
@@ -1105,6 +1108,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
         await this.updateGlobalState('thinkingBudgetTokens', thinkingBudgetTokens)
         await this.storeSecret('sambanovaApiKey', sambanovaApiKey)
         await this.storeSecret('inkeepApiKey', inkeepApiKey)
+        await this.storeSecret('codestralApiKey', codestralApiKey)
         if (this.posthog) {
             this.posthog.api = buildApiHandler(apiConfiguration)
         }
@@ -1745,6 +1749,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
     async getState() {
         const [
             storedApiProvider,
+            storedCompletionApiProvider,
             apiModelId,
             apiKey,
             openRouterApiKey,
@@ -1806,8 +1811,10 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             sambanovaApiKey,
             planActSeparateModelsSettingRaw,
             inkeepApiKey,
+            codestralApiKey,
         ] = await Promise.all([
             this.getGlobalState('apiProvider') as Promise<ApiProvider | undefined>,
+            this.getGlobalState('completionApiProvider') as Promise<CompletionApiProvider | undefined>,
             this.getGlobalState('apiModelId') as Promise<string | undefined>,
             this.getSecret('apiKey') as Promise<string | undefined>,
             this.getSecret('openRouterApiKey') as Promise<string | undefined>,
@@ -1871,6 +1878,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             this.getSecret('sambanovaApiKey') as Promise<string | undefined>,
             this.getGlobalState('planActSeparateModelsSetting') as Promise<boolean | undefined>,
             this.getSecret('inkeepApiKey') as Promise<string | undefined>,
+            this.getSecret('codestralApiKey') as Promise<string | undefined>,
         ])
 
         let apiProvider: ApiProvider
@@ -1885,6 +1893,12 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
                 // New users should default to openrouter, since they've opted to use an API key instead of signing in
                 apiProvider = 'openrouter'
             }
+        }
+        let completionApiProvider: CompletionApiProvider
+        if (storedCompletionApiProvider) {
+            completionApiProvider = storedCompletionApiProvider
+        } else {
+            completionApiProvider = 'codestral'
         }
 
         const o3MiniReasoningEffort = vscode.workspace
@@ -1912,6 +1926,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
         return {
             apiConfiguration: {
                 apiProvider,
+                completionApiProvider,
                 apiModelId,
                 apiKey,
                 openRouterApiKey,
@@ -1961,6 +1976,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
                 xaiApiKey,
                 sambanovaApiKey,
                 inkeepApiKey,
+                codestralApiKey,
             },
             customInstructions,
             taskHistory,
@@ -2107,6 +2123,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             'xaiApiKey',
             'sambanovaApiKey',
             'inkeepApiKey',
+            'codestralApiKey',
         ]
         for (const key of secretKeys) {
             await this.storeSecret(key, undefined)

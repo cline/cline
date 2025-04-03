@@ -32,6 +32,12 @@ class PostHogTelemetryClient {
             HISTORICAL_LOADED: 'task.historical_loaded',
             // Tracks when the retry button is clicked for failed operations
             RETRY_CLICKED: 'task.retry_clicked',
+            // Tracks when autocomplete is accepted
+            AUTOCOMPLETE_ACCEPTED: 'task.autocomplete_accepted',
+            // Tracks when autocomplete is enabled
+            AUTOCOMPLETE_ENABLED: 'task.autocomplete_enabled',
+            // Tracks when autocomplete is used
+            AUTOCOMPLETE: 'task.autocomplete',
         },
         // UI interaction events for tracking user engagement
         UI: {
@@ -53,6 +59,8 @@ class PostHogTelemetryClient {
             PLAN_MODE_TOGGLED: 'ui.plan_mode_toggled',
             // Tracks when action mode is toggled on
             ACT_MODE_TOGGLED: 'ui.act_mode_toggled',
+            // Tracks when the autocomplete config menu is opened
+            OPEN_TAB_AUTOCOMPLETE_CONFIG_MENU: 'ui.open_tab_autocomplete_config_menu',
         },
     }
 
@@ -408,6 +416,34 @@ class PostHogTelemetryClient {
             properties: {
                 taskId,
             },
+        })
+    }
+
+    public captureAutocompleteEnabled() {
+        this.capture({
+            event: PostHogTelemetryClient.EVENTS.TASK.AUTOCOMPLETE_ENABLED,
+            properties: {},
+        })
+    }
+
+    public captureAutocompleteAccepted() {
+        this.capture({
+            event: PostHogTelemetryClient.EVENTS.TASK.AUTOCOMPLETE_ACCEPTED,
+            properties: {},
+        })
+    }
+
+    public captureOpenTabAutocompleteConfigMenu() {
+        this.capture({
+            event: PostHogTelemetryClient.EVENTS.UI.OPEN_TAB_AUTOCOMPLETE_CONFIG_MENU,
+            properties: {},
+        })
+    }
+
+    public captureAutocomplete(properties: Record<string, any>) {
+        this.capture({
+            event: PostHogTelemetryClient.EVENTS.TASK.AUTOCOMPLETE,
+            properties,
         })
     }
 
