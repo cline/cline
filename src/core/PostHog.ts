@@ -3844,6 +3844,3 @@ export class PostHog {
         return `<environment_details>\n${details.trim()}\n</environment_details>`
     }
 }
-function getApiHandlerOptions() {
-    throw new Error('Function not implemented.')
-}
