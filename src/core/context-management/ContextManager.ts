@@ -9,22 +9,34 @@ import * as path from "path"
 import fs from "fs/promises"
 import cloneDeep from "clone-deep"
 
-// array of string values allows us to cover all changes currently
-export type MessageContent = string[]
+enum EditType {
+	UNDEFINED = 0,
+	NO_FILE_READ = 1,
+	READ_FILE = 2,
+	ALTER_FILE = 3,
+	FILE_MENTION = 4,
+}
+
+// array of string values allows us to cover all changes currently supported
+type MessageContent = string[]
+type MessageMetadata = string[][]
 
 // Type for a single context update
-type ContextUpdate = [number, string, MessageContent] // [timestamp, updateType, update]
+type ContextUpdate = [number, string, MessageContent, MessageMetadata] // [timestamp, updateType, update, metadata]
 
 // Type for the serialized format of our nested maps
 type SerializedContextHistory = Array<
 	[
 		number, // messageIndex
-		Array<
-			[
-				number, // blockIndex
-				ContextUpdate[], // updates array
-			]
-		>,
+		[
+			number, // the first element of the tuple
+			Array<
+				[
+					number, // blockIndex
+					ContextUpdate[], // updates array (now with 4 elements including metadata)
+				]
+			>,
+		],
 	]
 >
 
@@ -32,11 +44,12 @@ export class ContextManager {
 	// mapping from the apiMessages outer index to the inner message index to a list of actual changes, ordered by timestamp
 	// timestamp is required in order to support full checkpointing, where the changes we apply need to be able to be undone when
 	// moving to an earlier conversation history checkpoint - this ordering intuitively allows for binary search on truncation
+	// there is also a number stored for each (EditType) which defines which message type it is, for custom handling
 
-	// format:  {outerIndex => {innerIndex => [[timestamp, updateType, update], ...]}}
-	// example: { 1 => { 0 => [[<timestamp>, "text", "[NOTE] Some previous conversation history with the user has been removed ..."], ...] } }
+	// format:  {outerIndex => {[EditType, innerIndex => [[timestamp, updateType, update], ...]}]}
+	// example: { 1 => { [0, 0 => [[<timestamp>, "text", "[NOTE] Some previous conversation history with the user has been removed ..."], ...] }] }
 	// the above example would be how we update the first assistant message to indicate we truncated text
-	private contextHistoryUpdates: Map<number, Map<number, ContextUpdate[]>>
+	private contextHistoryUpdates: Map<number, [number, Map<number, ContextUpdate[]>]>
 
 	constructor() {
 		this.contextHistoryUpdates = new Map()
@@ -52,14 +65,20 @@ export class ContextManager {
 	/**
 	 * get the stored context history from disk
 	 */
-	private async getSavedContextHistory(taskDirectory: string): Promise<Map<number, Map<number, ContextUpdate[]>>> {
+	private async getSavedContextHistory(taskDirectory: string): Promise<Map<number, [number, Map<number, ContextUpdate[]>]>> {
 		try {
 			const filePath = path.join(taskDirectory, GlobalFileNames.contextHistory)
 			if (await fileExistsAtPath(filePath)) {
 				const data = await fs.readFile(filePath, "utf8")
 				const serializedUpdates = JSON.parse(data) as SerializedContextHistory
 
-				return new Map(serializedUpdates.map(([messageIndex, innerMapArray]) => [messageIndex, new Map(innerMapArray)]))
+				// Update to properly reconstruct the tuple structure
+				return new Map(
+					serializedUpdates.map(([messageIndex, [numberValue, innerMapArray]]) => [
+						messageIndex,
+						[numberValue, new Map(innerMapArray)],
+					]),
+				)
 			}
 		} catch (error) {
 			console.error("Failed to load context history:", error)
@@ -73,8 +92,9 @@ export class ContextManager {
 	private async saveContextHistory(taskDirectory: string) {
 		try {
 			// Convert Map to our defined serialized format
+			// Note: ContextUpdate format is now [timestamp, updateType, update, metadata]
 			const serializedUpdates: SerializedContextHistory = Array.from(this.contextHistoryUpdates.entries()).map(
-				([messageIndex, innerMap]) => [messageIndex, Array.from(innerMap.entries())],
+				([messageIndex, [numberValue, innerMap]]) => [messageIndex, [numberValue, Array.from(innerMap.entries())]],
 			)
 
 			await fs.writeFile(
@@ -277,14 +297,16 @@ export class ContextManager {
 		for (let arrayIndex = 0; arrayIndex < messagesToUpdate.length; arrayIndex++) {
 			const messageIndex = originalIndices[arrayIndex]
 
-			const innerMap = this.contextHistoryUpdates.get(messageIndex)
-			if (!innerMap) {
+			const innerTuple = this.contextHistoryUpdates.get(messageIndex)
+			if (!innerTuple) {
 				continue
 			}
 
 			// because we are altering this, we need a deep copy
 			messagesToUpdate[arrayIndex] = cloneDeep(messagesToUpdate[arrayIndex])
 
+			// Extract the map from the tuple
+			const innerMap = innerTuple[1]
 			for (const [blockIndex, changes] of innerMap) {
 				// apply the latest change among n changes - [timestamp, updateType, update]
 				const latestChange = changes[changes.length - 1]
@@ -321,10 +343,10 @@ export class ContextManager {
 	 * removes the index if there are no alterations there anymore, both outer and inner indices
 	 */
 	private truncateContextHistoryAtTimestamp(
-		contextHistory: Map<number, Map<number, ContextUpdate[]>>,
+		contextHistory: Map<number, [number, Map<number, ContextUpdate[]>]>,
 		timestamp: number,
 	): void {
-		for (const [messageIndex, innerMap] of contextHistory) {
+		for (const [messageIndex, [_, innerMap]] of contextHistory) {
 			// track which blockIndices to delete
 			const blockIndicesToDelete: number[] = []
 
@@ -386,8 +408,8 @@ export class ContextManager {
 		if (!this.contextHistoryUpdates.has(1)) {
 			// first assistant message always at index 1
 			const innerMap = new Map<number, ContextUpdate[]>()
-			innerMap.set(0, [[timestamp, "text", [formatResponse.contextTruncationNotice()]]]) // alter message text at index 0
-			this.contextHistoryUpdates.set(1, innerMap)
+			innerMap.set(0, [[timestamp, "text", [formatResponse.contextTruncationNotice()], []]]) // alter message text at index 0, with empty metadata
+			this.contextHistoryUpdates.set(1, [0, innerMap]) // Wrap in tuple with number 0
 			return true
 		}
 		return false
@@ -507,10 +529,16 @@ export class ContextManager {
 					const messageIndex = indices[i][0]
 					const messageString = indices[i][1] // what we will replace the string with
 
-					let innerMap = this.contextHistoryUpdates.get(messageIndex)
-					if (!innerMap) {
+					let innerTuple = this.contextHistoryUpdates.get(messageIndex)
+					let innerMap: Map<number, ContextUpdate[]>
+
+					if (!innerTuple) {
+						// Create new innerMap and wrap in tuple with number 0
 						innerMap = new Map<number, ContextUpdate[]>()
-						this.contextHistoryUpdates.set(messageIndex, innerMap)
+						this.contextHistoryUpdates.set(messageIndex, [0, innerMap])
+					} else {
+						// Extract existing innerMap from tuple
+						innerMap = innerTuple[1]
 					}
 
 					// block index for file reads from read_file, write_to_file, replace_in_file tools is 1
@@ -518,7 +546,8 @@ export class ContextManager {
 
 					const updates = innerMap.get(blockIndex) || []
 
-					updates.push([timestamp, "text", [messageString]])
+					// Include empty metadata array
+					updates.push([timestamp, "text", [messageString], []])
 
 					innerMap.set(blockIndex, updates)
 
@@ -563,8 +592,8 @@ export class ContextManager {
 					if (block.type === "text" && block.text) {
 						// true if we just altered it, or it was altered before
 						if (hasExistingAlterations) {
-							const innerMap = this.contextHistoryUpdates.get(i)
-							const updates = innerMap?.get(blockIndex)
+							const innerTuple = this.contextHistoryUpdates.get(i)
+							const updates = innerTuple?.[1].get(blockIndex)
 
 							if (updates && updates.length > 0) {
 								// exists if we have an update for the message at this index
