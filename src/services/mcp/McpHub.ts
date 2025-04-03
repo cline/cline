@@ -92,7 +92,7 @@ export class McpHub {
     }
 
     getMode(): McpMode {
-        return vscode.workspace.getConfiguration('posthog.mcp').get<McpMode>('mode', 'full')
+        return vscode.workspace.getConfiguration('posthog.mcp').get<McpMode>('mode', 'server-use-only')
     }
 
     async getMcpServersPath(): Promise<string> {
