@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { vscode } from "../../../utils/vscode"
-import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useEvent } from "react-use"
-
+import { LINKS } from "../../../constants"
 const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) => {
 	const [serverName, setServerName] = useState("")
 	const [serverUrl, setServerUrl] = useState("")
@@ -80,7 +80,11 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 	return (
 		<div className="p-4 px-5">
 			<div className="text-[var(--vscode-foreground)] mb-2 max-w-lg">
-				Add a remote MCP server by providing a name and its URL endpoint. Learn more here.
+				Add a remote MCP server by providing a name and its URL endpoint. Learn more{" "}
+				<VSCodeLink href={LINKS.DOCUMENTATION.REMOTE_MCP_SERVER_DOCS} style={{ display: "inline" }}>
+					here
+				</VSCodeLink>
+				.
 			</div>
 
 			<form onSubmit={handleSubmit}>
