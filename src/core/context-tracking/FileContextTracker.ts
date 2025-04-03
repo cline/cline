@@ -5,7 +5,7 @@ import { Controller } from "../controller"
 
 // This class is responsible for tracking file operations that may result in stale context.
 // If a user modifies a file outside of Cline, the context may become stale and need to be updated.
-// We do not want Cine to reload the context every time a file is modified, so we use this class merely
+// We do not want Cline to reload the context every time a file is modified, so we use this class merely
 // to informat Cline that the change has occired, and tell Cline to reload the file before making
 // any chahnges to it. This fixes an issue with diff editing, where Cline was unable to completed
 // a diff edit because the file was modified since Cline last read it.
