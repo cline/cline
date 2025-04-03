@@ -824,11 +824,6 @@ export class Task {
 		// 	this.checkpointTrackerErrorMessage = "Checkpoints are only available for new tasks"
 		// }
 
-		// Check for files that were modified between task sessions
-		// Disabled for now, requires further testing
-		// May have exacerbated the issue with slow historical task switching
-		//await this.fileContextTracker.checkFilesModifiedBetweenSessions()
-
 		const modifiedClineMessages = await getSavedClineMessages(this.getContext(), this.taskId)
 
 		// Remove any resume messages that may have been added before

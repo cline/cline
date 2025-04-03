@@ -48,67 +48,6 @@ export class FileContextTracker {
 		return cwd
 	}
 
-	// Checks if files that were tracked in previous sessions have been modified while Cline was not running.
-	// This runs during task resumption to detect files that might have changed between sessions.
-	async checkFilesModifiedBetweenSessions() {
-		try {
-			// Get the task metadata which contains file tracking information
-			const taskMetadata = await getTaskMetadata(this.context(), this.taskId)
-
-			if (!taskMetadata || !taskMetadata.files_in_context || taskMetadata.files_in_context.length === 0) {
-				return // No tracked files to check
-			}
-
-			// Get all active (non-stale) files
-			const activeFiles = taskMetadata.files_in_context.filter(
-				(entry: { record_state: string }) => entry.record_state === "active",
-			)
-
-			const cwd = this.getCwd()
-			if (!cwd) {
-				return
-			}
-
-			// Track modified files and collect paths for watchers
-			const filesToWatch: string[] = []
-
-			for (const fileEntry of activeFiles) {
-				const absolutePath = path.isAbsolute(fileEntry.path) ? fileEntry.path : path.resolve(cwd, fileEntry.path)
-				const relPath = path.relative(cwd, absolutePath)
-
-				try {
-					// Check if the file exists
-					const fileUri = vscode.Uri.file(absolutePath)
-					const fileStat = await vscode.workspace.fs.stat(fileUri)
-
-					// Get the last modified timestamp from the filesystem
-					const fsModTime = fileStat.mtime
-
-					// Get the last time the complete file was loaded into context
-					const lastInteractionTime = Math.max(fileEntry.cline_read_date || 0, fileEntry.cline_edit_date || 0)
-
-					// If the file was modified after the last interaction, mark it as modified
-					if (fsModTime > lastInteractionTime) {
-						this.recentlyModifiedFiles.add(relPath)
-					}
-
-					// Add to list of files to watch
-					filesToWatch.push(relPath)
-				} catch (error) {
-					// File might not exist anymore or other error - just continue
-					console.error(`Error checking file ${absolutePath}: ${error}`)
-				}
-			}
-
-			// Set up file watchers for all files in one batch
-			for (const relPath of filesToWatch) {
-				await this.setupFileWatcher(relPath)
-			}
-		} catch (error) {
-			console.error("Failed to check files modified between sessions:", error)
-		}
-	}
-
 	// File watchers are set up for each file that is tracked in the task metadata.
 	async setupFileWatcher(filePath: string) {
 		// Only setup watcher if it doesn't already exist for this file
