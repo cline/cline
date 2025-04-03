@@ -1,5 +1,25 @@
 # Roo Code Changelog
 
+## [3.11.4] - 2025-04-02
+
+- Correctly post state to webview when the current task is cleared (thanks @wkordalski!)
+- Fix unit tests to run properly on Windows (thanks @StevenTCramer!)
+- Tree-sitter enhancements: TSX, TypeScript, JSON, and Markdown support (thanks @KJ7LNW!)
+- Fix issue with line number stripping for deletions in apply_diff
+- Update history selection mode button spacing (thanks @kyle-apex!)
+- Limit dropdown menu height to 80% of the viewport (thanks @axmo!)
+- Update dependencies via `npm audit fix` (thanks @PeterDaveHello!)
+- Enable model select when api fails (thanks @kyle-apex!)
+- Fix issue where prompts and settings tabs were not scrollable when accessed from dropdown menus
+- Update AWS region dropdown menu to the most recent data (thanks @Smartsheet-JB-Brown!)
+- Fix prompt enhancement for Bedrock (thanks @Smartsheet-JB-Brown!)
+- Allow processes to access the Roo Code API via a unix socket
+- Improve zh-TW Traditional Chinese translations (thanks @PeterDaveHello!)
+- Add support for Azure AI Inference Service with DeepSeek-V3 model (thanks @thomasjeung!)
+- Fix off-by-one error in tree-sitter line numbers
+- Remove the experimental unified diff
+- Make extension icon more visible in different themes
+
 ## [3.11.3] - 2025-03-31
 
 - Revert mention changes in case they're causing performance issues/crashes
