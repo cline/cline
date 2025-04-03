@@ -76,6 +76,54 @@ function hello() {
 				}
 			})
 
+			it("should replace matching content in multiple blocks", async () => {
+				const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
+				const diffContent = `test.ts
+<<<<<<< SEARCH
+function hello() {
+=======
+function helloWorld() {
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    console.log("hello")
+=======
+    console.log("hello world")
+>>>>>>> REPLACE`
+
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe('function helloWorld() {\n    console.log("hello world")\n}\n')
+				}
+			})
+
+			it("should replace matching content in multiple blocks with line numbers", async () => {
+				const originalContent = 'function hello() {\n    console.log("hello")\n}\n'
+				const diffContent = `test.ts
+<<<<<<< SEARCH
+:start_line:1
+:end_line:1
+-------
+function hello() {
+=======
+function helloWorld() {
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+:start_line:2
+:end_line:2
+-------
+    console.log("hello")
+=======
+    console.log("hello world")
+>>>>>>> REPLACE`
+
+				const result = await strategy.applyDiff(originalContent, diffContent)
+				expect(result.success).toBe(true)
+				if (result.success) {
+					expect(result.content).toBe('function helloWorld() {\n    console.log("hello world")\n}\n')
+				}
+			})
+
 			it("should match content with different surrounding whitespace", async () => {
 				const originalContent = "\nfunction example() {\n    return 42;\n}\n\n"
 				const diffContent = `test.ts
