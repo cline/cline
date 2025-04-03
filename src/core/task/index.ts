@@ -13,6 +13,7 @@ import { ApiHandler, buildApiHandler } from "../../api"
 import { AnthropicHandler } from "../../api/providers/anthropic"
 import { ClineHandler } from "../../api/providers/cline"
 import { OpenRouterHandler } from "../../api/providers/openrouter"
+import { getContextWindowInfo } from "../context-management/context-window-utils"
 import { ApiStream } from "../../api/transform/stream"
 import { GlobalFileNames } from "../storage/disk"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
@@ -3563,6 +3564,16 @@ export class Task {
 				details += result
 			}
 		}
+
+		// Add context window usage information
+		const { contextWindow, maxAllowedSize } = getContextWindowInfo(this.api)
+		const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
+		const totalTokens = apiMetrics.totalTokensIn + apiMetrics.totalTokensOut
+		const usagePercentage = Math.round((totalTokens / maxAllowedSize) * 100)
+
+		details += "\n\n# Context Window Usage"
+		details += `\n${totalTokens.toLocaleString()} / ${maxAllowedSize.toLocaleString()} tokens (${usagePercentage}%)`
+		details += `\nModel: ${this.api.getModel().id} (${(contextWindow / 1000).toLocaleString()}K context window)`
 
 		details += "\n\n# Current Mode"
 		if (this.chatSettings.mode === "plan") {
