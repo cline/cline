@@ -18,6 +18,7 @@ export type ApiProvider =
     | 'asksage'
     | 'xai'
     | 'sambanova'
+    | 'inkeep'
 
 export type CompletionApiProvider = 'codestral'
 
@@ -70,6 +71,7 @@ export interface ApiHandlerOptions {
     xaiApiKey?: string
     thinkingBudgetTokens?: number
     sambanovaApiKey?: string
+    inkeepApiKey?: string
     codestralApiKey?: string
 }
 

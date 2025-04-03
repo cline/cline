@@ -64,6 +64,7 @@ type SecretKey =
     | 'asksageApiKey'
     | 'xaiApiKey'
     | 'sambanovaApiKey'
+    | 'inkeepApiKey'
     | 'codestralApiKey'
 type GlobalStateKey =
     | 'apiProvider'
@@ -138,10 +139,10 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
     }
 
     /*
-	VSCode extensions use the disposable pattern to clean up resources when the sidebar/editor tab is closed by the user or system. This applies to event listening, commands, interacting with the UI, etc.
-	- https://vscode-docs.readthedocs.io/en/stable/extensions/patterns-and-principles/
-	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-	*/
+    VSCode extensions use the disposable pattern to clean up resources when the sidebar/editor tab is closed by the user or system. This applies to event listening, commands, interacting with the UI, etc.
+    - https://vscode-docs.readthedocs.io/en/stable/extensions/patterns-and-principles/
+    - https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
+    */
     async dispose() {
         this.outputChannel.appendLine('Disposing PostHogProvider...')
         await this.clearTask()
@@ -349,15 +350,15 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
 
         // Use a nonce to only allow a specific script to be run.
         /*
-				content security policy of your webview to only allow scripts that have a specific nonce
-				create a content security policy meta tag so that only loading scripts with a nonce is allowed
-				As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicity allow for these resources. E.g.
-								<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
-		- 'unsafe-inline' is required for styles due to vscode-webview-toolkit's dynamic style injection
-		- since we pass base64 images to the webview, we need to specify img-src ${webview.cspSource} data:;
+                content security policy of your webview to only allow scripts that have a specific nonce
+                create a content security policy meta tag so that only loading scripts with a nonce is allowed
+                As your extension grows you will likely want to add custom styles, fonts, and/or images to your webview. If you do, you will need to update the content security policy meta tag to explicity allow for these resources. E.g.
+                                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}';">
+        - 'unsafe-inline' is required for styles due to vscode-webview-toolkit's dynamic style injection
+        - since we pass base64 images to the webview, we need to specify img-src ${webview.cspSource} data:;
 
-				in meta tag we add nonce attribute: A cryptographic nonce (only used once) to allow scripts. The server must generate a unique nonce value each time it transmits a policy. It is critical to provide a nonce that cannot be guessed as bypassing a resource's policy is otherwise trivial.
-				*/
+                in meta tag we add nonce attribute: A cryptographic nonce (only used once) to allow scripts. The server must generate a unique nonce value each time it transmits a policy. It is critical to provide a nonce that cannot be guessed as bypassing a resource's policy is otherwise trivial.
+                */
         const nonce = getNonce()
 
         // Tip: Install the es6-string-html VS Code extension to enable code highlighting below
@@ -1055,6 +1056,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             xaiApiKey,
             thinkingBudgetTokens,
             sambanovaApiKey,
+            inkeepApiKey,
             codestralApiKey,
         } = apiConfiguration
         await this.updateGlobalState('apiProvider', apiProvider)
@@ -1105,6 +1107,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
         await this.updateGlobalState('asksageApiUrl', asksageApiUrl)
         await this.updateGlobalState('thinkingBudgetTokens', thinkingBudgetTokens)
         await this.storeSecret('sambanovaApiKey', sambanovaApiKey)
+        await this.storeSecret('inkeepApiKey', inkeepApiKey)
         await this.storeSecret('codestralApiKey', codestralApiKey)
         if (this.posthog) {
             this.posthog.api = buildApiHandler(apiConfiguration)
@@ -1300,31 +1303,31 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
         try {
             const response = await axios.get('https://openrouter.ai/api/v1/models')
             /*
-			{
-				"id": "anthropic/claude-3.5-sonnet",
-				"name": "Anthropic: Claude 3.5 Sonnet",
-				"created": 1718841600,
-				"description": "Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: Autonomously writes, edits, and runs code with reasoning and troubleshooting\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal",
-				"context_length": 200000,
-				"architecture": {
-					"modality": "text+image-\u003Etext",
-					"tokenizer": "Claude",
-					"instruct_type": null
-				},
-				"pricing": {
-					"prompt": "0.000003",
-					"completion": "0.000015",
-					"image": "0.0048",
-					"request": "0"
-				},
-				"top_provider": {
-					"context_length": 200000,
-					"max_completion_tokens": 8192,
-					"is_moderated": true
-				},
-				"per_request_limits": null
-			},
-			*/
+            {
+                "id": "anthropic/claude-3.5-sonnet",
+                "name": "Anthropic: Claude 3.5 Sonnet",
+                "created": 1718841600,
+                "description": "Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: Autonomously writes, edits, and runs code with reasoning and troubleshooting\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal",
+                "context_length": 200000,
+                "architecture": {
+                    "modality": "text+image-\u003Etext",
+                    "tokenizer": "Claude",
+                    "instruct_type": null
+                },
+                "pricing": {
+                    "prompt": "0.000003",
+                    "completion": "0.000015",
+                    "image": "0.0048",
+                    "request": "0"
+                },
+                "top_provider": {
+                    "context_length": 200000,
+                    "max_completion_tokens": 8192,
+                    "is_moderated": true
+                },
+                "per_request_limits": null
+            },
+            */
             if (response.data?.data) {
                 const rawModels = response.data.data
                 const parsePrice = (price: any) => {
@@ -1700,20 +1703,20 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
     // Caching mechanism to keep track of webview messages + API conversation history per provider instance
 
     /*
-	Now that we use retainContextWhenHidden, we don't have to store a cache of posthog messages in the user's state, but we could to reduce memory footprint in long conversations.
+    Now that we use retainContextWhenHidden, we don't have to store a cache of posthog messages in the user's state, but we could to reduce memory footprint in long conversations.
 
-	- We have to be careful of what state is shared between PostHogProvider instances since there could be multiple instances of the extension running at once. For example when we cached posthog messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
-	- Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notify the other instances that the API key has changed.
+    - We have to be careful of what state is shared between PostHogProvider instances since there could be multiple instances of the extension running at once. For example when we cached posthog messages using the same key, two instances of the extension could end up using the same key and overwriting each other's messages.
+    - Some state does need to be shared between the instances, i.e. the API key--however there doesn't seem to be a good way to notify the other instances that the API key has changed.
 
-	We need to use a unique identifier for each PostHogProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
+    We need to use a unique identifier for each PostHogProvider instance's message cache since we could be running several instances of the extension outside of just the sidebar i.e. in editor panels.
 
-	// conversation history to send in API requests
+    // conversation history to send in API requests
 
-	/*
-	It seems that some API messages do not comply with vscode state requirements. Either the Anthropic library is manipulating these values somehow in the backend in a way thats creating cyclic references, or the API returns a function or a Symbol as part of the message content.
-	VSCode docs about state: "The value must be JSON-stringifyable ... value — A value. MUST not contain cyclic references."
-	For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
-	*/
+    /*
+    It seems that some API messages do not comply with vscode state requirements. Either the Anthropic library is manipulating these values somehow in the backend in a way thats creating cyclic references, or the API returns a function or a Symbol as part of the message content.
+    VSCode docs about state: "The value must be JSON-stringifyable ... value — A value. MUST not contain cyclic references."
+    For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
+    */
 
     // getApiConversationHistory(): Anthropic.MessageParam[] {
     // 	// const history = (await this.getGlobalState(
@@ -1738,10 +1741,10 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
     // }
 
     /*
-	Storage
-	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
-	https://www.eliostruyf.com/devhack-code-extension-storage-options/
-	*/
+    Storage
+    https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
+    https://www.eliostruyf.com/devhack-code-extension-storage-options/
+    */
 
     async getState() {
         const [
@@ -1807,6 +1810,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             thinkingBudgetTokens,
             sambanovaApiKey,
             planActSeparateModelsSettingRaw,
+            inkeepApiKey,
             codestralApiKey,
         ] = await Promise.all([
             this.getGlobalState('apiProvider') as Promise<ApiProvider | undefined>,
@@ -1873,6 +1877,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             this.getGlobalState('thinkingBudgetTokens') as Promise<number | undefined>,
             this.getSecret('sambanovaApiKey') as Promise<string | undefined>,
             this.getGlobalState('planActSeparateModelsSetting') as Promise<boolean | undefined>,
+            this.getSecret('inkeepApiKey') as Promise<string | undefined>,
             this.getSecret('codestralApiKey') as Promise<string | undefined>,
         ])
 
@@ -1970,6 +1975,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
                 asksageApiUrl,
                 xaiApiKey,
                 sambanovaApiKey,
+                inkeepApiKey,
                 codestralApiKey,
             },
             customInstructions,
@@ -2116,6 +2122,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             'asksageApiKey',
             'xaiApiKey',
             'sambanovaApiKey',
+            'inkeepApiKey',
             'codestralApiKey',
         ]
         for (const key of secretKeys) {

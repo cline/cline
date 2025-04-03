@@ -16,6 +16,7 @@ import ApiOptions from './ApiOptions'
 import { TabButton } from '../mcp/McpView'
 import { useEvent } from 'react-use'
 import { ExtensionMessage } from '../../../../src/shared/ExtensionMessage'
+import DocumentationOptions from './DocumentationOptions'
 import AutocompleteOptions from './AutocompleteOptions'
 const { IS_DEV } = process.env
 
@@ -264,6 +265,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
                 </div>
 
                 <AutocompleteOptions />
+                <DocumentationOptions />
 
                 <div style={{ marginBottom: 5 }}>
                     <VSCodeCheckbox

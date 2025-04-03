@@ -20,6 +20,7 @@ import { LiteLlmHandler } from './providers/litellm'
 import { AskSageHandler } from './providers/asksage'
 import { XAIHandler } from './providers/xai'
 import { SambanovaHandler } from './providers/sambanova'
+import { InkeepHandler } from './providers/inkeep'
 import { CodestralHandler } from './providers/codestral'
 import { CompletionOptions } from '../autocomplete/types'
 
@@ -78,6 +79,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
             return new XAIHandler(options)
         case 'sambanova':
             return new SambanovaHandler(options)
+        case 'inkeep':
+            return new InkeepHandler(options)
         default:
             return new AnthropicHandler(options)
     }
