@@ -6,7 +6,7 @@ Update `src/schema.ts` as needed, and then run:
 pnpm db:generate
 ```
 
-Inspect the generated sql in the migration filed added to `drizzle/`.
+Inspect the sql in the migration file added to `drizzle/`.
 
 If it looks okay, then run:
 

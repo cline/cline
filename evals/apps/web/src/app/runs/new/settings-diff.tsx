@@ -28,7 +28,7 @@ export function SettingsDiff({
 				const isDefault = JSON.stringify(defaultValue) === JSON.stringify(customValue)
 
 				return isDefault ? null : (
-					<SetttingDiff
+					<SettingDiff
 						key={key}
 						name={key}
 						defaultValue={JSON.stringify(defaultValue, null, 2)}
@@ -46,7 +46,7 @@ type SettingDiffProps = HTMLAttributes<HTMLDivElement> & {
 	customValue?: string
 }
 
-export function SetttingDiff({ name, defaultValue, customValue, ...props }: SettingDiffProps) {
+export function SettingDiff({ name, defaultValue, customValue, ...props }: SettingDiffProps) {
 	return (
 		<Fragment {...props}>
 			<div className="overflow-hidden font-mono">{name}</div>

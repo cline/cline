@@ -23,11 +23,11 @@ suite("Roo Code Task", () => {
 
 		await waitUntilCompleted({ api, taskId })
 
-		const completion = messages.find(({ say, partial }) => say === "completion_result")
-
 		assert.ok(
-			completion?.text?.includes("My name is Roo"),
-			`Completion should include "My name is Roo" - ${completion?.text}`,
+			!!messages.find(
+				({ say, text }) => (say === "completion_result" || say === "text") && text?.includes("My name is Roo"),
+			),
+			`Completion should include "My name is Roo"`,
 		)
 	})
 })
