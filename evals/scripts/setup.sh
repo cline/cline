@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 menu() {
   echo -e "\n📋 Which eval types would you like to support?\n"
@@ -14,6 +14,14 @@ menu() {
   done
 
   echo -e " q) quit\n"
+}
+
+has_asdf_plugin() {
+  local plugin="$1"
+  case "$plugin" in
+    nodejs|python|golang|rust) echo "true" ;;
+    *) echo "false" ;;
+  esac
 }
 
 build_extension() {
@@ -35,9 +43,6 @@ fi
 
 options=("nodejs" "python" "golang" "rust" "java")
 binaries=("node" "python" "go" "rustc" "javac")
-
-declare -A has_asdf_plugin
-has_asdf_plugin=([nodejs]=true [python]=true [golang]=true [rust]=true [java]=false)
 
 for i in "${!options[@]}"; do
   choices[i]="*"
@@ -163,7 +168,7 @@ for i in "${!options[@]}"; do
   plugin="${options[$i]}"
   binary="${binaries[$i]}"
 
-  if [[ "${has_asdf_plugin[$plugin]}" == "true" ]]; then
+  if [[ "$(has_asdf_plugin "$plugin")" == "true" ]]; then
     if ! asdf plugin list | grep -q "^${plugin}$" && ! command -v "${binary}" &>/dev/null; then
       echo "📦 Installing ${plugin} asdf plugin..."
       asdf plugin add "${plugin}" || exit 1
