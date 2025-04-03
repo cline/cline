@@ -28,18 +28,57 @@ describe("MultiSearchReplaceDiffStrategy", () => {
 			expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
 		})
 
+		it("validates multiple correct marker sequences with line numbers", () => {
+			const diff =
+				"<<<<<<< SEARCH\n" +
+				":start_line:10\n" +
+				":end_line:11\n" +
+				"-------\n" +
+				"content1\n" +
+				"=======\n" +
+				"new1\n" +
+				">>>>>>> REPLACE\n\n" +
+				"<<<<<<< SEARCH\n" +
+				":start_line:10\n" +
+				":end_line:11\n" +
+				"-------\n" +
+				"content2\n" +
+				"=======\n" +
+				"new2\n" +
+				">>>>>>> REPLACE"
+			expect(strategy["validateMarkerSequencing"](diff).success).toBe(true)
+		})
+
 		it("detects separator before search", () => {
 			const diff = "=======\n" + "content\n" + ">>>>>>> REPLACE"
 			const result = strategy["validateMarkerSequencing"](diff)
 			expect(result.success).toBe(false)
 			expect(result.error).toContain("'=======' found in your diff content")
+			expect(result.error).toContain("Diff block is malformed")
 		})
 
-		it("detects replace before separator", () => {
+		it("detects missing separator", () => {
 			const diff = "<<<<<<< SEARCH\n" + "content\n" + ">>>>>>> REPLACE"
 			const result = strategy["validateMarkerSequencing"](diff)
 			expect(result.success).toBe(false)
 			expect(result.error).toContain("'>>>>>>> REPLACE' found in your diff content")
+			expect(result.error).toContain("Diff block is malformed")
+		})
+
+		it("detects two separators", () => {
+			const diff = "<<<<<<< SEARCH\n" + "content\n" + "=======\n" + "=======\n" + ">>>>>>> REPLACE"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(false)
+			expect(result.error).toContain("'=======' found in your diff content")
+			expect(result.error).toContain("When removing merge conflict markers")
+		})
+
+		it("detects replace before separator (merge conflict message)", () => {
+			const diff = "<<<<<<< SEARCH\n" + "content\n" + ">>>>>>>"
+			const result = strategy["validateMarkerSequencing"](diff)
+			expect(result.success).toBe(false)
+			expect(result.error).toContain("'>>>>>>>' found in your diff content")
+			expect(result.error).toContain("When removing merge conflict markers")
 		})
 
 		it("detects incomplete sequence", () => {
