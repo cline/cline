@@ -280,6 +280,19 @@ Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]
 </options>
 </plan_mode_respond>
 
+# PostHog tools
+
+## add_tracking
+Description: Request to add PostHog analytics tracking to files.
+Parameters:
+- paths: (required) An array of file paths to add tracking to. These should be relative to the current working directory ${cwd.toPosix()}.
+Usage:
+<add_tracking>
+<paths>
+Array of file paths here (e.g. ["src/components/App.tsx", "src/pages/Home.tsx"])
+</paths>
+</add_tracking>
+
 # Tool Use Examples
 
 ## Example 1: Requesting to execute a command

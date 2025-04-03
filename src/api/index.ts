@@ -32,6 +32,12 @@ export interface ApiHandler {
 export interface CompletionApiHandler {
     getModel(): { id: string; info: ModelInfo }
     streamFim(prefix: string, suffix: string, signal: AbortSignal, options?: CompletionOptions): AsyncGenerator<string>
+    getCompletion?(options: {
+        prompt: string
+        system?: string
+        temperature?: number
+        maxTokens?: number
+    }): Promise<{ completion?: string; error?: string }>
 }
 
 export interface SingleCompletionHandler {

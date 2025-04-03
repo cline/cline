@@ -28,6 +28,7 @@ import { BrowserSettings } from '../shared/BrowserSettings'
 import { ChatSettings } from '../shared/ChatSettings'
 import { combineApiRequests } from '../shared/combineApiRequests'
 import { combineCommandSequences, COMMAND_REQ_APP_STRING } from '../shared/combineCommandSequences'
+import async from 'async'
 import {
     BrowserAction,
     BrowserActionResult,
@@ -1313,6 +1314,7 @@ export class PostHog {
                     return this.autoApprovalSettings.actions.readFiles
                 case 'write_to_file':
                 case 'replace_in_file':
+                case 'add_tracking':
                     return this.autoApprovalSettings.actions.editFiles
                 case 'execute_command':
                     return this.autoApprovalSettings.actions.executeCommands
@@ -1621,6 +1623,13 @@ export class PostHog {
                             return `[${block.name}]`
                         case 'search_docs':
                             return `[${block.name} for '${block.params.query}']`
+                        case 'add_tracking':
+                            try {
+                                const paths = JSON.parse(block.params.paths ?? '')
+                                return `[${block.name} to ${paths.length} files]`
+                            } catch (error) {
+                                return `[${block.name}]`
+                            }
                     }
                 }
 
@@ -2665,6 +2674,42 @@ export class PostHog {
                         } catch (error) {
                             await handleError('executing command', error)
 
+                            break
+                        }
+                    }
+                    case 'add_tracking': {
+                        console.log('add_tracking', block.params.paths, block)
+                        try {
+                            if (block.partial) {
+                                //noop
+                                break
+                            }
+
+                            const pathsString: string | undefined = block.params.paths
+                            if (!pathsString) {
+                                this.consecutiveMistakeCount++
+                                pushToolResult(await this.sayAndCreateMissingParamError('add_tracking', 'paths'))
+                                break
+                            }
+
+                            // Parse paths array and normalize each path
+                            const rawPaths = parsePartialArrayString(removeClosingTag('paths', pathsString))
+
+                            // Normalize paths to handle absolute paths starting with '/'
+                            const paths = rawPaths.map((filePath) => {
+                                // If path starts with '/', treat it as relative to current working directory
+                                if (filePath.startsWith('/')) {
+                                    return filePath.substring(1) // Remove leading slash
+                                }
+                                return filePath
+                            })
+
+                            const result = await this.addTrackingTool(paths)
+
+                            pushToolResult(result)
+                            break
+                        } catch (error) {
+                            await handleError('adding tracking', error)
                             break
                         }
                     }
@@ -3846,5 +3891,73 @@ export class PostHog {
         }
 
         return `<environment_details>\n${details.trim()}\n</environment_details>`
+    }
+
+    async addTrackingTool(paths: string[]): Promise<ToolResponse> {
+        // TODO: ignore files etc, comply with the ignore controller
+
+        const numberOfFiles = paths.length
+
+        let processedFiles = 0
+
+        await this.say('text', `Starting to add analytics to ${numberOfFiles} files...`)
+
+        const results: { path: string; success: boolean; message: string }[] = []
+
+        const processFile = async (relPath: string): Promise<void> => {
+            try {
+                const absolutePath = path.resolve(cwd, relPath)
+                const fileUri = vscode.Uri.file(absolutePath)
+                const fileContent = await vscode.workspace.fs.readFile(fileUri)
+                const textDecoder = new TextDecoder()
+                const content = textDecoder.decode(fileContent)
+
+                const systemPrompt =
+                    'You are an expert at adding PostHog analytics code. Add appropriate analytics tracking calls based on the file content and specified event.'
+
+                const userMessage = `
+You should add PostHog analytics tracking to this file, capturing any relevant events.
+
+File: ${path.basename(relPath)}
+\`\`\`
+${content}
+\`\`\`
+
+Return ONLY the modified file content with analytics added in the appropriate locations.`
+
+                const apiStream = this.api.createMessage(systemPrompt, [{ role: 'user', content: userMessage }])
+
+                // Collect the whole response
+                let modifiedContent = ''
+                for await (const chunk of apiStream) {
+                    modifiedContent += chunk.type === 'text' ? chunk.text : ''
+                }
+
+                const textEncoder = new TextEncoder()
+                await vscode.workspace.fs.writeFile(fileUri, textEncoder.encode(modifiedContent))
+
+                processedFiles++
+
+                results.push({
+                    path: relPath,
+                    success: true,
+                    message: `Successfully added analytics to ${relPath}`,
+                })
+            } catch (error) {
+                processedFiles++
+
+                results.push({
+                    path: relPath,
+                    success: false,
+                    message: `Error processing ${relPath}: ${error instanceof Error ? error.message : String(error)}`,
+                })
+            }
+        }
+
+        await Promise.allSettled(paths.map(processFile))
+
+        const result = JSON.stringify(results)
+
+        return result
     }
 }
