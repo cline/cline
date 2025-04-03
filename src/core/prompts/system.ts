@@ -240,9 +240,20 @@ Your final result description here
 </attempt_completion>
 
 ## new_task
-Description: Request to create a new task with preloaded context. This tool is useful when the context window is approaching capacity or when you want to suggest a new focused task based on the current conversation. The user will be presented with a preview of the context and can choose to create a new task or continue the current conversation.
+Description: Request to create a new task with preloaded context. This tool is useful in three key scenarios: 
+1) When the current task is complete but naturally leads to a follow-up task (workflow continuation)
+2) When a large project needs to be broken into sequential steps (workflow splitting)
+3) When the context window is approaching capacity (>60%)
+
+The user will be presented with a preview of the context and can choose to create a new task or continue the current conversation. You should use ask_followup_question before using this tool to confirm the user is ready to create a new task, unless you've just completed a discrete part of a larger workflow and are suggesting the next logical step.
+
 Parameters:
-- context: (required) The context to preload the new task with. This should include relevant information from the current conversation that would be helpful for the new task.
+- context: (required) The context to preload the new task with. This should include:
+  * A summary of what has been accomplished in the current task
+  * The specific next steps or focus for the new task
+  * Any critical information needed to continue the work
+  * Clear indication of how this new task relates to the overall workflow
+
 Usage:
 <new_task>
 <context>context to preload new task with</context>
@@ -292,7 +303,23 @@ Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]
 </content>
 </write_to_file>
 
-## Example 3: Requesting to make targeted edits to a file
+## Example 3: Creating a new task
+
+<new_task>
+Authentication System Implementation:
+- We've implemented the basic user model with email/password
+- Password hashing is working with bcrypt
+- Login endpoint is functional with proper validation
+- JWT token generation is implemented
+
+Next Steps:
+- Implement refresh token functionality
+- Add token validation middleware
+- Create password reset flow
+- Implement role-based access control
+</new_task>
+
+## Example 4: Requesting to make targeted edits to a file
 
 <replace_in_file>
 <path>src/components/App.tsx</path>
@@ -330,7 +357,7 @@ ${
 	mcpHub.getMode() !== "off"
 		? `
 
-## Example 4: Requesting to use an MCP tool
+## Example 5: Requesting to use an MCP tool
 
 <use_mcp_tool>
 <server_name>weather-server</server_name>
@@ -343,14 +370,14 @@ ${
 </arguments>
 </use_mcp_tool>
 
-## Example 5: Requesting to access an MCP resource
+## Example 6: Requesting to access an MCP resource
 
 <access_mcp_resource>
 <server_name>weather-server</server_name>
 <uri>weather://san-francisco/current</uri>
 </access_mcp_resource>
 
-## Example 6: Another example of using an MCP tool (where the server name is a unique identifier such as a URL)
+## Example 7: Another example of using an MCP tool (where the server name is a unique identifier such as a URL)
 
 <use_mcp_tool>
 <server_name>github.com/modelcontextprotocol/servers/tree/main/src/github</server_name>
