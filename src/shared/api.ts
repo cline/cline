@@ -18,6 +18,7 @@ export type ApiProvider =
     | 'asksage'
     | 'xai'
     | 'sambanova'
+    | 'inkeep'
 
 export interface ApiHandlerOptions {
     apiModelId?: string
@@ -68,6 +69,7 @@ export interface ApiHandlerOptions {
     xaiApiKey?: string
     thinkingBudgetTokens?: number
     sambanovaApiKey?: string
+    inkeepApiKey?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

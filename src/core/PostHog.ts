@@ -70,6 +70,7 @@ import {
 import { AnthropicHandler } from '../api/providers/anthropic'
 import { LOCK_TEXT_SYMBOL, PostHogIgnoreController } from './ignore/PostHogIgnoreController'
 import { PostHogProvider } from './webview/PostHogProvider'
+import { InkeepHandler } from '../api/providers/inkeep'
 
 const cwd =
     vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), 'Desktop') // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -124,6 +125,7 @@ export class PostHog {
     private didAlreadyUseTool = false
     private didCompleteReadingStream = false
     private didAutomaticallyRetryFailedApiRequest = false
+    private inkeepHandler?: InkeepHandler
 
     constructor(
         provider: PostHogProvider,
@@ -152,6 +154,7 @@ export class PostHog {
         this.autoApprovalSettings = autoApprovalSettings
         this.browserSettings = browserSettings
         this.chatSettings = chatSettings
+        this.inkeepHandler = apiConfiguration.inkeepApiKey ? new InkeepHandler(apiConfiguration) : undefined
         if (historyItem) {
             this.taskId = historyItem.id
             this.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
@@ -653,11 +656,11 @@ export class PostHog {
                     this.askResponseImages = undefined
 
                     /*
-					Bug for the history books:
-					In the webview we use the ts as the chatrow key for the virtuoso list. Since we would update this ts right at the end of streaming, it would cause the view to flicker. The key prop has to be stable otherwise react has trouble reconciling items between renders, causing unmounting and remounting of components (flickering).
-					The lesson here is if you see flickering when rendering lists, it's likely because the key prop is not stable.
-					So in this case we must make sure that the message ts is never altered after first setting it.
-					*/
+                    Bug for the history books:
+                    In the webview we use the ts as the chatrow key for the virtuoso list. Since we would update this ts right at the end of streaming, it would cause the view to flicker. The key prop has to be stable otherwise react has trouble reconciling items between renders, causing unmounting and remounting of components (flickering).
+                    The lesson here is if you see flickering when rendering lists, it's likely because the key prop is not stable.
+                    So in this case we must make sure that the message ts is never altered after first setting it.
+                    */
                     askTs = lastMessage.ts
                     this.lastMessageTs = askTs
                     // lastMessage.ts = askTs
@@ -1260,6 +1263,41 @@ export class PostHog {
         }
     }
 
+    async searchDocsTool(args: Record<string, any>): Promise<ToolResponse> {
+        if (!this.inkeepHandler) {
+            this.consecutiveMistakeCount++
+            return formatResponse.toolError('Inkeep handler not available')
+        }
+
+        if (!args.query) {
+            this.consecutiveMistakeCount++
+            return formatResponse.toolError(formatResponse.missingToolParameterError('query'))
+        }
+
+        try {
+            const messages: Anthropic.Messages.MessageParam[] = [
+                {
+                    role: 'user',
+                    content: args.query,
+                },
+            ]
+
+            let response = ''
+            const stream = await this.inkeepHandler.createMessage('', messages)
+
+            for await (const chunk of stream) {
+                if (chunk.type === 'text') {
+                    response += chunk.text
+                }
+            }
+
+            return formatResponse.toolResult(response || 'No documentation found for this query.')
+        } catch (error) {
+            this.consecutiveMistakeCount++
+            return formatResponse.toolError(`Error searching documentation: ${(error as Error).message}`)
+        }
+    }
+
     shouldAutoApproveTool(toolName: ToolUseName): boolean {
         if (this.autoApprovalSettings.enabled) {
             switch (toolName) {
@@ -1267,6 +1305,7 @@ export class PostHog {
                 case 'list_files':
                 case 'list_code_definition_names':
                 case 'search_files':
+                case 'search_docs':
                     return this.autoApprovalSettings.actions.readFiles
                 case 'write_to_file':
                 case 'replace_in_file':
@@ -1576,6 +1615,8 @@ export class PostHog {
                             return `[${block.name}]`
                         case 'attempt_completion':
                             return `[${block.name}]`
+                        case 'search_docs':
+                            return `[${block.name} for '${block.params.query}']`
                     }
                 }
 
@@ -2276,6 +2317,68 @@ export class PostHog {
                             break
                         }
                     }
+                    case 'search_docs': {
+                        const query: string | undefined = block.params.query
+
+                        try {
+                            if (block.partial) {
+                                const partialMessage = JSON.stringify({
+                                    tool: 'searchDocs',
+                                    query: removeClosingTag('query', query),
+                                    content: '',
+                                })
+
+                                if (this.shouldAutoApproveTool(block.name)) {
+                                    this.removeLastPartialMessageIfExistsWithType('ask', 'tool')
+                                    await this.say('tool', partialMessage, undefined, block.partial)
+                                } else {
+                                    this.removeLastPartialMessageIfExistsWithType('say', 'tool')
+                                    await this.ask('tool', partialMessage, block.partial).catch(() => {})
+                                }
+                                break
+                            } else {
+                                if (!query) {
+                                    this.consecutiveMistakeCount++
+                                    pushToolResult(await this.sayAndCreateMissingParamError('search_docs', 'query'))
+                                    break
+                                }
+
+                                this.consecutiveMistakeCount = 0
+
+                                const results = await this.searchDocsTool({ query })
+
+                                const completeMessage = JSON.stringify({
+                                    tool: 'searchDocs',
+                                    query,
+                                    content: typeof results === 'string' ? results : JSON.stringify(results),
+                                })
+
+                                if (this.shouldAutoApproveTool(block.name)) {
+                                    this.removeLastPartialMessageIfExistsWithType('ask', 'tool')
+                                    await this.say('tool', completeMessage, undefined, false)
+                                    this.consecutiveAutoApprovedRequestsCount++
+                                    telemetryService.captureToolUsage(this.taskId, block.name, true, true)
+                                } else {
+                                    showNotificationForApprovalIfAutoApprovalEnabled(
+                                        `PostHog wants to search documentation for "${query}"`
+                                    )
+                                    this.removeLastPartialMessageIfExistsWithType('say', 'tool')
+                                    const didApprove = await askApproval('tool', completeMessage)
+                                    if (!didApprove) {
+                                        telemetryService.captureToolUsage(this.taskId, block.name, false, false)
+                                        break
+                                    }
+                                    telemetryService.captureToolUsage(this.taskId, block.name, false, true)
+                                }
+
+                                pushToolResult(results)
+                                break
+                            }
+                        } catch (error) {
+                            await handleError('searching documentation', error)
+                            break
+                        }
+                    }
                     case 'browser_action': {
                         const action: BrowserAction | undefined = block.params.action as BrowserAction
                         const url: string | undefined = block.params.url
@@ -2935,25 +3038,25 @@ export class PostHog {
                     }
                     case 'attempt_completion': {
                         /*
-						this.consecutiveMistakeCount = 0
-						let resultToSend = result
-						if (command) {
-							await this.say("completion_result", resultToSend)
-							// TODO: currently we don't handle if this command fails, it could be useful to let posthog know and retry
-							const [didUserReject, commandResult] = await this.executeCommand(command, true)
-							// if we received non-empty string, the command was rejected or failed
-							if (commandResult) {
-								return [didUserReject, commandResult]
-							}
-							resultToSend = ""
-						}
-						const { response, text, images } = await this.ask("completion_result", resultToSend) // this prompts webview to show 'new task' button, and enable text input (which would be the 'text' here)
-						if (response === "yesButtonClicked") {
-							return [false, ""] // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
-						}
-						await this.say("user_feedback", text ?? "", images)
-						return [
-						*/
+                        this.consecutiveMistakeCount = 0
+                        let resultToSend = result
+                        if (command) {
+                            await this.say("completion_result", resultToSend)
+                            // TODO: currently we don't handle if this command fails, it could be useful to let posthog know and retry
+                            const [didUserReject, commandResult] = await this.executeCommand(command, true)
+                            // if we received non-empty string, the command was rejected or failed
+                            if (commandResult) {
+                                return [didUserReject, commandResult]
+                            }
+                            resultToSend = ""
+                        }
+                        const { response, text, images } = await this.ask("completion_result", resultToSend) // this prompts webview to show 'new task' button, and enable text input (which would be the 'text' here)
+                        if (response === "yesButtonClicked") {
+                            return [false, ""] // signals to recursive loop to stop (for now this never happens since yesButtonClicked will trigger a new task)
+                        }
+                        await this.say("user_feedback", text ?? "", images)
+                        return [
+                        */
                         const result: string | undefined = block.params.result
                         const command: string | undefined = block.params.command
 
@@ -3115,9 +3218,9 @@ export class PostHog {
         }
 
         /*
-		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
-		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
-		*/
+        Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
+        When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
+        */
         this.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
         // NOTE: when tool is rejected, iterator stream is interrupted and it waits for userMessageContentReady to be true. Future calls to present will skip execution since didRejectTool and iterate until contentIndex is set to message length and it sets userMessageContentReady to true itself (instead of preemptively doing it in iterator)
         if (!block.partial || this.didRejectTool || this.didAlreadyUseTool) {
@@ -3634,21 +3737,21 @@ export class PostHog {
 
         // we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
         /*
-		let diagnosticsDetails = ""
-		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile || terminalWasBusy) // if posthog ran a command (ie npm install) or edited the workspace then wait a bit for updated diagnostics
-		for (const [uri, fileDiagnostics] of diagnostics) {
-			const problems = fileDiagnostics.filter((d) => d.severity === vscode.DiagnosticSeverity.Error)
-			if (problems.length > 0) {
-				diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}`
-				for (const diagnostic of problems) {
-					// let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
-					const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-					const source = diagnostic.source ? `[${diagnostic.source}] ` : ""
-					diagnosticsDetails += `\n- ${source}Line ${line}: ${diagnostic.message}`
-				}
-			}
-		}
-		*/
+        let diagnosticsDetails = ""
+        const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile || terminalWasBusy) // if posthog ran a command (ie npm install) or edited the workspace then wait a bit for updated diagnostics
+        for (const [uri, fileDiagnostics] of diagnostics) {
+            const problems = fileDiagnostics.filter((d) => d.severity === vscode.DiagnosticSeverity.Error)
+            if (problems.length > 0) {
+                diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}`
+                for (const diagnostic of problems) {
+                    // let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
+                    const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
+                    const source = diagnostic.source ? `[${diagnostic.source}] ` : ""
+                    diagnosticsDetails += `\n- ${source}Line ${line}: ${diagnostic.message}`
+                }
+            }
+        }
+        */
         this.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals
 
         // waiting for updated diagnostics lets terminal output be the most up-to-date possible
