@@ -846,7 +846,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		 */
 		const onDrop = async (e: React.DragEvent) => {
 			e.preventDefault()
-			e.stopPropagation()
 
 			const files = Array.from(e.dataTransfer.files)
 			const text = e.dataTransfer.getData("text")
