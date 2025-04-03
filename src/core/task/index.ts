@@ -1448,6 +1448,8 @@ export class Task {
 							return `[${block.name}]`
 						case "attempt_completion":
 							return `[${block.name}]`
+						case "new_task":
+							return `[${block.name} for creating a new task]`
 					}
 				}
 
@@ -3567,12 +3569,29 @@ export class Task {
 
 		// Add context window usage information
 		const { contextWindow, maxAllowedSize } = getContextWindowInfo(this.api)
-		const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
-		const totalTokens = apiMetrics.totalTokensIn + apiMetrics.totalTokensOut
-		const usagePercentage = Math.round((totalTokens / maxAllowedSize) * 100)
+
+		// Get the token count from the most recent API request to accurately reflect context management
+		const getTotalTokensFromApiReqMessage = (msg: ClineMessage) => {
+			if (!msg.text) return 0
+			try {
+				const { tokensIn, tokensOut, cacheWrites, cacheReads } = JSON.parse(msg.text)
+				return (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+			} catch (e) {
+				return 0
+			}
+		}
+
+		const modifiedMessages = combineApiRequests(combineCommandSequences(this.clineMessages.slice(1)))
+		const lastApiReqMessage = findLast(modifiedMessages, (msg) => {
+			if (msg.say !== "api_req_started") return false
+			return getTotalTokensFromApiReqMessage(msg) > 0
+		})
+
+		const lastApiReqTotalTokens = lastApiReqMessage ? getTotalTokensFromApiReqMessage(lastApiReqMessage) : 0
+		const usagePercentage = Math.round((lastApiReqTotalTokens / contextWindow) * 100)
 
 		details += "\n\n# Context Window Usage"
-		details += `\n${totalTokens.toLocaleString()} / ${maxAllowedSize.toLocaleString()} tokens (${usagePercentage}%)`
+		details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${contextWindow.toLocaleString()} tokens (${usagePercentage}%)`
 		details += `\nModel: ${this.api.getModel().id} (${(contextWindow / 1000).toLocaleString()}K context window)`
 
 		details += "\n\n# Current Mode"

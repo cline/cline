@@ -1,7 +1,5 @@
-import React, { useState } from "react"
+import React from "react"
 import MarkdownBlock from "../common/MarkdownBlock"
-import SuccessButton from "../common/SuccessButton"
-import { vscode } from "../../utils/vscode"
 
 interface NewTaskPreviewProps {
 	context: string
