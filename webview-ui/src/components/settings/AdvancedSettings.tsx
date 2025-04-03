@@ -3,12 +3,10 @@ import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { Cog } from "lucide-react"
 
-import { EXPERIMENT_IDS, ExperimentId } from "../../../../src/shared/experiments"
-
 import { cn } from "@/lib/utils"
 import { Slider } from "@/components/ui"
 
-import { SetCachedStateField, SetExperimentEnabled } from "./types"
+import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 
@@ -17,16 +15,12 @@ type AdvancedSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	diffEnabled?: boolean
 	fuzzyMatchThreshold?: number
 	setCachedStateField: SetCachedStateField<"rateLimitSeconds" | "diffEnabled" | "fuzzyMatchThreshold">
-	experiments: Record<ExperimentId, boolean>
-	setExperimentEnabled: SetExperimentEnabled
 }
 export const AdvancedSettings = ({
 	rateLimitSeconds,
 	diffEnabled,
 	fuzzyMatchThreshold,
 	setCachedStateField,
-	experiments,
-	setExperimentEnabled,
 	className,
 	...props
 }: AdvancedSettingsProps) => {
@@ -66,10 +60,6 @@ export const AdvancedSettings = ({
 						checked={diffEnabled}
 						onChange={(e: any) => {
 							setCachedStateField("diffEnabled", e.target.checked)
-							if (!e.target.checked) {
-								// Reset experimental strategies when diffs are disabled.
-								setExperimentEnabled(EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED, false)
-							}
 						}}>
 						<span className="font-medium">{t("settings:advanced.diff.label")}</span>
 					</VSCodeCheckbox>

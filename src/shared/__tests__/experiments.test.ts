@@ -14,7 +14,6 @@ describe("experiments", () => {
 		it("returns false when experiment is not enabled", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: false,
-				experimentalDiffStrategy: false,
 				search_and_replace: false,
 				insert_content: false,
 			}
@@ -24,7 +23,6 @@ describe("experiments", () => {
 		it("returns true when experiment is enabled", () => {
 			const experiments: Record<ExperimentId, boolean> = {
 				powerSteering: true,
-				experimentalDiffStrategy: false,
 				search_and_replace: false,
 				insert_content: false,
 			}
@@ -33,7 +31,6 @@ describe("experiments", () => {
 
 		it("returns false when experiment is not present", () => {
 			const experiments: Record<ExperimentId, boolean> = {
-				experimentalDiffStrategy: false,
 				search_and_replace: false,
 				insert_content: false,
 				powerSteering: false,

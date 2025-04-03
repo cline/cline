@@ -47,9 +47,8 @@ export const rooCodeDefaults: RooCodeSettings = {
 	diffEnabled: true,
 	fuzzyMatchThreshold: 1.0,
 	experiments: {
-		experimentalDiffStrategy: false, // unified diff
-		multi_search_and_replace: false, // multi-line search and replace
-		search_and_replace: true, // single-line search and replace
+		multi_search_and_replace: false,
+		search_and_replace: true,
 		insert_content: false,
 		powerSteering: false,
 	},

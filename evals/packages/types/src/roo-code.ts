@@ -271,7 +271,6 @@ export type CustomSupportPrompts = z.infer<typeof customSupportPromptsSchema>
  */
 
 export const experimentIds = [
-	"experimentalDiffStrategy",
 	"search_and_replace",
 	"insert_content",
 	"powerSteering",
@@ -287,7 +286,6 @@ export type ExperimentId = z.infer<typeof experimentIdsSchema>
  */
 
 const experimentsSchema = z.object({
-	experimentalDiffStrategy: z.boolean(),
 	search_and_replace: z.boolean(),
 	insert_content: z.boolean(),
 	powerSteering: z.boolean(),

@@ -253,7 +253,6 @@ type GlobalSettings = {
 	experiments?:
 		| {
 				search_and_replace: boolean
-				experimentalDiffStrategy: boolean
 				insert_content: boolean
 				powerSteering: boolean
 		  }

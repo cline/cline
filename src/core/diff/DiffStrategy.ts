@@ -20,6 +20,4 @@ type GetDiffStrategyOptions = {
 }
 
 export const getDiffStrategy = ({ fuzzyMatchThreshold, experiments }: GetDiffStrategyOptions): DiffStrategy =>
-	experiments[EXPERIMENT_IDS.DIFF_STRATEGY_UNIFIED]
-		? new NewUnifiedDiffStrategy(fuzzyMatchThreshold)
-		: new MultiSearchReplaceDiffStrategy(fuzzyMatchThreshold)
+	new MultiSearchReplaceDiffStrategy(fuzzyMatchThreshold)
