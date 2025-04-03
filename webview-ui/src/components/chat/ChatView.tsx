@@ -26,6 +26,7 @@ import ChatRow from './ChatRow'
 import ChatTextArea from './ChatTextArea'
 import TaskHeader from './TaskHeader'
 import TelemetryBanner from '../common/TelemetryBanner'
+import Intro from './Intro'
 
 interface ChatViewProps {
     isHidden: boolean
@@ -737,7 +738,7 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
     useEvent('wheel', handleWheel, window, { passive: true }) // passive improves scrolling performance
 
     const placeholderText = useMemo(() => {
-        const text = task ? 'Type a message...' : 'Type your task here...'
+        const text = task ? 'Ask follow-up' : 'Ask away'
         return text
     }, [task])
 
@@ -817,20 +818,7 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
                 >
                     {telemetrySetting === 'unset' && <TelemetryBanner />}
 
-                    <div style={{ padding: '0 20px', flexShrink: 0 }}>
-                        <h2>What can I do for you?</h2>
-                        <p>
-                            Thanks to{' '}
-                            <VSCodeLink href="https://www.anthropic.com/claude/sonnet" style={{ display: 'inline' }}>
-                                Claude 3.7 Sonnet's
-                            </VSCodeLink>
-                            agentic coding capabilities, I can handle complex software development tasks step-by-step.
-                            With tools that let me create & edit files, explore complex projects, use a browser, and
-                            execute terminal commands (after you grant permission), I can assist you in ways that go
-                            beyond code completion or tech support. I can even use MCP to create new tools and extend my
-                            own capabilities.
-                        </p>
-                    </div>
+                    <Intro />
                     {taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
                 </div>
             )}
