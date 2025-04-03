@@ -28,6 +28,8 @@ class PostHogClient {
 			TOKEN_USAGE: "task.tokens",
 			// Tracks switches between plan and act modes
 			MODE_SWITCH: "task.mode",
+			// Tracks when users select an option from AI-generated followup questions
+			OPTION_SELECTED: "task.option_selected",
 			// Tracks usage of the git-based checkpoint system (shadow_git_initialized, commit_created, branch_created, branch_deleted_active, branch_deleted_inactive, restored)
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
@@ -453,6 +455,23 @@ class PostHogClient {
 			event: PostHogClient.EVENTS.TASK.RETRY_CLICKED,
 			properties: {
 				taskId,
+			},
+		})
+	}
+
+	/**
+	 * Records when a user selects an option from AI-generated followup questions
+	 * @param taskId Unique identifier for the task
+	 * @param optionText The text of the selected option
+	 * @param mode The mode in which the option was selected ("plan" or "act")
+	 */
+	public captureOptionSelected(taskId: string, optionText: string, mode: "plan" | "act") {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.OPTION_SELECTED,
+			properties: {
+				taskId,
+				optionText,
+				mode,
 			},
 		})
 	}

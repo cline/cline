@@ -291,6 +291,10 @@ export class Controller {
 				}
 				break
 			case "optionsResponse":
+				if (this.task?.taskId) {
+					telemetryService.captureOptionSelected(this.task.taskId, message.text || "", this.task.chatSettings.mode)
+				}
+
 				await this.postMessageToWebview({
 					type: "invoke",
 					invoke: "sendMessage",
