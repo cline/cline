@@ -1,6 +1,6 @@
 # Cline-cn 中文版本3.8.4 (盛世中华版本) 🌏
 
-> 🎉 截止到2025.03.31，Cline-cn 在VS Code插件市场的下载量突破1啦！
+> 🎉 截止到2025.04.03，Cline-cn 在VS Code插件市场的下载量突破30啦！
 
 <p align="center">
 
@@ -23,9 +23,13 @@ https://hybridtalentcomputing.gitbook.io/cline-chinese-doc/
 <video width="100%" controls src="https://github.com/user-attachments/assets/89b51f15-d368-4af7-983e-816e52b7fdbf" type="video/mp4"></video>
 > 演示视频使用 DeepSeek-R1-Distill-Qwen-14B 模型，展示了 Cline 中文汉化版的主要功能和使用效果，视频没有加速，推理速度快到飞起。
 
+
+## 免费白嫖API入口
 > 日常开发时，我使用的是某基某动的白嫖额度的模型API，如果您尚未注册，
 1.欢迎通过我的邀请链接： [硅基流动https://cloud.siliconflow.cn/i/HUTeVyQ9](https://cloud.siliconflow.cn/i/HUTeVyQ9)，或者注册的时候填写邀请码：HUTeVyQ9，注册后双方均可获得2000万tokens的免费额度。
-2.第2选择:使用国外的AI路由器：[OpenRouter](https://openrouter.org/)，注册后使用free，后缀的API，即可免费使用。
+2.第2选择:使用国外的AI路由器：[OpenRouter](https://openrouter.ai)，注册后使用free，后缀的API，即可免费使用。如下图:
+![OpenRouter免费模型截图](User%20Tutorials/png/OpenRouter.png)
+![OpenRouter免费模型截图](https://github.com/user-attachments/assets/52ce142c-925f-4c6c-a523-cdb450e0c619)
 
 ## 安装使用
 Cline-Chinese已发布到VSCode插件市场，欢迎感兴趣的小伙伴们下载体验。
