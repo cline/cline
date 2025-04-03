@@ -1,7 +1,6 @@
 import type { DiffStrategy } from "./types"
-import { NewUnifiedDiffStrategy } from "./strategies/new-unified"
 import { MultiSearchReplaceDiffStrategy } from "./strategies/multi-search-replace"
-import { EXPERIMENT_IDS, ExperimentId } from "../../shared/experiments"
+import { ExperimentId } from "../../shared/experiments"
 
 export type { DiffStrategy }
 
@@ -11,7 +10,7 @@ export type { DiffStrategy }
  * @returns The appropriate diff strategy for the model
  */
 
-export type DiffStrategyName = "unified" | "multi-search-and-replace"
+export type DiffStrategyName = "multi-search-and-replace"
 
 type GetDiffStrategyOptions = {
 	model: string
