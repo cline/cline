@@ -38,8 +38,29 @@ describe("RequestyHandler", () => {
 		// Clear mocks
 		jest.clearAllMocks()
 
-		// Setup mock create function
-		mockCreate = jest.fn()
+		// Setup mock create function that preserves params
+		let lastParams: any
+		mockCreate = jest.fn().mockImplementation((params) => {
+			lastParams = params
+			return {
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						choices: [{ delta: { content: "Hello" } }],
+					}
+					yield {
+						choices: [{ delta: { content: " world" } }],
+						usage: {
+							prompt_tokens: 30,
+							completion_tokens: 10,
+							prompt_tokens_details: {
+								cached_tokens: 15,
+								caching_tokens: 5,
+							},
+						},
+					}
+				},
+			}
+		})
 
 		// Mock OpenAI constructor
 		;(OpenAI as jest.MockedClass<typeof OpenAI>).mockImplementation(
@@ -47,7 +68,13 @@ describe("RequestyHandler", () => {
 				({
 					chat: {
 						completions: {
-							create: mockCreate,
+							create: (params: any) => {
+								// Store params for verification
+								const result = mockCreate(params)
+								// Make params available for test assertions
+								;(result as any).params = params
+								return result
+							},
 						},
 					},
 				}) as unknown as OpenAI,
@@ -122,7 +149,12 @@ describe("RequestyHandler", () => {
 					},
 				])
 
-				expect(mockCreate).toHaveBeenCalledWith({
+				// Get the actual params that were passed
+				const calls = mockCreate.mock.calls
+				expect(calls.length).toBe(1)
+				const actualParams = calls[0][0]
+
+				expect(actualParams).toEqual({
 					model: defaultOptions.requestyModelId,
 					temperature: 0,
 					messages: [
