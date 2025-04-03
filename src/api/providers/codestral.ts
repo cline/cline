@@ -8,12 +8,12 @@ const DEFAULT_MAX_TOKENS = 4096
 
 export class CodestralHandler implements CompletionApiHandler {
     private options: ApiHandlerOptions
-    private apiKey: string
     private apiBase = 'https://codestral.mistral.ai/v1/'
+    apiKey?: string
 
     constructor(options: ApiHandlerOptions) {
         this.options = options
-        this.apiKey = options.codestralApiKey ?? ''
+        this.apiKey = options.codestralApiKey ?? undefined
     }
 
     async *streamFim(
@@ -22,6 +22,9 @@ export class CodestralHandler implements CompletionApiHandler {
         signal: AbortSignal,
         options: CompletionOptions = {}
     ): AsyncGenerator<string> {
+        if (!this.apiKey) {
+            throw new Error('No API key provided')
+        }
         const endpoint = new URL('fim/completions', this.apiBase)
 
         const fimLog = `Prefix: ${prefix}\nSuffix: ${suffix}`
@@ -46,7 +49,7 @@ export class CodestralHandler implements CompletionApiHandler {
                     headers: {
                         'Content-Type': 'application/json',
                         Accept: 'application/json',
-                        'x-api-key': this.apiKey ?? '',
+                        'x-api-key': this.apiKey!,
                         Authorization: `Bearer ${this.apiKey}`,
                     },
                     signal,

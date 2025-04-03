@@ -112,6 +112,7 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
     }
 
     private async _provideInlineCompletionItems(
+        completionApiProvider: CompletionApiHandler,
         input: AutocompleteInput,
         token: AbortSignal | undefined
     ): Promise<AutocompleteOutcome | undefined> {
@@ -128,8 +129,6 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
             if (await this.debouncer.delayAndShouldDebounce(options.debounceDelay)) {
                 return undefined
             }
-
-            const completionApiProvider = await this.getCompletionApiProvider()
 
             const helper = await AutocompleteHelperVars.create(input, options, AUTOCOMPLETE_MODEL)
 
@@ -240,6 +239,12 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
         //@ts-ignore
     ): ProviderResult<InlineCompletionItem[] | InlineCompletionList> {
         const enableTabAutocomplete = getStatusBarStatus() === StatusBarStatus.Enabled
+
+        const completionApiProvider = await this.getCompletionApiProvider()
+        if (!completionApiProvider.apiKey) {
+            return undefined
+        }
+
         if (token.isCancellationRequested || !enableTabAutocomplete) {
             return null
         }
@@ -336,7 +341,7 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
             }
 
             setupStatusBar(undefined, true)
-            const outcome = await this._provideInlineCompletionItems(input, signal)
+            const outcome = await this._provideInlineCompletionItems(completionApiProvider, input, signal)
 
             if (!outcome || !outcome.completion) {
                 return null
