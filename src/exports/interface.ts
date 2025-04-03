@@ -73,6 +73,39 @@ export interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	setConfiguration(values: RooCodeSettings): Promise<void>
 
 	/**
+	 * Creates a new API configuration profile
+	 * @param name The name of the profile
+	 * @returns The ID of the created profile
+	 */
+	createProfile(name: string): Promise<string>
+
+	/**
+	 * Returns a list of all configured profile names
+	 * @returns Array of profile names
+	 */
+	getProfiles(): string[]
+
+	/**
+	 * Changes the active API configuration profile
+	 * @param name The name of the profile to activate
+	 * @throws Error if the profile does not exist
+	 */
+	setActiveProfile(name: string): Promise<void>
+
+	/**
+	 * Returns the name of the currently active profile
+	 * @returns The profile name, or undefined if no profile is active
+	 */
+	getActiveProfile(): string | undefined
+
+	/**
+	 * Deletes a profile by name
+	 * @param name The name of the profile to delete
+	 * @throws Error if the profile does not exist
+	 */
+	deleteProfile(name: string): Promise<void>
+
+	/**
 	 * Returns true if the API is ready to use.
 	 */
 	isReady(): boolean

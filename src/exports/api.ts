@@ -163,6 +163,82 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		await this.sidebarProvider.postStateToWebview()
 	}
 
+	public async createProfile(name: string): Promise<string> {
+		// Input validation
+		if (!name || !name.trim()) {
+			throw new Error("Profile name cannot be empty")
+		}
+
+		const currentSettings = this.getConfiguration()
+		const profiles = currentSettings.listApiConfigMeta || []
+
+		if (profiles.some((profile) => profile.name === name)) {
+			throw new Error(`A profile with the name "${name}" already exists`)
+		}
+
+		// Generate unique ID and create profile
+		const id = this.sidebarProvider.providerSettingsManager.generateId()
+		const newProfile = {
+			id,
+			name: name.trim(),
+			apiProvider: "openai" as const, // Type assertion for better type safety
+		}
+
+		// Update configuration with new profile
+		await this.setConfiguration({
+			...currentSettings,
+			listApiConfigMeta: [...profiles, newProfile],
+		})
+		return id
+	}
+
+	public getProfiles(): string[] {
+		const profiles = this.getConfiguration().listApiConfigMeta || []
+		return profiles.map((profile) => profile.name)
+	}
+
+	public async setActiveProfile(name: string): Promise<void> {
+		const currentSettings = this.getConfiguration()
+		const profiles = currentSettings.listApiConfigMeta || []
+
+		const profile = profiles.find((p) => p.name === name)
+		if (!profile) {
+			throw new Error(`Profile with name "${name}" does not exist`)
+		}
+
+		await this.setConfiguration({
+			...currentSettings,
+			currentApiConfigName: profile.name,
+		})
+	}
+
+	public getActiveProfile(): string | undefined {
+		return this.getConfiguration().currentApiConfigName
+	}
+
+	public async deleteProfile(name: string): Promise<void> {
+		const currentSettings = this.getConfiguration()
+		const profiles = currentSettings.listApiConfigMeta || []
+		const targetIndex = profiles.findIndex((p) => p.name === name)
+		if (targetIndex === -1) {
+			throw new Error(`Profile with name "${name}" does not exist`)
+		}
+
+		const profileToDelete = profiles[targetIndex]
+		profiles.splice(targetIndex, 1)
+
+		// If we're deleting the active profile, clear the currentApiConfigName
+		const newSettings: RooCodeSettings = {
+			...currentSettings,
+			listApiConfigMeta: profiles,
+			currentApiConfigName:
+				currentSettings.currentApiConfigName === profileToDelete.name
+					? undefined
+					: currentSettings.currentApiConfigName,
+		}
+		await this.setConfiguration(newSettings)
+	}
+
 	public isReady() {
 		return this.sidebarProvider.viewLaunched
 	}
