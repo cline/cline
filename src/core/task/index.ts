@@ -3572,7 +3572,9 @@ export class Task {
 
 		// Get the token count from the most recent API request to accurately reflect context management
 		const getTotalTokensFromApiReqMessage = (msg: ClineMessage) => {
-			if (!msg.text) return 0
+			if (!msg.text) {
+				return 0
+			}
 			try {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads } = JSON.parse(msg.text)
 				return (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
@@ -3583,7 +3585,9 @@ export class Task {
 
 		const modifiedMessages = combineApiRequests(combineCommandSequences(this.clineMessages.slice(1)))
 		const lastApiReqMessage = findLast(modifiedMessages, (msg) => {
-			if (msg.say !== "api_req_started") return false
+			if (msg.say !== "api_req_started") {
+				return false
+			}
 			return getTotalTokensFromApiReqMessage(msg) > 0
 		})
 
