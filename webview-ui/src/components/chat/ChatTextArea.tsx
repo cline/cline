@@ -846,29 +846,30 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		 */
 		const onDrop = async (e: React.DragEvent) => {
 			e.preventDefault()
-
-			const files = Array.from(e.dataTransfer.files)
-			const text = e.dataTransfer.getData("text")
-			const vscodeUriList = e.dataTransfer.getData("application/vnd.code.uri-list")
-			const textUriList = e.dataTransfer.getData("text/uri-list")
-
+			// --- Start of VSCode Explorer Drop Handling ---
 			let uris: string[] = []
+			const resourceUrlsData = e.dataTransfer.getData("resourceurls")
+			const vscodeUriListData = e.dataTransfer.getData("application/vnd.code.uri-list")
 
-			// Fallback to 'application/vnd.code.uri-list' (newline separated)
-			if (uris.length === 0 && vscodeUriList) {
-				uris = vscodeUriList.split("\n").map((uri) => uri.trim())
-			}
-
-			// Final fallback to 'text/uri-list' (single item)
-			if (uris.length === 0 && textUriList) {
-				const singleUri = textUriList.trim()
-				if (singleUri) {
-					uris = [singleUri]
+			// 1. Try 'resourceurls' first (seems to be used for multi-select)
+			if (resourceUrlsData) {
+				try {
+					uris = JSON.parse(resourceUrlsData)
+					// Decode URIs if necessary (VSCode seems to encode them)
+					uris = uris.map((uri) => decodeURIComponent(uri))
+				} catch (error) {
+					console.error("Failed to parse resourceurls JSON:", error)
+					uris = [] // Reset if parsing failed
 				}
 			}
 
-			// Filter for valid schemes
-			const validUris = uris.filter((uri) => uri.startsWith("vscode-file:") || uri.startsWith("file:"))
+			// 2. Fallback to 'application/vnd.code.uri-list' (newline separated)
+			if (uris.length === 0 && vscodeUriListData) {
+				uris = vscodeUriListData.split("\n").map((uri) => uri.trim())
+			}
+
+			// 3. Filter for valid schemes (file or vscode-file) and non-empty strings
+			const validUris = uris.filter((uri) => uri && (uri.startsWith("vscode-file:") || uri.startsWith("file:")))
 
 			if (validUris.length > 0) {
 				setPendingInsertions([]) // Clear queue for new drop
@@ -886,11 +887,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 			// --- End of VSCode Explorer Drop Handling ---
 
-			if (text) {
-				handleTextDrop(text)
-				return
-			}
-
+			// --- Image Drop Handling ---
+			const files = Array.from(e.dataTransfer.files)
 			const acceptedTypes = ["png", "jpeg", "webp"]
 			const imageFiles = files.filter((file) => {
 				const [type, subtype] = file.type.split("/")
@@ -907,6 +905,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			} else {
 				console.warn("No valid images were processed")
 			}
+			// --- End of Image Drop Handling ---
+
+			// --- Text Drop Handling ---
+			// Handle plain text drop only if it wasn't a resource or image drop
+			const text = e.dataTransfer.getData("text")
+			if (text && validUris.length === 0 && imageFiles.length === 0) {
+				handleTextDrop(text)
+				return // Stop processing if plain text was dropped and handled
+			}
+			// --- End of Text Drop Handling ---
 		}
 
 		/**
