@@ -1616,27 +1616,27 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			// Read the command auto-approve rules from VSCode settings
 			const config = vscode.workspace.getConfiguration("cline")
 			const commandAutoApproveRules = config.get<CommandAutoApproveRule[]>("commandAutoApproveRules") || []
-			
+
 			// Get current autoApprovalSettings
 			const { autoApprovalSettings } = await getAllExtensionState(this.context)
-			
+
 			// Update autoApprovalSettings with the rules
 			const updatedSettings = {
 				...autoApprovalSettings,
-				commandAutoApproveRules: Array.isArray(commandAutoApproveRules) ? commandAutoApproveRules : []
+				commandAutoApproveRules: Array.isArray(commandAutoApproveRules) ? commandAutoApproveRules : [],
 			}
-			
+
 			// Save the updated settings
 			await updateGlobalState(this.context, "autoApprovalSettings", updatedSettings)
-			
+
 			// Update the task if it exists
 			if (this.task) {
 				this.task.autoApprovalSettings = updatedSettings
 			}
-			
+
 			// Log that rules were loaded
 			console.log(`Loaded ${commandAutoApproveRules.length} command auto-approve rules from settings`)
-			
+
 			// Post updated state to webview
 			await this.postStateToWebview()
 		} catch (error) {
@@ -1647,7 +1647,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		// Read the latest command auto-approve rules before getting state
 		await this.readCommandAutoApproveRules()
-		
+
 		const {
 			apiConfiguration,
 			lastShownAnnouncementId,

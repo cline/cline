@@ -2377,7 +2377,7 @@ export class Task {
 									await this.say("command", command, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
 									didAutoApprove = true
-									
+
 									// Log auto-approved command
 									console.log(`Auto-approved command based on rules: ${command}`)
 								} else {

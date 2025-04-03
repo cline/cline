@@ -1,4 +1,4 @@
-import { CommandAutoApproveRule } from './CommandAutoApproveRule'
+import { CommandAutoApproveRule } from "./CommandAutoApproveRule"
 
 export interface AutoApprovalSettings {
 	// Whether auto-approval is enabled
