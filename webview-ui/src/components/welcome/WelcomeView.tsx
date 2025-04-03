@@ -18,7 +18,6 @@ const WelcomeView = () => {
         vscode.postMessage({ type: 'apiConfiguration', apiConfiguration })
     }
 
-    console.log(apiConfiguration)
     useEffect(() => {
         setApiErrorMessage(validateApiConfiguration(apiConfiguration))
     }, [apiConfiguration])
