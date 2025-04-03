@@ -887,6 +887,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 			// --- End of VSCode Explorer Drop Handling ---
 
+			if (text) {
+				handleTextDrop(text)
+				return
+			}
+
 			const acceptedTypes = ["png", "jpeg", "webp"]
 			const imageFiles = files.filter((file) => {
 				const [type, subtype] = file.type.split("/")
