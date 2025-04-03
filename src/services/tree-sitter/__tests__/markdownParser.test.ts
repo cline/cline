@@ -470,7 +470,7 @@ Some content here.
 
 ## License
 
-[Apache 2.0 © 2025 Roo Veterinary, Inc.](./LICENSE)
+[Apache 2.0 © 2025 Roo Code, Inc.](./LICENSE)
 
 ---
 
