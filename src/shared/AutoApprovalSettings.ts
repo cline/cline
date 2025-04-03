@@ -12,6 +12,8 @@ export interface AutoApprovalSettings {
 	// Global settings
 	maxRequests: number // Maximum number of auto-approved requests
 	enableNotifications: boolean // Show notifications for approval and task completion
+	/** Delay in milliseconds after file edits to wait for diagnostics. */
+	diagnosticsDelayMs: number
 }
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
@@ -25,4 +27,5 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	},
 	maxRequests: 20,
 	enableNotifications: false,
+	diagnosticsDelayMs: 1000, // Default delay
 }

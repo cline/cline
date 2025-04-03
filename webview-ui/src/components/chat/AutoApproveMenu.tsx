@@ -1,5 +1,5 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useState } from "react"
+import React, { useCallback, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { AutoApprovalSettings } from "../../../../src/shared/AutoApprovalSettings"
@@ -91,6 +91,21 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					actions: newActions,
 					// If no actions will be enabled, ensure the main toggle is off
 					enabled: willHaveEnabledActions ? autoApprovalSettings.enabled : false,
+				},
+			})
+		},
+		[autoApprovalSettings],
+	)
+
+	const updateDiagnosticsDelayMs = useCallback(
+		(delayMs: number) => {
+			// Ensure delay is non-negative
+			const validDelay = Math.max(0, delayMs)
+			vscode.postMessage({
+				type: "autoApprovalSettings",
+				autoApprovalSettings: {
+					...autoApprovalSettings,
+					diagnosticsDelayMs: validDelay,
 				},
 			})
 		},
@@ -240,6 +255,84 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							</div>
 						</div>
 					))}
+					{/* --- Delay For error checks UX Section --- */}
+					<div
+						style={{
+							height: "0.5px",
+							background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
+							margin: "15px 0",
+							opacity: 0.2,
+						}}
+					/>
+					<div style={{ margin: "6px 0" }}>
+						{/* Delay Slider */}
+						<div
+							style={{
+								display: "flex",
+								flexDirection: "column", // Stack label and slider vertically
+								gap: "4px", // Space between label and slider
+								marginTop: "10px",
+								marginBottom: "8px",
+								marginLeft: "28px",
+								color: getAsVar(VSC_FOREGROUND),
+							}}>
+							{/* Label showing current value and qualitative feedback */}
+							<div
+								style={{
+									display: "flex",
+									justifyContent: "space-between",
+									alignItems: "center",
+									marginBottom: "2px",
+								}}>
+								<label htmlFor="diagnosticsDelaySlider" style={{ fontSize: "12px" }}>
+									Diagnostics Delay: {autoApprovalSettings.diagnosticsDelayMs}ms
+								</label>
+								<span
+									style={{
+										fontSize: "11px",
+										color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
+										fontStyle: "italic",
+									}}>
+									{getQualitativeFeedback(autoApprovalSettings.diagnosticsDelayMs)}
+								</span>
+							</div>
+							{/* HTML Range Slider */}
+							<input
+								id="diagnosticsDelaySlider"
+								type="range"
+								min="0"
+								max="5000" // 0 to 5 seconds
+								step="100" // 100ms increments
+								value={autoApprovalSettings.diagnosticsDelayMs}
+								onChange={(e) => {
+									const value = parseInt(e.target.value, 10)
+									updateDiagnosticsDelayMs(value)
+								}}
+								style={{
+									width: "100%", // Make slider take full width
+									cursor: "pointer",
+								}}
+							/>
+						</div>
+						{/* Concise Summary + Tooltip */}
+						<div
+							style={{
+								marginLeft: "28px",
+								color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
+								fontSize: "12px",
+								marginBottom: "10px",
+								display: "flex",
+								alignItems: "center",
+								gap: "4px",
+							}}>
+							<span>Pause for error checks after file changes. (Default: 1000ms)</span>
+							<span
+								className="codicon codicon-info"
+								title="Delay after writes to allow diagnostics to detect potential problems. Higher values (2000ms+) recommended for complex projects where diagnostics take longer. 0 disables diagnostic checks."
+								style={{}}></span>
+						</div>
+					</div>
+					{/* --- End Delay For error checks UX Section --- */}
 					<div
 						style={{
 							height: "0.5px",
@@ -323,5 +416,19 @@ const CollapsibleSection = styled.div<{ isHovered?: boolean }>`
 		color: ${getAsVar(VSC_FOREGROUND)};
 	}
 `
+
+// Helper function for qualitative feedback
+const getQualitativeFeedback = (delayMs: number): string => {
+	if (delayMs === 0) {
+		return "Checks Disabled (Fastest, Risky)"
+	} else if (delayMs < 1000) {
+		return "Faster Checks (Potential Risk)"
+	} else if (delayMs === 1000) {
+		return "Default (Balanced)"
+	} else {
+		// delayMs > 1000
+		return "Safer Checks (Slower)"
+	}
+}
 
 export default AutoApproveMenu

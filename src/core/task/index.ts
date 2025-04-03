@@ -1764,7 +1764,8 @@ export class Task {
 									telemetryService.captureToolUsage(this.taskId, block.name, true, true)
 
 									// we need an artificial delay to let the diagnostics catch up to the changes
-									await setTimeoutPromise(3_500)
+									const diagnosticsDelay = this.autoApprovalSettings.diagnosticsDelayMs // Use delay from task's settings
+									await setTimeoutPromise(diagnosticsDelay)
 								} else {
 									// If auto-approval is enabled but this tool wasn't auto-approved, send notification
 									showNotificationForApprovalIfAutoApprovalEnabled(
