@@ -4,7 +4,7 @@ import { getTaskMetadata, saveTaskMetadata, FileMetadataEntry } from "../storage
 import { Controller } from "../controller"
 
 // This class is responsible for tracking file operations that may result in stale context.
-// Is a user modifies a file outside of Cline, the context may become stale and need to be updated.
+// If a user modifies a file outside of Cline, the context may become stale and need to be updated.
 // We do not want Cine to reload the context every time a file is modified, so we use this class merely
 // to informat Cline that the change has occired, and tell Cline to reload the file before making
 // any chahnges to it. This fixes an issue with diff editing, where Cline was unable to completed
