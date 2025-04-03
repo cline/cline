@@ -186,17 +186,15 @@
                 "posthog.mcp.mode": {
                     "type": "string",
                     "enum": [
-                        "full",
                         "server-use-only",
                         "off"
                     ],
                     "enumDescriptions": [
-                        "Enable all MCP functionality (server use and build instructions)",
-                        "Enable MCP server use only (excludes instructions about building MCP servers)",
+                        "Enable using MCP servers",
                         "Disable all MCP functionality"
                     ],
-                    "default": "full",
-                    "description": "Controls MCP inclusion in prompts, reduces token usage if you only need access to certain functionality."
+                    "default": "server-use-only",
+                    "description": "Controls MCP inclusion in prompts, turning it off reduces token usage if you do not need MCP servers."
                 },
                 "posthog.enableCheckpoints": {
                     "type": "boolean",
