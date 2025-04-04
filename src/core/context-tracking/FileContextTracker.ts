@@ -145,12 +145,13 @@ export class FileContextTracker {
 					this.recentlyModifiedFiles.add(filePath)
 					break
 
+				// cline_edited: Cline has edited the file
 				case "cline_edited":
 					newEntry.cline_read_date = now
 					newEntry.cline_edit_date = now
-					this.recentlyModifiedFiles.add(filePath)
 					break
 
+				// read_tool/file_mentioned: Cline has read the file via a tool or file mention
 				case "read_tool":
 				case "file_mentioned":
 					newEntry.cline_read_date = now
