@@ -2,13 +2,8 @@
 
 ## 3.9.0
 
-### Minor Changes
-
 -   f21bcb2: Add Enable extended thinking for LiteLLM provider
 -   74307ae: Added a tab for configuring local servers and documentation links
-
-### Patch Changes
-
 -   adf4c92: refactor & perf: declare constant object for inline style of file `Announcement`
 -   6f20321: declare constant object for inline style of file `BrowserSessionRow`
 -   8310a3d: chore(bedrock): Prompt cache is GA
