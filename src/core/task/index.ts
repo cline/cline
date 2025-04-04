@@ -3527,7 +3527,6 @@ export class Task {
 
 		// Add recently modified files section
 		const recentlyModifiedFiles = this.fileContextTracker.getAndClearRecentlyModifiedFiles()
-		console.log("recently modified files: ", recentlyModifiedFiles)
 		if (recentlyModifiedFiles.length > 0) {
 			details +=
 				"\n\n# Recently Modified Files\nThese files have been modified since you last accessed them (file was just edited so you may need to re-read it before editing):"
