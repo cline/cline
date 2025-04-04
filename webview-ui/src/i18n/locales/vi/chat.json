@@ -211,16 +211,10 @@
 		"copyToInput": "Sao chép vào ô nhập liệu (hoặc Shift + nhấp chuột)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.11 Đã phát hành",
-		"description": "Roo Code 3.11 mang đến những cải tiến hiệu suất đáng kể và các tính năng mới!",
-		"whatsNew": "Có gì mới",
-		"feature1": "Chỉnh sửa nhanh - Các chỉnh sửa giờ đây được áp dụng nhanh hơn nhiều. Ít thời gian chờ đợi, nhiều thời gian lập trình.",
-		"feature2": "Số dư khóa API - Xem số dư OpenRouter và Requesty của bạn trong cài đặt.",
-		"feature3": "Cấu hình MCP cấp dự án - Giờ đây bạn có thể cấu hình theo từng dự án/không gian làm việc.",
-		"feature4": "Hỗ trợ Gemini được cải thiện - Thử lại thông minh hơn, sửa lỗi escape, thêm vào nhà cung cấp Vertex.",
-		"feature5": "Nhập/Xuất cài đặt - Dễ dàng sao lưu hoặc chia sẻ cấu hình của bạn giữa các môi trường khác nhau.",
-		"hideButton": "Ẩn thông báo",
-		"detailsDiscussLinks": "Nhận thêm chi tiết và thảo luận tại <discordLink>Discord</discordLink> và <redditLink>Reddit</redditLink> 🚀"
+		"title": "Làm được nhiều hơn với Nhiệm vụ Boomerang 🪃",
+		"description": "Chia công việc thành các nhiệm vụ con, mỗi nhiệm vụ chạy trong một chế độ chuyên biệt như code, architect, debug, hoặc chế độ tùy chỉnh.",
+		"learnMore": "Tìm hiểu thêm →",
+		"hideButton": "Ẩn thông báo"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo muốn sử dụng trình duyệt:",

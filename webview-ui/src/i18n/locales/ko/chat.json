@@ -211,16 +211,10 @@
 		"copyToInput": "입력창에 복사 (또는 Shift + 클릭)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.11 출시",
-		"description": "Roo Code 3.11이 중요한 성능 개선과 새로운 기능을 제공합니다!",
-		"whatsNew": "새로운 기능",
-		"feature1": "빠른 편집 - 편집이 이제 훨씬 더 빠르게 적용됩니다. 대기 시간은 적고, 코딩은 많이.",
-		"feature2": "API 키 잔액 - 설정에서 OpenRouter 및 Requesty 잔액을 확인할 수 있습니다.",
-		"feature3": "프로젝트 수준 MCP 구성 - 이제 프로젝트/작업 공간별로 구성할 수 있습니다.",
-		"feature4": "개선된 Gemini 지원 - 더 스마트한 재시도, 수정된 이스케이핑, Vertex 제공자에 추가됨.",
-		"feature5": "설정 가져오기/내보내기 - 설정을 쉽게 백업하거나 다른 환경 간에 공유할 수 있습니다.",
-		"hideButton": "공지 숨기기",
-		"detailsDiscussLinks": "<discordLink>Discord</discordLink>와 <redditLink>Reddit</redditLink>에서 더 자세한 정보를 확인하고 논의하세요 🚀"
+		"title": "부메랑 태스크로 더 많은 작업 수행 🪃",
+		"description": "작업을 하위 태스크로 분할하여 각각 code, architect, debug 또는 사용자 정의 모드와 같은 전문 모드에서 실행하세요.",
+		"learnMore": "더 알아보기 →",
+		"hideButton": "공지 숨기기"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo가 브라우저를 사용하고 싶어합니다:",

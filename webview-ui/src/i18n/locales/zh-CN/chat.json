@@ -211,16 +211,10 @@
 		"copyToInput": "复制到输入框（或按住Shift点击）"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.11 已发布",
-		"description": "Roo Code 3.11带来显著的性能改进和新功能！",
-		"whatsNew": "新特性",
-		"feature1": "快速编辑 - 编辑现在应用得更快。减少等待，增加编码。",
-		"feature2": "API密钥余额 - 在设置中查看您的OpenRouter和Requesty余额。",
-		"feature3": "项目级MCP配置 - 现在您可以按项目/工作区进行配置。",
-		"feature4": "改进的Gemini支持 - 更智能的重试，修复了转义问题，添加到Vertex提供商。",
-		"feature5": "导入/导出设置 - 轻松备份或跨设置共享您的配置。",
-		"hideButton": "隐藏公告",
-		"detailsDiscussLinks": "在<discordLink>Discord</discordLink>和<redditLink>Reddit</redditLink>获取更多详情并参与讨论 🚀"
+		"title": "使用回旋镖任务完成更多工作 🪃",
+		"description": "将工作拆分成子任务，每个子任务在专门的模式中运行，如code、architect、debug或自定义模式。",
+		"learnMore": "了解更多 →",
+		"hideButton": "隐藏公告"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo想使用浏览器:",

@@ -1,7 +1,6 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
-import { Trans } from "react-i18next"
 
 interface AnnouncementProps {
 	version: string
@@ -12,34 +11,6 @@ You must update the latestAnnouncementId in ClineProvider for new announcements 
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const { t } = useAppTranslation()
-
-	const discordLink = (
-		<VSCodeLink
-			href="https://discord.gg/roocode"
-			onClick={(e) => {
-				e.preventDefault()
-				window.postMessage(
-					{ type: "action", action: "openExternal", data: { url: "https://discord.gg/roocode" } },
-					"*",
-				)
-			}}>
-			Discord
-		</VSCodeLink>
-	)
-
-	const redditLink = (
-		<VSCodeLink
-			href="https://reddit.com/r/RooCode"
-			onClick={(e) => {
-				e.preventDefault()
-				window.postMessage(
-					{ type: "action", action: "openExternal", data: { url: "https://reddit.com/r/RooCode" } },
-					"*",
-				)
-			}}>
-			Reddit
-		</VSCodeLink>
-	)
 
 	return (
 		<div
@@ -62,24 +33,22 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 
 			<p style={{ margin: "5px 0px" }}>{t("chat:announcement.description")}</p>
 
-			<h3 style={{ margin: "12px 0 8px" }}>{t("chat:announcement.whatsNew")}</h3>
-			<div style={{ margin: "5px 0px" }}>
-				<ul style={{ margin: "4px 0 6px 0px", padding: 0 }}>
-					{[1, 2, 3, 4, 5].map((num) => {
-						const feature = t(`chat:announcement.feature${num}`)
-						return feature ? <li key={num}>• {feature}</li> : null
-					})}
-				</ul>
-			</div>
-
 			<p style={{ margin: "10px 0px 0px" }}>
-				<Trans
-					i18nKey="chat:announcement.detailsDiscussLinks"
-					components={{
-						discordLink: discordLink,
-						redditLink: redditLink,
-					}}
-				/>
+				<VSCodeLink
+					href="https://docs.roocode.com/features/boomerang-tasks"
+					onClick={(e) => {
+						e.preventDefault()
+						window.postMessage(
+							{
+								type: "action",
+								action: "openExternal",
+								data: { url: "https://docs.roocode.com/features/boomerang-tasks" },
+							},
+							"*",
+						)
+					}}>
+					{t("chat:announcement.learnMore")}
+				</VSCodeLink>
 			</p>
 		</div>
 	)

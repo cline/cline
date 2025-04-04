@@ -80,7 +80,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	// Could modify code to use getMcpHub() instead.
 	mcpHub?: McpHub // Change from private to protected
 	// not private, so it can be accessed from webviewMessageHandler
-	latestAnnouncementId = "mar-30-2025-3-11" // update for v3.11.0 announcement
+	latestAnnouncementId = "apr-04-2025-boomerang" // update for Boomerang Tasks announcement
 	// not private, so it can be accessed from webviewMessageHandler
 	settingsImportedAt?: number
 	public readonly contextProxy: ContextProxy

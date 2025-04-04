@@ -211,16 +211,10 @@
 		"copyToInput": "Giriş alanına kopyala (veya Shift + tıklama)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.11 Yayınlandı",
-		"description": "Roo Code 3.11 önemli performans iyileştirmeleri ve yeni özellikler getiriyor!",
-		"whatsNew": "Yenilikler",
-		"feature1": "Hızlı Düzenlemeler - Düzenlemeler artık çok daha hızlı uygulanıyor. Daha az bekleme, daha çok kodlama.",
-		"feature2": "API Anahtar Bakiyeleri - OpenRouter ve Requesty bakiyelerinizi ayarlarda görüntüleyin.",
-		"feature3": "Proje Seviyesinde MCP Yapılandırması - Artık her proje/çalışma alanı için yapılandırabilirsiniz.",
-		"feature4": "Geliştirilmiş Gemini Desteği - Daha akıllı yeniden denemeler, düzeltilmiş kaçış karakterleri, Vertex sağlayıcısına eklendi.",
-		"feature5": "Ayarları İçe/Dışa Aktarma - Yapılandırmanızı farklı ortamlar arasında kolayca yedekleyin veya paylaşın.",
-		"hideButton": "Duyuruyu gizle",
-		"detailsDiscussLinks": "<discordLink>Discord</discordLink> ve <redditLink>Reddit</redditLink> üzerinde daha fazla ayrıntı edinin ve tartışmalara katılın 🚀"
+		"title": "Bumerang Görevleriyle Daha Fazlasını Yapın 🪃",
+		"description": "İşi alt görevlere bölerek, her birini code, architect, debug veya özel mod gibi özelleştirilmiş bir modda çalıştırın.",
+		"learnMore": "Daha fazla bilgi →",
+		"hideButton": "Duyuruyu gizle"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo tarayıcıyı kullanmak istiyor:",

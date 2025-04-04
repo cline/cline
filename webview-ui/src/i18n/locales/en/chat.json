@@ -204,16 +204,10 @@
 		}
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.11 Released",
-		"description": "Roo Code 3.11 brings significant performance improvements and new features!",
-		"whatsNew": "What's New",
-		"feature1": "Fast Edits: Edits now apply way faster. Less waiting, more coding.",
-		"feature2": "API Key Balances: View your OpenRouter and Requesty balances in settings.",
-		"feature3": "Project-Level MCP Config: Now you can configure it per project/workspace.",
-		"feature4": "Improved Gemini Support: Smarter retries, fixed escaping, added to Vertex provider.",
-		"feature5": "Import/Export Settings: Easily back up or share your config across setups.",
-		"hideButton": "Hide announcement",
-		"detailsDiscussLinks": "Get more details and discuss in <discordLink>Discord</discordLink> and <redditLink>Reddit</redditLink> 🚀"
+		"title": "Do more with Boomerang Tasks 🪃",
+		"description": "Split work into subtasks with each running in a specialized mode such as code, architect, debug, or a custom mode.",
+		"learnMore": "Learn more →",
+		"hideButton": "Hide announcement"
 	},
 	"reasoning": {
 		"thinking": "Thinking",

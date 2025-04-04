@@ -211,16 +211,10 @@
 		"copyToInput": "Copiar a l'entrada (o Shift + clic)"
 	},
 	"announcement": {
-		"title": "🎉 Roo Code 3.11 publicat",
-		"description": "Roo Code 3.11 aporta millores significatives de rendiment i noves funcionalitats!",
-		"whatsNew": "Novetats",
-		"feature1": "Edicions ràpides: Les edicions ara s'apliquen molt més ràpid. Menys espera, més codificació.",
-		"feature2": "Saldos de claus d'API: Visualitza els teus saldos d'OpenRouter i Requesty a la configuració.",
-		"feature3": "Configuració MCP a nivell de projecte: Ara pots configurar-ho per projecte/espai de treball.",
-		"feature4": "Suport millorat per a Gemini: Reintents més intel·ligents, escapament corregit, afegit al proveïdor Vertex.",
-		"feature5": "Importació/Exportació de configuració: Fes còpies de seguretat o comparteix la teva configuració fàcilment entre diferents entorns.",
-		"hideButton": "Amagar anunci",
-		"detailsDiscussLinks": "Obté més detalls i participa a <discordLink>Discord</discordLink> i <redditLink>Reddit</redditLink> 🚀"
+		"title": "Fes més amb Tasques Boomerang 🪃",
+		"description": "Divideix la feina en subtasques, cadascuna executant-se en un mode especialitzat, com code, architect, debug o un mode personalitzat.",
+		"learnMore": "Saber-ne més →",
+		"hideButton": "Amagar anunci"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo vol utilitzar el navegador:",

@@ -211,16 +211,10 @@
 		"copyToInput": "Copia nell'input (o Shift + clic)"
 	},
 	"announcement": {
-		"title": "🎉 Rilasciato Roo Code 3.11",
-		"description": "Roo Code 3.11 porta significativi miglioramenti di prestazioni e nuove funzionalità!",
-		"whatsNew": "Novità",
-		"feature1": "Modifiche veloci - Le modifiche ora vengono applicate molto più velocemente. Meno attesa, più codifica.",
-		"feature2": "Saldi delle chiavi API - Visualizza i tuoi saldi OpenRouter e Requesty nelle impostazioni.",
-		"feature3": "Configurazione MCP a livello di progetto - Ora puoi configurarla per progetto/area di lavoro.",
-		"feature4": "Supporto Gemini migliorato - Tentativi più intelligenti, escaping corretto, aggiunto al provider Vertex.",
-		"feature5": "Importazione/Esportazione impostazioni - Backup o condivisione facile della tua configurazione tra diverse installazioni.",
-		"hideButton": "Nascondi annuncio",
-		"detailsDiscussLinks": "Ottieni maggiori dettagli e partecipa alle discussioni su <discordLink>Discord</discordLink> e <redditLink>Reddit</redditLink> 🚀"
+		"title": "Fai di più con le Attività Boomerang 🪃",
+		"description": "Dividi il lavoro in sottoattività, ognuna eseguita in una modalità specializzata, come code, architect, debug o una modalità personalizzata.",
+		"learnMore": "Scopri di più →",
+		"hideButton": "Nascondi annuncio"
 	},
 	"browser": {
 		"rooWantsToUse": "Roo vuole utilizzare il browser:",
