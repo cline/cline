@@ -846,12 +846,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		 */
 		const onDrop = async (e: React.DragEvent) => {
 			e.preventDefault()
-			// --- Start of VSCode Explorer Drop Handling ---
+
+			// --- 1. VSCode Explorer Drop Handling ---
 			let uris: string[] = []
 			const resourceUrlsData = e.dataTransfer.getData("resourceurls")
 			const vscodeUriListData = e.dataTransfer.getData("application/vnd.code.uri-list")
 
-			// 1. Try 'resourceurls' first (seems to be used for multi-select)
+			// 1a. Try 'resourceurls' first (seems to be used for multi-select)
 			if (resourceUrlsData) {
 				try {
 					uris = JSON.parse(resourceUrlsData)
@@ -863,12 +864,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				}
 			}
 
-			// 2. Fallback to 'application/vnd.code.uri-list' (newline separated)
+			// 1b. Fallback to 'application/vnd.code.uri-list' (newline separated)
 			if (uris.length === 0 && vscodeUriListData) {
 				uris = vscodeUriListData.split("\n").map((uri) => uri.trim())
 			}
 
-			// 3. Filter for valid schemes (file or vscode-file) and non-empty strings
+			// 1c. Filter for valid schemes (file or vscode-file) and non-empty strings
 			const validUris = uris.filter((uri) => uri && (uri.startsWith("vscode-file:") || uri.startsWith("file:")))
 
 			if (validUris.length > 0) {
@@ -883,11 +884,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					type: "getRelativePaths",
 					uris: validUris, // Send the filtered valid URIs
 				})
-				return // Don't process as image or text if it's a VSCode resource drop
+				return // Handled as VSCode resource drop
 			}
 			// --- End of VSCode Explorer Drop Handling ---
 
-			// --- Image Drop Handling ---
+			// --- 2. Plain Text Drop Handling ---
+			const text = e.dataTransfer.getData("text")
+			if (text) {
+				handleTextDrop(text)
+				return // Handled as plain text drop
+			}
+			// --- End of Plain Text Drop Handling ---
+
+			// --- 3. Image Drop Handling ---
+			// Only proceed if it wasn't a VSCode resource or plain text drop
 			const files = Array.from(e.dataTransfer.files)
 			const acceptedTypes = ["png", "jpeg", "webp"]
 			const imageFiles = files.filter((file) => {
@@ -895,7 +905,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (shouldDisableImages || imageFiles.length === 0) return
+			if (shouldDisableImages || imageFiles.length === 0) {
+				return // Nothing more to do
+			}
 
 			const imageDataArray = await readImageFiles(imageFiles)
 			const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
@@ -906,15 +918,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				console.warn("No valid images were processed")
 			}
 			// --- End of Image Drop Handling ---
-
-			// --- Text Drop Handling ---
-			// Handle plain text drop only if it wasn't a resource or image drop
-			const text = e.dataTransfer.getData("text")
-			if (text && validUris.length === 0 && imageFiles.length === 0) {
-				handleTextDrop(text)
-				return // Stop processing if plain text was dropped and handled
-			}
-			// --- End of Text Drop Handling ---
 		}
 
 		/**
