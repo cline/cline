@@ -8,6 +8,8 @@ export interface BrowserSettings {
 	headless: boolean
 	// Chrome installation to use
 	// chromeType: "chromium" | "system"
+	remoteBrowserHost?: string
+	remoteBrowserEnabled?: boolean
 }
 
 export const DEFAULT_BROWSER_SETTINGS: BrowserSettings = {
@@ -16,6 +18,8 @@ export const DEFAULT_BROWSER_SETTINGS: BrowserSettings = {
 		height: 600,
 	},
 	headless: true,
+	remoteBrowserEnabled: false,
+	remoteBrowserHost: undefined,
 	// chromeType: "chromium",
 }
 

@@ -35,6 +35,12 @@ export interface WebviewMessage {
 		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
+		| "remoteBrowserHost"
+		| "remoteBrowserEnabled"
+		| "discoverBrowser"
+		| "testBrowserConnection"
+		| "browserConnectionResult"
+		| "browserRelaunchResult"
 		| "togglePlanActMode"
 		| "checkpointDiff"
 		| "checkpointRestore"
@@ -66,8 +72,12 @@ export interface WebviewMessage {
 		| "fetchUserCreditsData"
 		| "optionsResponse"
 		| "requestTotalTasksSize"
+		| "relaunchChromeDebugMode"
 		| "taskFeedback"
-	// | "relaunchChromeDebugMode"
+		| "getBrowserConnectionInfo"
+		| "getDetectedChromePath"
+		| "detectedChromePath"
+		| "scrollToSettings"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
