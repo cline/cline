@@ -116,6 +116,7 @@ export class Task {
 	isInitialized = false
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
+	lastOptionsCount: number = 0
 
 	// streaming
 	isWaitingForFirstChunk = false
@@ -2649,6 +2650,10 @@ export class Task {
 									})
 								}
 
+								// Store the number of options for telemetry
+								const options = parsePartialArrayString(optionsRaw || "[]")
+								this.lastOptionsCount = options.length
+
 								const { text, images } = await this.ask("followup", JSON.stringify(sharedMessage), false)
 
 								// Check if options contains the text response
@@ -2704,6 +2709,10 @@ export class Task {
 								// 		message: response.replace(/\n/g, " "),
 								// 	})
 								// }
+
+								// Store the number of options for telemetry
+								const options = parsePartialArrayString(optionsRaw || "[]")
+								this.lastOptionsCount = options.length
 
 								this.isAwaitingPlanResponse = true
 								let { text, images } = await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), false)

@@ -462,15 +462,15 @@ class PostHogClient {
 	/**
 	 * Records when a user selects an option from AI-generated followup questions
 	 * @param taskId Unique identifier for the task
-	 * @param optionText The text of the selected option
+	 * @param qty The quantity of options that were presented
 	 * @param mode The mode in which the option was selected ("plan" or "act")
 	 */
-	public captureOptionSelected(taskId: string, optionText: string, mode: "plan" | "act") {
+	public captureOptionSelected(taskId: string, qty: number, mode: "plan" | "act") {
 		this.capture({
 			event: PostHogClient.EVENTS.TASK.OPTION_SELECTED,
 			properties: {
 				taskId,
-				optionText,
+				qty,
 				mode,
 			},
 		})
