@@ -3530,7 +3530,7 @@ export class Task {
 		console.log("recently modified files: ", recentlyModifiedFiles)
 		if (recentlyModifiedFiles.length > 0) {
 			details +=
-				"\n\n# Recently Modified Files\nThese files have been modified since Cline last accessed them (file was just edited so you may need to re-read it before editing):"
+				"\n\n# Recently Modified Files\nThese files have been modified since you last accessed them (file was just edited so you may need to re-read it before editing):"
 			for (const filePath of recentlyModifiedFiles) {
 				details += `\n${filePath}`
 			}
