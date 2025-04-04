@@ -11,7 +11,7 @@ import { ChatSettings } from "../../shared/ChatSettings"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { UserInfo } from "../../shared/UserInfo"
 import { CustomInstructionMode } from "../../shared/CustomInstructionMode" // Removed DEFAULT import
-import { getSavedCustomInstructionModes } from "./disk" // Import disk function
+import { getCustomInstructionModesFromState } from "./disk" // Import disk function (Updated import name)
 /*
 	Storage
 	https://dev.to/kompotkot/how-to-use-secretstorage-in-your-vscode-extensions-2hco
@@ -161,7 +161,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "openRouterProviderSorting") as Promise<string | undefined>,
 		getGlobalState(context, "lastShownAnnouncementId") as Promise<string | undefined>,
 		getGlobalState(context, "customInstructions") as Promise<string | undefined>,
-		getSavedCustomInstructionModes(context), // Load modes from disk
+		getCustomInstructionModesFromState(context), // Load modes from state (Updated function call)
 		getGlobalState(context, "selectedModeIds") as Promise<string[] | undefined>,
 		getGlobalState(context, "taskHistory") as Promise<HistoryItem[] | undefined>,
 		getGlobalState(context, "autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,

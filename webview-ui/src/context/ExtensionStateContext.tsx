@@ -201,37 +201,49 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Add Mode
 		addCustomInstructionMode: (mode) => {
+			let newModes: CustomInstructionMode[] = []
 			setState((prevState) => {
 				const id = crypto.randomUUID() // Use crypto for better uniqueness
-				const newModes = [...prevState.customInstructionModes, { id, ...mode }]
-				// ONLY update local state
+				newModes = [...prevState.customInstructionModes, { id, ...mode }]
 				return {
 					...prevState,
 					customInstructionModes: newModes,
 				}
 			})
+			// Post update back to extension host
+			vscode.postMessage({ type: "updateCustomInstructionModes", customInstructionModes: newModes })
 		},
 
 		// Update Mode
 		updateCustomInstructionMode: (id, mode) => {
-			setState((prevState) => ({
-				...prevState,
-				customInstructionModes: prevState.customInstructionModes.map((m) => (m.id === id ? { ...m, ...mode } : m)),
-			}))
+			let updatedModes: CustomInstructionMode[] = []
+			setState((prevState) => {
+				updatedModes = prevState.customInstructionModes.map((m) => (m.id === id ? { ...m, ...mode } : m))
+				return {
+					...prevState,
+					customInstructionModes: updatedModes,
+				}
+			})
+			// Post update back to extension host
+			vscode.postMessage({ type: "updateCustomInstructionModes", customInstructionModes: updatedModes })
 		},
 
 		// Remove Mode
 		removeCustomInstructionMode: (id) => {
+			let newModes: CustomInstructionMode[] = []
+			let newSelectedIds: string[] = []
 			setState((prevState) => {
-				const newModes = prevState.customInstructionModes.filter((m) => m.id !== id)
-				const newSelectedIds = prevState.selectedModeIds.filter((modeId) => modeId !== id)
-				// ONLY update local state
+				newModes = prevState.customInstructionModes.filter((m) => m.id !== id)
+				newSelectedIds = prevState.selectedModeIds.filter((modeId) => modeId !== id)
 				return {
 					...prevState,
 					customInstructionModes: newModes,
 					selectedModeIds: newSelectedIds,
 				}
 			})
+			// Post updates back to extension host
+			vscode.postMessage({ type: "updateCustomInstructionModes", customInstructionModes: newModes })
+			vscode.postMessage({ type: "updateSelectedModeIds", selectedModeIds: newSelectedIds })
 		},
 
 		// Set Selected Modes
@@ -240,21 +252,25 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				selectedModeIds: ids,
 			}))
+			// Post update back to extension host
+			vscode.postMessage({ type: "updateSelectedModeIds", selectedModeIds: ids })
 		},
 
 		// Toggle Single Mode Selection
 		toggleModeSelection: (id) => {
+			let nextSelectedIds: string[] = []
 			setState((prevState) => {
 				const isSelected = prevState.selectedModeIds.includes(id)
-				const nextSelectedIds = isSelected
+				nextSelectedIds = isSelected
 					? prevState.selectedModeIds.filter((modeId) => modeId !== id)
 					: [...prevState.selectedModeIds, id]
-				// ONLY update local state
 				return {
 					...prevState,
 					selectedModeIds: nextSelectedIds,
 				}
 			})
+			// Post update back to extension host
+			vscode.postMessage({ type: "updateSelectedModeIds", selectedModeIds: nextSelectedIds })
 		},
 	}
 
