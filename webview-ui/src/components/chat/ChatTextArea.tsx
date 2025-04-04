@@ -852,11 +852,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const resourceUrlsData = e.dataTransfer.getData("resourceurls")
 			const vscodeUriListData = e.dataTransfer.getData("application/vnd.code.uri-list")
 
-			// 1a. Try 'resourceurls' first (seems to be used for multi-select)
+			// 1a. Try 'resourceurls' first (used for multi-select)
 			if (resourceUrlsData) {
 				try {
 					uris = JSON.parse(resourceUrlsData)
-					// Decode URIs if necessary (VSCode seems to encode them)
 					uris = uris.map((uri) => decodeURIComponent(uri))
 				} catch (error) {
 					console.error("Failed to parse resourceurls JSON:", error)
@@ -873,8 +872,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			const validUris = uris.filter((uri) => uri && (uri.startsWith("vscode-file:") || uri.startsWith("file:")))
 
 			if (validUris.length > 0) {
-				setPendingInsertions([]) // Clear queue for new drop
-				let initialCursorPos = inputValue.length // Default fallback
+				setPendingInsertions([])
+				let initialCursorPos = inputValue.length
 				if (textAreaRef.current) {
 					initialCursorPos = textAreaRef.current.selectionStart
 				}
@@ -882,19 +881,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				vscode.postMessage({
 					type: "getRelativePaths",
-					uris: validUris, // Send the filtered valid URIs
+					uris: validUris,
 				})
-				return // Handled as VSCode resource drop
+				return
 			}
-			// --- End of VSCode Explorer Drop Handling ---
 
-			// --- 2. Plain Text Drop Handling ---
 			const text = e.dataTransfer.getData("text")
 			if (text) {
 				handleTextDrop(text)
-				return // Handled as plain text drop
+				return
 			}
-			// --- End of Plain Text Drop Handling ---
 
 			// --- 3. Image Drop Handling ---
 			// Only proceed if it wasn't a VSCode resource or plain text drop
@@ -906,7 +902,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			})
 
 			if (shouldDisableImages || imageFiles.length === 0) {
-				return // Nothing more to do
+				return
 			}
 
 			const imageDataArray = await readImageFiles(imageFiles)
@@ -917,7 +913,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			} else {
 				console.warn("No valid images were processed")
 			}
-			// --- End of Image Drop Handling ---
 		}
 
 		/**
