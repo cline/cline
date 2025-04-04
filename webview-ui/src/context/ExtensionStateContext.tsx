@@ -29,6 +29,7 @@ interface ExtensionStateContextType extends ExtensionState {
     setCustomInstructions: (value?: string) => void
     setTelemetrySetting: (value: TelemetrySetting) => void
     setPlanActSeparateModelsSetting: (value: boolean) => void
+    setEnableTabAutocomplete: (value: boolean) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -47,6 +48,7 @@ export const ExtensionStateContextProvider: React.FC<{
         telemetrySetting: 'unset',
         vscMachineId: '',
         planActSeparateModelsSetting: true,
+        enableTabAutocomplete: true,
     })
     const [didHydrateState, setDidHydrateState] = useState(false)
     const [showWelcome, setShowWelcome] = useState(false)
@@ -63,6 +65,7 @@ export const ExtensionStateContextProvider: React.FC<{
         const message: ExtensionMessage = event.data
         switch (message.type) {
             case 'state': {
+                console.log('state', message.state)
                 setState(message.state!)
                 const config = message.state?.apiConfiguration
                 const hasKey = config
@@ -157,26 +160,57 @@ export const ExtensionStateContextProvider: React.FC<{
         mcpServers,
         filePaths,
         totalTasksSize,
-        setApiConfiguration: (value) =>
+        setApiConfiguration: (value) => {
             setState((prevState) => ({
                 ...prevState,
                 apiConfiguration: value,
-            })),
-        setCustomInstructions: (value) =>
+            }))
+            vscode.postMessage({
+                type: 'updateSettings',
+                apiConfiguration: value,
+            })
+        },
+        setCustomInstructions: (value) => {
             setState((prevState) => ({
                 ...prevState,
                 customInstructions: value,
-            })),
-        setTelemetrySetting: (value) =>
+            }))
+            vscode.postMessage({
+                type: 'updateSettings',
+                customInstructionsSetting: value,
+            })
+        },
+        setTelemetrySetting: (value) => {
             setState((prevState) => ({
                 ...prevState,
                 telemetrySetting: value,
-            })),
-        setPlanActSeparateModelsSetting: (value) =>
+            }))
+            vscode.postMessage({
+                type: 'updateSettings',
+                telemetrySetting: value,
+            })
+        },
+        setPlanActSeparateModelsSetting: (value) => {
             setState((prevState) => ({
                 ...prevState,
                 planActSeparateModelsSetting: value,
-            })),
+            }))
+            vscode.postMessage({
+                type: 'updateSettings',
+                planActSeparateModelsSetting: value,
+            })
+        },
+        setEnableTabAutocomplete: (value) => {
+            console.log('setEnableTabAutocomplete', value)
+            setState((prevState) => ({
+                ...prevState,
+                enableTabAutocomplete: value,
+            }))
+            vscode.postMessage({
+                type: 'updateSettings',
+                enableTabAutocomplete: value,
+            })
+        },
     }
 
     return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

@@ -79,6 +79,7 @@ export interface WebviewMessage {
     url?: string
     planActSeparateModelsSetting?: boolean
     telemetrySetting?: TelemetrySetting
+    enableTabAutocomplete?: boolean
     customInstructionsSetting?: string
 }
 

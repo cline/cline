@@ -38,6 +38,7 @@ import { getTotalTasksSize } from '../../utils/storage'
 import { GlobalFileNames } from '../../global-constants'
 import { setTimeout as setTimeoutPromise } from 'node:timers/promises'
 import { downloadTask } from '../../integrations/misc/export-markdown'
+import { getStatusBarStatus, setupStatusBar, StatusBarStatus } from '../../autocomplete/statusBar'
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -112,6 +113,7 @@ type GlobalStateKey =
     | 'asksageApiUrl'
     | 'thinkingBudgetTokens'
     | 'planActSeparateModelsSetting'
+    | 'enableTabAutocomplete'
 
 export class PostHogProvider implements vscode.WebviewViewProvider {
     public static readonly sideBarId = 'posthog.SidebarProvider' // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -906,6 +908,11 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
                             await this.updateTelemetrySetting(message.telemetrySetting)
                         }
 
+                        // enable tab autocomplete
+                        if (message.enableTabAutocomplete !== undefined) {
+                            await this.toggleEnableTabAutocomplete(message.enableTabAutocomplete)
+                        }
+
                         // plan act setting
                         await this.updateGlobalState(
                             'planActSeparateModelsSetting',
@@ -938,6 +945,17 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
         await this.updateGlobalState('telemetrySetting', telemetrySetting)
         const isOptedIn = telemetrySetting === 'enabled'
         telemetryService.updateTelemetryState(isOptedIn)
+    }
+
+    async toggleEnableTabAutocomplete(enableTabAutocomplete: boolean) {
+        console.log('toggleEnableTabAutocomplete', enableTabAutocomplete)
+        await this.updateGlobalState('enableTabAutocomplete', enableTabAutocomplete)
+        telemetryService.captureAutocompleteEnabled()
+        if (enableTabAutocomplete) {
+            setupStatusBar(StatusBarStatus.Enabled)
+        } else {
+            setupStatusBar(StatusBarStatus.Disabled)
+        }
     }
 
     async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent) {
@@ -1769,6 +1787,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             userInfo,
             telemetrySetting,
             planActSeparateModelsSetting,
+            enableTabAutocomplete,
         } = await this.getState()
 
         return {
@@ -1793,6 +1812,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             telemetrySetting,
             planActSeparateModelsSetting,
             vscMachineId: vscode.env.machineId,
+            enableTabAutocomplete: enableTabAutocomplete ?? false,
         }
     }
 
@@ -1911,6 +1931,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             thinkingBudgetTokens,
             sambanovaApiKey,
             planActSeparateModelsSettingRaw,
+            enableTabAutocomplete,
             inkeepApiKey,
             codestralApiKey,
         ] = await Promise.all([
@@ -1978,6 +1999,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             this.getGlobalState('thinkingBudgetTokens') as Promise<number | undefined>,
             this.getSecret('sambanovaApiKey') as Promise<string | undefined>,
             this.getGlobalState('planActSeparateModelsSetting') as Promise<boolean | undefined>,
+            this.getGlobalState('enableTabAutocomplete') as Promise<boolean | undefined>,
             this.getSecret('inkeepApiKey') as Promise<string | undefined>,
             this.getSecret('codestralApiKey') as Promise<string | undefined>,
         ])
@@ -2092,6 +2114,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             previousModeThinkingBudgetTokens,
             telemetrySetting: telemetrySetting || 'unset',
             planActSeparateModelsSetting,
+            enableTabAutocomplete,
         }
     }
 

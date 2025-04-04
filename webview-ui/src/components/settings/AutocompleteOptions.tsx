@@ -1,4 +1,4 @@
-import { VSCodeTextField } from '@vscode/webview-ui-toolkit/react'
+import { VSCodeCheckbox, VSCodeTextField } from '@vscode/webview-ui-toolkit/react'
 import { memo } from 'react'
 import { ApiConfiguration } from '../../../../src/shared/api'
 import { useExtensionState } from '../../context/ExtensionStateContext'
@@ -13,7 +13,8 @@ declare module 'vscode' {
 }
 
 const AutocompleteOptions = () => {
-    const { apiConfiguration, setApiConfiguration } = useExtensionState()
+    const { apiConfiguration, setApiConfiguration, enableTabAutocomplete, setEnableTabAutocomplete } =
+        useExtensionState()
 
     const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
         setApiConfiguration({
@@ -25,6 +26,18 @@ const AutocompleteOptions = () => {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 0 }}>
             <div>
+                <VSCodeCheckbox
+                    style={{ marginBottom: '10px' }}
+                    checked={enableTabAutocomplete}
+                    onChange={(e: any) => {
+                        const checked = e.target.checked === true
+                        setEnableTabAutocomplete(checked)
+                    }}
+                >
+                    Enable tab auto-complete
+                </VSCodeCheckbox>
+            </div>
+            <div>
                 <VSCodeTextField
                     value={apiConfiguration?.codestralApiKey || ''}
                     style={{ width: '100%' }}
@@ -32,7 +45,7 @@ const AutocompleteOptions = () => {
                     onInput={handleInputChange('codestralApiKey')}
                     placeholder="Enter Codestral API Key..."
                 >
-                    <span style={{ fontWeight: 500 }}>Autocomplete API Key</span>
+                    <span style={{ fontWeight: 500 }}>Auto-complete API Key</span>
                 </VSCodeTextField>
                 <p
                     style={{

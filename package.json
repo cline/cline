@@ -245,16 +245,6 @@
                     ],
                     "default": "English",
                     "description": "The language that PostHog should use for communication."
-                },
-                "posthog.enableTabAutocomplete": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Enable PostHog's tab autocomplete feature."
-                },
-                "posthog.pauseTabAutocompleteOnBattery": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "Pause PostHog's tab autocomplete feature when on battery."
                 }
             }
         }

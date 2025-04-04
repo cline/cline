@@ -1,6 +1,4 @@
 import * as vscode from 'vscode'
-import { workspace } from 'vscode'
-import { Battery } from '../utils/battery'
 
 export enum StatusBarStatus {
     Disabled,
@@ -103,29 +101,8 @@ export function setupStatusBar(status: StatusBarStatus | undefined, loading?: bo
     if (status !== undefined) {
         statusBarStatus = status
     }
-
-    vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('posthog')) {
-            const enabled = workspace.getConfiguration('posthog').get<boolean>('enableTabAutocomplete')
-            if (enabled && statusBarStatus === StatusBarStatus.Paused) {
-                return
-            }
-            setupStatusBar(enabled ? StatusBarStatus.Enabled : StatusBarStatus.Disabled)
-        }
-    })
 }
 
 export function getStatusBarStatus(): StatusBarStatus | undefined {
     return statusBarStatus
-}
-
-export function monitorBatteryChanges(battery: Battery): vscode.Disposable {
-    return battery.onChangeAC((acConnected: boolean) => {
-        const config = vscode.workspace.getConfiguration('posthog')
-        const enabled = config.get<boolean>('enableTabAutocomplete')
-        if (!!enabled) {
-            const pauseOnBattery = config.get<boolean>('pauseTabAutocompleteOnBattery')
-            setupStatusBar(acConnected || !pauseOnBattery ? StatusBarStatus.Enabled : StatusBarStatus.Paused)
-        }
-    })
 }

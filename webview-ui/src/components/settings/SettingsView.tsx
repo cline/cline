@@ -1,17 +1,8 @@
-import {
-    VSCodeButton,
-    VSCodeCheckbox,
-    VSCodeLink,
-    VSCodeTextArea,
-    VSCodePanels,
-    VSCodePanelTab,
-    VSCodePanelView,
-} from '@vscode/webview-ui-toolkit/react'
+import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from '@vscode/webview-ui-toolkit/react'
 import { memo, useCallback, useEffect, useState } from 'react'
 import { useExtensionState } from '../../context/ExtensionStateContext'
 import { validateApiConfiguration, validateModelId } from '../../utils/validate'
 import { vscode } from '../../utils/vscode'
-import SettingsButton from '../common/SettingsButton'
 import ApiOptions from './ApiOptions'
 import { TabButton } from '../mcp/McpView'
 import { useEvent } from 'react-use'
