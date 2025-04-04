@@ -686,6 +686,34 @@ export class Task {
 		this.askResponse = askResponse
 		this.askResponseText = text
 		this.askResponseImages = images
+
+		// Track telemetry for options being ignored when a user types a custom response
+		if (askResponse === "messageResponse" && this.lastOptionsCount > 0) {
+			// Get the last message with options
+			const lastFollowupMessage = findLast(this.clineMessages, (m) => m.ask === "followup" || m.ask === "plan_mode_respond")
+
+			if (lastFollowupMessage) {
+				try {
+					// Parse the options from the message
+					const messageData = JSON.parse(lastFollowupMessage.text || "{}")
+					const options = messageData.options || []
+
+					// Check if the response matches any option
+					const isOptionSelected = options.includes(text)
+
+					if (!isOptionSelected) {
+						// User typed a custom response instead of selecting an option
+						console.info("Task: User typed custom response instead of selecting an option", {
+							lastOptionsCount: this.lastOptionsCount,
+							mode: this.chatSettings.mode,
+						})
+						telemetryService.captureOptionsIgnored(this.taskId, this.lastOptionsCount, this.chatSettings.mode)
+					}
+				} catch (error) {
+					console.error("Task: Error parsing options data", error)
+				}
+			}
+		}
 	}
 
 	async say(type: ClineSay, text?: string, images?: string[], partial?: boolean): Promise<undefined> {

@@ -292,11 +292,65 @@ export class Controller {
 				break
 			case "optionsResponse":
 				if (this.task?.taskId) {
-					telemetryService.captureOptionSelected(
-						this.task.taskId,
-						this.task.lastOptionsCount,
-						this.task.chatSettings.mode,
+					// Get the last message with options
+					const lastFollowupMessage = findLast(
+						this.task.clineMessages,
+						(m) => m.ask === "followup" || m.ask === "plan_mode_respond",
 					)
+
+					console.info("Controller: Processing options response", {
+						hasLastFollowupMessage: !!lastFollowupMessage,
+						lastOptionsCount: this.task.lastOptionsCount,
+						userResponse: message.text,
+					})
+
+					// Check if options were presented (lastOptionsCount > 0)
+					if (this.task.lastOptionsCount > 0) {
+						// Options were presented, now determine if user selected one
+						let isOptionSelected = false
+
+						if (lastFollowupMessage) {
+							// Parse the options from the message
+							try {
+								const messageData = JSON.parse(lastFollowupMessage.text || "{}")
+								const options = messageData.options || []
+
+								console.info("Controller: Parsed options data", {
+									options,
+									messageDataKeys: Object.keys(messageData),
+								})
+
+								// Check if the response matches any option
+								isOptionSelected = options.includes(message.text)
+
+								console.info("Controller: Checking if option was selected", {
+									isOptionSelected,
+									mode: this.task.chatSettings.mode,
+								})
+							} catch (error) {
+								console.error("Controller: Error parsing options data", error)
+							}
+						}
+
+						if (isOptionSelected) {
+							// User selected one of the options
+							telemetryService.captureOptionSelected(
+								this.task.taskId,
+								this.task.lastOptionsCount,
+								this.task.chatSettings.mode,
+							)
+						} else {
+							// User typed a custom response
+							telemetryService.captureOptionsIgnored(
+								this.task.taskId,
+								this.task.lastOptionsCount,
+								this.task.chatSettings.mode,
+							)
+						}
+					} else {
+						// No options were presented, just track as a normal option selected
+						telemetryService.captureOptionSelected(this.task.taskId, 0, this.task.chatSettings.mode)
+					}
 				}
 
 				await this.postMessageToWebview({
