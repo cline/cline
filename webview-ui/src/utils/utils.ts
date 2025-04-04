@@ -1,7 +1,7 @@
 export function range(startOrEnd: number, end?: number): number[] {
     let length = startOrEnd
     let start = 0
-    if (typeof end == 'number') {
+    if (typeof end === 'number') {
         start = startOrEnd
         length = end - start
     }
