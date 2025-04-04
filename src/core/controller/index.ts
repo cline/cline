@@ -341,11 +341,6 @@ export class Controller {
 							)
 						} else {
 							// User typed a custom response
-							telemetryService.captureOptionsIgnored(
-								this.task.taskId,
-								this.task.lastOptionsCount,
-								this.task.chatSettings.mode,
-							)
 						}
 					} else {
 						// No options were presented, just track as a normal option selected

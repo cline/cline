@@ -30,7 +30,7 @@ class PostHogClient {
 			MODE_SWITCH: "task.mode",
 			// Tracks when users select an option from AI-generated followup questions
 			OPTION_SELECTED: "task.option_selected",
-			// Tracks when users type a custom response instead of selecting an option
+			// Tracks when users type a custom response instead of selecting an option from AI-generated followup questions
 			OPTIONS_IGNORED: "task.options_ignored",
 			// Tracks usage of the git-based checkpoint system (shadow_git_initialized, commit_created, branch_created, branch_deleted_active, branch_deleted_inactive, restored)
 			CHECKPOINT_USED: "task.checkpoint_used",
@@ -479,13 +479,12 @@ class PostHogClient {
 	}
 
 	/**
-	 * Records when a user types a custom response instead of selecting one of the presented options
+	 * Records when a user types a custom response instead of selecting one of the AI-generated followup questions
 	 * @param taskId Unique identifier for the task
 	 * @param qty The quantity of options that were presented
 	 * @param mode The mode in which the custom response was provided ("plan" or "act")
 	 */
 	public captureOptionsIgnored(taskId: string, qty: number, mode: "plan" | "act") {
-		console.info("TelemetryService: Capturing options ignored", { taskId, qty, mode })
 		this.capture({
 			event: PostHogClient.EVENTS.TASK.OPTIONS_IGNORED,
 			properties: {

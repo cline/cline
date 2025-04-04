@@ -703,14 +703,10 @@ export class Task {
 
 					if (!isOptionSelected) {
 						// User typed a custom response instead of selecting an option
-						console.info("Task: User typed custom response instead of selecting an option", {
-							lastOptionsCount: this.lastOptionsCount,
-							mode: this.chatSettings.mode,
-						})
 						telemetryService.captureOptionsIgnored(this.taskId, this.lastOptionsCount, this.chatSettings.mode)
 					}
 				} catch (error) {
-					console.error("Task: Error parsing options data", error)
+					console.error("Task: Error parsing AI-generated options for telemetry", error)
 				}
 			}
 		}
