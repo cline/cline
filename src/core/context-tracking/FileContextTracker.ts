@@ -43,7 +43,7 @@ export class FileContextTracker {
 	private getCwd(): string | undefined {
 		const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0)
 		if (!cwd) {
-			console.log("No workspace folder available - cannot determine current working directory")
+			console.info("No workspace folder available - cannot determine current working directory")
 		}
 		return cwd
 	}
@@ -168,7 +168,6 @@ export class FileContextTracker {
 	getAndClearRecentlyModifiedFiles(): string[] {
 		const files = Array.from(this.recentlyModifiedFiles)
 		this.recentlyModifiedFiles.clear()
-		console.log("Recently modified files:", files)
 		return files
 	}
 
