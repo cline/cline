@@ -1,6 +1,5 @@
 import { describe, it, beforeEach } from "mocha"
 import { expect } from "chai"
-import "should"
 import { AutoApprovalSettings } from "../shared/AutoApprovalSettings"
 import type { TaskLike, ControllerLike } from "./TestTypes"
 import * as sinon from "sinon"
