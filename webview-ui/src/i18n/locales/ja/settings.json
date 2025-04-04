@@ -369,7 +369,8 @@
 		"azureApiVersion": "Azure APIバージョンを設定",
 		"gemini": {
 			"freeRequests": "* 1分間あたり{{count}}リクエストまで無料。それ以降は、プロンプトサイズに応じて課金されます。",
-			"pricingDetails": "詳細は価格情報をご覧ください。"
+			"pricingDetails": "詳細は価格情報をご覧ください。",
+			"billingEstimate": "* 課金は見積もりです - 正確な費用はプロンプトのサイズによって異なります。"
 		}
 	},
 	"modelPicker": {

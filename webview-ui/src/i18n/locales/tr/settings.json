@@ -369,7 +369,8 @@
 		"azureApiVersion": "Azure API sürümünü ayarla",
 		"gemini": {
 			"freeRequests": "* Dakikada {{count}} isteğe kadar ücretsiz. Bundan sonra, ücretlendirme istem boyutuna bağlıdır.",
-			"pricingDetails": "Daha fazla bilgi için fiyatlandırma ayrıntılarına bakın."
+			"pricingDetails": "Daha fazla bilgi için fiyatlandırma ayrıntılarına bakın.",
+			"billingEstimate": "* Ücretlendirme bir tahmindir - kesin maliyet istem boyutuna bağlıdır."
 		}
 	},
 	"modelPicker": {

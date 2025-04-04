@@ -369,7 +369,8 @@
 		"azureApiVersion": "Ustaw wersję API Azure",
 		"gemini": {
 			"freeRequests": "* Darmowe do {{count}} zapytań na minutę. Po tym, rozliczanie zależy od rozmiaru podpowiedzi.",
-			"pricingDetails": "Więcej informacji znajdziesz w szczegółach cennika."
+			"pricingDetails": "Więcej informacji znajdziesz w szczegółach cennika.",
+			"billingEstimate": "* Rozliczenie jest szacunkowe - dokładny koszt zależy od rozmiaru podpowiedzi."
 		}
 	},
 	"modelPicker": {

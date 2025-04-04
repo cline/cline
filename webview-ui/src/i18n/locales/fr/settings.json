@@ -369,7 +369,8 @@
 		"azureApiVersion": "Définir la version de l'API Azure",
 		"gemini": {
 			"freeRequests": "* Gratuit jusqu'à {{count}} requêtes par minute. Après cela, la facturation dépend de la taille du prompt.",
-			"pricingDetails": "Pour plus d'informations, voir les détails de tarification."
+			"pricingDetails": "Pour plus d'informations, voir les détails de tarification.",
+			"billingEstimate": "* La facturation est une estimation - le coût exact dépend de la taille du prompt."
 		}
 	},
 	"modelPicker": {

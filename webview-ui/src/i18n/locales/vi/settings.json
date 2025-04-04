@@ -369,7 +369,8 @@
 		"azureApiVersion": "Đặt phiên bản API Azure",
 		"gemini": {
 			"freeRequests": "* Miễn phí đến {{count}} yêu cầu mỗi phút. Sau đó, thanh toán phụ thuộc vào kích thước lời nhắc.",
-			"pricingDetails": "Để biết thêm thông tin, xem chi tiết giá."
+			"pricingDetails": "Để biết thêm thông tin, xem chi tiết giá.",
+			"billingEstimate": "* Thanh toán là ước tính - chi phí chính xác phụ thuộc vào kích thước lời nhắc."
 		}
 	},
 	"modelPicker": {

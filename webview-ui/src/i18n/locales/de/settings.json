@@ -369,7 +369,8 @@
 		"azureApiVersion": "Azure API-Version festlegen",
 		"gemini": {
 			"freeRequests": "* Kostenlos bis zu {{count}} Anfragen pro Minute. Danach hängt die Abrechnung von der Prompt-Größe ab.",
-			"pricingDetails": "Weitere Informationen finden Sie in den Preisdetails."
+			"pricingDetails": "Weitere Informationen finden Sie in den Preisdetails.",
+			"billingEstimate": "* Die Abrechnung ist eine Schätzung - die genauen Kosten hängen von der Prompt-Größe ab."
 		}
 	},
 	"modelPicker": {

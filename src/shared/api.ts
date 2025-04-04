@@ -629,6 +629,14 @@ export const geminiModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
+	"gemini-2.5-pro-preview-03-25": {
+		maxTokens: 65_535,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.5,
+		outputPrice: 15,
+	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
 		contextWindow: 1_048_576,

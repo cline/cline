@@ -369,7 +369,8 @@
 		"azureApiVersion": "Set Azure API version",
 		"gemini": {
 			"freeRequests": "* Free up to {{count}} requests per minute. After that, billing depends on prompt size.",
-			"pricingDetails": "For more info, see pricing details."
+			"pricingDetails": "For more info, see pricing details.",
+			"billingEstimate": "* Billing is an estimate - exact cost depends on prompt size."
 		}
 	},
 	"modelPicker": {

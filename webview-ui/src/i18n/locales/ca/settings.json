@@ -369,7 +369,8 @@
 		"azureApiVersion": "Establir versió de l'API d'Azure",
 		"gemini": {
 			"freeRequests": "* Gratuït fins a {{count}} sol·licituds per minut. Després d'això, la facturació depèn de la mida del prompt.",
-			"pricingDetails": "Per a més informació, consulteu els detalls de preus."
+			"pricingDetails": "Per a més informació, consulteu els detalls de preus.",
+			"billingEstimate": "* La facturació és una estimació - el cost exacte depèn de la mida del prompt."
 		}
 	},
 	"modelPicker": {

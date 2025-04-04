@@ -369,7 +369,8 @@
 		"azureApiVersion": "Azure API 버전 설정",
 		"gemini": {
 			"freeRequests": "* 분당 {{count}}개의 요청까지 무료. 이후에는 프롬프트 크기에 따라 요금이 부과됩니다.",
-			"pricingDetails": "자세한 내용은 가격 정보를 참조하세요."
+			"pricingDetails": "자세한 내용은 가격 정보를 참조하세요.",
+			"billingEstimate": "* 요금은 추정치입니다 - 정확한 비용은 프롬프트 크기에 따라 달라집니다."
 		}
 	},
 	"modelPicker": {

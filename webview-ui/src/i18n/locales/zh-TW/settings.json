@@ -369,7 +369,8 @@
 		"azureApiVersion": "設定 Azure API 版本",
 		"gemini": {
 			"freeRequests": "* 每分鐘可免費使用 {{count}} 次請求，超過後將依提示大小計費。",
-			"pricingDetails": "詳細資訊請參閱定價說明。"
+			"pricingDetails": "詳細資訊請參閱定價說明。",
+			"billingEstimate": "* 費用為估算值 - 實際費用取決於提示大小。"
 		}
 	},
 	"modelPicker": {
