@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react"
-import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions } from "../../utils/context-mentions"
-import { cleanPathPrefix } from "../common/CodeAccordian"
+import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions } from "@/utils/context-mentions"
+import { cleanPathPrefix } from "@/components/common/CodeAccordian"
 
 interface ContextMenuProps {
 	onSelect: (type: ContextMenuOptionType, value?: string) => void

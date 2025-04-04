@@ -1,7 +1,7 @@
 import { User, getAuth, signInWithCustomToken, signOut } from "firebase/auth"
 import { initializeApp } from "firebase/app"
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
-import { vscode } from "../utils/vscode"
+import { vscode } from "@/utils/vscode"
 
 // Firebase configuration from extension
 const firebaseConfig = {
