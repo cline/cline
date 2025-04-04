@@ -1,7 +1,14 @@
 # Changelog
 
+## [3.8.7]
+
+-   Add Enable extended thinking for LiteLLM provider (Thanks @jorgegarciarey!)
+-   Add a tab for configuring local MCP Servers
+-   Fix issue with DeepSeek API provider token counting + context management
+-   Fix issues with checkpoints hanging under certain conditions
+
 ## [3.8.6]
- 
+
 -   Add UI for adding remote servers
 -   Add Mentions Feature Guide and update related documentation
 -   Fix bug where menu would open in sidebar and open tab
