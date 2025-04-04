@@ -1,7 +1,7 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { vscode } from "../../../../../utils/vscode"
 import { useExtensionState } from "../../../../../context/ExtensionStateContext"
-import ServerRow from "./server-row/ServerRow"
+import ServerRow from "./server-row"
 const InstalledServersView = () => {
 	const { mcpServers: servers } = useExtensionState()
 
