@@ -123,25 +123,17 @@ export const openClineInNewTab = async ({ context, outputChannel }: Omit<Registe
 	// don't need to use that event).
 	// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	const tabProvider = new ClineProvider(context, outputChannel, "editor")
+	const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 
-	const activeEditor = vscode.window.activeTextEditor
+	// Check if there are any visible text editors, otherwise open a new group
+	// to the right.
 	const hasVisibleEditors = vscode.window.visibleTextEditors.length > 0
 
-	let targetCol: vscode.ViewColumn
-
 	if (!hasVisibleEditors) {
-		// No editors open, open in first column
-		targetCol = vscode.ViewColumn.One
-	} else if (activeEditor && activeEditor.document.isUntitled && vscode.window.visibleTextEditors.length === 1) {
-		// Only one editor and it's empty (untitled), reuse it
-		targetCol = activeEditor.viewColumn ?? vscode.ViewColumn.One
-	} else {
-		// Otherwise, create a new group to the right
 		await vscode.commands.executeCommand("workbench.action.newGroupRight")
-		// New group becomes the last + 1
-		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((e) => e.viewColumn || 1))
-		targetCol = (lastCol + 1) as vscode.ViewColumn
 	}
+
+	const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
 	const newPanel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, "Roo Code", targetCol, {
 		enableScripts: true,
