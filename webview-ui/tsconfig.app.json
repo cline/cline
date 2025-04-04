@@ -25,8 +25,9 @@
 		"paths": {
 			"@/*": ["src/*"],
 			"@components/*": ["src/components/*"],
-			"@utils/*": ["src/utils/*"],
-			"@context/*": ["src/context/*"]
+			"@context/*": ["src/context/*"],
+			"@shared/*": ["../src/shared/*"],
+			"@utils/*": ["src/utils/*"]
 		}
 	},
 	"include": ["src"],

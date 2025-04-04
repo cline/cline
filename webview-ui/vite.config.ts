@@ -49,8 +49,9 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": resolve(__dirname, "./src"),
-			"@context": resolve(__dirname, "./src/context"),
 			"@components": resolve(__dirname, "./src/components"),
+			"@context": resolve(__dirname, "./src/context"),
+			"@shared": resolve(__dirname, "../src/shared"),
 			"@utils": resolve(__dirname, "./src/utils"),
 		},
 	},
