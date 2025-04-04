@@ -4,8 +4,8 @@ import styled from "styled-components"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
 import { vscode } from "../../../utils/vscode"
 import AddRemoteServerForm from "./tabs/add-server/AddRemoteServerForm"
-import McpMarketplaceView from "./tabs/marketplace"
-import InstalledServersView from "./tabs/installed"
+import McpMarketplaceView from "./tabs/marketplace/McpMarketplaceView"
+import InstalledServersView from "./tabs/installed/InstalledServersView"
 
 type McpViewProps = {
 	onDone: () => void
