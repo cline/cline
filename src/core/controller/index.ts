@@ -291,32 +291,6 @@ export class Controller {
 				}
 				break
 			case "optionsResponse":
-				if (this.task?.taskId) {
-					// Get the last message with options
-					const lastFollowupMessage = findLast(
-						this.task.clineMessages,
-						(m) => m.ask === "followup" || m.ask === "plan_mode_respond",
-					)
-
-					// Check if options were presented (lastOptionsCount > 0)
-					if (this.task.lastOptionsCount > 0 && this.task.chatSettings.mode && lastFollowupMessage) {
-						// Options were presented, now determine if user selected one
-						let wasOptionSelected = false
-						const messageData = JSON.parse(lastFollowupMessage.text || "{}")
-						const options = messageData.options || []
-						wasOptionSelected = options.includes(message.text)
-
-						if (wasOptionSelected) {
-							// User selected one of the options
-							telemetryService.captureOptionSelected(
-								this.task.taskId,
-								this.task.lastOptionsCount,
-								this.task.chatSettings.mode,
-							)
-						}
-					}
-				}
-
 				await this.postMessageToWebview({
 					type: "invoke",
 					invoke: "sendMessage",
