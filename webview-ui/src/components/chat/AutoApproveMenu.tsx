@@ -36,6 +36,12 @@ const ACTION_METADATA: {
 			"Allows execution of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
 	},
 	{
+		id: "executeAllCommands",
+		label: "Execute All commands",
+		shortName: "AllCommands",
+		description: "Allows execution of All terminal commands. Use at your own risk.",
+	},
+	{
 		id: "useBrowser",
 		label: "Use the browser",
 		shortName: "Browser",

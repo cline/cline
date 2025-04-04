@@ -1134,7 +1134,7 @@ export class Task {
 		}
 	}
 
-	shouldAutoApproveTool(toolName: ToolUseName): boolean {
+	shouldAutoApproveTool(toolName: ToolUseName, requiresApprovalPerLLM?: boolean): boolean {
 		if (this.autoApprovalSettings.enabled) {
 			switch (toolName) {
 				case "read_file":
@@ -1146,6 +1146,12 @@ export class Task {
 				case "replace_in_file":
 					return this.autoApprovalSettings.actions.editFiles
 				case "execute_command":
+					if (requiresApprovalPerLLM === true) {
+						return (
+							this.autoApprovalSettings.actions.executeCommands &&
+							this.autoApprovalSettings.actions.executeAllCommands
+						)
+					}
 					return this.autoApprovalSettings.actions.executeCommands
 				case "browser_action":
 					return this.autoApprovalSettings.actions.useBrowser
@@ -1156,6 +1162,14 @@ export class Task {
 		}
 		return false
 	}
+
+	//	getCommandAutoApproveSettings(): [boolean, boolean] {
+	//		// This function is kept for backward compatibility
+	//		return [
+	//			this.autoApprovalSettings.actions.executeCommands,
+	//			this.autoApprovalSettings.actions.executeAllCommands
+	//		]
+	//	}
 
 	private formatErrorWithStatusCode(error: any): string {
 		const statusCode = error.status || error.statusCode || (error.response && error.response.status)
@@ -2314,7 +2328,7 @@ export class Task {
 					case "execute_command": {
 						let command: string | undefined = block.params.command
 						const requiresApprovalRaw: string | undefined = block.params.requires_approval
-						const requiresApproval = requiresApprovalRaw?.toLowerCase() === "true"
+						const requiresApprovalPerLLM = requiresApprovalRaw?.toLowerCase() === "true"
 
 						try {
 							if (block.partial) {
@@ -2365,7 +2379,10 @@ export class Task {
 
 								let didAutoApprove = false
 
-								if (!requiresApproval && this.shouldAutoApproveTool(block.name)) {
+								if (
+									(!requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name)) ||
+									(requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name, true))
+								) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "command")
 									await this.say("command", command, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2378,7 +2395,7 @@ export class Task {
 									const didApprove = await askApproval(
 										"command",
 										command +
-											`${this.shouldAutoApproveTool(block.name) && requiresApproval ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
+											`${this.shouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
 									)
 									if (!didApprove) {
 										break
