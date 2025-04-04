@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Added option to auto-aproove all commands
+Added option to auto-approve all commands
