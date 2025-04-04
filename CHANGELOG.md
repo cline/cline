@@ -1,10 +1,10 @@
 # Changelog
 
-## 3.9.1
+## [3.9.1]
 
--   ff762d3: cleanup
+-   Add Gemini 2.5 Pro Preview 03-25 to Google Provider
 
-## [3.8.7]
+## [3.9.0]
 
 -   Add Enable extended thinking for LiteLLM provider (Thanks @jorgegarciarey!)
 -   Add a tab for configuring local MCP Servers
