@@ -112,7 +112,7 @@ const ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
     border: 1px solid var(--vscode-editorGroup-border);
     padding: 12px;
     border-radius: 3px;
-    z-index: 1000;
+    z-index: 1100;
     max-height: calc(100vh - 100px);
     overflow-y: auto;
     overscroll-behavior: contain;
