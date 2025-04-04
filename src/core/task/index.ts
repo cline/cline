@@ -116,7 +116,6 @@ export class Task {
 	isInitialized = false
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
-	lastOptionsCount: number = 0
 
 	// streaming
 	isWaitingForFirstChunk = false
@@ -686,31 +685,6 @@ export class Task {
 		this.askResponse = askResponse
 		this.askResponseText = text
 		this.askResponseImages = images
-
-		// Track telemetry for options being ignored when a user types a custom response
-		if (askResponse === "messageResponse" && this.lastOptionsCount > 0) {
-			// Get the last message with options
-			const lastFollowupMessage = findLast(this.clineMessages, (m) => m.ask === "followup" || m.ask === "plan_mode_respond")
-
-			if (lastFollowupMessage) {
-				try {
-					// Parse the options from the message
-					const messageData = JSON.parse(lastFollowupMessage.text || "{}")
-					const options = messageData.options || []
-
-					// Check if the response matches any option
-					const isOptionSelected = options.includes(text)
-
-					if (!isOptionSelected) {
-						// User typed a custom response instead of selecting an option
-						console.log("task/index.ts: User typed a custom response instead of selecting an option")
-						telemetryService.captureOptionsIgnored(this.taskId, this.lastOptionsCount, this.chatSettings.mode)
-					}
-				} catch (error) {
-					console.error("Task: Error parsing AI-generated options for telemetry", error)
-				}
-			}
-		}
 	}
 
 	async say(type: ClineSay, text?: string, images?: string[], partial?: boolean): Promise<undefined> {
@@ -2677,7 +2651,6 @@ export class Task {
 
 								// Store the number of options for telemetry
 								const options = parsePartialArrayString(optionsRaw || "[]")
-								this.lastOptionsCount = options.length
 
 								const { text, images } = await this.ask("followup", JSON.stringify(sharedMessage), false)
 
@@ -2692,9 +2665,11 @@ export class Task {
 											selected: text,
 										} satisfies ClineAskQuestion)
 										await this.saveClineMessagesAndUpdateHistory()
+										telemetryService.captureOptionSelected(this.taskId, options.length, "act")
 									}
 								} else {
 									// Option not selected, send user feedback
+									telemetryService.captureOptionsIgnored(this.taskId, options.length, "act")
 									await this.say("user_feedback", text ?? "", images)
 								}
 
@@ -2737,7 +2712,6 @@ export class Task {
 
 								// Store the number of options for telemetry
 								const options = parsePartialArrayString(optionsRaw || "[]")
-								this.lastOptionsCount = options.length
 
 								this.isAwaitingPlanResponse = true
 								let { text, images } = await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), false)
@@ -2759,10 +2733,12 @@ export class Task {
 											selected: text,
 										} satisfies ClinePlanModeResponse)
 										await this.saveClineMessagesAndUpdateHistory()
+										telemetryService.captureOptionSelected(this.taskId, options.length, "plan")
 									}
 								} else {
 									// Option not selected, send user feedback
 									if (text || images?.length) {
+										telemetryService.captureOptionsIgnored(this.taskId, options.length, "plan")
 										await this.say("user_feedback", text ?? "", images)
 									}
 								}
