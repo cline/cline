@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import React, { useRef, useState } from "react"
+import React, { useRef, useState, CSSProperties, useMemo } from "react"
 import { useClickAway } from "react-use"
 import styled from "styled-components"
 import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
@@ -12,28 +12,48 @@ interface BrowserSettingsMenuProps {
 	maxWidth?: number
 }
 
+// constant inline styles
+const containerStyle: CSSProperties = { position: "relative", marginTop: "-1px" }
+const codiconStyle: CSSProperties = { fontSize: "14.5px" }
+const VSCodeCheckboxStyle: CSSProperties = { marginBottom: "8px", marginTop: -1 }
+const VSCodeDropdownStyle: CSSProperties = { width: "100%" }
+
+// constant JSX.Elements
+const DropdownOptions = Object.entries(BROWSER_VIEWPORT_PRESETS).map(([name]) => (
+	<VSCodeOption key={name} value={name}>
+		{name}
+	</VSCodeOption>
+))
+
 export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabled = false, maxWidth }) => {
 	const { browserSettings } = useExtensionState()
 	const [showMenu, setShowMenu] = useState(false)
-	const [hasMouseEntered, setHasMouseEntered] = useState(false)
+	const hasMouseEnteredRef = useRef(false)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const menuRef = useRef<HTMLDivElement>(null)
+	const dropdownValue = useMemo(
+		() =>
+			Object.entries(BROWSER_VIEWPORT_PRESETS).find(
+				([_, size]) => size.width === browserSettings.viewport.width && size.height === browserSettings.viewport.height,
+			)?.[0],
+		[browserSettings],
+	)
 
 	useClickAway(containerRef, () => {
 		if (showMenu) {
 			setShowMenu(false)
-			setHasMouseEntered(false)
+			hasMouseEnteredRef.current = false
 		}
 	})
 
 	const handleMouseEnter = () => {
-		setHasMouseEntered(true)
+		hasMouseEnteredRef.current = true
 	}
 
 	const handleMouseLeave = () => {
-		if (hasMouseEntered) {
+		if (hasMouseEnteredRef.current) {
 			setShowMenu(false)
-			setHasMouseEntered(false)
+			hasMouseEnteredRef.current = false
 		}
 	}
 
@@ -55,7 +75,7 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 		}
 
 		setShowMenu(false)
-		setHasMouseEntered(false)
+		hasMouseEnteredRef.current = false
 	}
 
 	const handleViewportChange = (event: Event) => {
@@ -99,16 +119,16 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 	// }
 
 	return (
-		<div ref={containerRef} style={{ position: "relative", marginTop: "-1px" }} onMouseLeave={handleControlsMouseLeave}>
+		<div ref={containerRef} style={containerStyle} onMouseLeave={handleControlsMouseLeave}>
 			<VSCodeButton appearance="icon" onClick={() => setShowMenu(!showMenu)} disabled={disabled}>
-				<i className="codicon codicon-settings-gear" style={{ fontSize: "14.5px" }} />
+				<i className="codicon codicon-settings-gear" style={codiconStyle} />
 			</VSCodeButton>
 			{showMenu && (
 				<SettingsMenu ref={menuRef} maxWidth={maxWidth} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
 					<SettingsGroup>
 						{/* <SettingsHeader>Headless Mode</SettingsHeader> */}
 						<VSCodeCheckbox
-							style={{ marginBottom: "8px", marginTop: -1 }}
+							style={VSCodeCheckboxStyle}
 							checked={browserSettings.headless}
 							onChange={(e) => updateHeadless((e.target as HTMLInputElement).checked)}>
 							Run in headless mode
@@ -151,20 +171,10 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 					<SettingsGroup>
 						<SettingsHeader>Viewport Size</SettingsHeader>
 						<VSCodeDropdown
-							style={{ width: "100%" }}
-							value={
-								Object.entries(BROWSER_VIEWPORT_PRESETS).find(
-									([_, size]) =>
-										size.width === browserSettings.viewport.width &&
-										size.height === browserSettings.viewport.height,
-								)?.[0]
-							}
+							style={VSCodeDropdownStyle}
+							value={dropdownValue}
 							onChange={(event) => handleViewportChange(event as Event)}>
-							{Object.entries(BROWSER_VIEWPORT_PRESETS).map(([name]) => (
-								<VSCodeOption key={name} value={name}>
-									{name}
-								</VSCodeOption>
-							))}
+							{DropdownOptions}
 						</VSCodeDropdown>
 					</SettingsGroup>
 				</SettingsMenu>
