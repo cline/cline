@@ -14,6 +14,7 @@ import McpView from "./components/mcp/McpView"
 const AppContent = () => {
 	const { didHydrateState, showWelcome, shouldShowAnnouncement, telemetrySetting, vscMachineId } = useExtensionState()
 	const [showSettings, setShowSettings] = useState(false)
+	const hideSettings = useCallback(() => setShowSettings(false), [])
 	const [showHistory, setShowHistory] = useState(false)
 	const [showMcp, setShowMcp] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
@@ -87,7 +88,7 @@ const AppContent = () => {
 				<WelcomeView />
 			) : (
 				<>
-					{showSettings && <SettingsView onDone={() => setShowSettings(false)} />}
+					{showSettings && <SettingsView onDone={hideSettings} />}
 					{showHistory && <HistoryView onDone={() => setShowHistory(false)} />}
 					{showMcp && <McpView onDone={() => setShowMcp(false)} />}
 					{showAccount && <AccountView onDone={() => setShowAccount(false)} />}
