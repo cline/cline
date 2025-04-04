@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { vscode } from "../../../utils/vscode"
+import { vscode } from "../../../../../utils/vscode"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEvent } from "react-use"
 
