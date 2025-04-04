@@ -12,12 +12,12 @@ import cloneDeep from "clone-deep"
 enum EditType {
 	UNDEFINED = 0,
 	NO_FILE_READ = 1,
-	READ_FILE = 2,
-	ALTER_FILE = 3,
+	READ_FILE_TOOL = 2,
+	ALTER_FILE_TOOL = 3,
 	FILE_MENTION = 4,
 }
 
-// array of string values allows us to cover all changes currently supported
+// array of string values allows us to cover all changes for message types currently supported
 type MessageContent = string[]
 type MessageMetadata = string[][]
 
@@ -29,7 +29,7 @@ type SerializedContextHistory = Array<
 	[
 		number, // messageIndex
 		[
-			number, // the first element of the tuple
+			number, // EditType (message type)
 			Array<
 				[
 					number, // blockIndex
@@ -46,7 +46,7 @@ export class ContextManager {
 	// moving to an earlier conversation history checkpoint - this ordering intuitively allows for binary search on truncation
 	// there is also a number stored for each (EditType) which defines which message type it is, for custom handling
 
-	// format:  {outerIndex => {[EditType, innerIndex => [[timestamp, updateType, update], ...]}]}
+	// format:  { outerIndex => [EditType, { innerIndex => [[timestamp, updateType, update], ...] }] }
 	// example: { 1 => { [0, 0 => [[<timestamp>, "text", "[NOTE] Some previous conversation history with the user has been removed ..."], ...] }] }
 	// the above example would be how we update the first assistant message to indicate we truncated text
 	private contextHistoryUpdates: Map<number, [number, Map<number, ContextUpdate[]>]>
@@ -56,14 +56,14 @@ export class ContextManager {
 	}
 
 	/**
-	 * public function for loading contextHistory from memory, if it exists
+	 * public function for loading contextHistoryUpdates from disk, if it exists
 	 */
 	async initializeContextHistory(taskDirectory: string) {
 		this.contextHistoryUpdates = await this.getSavedContextHistory(taskDirectory)
 	}
 
 	/**
-	 * get the stored context history from disk
+	 * get the stored context history updates from disk
 	 */
 	private async getSavedContextHistory(taskDirectory: string): Promise<Map<number, [number, Map<number, ContextUpdate[]>]>> {
 		try {
@@ -87,12 +87,10 @@ export class ContextManager {
 	}
 
 	/**
-	 * save the context history to disk
+	 * save the context history updates to disk
 	 */
 	private async saveContextHistory(taskDirectory: string) {
 		try {
-			// Convert Map to our defined serialized format
-			// Note: ContextUpdate format is now [timestamp, updateType, update, metadata]
 			const serializedUpdates: SerializedContextHistory = Array.from(this.contextHistoryUpdates.entries()).map(
 				([messageIndex, [numberValue, innerMap]]) => [messageIndex, [numberValue, Array.from(innerMap.entries())]],
 			)
@@ -153,7 +151,7 @@ export class ContextManager {
 					// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
 					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
 
-					// currently if we are able to trim context we will optimistically continue
+					// we later check how many chars we trim to determine if we should still truncate history
 					let [anyContextUpdates, uniqueFileReadIndices] = this.applyContextOptimizations(
 						apiConversationHistory,
 						conversationHistoryDeletedRange ? conversationHistoryDeletedRange[1] + 1 : 2,
@@ -350,6 +348,7 @@ export class ContextManager {
 			// track which blockIndices to delete
 			const blockIndicesToDelete: number[] = []
 
+			// loop over the innerIndices of the messages in this block
 			for (const [blockIndex, updates] of innerMap) {
 				// updates ordered by timestamp, so find cutoff point by iterating from right to left
 				let cutoffIndex = updates.length - 1
@@ -402,14 +401,14 @@ export class ContextManager {
 	}
 
 	/**
-	 * if there is any truncation, and there is no other alteration already set, alter the assistant message to indicate this occurred
+	 * if there is any truncation and there is no other alteration already set, alter the assistant message to indicate this occurred
 	 */
 	private applyStandardContextTruncationNoticeChange(timestamp: number): boolean {
 		if (!this.contextHistoryUpdates.has(1)) {
 			// first assistant message always at index 1
 			const innerMap = new Map<number, ContextUpdate[]>()
-			innerMap.set(0, [[timestamp, "text", [formatResponse.contextTruncationNotice()], []]]) // alter message text at index 0, with empty metadata
-			this.contextHistoryUpdates.set(1, [0, innerMap]) // Wrap in tuple with number 0
+			innerMap.set(0, [[timestamp, "text", [formatResponse.contextTruncationNotice()], []]])
+			this.contextHistoryUpdates.set(1, [0, innerMap]) // EditType is undefined for first assistant message
 			return true
 		}
 		return false
@@ -417,29 +416,70 @@ export class ContextManager {
 
 	/**
 	 * wraps the logic for determining file reads to overwrite, and altering state
+	 * returns whether any updates were made (bool) and indices where updates were made
 	 */
 	private findAndPotentiallySaveFileReadContextHistoryUpdates(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		startFromIndex: number,
 		timestamp: number,
 	): [boolean, Set<number>] {
-		const fileReadIndices = this.getPossibleDuplicateFileReads(apiMessages, startFromIndex)
-		return this.applyFileReadContextHistoryUpdates(fileReadIndices, timestamp)
+		const [fileReadIndices, messageFilePaths] = this.getPossibleDuplicateFileReads(apiMessages, startFromIndex)
+		return this.applyFileReadContextHistoryUpdates(fileReadIndices, messageFilePaths, apiMessages, timestamp)
 	}
 
 	/**
 	 * generate a mapping from unique file reads from multiple tool calls to their outer index position(s)
+	 * also return additional metadata to support multiple file reads in file mention text blocks
 	 */
 	private getPossibleDuplicateFileReads(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		startFromIndex: number,
-	): Map<string, [number, string][]> {
-		const fileReadIndices = new Map<string, [number, string][]>() // for a unique file, all outer indices its read at & the string to replace it with
+	): [Map<string, [number, number, string, string][]>, Map<number, string[]>] {
+		// fileReadIndices: { fileName => [outerIndex, EditType, searchText, replaceText] }
+		// messageFilePaths: { outerIndex => [fileRead1, fileRead2, ..] }
+		// searchText in fileReadIndices is only required for file mention file-reads since there can be more than one file in the text
+		// searchText will be the empty string "" in the case that it's not required
+		// messageFilePaths is only used for file mentions as there can be multiple files read in the same text chunk
+
+		// for all text blocks per file, has info for updating the block
+		const fileReadIndices = new Map<string, [number, number, string, string][]>()
+
+		// for file mention text blocks, track all the unique files read
+		const messageFilePaths = new Map<number, string[]>()
 
 		for (let i = startFromIndex; i < apiMessages.length; i++) {
-			// for now we assume there's no need to check if we've already adjusted this message
+			let thisExistingFileReads: string[] = []
+
 			if (this.contextHistoryUpdates.has(i)) {
-				continue
+				const innerTuple = this.contextHistoryUpdates.get(i)
+				const editType = innerTuple[0]
+
+				if (editType === EditType.FILE_MENTION) {
+					const innerMap = innerTuple[1]
+
+					const blockIndex = 1 // file mention blocks assumed to be at index 1
+					const blockUpdates = innerMap.get(blockIndex)
+
+					// if we have updated this text previously, we want to check whether the lists of files in the metadata are the same
+					if (blockUpdates && blockUpdates.length > 0) {
+						// the first list indicates the files we have replaced in this text, second list indicates all unique files in this text
+						// if they are equal then we have replaced all the files in this text already, and can ignore further processing
+						if (
+							blockUpdates[blockUpdates.length - 1][3][0].length ===
+							blockUpdates[blockUpdates.length - 1][3][1].length
+						) {
+							continue
+						}
+						// otherwise there are still file reads here we can overwrite, so still need to process this text chunk
+						// to do so we need to keep track of which files we've already replaced so we don't replace them again
+						else {
+							thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
+						}
+					}
+				} else {
+					// for all other cases we can assume that we dont need to check this again
+					continue
+				}
 			}
 
 			const message = apiMessages[i]
@@ -447,25 +487,84 @@ export class ContextManager {
 				const firstBlock = message.content[0]
 				if (firstBlock.type === "text") {
 					const matchTup = this.parsePotentialToolCall(firstBlock.text)
+					let foundNormalFileRead = false
 					if (matchTup) {
 						if (matchTup[0] === "read_file") {
 							this.handleReadFileToolCall(i, matchTup[1], fileReadIndices)
+							foundNormalFileRead = true
 						} else if (matchTup[0] === "replace_in_file" || matchTup[0] === "write_to_file") {
 							if (message.content.length > 1) {
 								const secondBlock = message.content[1]
 								if (secondBlock.type === "text") {
 									this.handlePotentialFileChangeToolCalls(i, matchTup[1], secondBlock.text, fileReadIndices)
+									foundNormalFileRead = true
 								}
 							}
 						}
+					}
 
-						// this will match other tool calls, ignore those
+					// currently we will search over all other blocks
+					if (!foundNormalFileRead) {
+						if (message.content.length > 1) {
+							const secondBlock = message.content[1]
+							if (secondBlock.type === "text") {
+								const [hasFileRead, filePaths] = this.handlePotentialFileMentionCalls(
+									i,
+									secondBlock.text,
+									fileReadIndices,
+									thisExistingFileReads,
+								)
+								if (hasFileRead) {
+									messageFilePaths.set(i, filePaths) // all file paths in this string
+								}
+							}
+						}
 					}
 				}
 			}
 		}
 
-		return fileReadIndices
+		return [fileReadIndices, messageFilePaths]
+	}
+
+	/**
+	 * handles potential file content mentions in text blocks
+	 * there will not be more than one of the same file read in a text block
+	 */
+	private handlePotentialFileMentionCalls(
+		i: number,
+		secondBlockText: string,
+		fileReadIndices: Map<string, [number, number, string, string][]>,
+		thisExistingFileReads: string[],
+	): [boolean, string[]] {
+		const pattern = new RegExp(`<final_file_content path="([^"]*)">([\\s\\S]*?)</final_file_content>`, "g")
+
+		let foundMatch = false
+		const filePaths: string[] = []
+
+		let match
+		while ((match = pattern.exec(secondBlockText)) !== null) {
+			foundMatch = true
+
+			const filePath = match[1]
+			filePaths.push(filePath) // we will record all unique paths in this text
+
+			// we can assume that thisExistingFileReads does not have many entries
+			if (thisExistingFileReads.indexOf(filePath) === -1) {
+				// meaning we havent already replaced this file read
+
+				const entireMatch = match[0] // The entire matched string
+
+				// Create the replacement text - keep the tags but replace the content
+				const replacementText = `<final_file_content path="${filePath}">${formatResponse.duplicateFileReadNotice()}</final_file_content>`
+
+				const indices = fileReadIndices.get(filePath) || []
+				indices.push([i, EditType.FILE_MENTION, entireMatch, replacementText])
+				fileReadIndices.set(filePath, indices)
+			}
+		}
+
+		return [foundMatch, filePaths]
 	}
 
 	/**
@@ -484,9 +583,13 @@ export class ContextManager {
 	/**
 	 * file_read tool call always pastes the file, so this is always a hit
 	 */
-	private handleReadFileToolCall(i: number, filePath: string, fileReadIndices: Map<string, [number, string][]>) {
+	private handleReadFileToolCall(
+		i: number,
+		filePath: string,
+		fileReadIndices: Map<string, [number, number, string, string][]>,
+	) {
 		const indices = fileReadIndices.get(filePath) || []
-		indices.push([i, formatResponse.duplicateFileReadNotice()])
+		indices.push([i, EditType.READ_FILE_TOOL, "", formatResponse.duplicateFileReadNotice()])
 		fileReadIndices.set(filePath, indices)
 	}
 
@@ -497,7 +600,7 @@ export class ContextManager {
 		i: number,
 		filePath: string,
 		secondBlockText: string,
-		fileReadIndices: Map<string, [number, string][]>,
+		fileReadIndices: Map<string, [number, number, string, string][]>,
 	) {
 		const pattern = new RegExp(`(<final_file_content path="[^"]*">)[\\s\\S]*?(</final_file_content>)`)
 
@@ -505,7 +608,7 @@ export class ContextManager {
 		if (pattern.test(secondBlockText)) {
 			const replacementText = secondBlockText.replace(pattern, `$1 ${formatResponse.duplicateFileReadNotice()} $2`)
 			const indices = fileReadIndices.get(filePath) || []
-			indices.push([i, replacementText])
+			indices.push([i, EditType.ALTER_FILE_TOOL, "", replacementText])
 			fileReadIndices.set(filePath, indices)
 		}
 	}
@@ -515,45 +618,117 @@ export class ContextManager {
 	 * returns the outer index of messages we alter, to count number of changes
 	 */
 	private applyFileReadContextHistoryUpdates(
-		fileReadIndices: Map<string, [number, string][]>,
+		fileReadIndices: Map<string, [number, number, string, string][]>,
+		messageFilePaths: Map<number, string[]>,
+		apiMessages: Anthropic.Messages.MessageParam[],
 		timestamp: number,
 	): [boolean, Set<number>] {
 		let didUpdate = false
 		const updatedMessageIndices = new Set<number>() // track which messages we update on this round
+		const fileMentionUpdates = new Map<number, [string, string[]]>()
 
-		for (const indices of fileReadIndices.values()) {
+		for (const [filePath, indices] of fileReadIndices.entries()) {
 			// Only process if there are multiple reads of the same file
 			if (indices.length > 1) {
 				// Process all but the last index, as we will keep that instance of the file read
 				for (let i = 0; i < indices.length - 1; i++) {
 					const messageIndex = indices[i][0]
-					const messageString = indices[i][1] // what we will replace the string with
-
-					let innerTuple = this.contextHistoryUpdates.get(messageIndex)
-					let innerMap: Map<number, ContextUpdate[]>
-
-					if (!innerTuple) {
-						// Create new innerMap and wrap in tuple with number 0
-						innerMap = new Map<number, ContextUpdate[]>()
-						this.contextHistoryUpdates.set(messageIndex, [0, innerMap])
-					} else {
-						// Extract existing innerMap from tuple
-						innerMap = innerTuple[1]
-					}
-
-					// block index for file reads from read_file, write_to_file, replace_in_file tools is 1
-					const blockIndex = 1
-
-					const updates = innerMap.get(blockIndex) || []
-
-					// Include empty metadata array
-					updates.push([timestamp, "text", [messageString], []])
-
-					innerMap.set(blockIndex, updates)
+					const messageType = indices[i][1] // EditType value
+					const searchText = indices[i][2] // search text (for file mentions, else empty string)
+					const messageString = indices[i][3] // what we will replace the string with
 
 					didUpdate = true
 					updatedMessageIndices.add(messageIndex)
+
+					// for single-fileread text we can set the updates here
+					// for potential multi-fileread text we need to determine all changes & iteratively update the text prior to saving the final change
+					if (messageType === EditType.FILE_MENTION) {
+						if (!fileMentionUpdates.has(messageIndex)) {
+							// Get base text either from existing updates or from apiMessages
+							let baseText = ""
+							let prevFilesReplaced: string[] = []
+
+							const innerTuple = this.contextHistoryUpdates.get(messageIndex)
+							if (innerTuple) {
+								const blockUpdates = innerTuple[1].get(1) // assumed index=1 for file mention filereads
+								if (blockUpdates && blockUpdates.length > 0) {
+									baseText = blockUpdates[blockUpdates.length - 1][2][0] // index 0 of MessageContent
+									prevFilesReplaced = blockUpdates[blockUpdates.length - 1][3][0] // previously overwritten file reads in this text
+								}
+							}
+
+							// can assume that this content will exist, otherwise it would not have been in fileReadIndices
+							const messageContent = apiMessages[messageIndex]?.content
+							if (!baseText && Array.isArray(messageContent) && messageContent.length > 1) {
+								const contentBlock = messageContent[1] // assume index=1 for all text to replace for file mention filereads
+								if (contentBlock.type === "text") {
+									baseText = contentBlock.text
+								}
+							}
+
+							// prevFilesReplaced keeps track of the previous file reads we've replace in this string, empty array if none
+							fileMentionUpdates.set(messageIndex, [baseText, prevFilesReplaced])
+						}
+
+						// Replace searchText with messageString for all file reads we need to replace in this text
+						if (searchText) {
+							const currentTuple = fileMentionUpdates.get(messageIndex) || ["", []]
+							if (currentTuple[0]) {
+								// safety check
+								// replace this text chunk
+								const updatedText = currentTuple[0].replace(searchText, messageString)
+
+								// add the newly added filePath read
+								const updatedFileReads = currentTuple[1]
+								updatedFileReads.push(filePath)
+
+								fileMentionUpdates.set(messageIndex, [updatedText, updatedFileReads])
+							}
+						}
+					} else {
+						let innerTuple = this.contextHistoryUpdates.get(messageIndex)
+						let innerMap: Map<number, ContextUpdate[]>
+
+						if (!innerTuple) {
+							innerMap = new Map<number, ContextUpdate[]>()
+							this.contextHistoryUpdates.set(messageIndex, [messageType, innerMap])
+						} else {
+							innerMap = innerTuple[1]
+						}
+
+						// block index for file reads from read_file, write_to_file, replace_in_file tools is 1
+						const blockIndex = 1
+
+						const updates = innerMap.get(blockIndex) || []
+
+						// metadata array is empty for non-file mention occurrences
+						updates.push([timestamp, "text", [messageString], []])
+
+						innerMap.set(blockIndex, updates)
+					}
 				}
+			}
+		}
+
+		// apply file mention updates to contextHistoryUpdates
+		for (const [messageIndex, [updatedText, filePathsUpdated]] of fileMentionUpdates.entries()) {
+			let innerTuple = this.contextHistoryUpdates.get(messageIndex)
+			let innerMap: Map<number, ContextUpdate[]>
+
+			if (!innerTuple) {
+				innerMap = new Map<number, ContextUpdate[]>()
+				this.contextHistoryUpdates.set(messageIndex, [EditType.FILE_MENTION, innerMap])
+			} else {
+				innerMap = innerTuple[1]
+			}
+
+			const blockIndex = 1 // we only consider the block index of 1 for file mentions
+			const updates = innerMap.get(blockIndex) || []
+
+			// filePathsUpdated includes changes done previously to this timestamp, and right now
+			if (messageFilePaths.has(messageIndex)) {
+				updates.push([timestamp, "text", [updatedText], [filePathsUpdated, messageFilePaths.get(messageIndex)]])
+				innerMap.set(blockIndex, updates)
 			}
 		}
 
@@ -601,7 +776,13 @@ export class ContextManager {
 
 								// if block was just altered, then calculate savings
 								if (hasNewAlterations) {
-									const originalTextLength = block.text.length
+									let originalTextLength
+									if (updates.length > 1) {
+										originalTextLength = updates[updates.length - 2][2][0].length // handles case if we have multiple updates for same text block
+									} else {
+										originalTextLength = block.text.length
+									}
+
 									const newTextLength = latestUpdate[2][0].length // replacement text
 									totalCharactersSaved += originalTextLength - newTextLength
 
