@@ -107,6 +107,7 @@ export class Controller {
 	async handleSignOut() {
 		try {
 			await storeSecret(this.context, "clineApiKey", undefined)
+			await updateGlobalState(this.context, "userInfo", undefined)
 			await updateGlobalState(this.context, "apiProvider", "openrouter")
 			await this.postStateToWebview()
 			vscode.window.showInformationMessage("Successfully logged out of Cline")
@@ -165,6 +166,28 @@ export class Controller {
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
 		switch (message.type) {
+			case "addRemoteServer": {
+				try {
+					await this.mcpHub?.addRemoteServer(message.serverName!, message.serverUrl!)
+					await this.postMessageToWebview({
+						type: "addRemoteServerResult",
+						addRemoteServerResult: {
+							success: true,
+							serverName: message.serverName!,
+						},
+					})
+				} catch (error) {
+					await this.postMessageToWebview({
+						type: "addRemoteServerResult",
+						addRemoteServerResult: {
+							success: false,
+							serverName: message.serverName!,
+							error: error.message,
+						},
+					})
+				}
+				break
+			}
 			case "authStateChanged":
 				await this.setUserInfo(message.user || undefined)
 				await this.postStateToWebview()
