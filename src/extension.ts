@@ -2,13 +2,13 @@
 // Import the module and reference it with the alias vscode in your code below
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import * as vscode from "vscode"
-import { ClineProvider } from "./core/webview/ClineProvider"
 import { Logger } from "./services/logging/Logger"
 import { createClineAPI } from "./exports"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import { DIFF_VIEW_URI_SCHEME } from "./integrations/editor/DiffViewProvider"
 import assert from "node:assert"
 import { telemetryService } from "./services/telemetry/TelemetryService"
+import { WebviewProvider } from "./core/webview"
 
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -30,34 +30,48 @@ export function activate(context: vscode.ExtensionContext) {
 	Logger.initialize(outputChannel)
 	Logger.log("Cline extension activated")
 
-	const sidebarProvider = new ClineProvider(context, outputChannel)
+	const sidebarWebview = new WebviewProvider(context, outputChannel)
 
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
 
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(ClineProvider.sideBarId, sidebarProvider, {
+		vscode.window.registerWebviewViewProvider(WebviewProvider.sideBarId, sidebarWebview, {
 			webviewOptions: { retainContextWhenHidden: true },
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.plusButtonClicked", async () => {
-			Logger.log("Plus button Clicked")
-			await sidebarProvider.clearTask()
-			await sidebarProvider.postStateToWebview()
-			await sidebarProvider.postMessageToWebview({
-				type: "action",
-				action: "chatButtonClicked",
-			})
+		vscode.commands.registerCommand("cline.plusButtonClicked", async (webview: any) => {
+			const openChat = async (instance?: WebviewProvider) => {
+				await instance?.controller.clearTask()
+				await instance?.controller.postStateToWebview()
+				await instance?.controller.postMessageToWebview({
+					type: "action",
+					action: "chatButtonClicked",
+				})
+			}
+			const isSidebar = !webview
+			if (isSidebar) {
+				openChat(WebviewProvider.getSidebarInstance())
+			} else {
+				WebviewProvider.getTabInstances().forEach(openChat)
+			}
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.mcpButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({
-				type: "action",
-				action: "mcpButtonClicked",
-			})
+		vscode.commands.registerCommand("cline.mcpButtonClicked", (webview: any) => {
+			const openMcp = (instance?: WebviewProvider) =>
+				instance?.controller.postMessageToWebview({
+					type: "action",
+					action: "mcpButtonClicked",
+				})
+			const isSidebar = !webview
+			if (isSidebar) {
+				openMcp(WebviewProvider.getSidebarInstance())
+			} else {
+				WebviewProvider.getTabInstances().forEach(openMcp)
+			}
 		}),
 	)
 
@@ -65,7 +79,7 @@ export function activate(context: vscode.ExtensionContext) {
 		Logger.log("Opening Cline in new tab")
 		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-		const tabProvider = new ClineProvider(context, outputChannel)
+		const tabWebview = new WebviewProvider(context, outputChannel)
 		//const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined
 		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
 
@@ -76,7 +90,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
 
-		const panel = vscode.window.createWebviewPanel(ClineProvider.tabPanelId, "Cline", targetCol, {
+		const panel = vscode.window.createWebviewPanel(WebviewProvider.tabPanelId, "Cline", targetCol, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
 			localResourceRoots: [context.extensionUri],
@@ -87,7 +101,7 @@ export function activate(context: vscode.ExtensionContext) {
 			light: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_light.png"),
 			dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_dark.png"),
 		}
-		tabProvider.resolveWebviewView(panel)
+		tabWebview.resolveWebviewView(panel)
 
 		// Lock the editor group so clicking on files doesn't open them over the panel
 		await setTimeoutPromise(100)
@@ -98,36 +112,59 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand("cline.openInNewTab", openClineInNewTab))
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.settingsButtonClicked", () => {
-			//vscode.window.showInformationMessage(message)
-			sidebarProvider.postMessageToWebview({
-				type: "action",
-				action: "settingsButtonClicked",
+		vscode.commands.registerCommand("cline.settingsButtonClicked", (webview: any) => {
+			WebviewProvider.getAllInstances().forEach((instance) => {
+				const openSettings = async (instance?: WebviewProvider) => {
+					instance?.controller.postMessageToWebview({
+						type: "action",
+						action: "settingsButtonClicked",
+					})
+				}
+				const isSidebar = !webview
+				if (isSidebar) {
+					openSettings(WebviewProvider.getSidebarInstance())
+				} else {
+					WebviewProvider.getTabInstances().forEach(openSettings)
+				}
 			})
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.historyButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({
-				type: "action",
-				action: "historyButtonClicked",
+		vscode.commands.registerCommand("cline.historyButtonClicked", (webview: any) => {
+			WebviewProvider.getAllInstances().forEach((instance) => {
+				const openHistory = async (instance?: WebviewProvider) => {
+					instance?.controller.postMessageToWebview({
+						type: "action",
+						action: "historyButtonClicked",
+					})
+				}
+				const isSidebar = !webview
+				if (isSidebar) {
+					openHistory(WebviewProvider.getSidebarInstance())
+				} else {
+					WebviewProvider.getTabInstances().forEach(openHistory)
+				}
 			})
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.accountButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({
-				type: "action",
-				action: "accountButtonClicked",
+		vscode.commands.registerCommand("cline.accountButtonClicked", (webview: any) => {
+			WebviewProvider.getAllInstances().forEach((instance) => {
+				const openAccount = async (instance?: WebviewProvider) => {
+					instance?.controller.postMessageToWebview({
+						type: "action",
+						action: "accountButtonClicked",
+					})
+				}
+				const isSidebar = !webview
+				if (isSidebar) {
+					openAccount(WebviewProvider.getSidebarInstance())
+				} else {
+					WebviewProvider.getTabInstances().forEach(openAccount)
+				}
 			})
-		}),
-	)
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand("cline.openDocumentation", () => {
-			vscode.env.openExternal(vscode.Uri.parse("https://docs.cline.bot/"))
 		}),
 	)
 
@@ -155,15 +192,15 @@ export function activate(context: vscode.ExtensionContext) {
 
 		const path = uri.path
 		const query = new URLSearchParams(uri.query.replace(/\+/g, "%2B"))
-		const visibleProvider = ClineProvider.getVisibleInstance()
-		if (!visibleProvider) {
+		const visibleWebview = WebviewProvider.getVisibleInstance()
+		if (!visibleWebview) {
 			return
 		}
 		switch (path) {
 			case "/openrouter": {
 				const code = query.get("code")
 				if (code) {
-					await visibleProvider.handleOpenRouterCallback(code)
+					await visibleWebview?.controller.handleOpenRouterCallback(code)
 				}
 				break
 			}
@@ -179,13 +216,13 @@ export function activate(context: vscode.ExtensionContext) {
 				})
 
 				// Validate state parameter
-				if (!(await visibleProvider.validateAuthState(state))) {
+				if (!(await visibleWebview?.controller.validateAuthState(state))) {
 					vscode.window.showErrorMessage("Invalid auth state")
 					return
 				}
 
 				if (token && apiKey) {
-					await visibleProvider.handleAuthCallback(token, apiKey)
+					await visibleWebview?.controller.handleAuthCallback(token, apiKey)
 				}
 				break
 			}
@@ -200,7 +237,7 @@ export function activate(context: vscode.ExtensionContext) {
 		// Use dynamic import to avoid loading the module in production
 		import("./dev/commands/tasks")
 			.then((module) => {
-				const devTaskCommands = module.registerTaskCommands(context, sidebarProvider)
+				const devTaskCommands = module.registerTaskCommands(context, sidebarWebview.controller)
 				context.subscriptions.push(...devTaskCommands)
 				Logger.log("Cline dev task commands registered")
 			})
@@ -229,8 +266,8 @@ export function activate(context: vscode.ExtensionContext) {
 			const filePath = editor.document.uri.fsPath
 			const languageId = editor.document.languageId
 
-			// Send to sidebar provider
-			await sidebarProvider.addSelectedCodeToChat(
+			const visibleWebview = WebviewProvider.getVisibleInstance()
+			await visibleWebview?.controller.addSelectedCodeToChat(
 				selectedText,
 				filePath,
 				languageId,
@@ -279,7 +316,8 @@ export function activate(context: vscode.ExtensionContext) {
 				*/
 
 				// Send to sidebar provider
-				await sidebarProvider.addSelectedTerminalOutputToChat(terminalContents, terminal.name)
+				const visibleWebview = WebviewProvider.getVisibleInstance()
+				await visibleWebview?.controller.addSelectedTerminalOutputToChat(terminalContents, terminal.name)
 			} catch (error) {
 				// Ensure clipboard is restored even if an error occurs
 				await vscode.env.clipboard.writeText(tempCopyBuffer)
@@ -350,11 +388,12 @@ export function activate(context: vscode.ExtensionContext) {
 			const languageId = editor.document.languageId
 
 			// Send to sidebar provider with diagnostics
-			await sidebarProvider.fixWithCline(selectedText, filePath, languageId, diagnostics)
+			const visibleWebview = WebviewProvider.getVisibleInstance()
+			await visibleWebview?.controller.fixWithCline(selectedText, filePath, languageId, diagnostics)
 		}),
 	)
 
-	return createClineAPI(outputChannel, sidebarProvider)
+	return createClineAPI(outputChannel, sidebarWebview.controller)
 }
 
 // This method is called when your extension is deactivated

@@ -1,5 +1,31 @@
 # Changelog
 
+## [3.8.6]
+ 
+-   Add UI for adding remote servers
+-   Add Mentions Feature Guide and update related documentation
+-   Fix bug where menu would open in sidebar and open tab
+-   Fix issue with Cline accounts not showing user info in popout tabs
+-   Fix bug where menu buttons wouldn't open view in sidebar
+
+## [3.8.5]
+
+-   Add support for remote MCP Servers using SSE
+-   Add gemini-2.5-pro-exp-03-25 to Vertex AI (thanks @arri-cc!)
+-   Add access to history, mcp, and new task buttons in popout view
+-   Add task feedback telemetry (thumbs up/down on task completion)
+-   Add toggle disabled for remote servers
+-   Move the MCP Restart and Delete buttons and add an auto-approve all toggle
+-   Update Requestly UX for model selection (thanks @arafatkatze!)
+-   Add escape for html content for gemini when running commands
+-   Improve search and replace edit failure behaviors
+
+## [3.8.4]
+
+-   Add Sambanova Deepseek-V3-0324
+-   Add cost calculation support for LiteLLM provider
+-   Fix bug where Cline would use plan_mode_response bug without response parameter
+
 ## [3.8.3]
 
 -   Add support for SambaNova QwQ-32B model

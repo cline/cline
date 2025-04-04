@@ -7,6 +7,7 @@ import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
 import { UsageTransaction, PaymentTransaction } from "../../../../src/shared/ClineAccount"
+import { useExtensionState } from "../../context/ExtensionStateContext"
 
 type AccountViewProps = {
 	onDone: () => void
@@ -29,7 +30,11 @@ const AccountView = ({ onDone }: AccountViewProps) => {
 }
 
 export const ClineAccountView = () => {
-	const { user, handleSignOut } = useFirebaseAuth()
+	const { user: firebaseUser, handleSignOut } = useFirebaseAuth()
+	const { userInfo, apiConfiguration } = useExtensionState()
+
+	let user = apiConfiguration?.clineApiKey ? firebaseUser || userInfo : undefined
+
 	const [balance, setBalance] = useState(0)
 	const [isLoading, setIsLoading] = useState(true)
 	const [usageData, setUsageData] = useState<UsageTransaction[]>([])
@@ -147,7 +152,7 @@ export const ClineAccountView = () => {
 					</div>
 				</div>
 			) : (
-				<div className="flex flex-col items-center pr-3 max-w-[400px]">
+				<div className="flex flex-col items-center pr-3">
 					<ClineLogoWhite className="size-16 mb-4" />
 
 					<p style={{}}>

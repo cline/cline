@@ -6,6 +6,7 @@ import {
 	VSCodePanelView,
 	VSCodeDropdown,
 	VSCodeOption,
+	VSCodeCheckbox,
 } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import styled from "styled-components"
@@ -17,6 +18,7 @@ import McpMarketplaceView from "./marketplace/McpMarketplaceView"
 import McpResourceRow from "./McpResourceRow"
 import McpToolRow from "./McpToolRow"
 import DangerButton from "../common/DangerButton"
+import AddRemoteServerForm from "./tabs/AddRemoteServerForm"
 
 type McpViewProps = {
 	onDone: () => void
@@ -80,6 +82,9 @@ const McpView = ({ onDone }: McpViewProps) => {
 							Marketplace
 						</TabButton>
 					)}
+					<TabButton isActive={activeTab === "addRemote"} onClick={() => handleTabChange("addRemote")}>
+						Remote Servers
+					</TabButton>
 					<TabButton isActive={activeTab === "installed"} onClick={() => handleTabChange("installed")}>
 						Installed
 					</TabButton>
@@ -88,6 +93,7 @@ const McpView = ({ onDone }: McpViewProps) => {
 				{/* Content container */}
 				<div style={{ width: "100%" }}>
 					{mcpMarketplaceEnabled && activeTab === "marketplace" && <McpMarketplaceView />}
+					{activeTab === "addRemote" && <AddRemoteServerForm onServerAdded={() => handleTabChange("installed")} />}
 					{activeTab === "installed" && (
 						<div style={{ padding: "16px 20px" }}>
 							<div
@@ -204,7 +210,7 @@ export const TabButton = ({
 
 // Server Row Component
 const ServerRow = ({ server }: { server: McpServer }) => {
-	const { mcpMarketplaceCatalog } = useExtensionState()
+	const { mcpMarketplaceCatalog, autoApprovalSettings } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isDeleting, setIsDeleting] = useState(false)
@@ -271,6 +277,17 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 		})
 	}
 
+	const handleAutoApproveChange = () => {
+		if (!server.name) return
+
+		vscode.postMessage({
+			type: "toggleToolAutoApprove",
+			serverName: server.name,
+			toolNames: server.tools?.map((tool) => tool.name) || [],
+			autoApprove: !server.tools?.every((tool) => tool.autoApprove),
+		})
+	}
+
 	return (
 		<div style={{ marginBottom: "10px" }}>
 			<div
@@ -299,7 +316,33 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 					}}>
 					{getMcpServerDisplayName(server.name, mcpMarketplaceCatalog)}
 				</span>
-				<div style={{ display: "flex", alignItems: "center", marginRight: "8px" }} onClick={(e) => e.stopPropagation()}>
+				{/* Collapsed view controls */}
+				{!server.error && (
+					<div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "8px" }}>
+						<VSCodeButton
+							appearance="icon"
+							title="Restart Server"
+							onClick={(e) => {
+								e.stopPropagation()
+								handleRestart()
+							}}
+							disabled={server.status === "connecting"}>
+							<span className="codicon codicon-sync"></span>
+						</VSCodeButton>
+						<VSCodeButton
+							appearance="icon"
+							title="Delete Server"
+							onClick={(e) => {
+								e.stopPropagation()
+								handleDelete()
+							}}
+							disabled={isDeleting}>
+							<span className="codicon codicon-trash"></span>
+						</VSCodeButton>
+					</div>
+				)}
+				{/* Toggle Switch */}
+				<div style={{ display: "flex", alignItems: "center", marginLeft: "8px" }} onClick={(e) => e.stopPropagation()}>
 					<div
 						role="switch"
 						aria-checked={!server.disabled}
@@ -422,6 +465,15 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 										{server.tools.map((tool) => (
 											<McpToolRow key={tool.name} tool={tool} serverName={server.name} />
 										))}
+										{server.name && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
+											<VSCodeCheckbox
+												style={{ marginBottom: -10 }}
+												checked={server.tools.every((tool) => tool.autoApprove)}
+												onChange={handleAutoApproveChange}
+												data-tool="all-tools">
+												Auto-approve all tools
+											</VSCodeCheckbox>
+										)}
 									</div>
 								) : (
 									<div
