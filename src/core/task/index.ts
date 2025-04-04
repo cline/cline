@@ -173,6 +173,9 @@ export class Task {
 			...apiConfiguration,
 			taskId: this.taskId,
 		})
+		
+		// Set taskId on browserSession for telemetry tracking
+		this.browserSession.setTaskId(this.taskId)
 
 		// Continue with task initialization
 		if (historyItem) {

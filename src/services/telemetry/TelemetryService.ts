@@ -38,6 +38,10 @@ class PostHogClient {
 			RETRY_CLICKED: "task.retry_clicked",
 			// Tracks when a diff edit (replace_in_file) operation fails
 			DIFF_EDIT_FAILED: "task.diff_edit_failed",
+			// Tracks when the browser tool is started
+			BROWSER_TOOL_START: "task.browser_tool_start",
+			// Tracks when the browser tool is completed
+			BROWSER_TOOL_END: "task.browser_tool_end",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -453,6 +457,47 @@ class PostHogClient {
 			event: PostHogClient.EVENTS.TASK.RETRY_CLICKED,
 			properties: {
 				taskId,
+			},
+		})
+	}
+
+	/**
+	 * Records when the browser tool is started
+	 * @param taskId Unique identifier for the task
+	 * @param browserSettings The browser settings being used
+	 */
+	public captureBrowserToolStart(taskId: string, browserSettings: any) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_START,
+			properties: {
+				taskId,
+				viewport: browserSettings.viewport,
+				headless: browserSettings.headless,
+				isRemote: !!browserSettings.remoteBrowserEnabled,
+				remoteBrowserHost: browserSettings.remoteBrowserHost,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when the browser tool is completed
+	 * @param taskId Unique identifier for the task
+	 * @param stats Statistics about the browser session
+	 */
+	public captureBrowserToolEnd(taskId: string, stats: { 
+		actionCount: number, 
+		duration: number,
+		actions?: string[]
+	}) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_END,
+			properties: {
+				taskId,
+				actionCount: stats.actionCount,
+				duration: stats.duration,
+				actions: stats.actions,
+				timestamp: new Date().toISOString(),
 			},
 		})
 	}

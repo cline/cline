@@ -13,6 +13,7 @@ import { BrowserSettings } from "../../shared/BrowserSettings"
 import { discoverChromeInstances, testBrowserConnection } from "./BrowserDiscovery"
 import * as chromeLauncher from "chrome-launcher"
 import { Controller } from "../../core/controller"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 interface PCRStats {
 	puppeteer: { launch: typeof launch }
@@ -38,6 +39,11 @@ export class BrowserSession {
 	private lastConnectionAttempt: number = 0
 	browserSettings: BrowserSettings
 	private isConnectedToRemote: boolean = false
+	
+	// Telemetry tracking properties
+	private sessionStartTime: number = 0
+	private browserActions: string[] = []
+	private taskId?: string
 
 	constructor(context: vscode.ExtensionContext, browserSettings: BrowserSettings) {
 		this.context = context
@@ -169,10 +175,22 @@ export class BrowserSession {
 		}
 	}
 
+	/**
+	 * Set the task ID for telemetry tracking
+	 * @param taskId The task ID to associate with browser actions
+	 */
+	setTaskId(taskId: string) {
+		this.taskId = taskId;
+	}
+
 	async launchBrowser() {
 		if (this.browser) {
 			await this.closeBrowser() // this may happen when the model launches a browser again after having used it already before
 		}
+
+		// Reset tracking properties
+		this.sessionStartTime = Date.now();
+		this.browserActions = [];
 
 		// Reset remote connection status
 		this.isConnectedToRemote = false
@@ -182,6 +200,12 @@ export class BrowserSession {
 			try {
 				await this.launchRemoteBrowser()
 				// Don't create a new page here, as we'll create it in launchRemoteBrowser
+				
+				// Send telemetry for browser tool start
+				if (this.taskId) {
+					telemetryService.captureBrowserToolStart(this.taskId, this.browserSettings);
+				}
+				
 				return
 			} catch (error) {
 				console.error("Failed to launch remote browser, falling back to local mode:", error)
@@ -193,6 +217,11 @@ export class BrowserSession {
 		}
 
 		this.page = await this.browser?.newPage()
+		
+		// Send telemetry for browser tool start
+		if (this.taskId) {
+			telemetryService.captureBrowserToolStart(this.taskId, this.browserSettings);
+		}
 	}
 
 	async launchLocalBrowser() {
@@ -334,6 +363,16 @@ export class BrowserSession {
 
 	async closeBrowser(): Promise<BrowserActionResult> {
 		if (this.browser || this.page) {
+			// Send telemetry for browser tool end if we have a task ID and session was started
+			if (this.taskId && this.sessionStartTime > 0) {
+				const sessionDuration = Date.now() - this.sessionStartTime;
+				telemetryService.captureBrowserToolEnd(this.taskId, {
+					actionCount: this.browserActions.length,
+					duration: sessionDuration,
+					actions: this.browserActions
+				});
+			}
+			
 			if (this.isConnectedToRemote && this.browser) {
 				// Close the page/tab first if it exists
 				if (this.page) {
@@ -351,6 +390,10 @@ export class BrowserSession {
 			this.page = undefined
 			this.currentMousePosition = undefined
 			this.isConnectedToRemote = false
+			
+			// Reset tracking properties
+			this.sessionStartTime = 0;
+			this.browserActions = [];
 		}
 		return {}
 	}
@@ -440,6 +483,9 @@ export class BrowserSession {
 	}
 
 	async navigateToUrl(url: string): Promise<BrowserActionResult> {
+		// Track this action for telemetry
+		this.browserActions.push(`navigate: url`);
+		
 		return this.doAction(async (page) => {
 			// networkidle2 isn't good enough since page may take some time to load. we can assume locally running dev sites will reach networkidle0 in a reasonable amount of time
 			await page.goto(url, {
@@ -485,6 +531,9 @@ export class BrowserSession {
 	}
 
 	async click(coordinate: string): Promise<BrowserActionResult> {
+		// Track this action for telemetry
+		this.browserActions.push(`click: coordinate`);
+		
 		const [x, y] = coordinate.split(",").map(Number)
 		return this.doAction(async (page) => {
 			// Set up network request monitoring
@@ -518,12 +567,18 @@ export class BrowserSession {
 	}
 
 	async type(text: string): Promise<BrowserActionResult> {
+		// Track this action for telemetry
+		this.browserActions.push(`type:${text.length} chars`);
+		
 		return this.doAction(async (page) => {
 			await page.keyboard.type(text)
 		})
 	}
 
 	async scrollDown(): Promise<BrowserActionResult> {
+		// Track this action for telemetry
+		this.browserActions.push("scrollDown");
+		
 		return this.doAction(async (page) => {
 			await page.evaluate(() => {
 				window.scrollBy({
@@ -536,6 +591,9 @@ export class BrowserSession {
 	}
 
 	async scrollUp(): Promise<BrowserActionResult> {
+		// Track this action for telemetry
+		this.browserActions.push("scrollUp");
+		
 		return this.doAction(async (page) => {
 			await page.evaluate(() => {
 				window.scrollBy({
