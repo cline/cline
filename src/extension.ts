@@ -114,15 +114,24 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand('posthog.popoutButtonClicked', openPostHogInNewTab))
     context.subscriptions.push(vscode.commands.registerCommand('posthog.openInNewTab', openPostHogInNewTab))
 
-    context.subscriptions.push(
-        vscode.commands.registerCommand('posthog.settingsButtonClicked', () => {
-            //vscode.window.showInformationMessage(message)
-            sidebarProvider.postMessageToWebview({
-                type: 'action',
-                action: 'settingsButtonClicked',
-            })
+    const openSettingsPanel = async () => {
+        const tabProvider = new PostHogProvider(context, outputChannel)
+        const panel = vscode.window.createWebviewPanel('posthog.settings', 'PostHog Settings', vscode.ViewColumn.One, {
+            enableScripts: true,
+            retainContextWhenHidden: true,
         })
-    )
+
+        panel.iconPath = {
+            light: vscode.Uri.joinPath(context.extensionUri, 'assets', 'icons', 'posthog-icon.png'),
+            dark: vscode.Uri.joinPath(context.extensionUri, 'assets', 'icons', 'posthog-icon.png'),
+        }
+
+        tabProvider.resolveSettingsWebviewView(panel)
+        await setTimeoutPromise(100)
+        await vscode.commands.executeCommand('workbench.action.lockEditorGroup')
+    }
+
+    context.subscriptions.push(vscode.commands.registerCommand('posthog.settingsButtonClicked', openSettingsPanel))
 
     context.subscriptions.push(
         vscode.commands.registerCommand('posthog.historyButtonClicked', () => {

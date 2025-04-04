@@ -892,7 +892,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
         }
 
         return (
-            <div>
+            <div className="chat-text-area">
                 <div
                     style={{
                         padding: '10px 15px',
@@ -1054,18 +1054,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
                                 alignItems: 'center',
                             }}
                         >
-                            {/* <div
-								className={`input-icon-button ${shouldDisableImages ? "disabled" : ""} codicon codicon-device-camera`}
-								onClick={() => {
-									if (!shouldDisableImages) {
-										onSelectImages()
-									}
-								}}
-								style={{
-									marginRight: 5.5,
-									fontSize: 16.5,
-								}}
-							/> */}
                             <div
                                 data-testid="send-button"
                                 className={`input-icon-button ${textAreaDisabled ? 'disabled' : ''} codicon codicon-send`}

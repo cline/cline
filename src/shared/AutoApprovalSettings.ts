@@ -1,6 +1,4 @@
 export interface AutoApprovalSettings {
-    // Whether auto-approval is enabled
-    enabled: boolean
     // Individual action permissions
     actions: {
         readFiles: boolean // Read files and directories
@@ -15,9 +13,8 @@ export interface AutoApprovalSettings {
 }
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
-    enabled: false,
     actions: {
-        readFiles: false,
+        readFiles: true,
         editFiles: false,
         executeCommands: false,
         useBrowser: false,

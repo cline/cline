@@ -232,9 +232,7 @@ export const ChatRowContent = ({
                             }}
                         ></span>
                     ),
-                    <span style={{ color: normalColor, fontWeight: 'bold' }}>
-                        PostHog wants to execute this command:
-                    </span>,
+                    <span style={{ color: normalColor, fontWeight: 'bold' }}>Max wants to execute this command:</span>,
                 ]
             case 'use_mcp_server':
                 const mcpServerUse = JSON.parse(message.text || '{}') as PostHogAskUseMcpServer
@@ -251,8 +249,8 @@ export const ChatRowContent = ({
                         ></span>
                     ),
                     <span style={{ color: normalColor, fontWeight: 'bold', wordBreak: 'break-word' }}>
-                        PostHog wants to {mcpServerUse.type === 'use_mcp_tool' ? 'use a tool' : 'access a resource'} on
-                        the <code style={{ wordBreak: 'break-all' }}>{mcpServerUse.serverName}</code> MCP server:
+                        Max wants to {mcpServerUse.type === 'use_mcp_tool' ? 'use a tool' : 'access a resource'} on the{' '}
+                        <code style={{ wordBreak: 'break-all' }}>{mcpServerUse.serverName}</code> MCP server:
                     </span>,
                 ]
             case 'completion_result':
@@ -330,7 +328,7 @@ export const ChatRowContent = ({
                             marginBottom: '-1.5px',
                         }}
                     ></span>,
-                    <span style={{ color: normalColor, fontWeight: 'bold' }}>PostHog has a question:</span>,
+                    <span style={{ color: normalColor, fontWeight: 'bold' }}>Max has a question:</span>,
                 ]
             default:
                 return [null, null]
@@ -383,7 +381,7 @@ export const ChatRowContent = ({
                     <>
                         <div style={headerStyle}>
                             {toolIcon('edit')}
-                            <span style={{ fontWeight: 'bold' }}>PostHog wants to edit this file:</span>
+                            <span style={{ fontWeight: 'bold' }}>Max wants to edit this file:</span>
                         </div>
                         <CodeAccordian
                             // isLoading={message.partial}
@@ -399,7 +397,7 @@ export const ChatRowContent = ({
                     <>
                         <div style={headerStyle}>
                             {toolIcon('new-file')}
-                            <span style={{ fontWeight: 'bold' }}>PostHog wants to create a new file:</span>
+                            <span style={{ fontWeight: 'bold' }}>Max wants to create a new file:</span>
                         </div>
                         <CodeAccordian
                             isLoading={message.partial}
@@ -417,7 +415,7 @@ export const ChatRowContent = ({
                             {toolIcon('file-code')}
                             <span style={{ fontWeight: 'bold' }}>
                                 {/* {message.type === "ask" ? "" : "PostHog read this file:"} */}
-                                PostHog wants to read this file:
+                                Max wants to read this file:
                             </span>
                         </div>
                         <div
@@ -479,7 +477,7 @@ export const ChatRowContent = ({
                             {toolIcon('folder-opened')}
                             <span style={{ fontWeight: 'bold' }}>
                                 {message.type === 'ask'
-                                    ? 'PostHog wants to view the top level files in this directory:'
+                                    ? 'Max wants to view the top level files in this directory:'
                                     : 'PostHog viewed the top level files in this directory:'}
                             </span>
                         </div>
@@ -499,7 +497,7 @@ export const ChatRowContent = ({
                             {toolIcon('folder-opened')}
                             <span style={{ fontWeight: 'bold' }}>
                                 {message.type === 'ask'
-                                    ? 'PostHog wants to recursively view all files in this directory:'
+                                    ? 'Max wants to recursively view all files in this directory:'
                                     : 'PostHog recursively viewed all files in this directory:'}
                             </span>
                         </div>
@@ -519,7 +517,7 @@ export const ChatRowContent = ({
                             {toolIcon('file-code')}
                             <span style={{ fontWeight: 'bold' }}>
                                 {message.type === 'ask'
-                                    ? 'PostHog wants to view source code definition names used in this directory:'
+                                    ? 'Max wants to view source code definition names used in this directory:'
                                     : 'PostHog viewed source code definition names used in this directory:'}
                             </span>
                         </div>
@@ -537,7 +535,7 @@ export const ChatRowContent = ({
                         <div style={headerStyle}>
                             {toolIcon('search')}
                             <span style={{ fontWeight: 'bold' }}>
-                                PostHog wants to search this directory for <code>{tool.regex}</code>:
+                                Max wants to search this directory for <code>{tool.regex}</code>:
                             </span>
                         </div>
                         <CodeAccordian
@@ -726,81 +724,7 @@ export const ChatRowContent = ({
         case 'say':
             switch (message.say) {
                 case 'api_req_started':
-                    return (
-                        <>
-                            <div
-                                style={{
-                                    ...headerStyle,
-                                    marginBottom:
-                                        (cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage
-                                            ? 10
-                                            : 0,
-                                    justifyContent: 'space-between',
-                                    cursor: 'pointer',
-                                    userSelect: 'none',
-                                    WebkitUserSelect: 'none',
-                                    MozUserSelect: 'none',
-                                    msUserSelect: 'none',
-                                }}
-                                onClick={onToggleExpand}
-                            >
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '10px',
-                                    }}
-                                >
-                                    {icon}
-                                    {title}
-                                    {/* Need to render this every time since it affects height of row by 2px */}
-                                    <VSCodeBadge
-                                        style={{
-                                            opacity: cost != null && cost > 0 ? 1 : 0,
-                                        }}
-                                    >
-                                        ${Number(cost || 0)?.toFixed(4)}
-                                    </VSCodeBadge>
-                                </div>
-                                <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`}></span>
-                            </div>
-                            {((cost == null && apiRequestFailedMessage) || apiReqStreamingFailedMessage) && (
-                                <>
-                                    {(() => {
-                                        // Default error display
-                                        return (
-                                            <p
-                                                style={{
-                                                    ...pStyle,
-                                                    color: 'var(--vscode-errorForeground)',
-                                                }}
-                                            >
-                                                {apiRequestFailedMessage || apiReqStreamingFailedMessage}
-                                                {apiRequestFailedMessage?.toLowerCase().includes('powershell') && (
-                                                    <>
-                                                        <br />
-                                                        <br />
-                                                        It seems like you're having Windows PowerShell issues.
-                                                    </>
-                                                )}
-                                            </p>
-                                        )
-                                    })()}
-                                </>
-                            )}
-
-                            {isExpanded && (
-                                <div style={{ marginTop: '10px' }}>
-                                    <CodeAccordian
-                                        code={JSON.parse(message.text || '{}').request}
-                                        language="markdown"
-                                        isExpanded={true}
-                                        onToggleExpand={onToggleExpand}
-                                    />
-                                </div>
-                            )}
-                        </>
-                    )
+                    return null
                 case 'api_req_finished':
                     return null // we should never see this message type
                 case 'mcp_server_response':

@@ -150,6 +150,15 @@ vscode-dropdown::part(listbox) {
     opacity: 0.4;
 }
 
+.chat-text-area {
+    margin: 8px;
+    background-color: var(--vscode-editor-background);
+    border-radius: 4px;
+    border: 1px solid var(--vscode-input-border);
+    border-color: var(--vscode-focusBorder);
+    outline: none;
+}
+
 /* Context mentions */
 
 .mention-context-textarea-highlight {

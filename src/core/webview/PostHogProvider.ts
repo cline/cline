@@ -269,6 +269,107 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
 
         this.outputChannel.appendLine('Webview view resolved')
     }
+    async resolveSettingsWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
+        this.outputChannel.appendLine('Resolving webview view')
+        this.view = webviewView
+
+        webviewView.webview.options = {
+            // Allow scripts in the webview
+            enableScripts: true,
+            localResourceRoots: [this.context.extensionUri],
+        }
+
+        webviewView.webview.html =
+            this.context.extensionMode === vscode.ExtensionMode.Development
+                ? await this.getHMRHtmlContent(webviewView.webview)
+                : this.getHtmlContent(webviewView.webview)
+
+        // Sets up an event listener to listen for messages passed from the webview view context
+        // and executes code based on the message that is received
+        this.setWebviewMessageListener(webviewView.webview)
+
+        // Logs show up in bottom panel > Debug Console
+        //console.log("registering listener")
+
+        // Listen for when the panel becomes visible
+        // https://github.com/microsoft/vscode-discussions/discussions/840
+        if ('onDidChangeViewState' in webviewView) {
+            // WebviewView and WebviewPanel have all the same properties except for this visibility listener
+            // panel
+            webviewView.onDidChangeViewState(
+                () => {
+                    if (this.view?.visible) {
+                        this.postMessageToWebview({
+                            type: 'action',
+                            action: 'didBecomeVisible',
+                        })
+                        // Automatically open settings panel when view becomes visible
+                        this.postMessageToWebview({
+                            type: 'action',
+                            action: 'settingsButtonClicked',
+                        })
+                    }
+                },
+                null,
+                this.disposables
+            )
+        } else if ('onDidChangeVisibility' in webviewView) {
+            // sidebar
+            webviewView.onDidChangeVisibility(
+                () => {
+                    if (this.view?.visible) {
+                        this.postMessageToWebview({
+                            type: 'action',
+                            action: 'didBecomeVisible',
+                        })
+                        // Automatically open settings panel when view becomes visible
+                        this.postMessageToWebview({
+                            type: 'action',
+                            action: 'settingsButtonClicked',
+                        })
+                    }
+                },
+                null,
+                this.disposables
+            )
+        }
+
+        // Listen for when the view is disposed
+        // This happens when the user closes the view or when the view is closed programmatically
+        webviewView.onDidDispose(
+            async () => {
+                await this.dispose()
+            },
+            null,
+            this.disposables
+        )
+
+        // Listen for configuration changes
+        vscode.workspace.onDidChangeConfiguration(
+            async (e) => {
+                if (e && e.affectsConfiguration('workbench.colorTheme')) {
+                    // Sends latest theme name to webview
+                    await this.postMessageToWebview({
+                        type: 'theme',
+                        text: JSON.stringify(await getTheme()),
+                    })
+                }
+            },
+            null,
+            this.disposables
+        )
+
+        // if the extension is starting a new session, clear previous task state
+        this.clearTask()
+
+        // Automatically open settings panel when webview is first initialized
+        await this.postMessageToWebview({
+            type: 'action',
+            action: 'settingsButtonClicked',
+        })
+
+        this.outputChannel.appendLine('Webview view resolved')
+    }
 
     async initPostHogWithTask(task?: string, images?: string[]) {
         await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one

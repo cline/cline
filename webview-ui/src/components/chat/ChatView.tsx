@@ -15,12 +15,10 @@ import {
 import { findLast } from '../../../../src/shared/array'
 import { combineApiRequests } from '../../../../src/shared/combineApiRequests'
 import { combineCommandSequences } from '../../../../src/shared/combineCommandSequences'
-import { getApiMetrics } from '../../../../src/shared/getApiMetrics'
 import { useExtensionState } from '../../context/ExtensionStateContext'
 import { vscode } from '../../utils/vscode'
 import HistoryPreview from '../history/HistoryPreview'
 import { normalizeApiConfiguration } from '../settings/ApiOptions'
-import AutoApproveMenu from './AutoApproveMenu'
 import BrowserSessionRow from './BrowserSessionRow'
 import ChatRow from './ChatRow'
 import ChatTextArea from './ChatTextArea'
@@ -36,27 +34,11 @@ interface ChatViewProps {
 export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
 
 const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
-    const { version, posthogMessages: messages, taskHistory, apiConfiguration, telemetrySetting } = useExtensionState()
+    const { posthogMessages: messages, taskHistory, apiConfiguration, telemetrySetting } = useExtensionState()
 
     //const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
     const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see PostHog.abort)
     const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
-    // has to be after api_req_finished are all reduced into api_req_started messages
-    const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
-
-    const lastApiReqTotalTokens = useMemo(() => {
-        const getTotalTokensFromApiReqMessage = (msg: PostHogMessage) => {
-            if (!msg.text) return 0
-            const { tokensIn, tokensOut, cacheWrites, cacheReads }: PostHogApiReqInfo = JSON.parse(msg.text)
-            return (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-        }
-        const lastApiReqMessage = findLast(modifiedMessages, (msg) => {
-            if (msg.say !== 'api_req_started') return false
-            return getTotalTokensFromApiReqMessage(msg) > 0
-        })
-        if (!lastApiReqMessage) return undefined
-        return getTotalTokensFromApiReqMessage(lastApiReqMessage)
-    }, [modifiedMessages])
 
     const [inputValue, setInputValue] = useState('')
     const textAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -513,7 +495,7 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
         return modifiedMessages.filter((message) => {
             switch (message.ask) {
                 case 'completion_result':
-                    // don't show a chat row for a completion_result ask without text. This specific type of message only occurs if posthog wants to execute a command as part of its completion result, in which case we interject the completion_result tool with the execute_command tool.
+                    // don't show a chat row for a completion_result ask without text. This specific type of message only occurs if max wants to execute a command as part of its completion result, in which case we interject the completion_result tool with the execute_command tool.
                     if (message.text === '') {
                         return false
                     }
@@ -794,58 +776,42 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
             }}
         >
             {task ? (
-                <TaskHeader
-                    task={task}
-                    tokensIn={apiMetrics.totalTokensIn}
-                    tokensOut={apiMetrics.totalTokensOut}
-                    doesModelSupportPromptCache={selectedModelInfo.supportsPromptCache}
-                    cacheWrites={apiMetrics.totalCacheWrites}
-                    cacheReads={apiMetrics.totalCacheReads}
-                    totalCost={apiMetrics.totalCost}
-                    lastApiReqTotalTokens={lastApiReqTotalTokens}
-                    onClose={handleTaskCloseButtonClick}
-                />
+                <TaskHeader task={task} onClose={handleTaskCloseButtonClick} />
             ) : (
                 <div
                     style={{
-                        flex: '1 1 0', // flex-grow: 1, flex-shrink: 1, flex-basis: 0
+                        // flex: '1 1 0', // flex-grow: 1, flex-shrink: 1, flex-basis: 0
                         minHeight: 0,
                         overflowY: 'auto',
                         display: 'flex',
                         flexDirection: 'column',
                         paddingBottom: '10px',
+                        marginTop: 'auto',
+                        marginBottom: 'auto',
                     }}
                 >
                     {telemetrySetting === 'unset' && <TelemetryBanner />}
 
                     <Intro />
                     {taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
+                    <ChatTextArea
+                        ref={textAreaRef}
+                        inputValue={inputValue}
+                        setInputValue={setInputValue}
+                        textAreaDisabled={textAreaDisabled}
+                        placeholderText={placeholderText}
+                        selectedImages={selectedImages}
+                        setSelectedImages={setSelectedImages}
+                        onSend={() => handleSendMessage(inputValue, selectedImages)}
+                        onSelectImages={selectImages}
+                        shouldDisableImages={shouldDisableImages}
+                        onHeightChange={() => {
+                            if (isAtBottom) {
+                                scrollToBottomAuto()
+                            }
+                        }}
+                    />
                 </div>
-            )}
-
-            {/* 
-			// Flex layout explanation:
-			// 1. Content div above uses flex: "1 1 0" to:
-			//    - Grow to fill available space (flex-grow: 1) 
-			//    - Shrink when AutoApproveMenu needs space (flex-shrink: 1)
-			//    - Start from zero size (flex-basis: 0) to ensure proper distribution
-			//    minHeight: 0 allows it to shrink below its content height
-			//
-			// 2. AutoApproveMenu uses flex: "0 1 auto" to:
-			//    - Not grow beyond its content (flex-grow: 0)
-			//    - Shrink when viewport is small (flex-shrink: 1) 
-			//    - Use its content size as basis (flex-basis: auto)
-			//    This ensures it takes its natural height when there's space
-			//    but becomes scrollable when the viewport is too small
-			*/}
-            {!task && (
-                <AutoApproveMenu
-                    style={{
-                        marginBottom: -2,
-                        flex: '0 1 auto', // flex-grow: 0, flex-shrink: 1, flex-basis: auto
-                        minHeight: 0,
-                    }}
-                />
             )}
 
             {task && (
@@ -880,7 +846,6 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
                             initialTopMostItemIndex={groupedMessages.length - 1}
                         />
                     </div>
-                    <AutoApproveMenu />
                     {showScrollToBottom ? (
                         <div
                             style={{
@@ -940,23 +905,25 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
                     )}
                 </>
             )}
-            <ChatTextArea
-                ref={textAreaRef}
-                inputValue={inputValue}
-                setInputValue={setInputValue}
-                textAreaDisabled={textAreaDisabled}
-                placeholderText={placeholderText}
-                selectedImages={selectedImages}
-                setSelectedImages={setSelectedImages}
-                onSend={() => handleSendMessage(inputValue, selectedImages)}
-                onSelectImages={selectImages}
-                shouldDisableImages={shouldDisableImages}
-                onHeightChange={() => {
-                    if (isAtBottom) {
-                        scrollToBottomAuto()
-                    }
-                }}
-            />
+            {task && (
+                <ChatTextArea
+                    ref={textAreaRef}
+                    inputValue={inputValue}
+                    setInputValue={setInputValue}
+                    textAreaDisabled={textAreaDisabled}
+                    placeholderText={placeholderText}
+                    selectedImages={selectedImages}
+                    setSelectedImages={setSelectedImages}
+                    onSend={() => handleSendMessage(inputValue, selectedImages)}
+                    onSelectImages={selectImages}
+                    shouldDisableImages={shouldDisableImages}
+                    onHeightChange={() => {
+                        if (isAtBottom) {
+                            scrollToBottomAuto()
+                        }
+                    }}
+                />
+            )}
         </div>
     )
 }
