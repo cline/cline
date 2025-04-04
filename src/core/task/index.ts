@@ -1934,9 +1934,6 @@ export class Task {
 								// now execute the tool like normal
 								const content = await extractTextFromFile(absolutePath)
 
-								// Setup file watcher to detect future changes to this file
-								await this.fileContextTracker.setupFileWatcher(relPath)
-
 								// Track file read operation
 								await this.fileContextTracker.trackFileContext(relPath, "read_tool")
 
