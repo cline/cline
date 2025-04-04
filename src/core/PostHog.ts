@@ -72,6 +72,7 @@ import { AnthropicHandler } from '../api/providers/anthropic'
 import { LOCK_TEXT_SYMBOL, PostHogIgnoreController } from './ignore/PostHogIgnoreController'
 import { PostHogProvider } from './webview/PostHogProvider'
 import { InkeepHandler } from '../api/providers/inkeep'
+import { ADD_TRACKING_PROMPT } from './prompts/tools/add-tracking'
 
 const cwd =
     vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), 'Desktop') // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -3894,11 +3895,7 @@ export class PostHog {
     }
 
     async addTrackingTool(paths: string[]): Promise<ToolResponse> {
-        // TODO: ignore files etc, comply with the ignore controller
-
         const numberOfFiles = paths.length
-
-        let processedFiles = 0
 
         await this.say('text', `Starting to add analytics to ${numberOfFiles} files...`)
 
@@ -3906,26 +3903,33 @@ export class PostHog {
 
         const processFile = async (relPath: string): Promise<void> => {
             try {
+                const accessAllowed = this.posthogIgnoreController.validateAccess(relPath)
+
+                if (!accessAllowed) {
+                    results.push({
+                        path: relPath,
+                        success: false,
+                        message: `File not accessible: ${relPath}`,
+                    })
+                    return
+                }
+
                 const absolutePath = path.resolve(cwd, relPath)
                 const fileUri = vscode.Uri.file(absolutePath)
                 const fileContent = await vscode.workspace.fs.readFile(fileUri)
                 const textDecoder = new TextDecoder()
                 const content = textDecoder.decode(fileContent)
 
-                const systemPrompt =
-                    'You are an expert at adding PostHog analytics code. Add appropriate analytics tracking calls based on the file content and specified event.'
+                const systemPrompt = await ADD_TRACKING_PROMPT()
 
-                const userMessage = `
-You should add PostHog analytics tracking to this file, capturing any relevant events.
+                const userPrompt = `
+                File: ${path.basename(relPath)}
+                \`\`\`
+                ${content}
+                \`\`\`
+                `
 
-File: ${path.basename(relPath)}
-\`\`\`
-${content}
-\`\`\`
-
-Return ONLY the modified file content with analytics added in the appropriate locations.`
-
-                const apiStream = this.api.createMessage(systemPrompt, [{ role: 'user', content: userMessage }])
+                const apiStream = this.api.createMessage(systemPrompt, [{ role: 'user', content: userPrompt }])
 
                 // Collect the whole response
                 let modifiedContent = ''
@@ -3936,7 +3940,7 @@ Return ONLY the modified file content with analytics added in the appropriate lo
                 const textEncoder = new TextEncoder()
                 await vscode.workspace.fs.writeFile(fileUri, textEncoder.encode(modifiedContent))
 
-                processedFiles++
+                this.say('text', `Successfully added analytics to ${relPath}`)
 
                 results.push({
                     path: relPath,
@@ -3944,7 +3948,7 @@ Return ONLY the modified file content with analytics added in the appropriate lo
                     message: `Successfully added analytics to ${relPath}`,
                 })
             } catch (error) {
-                processedFiles++
+                this.say('text', `Failed to add analytics to ${relPath}`)
 
                 results.push({
                     path: relPath,
@@ -3954,7 +3958,7 @@ Return ONLY the modified file content with analytics added in the appropriate lo
             }
         }
 
-        await Promise.allSettled(paths.map(processFile))
+        await async.mapLimit(paths, 5, processFile)
 
         const result = JSON.stringify(results)
 
