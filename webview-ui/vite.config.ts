@@ -3,6 +3,7 @@
 import { defineConfig } from "vite"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react-swc"
+import { resolve } from "path"
 
 export default defineConfig({
 	plugins: [react(), tailwindcss()],
@@ -43,6 +44,15 @@ export default defineConfig({
 		"process.env": {
 			NODE_ENV: JSON.stringify(process.env.IS_DEV ? "development" : "production"),
 			IS_DEV: JSON.stringify(process.env.IS_DEV),
+		},
+	},
+	resolve: {
+		alias: {
+			"@": resolve(__dirname, "./src"),
+			"@components": resolve(__dirname, "./src/components"),
+			"@context": resolve(__dirname, "./src/context"),
+			"@shared": resolve(__dirname, "../src/shared"),
+			"@utils": resolve(__dirname, "./src/utils"),
 		},
 	},
 })

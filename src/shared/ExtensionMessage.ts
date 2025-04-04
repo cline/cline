@@ -35,6 +35,7 @@ export interface ExtensionMessage {
 		| "openGraphData"
 		| "isImageUrlResult"
 		| "didUpdateSettings"
+		| "addRemoteServerResult"
 		| "userCreditsBalance"
 		| "userCreditsUsage"
 		| "userCreditsPayments"
@@ -92,6 +93,11 @@ export interface ExtensionMessage {
 	isRemote?: boolean
 	host?: string
 	isHeadless?: boolean
+	addRemoteServerResult?: {
+		success: boolean
+		serverName: string
+		error?: string
+	}
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"

@@ -1,41 +1,67 @@
-graph TB
-    subgraph VSCode Extension Host
-        subgraph Core Extension
-            ExtensionEntry[Extension Entry<br/>src/extension.ts]
-            ClineProvider[ClineProvider<br/>src/core/webview/ClineProvider.ts]
-            ClineClass[Cline Class<br/>src/core/Cline.ts]
-            GlobalState[VSCode Global State]
-            SecretsStorage[VSCode Secrets Storage]
+flowchart TB
+    subgraph "VSCode Extension Host"
+        subgraph "Core Extension"
+            ExtensionEntry["Extension Entry<br/>src/extension.ts"]
+            WebviewProvider["WebviewProvider<br/>src/core/webview/index.ts"]
+            Controller["Controller<br/>src/core/controller/index.ts"]
+            Task["Task<br/>src/core/task/index.ts"]
+            GlobalState["VSCode Global State"]
+            SecretsStorage["VSCode Secrets Storage"]
+            McpHub["McpHub<br/>src/services/mcp/McpHub.ts"]
         end
 
-        subgraph Webview UI
-            WebviewApp[React App<br/>webview-ui/src/App.tsx]
-            ExtStateContext[ExtensionStateContext<br/>webview-ui/src/context/ExtensionStateContext.tsx]
-            ReactComponents[React Components]
+        subgraph "Webview UI"
+            WebviewApp["React App<br/>webview-ui/src/App.tsx"]
+            ExtStateContext["ExtensionStateContext<br/>webview-ui/src/context/ExtensionStateContext.tsx"]
+            ReactComponents["React Components"]
         end
 
-        subgraph Storage
-            TaskStorage[Task Storage<br/>Per-Task Files & History]
-            CheckpointSystem[Git-based Checkpoints]
+        subgraph "Storage"
+            TaskStorage["Task Storage<br/>Per-Task Files & History"]
+            CheckpointSystem["Git-based Checkpoints"]
+        end
+
+        subgraph "API Providers"
+            AnthropicAPI["Anthropic"]
+            OpenRouterAPI["OpenRouter"]
+            BedrockAPI["AWS Bedrock"]
+            OtherAPIs["Other Providers"]
+        end
+
+        subgraph "MCP Servers"
+            ExternalMcpServers["External MCP Servers"]
         end
     end
 
     %% Core Extension Data Flow
-    ExtensionEntry --> ClineProvider
-    ClineProvider --> ClineClass
-    ClineClass --> GlobalState
-    ClineClass --> SecretsStorage
-    ClineClass --> TaskStorage
-    ClineClass --> CheckpointSystem
+    ExtensionEntry --> WebviewProvider
+    WebviewProvider --> Controller
+    Controller --> Task
+    Controller --> McpHub
+    Task --> GlobalState
+    Task --> SecretsStorage
+    Task --> TaskStorage
+    Task --> CheckpointSystem
+    Task --> |"API Requests"| AnthropicAPI
+    Task --> |"API Requests"| OpenRouterAPI
+    Task --> |"API Requests"| BedrockAPI
+    Task --> |"API Requests"| OtherAPIs
+    McpHub --> |"Connects to"| ExternalMcpServers
+    Task --> |"Uses"| McpHub
 
     %% Webview Data Flow
     WebviewApp --> ExtStateContext
     ExtStateContext --> ReactComponents
 
     %% Bidirectional Communication
-    ClineProvider <-->|postMessage| ExtStateContext
+    WebviewProvider <--> |"postMessage"| ExtStateContext
 
-    style GlobalState fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
-    style SecretsStorage fill:#ff0066,stroke:#333,stroke-width:2px,color:#ffffff
-    style ExtStateContext fill:#0066ff,stroke:#333,stroke-width:2px,color:#ffffff
-    style ClineProvider fill:#00cc66,stroke:#333,stroke-width:2px,color:#ffffff
+    classDef vscodeState fill:#f9f,stroke:#333,stroke-width:2px
+    classDef contextClass fill:#bbf,stroke:#333,stroke-width:2px
+    classDef providerClass fill:#bfb,stroke:#333,stroke-width:2px
+    classDef apiClass fill:#fdb,stroke:#333,stroke-width:2px
+
+    class GlobalState,SecretsStorage vscodeState
+    class ExtStateContext contextClass
+    class WebviewProvider,McpHub providerClass
+    class AnthropicAPI,OpenRouterAPI,BedrockAPI,OtherAPIs apiClass
