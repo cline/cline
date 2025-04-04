@@ -171,7 +171,9 @@ export async function readFileTool(
 				content += `\n\n[Showing only ${maxReadFileLine} of ${totalLines} total lines. Use start_line and end_line if you need to read more]${sourceCodeDef}`
 			}
 
-			pushToolResult(content)
+			// Format the result into the required XML structure
+			const xmlResult = `<file>\n  <path>${relPath}</path>\n  <content>\n${content}\n  </content>\n</file>`
+			pushToolResult(xmlResult)
 		}
 	} catch (error) {
 		await handleError("reading file", error)
