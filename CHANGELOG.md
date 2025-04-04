@@ -1,5 +1,9 @@
 # Roo Code Changelog
 
+## [3.11.6] - 2025-04-04
+
+- Add the gemini 2.5 pro preview model with upper bound pricing
+
 ## [3.11.5] - 2025-04-03
 
 - Add prompt caching for Amazon Bedrock (thanks @Smartsheet-JB-Brown!)
