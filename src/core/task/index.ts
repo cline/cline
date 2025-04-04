@@ -1134,7 +1134,7 @@ export class Task {
 		}
 	}
 
-	shouldAutoApproveTool(toolName: ToolUseName, requiresApprovalPerLLM?: boolean): boolean {
+	shouldAutoApproveTool(toolName: ToolUseName, CommandRequiresApprovalPerLLM?: boolean): boolean {
 		if (this.autoApprovalSettings.enabled) {
 			switch (toolName) {
 				case "read_file":
@@ -1146,7 +1146,7 @@ export class Task {
 				case "replace_in_file":
 					return this.autoApprovalSettings.actions.editFiles
 				case "execute_command":
-					if (requiresApprovalPerLLM === true) {
+					if (CommandRequiresApprovalPerLLM === true) {
 						return (
 							this.autoApprovalSettings.actions.executeCommands &&
 							this.autoApprovalSettings.actions.executeAllCommands
@@ -2381,7 +2381,7 @@ export class Task {
 
 								if (
 									(!requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name)) ||
-									(requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name, true))
+									(requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name, requiresApprovalPerLLM))
 								) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "command")
 									await this.say("command", command, undefined, false)
