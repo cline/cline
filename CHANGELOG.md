@@ -1,7 +1,23 @@
 # Changelog
 
+## 3.9.0
+
+### Minor Changes
+
+-   f21bcb2: Add Enable extended thinking for LiteLLM provider
+-   74307ae: Added a tab for configuring local servers and documentation links
+
+### Patch Changes
+
+-   adf4c92: refactor & perf: declare constant object for inline style of file `Announcement`
+-   6f20321: declare constant object for inline style of file `BrowserSessionRow`
+-   8310a3d: chore(bedrock): Prompt cache is GA
+-   21e95ab: Chore: Add tests to context-mentions, run tests with mocha and ts-node - `npm run test:unit`
+-   cac0309: Fix issue with DeepSeek API provider token counting + context management
+-   d490029: Added permissions checks, error handling, and git options to deal with cases where the entire workspace or specific files within it cannot be accessed. These issues were preventing checkpoints from working correctly, or causing checkpoints to hang.
+
 ## [3.8.6]
- 
+
 -   Add UI for adding remote servers
 -   Add Mentions Feature Guide and update related documentation
 -   Fix bug where menu would open in sidebar and open tab
