@@ -1812,15 +1812,12 @@ export class Task {
 									}
 								}
 
-								const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
-									await this.diffViewProvider.saveChanges()
-								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
-
 								// Mark the file as edited by Cline to prevent false "recently modified" warnings
 								this.fileContextTracker.markFileAsEditedByCline(relPath)
 
-								// Setup file watcher to detect future changes to this file
-								await this.fileContextTracker.setupFileWatcher(relPath)
+								const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
+									await this.diffViewProvider.saveChanges()
+								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 
 								// Track file edit operation
 								await this.fileContextTracker.trackFileContext(relPath, "cline_edited")
