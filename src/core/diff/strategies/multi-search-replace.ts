@@ -143,9 +143,9 @@ Only use a single line of '=======' between search and replacement content, beca
 
 	private unescapeMarkers(content: string): string {
 		return content
-			.replace(/^\\<<<<<<< SEARCH/gm, "<<<<<<< SEARCH")
+			.replace(/^\\<<<<<<</gm, "<<<<<<<")
 			.replace(/^\\=======/gm, "=======")
-			.replace(/^\\>>>>>>> REPLACE/gm, ">>>>>>> REPLACE")
+			.replace(/^\\>>>>>>>/gm, ">>>>>>>")
 			.replace(/^\\-------/gm, "-------")
 			.replace(/^\\:end_line:/gm, ":end_line:")
 			.replace(/^\\:start_line:/gm, ":start_line:")

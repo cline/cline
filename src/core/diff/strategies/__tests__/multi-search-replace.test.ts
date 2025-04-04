@@ -1436,6 +1436,25 @@ function five() {
 					expect(result.success).toBe(true)
 				})
 
+				it("handles escaping of markers with custom suffixes", async () => {
+					const originalContent = "before\n<<<<<<< HEAD\nmiddle\n>>>>>>> feature-branch\nafter\n"
+					const diffContent =
+						"<<<<<<< SEARCH\n" +
+						"before\n" +
+						"\\<<<<<<< HEAD\n" +
+						"middle\n" +
+						"\\>>>>>>> feature-branch\n" +
+						"after\n" +
+						"=======\n" +
+						"replaced content\n" +
+						">>>>>>> REPLACE"
+					const result = await strategy.applyDiff(originalContent, diffContent)
+					expect(result.success).toBe(true)
+					if (result.success) {
+						expect(result.content).toBe("replaced content\n")
+					}
+				})
+
 				it("detects separator when expecting replace", () => {
 					const diff = "<<<<<<< SEARCH\n" + "content\n" + "=======\n" + "new content\n" + "======="
 					const result = strategy["validateMarkerSequencing"](diff)
