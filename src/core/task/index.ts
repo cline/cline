@@ -50,6 +50,7 @@ import {
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "../../shared/ExtensionMessage"
+import { CustomInstructionMode } from "../../shared/CustomInstructionMode"
 import { getApiMetrics } from "../../shared/getApiMetrics"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "../../shared/Languages"
@@ -93,6 +94,8 @@ export class Task {
 	contextManager: ContextManager
 	private didEditFile: boolean = false
 	customInstructions?: string
+	customInstructionModes?: CustomInstructionMode[]
+	selectedModeIds?: string[]
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
 	chatSettings: ChatSettings
@@ -138,6 +141,9 @@ export class Task {
 		browserSettings: BrowserSettings,
 		chatSettings: ChatSettings,
 		customInstructions?: string,
+		// Add parameters for custom modes
+		customInstructionModes?: CustomInstructionMode[],
+		selectedModeIds?: string[],
 		task?: string,
 		images?: string[],
 		historyItem?: HistoryItem,
@@ -155,6 +161,9 @@ export class Task {
 		this.diffViewProvider = new DiffViewProvider(cwd)
 		this.customInstructions = customInstructions
 		this.autoApprovalSettings = autoApprovalSettings
+		// Assign custom modes state
+		this.customInstructionModes = customInstructionModes
+		this.selectedModeIds = selectedModeIds
 		this.browserSettings = browserSettings
 		this.chatSettings = chatSettings
 
@@ -1234,7 +1243,12 @@ export class Task {
 			settingsCustomInstructions ||
 			clineRulesFileInstructions ||
 			clineIgnoreInstructions ||
-			preferredLanguageInstructions
+			preferredLanguageInstructions ||
+			// Check if custom modes state exists and has selected modes
+			(this.customInstructionModes &&
+				this.customInstructionModes.length > 0 &&
+				this.selectedModeIds &&
+				this.selectedModeIds.length > 0)
 		) {
 			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
 			systemPrompt += addUserInstructions(
@@ -1242,8 +1256,14 @@ export class Task {
 				clineRulesFileInstructions,
 				clineIgnoreInstructions,
 				preferredLanguageInstructions,
+				// Pass the custom modes state
+				this.customInstructionModes,
+				this.selectedModeIds,
 			)
 		}
+
+		// Prepare the API request parameters
+		const maxAllowedSize = this.api.getModel().info.maxTokens ?? 128_000
 		const contextManagementMetadata = this.contextManager.getNewContextMessagesAndMetadata(
 			this.apiConversationHistory,
 			this.clineMessages,

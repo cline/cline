@@ -4,6 +4,8 @@ import fs from "fs/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { fileExistsAtPath } from "../../utils/fs"
 import { ClineMessage } from "../../shared/ExtensionMessage"
+import { CustomInstructionMode, DEFAULT_CUSTOM_INSTRUCTION_MODES } from "../../shared/CustomInstructionMode"
+import { getGlobalState, updateGlobalState } from "./state" // Import state functions
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -11,7 +13,10 @@ export const GlobalFileNames = {
 	openRouterModels: "openrouter_models.json",
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
+	// Removed customInstructionModes filename
 }
+
+// --- Task Specific Storage ---
 
 export async function ensureTaskDirectoryExists(context: vscode.ExtensionContext, taskId: string): Promise<string> {
 	const globalStoragePath = context.globalStorageUri.fsPath
@@ -69,5 +74,33 @@ export async function saveClineMessages(context: vscode.ExtensionContext, taskId
 		await fs.writeFile(filePath, JSON.stringify(uiMessages))
 	} catch (error) {
 		console.error("Failed to save ui messages:", error)
+	}
+}
+
+// --- Global Storage (Disk) ---
+
+export async function ensureGlobalStorageDirectoryExists(context: vscode.ExtensionContext): Promise<string> {
+	const globalStoragePath = context.globalStorageUri.fsPath
+	// Ensure the base global storage directory exists
+	await fs.mkdir(globalStoragePath, { recursive: true })
+	return globalStoragePath
+}
+
+// Renamed function and changed implementation to use global state
+export async function getCustomInstructionModesFromState(context: vscode.ExtensionContext): Promise<CustomInstructionMode[]> {
+	const modes = (await getGlobalState(context, "customInstructionModes")) as CustomInstructionMode[] | undefined
+	return modes || DEFAULT_CUSTOM_INSTRUCTION_MODES // Return default if state is empty or invalid
+}
+
+// Changed implementation to use global state
+export async function saveCustomInstructionModes(
+	context: vscode.ExtensionContext,
+	modes: CustomInstructionMode[],
+): Promise<void> {
+	try {
+		await updateGlobalState(context, "customInstructionModes", modes)
+	} catch (error) {
+		console.error("Failed to save custom instruction modes to global state:", error)
+		vscode.window.showErrorMessage("Failed to save custom instruction modes.")
 	}
 }

@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react"
 import { useEvent } from "react-use"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "../../../src/shared/AutoApprovalSettings"
+import { CustomInstructionMode } from "../../../src/shared/CustomInstructionMode"
 import { ExtensionMessage, ExtensionState, DEFAULT_PLATFORM } from "../../../src/shared/ExtensionMessage"
 import { ApiConfiguration, ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "../../../src/shared/api"
 import { findLastIndex } from "../../../src/shared/array"
@@ -26,6 +27,12 @@ interface ExtensionStateContextType extends ExtensionState {
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
+	// Custom instruction modes management
+	addCustomInstructionMode: (mode: Omit<CustomInstructionMode, "id">) => void
+	updateCustomInstructionMode: (id: string, mode: Partial<Omit<CustomInstructionMode, "id">>) => void
+	removeCustomInstructionMode: (id: string) => void
+	setSelectedModeIds: (ids: string[]) => void
+	toggleModeSelection: (id: string) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -45,6 +52,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		telemetrySetting: "unset",
 		vscMachineId: "",
 		planActSeparateModelsSetting: true,
+		customInstructionModes: [], // Initialize custom instruction modes
+		selectedModeIds: [], // Initialize selected mode IDs
 	})
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
@@ -188,6 +197,81 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				shouldShowAnnouncement: value,
 			})),
+		// --- Custom instruction modes management (Local State Only) ---
+
+		// Add Mode
+		addCustomInstructionMode: (mode) => {
+			let newModes: CustomInstructionMode[] = []
+			setState((prevState) => {
+				const id = crypto.randomUUID() // Use crypto for better uniqueness
+				newModes = [...prevState.customInstructionModes, { id, ...mode }]
+				return {
+					...prevState,
+					customInstructionModes: newModes,
+				}
+			})
+			// Post update back to extension host
+			vscode.postMessage({ type: "updateCustomInstructionModes", customInstructionModes: newModes })
+		},
+
+		// Update Mode
+		updateCustomInstructionMode: (id, mode) => {
+			let updatedModes: CustomInstructionMode[] = []
+			setState((prevState) => {
+				updatedModes = prevState.customInstructionModes.map((m) => (m.id === id ? { ...m, ...mode } : m))
+				return {
+					...prevState,
+					customInstructionModes: updatedModes,
+				}
+			})
+			// Post update back to extension host
+			vscode.postMessage({ type: "updateCustomInstructionModes", customInstructionModes: updatedModes })
+		},
+
+		// Remove Mode
+		removeCustomInstructionMode: (id) => {
+			let newModes: CustomInstructionMode[] = []
+			let newSelectedIds: string[] = []
+			setState((prevState) => {
+				newModes = prevState.customInstructionModes.filter((m) => m.id !== id)
+				newSelectedIds = prevState.selectedModeIds.filter((modeId) => modeId !== id)
+				return {
+					...prevState,
+					customInstructionModes: newModes,
+					selectedModeIds: newSelectedIds,
+				}
+			})
+			// Post updates back to extension host
+			vscode.postMessage({ type: "updateCustomInstructionModes", customInstructionModes: newModes })
+			vscode.postMessage({ type: "updateSelectedModeIds", selectedModeIds: newSelectedIds })
+		},
+
+		// Set Selected Modes
+		setSelectedModeIds: (ids) => {
+			setState((prevState) => ({
+				...prevState,
+				selectedModeIds: ids,
+			}))
+			// Post update back to extension host
+			vscode.postMessage({ type: "updateSelectedModeIds", selectedModeIds: ids })
+		},
+
+		// Toggle Single Mode Selection
+		toggleModeSelection: (id) => {
+			let nextSelectedIds: string[] = []
+			setState((prevState) => {
+				const isSelected = prevState.selectedModeIds.includes(id)
+				nextSelectedIds = isSelected
+					? prevState.selectedModeIds.filter((modeId) => modeId !== id)
+					: [...prevState.selectedModeIds, id]
+				return {
+					...prevState,
+					selectedModeIds: nextSelectedIds,
+				}
+			})
+			// Post update back to extension host
+			vscode.postMessage({ type: "updateSelectedModeIds", selectedModeIds: nextSelectedIds })
+		},
 	}
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

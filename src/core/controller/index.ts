@@ -23,6 +23,7 @@ import { ApiProvider, ModelInfo } from "../../shared/api"
 import { findLast } from "../../shared/array"
 import { ChatContent } from "../../shared/ChatContent"
 import { ChatSettings } from "../../shared/ChatSettings"
+import { CustomInstructionMode } from "../../shared/CustomInstructionMode"
 import { ExtensionMessage, ExtensionState, Invoke, Platform } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { McpDownloadResponse, McpMarketplaceCatalog, McpServer } from "../../shared/mcp"
@@ -43,7 +44,7 @@ import {
 	updateGlobalState,
 } from "../storage/state"
 import { WebviewProvider } from "../webview"
-import { GlobalFileNames } from "../storage/disk"
+import { GlobalFileNames, saveCustomInstructionModes } from "../storage/disk" // Import save function
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -122,8 +123,16 @@ export class Controller {
 
 	async initClineWithTask(task?: string, images?: string[]) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
-			await getAllExtensionState(this.context)
+		// Fetch all necessary state including custom modes
+		const {
+			apiConfiguration,
+			customInstructions,
+			autoApprovalSettings,
+			browserSettings,
+			chatSettings,
+			customInstructionModes,
+			selectedModeIds,
+		} = await getAllExtensionState(this.context)
 		this.task = new Task(
 			this,
 			apiConfiguration,
@@ -131,6 +140,8 @@ export class Controller {
 			browserSettings,
 			chatSettings,
 			customInstructions,
+			customInstructionModes, // Pass modes
+			selectedModeIds, // Pass selected IDs
 			task,
 			images,
 		)
@@ -138,8 +149,16 @@ export class Controller {
 
 	async initClineWithHistoryItem(historyItem: HistoryItem) {
 		await this.clearTask()
-		const { apiConfiguration, customInstructions, autoApprovalSettings, browserSettings, chatSettings } =
-			await getAllExtensionState(this.context)
+		// Fetch all necessary state including custom modes
+		const {
+			apiConfiguration,
+			customInstructions,
+			autoApprovalSettings,
+			browserSettings,
+			chatSettings,
+			customInstructionModes,
+			selectedModeIds,
+		} = await getAllExtensionState(this.context)
 		this.task = new Task(
 			this,
 			apiConfiguration,
@@ -147,8 +166,10 @@ export class Controller {
 			browserSettings,
 			chatSettings,
 			customInstructions,
-			undefined,
-			undefined,
+			customInstructionModes, // Pass modes
+			selectedModeIds, // Pass selected IDs
+			undefined, // task
+			undefined, // images
 			historyItem,
 		)
 	}
@@ -637,8 +658,14 @@ export class Controller {
 					}
 				}
 
-				// custom instructions
+				// custom instructions (legacy + modes)
 				await this.updateCustomInstructions(message.customInstructionsSetting)
+				if (message.customInstructionModes) {
+					await this.updateCustomInstructionModes(message.customInstructionModes)
+				}
+				if (message.selectedModeIds) {
+					await this.updateSelectedModeIds(message.selectedModeIds)
+				}
 
 				// telemetry setting
 				if (message.telemetrySetting) {
@@ -661,6 +688,21 @@ export class Controller {
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
 			}
+			case "updateCustomInstructionModes":
+				if (message.customInstructionModes) {
+					await this.updateCustomInstructionModes(message.customInstructionModes)
+					// Optionally, send back the updated state if needed, though maybe not necessary here
+					// await this.postStateToWebview()
+				}
+				break
+			case "updateSelectedModeIds":
+				if (message.selectedModeIds) {
+					await this.updateSelectedModeIds(message.selectedModeIds)
+					// Optionally, send back the updated state
+					// Send back the updated state to ensure UI consistency
+					await this.postStateToWebview()
+				}
+				break
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}
@@ -839,6 +881,21 @@ export class Controller {
 		await updateGlobalState(this.context, "customInstructions", instructions || undefined)
 		if (this.task) {
 			this.task.customInstructions = instructions || undefined
+		}
+	}
+
+	async updateCustomInstructionModes(modes: CustomInstructionMode[]) {
+		// Save modes to disk file instead of global state
+		await saveCustomInstructionModes(this.context, modes)
+		if (this.task) {
+			this.task.customInstructionModes = modes
+		}
+	}
+
+	async updateSelectedModeIds(modeIds: string[]) {
+		await updateGlobalState(this.context, "selectedModeIds", modeIds)
+		if (this.task) {
+			this.task.selectedModeIds = modeIds
 		}
 	}
 
@@ -1623,6 +1680,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			mcpMarketplaceEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
+			customInstructionModes,
+			selectedModeIds,
 		} = await getAllExtensionState(this.context)
 
 		return {
@@ -1646,6 +1705,8 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 			mcpMarketplaceEnabled,
 			telemetrySetting,
 			planActSeparateModelsSetting,
+			customInstructionModes: customInstructionModes || [],
+			selectedModeIds: selectedModeIds || [],
 			vscMachineId: vscode.env.machineId,
 		}
 	}

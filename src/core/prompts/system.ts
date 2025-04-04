@@ -988,17 +988,41 @@ export function addUserInstructions(
 	clineRulesFileInstructions?: string,
 	clineIgnoreInstructions?: string,
 	preferredLanguageInstructions?: string,
+	customInstructionModes?: { id: string; title: string; content: string; isEnabled: boolean }[],
+	selectedModeIds?: string[],
 ) {
 	let customInstructions = ""
+
+	// Add language instructions first (if any)
 	if (preferredLanguageInstructions) {
 		customInstructions += preferredLanguageInstructions + "\n\n"
 	}
+
+	// Add old-style custom instructions for backward compatibility
 	if (settingsCustomInstructions) {
 		customInstructions += settingsCustomInstructions + "\n\n"
 	}
-	if (clineRulesFileInstructions) {
-		customInstructions += clineRulesFileInstructions + "\n\n"
+
+	// Add content from selected custom instruction modes
+	if (customInstructionModes && customInstructionModes.length > 0 && selectedModeIds && selectedModeIds.length > 0) {
+		const selectedModes = customInstructionModes.filter((mode) => selectedModeIds.includes(mode.id))
+		if (selectedModes.length > 0) {
+			customInstructions += "# Custom Instruction Modes\n\n"
+			// Add each selected mode with its title
+			selectedModes.forEach((mode) => {
+				if (mode.content && mode.content.trim()) {
+					customInstructions += `## ${mode.title}\n${mode.content.trim()}\n\n`
+				}
+			})
+		}
 	}
+
+	// Add clinerules file instructions
+	if (clineRulesFileInstructions) {
+		customInstructions += "# .clinerules\n\n" + clineRulesFileInstructions + "\n\n"
+	}
+
+	// Add clineignore instructions
 	if (clineIgnoreInstructions) {
 		customInstructions += clineIgnoreInstructions
 	}
