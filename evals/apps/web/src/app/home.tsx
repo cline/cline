@@ -1,14 +1,14 @@
 "use client"
 
+import { useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Rocket } from "lucide-react"
+import Link from "next/link"
+import { ChevronRight, Rocket } from "lucide-react"
 
 import type { Run, TaskMetrics } from "@evals/db"
 
-import { formatCurrency, formatDuration } from "@/lib"
+import { formatCurrency, formatDuration, formatTokens } from "@/lib"
 import { Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui"
-import { useMemo } from "react"
-import Link from "next/link"
 
 export function Home({ runs }: { runs: (Run & { taskMetrics: TaskMetrics | null })[] }) {
 	const router = useRouter()
@@ -20,32 +20,39 @@ export function Home({ runs }: { runs: (Run & { taskMetrics: TaskMetrics | null 
 			<Table className="border border-t-0">
 				<TableHeader>
 					<TableRow>
-						<TableHead>ID</TableHead>
 						<TableHead>Model</TableHead>
-						<TableHead>Timestamp</TableHead>
 						<TableHead>Passed</TableHead>
 						<TableHead>Failed</TableHead>
 						<TableHead>% Correct</TableHead>
+						<TableHead className="text-center">Tokens In / Out</TableHead>
 						<TableHead>Cost</TableHead>
 						<TableHead>Duration</TableHead>
+						<TableHead />
 					</TableRow>
 				</TableHeader>
 				<TableBody>
 					{visibleRuns.length ? (
 						visibleRuns.map(({ taskMetrics, ...run }) => (
 							<TableRow key={run.id}>
-								<TableCell>
-									<Button variant="link" asChild>
-										<Link href={`/runs/${run.id}`}>{run.id}</Link>
-									</Button>
-								</TableCell>
 								<TableCell>{run.model}</TableCell>
-								<TableCell>{new Date(run.createdAt).toLocaleString()}</TableCell>
 								<TableCell>{run.passed}</TableCell>
 								<TableCell>{run.failed}</TableCell>
 								<TableCell>{((run.passed / (run.passed + run.failed)) * 100).toFixed(1)}%</TableCell>
+								<TableCell>
+									<div className="flex items-center justify-evenly">
+										<div>{formatTokens(taskMetrics!.tokensIn)}</div>/
+										<div>{formatTokens(taskMetrics!.tokensOut)}</div>
+									</div>
+								</TableCell>
 								<TableCell>{formatCurrency(taskMetrics!.cost)}</TableCell>
 								<TableCell>{formatDuration(taskMetrics!.duration)}</TableCell>
+								<TableCell>
+									<Button variant="ghost" size="icon" asChild>
+										<Link href={`/runs/${run.id}`}>
+											<ChevronRight />
+										</Link>
+									</Button>
+								</TableCell>
 							</TableRow>
 						))
 					) : (

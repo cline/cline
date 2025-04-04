@@ -14,7 +14,8 @@
 		"db:pull": "pnpm drizzle-kit pull",
 		"db:check": "pnpm drizzle-kit check",
 		"db:up": "pnpm drizzle-kit up",
-		"db:studio": "pnpm drizzle-kit studio"
+		"db:studio": "pnpm drizzle-kit studio",
+		"db:enable-wal": "dotenvx run -f ../../.env -- tsx scripts/enable-wal.mts"
 	},
 	"dependencies": {
 		"@evals/types": "workspace:^",

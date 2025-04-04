@@ -11,7 +11,7 @@ const fontSans = Geist({ variable: "--font-sans", subsets: ["latin"] })
 const fontMono = Geist_Mono({ variable: "--font-mono", subsets: ["latin"] })
 
 export const metadata: Metadata = {
-	title: "Roo Code Benchmarks",
+	title: "Roo Code Evals",
 }
 
 export default function RootLayout({

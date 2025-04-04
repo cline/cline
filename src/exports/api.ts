@@ -1,11 +1,14 @@
 import { EventEmitter } from "events"
 import * as vscode from "vscode"
+import fs from "fs/promises"
+import * as path from "path"
 
+import { getWorkspacePath } from "../utils/path"
 import { ClineProvider } from "../core/webview/ClineProvider"
 import { openClineInNewTab } from "../activate/registerCommands"
-
 import { RooCodeSettings, RooCodeEvents, RooCodeEventName, ClineMessage } from "../schemas"
 import { IpcOrigin, IpcMessageType, TaskCommandName, TaskEvent } from "../schemas/ipc"
+
 import { RooCodeAPI } from "./interface"
 import { IpcServer } from "./ipc"
 import { outputChannelLog } from "./log"
@@ -18,6 +21,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	private readonly ipc?: IpcServer
 	private readonly taskMap = new Map<string, ClineProvider>()
 	private readonly log: (...args: unknown[]) => void
+	private logfile?: string
 
 	constructor(
 		outputChannel: vscode.OutputChannel,
@@ -31,12 +35,16 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		this.sidebarProvider = provider
 		this.context = provider.context
 
-		this.log = enableLogging
-			? (...args: unknown[]) => {
-					outputChannelLog(this.outputChannel, ...args)
-					console.log(args)
-				}
-			: () => {}
+		if (enableLogging) {
+			this.log = (...args: unknown[]) => {
+				outputChannelLog(this.outputChannel, ...args)
+				console.log(args)
+			}
+
+			this.logfile = path.join(getWorkspacePath(), "roo-code-messages.log")
+		} else {
+			this.log = () => {}
+		}
 
 		this.registerListeners(this.sidebarProvider)
 
@@ -89,6 +97,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		let provider: ClineProvider
 
 		if (newTab) {
+			await vscode.commands.executeCommand("workbench.action.files.revert")
 			await vscode.commands.executeCommand("workbench.action.closeAllEditors")
 
 			if (!this.tabProvider) {
@@ -116,7 +125,10 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		await provider.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 		await provider.postMessageToWebview({ type: "invoke", invoke: "newChat", text, images })
 
-		const { taskId } = await provider.initClineWithTask(text, images)
+		const { taskId } = await provider.initClineWithTask(text, images, undefined, {
+			consecutiveMistakeLimit: Number.MAX_SAFE_INTEGER,
+		})
+
 		return taskId
 	}
 
@@ -163,8 +175,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		await this.sidebarProvider.postStateToWebview()
 	}
 
-	public async createProfile(name: string): Promise<string> {
-		// Input validation
+	public async createProfile(name: string) {
 		if (!name || !name.trim()) {
 			throw new Error("Profile name cannot be empty")
 		}
@@ -176,32 +187,33 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 			throw new Error(`A profile with the name "${name}" already exists`)
 		}
 
-		// Generate unique ID and create profile
 		const id = this.sidebarProvider.providerSettingsManager.generateId()
-		const newProfile = {
-			id,
-			name: name.trim(),
-			apiProvider: "openai" as const, // Type assertion for better type safety
-		}
 
-		// Update configuration with new profile
 		await this.setConfiguration({
 			...currentSettings,
-			listApiConfigMeta: [...profiles, newProfile],
+			listApiConfigMeta: [
+				...profiles,
+				{
+					id,
+					name: name.trim(),
+					apiProvider: "openai" as const,
+				},
+			],
 		})
+
 		return id
 	}
 
-	public getProfiles(): string[] {
-		const profiles = this.getConfiguration().listApiConfigMeta || []
-		return profiles.map((profile) => profile.name)
+	public getProfiles() {
+		return (this.getConfiguration().listApiConfigMeta || []).map((profile) => profile.name)
 	}
 
-	public async setActiveProfile(name: string): Promise<void> {
+	public async setActiveProfile(name: string) {
 		const currentSettings = this.getConfiguration()
 		const profiles = currentSettings.listApiConfigMeta || []
 
 		const profile = profiles.find((p) => p.name === name)
+
 		if (!profile) {
 			throw new Error(`Profile with name "${name}" does not exist`)
 		}
@@ -212,14 +224,15 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		})
 	}
 
-	public getActiveProfile(): string | undefined {
+	public getActiveProfile() {
 		return this.getConfiguration().currentApiConfigName
 	}
 
-	public async deleteProfile(name: string): Promise<void> {
+	public async deleteProfile(name: string) {
 		const currentSettings = this.getConfiguration()
 		const profiles = currentSettings.listApiConfigMeta || []
 		const targetIndex = profiles.findIndex((p) => p.name === name)
+
 		if (targetIndex === -1) {
 			throw new Error(`Profile with name "${name}" does not exist`)
 		}
@@ -227,7 +240,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 		const profileToDelete = profiles[targetIndex]
 		profiles.splice(targetIndex, 1)
 
-		// If we're deleting the active profile, clear the currentApiConfigName
+		// If we're deleting the active profile, clear the currentApiConfigName.
 		const newSettings: RooCodeSettings = {
 			...currentSettings,
 			listApiConfigMeta: profiles,
@@ -236,6 +249,7 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 					? undefined
 					: currentSettings.currentApiConfigName,
 		}
+
 		await this.setConfiguration(newSettings)
 	}
 
@@ -245,12 +259,19 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 
 	private registerListeners(provider: ClineProvider) {
 		provider.on("clineCreated", (cline) => {
-			cline.on("taskStarted", () => {
+			cline.on("taskStarted", async () => {
 				this.emit(RooCodeEventName.TaskStarted, cline.taskId)
 				this.taskMap.set(cline.taskId, provider)
+				await this.fileLog(`[${new Date().toISOString()}] taskStarted -> ${cline.taskId}\n`)
 			})
 
-			cline.on("message", (message) => this.emit(RooCodeEventName.Message, { taskId: cline.taskId, ...message }))
+			cline.on("message", async (message) => {
+				this.emit(RooCodeEventName.Message, { taskId: cline.taskId, ...message })
+
+				if (message.message.partial !== true) {
+					await this.fileLog(`[${new Date().toISOString()}] ${JSON.stringify(message.message, null, 2)}\n`)
+				}
+			})
 
 			cline.on("taskModeSwitched", (taskId, mode) => this.emit(RooCodeEventName.TaskModeSwitched, taskId, mode))
 
@@ -265,9 +286,13 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 				this.taskMap.delete(cline.taskId)
 			})
 
-			cline.on("taskCompleted", (_, usage) => {
+			cline.on("taskCompleted", async (_, usage) => {
 				this.emit(RooCodeEventName.TaskCompleted, cline.taskId, usage)
 				this.taskMap.delete(cline.taskId)
+
+				await this.fileLog(
+					`[${new Date().toISOString()}] taskCompleted -> ${cline.taskId} | ${JSON.stringify(usage, null, 2)}\n`,
+				)
 			})
 
 			cline.on("taskSpawned", (childTaskId) => this.emit(RooCodeEventName.TaskSpawned, cline.taskId, childTaskId))
@@ -276,5 +301,17 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 
 			this.emit(RooCodeEventName.TaskCreated, cline.taskId)
 		})
+	}
+
+	private async fileLog(message: string) {
+		if (!this.logfile) {
+			return
+		}
+
+		try {
+			await fs.appendFile(this.logfile, message, "utf8")
+		} catch (_) {
+			this.logfile = undefined
+		}
 	}
 }

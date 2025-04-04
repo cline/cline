@@ -296,6 +296,7 @@ fi
 if [[ ! -s /tmp/evals.db ]]; then
   echo "🗄️ Creating database..."
   pnpm --filter @evals/db db:push || exit 1
+  pnpm --filter @evals/db db:enable-wal || exit 1
 fi
 
 if ! grep -q "OPENROUTER_API_KEY" .env; then

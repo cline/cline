@@ -105,6 +105,7 @@ export type ClineOptions = {
 	enableCheckpoints?: boolean
 	checkpointStorage?: CheckpointStorage
 	fuzzyMatchThreshold?: number
+	consecutiveMistakeLimit?: number
 	task?: string
 	images?: string[]
 	historyItem?: HistoryItem
@@ -135,7 +136,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 	customInstructions?: string
 	diffStrategy?: DiffStrategy
 	diffEnabled: boolean = false
-	fuzzyMatchThreshold: number = 1.0
+	fuzzyMatchThreshold: number
 
 	apiConversationHistory: (Anthropic.MessageParam & { ts?: number })[] = []
 	clineMessages: ClineMessage[] = []
@@ -144,10 +145,11 @@ export class Cline extends EventEmitter<ClineEvents> {
 	private askResponseText?: string
 	private askResponseImages?: string[]
 	private lastMessageTs?: number
-	// Not private since it needs to be accessible by tools
+	// Not private since it needs to be accessible by tools.
 	consecutiveMistakeCount: number = 0
+	consecutiveMistakeLimit: number
 	consecutiveMistakeCountForApplyDiff: Map<string, number> = new Map()
-	// Not private since it needs to be accessible by tools
+	// Not private since it needs to be accessible by tools.
 	providerRef: WeakRef<ClineProvider>
 	private abort: boolean = false
 	didFinishAbortingStream = false
@@ -178,10 +180,11 @@ export class Cline extends EventEmitter<ClineEvents> {
 		provider,
 		apiConfiguration,
 		customInstructions,
-		enableDiff,
+		enableDiff = false,
 		enableCheckpoints = true,
 		checkpointStorage = "task",
-		fuzzyMatchThreshold,
+		fuzzyMatchThreshold = 1.0,
+		consecutiveMistakeLimit = 3,
 		task,
 		images,
 		historyItem,
@@ -189,7 +192,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		startTask = true,
 		rootTask,
 		parentTask,
-		taskNumber,
+		taskNumber = -1,
 		onCreated,
 	}: ClineOptions) {
 		super()
@@ -211,8 +214,9 @@ export class Cline extends EventEmitter<ClineEvents> {
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context)
 		this.customInstructions = customInstructions
-		this.diffEnabled = enableDiff ?? false
-		this.fuzzyMatchThreshold = fuzzyMatchThreshold ?? 1.0
+		this.diffEnabled = enableDiff
+		this.fuzzyMatchThreshold = fuzzyMatchThreshold
+		this.consecutiveMistakeLimit = consecutiveMistakeLimit
 		this.providerRef = new WeakRef(provider)
 		this.diffViewProvider = new DiffViewProvider(this.cwd)
 		this.enableCheckpoints = enableCheckpoints
@@ -220,7 +224,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 
 		this.rootTask = rootTask
 		this.parentTask = parentTask
-		this.taskNumber = taskNumber ?? -1
+		this.taskNumber = taskNumber
 
 		if (historyItem) {
 			telemetryService.captureTaskRestarted(this.taskId)
@@ -1718,7 +1722,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 			throw new Error(`[Cline#recursivelyMakeClineRequests] task ${this.taskId}.${this.instanceId} aborted`)
 		}
 
-		if (this.consecutiveMistakeCount >= 3) {
+		if (this.consecutiveMistakeCount >= this.consecutiveMistakeLimit) {
 			const { response, text, images } = await this.ask(
 				"mistake_limit_reached",
 				this.api.getModel().id.includes("claude")

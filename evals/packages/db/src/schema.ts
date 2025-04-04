@@ -2,7 +2,7 @@ import { sqliteTable, text, real, integer, blob, uniqueIndex } from "drizzle-orm
 import { relations } from "drizzle-orm"
 import { createInsertSchema } from "drizzle-zod"
 
-import { GlobalSettings, exerciseLanguages, globalSettingsSchema } from "@evals/types"
+import { GlobalSettings, exerciseLanguages, rooCodeSettingsSchema } from "@evals/types"
 
 /**
  * runs
@@ -28,7 +28,7 @@ export const runsRelations = relations(runs, ({ one }) => ({
 export type Run = typeof runs.$inferSelect
 
 export const insertRunSchema = createInsertSchema(runs).omit({ id: true, createdAt: true }).extend({
-	settings: globalSettingsSchema.optional(),
+	settings: rooCodeSettingsSchema.optional(),
 })
 
 export type InsertRun = Omit<typeof runs.$inferInsert, "id" | "createdAt">

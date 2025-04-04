@@ -82,15 +82,29 @@ export function NewRun() {
 	const [model, suite, settings] = watch(["model", "suite", "settings"])
 
 	const onSubmit = useCallback(
-		async (data: FormValues) => {
+		async ({ settings, ...data }: FormValues) => {
 			try {
-				const { id } = await createRun(data)
+				const openRouterModel = models.data?.find(({ id }) => id === data.model)
+
+				if (!openRouterModel) {
+					throw new Error(`Model not found: ${data.model}`)
+				}
+
+				const { id } = await createRun({
+					...data,
+					settings: {
+						...settings,
+						openRouterModelId: openRouterModel.id,
+						openRouterModelInfo: openRouterModel.modelInfo,
+					},
+				})
+
 				router.push(`/runs/${id}`)
 			} catch (e) {
 				toast.error(e instanceof Error ? e.message : "An unknown error occurred.")
 			}
 		},
-		[router],
+		[router, models.data],
 	)
 
 	const onFilterModels = useCallback(
