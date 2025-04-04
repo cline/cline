@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.9.1
+
+### Patch Changes
+
+-   ff762d3: cleanup
+
 ## [3.8.7]
 
 -   Add Enable extended thinking for LiteLLM provider (Thanks @jorgegarciarey!)
