@@ -2,4 +2,4 @@
 "@cline/extension": patch
 ---
 
-Fix telemetry tracking for options being ignored when users type a custom response instead of selecting an option. Previously, this was only tracked when users clicked an option button, but now it's also tracked when users type a custom response to a question with options.
+Telemetry added for when users click AI-generated options/questions, or if they ignore them. Also tracks the number of options that were displayed.
