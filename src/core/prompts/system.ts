@@ -240,19 +240,16 @@ Your final result description here
 </attempt_completion>
 
 ## new_task
-Description: Request to create a new task with preloaded context. This tool is useful in three key scenarios: 
-1) When the current task is complete but naturally leads to a follow-up task (workflow continuation)
-2) When a large project needs to be broken into sequential steps (workflow splitting)
-3) When the context window is approaching capacity (>60%)
-
-The user will be presented with a preview of the context and can choose to create a new task or continue the current conversation. You should use ask_followup_question before using this tool to confirm the user is ready to create a new task, unless you've just completed a discrete part of a larger workflow and are suggesting the next logical step.
+Description: Request to create a new task with preloaded context. The user will be presented with a preview of the context and can choose to create a new task or keep chatting in the current conversation. 
+IMPORTANT NOTE: When creating a new task you must ALWAYS include context. You may use this tool proactively when the the context window usage is over 50%.
 
 Parameters:
 - context: (required) The context to preload the new task with. This should include:
-  * A summary of what has been accomplished in the current task
-  * The specific next steps or focus for the new task
+  * Comprehensively explain what has been accomplished in the current task - mention specific file names that are relevant
+  * The specific next steps or focus for the new task - mention specific file names that are relevant
   * Any critical information needed to continue the work
   * Clear indication of how this new task relates to the overall workflow
+  * This should be akin to a long handoff file, enough for a totally new developer to be able to pick up where you left off and know exactly what to do next and which files to look at.
 
 Usage:
 <new_task>

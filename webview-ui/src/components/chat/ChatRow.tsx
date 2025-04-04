@@ -1246,10 +1246,7 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									}}></span>
 								<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to start a new task:</span>
 							</div>
-							<NewTaskPreview
-								context={message.text || ""}
-								isActive={isLast && lastModifiedMessage?.ask === "new_task"}
-							/>
+							<NewTaskPreview context={message.text || ""} />
 						</>
 					)
 				case "plan_mode_respond": {
