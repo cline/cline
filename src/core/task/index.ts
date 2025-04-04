@@ -983,7 +983,7 @@ export class Task {
 		this.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
-		this.browserSession.dispose()
+		await this.browserSession.dispose()
 		this.clineIgnoreController.dispose()
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
 	}
@@ -2231,7 +2231,7 @@ export class Task {
 									// Re-make browserSession to make sure latest settings apply
 									const localContext = this.controllerRef.deref()?.context
 									if (localContext) {
-										this.browserSession.dispose()
+										await this.browserSession.dispose()
 										this.browserSession = new BrowserSession(localContext, this.browserSettings)
 									} else {
 										console.warn("no controller context available for browserSession")
