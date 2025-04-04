@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.9.0]
+
+-   Add command auto-approve feature, allowing you to specify which commands should be automatically approved based on string or regex patterns
+-   Read command auto-approve rules from VS Code settings
+-   Improve command approval behavior with rule-based pattern matching
+-   Add detailed documentation for pattern types and best practices
+
 ## [3.8.6]
  
 -   Add UI for adding remote servers
