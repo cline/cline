@@ -1,20 +1,10 @@
 import React, { useEffect, useState, useCallback } from "react"
 import LinkPreview from "./LinkPreview"
 import ImagePreview from "./ImagePreview"
-import { vscode } from "../../utils/vscode"
-import DOMPurify from "dompurify"
 import styled from "styled-components"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import ChatErrorBoundary from "../chat/ChatErrorBoundary"
-import {
-	safeCreateUrl,
-	isUrl,
-	getSafeHostname,
-	isLocalhostUrl,
-	normalizeRelativeUrl,
-	formatUrlForOpening,
-	checkIfImageUrl,
-} from "./McpRichUtil"
+import { CODE_BLOCK_BG_COLOR } from "../../common/CodeBlock"
+import ChatErrorBoundary from "../../chat/ChatErrorBoundary"
+import { isUrl, isLocalhostUrl, formatUrlForOpening, checkIfImageUrl } from "./utils/mcpRichUtil"
 
 // Maximum number of URLs to process in total, per response
 export const MAX_URLS = 50

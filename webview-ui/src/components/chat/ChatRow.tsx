@@ -23,14 +23,14 @@ import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
 import Thumbnails from "../common/Thumbnails"
-import McpResourceRow from "../mcp/McpResourceRow"
-import McpToolRow from "../mcp/McpToolRow"
-import McpResponseDisplay from "../mcp/McpResponseDisplay"
+import McpToolRow from "../mcp/configuration/tabs/installed/server-row/McpToolRow"
+import McpResponseDisplay from "../mcp/chat-display/McpResponseDisplay"
 import CreditLimitError from "./CreditLimitError"
 import { OptionsButtons } from "./OptionsButtons"
 import { highlightMentions } from "./TaskHeader"
 import SuccessButton from "../common/SuccessButton"
 import TaskFeedbackButtons from "./TaskFeedbackButtons"
+import McpResourceRow from "../mcp/configuration/tabs/installed/server-row/McpResourceRow"
 
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;

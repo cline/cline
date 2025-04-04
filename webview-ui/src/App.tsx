@@ -9,7 +9,7 @@ import AccountView from "./components/account/AccountView"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
 import { FirebaseAuthProvider } from "./context/FirebaseAuthContext"
 import { vscode } from "./utils/vscode"
-import McpView from "./components/mcp/McpView"
+import McpView from "./components/mcp/configuration/McpConfigurationView"
 
 const AppContent = () => {
 	const { didHydrateState, showWelcome, shouldShowAnnouncement, telemetrySetting, vscMachineId } = useExtensionState()
