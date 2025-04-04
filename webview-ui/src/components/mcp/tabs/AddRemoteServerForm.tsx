@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { vscode } from "../../../utils/vscode"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useEvent } from "react-use"
-
+import { LINKS } from "../../../constants"
 const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) => {
 	const [serverName, setServerName] = useState("")
 	const [serverUrl, setServerUrl] = useState("")
@@ -79,48 +79,46 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 
 	return (
 		<div className="p-4 px-5">
-			<div className="text-[var(--vscode-foreground)] text-sm mb-4 mt-1 max-w-lg">
-				Add a remote MCP server by providing a name and its URL endpoint.
+			<div className="text-[var(--vscode-foreground)] mb-2">
+				Add a remote MCP server by providing a name and its URL endpoint. Learn more{" "}
+				<VSCodeLink href={LINKS.DOCUMENTATION.REMOTE_MCP_SERVER_DOCS} style={{ display: "inline" }}>
+					here.
+				</VSCodeLink>
 			</div>
 
 			<form onSubmit={handleSubmit}>
-				{error && (
-					<div className="text-[var(--vscode-testing-iconFailed)] mb-3 p-2 rounded bg-[var(--vscode-inputValidation-warningBackground)] border border-[var(--vscode-inputValidation-warningBorder)]">
-						{error}
-					</div>
-				)}
-
-				<div className="mb-4 mr-4">
-					<label className="block mb-1">Server Name</label>
-					<input
-						type="text"
+				<div className="mb-2">
+					<VSCodeTextField
 						value={serverName}
 						onChange={(e) => {
-							setServerName(e.target.value)
+							setServerName((e.target as HTMLInputElement).value)
 							setError("")
 						}}
 						disabled={isSubmitting}
-						className="w-full max-w-md mr-4 p-2 bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded"
-					/>
+						className="w-full"
+						placeholder="mcp-server">
+						Server Name
+					</VSCodeTextField>
 				</div>
 
-				<div className="mb-4 mr-4">
-					<label className="block mb-1">Server URL</label>
-					<input
-						type="text"
+				<div className="mb-2">
+					<VSCodeTextField
 						value={serverUrl}
 						onChange={(e) => {
-							setServerUrl(e.target.value)
+							setServerUrl((e.target as HTMLInputElement).value)
 							setError("")
 						}}
 						disabled={isSubmitting}
-						placeholder="https://example.com/mcp-sse"
-						className="w-full max-w-md mr-4 p-2 bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border border-[var(--vscode-input-border)] rounded"
-					/>
+						placeholder="https://example.com/mcp-server"
+						className="w-full mr-4">
+						Server URL
+					</VSCodeTextField>
 				</div>
 
-				<div className="flex items-center mt-3">
-					<VSCodeButton type="submit" disabled={isSubmitting}>
+				{error && <div className="mb-3 text-[var(--vscode-errorForeground)]">{error}</div>}
+
+				<div className="flex items-center mt-3 w-full">
+					<VSCodeButton type="submit" disabled={isSubmitting} className="w-full">
 						{isSubmitting ? "Adding..." : "Add Server"}
 					</VSCodeButton>
 
@@ -130,6 +128,15 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 						</div>
 					)}
 				</div>
+
+				<VSCodeButton
+					appearance="secondary"
+					style={{ width: "100%", marginBottom: "5px", marginTop: 15 }}
+					onClick={() => {
+						vscode.postMessage({ type: "openMcpSettings" })
+					}}>
+					Edit Configuration
+				</VSCodeButton>
 			</form>
 		</div>
 	)
