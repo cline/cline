@@ -1,7 +1,7 @@
 import * as path from "path"
 import * as vscode from "vscode"
-import { getTaskMetadata, saveTaskMetadata, FileMetadataEntry } from "../storage/disk"
-import { Controller } from "../controller"
+import { getTaskMetadata, saveTaskMetadata } from "../storage/disk"
+import type { FileMetadataEntry, ControllerLike } from "./FileContextTrackerTypes"
 
 // This class is responsible for tracking file operations that may result in stale context.
 // If a user modifies a file outside of Cline, the context may become stale and need to be updated.
@@ -17,14 +17,14 @@ import { Controller } from "../controller"
 // If a file is modified outside of Cline, we detect and track this change to prevent stale context.
 export class FileContextTracker {
 	readonly taskId: string
-	private controllerRef: WeakRef<Controller>
+	private controllerRef: WeakRef<ControllerLike>
 
 	// File tracking and watching
 	private fileWatchers = new Map<string, vscode.FileSystemWatcher>()
 	private recentlyModifiedFiles = new Set<string>()
 	private recentlyEditedByCline = new Set<string>()
 
-	constructor(controller: Controller, taskId: string) {
+	constructor(controller: ControllerLike, taskId: string) {
 		this.controllerRef = new WeakRef(controller)
 		this.taskId = taskId
 	}
