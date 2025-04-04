@@ -10,7 +10,7 @@ import axios from "axios"
 import { fileExistsAtPath } from "../../utils/fs"
 import { BrowserActionResult } from "../../shared/ExtensionMessage"
 import { BrowserSettings } from "../../shared/BrowserSettings"
-import { discoverChromeInstances, testBrowserConnection } from "./BrowserDiscovery"
+import { discoverChromeInstances, testBrowserConnection, isPortOpen } from "./BrowserDiscovery"
 import * as chromeLauncher from "chrome-launcher"
 import { Controller } from "../../core/controller"
 import { telemetryService } from "../../services/telemetry/TelemetryService"
@@ -149,17 +149,40 @@ export class BrowserSession {
 			}
 			console.log("chrome installation", installation)
 
-			// Launch Chrome with debug port
-			const launcher = new chromeLauncher.Launcher({
-				chromePath: installation,
-				port: DEBUG_PORT,
-				chromeFlags: chromeFlags,
-				userDataDir: false, // use default profile, not a new one
-				ignoreDefaultFlags: true, // Completely ignore all default flags to mimic CLI launch behavior
-				startingUrl: "chrome://newtab", // Instead of about:blank, open a new tab page
-			})
-
-			await launcher.launch()
+			// Use Node's child_process to spawn Chrome as a detached process
+			// This ensures the browser won't be terminated when VSCode exits
+			const { spawn } = require("child_process")
+			
+			// Prepare the command arguments
+			const args = [
+				`--remote-debugging-port=${DEBUG_PORT}`,
+				"--disable-notifications",
+				"chrome://newtab"
+			]
+			
+			// Spawn Chrome as a detached process
+			const chromeProcess = spawn(
+				installation,
+				args,
+				{
+					detached: true,  // This is key - makes the process independent of parent
+					stdio: 'ignore', // Detach stdio to prevent hanging
+					shell: false     // Don't run in a shell
+				}
+			)
+			
+			// Unref the process to allow Node to exit independently
+			chromeProcess.unref()
+			
+			// Wait a moment to ensure Chrome has time to start
+			await new Promise((resolve) => setTimeout(resolve, 1000))
+			
+			// Test if Chrome is actually running with debug port
+			const isRunning = await isPortOpen("localhost", DEBUG_PORT, 2000)
+			
+			if (!isRunning) {
+				throw new Error("Chrome was launched but debug port is not responding")
+			}
 
 			controller?.postMessageToWebview({
 				type: "browserRelaunchResult",
