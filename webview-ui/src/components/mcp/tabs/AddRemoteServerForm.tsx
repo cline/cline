@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react"
 import { vscode } from "../../../utils/vscode"
 import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useEvent } from "react-use"
-import { LINKS } from "../../../constants"
+import { LINKS } from "@/constants"
 const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) => {
 	const [serverName, setServerName] = useState("")
 	const [serverUrl, setServerUrl] = useState("")
