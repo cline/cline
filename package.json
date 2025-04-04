@@ -303,6 +303,7 @@
 		"format:fix": "prettier . --write",
 		"test": "vscode-test",
 		"test:ci": "node scripts/test-ci.js",
+		"test:unit": "TS_NODE_PROJECT='./tsconfig.unit-test.json' mocha",
 		"test:coverage": "vscode-test --coverage",
 		"install:all": "npm install && cd webview-ui && npm install",
 		"dev:webview": "cd webview-ui && npm run dev",
@@ -339,6 +340,7 @@
 		"prettier": "^3.3.3",
 		"should": "^13.2.3",
 		"sinon": "^19.0.2",
+		"ts-node": "^10.9.2",
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
