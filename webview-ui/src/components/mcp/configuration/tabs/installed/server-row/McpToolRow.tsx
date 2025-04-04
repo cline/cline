@@ -1,7 +1,7 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { McpTool } from "../../../../src/shared/mcp"
-import { vscode } from "../../utils/vscode"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+import { McpTool } from "../../../../../../../../src/shared/mcp"
+import { vscode } from "../../../../../../utils/vscode"
+import { useExtensionState } from "../../../../../../context/ExtensionStateContext"
 
 type McpToolRowProps = {
 	tool: McpTool

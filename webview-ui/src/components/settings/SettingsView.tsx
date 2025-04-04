@@ -13,7 +13,7 @@ import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import SettingsButton from "../common/SettingsButton"
 import ApiOptions from "./ApiOptions"
-import { TabButton } from "../mcp/McpView"
+import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 const { IS_DEV } = process.env
