@@ -1,6 +1,6 @@
 import { Fragment, HTMLAttributes } from "react"
 
-import { RooCodeSettings } from "@evals/types"
+import { RooCodeSettings, ROO_CODE_SETTINGS_KEYS } from "@evals/types"
 
 import { cn } from "@/lib/utils"
 
@@ -23,7 +23,8 @@ export function SettingsDiff({
 			<div className="font-medium text-muted-foreground">Setting</div>
 			<div className="font-medium text-muted-foreground">Default</div>
 			<div className="font-medium text-muted-foreground">Custom</div>
-			{Object.entries(defaults).flatMap(([key, defaultValue]) => {
+			{ROO_CODE_SETTINGS_KEYS.map((key) => {
+				const defaultValue = defaults[key as keyof typeof defaults]
 				const customValue = custom[key as keyof typeof custom]
 				const isDefault = JSON.stringify(defaultValue) === JSON.stringify(customValue)
 
@@ -49,9 +50,15 @@ type SettingDiffProps = HTMLAttributes<HTMLDivElement> & {
 export function SettingDiff({ name, defaultValue, customValue, ...props }: SettingDiffProps) {
 	return (
 		<Fragment {...props}>
-			<div className="overflow-hidden font-mono">{name}</div>
-			<pre className="inline text-rose-500 line-through">{defaultValue}</pre>
-			<pre className="inline text-teal-500">{customValue}</pre>
+			<div className="overflow-hidden font-mono" title={name}>
+				{name}
+			</div>
+			<pre className="overflow-hidden inline text-rose-500 line-through" title={defaultValue}>
+				{defaultValue}
+			</pre>
+			<pre className="overflow-hidden inline text-teal-500" title={customValue}>
+				{customValue}
+			</pre>
 		</Fragment>
 	)
 }
