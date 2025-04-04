@@ -265,6 +265,43 @@
 					"group": "navigation@7",
 					"when": "view == roo-cline.SidebarProvider"
 				}
+			],
+			"editor/title": [
+				{
+					"command": "roo-cline.plusButtonClicked",
+					"group": "navigation@1",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				},
+				{
+					"command": "roo-cline.promptsButtonClicked",
+					"group": "navigation@2",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				},
+				{
+					"command": "roo-cline.mcpButtonClicked",
+					"group": "navigation@3",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				},
+				{
+					"command": "roo-cline.historyButtonClicked",
+					"group": "navigation@4",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				},
+				{
+					"command": "roo-cline.popoutButtonClicked",
+					"group": "navigation@5",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				},
+				{
+					"command": "roo-cline.settingsButtonClicked",
+					"group": "navigation@6",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				},
+				{
+					"command": "roo-cline.helpButtonClicked",
+					"group": "navigation@7",
+					"when": "activeWebviewPanelId == roo-cline.TabPanelProvider"
+				}
 			]
 		},
 		"configuration": {
