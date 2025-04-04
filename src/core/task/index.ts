@@ -173,7 +173,7 @@ export class Task {
 			...apiConfiguration,
 			taskId: this.taskId,
 		})
-		
+
 		// Set taskId on browserSession for telemetry tracking
 		this.browserSession.setTaskId(this.taskId)
 
@@ -193,6 +193,10 @@ export class Task {
 		}
 	}
 
+	updateBrowserSettings(newSettings: BrowserSettings): void {
+		this.browserSettings = newSettings
+	}
+
 	// While a task is ref'd by a controller, it will always have access to the extension context
 	// This error is thrown if the controller derefs the task after e.g., aborting the task
 	private getContext(): vscode.ExtensionContext {
@@ -204,7 +208,6 @@ export class Task {
 	}
 
 	// Storing task to disk for history
-
 	private async addToApiConversationHistory(message: Anthropic.MessageParam) {
 		this.apiConversationHistory.push(message)
 		await saveApiConversationHistory(this.getContext(), this.taskId, this.apiConversationHistory)
@@ -980,7 +983,7 @@ export class Task {
 		this.abort = true // will stop any autonomously running promises
 		this.terminalManager.disposeAll()
 		this.urlContentFetcher.closeBrowser()
-		this.browserSession.closeBrowser()
+		this.browserSession.dispose()
 		this.clineIgnoreController.dispose()
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
 	}
@@ -2225,6 +2228,14 @@ export class Task {
 									// await this.say("inspect_site_result", "") // no result, starts the loading spinner waiting for result
 									await this.say("browser_action_result", "") // starts loading spinner
 
+									// Re-make browserSession to make sure latest settings apply
+									const localContext = this.controllerRef.deref()?.context
+									if (localContext) {
+										this.browserSession.dispose()
+										this.browserSession = new BrowserSession(localContext, this.browserSettings)
+									} else {
+										console.warn("no controller context available for browserSession")
+									}
 									await this.browserSession.launchBrowser()
 									browserActionResult = await this.browserSession.navigateToUrl(url)
 								} else {

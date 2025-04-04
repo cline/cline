@@ -39,7 +39,7 @@ export class BrowserSession {
 	private lastConnectionAttempt: number = 0
 	browserSettings: BrowserSettings
 	private isConnectedToRemote: boolean = false
-	
+
 	// Telemetry tracking properties
 	private sessionStartTime: number = 0
 	private browserActions: string[] = []
@@ -152,34 +152,26 @@ export class BrowserSession {
 			// Use Node's child_process to spawn Chrome as a detached process
 			// This ensures the browser won't be terminated when VSCode exits
 			const { spawn } = require("child_process")
-			
+
 			// Prepare the command arguments
-			const args = [
-				`--remote-debugging-port=${DEBUG_PORT}`,
-				"--disable-notifications",
-				"chrome://newtab"
-			]
-			
+			const args = [`--remote-debugging-port=${DEBUG_PORT}`, "--disable-notifications", "chrome://newtab"]
+
 			// Spawn Chrome as a detached process
-			const chromeProcess = spawn(
-				installation,
-				args,
-				{
-					detached: true,  // This is key - makes the process independent of parent
-					stdio: 'ignore', // Detach stdio to prevent hanging
-					shell: false     // Don't run in a shell
-				}
-			)
-			
+			const chromeProcess = spawn(installation, args, {
+				detached: true, // This is key - makes the process independent of parent
+				stdio: "ignore", // Detach stdio to prevent hanging
+				shell: false, // Don't run in a shell
+			})
+
 			// Unref the process to allow Node to exit independently
 			chromeProcess.unref()
-			
+
 			// Wait a moment to ensure Chrome has time to start
 			await new Promise((resolve) => setTimeout(resolve, 1000))
-			
+
 			// Test if Chrome is actually running with debug port
 			const isRunning = await isPortOpen("localhost", DEBUG_PORT, 2000)
-			
+
 			if (!isRunning) {
 				throw new Error("Chrome was launched but debug port is not responding")
 			}
@@ -203,7 +195,15 @@ export class BrowserSession {
 	 * @param taskId The task ID to associate with browser actions
 	 */
 	setTaskId(taskId: string) {
-		this.taskId = taskId;
+		this.taskId = taskId
+	}
+
+	/**
+	 * Update browser settings at runtime
+	 * @param newSettings The new browser settings to apply
+	 */
+	updateBrowserSettings(newSettings: BrowserSettings): void {
+		this.browserSettings = newSettings
 	}
 
 	async launchBrowser() {
@@ -212,8 +212,8 @@ export class BrowserSession {
 		}
 
 		// Reset tracking properties
-		this.sessionStartTime = Date.now();
-		this.browserActions = [];
+		this.sessionStartTime = Date.now()
+		this.browserActions = []
 
 		// Reset remote connection status
 		this.isConnectedToRemote = false
@@ -223,12 +223,12 @@ export class BrowserSession {
 			try {
 				await this.launchRemoteBrowser()
 				// Don't create a new page here, as we'll create it in launchRemoteBrowser
-				
+
 				// Send telemetry for browser tool start
 				if (this.taskId) {
-					telemetryService.captureBrowserToolStart(this.taskId, this.browserSettings);
+					telemetryService.captureBrowserToolStart(this.taskId, this.browserSettings)
 				}
-				
+
 				return
 			} catch (error) {
 				console.error("Failed to launch remote browser, falling back to local mode:", error)
@@ -240,10 +240,10 @@ export class BrowserSession {
 		}
 
 		this.page = await this.browser?.newPage()
-		
+
 		// Send telemetry for browser tool start
 		if (this.taskId) {
-			telemetryService.captureBrowserToolStart(this.taskId, this.browserSettings);
+			telemetryService.captureBrowserToolStart(this.taskId, this.browserSettings)
 		}
 	}
 
@@ -258,46 +258,6 @@ export class BrowserSession {
 			headless: "shell", // Always use headless mode for local connections
 		})
 		this.isConnectedToRemote = false
-	}
-
-	/**
-	 * Kill all Chrome instances, including those not launched by chrome-launcher
-	 */
-	private async killAllChromeBrowsers(): Promise<void> {
-		// First try chrome-launcher's killAll to handle instances it launched
-		try {
-			await chromeLauncher.killAll()
-		} catch (err: unknown) {
-			console.log("Error in chrome-launcher killAll:", err)
-		}
-
-		// Then kill other Chrome instances using platform-specific commands
-		try {
-			if (process.platform === "win32") {
-				// Windows: Use taskkill to forcefully terminate Chrome processes
-				await new Promise<void>((resolve, reject) => {
-					const { exec } = require("child_process")
-					exec("taskkill /F /IM chrome.exe /T", (error: Error) => {
-						// We don't reject on error because it's expected if no Chrome is running
-						resolve()
-					})
-				})
-			} else if (process.platform === "darwin") {
-				// macOS: Use pkill to terminate Chrome processes
-				await new Promise<void>((resolve) => {
-					const { exec } = require("child_process")
-					exec('pkill -x "Google Chrome"', () => resolve())
-				})
-			} else {
-				// Linux: Use pkill for Chrome and chromium
-				await new Promise<void>((resolve) => {
-					const { exec } = require("child_process")
-					exec('pkill -f "chrome|chromium"', () => resolve())
-				})
-			}
-		} catch (error) {
-			console.log("Error killing Chrome processes:", error)
-		}
 	}
 
 	async launchRemoteBrowser() {
@@ -384,18 +344,58 @@ export class BrowserSession {
 		)
 	}
 
+	/**
+	 * Kill all Chrome instances, including those not launched by chrome-launcher
+	 */
+	private async killAllChromeBrowsers(): Promise<void> {
+		// First try chrome-launcher's killAll to handle instances it launched
+		try {
+			await chromeLauncher.killAll()
+		} catch (err: unknown) {
+			console.log("Error in chrome-launcher killAll:", err)
+		}
+
+		// Then kill other Chrome instances using platform-specific commands
+		try {
+			if (process.platform === "win32") {
+				// Windows: Use taskkill to forcefully terminate Chrome processes
+				await new Promise<void>((resolve, reject) => {
+					const { exec } = require("child_process")
+					exec("taskkill /F /IM chrome.exe /T", (error: Error) => {
+						// We don't reject on error because it's expected if no Chrome is running
+						resolve()
+					})
+				})
+			} else if (process.platform === "darwin") {
+				// macOS: Use pkill to terminate Chrome processes
+				await new Promise<void>((resolve) => {
+					const { exec } = require("child_process")
+					exec('pkill -x "Google Chrome"', () => resolve())
+				})
+			} else {
+				// Linux: Use pkill for Chrome and chromium
+				await new Promise<void>((resolve) => {
+					const { exec } = require("child_process")
+					exec('pkill -f "chrome|chromium"', () => resolve())
+				})
+			}
+		} catch (error) {
+			console.log("Error killing Chrome processes:", error)
+		}
+	}
+
 	async closeBrowser(): Promise<BrowserActionResult> {
 		if (this.browser || this.page) {
 			// Send telemetry for browser tool end if we have a task ID and session was started
 			if (this.taskId && this.sessionStartTime > 0) {
-				const sessionDuration = Date.now() - this.sessionStartTime;
+				const sessionDuration = Date.now() - this.sessionStartTime
 				telemetryService.captureBrowserToolEnd(this.taskId, {
 					actionCount: this.browserActions.length,
 					duration: sessionDuration,
-					actions: this.browserActions
-				});
+					actions: this.browserActions,
+				})
 			}
-			
+
 			if (this.isConnectedToRemote && this.browser) {
 				// Close the page/tab first if it exists
 				if (this.page) {
@@ -404,7 +404,8 @@ export class BrowserSession {
 				}
 				await this.browser.disconnect().catch(() => {})
 				console.log("disconnected from remote browser...")
-			} else {
+				// do not close the browser
+			} else if (this.isConnectedToRemote === false) {
 				await this.browser?.close().catch(() => {})
 				console.log("closed local browser...")
 			}
@@ -413,10 +414,10 @@ export class BrowserSession {
 			this.page = undefined
 			this.currentMousePosition = undefined
 			this.isConnectedToRemote = false
-			
+
 			// Reset tracking properties
-			this.sessionStartTime = 0;
-			this.browserActions = [];
+			this.sessionStartTime = 0
+			this.browserActions = []
 		}
 		return {}
 	}
@@ -507,8 +508,8 @@ export class BrowserSession {
 
 	async navigateToUrl(url: string): Promise<BrowserActionResult> {
 		// Track this action for telemetry
-		this.browserActions.push(`navigate: url`);
-		
+		this.browserActions.push(`navigate: url`)
+
 		return this.doAction(async (page) => {
 			// networkidle2 isn't good enough since page may take some time to load. we can assume locally running dev sites will reach networkidle0 in a reasonable amount of time
 			await page.goto(url, {
@@ -555,8 +556,8 @@ export class BrowserSession {
 
 	async click(coordinate: string): Promise<BrowserActionResult> {
 		// Track this action for telemetry
-		this.browserActions.push(`click: coordinate`);
-		
+		this.browserActions.push(`click: coordinate`)
+
 		const [x, y] = coordinate.split(",").map(Number)
 		return this.doAction(async (page) => {
 			// Set up network request monitoring
@@ -591,8 +592,8 @@ export class BrowserSession {
 
 	async type(text: string): Promise<BrowserActionResult> {
 		// Track this action for telemetry
-		this.browserActions.push(`type:${text.length} chars`);
-		
+		this.browserActions.push(`type:${text.length} chars`)
+
 		return this.doAction(async (page) => {
 			await page.keyboard.type(text)
 		})
@@ -600,8 +601,8 @@ export class BrowserSession {
 
 	async scrollDown(): Promise<BrowserActionResult> {
 		// Track this action for telemetry
-		this.browserActions.push("scrollDown");
-		
+		this.browserActions.push("scrollDown")
+
 		return this.doAction(async (page) => {
 			await page.evaluate(() => {
 				window.scrollBy({
@@ -615,8 +616,8 @@ export class BrowserSession {
 
 	async scrollUp(): Promise<BrowserActionResult> {
 		// Track this action for telemetry
-		this.browserActions.push("scrollUp");
-		
+		this.browserActions.push("scrollUp")
+
 		return this.doAction(async (page) => {
 			await page.evaluate(() => {
 				window.scrollBy({
@@ -626,5 +627,9 @@ export class BrowserSession {
 			})
 			await setTimeoutPromise(300)
 		})
+	}
+
+	dispose() {
+		this.closeBrowser()
 	}
 }

@@ -485,11 +485,14 @@ class PostHogClient {
 	 * @param taskId Unique identifier for the task
 	 * @param stats Statistics about the browser session
 	 */
-	public captureBrowserToolEnd(taskId: string, stats: { 
-		actionCount: number, 
-		duration: number,
-		actions?: string[]
-	}) {
+	public captureBrowserToolEnd(
+		taskId: string,
+		stats: {
+			actionCount: number
+			duration: number
+			actions?: string[]
+		},
+	) {
 		this.capture({
 			event: PostHogClient.EVENTS.TASK.BROWSER_TOOL_END,
 			properties: {

@@ -258,8 +258,7 @@ export class Controller {
 				if (message.browserSettings) {
 					await updateGlobalState(this.context, "browserSettings", message.browserSettings)
 					if (this.task) {
-						this.task.browserSettings = message.browserSettings
-						this.task.browserSession.browserSettings = message.browserSettings
+						this.task.updateBrowserSettings(message.browserSettings)
 					}
 					await this.postStateToWebview()
 				}
