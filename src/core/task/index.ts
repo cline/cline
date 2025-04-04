@@ -1163,14 +1163,6 @@ export class Task {
 		return false
 	}
 
-	//	getCommandAutoApproveSettings(): [boolean, boolean] {
-	//		// This function is kept for backward compatibility
-	//		return [
-	//			this.autoApprovalSettings.actions.executeCommands,
-	//			this.autoApprovalSettings.actions.executeAllCommands
-	//		]
-	//	}
-
 	private formatErrorWithStatusCode(error: any): string {
 		const statusCode = error.status || error.statusCode || (error.response && error.response.status)
 		const message = error.message ?? JSON.stringify(serializeError(error), null, 2)
