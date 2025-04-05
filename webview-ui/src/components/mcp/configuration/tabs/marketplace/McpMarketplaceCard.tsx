@@ -1,7 +1,7 @@
 import { useCallback, useState, useRef, useMemo } from "react"
 import styled from "styled-components"
-import { McpMarketplaceItem, McpServer } from "../../../../../../../src/shared/mcp"
-import { vscode } from "../../../../../utils/vscode"
+import { McpMarketplaceItem, McpServer } from "@shared/mcp"
+import { vscode } from "@/utils/vscode"
 import { useEvent } from "react-use"
 
 interface McpMarketplaceCardProps {

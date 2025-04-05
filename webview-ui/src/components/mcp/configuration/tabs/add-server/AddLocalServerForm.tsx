@@ -1,7 +1,7 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { vscode } from "../../../../../utils/vscode"
+import { vscode } from "@/utils/vscode"
 import styled from "styled-components"
-import { LINKS } from "../../../../../constants"
+import { LINKS } from "@/constants"
 
 type AddLocalServerFormProps = {
 	onServerAdded: () => void

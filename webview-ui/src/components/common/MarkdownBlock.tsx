@@ -3,9 +3,9 @@ import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
-import MermaidBlock from "./MermaidBlock"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import MermaidBlock from "@/components/common/MermaidBlock"
 
 interface MarkdownBlockProps {
 	markdown?: string

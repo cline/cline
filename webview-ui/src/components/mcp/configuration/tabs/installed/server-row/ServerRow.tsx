@@ -1,7 +1,7 @@
-import { McpServer } from "../../../../../../../../src/shared/mcp"
-import { DEFAULT_MCP_TIMEOUT_SECONDS } from "../../../../../../../../src/shared/mcp"
+import { McpServer } from "@shared/mcp"
+import { DEFAULT_MCP_TIMEOUT_SECONDS } from "@shared/mcp"
 import { useState } from "react"
-import { vscode } from "../../../../../../utils/vscode"
+import { vscode } from "@/utils/vscode"
 import {
 	VSCodeButton,
 	VSCodeCheckbox,
@@ -11,11 +11,11 @@ import {
 	VSCodePanelTab,
 	VSCodePanelView,
 } from "@vscode/webview-ui-toolkit/react"
-import { getMcpServerDisplayName } from "../../../../../../utils/mcp"
-import DangerButton from "../../../../../common/DangerButton"
+import { getMcpServerDisplayName } from "@/utils/mcp"
+import DangerButton from "@/components/common/DangerButton"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
-import { useExtensionState } from "../../../../../../context/ExtensionStateContext"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 const ServerRow = ({ server, isExpandable = true }: { server: McpServer; isExpandable?: boolean }) => {
 	const { mcpMarketplaceCatalog, autoApprovalSettings } = useExtensionState()

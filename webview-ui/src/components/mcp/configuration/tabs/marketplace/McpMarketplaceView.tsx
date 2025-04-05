@@ -8,9 +8,9 @@ import {
 	VSCodeOption,
 	VSCodeTextField,
 } from "@vscode/webview-ui-toolkit/react"
-import { McpMarketplaceItem } from "../../../../../../../src/shared/mcp"
-import { useExtensionState } from "../../../../../context/ExtensionStateContext"
-import { vscode } from "../../../../../utils/vscode"
+import { McpMarketplaceItem } from "@shared/mcp"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { vscode } from "@/utils/vscode"
 import McpMarketplaceCard from "./McpMarketplaceCard"
 import McpSubmitCard from "./McpSubmitCard"
 const McpMarketplaceView = () => {
