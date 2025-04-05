@@ -87,7 +87,7 @@ export interface ExtensionMessage {
 	userCreditsPayments?: PaymentTransaction[]
 	totalTasksSize?: number | null
 	success?: boolean
-	values?: Record<string, any>
+	endpoint?: string
 	isBundled?: boolean
 	isConnected?: boolean
 	isRemote?: boolean

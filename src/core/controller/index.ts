@@ -347,7 +347,7 @@ export class Controller {
 									type: "browserConnectionResult",
 									success: result.success,
 									text: `Auto-discovered and tested connection to Chrome at ${discoveredHost}: ${result.message}`,
-									values: { endpoint: result.endpoint },
+									endpoint: result.endpoint,
 								})
 							} else {
 								await this.postMessageToWebview({
@@ -372,7 +372,7 @@ export class Controller {
 							type: "browserConnectionResult",
 							success: result.success,
 							text: result.message,
-							values: { endpoint: result.endpoint },
+							endpoint: result.endpoint,
 						})
 					}
 				} catch (error) {
@@ -401,7 +401,7 @@ export class Controller {
 							type: "browserConnectionResult",
 							success: true,
 							text: `Successfully discovered and connected to Chrome at ${discoveredHost}`,
-							values: { endpoint: result.endpoint },
+							endpoint: result.endpoint,
 						})
 					} else {
 						await this.postMessageToWebview({
