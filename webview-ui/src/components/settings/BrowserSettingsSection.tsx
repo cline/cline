@@ -253,10 +253,7 @@ export const BrowserSettingsSection: React.FC = () => {
 			{/* Headless mode is now automatically determined: 
 			    - Local connections always use headless mode
 			    - Remote connections always use non-headless mode */}
-			Chromium path:{" "}
-			<div>
-				{isBundled ? "(Using bundled Chromium)" : detectedChromePath || "Checking for path to Chrome executable..."}
-			</div>
+
 			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 					<VSCodeCheckbox
@@ -276,8 +273,10 @@ export const BrowserSettingsSection: React.FC = () => {
 						color: "var(--vscode-descriptionForeground)",
 						margin: "0 0 8px 0px",
 					}}>
-					Enable Cline to use your real Chrome. Start Chrome in debug mode manually (--remote-debugging-port=9222) or
-					use the button below. Enter the host address or leave it blank for automatic discovery.
+					Enable Cline to use your Chrome
+					{isBundled ? "(not detected on your machine)" : detectedChromePath ? ` (${detectedChromePath})` : ""}. This
+					requires starting Chrome in debug mode manually (<code>--remote-debugging-port=9222</code>) or using the
+					button below. Enter the host address or leave it blank for automatic discovery.
 				</p>
 
 				{browserSettings.remoteBrowserEnabled && (
