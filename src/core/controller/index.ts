@@ -731,6 +731,8 @@ export class Controller {
 			previousModeModelInfo: newModelInfo,
 			previousModeVsCodeLmModelSelector: newVsCodeLmModelSelector,
 			previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
+			previousModeAwsBedrockCustomSelected: newAwsBedrockCustomSelected,
+			previousModeAwsBedrockCustomModelBaseId: newAwsBedrockCustomModelBaseId,
 			planActSeparateModelsSetting,
 		} = await getAllExtensionState(this.context)
 
@@ -742,7 +744,6 @@ export class Controller {
 			await updateGlobalState(this.context, "previousModeThinkingBudgetTokens", apiConfiguration.thinkingBudgetTokens)
 			switch (apiConfiguration.apiProvider) {
 				case "anthropic":
-				case "bedrock":
 				case "vertex":
 				case "gemini":
 				case "asksage":
@@ -750,6 +751,19 @@ export class Controller {
 				case "qwen":
 				case "deepseek":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					break
+				case "bedrock":
+					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.apiModelId)
+					await updateGlobalState(
+						this.context,
+						"previousModeAwsBedrockCustomSelected",
+						apiConfiguration.awsBedrockCustomSelected,
+					)
+					await updateGlobalState(
+						this.context,
+						"previousModeAwsBedrockCustomModelBaseId",
+						apiConfiguration.awsBedrockCustomModelBaseId,
+					)
 					break
 				case "openrouter":
 				case "cline":
@@ -788,7 +802,6 @@ export class Controller {
 				await updateGlobalState(this.context, "thinkingBudgetTokens", newThinkingBudgetTokens)
 				switch (newApiProvider) {
 					case "anthropic":
-					case "bedrock":
 					case "vertex":
 					case "gemini":
 					case "asksage":
@@ -796,6 +809,11 @@ export class Controller {
 					case "qwen":
 					case "deepseek":
 						await updateGlobalState(this.context, "apiModelId", newModelId)
+						break
+					case "bedrock":
+						await updateGlobalState(this.context, "apiModelId", newModelId)
+						await updateGlobalState(this.context, "awsBedrockCustomSelected", newAwsBedrockCustomSelected)
+						await updateGlobalState(this.context, "awsBedrockCustomModelBaseId", newAwsBedrockCustomModelBaseId)
 						break
 					case "openrouter":
 					case "cline":
