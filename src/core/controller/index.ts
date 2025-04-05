@@ -716,10 +716,11 @@ export class Controller {
 						? favoritedModelIds.filter((id) => id !== message.modelId)
 						: [...favoritedModelIds, message.modelId]
 
-					await updateApiConfiguration(this.context, {
-						...apiConfiguration,
-						favoritedModelIds: updatedFavorites,
-					})
+					// Only update the favoritedModelIds property, preserving everything else
+					// including the apiProvider and all model-specific properties
+					await updateGlobalState(this.context, "favoritedModelIds", updatedFavorites)
+
+					// Post state to webview without changing any other configuration
 					await this.postStateToWebview()
 				}
 				break
