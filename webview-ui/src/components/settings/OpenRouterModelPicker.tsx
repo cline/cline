@@ -187,12 +187,14 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 			</style>
 			<div style={{ display: "flex", flexDirection: "column" }}>
 				<label htmlFor="model-search">
-					<span style={{ fontWeight: 500 }}>Model</span>
+					<span style={{ fontWeight: 500 }}>
+						{apiConfiguration?.apiProvider === "cline" ? "Recommended Models" : "Model"}
+					</span>
 				</label>
 
 				{apiConfiguration?.apiProvider === "cline" && (
 					<div style={{ marginBottom: "16px" }}>
-						<div style={{ marginBottom: "8px", fontSize: "12px", fontWeight: "600" }}>Recommended Models</div>
+						<div className="h-2" />
 						{featuredModels.map((model) => (
 							<FeaturedModelCard
 								key={model.id}
