@@ -5,12 +5,26 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { fileExistsAtPath } from "../../utils/fs"
 import { ClineMessage } from "../../shared/ExtensionMessage"
 
+export interface FileMetadataEntry {
+	path: string
+	record_state: "active" | "stale"
+	record_source: "read_tool" | "user_edited" | "cline_edited" | "file_mentioned"
+	cline_read_date: number | null
+	cline_edit_date: number | null
+	user_edit_date?: number | null
+}
+
+export interface TaskMetadata {
+	files_in_context: FileMetadataEntry[]
+}
+
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	uiMessages: "ui_messages.json",
 	openRouterModels: "openrouter_models.json",
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
+	taskMetadata: "task_metadata.json",
 }
 
 export async function ensureTaskDirectoryExists(context: vscode.ExtensionContext, taskId: string): Promise<string> {
@@ -69,5 +83,27 @@ export async function saveClineMessages(context: vscode.ExtensionContext, taskId
 		await fs.writeFile(filePath, JSON.stringify(uiMessages))
 	} catch (error) {
 		console.error("Failed to save ui messages:", error)
+	}
+}
+
+export async function getTaskMetadata(context: vscode.ExtensionContext, taskId: string): Promise<TaskMetadata> {
+	const filePath = path.join(await ensureTaskDirectoryExists(context, taskId), GlobalFileNames.taskMetadata)
+	try {
+		if (await fileExistsAtPath(filePath)) {
+			return JSON.parse(await fs.readFile(filePath, "utf8"))
+		}
+	} catch (error) {
+		console.error("Failed to read task metadata:", error)
+	}
+	return { files_in_context: [] }
+}
+
+export async function saveTaskMetadata(context: vscode.ExtensionContext, taskId: string, metadata: TaskMetadata) {
+	try {
+		const taskDir = await ensureTaskDirectoryExists(context, taskId)
+		const filePath = path.join(taskDir, GlobalFileNames.taskMetadata)
+		await fs.writeFile(filePath, JSON.stringify(metadata, null, 2))
+	} catch (error) {
+		console.error("Failed to save task metadata:", error)
 	}
 }

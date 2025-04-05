@@ -68,6 +68,7 @@ export interface WebviewMessage {
 		| "requestTotalTasksSize"
 		| "taskFeedback"
 		| "getRelativePaths" // Handles single and multiple URI resolution
+		| "searchFiles"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	uris?: string[] // Used for getRelativePaths
@@ -99,6 +100,8 @@ export interface WebviewMessage {
 	customInstructionsSetting?: string
 	// For task feedback
 	feedbackType?: TaskFeedbackType
+	mentionsRequestId?: string
+	query?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

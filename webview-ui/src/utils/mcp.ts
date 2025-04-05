@@ -1,4 +1,4 @@
-import { McpMarketplaceCatalog, McpResource, McpResourceTemplate } from "../../../src/shared/mcp"
+import { McpMarketplaceCatalog, McpResource, McpResourceTemplate } from "@shared/mcp"
 
 /**
  * Matches a URI against an array of URI templates and returns the matching template

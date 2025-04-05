@@ -42,6 +42,7 @@ export interface ExtensionMessage {
 		| "totalTasksSize"
 		| "addToInput"
 		| "relativePathsResponse" // Handles single and multiple path responses
+		| "fileSearchResults"
 	text?: string
 	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:
@@ -83,6 +84,12 @@ export interface ExtensionMessage {
 	userCreditsUsage?: UsageTransaction[]
 	userCreditsPayments?: PaymentTransaction[]
 	totalTasksSize?: number | null
+	mentionsRequestId?: string
+	results?: Array<{
+		path: string
+		type: "file" | "folder"
+		label?: string
+	}>
 	addRemoteServerResult?: {
 		success: boolean
 		serverName: string

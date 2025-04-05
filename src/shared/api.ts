@@ -12,6 +12,7 @@ export type ApiProvider =
 	| "together"
 	| "deepseek"
 	| "qwen"
+	| "doubao"
 	| "mistral"
 	| "vscode-lm"
 	| "cline"
@@ -61,6 +62,7 @@ export interface ApiHandlerOptions {
 	togetherApiKey?: string
 	togetherModelId?: string
 	qwenApiKey?: string
+	doubaoApiKey?: string
 	mistralApiKey?: string
 	azureApiVersion?: string
 	vsCodeLmModelSelector?: any
@@ -382,7 +384,7 @@ export const vertexModels = {
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 1.25,
-		outputPrice: 2.5,
+		outputPrice: 10,
 	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
 		maxTokens: 65_536,
@@ -472,7 +474,7 @@ export const geminiModels = {
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 1.25,
-		outputPrice: 2.5,
+		outputPrice: 10,
 	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
@@ -1111,6 +1113,34 @@ export const mainlandQwenModels = {
 		outputPrice: 4.5,
 		cacheWritesPrice: 1.5,
 		cacheReadsPrice: 4.5,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Doubao
+// https://www.volcengine.com/docs/82379/1298459
+// https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement
+export type DoubaoModelId = keyof typeof doubaoModels
+export const doubaoDefaultModelId: DoubaoModelId = "doubao-1-5-pro-256k-250115"
+export const doubaoModels = {
+	"doubao-1-5-pro-256k-250115": {
+		maxTokens: 12_288,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.7,
+		outputPrice: 1.3,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"doubao-1-5-pro-32k-250115": {
+		maxTokens: 12_288,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.11,
+		outputPrice: 0.3,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>
 
