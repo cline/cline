@@ -183,10 +183,23 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
 	])
 
+	// Determine the primary workspace folder URI
+	const workspaceFolderUri = vscode.workspace.workspaceFolders?.[0]?.uri
+
+	// Read the workspace-specific provider setting
+	const workspaceProviderSetting = workspaceFolderUri
+		? vscode.workspace.getConfiguration("cline.api", workspaceFolderUri).get<string | null>("workspaceProvider")
+		: null
+
 	let apiProvider: ApiProvider
-	if (storedApiProvider) {
+	if (workspaceProviderSetting && typeof workspaceProviderSetting === "string" && workspaceProviderSetting.trim() !== "") {
+		// Use workspace provider if it's a valid, non-empty string
+		apiProvider = workspaceProviderSetting as ApiProvider // Assume the string matches ApiProvider type
+	} else if (storedApiProvider) {
+		// Fallback to stored global provider
 		apiProvider = storedApiProvider
 	} else {
+		// Fallback logic for new users or legacy users (existing logic)
 		// Either new user or legacy user that doesn't have the apiProvider stored in state
 		// (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
 		if (apiKey) {
