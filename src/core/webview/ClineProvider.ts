@@ -29,7 +29,7 @@ import { GlobalFileNames } from "../../shared/globalFileNames"
 import { HistoryItem } from "../../shared/HistoryItem"
 import { ExtensionMessage } from "../../shared/ExtensionMessage"
 import { Mode, PromptComponent, defaultModeSlug, getModeBySlug, getGroupName } from "../../shared/modes"
-import { EXPERIMENT_IDS, experiments as Experiments, experimentDefault, ExperimentId } from "../../shared/experiments"
+import { experimentDefault } from "../../shared/experiments"
 import { formatLanguage } from "../../shared/language"
 import { Terminal, TERMINAL_SHELL_INTEGRATION_TIMEOUT } from "../../integrations/terminal/Terminal"
 import { downloadTask } from "../../integrations/misc/export-markdown"
@@ -68,34 +68,29 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	public static readonly tabPanelId = "roo-cline.TabPanelProvider"
 	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
-	// not private, so it can be accessed from webviewMessageHandler
-	view?: vscode.WebviewView | vscode.WebviewPanel
-	// not private, so it can be accessed from webviewMessageHandler
-	// callers could update to get viewLaunched() getter function
-	isViewLaunched = false
+	private view?: vscode.WebviewView | vscode.WebviewPanel
 	private clineStack: Cline[] = []
-	// not private, so it can be accessed from webviewMessageHandler
-	workspaceTracker?: WorkspaceTracker
-	// not protected, so it can be accessed from webviewMessageHandler.
-	// Could modify code to use getMcpHub() instead.
-	mcpHub?: McpHub // Change from private to protected
-	// not private, so it can be accessed from webviewMessageHandler
-	latestAnnouncementId = "apr-04-2025-boomerang" // update for Boomerang Tasks announcement
-	// not private, so it can be accessed from webviewMessageHandler
-	settingsImportedAt?: number
+	private _workspaceTracker?: WorkspaceTracker // workSpaceTracker read-only for access outside this class
+	public get workspaceTracker(): WorkspaceTracker | undefined {
+		return this._workspaceTracker
+	}
+	protected mcpHub?: McpHub // Change from private to protected
+
+	public isViewLaunched = false
+	public settingsImportedAt?: number
+	public readonly latestAnnouncementId = "apr-04-2025-boomerang" // update for Boomerang Tasks announcement
 	public readonly contextProxy: ContextProxy
 	public readonly providerSettingsManager: ProviderSettingsManager
 	public readonly customModesManager: CustomModesManager
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-		// not private, so it can be accessed from webviewMessageHandler
-		readonly outputChannel: vscode.OutputChannel,
+		private readonly outputChannel: vscode.OutputChannel,
 		private readonly renderContext: "sidebar" | "editor" = "sidebar",
 	) {
 		super()
 
-		this.outputChannel.appendLine("ClineProvider instantiated")
+		this.log("ClineProvider instantiated")
 		this.contextProxy = new ContextProxy(context)
 		ClineProvider.activeInstances.add(this)
 
@@ -103,7 +98,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		// properties like mode and provider.
 		telemetryService.setProvider(this)
 
-		this.workspaceTracker = new WorkspaceTracker(this)
+		this._workspaceTracker = new WorkspaceTracker(this)
 
 		this.providerSettingsManager = new ProviderSettingsManager(this.context)
 
@@ -118,7 +113,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				this.mcpHub.registerClient()
 			})
 			.catch((error) => {
-				this.outputChannel.appendLine(`Failed to initialize MCP Hub: ${error}`)
+				this.log(`Failed to initialize MCP Hub: ${error}`)
 			})
 	}
 
@@ -203,13 +198,13 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	*/
 	async dispose() {
-		this.outputChannel.appendLine("Disposing ClineProvider...")
+		this.log("Disposing ClineProvider...")
 		await this.removeClineFromStack()
-		this.outputChannel.appendLine("Cleared task")
+		this.log("Cleared task")
 
 		if (this.view && "dispose" in this.view) {
 			this.view.dispose()
-			this.outputChannel.appendLine("Disposed webview")
+			this.log("Disposed webview")
 		}
 
 		while (this.disposables.length) {
@@ -220,12 +215,12 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 			}
 		}
 
-		this.workspaceTracker?.dispose()
-		this.workspaceTracker = undefined
+		this._workspaceTracker?.dispose()
+		this._workspaceTracker = undefined
 		await this.mcpHub?.unregisterClient()
 		this.mcpHub = undefined
 		this.customModesManager?.dispose()
-		this.outputChannel.appendLine("Disposed all disposables")
+		this.log("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
 
 		// Unregister from McpServerManager
@@ -338,7 +333,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	}
 
 	async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
-		this.outputChannel.appendLine("Resolving webview view")
+		this.log("Resolving webview view")
 
 		if (!this.contextProxy.isInitialized) {
 			await this.contextProxy.initialize()
@@ -441,7 +436,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		// If the extension is starting a new session, clear previous task state.
 		await this.removeClineFromStack()
 
-		this.outputChannel.appendLine("Webview view resolved")
+		this.log("Webview view resolved")
 	}
 
 	public async initClineWithSubTask(parent: Cline, task?: string, images?: string[]) {
@@ -807,7 +802,6 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		await this.postStateToWebview()
 	}
 
-	// not private, so it can be accessed from webviewMessageHandler
 	async updateApiConfiguration(providerSettings: ProviderSettings) {
 		// Update mode's default config.
 		const { mode } = await this.getState()
@@ -914,14 +908,17 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		return getSettingsDirectoryPath(globalStoragePath)
 	}
 
-	// not private, so it can be accessed from webviewMessageHandler
-	async ensureCacheDirectoryExists() {
+	private async ensureCacheDirectoryExists() {
 		const { getCacheDirectoryPath } = await import("../../shared/storagePathManager")
 		const globalStoragePath = this.contextProxy.globalStorageUri.fsPath
 		return getCacheDirectoryPath(globalStoragePath)
 	}
 
-	// not private, so it can be accessed from webviewMessageHandler
+	async writeModelsToCache<T>(filename: string, data: T) {
+		const cacheDir = await this.ensureCacheDirectoryExists()
+		await fs.writeFile(path.join(cacheDir, filename), JSON.stringify(data))
+	}
+
 	async readModelsFromCache(filename: string): Promise<Record<string, ModelInfo> | undefined> {
 		const filePath = path.join(await this.ensureCacheDirectoryExists(), filename)
 		const fileExists = await fileExistsAtPath(filePath)
@@ -951,7 +948,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				throw new Error("Invalid response from OpenRouter API")
 			}
 		} catch (error) {
-			this.outputChannel.appendLine(
+			this.log(
 				`Error exchanging code for API key: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
 			)
 			throw error
@@ -980,7 +977,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 				throw new Error("Invalid response from Glama API")
 			}
 		} catch (error) {
-			this.outputChannel.appendLine(
+			this.log(
 				`Error exchanging code for API key: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
 			)
 			throw error
@@ -1030,7 +1027,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 
 			await this.postStateToWebview()
 		} catch (error) {
-			this.outputChannel.appendLine(
+			this.log(
 				`Error create new api configuration: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`,
 			)
 			vscode.window.showErrorMessage(t("common:errors.create_api_config"))
@@ -1380,14 +1377,12 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	// ContextProxy
 
 	// @deprecated - Use `ContextProxy#setValue` instead.
-	// not private, so it can be accessed from webviewMessageHandler
-	async updateGlobalState<K extends keyof GlobalState>(key: K, value: GlobalState[K]) {
+	private async updateGlobalState<K extends keyof GlobalState>(key: K, value: GlobalState[K]) {
 		await this.contextProxy.setValue(key, value)
 	}
 
 	// @deprecated - Use `ContextProxy#getValue` instead.
-	// not private, so it can be accessed from webviewMessageHandler
-	getGlobalState<K extends keyof GlobalState>(key: K) {
+	private getGlobalState<K extends keyof GlobalState>(key: K) {
 		return this.contextProxy.getValue(key)
 	}
 
