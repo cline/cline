@@ -184,3 +184,39 @@ jobs:
                     --verbose
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    complexity-check:
+        needs: test
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20.15.1
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Run Complexity Analysis
+              id: complexity
+              run: npm run complexity
+
+            - name: Post PR Comment
+              if: always()
+              run: |
+                  if [ -f complexity-report.md ]; then
+                      gh pr comment ${{ github.event.pull_request.number }} --body-file complexity-report.md
+                  fi
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Check Complexity Status
+              if: steps.complexity.outputs.complexity_increased == 'true'
+              run: |
+                  echo "::warning::Code complexity metrics have degraded in this PR"
+                  echo "Please review the complexity report in the PR comments"
