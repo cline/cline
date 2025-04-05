@@ -221,15 +221,11 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		await updateGlobalState(context, "planActSeparateModelsSetting", planActSeparateModelsSetting)
 	}
 
-	// Read settings from VSCode configuration
-	const config = vscode.workspace.getConfiguration("cline")
-	const configRemoteBrowserEnabled = config.get<boolean>("remoteBrowserEnabled")
-	const configRemoteBrowserHost = config.get<string>("remoteBrowserHost")
 	// Merge browser settings with configuration values
 	const mergedBrowserSettings = {
 		...(browserSettings || DEFAULT_BROWSER_SETTINGS),
-		remoteBrowserEnabled: remoteBrowserEnabled ?? configRemoteBrowserEnabled ?? false,
-		remoteBrowserHost: remoteBrowserHost ?? configRemoteBrowserHost ?? "http://localhost:9222",
+		remoteBrowserEnabled: remoteBrowserEnabled ?? false,
+		remoteBrowserHost: remoteBrowserHost ?? "http://localhost:9222",
 	}
 
 	return {

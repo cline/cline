@@ -16,6 +16,7 @@ import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import { useEvent } from "react-use"
 import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
 import BrowserSettingsSection from "./BrowserSettingsSection"
+import SettingsButton from "../common/SettingsButton"
 const { IS_DEV } = process.env
 
 type SettingsViewProps = {
@@ -300,6 +301,23 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 
 				{/* Browser Settings Section */}
 				<BrowserSettingsSection />
+
+				<div
+					style={{
+						marginTop: "auto",
+						paddingRight: 8,
+						display: "flex",
+						justifyContent: "center",
+					}}>
+					<SettingsButton
+						onClick={() => vscode.postMessage({ type: "openExtensionSettings" })}
+						style={{
+							margin: "0 0 16px 0",
+						}}>
+						<i className="codicon codicon-settings-gear" />
+						Advanced Settings
+					</SettingsButton>
+				</div>
 
 				{IS_DEV && (
 					<>

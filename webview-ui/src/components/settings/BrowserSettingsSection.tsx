@@ -219,7 +219,6 @@ export const BrowserSettingsSection: React.FC = () => {
 			id="browser-settings-section"
 			style={{ marginBottom: 20, borderTop: "1px solid var(--vscode-panel-border)", paddingTop: 15 }}>
 			<h3 style={{ color: "var(--vscode-foreground)", margin: "0 0 10px 0", fontSize: "14px" }}>Browser Settings</h3>
-
 			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8 }}>
 					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Viewport size</label>
@@ -251,41 +250,13 @@ export const BrowserSettingsSection: React.FC = () => {
 					Set the size of the browser viewport for screenshots and interactions.
 				</p>
 			</div>
-
-			<div style={{ marginBottom: 15 }}>
-				<div style={{ marginBottom: 8 }}>
-					<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Chrome executable path</label>
-					<VSCodeTextField
-						style={{ width: "100%" }}
-						placeholder={
-							isBundled
-								? "(Using bundled Chromium)"
-								: detectedChromePath || "Checking for path to Chrome executable..."
-						}
-						onChange={(e: any) => {
-							const value = e.target.value
-							// Update VSCode configuration directly
-							vscode.postMessage({
-								type: "openExtensionSettings",
-								text: "chromeExecutablePath",
-							})
-						}}
-					/>
-				</div>
-				<p
-					style={{
-						fontSize: "12px",
-						color: "var(--vscode-descriptionForeground)",
-						margin: 0,
-					}}>
-					Detected path shown by default. If not found, Cline will download and use a bundled Chromium instead.
-				</p>
-			</div>
-
 			{/* Headless mode is now automatically determined: 
 			    - Local connections always use headless mode
 			    - Remote connections always use non-headless mode */}
-
+			Chromium path:{" "}
+			<div>
+				{isBundled ? "(Using bundled Chromium)" : detectedChromePath || "Checking for path to Chrome executable..."}
+			</div>
 			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 					<VSCodeCheckbox
