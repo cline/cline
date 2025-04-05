@@ -67,6 +67,7 @@ export interface WebviewMessage {
 		| "optionsResponse"
 		| "requestTotalTasksSize"
 		| "taskFeedback"
+		| "searchFiles"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -97,6 +98,8 @@ export interface WebviewMessage {
 	customInstructionsSetting?: string
 	// For task feedback
 	feedbackType?: TaskFeedbackType
+	mentionsRequestId?: string
+	query?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

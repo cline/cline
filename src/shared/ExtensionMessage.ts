@@ -41,6 +41,7 @@ export interface ExtensionMessage {
 		| "userCreditsPayments"
 		| "totalTasksSize"
 		| "addToInput"
+		| "fileSearchResults"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -81,6 +82,12 @@ export interface ExtensionMessage {
 	userCreditsUsage?: UsageTransaction[]
 	userCreditsPayments?: PaymentTransaction[]
 	totalTasksSize?: number | null
+	mentionsRequestId?: string
+	results?: Array<{
+		path: string
+		type: "file" | "folder"
+		label?: string
+	}>
 	addRemoteServerResult?: {
 		success: boolean
 		serverName: string
