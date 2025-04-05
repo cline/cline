@@ -1,7 +1,11 @@
 import { McpTool } from "@shared/mcp"
 import { vscode } from "@/utils/vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useLayoutEffect, useRef } from "react"
+import React, { useLayoutEffect, useRef } from "react"
+import { provideVSCodeDesignSystem, vsCodeCheckbox } from "@vscode/webview-ui-toolkit"
+
+// Register the VS Code design system and components
+provideVSCodeDesignSystem().register(vsCodeCheckbox())
 
 type McpToolRowProps = {
 	tool: McpTool
@@ -11,10 +15,10 @@ type McpToolRowProps = {
 const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 
-	// Accept the event object
-	const handleAutoApproveChange = (event: any) => {
+	// Handle checkbox change event
+	const handleAutoApproveChange = (event: Event) => {
 		// Only proceed if the event was triggered by a direct user interaction
-		if (!serverName || !event.isTrusted) return
+		if (!serverName || !(event as any).isTrusted) return
 
 		vscode.postMessage({
 			type: "toggleToolAutoApprove",
@@ -38,7 +42,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 					<span style={{ fontWeight: 500 }}>{tool.name}</span>
 				</div>
 				{serverName && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
-					<IsolatedCheckbox checked={!!tool.autoApprove} onChange={handleAutoApproveChange} name={tool.name} />
+					<VsCodeCheckbox checked={!!tool.autoApprove} onChange={handleAutoApproveChange} toolName={tool.name} />
 				)}
 			</div>
 			{tool.description && (
@@ -119,42 +123,41 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 	)
 }
 
-// Create an isolated checkbox component that bypasses React's synthetic event system
-const IsolatedCheckbox = ({ checked, onChange, name }: { checked: boolean; onChange: (e: any) => void; name: string }) => {
-	const ref = useRef<HTMLDivElement>(null)
+const VsCodeCheckbox = ({
+	checked,
+	onChange,
+	toolName,
+}: {
+	checked: boolean
+	onChange: (e: Event) => void
+	toolName: string
+}) => {
+	const checkboxRef = useRef<any>(null)
 
 	useLayoutEffect(() => {
-		if (!ref.current) return
+		const checkbox = checkboxRef.current
+		if (!checkbox) return
 
-		// Create checkbox if it doesn't exist
-		if (!ref.current.firstChild) {
-			const checkbox = document.createElement("vscode-checkbox")
-			checkbox.textContent = "Auto-approve"
-			checkbox.setAttribute("data-tool", name)
-			checkbox.addEventListener("change", (e) => {
-				// Only process trusted events
-				if (!(e as any).isTrusted) {
-					e.stopPropagation()
-					e.preventDefault()
-					return
-				}
-				onChange(e)
-			})
-			ref.current.appendChild(checkbox)
+		const handleChange = (e: Event) => {
+			if (!(e as any).isTrusted) return
+			onChange(e)
 		}
 
-		// Update checked state
-		const checkbox = ref.current.firstChild as HTMLElement
-		if (checkbox) {
-			if (checked) {
-				checkbox.setAttribute("checked", "")
-			} else {
-				checkbox.removeAttribute("checked")
-			}
-		}
-	}, [checked, onChange, name])
+		checkbox.addEventListener("change", handleChange)
+		return () => checkbox.removeEventListener("change", handleChange)
+	}, [onChange])
 
-	return <div ref={ref} className="isolated-checkbox-container"></div>
+	useLayoutEffect(() => {
+		if (!checkboxRef.current) return
+		checkboxRef.current.checked = checked
+	}, [checked])
+
+	// Use type assertion to bypass TypeScript's JSX element validation
+	return React.createElement("vscode-checkbox", {
+		ref: checkboxRef,
+		"data-tool": toolName,
+		children: "Auto-approve",
+	})
 }
 
 export default McpToolRow
