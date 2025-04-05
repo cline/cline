@@ -119,8 +119,8 @@
 		"wantsToCreate": "Roo 想要建立新檔案："
 	},
 	"directoryOperations": {
-		"wantsToViewTopLevel": "Roo 想要檢視此目錄中的頂層檔案：",
-		"didViewTopLevel": "Roo 已檢視此目錄中的頂層檔案：",
+		"wantsToViewTopLevel": "Roo 想要檢視此目錄中最上層的檔案：",
+		"didViewTopLevel": "Roo 已檢視此目錄中最上層的檔案：",
 		"wantsToViewRecursive": "Roo 想要遞迴檢視此目錄中的所有檔案：",
 		"didViewRecursive": "Roo 已遞迴檢視此目錄中的所有檔案：",
 		"wantsToViewDefinitions": "Roo 想要檢視此目錄中使用的原始碼定義名稱：",
