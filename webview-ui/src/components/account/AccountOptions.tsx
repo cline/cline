@@ -1,5 +1,5 @@
 import { memo } from "react"
-import { vscode } from "../../utils/vscode"
+import { vscode } from "@/utils/vscode"
 
 const AccountOptions = () => {
 	const handleAccountClick = () => {
