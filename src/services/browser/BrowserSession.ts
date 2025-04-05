@@ -211,7 +211,7 @@ export class BrowserSession {
 		this.isConnectedToRemote = false
 
 		if (this.browserSettings.remoteBrowserEnabled) {
-			console.trace(`launch browser called -- remote host mode (non-headless)`)
+			console.log(`launch browser called -- remote host mode (non-headless)`)
 			try {
 				await this.launchRemoteBrowser()
 				// Don't create a new page here, as we'll create it in launchRemoteBrowser
@@ -227,7 +227,7 @@ export class BrowserSession {
 				await this.launchLocalBrowser()
 			}
 		} else {
-			console.trace(`launch browser called -- local mode (headless)`)
+			console.log(`launch browser called -- local mode (headless)`)
 			await this.launchLocalBrowser()
 		}
 
@@ -264,7 +264,7 @@ export class BrowserSession {
 		// First try auto-discovery if no host is provided
 		if (!remoteBrowserHost) {
 			try {
-				console.trace("No remote browser host provided, trying auto-discovery")
+				console.info("No remote browser host provided, trying auto-discovery")
 				const discoveredHost = await discoverChromeInstances()
 
 				if (discoveredHost) {
@@ -272,14 +272,14 @@ export class BrowserSession {
 					remoteBrowserHost = discoveredHost
 				}
 			} catch (error) {
-				console.warn(`Auto-discovery failed: ${error}`)
+				console.log(`Auto-discovery failed: ${error}`)
 			}
 		}
 
 		// Try to connect with cached endpoint first if it exists and is recent (less than 1 hour old)
 		if (browserWSEndpoint && Date.now() - this.lastConnectionAttempt < 3600000) {
 			try {
-				console.trace(`Attempting to connect using cached WebSocket endpoint: ${browserWSEndpoint}`)
+				console.info(`Attempting to connect using cached WebSocket endpoint: ${browserWSEndpoint}`)
 				this.browser = await connect({
 					browserWSEndpoint,
 					defaultViewport: getViewport(),
@@ -288,7 +288,7 @@ export class BrowserSession {
 				this.isConnectedToRemote = true
 				return
 			} catch (error) {
-				console.error(`Failed to connect using cached endpoint: ${error}`)
+				console.log(`Failed to connect using cached endpoint: ${error}`)
 				// Clear the cached endpoint since it's no longer valid
 				this.cachedWebSocketEndpoint = undefined
 				// User wants to give up after one reconnection attempt
@@ -303,7 +303,7 @@ export class BrowserSession {
 			try {
 				// Fetch the WebSocket endpoint from the Chrome DevTools Protocol
 				const versionUrl = `${remoteBrowserHost.replace(/\/$/, "")}/json/version`
-				console.trace(`Fetching WebSocket endpoint from ${versionUrl}`)
+				console.info(`Fetching WebSocket endpoint from ${versionUrl}`)
 
 				const response = await axios.get(versionUrl)
 				browserWSEndpoint = response.data.webSocketDebuggerUrl
@@ -326,7 +326,7 @@ export class BrowserSession {
 				this.isConnectedToRemote = true
 				return
 			} catch (error) {
-				console.error(`Failed to connect to remote browser: ${error}`)
+				console.log(`Failed to connect to remote browser: ${error}`)
 			}
 		}
 
@@ -344,7 +344,7 @@ export class BrowserSession {
 		try {
 			await chromeLauncher.killAll()
 		} catch (err: unknown) {
-			console.error("Error in chrome-launcher killAll:", err)
+			console.log("Error in chrome-launcher killAll:", err)
 		}
 
 		// Then kill other Chrome instances using platform-specific commands
@@ -528,7 +528,7 @@ export class BrowserSession {
 			let currentHTMLSize = html.length
 
 			// let bodyHTMLSize = await page.evaluate(() => document.body.innerHTML.length)
-			console.trace("last: ", lastHTMLSize, " <> curr: ", currentHTMLSize)
+			console.info("last: ", lastHTMLSize, " <> curr: ", currentHTMLSize)
 
 			if (lastHTMLSize !== 0 && currentHTMLSize === lastHTMLSize) {
 				countStableSizeIterations++
@@ -537,7 +537,7 @@ export class BrowserSession {
 			}
 
 			if (countStableSizeIterations >= minStableSizeIterations) {
-				console.trace("Page rendered fully...")
+				console.info("Page rendered fully...")
 				break
 			}
 
