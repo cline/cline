@@ -184,7 +184,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 			</style>
 			<div style={{ display: "flex", flexDirection: "column" }}>
 				<label htmlFor="model-search">
-					<span style={{ fontWeight: 500 }}>Models</span>
+					<span style={{ fontWeight: 500 }}>Model</span>
 				</label>
 
 				{apiConfiguration?.apiProvider === "cline" && (
