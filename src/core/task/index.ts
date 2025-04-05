@@ -2675,6 +2675,9 @@ export class Task {
 									})
 								}
 
+								// Store the number of options for telemetry
+								const options = parsePartialArrayString(optionsRaw || "[]")
+
 								const { text, images } = await this.ask("followup", JSON.stringify(sharedMessage), false)
 
 								// Check if options contains the text response
@@ -2688,9 +2691,11 @@ export class Task {
 											selected: text,
 										} satisfies ClineAskQuestion)
 										await this.saveClineMessagesAndUpdateHistory()
+										telemetryService.captureOptionSelected(this.taskId, options.length, "act")
 									}
 								} else {
 									// Option not selected, send user feedback
+									telemetryService.captureOptionsIgnored(this.taskId, options.length, "act")
 									await this.say("user_feedback", text ?? "", images)
 								}
 
@@ -2731,6 +2736,9 @@ export class Task {
 								// 	})
 								// }
 
+								// Store the number of options for telemetry
+								const options = parsePartialArrayString(optionsRaw || "[]")
+
 								this.isAwaitingPlanResponse = true
 								let { text, images } = await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), false)
 								this.isAwaitingPlanResponse = false
@@ -2751,10 +2759,12 @@ export class Task {
 											selected: text,
 										} satisfies ClinePlanModeResponse)
 										await this.saveClineMessagesAndUpdateHistory()
+										telemetryService.captureOptionSelected(this.taskId, options.length, "plan")
 									}
 								} else {
 									// Option not selected, send user feedback
 									if (text || images?.length) {
+										telemetryService.captureOptionsIgnored(this.taskId, options.length, "plan")
 										await this.say("user_feedback", text ?? "", images)
 									}
 								}
