@@ -1,12 +1,8 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import styled from "styled-components"
-
-interface BrowserSettingsMenuProps {
-	maxWidth?: number
-}
 
 interface ConnectionInfo {
 	isConnected: boolean
@@ -15,7 +11,7 @@ interface ConnectionInfo {
 	isHeadless: boolean
 }
 
-export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWidth }) => {
+export const BrowserSettingsMenu = () => {
 	const { browserSettings } = useExtensionState()
 	const containerRef = useRef<HTMLDivElement>(null)
 	const [showInfoPopover, setShowInfoPopover] = useState(false)
@@ -198,13 +194,16 @@ const InfoPopover = styled.div`
 	border-radius: 4px;
 	padding: 10px;
 	z-index: 100;
-	width: 250px;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	width: 60dvw;
+	max-width: 250px;
 `
 
 const InfoRow = styled.div`
 	display: flex;
 	margin-bottom: 4px;
+	flex-wrap: wrap;
+	white-space: nowrap;
 `
 
 const InfoLabel = styled.div`
