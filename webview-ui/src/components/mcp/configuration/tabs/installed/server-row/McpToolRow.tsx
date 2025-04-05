@@ -1,7 +1,7 @@
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { McpTool } from "@shared/mcp"
 import { vscode } from "@/utils/vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useLayoutEffect, useRef } from "react"
 
 type McpToolRowProps = {
 	tool: McpTool
@@ -38,9 +38,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 					<span style={{ fontWeight: 500 }}>{tool.name}</span>
 				</div>
 				{serverName && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
-					<VSCodeCheckbox checked={tool.autoApprove} onChange={handleAutoApproveChange} data-tool={tool.name}>
-						Auto-approve
-					</VSCodeCheckbox>
+					<IsolatedCheckbox checked={!!tool.autoApprove} onChange={handleAutoApproveChange} name={tool.name} />
 				)}
 			</div>
 			{tool.description && (
@@ -119,6 +117,44 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 				)}
 		</div>
 	)
+}
+
+// Create an isolated checkbox component that bypasses React's synthetic event system
+const IsolatedCheckbox = ({ checked, onChange, name }: { checked: boolean; onChange: (e: any) => void; name: string }) => {
+	const ref = useRef<HTMLDivElement>(null)
+
+	useLayoutEffect(() => {
+		if (!ref.current) return
+
+		// Create checkbox if it doesn't exist
+		if (!ref.current.firstChild) {
+			const checkbox = document.createElement("vscode-checkbox")
+			checkbox.textContent = "Auto-approve"
+			checkbox.setAttribute("data-tool", name)
+			checkbox.addEventListener("change", (e) => {
+				// Only process trusted events
+				if (!(e as any).isTrusted) {
+					e.stopPropagation()
+					e.preventDefault()
+					return
+				}
+				onChange(e)
+			})
+			ref.current.appendChild(checkbox)
+		}
+
+		// Update checked state
+		const checkbox = ref.current.firstChild as HTMLElement
+		if (checkbox) {
+			if (checked) {
+				checkbox.setAttribute("checked", "")
+			} else {
+				checkbox.removeAttribute("checked")
+			}
+		}
+	}, [checked, onChange, name])
+
+	return <div ref={ref} className="isolated-checkbox-container"></div>
 }
 
 export default McpToolRow
