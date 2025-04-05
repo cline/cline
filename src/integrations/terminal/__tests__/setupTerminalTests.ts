@@ -19,8 +19,8 @@ function isPowerShellCoreAvailable() {
 const hasPwsh = isPowerShellCoreAvailable()
 
 // Log environment information
-console.log(`Test environment: ${process.platform} ${process.arch}`)
-console.log(`PowerShell Core available: ${hasPwsh}`)
+// console.log(`Test environment: ${process.platform} ${process.arch}`)
+// console.log(`PowerShell Core available: ${hasPwsh}`)
 
 // Define interface for global test environment
 declare global {
