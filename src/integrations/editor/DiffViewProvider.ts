@@ -79,6 +79,15 @@ export class DiffViewProvider {
 		if (!this.relPath || !this.activeLineController || !this.fadedOverlayController) {
 			throw new Error("Required values not set")
 		}
+
+		// --- Fix to prevent duplicate BOM ---
+		// Strip potential BOM from incoming content. VS Code's `applyEdit` might implicitly handle the BOM
+		// when replacing from the start (0,0), and we want to avoid duplication.
+		// Final BOM is handled in `saveChanges`.
+		if (accumulatedContent.startsWith("\ufeff")) {
+			accumulatedContent = accumulatedContent.slice(1) // Remove the BOM character
+		}
+
 		this.newContent = accumulatedContent
 		const accumulatedLines = accumulatedContent.split("\n")
 		if (!isFinal) {
