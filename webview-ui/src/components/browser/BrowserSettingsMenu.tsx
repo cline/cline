@@ -1,5 +1,5 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import React, { useRef, useState } from "react"
+import React, { useRef, useState, useMemo } from "react"
 import { useClickAway } from "react-use"
 import styled from "styled-components"
 import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
@@ -12,28 +12,42 @@ interface BrowserSettingsMenuProps {
 	maxWidth?: number
 }
 
+// constant JSX.Elements
+const DropdownOptions = Object.entries(BROWSER_VIEWPORT_PRESETS).map(([name]) => (
+	<VSCodeOption key={name} value={name}>
+		{name}
+	</VSCodeOption>
+))
+
 export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabled = false, maxWidth }) => {
 	const { browserSettings } = useExtensionState()
 	const [showMenu, setShowMenu] = useState(false)
-	const [hasMouseEntered, setHasMouseEntered] = useState(false)
+	const hasMouseEnteredRef = useRef(false)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const menuRef = useRef<HTMLDivElement>(null)
+	const dropdownValue = useMemo(
+		() =>
+			Object.entries(BROWSER_VIEWPORT_PRESETS).find(
+				([_, size]) => size.width === browserSettings.viewport.width && size.height === browserSettings.viewport.height,
+			)?.[0],
+		[browserSettings],
+	)
 
 	useClickAway(containerRef, () => {
 		if (showMenu) {
 			setShowMenu(false)
-			setHasMouseEntered(false)
+			hasMouseEnteredRef.current = false
 		}
 	})
 
 	const handleMouseEnter = () => {
-		setHasMouseEntered(true)
+		hasMouseEnteredRef.current = true
 	}
 
 	const handleMouseLeave = () => {
-		if (hasMouseEntered) {
+		if (hasMouseEnteredRef.current) {
 			setShowMenu(false)
-			setHasMouseEntered(false)
+			hasMouseEnteredRef.current = false
 		}
 	}
 
@@ -55,7 +69,7 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 		}
 
 		setShowMenu(false)
-		setHasMouseEntered(false)
+		hasMouseEnteredRef.current = false
 	}
 
 	const handleViewportChange = (event: Event) => {
@@ -152,19 +166,9 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ disabl
 						<SettingsHeader>Viewport Size</SettingsHeader>
 						<VSCodeDropdown
 							style={{ width: "100%" }}
-							value={
-								Object.entries(BROWSER_VIEWPORT_PRESETS).find(
-									([_, size]) =>
-										size.width === browserSettings.viewport.width &&
-										size.height === browserSettings.viewport.height,
-								)?.[0]
-							}
+							value={dropdownValue}
 							onChange={(event) => handleViewportChange(event as Event)}>
-							{Object.entries(BROWSER_VIEWPORT_PRESETS).map(([name]) => (
-								<VSCodeOption key={name} value={name}>
-									{name}
-								</VSCodeOption>
-							))}
+							{DropdownOptions}
 						</VSCodeDropdown>
 					</SettingsGroup>
 				</SettingsMenu>
