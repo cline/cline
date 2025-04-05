@@ -47,6 +47,7 @@ import {
 	sambanovaDefaultModelId,
 	doubaoModels,
 	doubaoDefaultModelId,
+	liteLlmModelInfoSaneDefaults,
 } from "@shared/api"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -1240,6 +1241,28 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
 
+					<div style={{ display: "flex", flexDirection: "column", marginTop: 10, marginBottom: 10 }}>
+						{selectedModelInfo.supportsPromptCache && (
+							<>
+								<VSCodeCheckbox
+									checked={apiConfiguration?.liteLlmUsePromptCache || false}
+									onChange={(e: any) => {
+										const isChecked = e.target.checked === true
+										setApiConfiguration({
+											...apiConfiguration,
+											liteLlmUsePromptCache: isChecked,
+										})
+									}}
+									style={{ fontWeight: 500, color: "var(--vscode-charts-green)" }}>
+									Use prompt caching (GA)
+								</VSCodeCheckbox>
+								<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-charts-green)" }}>
+									Prompt caching requires a supported provider and model
+								</p>
+							</>
+						)}
+					</div>
+
 					<>
 						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
 						<p
@@ -1778,7 +1801,7 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return {
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.liteLlmModelId || "",
-				selectedModelInfo: openAiModelInfoSaneDefaults,
+				selectedModelInfo: liteLlmModelInfoSaneDefaults,
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)
