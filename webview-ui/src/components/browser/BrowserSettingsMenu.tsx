@@ -99,25 +99,6 @@ export const BrowserSettingsMenu: React.FC<BrowserSettingsMenuProps> = ({ maxWid
 		}
 	}
 
-	// Refresh connection info periodically when popover is open
-	useEffect(() => {
-		if (!showInfoPopover) return
-
-		// Request connection info immediately
-		vscode.postMessage({
-			type: "getBrowserConnectionInfo",
-		})
-
-		// Set up interval to refresh every 2 seconds
-		const intervalId = setInterval(() => {
-			vscode.postMessage({
-				type: "getBrowserConnectionInfo",
-			})
-		}, 2000)
-
-		return () => clearInterval(intervalId)
-	}, [showInfoPopover])
-
 	// Determine icon based on connection state
 	const getIconClass = () => {
 		if (connectionInfo.isRemote) {
