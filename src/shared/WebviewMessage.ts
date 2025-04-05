@@ -68,6 +68,7 @@ export interface WebviewMessage {
 		| "requestTotalTasksSize"
 		| "taskFeedback"
 		| "searchFiles"
+		| "toggleFavoriteModel"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -100,6 +101,7 @@ export interface WebviewMessage {
 	feedbackType?: TaskFeedbackType
 	mentionsRequestId?: string
 	query?: string
+	modelId?: string // For toggleFavoriteModel
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

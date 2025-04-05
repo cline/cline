@@ -7,6 +7,25 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { highlight } from "../history/HistoryView"
 
+// Star icon for favorites
+const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
+	return (
+		<div
+			onClick={onClick}
+			style={{
+				cursor: "pointer",
+				color: isFavorite ? "var(--vscode-terminal-ansiYellow)" : "var(--vscode-descriptionForeground)",
+				marginLeft: "8px",
+				fontSize: "16px",
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+			}}>
+			{isFavorite ? "★" : "☆"}
+		</div>
+	)
+}
+
 const OpenAiModelPicker: React.FC = () => {
 	const { apiConfiguration, setApiConfiguration, openAiModels } = useExtensionState()
 	const [searchTerm, setSearchTerm] = useState(apiConfiguration?.openAiModelId || "")
@@ -69,9 +88,18 @@ const OpenAiModelPicker: React.FC = () => {
 		const results: { id: string; html: string }[] = searchTerm
 			? highlight(fuse.search(searchTerm), "model-item-highlight")
 			: searchableItems
-		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
-		return results
-	}, [searchableItems, searchTerm, fuse])
+
+		// Sort favorited models to the top
+		const favoritedModelIds = apiConfiguration?.favoritedModelIds || []
+		return results.sort((a, b) => {
+			const aIsFavorite = favoritedModelIds.includes(a.id)
+			const bIsFavorite = favoritedModelIds.includes(b.id)
+
+			if (aIsFavorite && !bIsFavorite) return -1
+			if (!aIsFavorite && bIsFavorite) return 1
+			return a.id.localeCompare(b.id)
+		})
+	}, [searchableItems, searchTerm, fuse, apiConfiguration?.favoritedModelIds])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (!isDropdownVisible) return
@@ -158,21 +186,34 @@ const OpenAiModelPicker: React.FC = () => {
 					</VSCodeTextField>
 					{isDropdownVisible && (
 						<DropdownList ref={dropdownListRef}>
-							{modelSearchResults.map((item, index) => (
-								<DropdownItem
-									key={item.id}
-									ref={(el) => (itemRefs.current[index] = el)}
-									isSelected={index === selectedIndex}
-									onMouseEnter={() => setSelectedIndex(index)}
-									onClick={() => {
-										handleModelChange(item.id)
-										setIsDropdownVisible(false)
-									}}
-									dangerouslySetInnerHTML={{
-										__html: item.html,
-									}}
-								/>
-							))}
+							{modelSearchResults.map((item, index) => {
+								const isFavorite = (apiConfiguration?.favoritedModelIds || []).includes(item.id)
+								return (
+									<DropdownItem
+										key={item.id}
+										ref={(el) => (itemRefs.current[index] = el)}
+										isSelected={index === selectedIndex}
+										onMouseEnter={() => setSelectedIndex(index)}
+										onClick={() => {
+											handleModelChange(item.id)
+											setIsDropdownVisible(false)
+										}}>
+										<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+											<span dangerouslySetInnerHTML={{ __html: item.html }} />
+											<StarIcon
+												isFavorite={isFavorite}
+												onClick={(e) => {
+													e.stopPropagation()
+													vscode.postMessage({
+														type: "toggleFavoriteModel",
+														modelId: item.id,
+													})
+												}}
+											/>
+										</div>
+									</DropdownItem>
+								)
+							})}
 						</DropdownList>
 					)}
 				</DropdownWrapper>
