@@ -153,3 +153,48 @@ describe("OpenApiInfoOptions", () => {
 		expect(modelInput).toBeInTheDocument()
 	})
 })
+
+vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
+	const actual = await importOriginal()
+	return {
+		...actual,
+		useExtensionState: vi.fn(() => ({
+			apiConfiguration: {
+				apiProvider: "nebius",
+				requestyApiKey: "",
+				requestyModelId: "",
+			},
+			setApiConfiguration: vi.fn(),
+			uriScheme: "vscode",
+		})),
+	}
+})
+
+describe("ApiOptions Component", () => {
+	vi.clearAllMocks()
+	const mockPostMessage = vi.fn()
+
+	beforeEach(() => {
+		global.vscode = { postMessage: mockPostMessage } as any
+	})
+
+	it("renders Nebius API Key input", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+		const apiKeyInput = screen.getByPlaceholderText("Enter API Key...")
+		expect(apiKeyInput).toBeInTheDocument()
+	})
+
+	it("renders Nebius Model ID input", () => {
+		render(
+			<ExtensionStateContextProvider>
+				<ApiOptions showModelOptions={true} />
+			</ExtensionStateContextProvider>,
+		)
+		const modelIdInput = screen.getByPlaceholderText("Enter Model ID...")
+		expect(modelIdInput).toBeInTheDocument()
+	})
+})
