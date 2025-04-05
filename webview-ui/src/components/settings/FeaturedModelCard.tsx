@@ -3,88 +3,60 @@ import styled from "styled-components"
 
 export interface FeaturedModelCardProps {
 	modelId: string
-	tags: string[]
 	description: string
-	colorClass: string
 	onClick: () => void
 	isSelected: boolean
+	label: string
 }
 
 const CardContainer = styled.div<{ isSelected: boolean }>`
-	padding: 10px;
-	margin-bottom: 8px;
-	border-radius: 4px;
-	border: 1px solid ${(props) => (props.isSelected ? "var(--vscode-focusBorder)" : "var(--vscode-widget-border)")};
+	padding: 2px 4px;
+	margin-bottom: 2px;
+	border-radius: 3px;
+	border: 1px solid var(--vscode-textLink-foreground);
+	opacity: ${(props) => (props.isSelected ? 1 : 0.6)};
 	cursor: pointer;
-	transition: background-color 0.1s ease;
 
 	&:hover {
 		background-color: var(--vscode-list-hoverBackground);
+		opacity: 1;
 	}
 `
 
 const ModelHeader = styled.div`
 	display: flex;
 	align-items: center;
-`
-
-const ColorIndicator = styled.div<{ colorClass: string }>`
-	width: 10px;
-	height: 10px;
-	border-radius: 50%;
-	margin-right: 8px;
-	background-color: ${(props) => {
-		switch (props.colorClass) {
-			case "green-600":
-				return "var(--vscode-charts-green)"
-			case "green-500":
-				return "var(--vscode-debugIcon.startForeground)"
-			case "green-400":
-				return "var(--vscode-gitDecoration.addedResourceForeground)"
-			default:
-				return "var(--vscode-charts-green)"
-		}
-	}};
+	justify-content: space-between;
 `
 
 const ModelName = styled.div`
 	font-weight: 500;
-	font-size: 13px;
+	font-size: 12px;
+	line-height: 1.2;
 `
 
-const TagsContainer = styled.div`
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px;
-	margin-top: 8px;
-`
-
-const Tag = styled.span`
-	font-size: 11px;
-	padding: 2px 6px;
-	border-radius: 10px;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+const Label = styled.span`
+	font-size: 10px;
+	color: var(--vscode-textLink-foreground);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	font-weight: 500;
 `
 
 const Description = styled.div`
-	margin-top: 4px;
-	font-size: 12px;
+	margin-top: 0px;
+	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
+	line-height: 1.2;
 `
 
-const FeaturedModelCard: React.FC<FeaturedModelCardProps> = ({ modelId, tags, description, colorClass, onClick, isSelected }) => {
+const FeaturedModelCard: React.FC<FeaturedModelCardProps> = ({ modelId, description, onClick, isSelected, label }) => {
 	return (
 		<CardContainer isSelected={isSelected} onClick={onClick}>
 			<ModelHeader>
-				<ColorIndicator colorClass={colorClass} />
 				<ModelName>{modelId}</ModelName>
+				<Label>{label}</Label>
 			</ModelHeader>
-			<TagsContainer>
-				{tags.map((tag) => (
-					<Tag key={tag}>#{tag}</Tag>
-				))}
-			</TagsContainer>
 			<Description>{description}</Description>
 		</CardContainer>
 	)

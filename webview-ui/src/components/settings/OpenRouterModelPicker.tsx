@@ -21,21 +21,18 @@ export interface OpenRouterModelPickerProps {
 const featuredModels = [
 	{
 		id: "anthropic/claude-3.7-sonnet",
-		tags: ["flagship", "powerful", "fast"],
-		description: "Default model for most tasks",
-		colorClass: "green-600",
+		description: "Leading model for agentic coding",
+		label: "Best",
 	},
 	{
 		id: "google/gemini-2.5-pro-preview-03-25",
-		tags: ["intelligent", "high-context", "fast", "cheap"],
-		description: "1M context window, great value",
-		colorClass: "green-600",
+		description: "Large 1M context window, great value",
+		label: "Trending",
 	},
 	{
 		id: "meta-llama/llama-4-maverick",
-		tags: ["fast", "cheap", "smart"],
 		description: "Efficient performance at lower cost",
-		colorClass: "green-600",
+		label: "New",
 	},
 ]
 
@@ -187,21 +184,17 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 			</style>
 			<div style={{ display: "flex", flexDirection: "column" }}>
 				<label htmlFor="model-search">
-					<span style={{ fontWeight: 500 }}>
-						{apiConfiguration?.apiProvider === "cline" ? "Recommended Models" : "Model"}
-					</span>
+					<span style={{ fontWeight: 500 }}>Models</span>
 				</label>
 
 				{apiConfiguration?.apiProvider === "cline" && (
-					<div style={{ marginBottom: "16px" }}>
-						<div className="h-2" />
+					<div style={{ marginBottom: "6px", marginTop: 4 }}>
 						{featuredModels.map((model) => (
 							<FeaturedModelCard
 								key={model.id}
 								modelId={model.id}
-								tags={model.tags}
 								description={model.description}
-								colorClass={model.colorClass}
+								label={model.label}
 								isSelected={selectedModelId === model.id}
 								onClick={() => {
 									handleModelChange(model.id)
@@ -209,13 +202,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 								}}
 							/>
 						))}
-						<div
-							style={{
-								marginTop: "12px",
-								marginBottom: "12px",
-								borderTop: "1px solid var(--vscode-widget-border)",
-							}}></div>
-						<div style={{ marginBottom: "8px", fontSize: "12px", fontWeight: "600" }}>All Models</div>
 					</div>
 				)}
 
