@@ -228,6 +228,7 @@ type GlobalSettings = {
 				cacheReads?: number | undefined
 				totalCost: number
 				size?: number | undefined
+				workspace?: string | undefined
 		  }[]
 		| undefined
 	autoApprovalEnabled?: boolean | undefined

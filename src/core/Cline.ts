@@ -397,6 +397,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 				cacheReads: apiMetrics.totalCacheReads,
 				totalCost: apiMetrics.totalCost,
 				size: taskDirSize,
+				workspace: this.cwd,
 			})
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)

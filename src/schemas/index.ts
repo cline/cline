@@ -146,6 +146,7 @@ export const historyItemSchema = z.object({
 	cacheReads: z.number().optional(),
 	totalCost: z.number(),
 	size: z.number().optional(),
+	workspace: z.string().optional(),
 })
 
 export type HistoryItem = z.infer<typeof historyItemSchema>
