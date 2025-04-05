@@ -166,6 +166,11 @@
 	code {
 		background-color: var(--vscode-textCodeBlock-background);
 	}
+
+	/* Search result highlighting */
+	.history-item-highlight {
+		@apply underline;
+	}
 }
 
 /* Form Element Focus States */
