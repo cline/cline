@@ -82,7 +82,7 @@ export class BrowserSession {
 				return { path: systemPath, isBundled: false }
 			}
 		} catch (error) {
-			console.log("Could not find system Chrome:", error)
+			console.info("Could not find system Chrome:", error)
 		}
 
 		// Finally fall back to PCR's bundled version
@@ -147,7 +147,7 @@ export class BrowserSession {
 			if (!installation) {
 				throw new Error("Could not find Chrome installation on this system")
 			}
-			console.log("chrome installation", installation)
+			console.info("chrome installation", installation)
 
 			// Use Node's child_process to spawn Chrome as a detached process
 			// This ensures the browser won't be terminated when VSCode exits
@@ -211,7 +211,7 @@ export class BrowserSession {
 		this.isConnectedToRemote = false
 
 		if (this.browserSettings.remoteBrowserEnabled) {
-			console.log(`launch browser called -- remote host mode (non-headless)`)
+			console.trace(`launch browser called -- remote host mode (non-headless)`)
 			try {
 				await this.launchRemoteBrowser()
 				// Don't create a new page here, as we'll create it in launchRemoteBrowser
@@ -227,7 +227,7 @@ export class BrowserSession {
 				await this.launchLocalBrowser()
 			}
 		} else {
-			console.log(`launch browser called -- local mode (headless)`)
+			console.trace(`launch browser called -- local mode (headless)`)
 			await this.launchLocalBrowser()
 		}
 
@@ -264,22 +264,22 @@ export class BrowserSession {
 		// First try auto-discovery if no host is provided
 		if (!remoteBrowserHost) {
 			try {
-				console.log("No remote browser host provided, trying auto-discovery")
+				console.trace("No remote browser host provided, trying auto-discovery")
 				const discoveredHost = await discoverChromeInstances()
 
 				if (discoveredHost) {
-					console.log(`Auto-discovered Chrome at ${discoveredHost}`)
+					console.info(`Auto-discovered Chrome at ${discoveredHost}`)
 					remoteBrowserHost = discoveredHost
 				}
 			} catch (error) {
-				console.log(`Auto-discovery failed: ${error}`)
+				console.warn(`Auto-discovery failed: ${error}`)
 			}
 		}
 
 		// Try to connect with cached endpoint first if it exists and is recent (less than 1 hour old)
 		if (browserWSEndpoint && Date.now() - this.lastConnectionAttempt < 3600000) {
 			try {
-				console.log(`Attempting to connect using cached WebSocket endpoint: ${browserWSEndpoint}`)
+				console.trace(`Attempting to connect using cached WebSocket endpoint: ${browserWSEndpoint}`)
 				this.browser = await connect({
 					browserWSEndpoint,
 					defaultViewport: getViewport(),
@@ -288,7 +288,7 @@ export class BrowserSession {
 				this.isConnectedToRemote = true
 				return
 			} catch (error) {
-				console.log(`Failed to connect using cached endpoint: ${error}`)
+				console.error(`Failed to connect using cached endpoint: ${error}`)
 				// Clear the cached endpoint since it's no longer valid
 				this.cachedWebSocketEndpoint = undefined
 				// User wants to give up after one reconnection attempt
@@ -303,7 +303,7 @@ export class BrowserSession {
 			try {
 				// Fetch the WebSocket endpoint from the Chrome DevTools Protocol
 				const versionUrl = `${remoteBrowserHost.replace(/\/$/, "")}/json/version`
-				console.log(`Fetching WebSocket endpoint from ${versionUrl}`)
+				console.trace(`Fetching WebSocket endpoint from ${versionUrl}`)
 
 				const response = await axios.get(versionUrl)
 				browserWSEndpoint = response.data.webSocketDebuggerUrl
@@ -312,7 +312,7 @@ export class BrowserSession {
 					throw new Error("Could not find webSocketDebuggerUrl in the response")
 				}
 
-				console.log(`Found WebSocket browser endpoint: ${browserWSEndpoint}`)
+				console.info(`Found WebSocket browser endpoint: ${browserWSEndpoint}`)
 
 				// Cache the successful endpoint
 				this.cachedWebSocketEndpoint = browserWSEndpoint
@@ -326,7 +326,7 @@ export class BrowserSession {
 				this.isConnectedToRemote = true
 				return
 			} catch (error) {
-				console.log(`Failed to connect to remote browser: ${error}`)
+				console.error(`Failed to connect to remote browser: ${error}`)
 			}
 		}
 
@@ -344,7 +344,7 @@ export class BrowserSession {
 		try {
 			await chromeLauncher.killAll()
 		} catch (err: unknown) {
-			console.log("Error in chrome-launcher killAll:", err)
+			console.error("Error in chrome-launcher killAll:", err)
 		}
 
 		// Then kill other Chrome instances using platform-specific commands
@@ -372,7 +372,7 @@ export class BrowserSession {
 				})
 			}
 		} catch (error) {
-			console.log("Error killing Chrome processes:", error)
+			console.error("Error killing Chrome processes:", error)
 		}
 	}
 
@@ -392,14 +392,14 @@ export class BrowserSession {
 				// Close the page/tab first if it exists
 				if (this.page) {
 					await this.page.close().catch(() => {})
-					console.log("closed remote browser tab...")
+					console.info("closed remote browser tab...")
 				}
 				await this.browser.disconnect().catch(() => {})
-				console.log("disconnected from remote browser...")
+				console.info("disconnected from remote browser...")
 				// do not close the browser
 			} else if (this.isConnectedToRemote === false) {
 				await this.browser?.close().catch(() => {})
-				console.log("closed local browser...")
+				console.info("closed local browser...")
 			}
 
 			this.browser = undefined
@@ -474,7 +474,7 @@ export class BrowserSession {
 		let screenshot = `data:image/webp;base64,${screenshotBase64}`
 
 		if (!screenshotBase64) {
-			console.log("webp screenshot failed, trying png")
+			console.info("webp screenshot failed, trying png")
 			screenshotBase64 = await this.page.screenshot({
 				...options,
 				type: "png",
@@ -528,7 +528,7 @@ export class BrowserSession {
 			let currentHTMLSize = html.length
 
 			// let bodyHTMLSize = await page.evaluate(() => document.body.innerHTML.length)
-			console.log("last: ", lastHTMLSize, " <> curr: ", currentHTMLSize)
+			console.trace("last: ", lastHTMLSize, " <> curr: ", currentHTMLSize)
 
 			if (lastHTMLSize !== 0 && currentHTMLSize === lastHTMLSize) {
 				countStableSizeIterations++
@@ -537,7 +537,7 @@ export class BrowserSession {
 			}
 
 			if (countStableSizeIterations >= minStableSizeIterations) {
-				console.log("Page rendered fully...")
+				console.trace("Page rendered fully...")
 				break
 			}
 

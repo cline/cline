@@ -43,7 +43,7 @@ export async function isPortOpen(host: string, port: number, timeout = 1000): Pr
  */
 export async function tryConnect(ipAddress: string): Promise<{ endpoint: string; ip: string } | null> {
 	try {
-		console.log(`Trying to connect to Chrome at: http://${ipAddress}:9222/json/version`)
+		console.trace(`Trying to connect to Chrome at: http://${ipAddress}:9222/json/version`)
 		const response = await axios.get(`http://${ipAddress}:9222/json/version`, { timeout: 1000 })
 		const data = response.data
 		return { endpoint: data.webSocketDebuggerUrl, ip: ipAddress }
@@ -59,14 +59,14 @@ export async function tryConnect(ipAddress: string): Promise<{ endpoint: string;
 export async function discoverChromeInstances(): Promise<string | null> {
 	// Only try localhost
 	const ipAddresses = ["localhost", "127.0.0.1"]
-	console.log("Checking for Chrome on localhost")
+	console.trace("Checking for Chrome on localhost")
 
 	// Try connecting to each IP address
 	for (const ip of ipAddresses) {
 		const connection = await tryConnect(ip)
 		if (connection) {
-			console.log(`Successfully connected to Chrome at: ${connection.ip}`)
-			console.log(`✅ Found Chrome at ${connection.ip}`)
+			console.info(`Successfully connected to Chrome at: ${connection.ip}`)
+			console.trace(`✅ Found Chrome at ${connection.ip}`)
 			return `http://${connection.ip}:9222`
 		}
 	}
@@ -81,7 +81,7 @@ export async function testBrowserConnection(host: string): Promise<{ success: bo
 	try {
 		// Fetch the WebSocket endpoint from the Chrome DevTools Protocol
 		const versionUrl = `${host.replace(/\/$/, "")}/json/version`
-		console.log(`Testing connection to ${versionUrl}`)
+		console.trace(`Testing connection to ${versionUrl}`)
 
 		const response = await axios.get(versionUrl, { timeout: 3000 })
 		const browserWSEndpoint = response.data.webSocketDebuggerUrl
