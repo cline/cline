@@ -11,10 +11,33 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
+import FeaturedModelCard from "./FeaturedModelCard"
 
 export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 }
+
+// Featured models for Cline provider
+const featuredModels = [
+	{
+		id: "anthropic/claude-3.7-sonnet",
+		tags: ["flagship", "powerful", "fast"],
+		description: "Default model for most tasks",
+		colorClass: "green-600",
+	},
+	{
+		id: "google/gemini-2.5-pro-preview-03-25",
+		tags: ["intelligent", "high-context", "fast", "cheap"],
+		description: "1M context window, great value",
+		colorClass: "green-600",
+	},
+	{
+		id: "meta-llama/llama-4-maverick",
+		tags: ["fast", "cheap", "smart"],
+		description: "Efficient performance at lower cost",
+		colorClass: "green-600",
+	},
+]
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }) => {
 	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
@@ -147,7 +170,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	const showBudgetSlider = useMemo(() => {
 		return (
 			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
-			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet")
+			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
+			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")
 		)
 	}, [selectedModelId])
 
@@ -165,6 +189,34 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 				<label htmlFor="model-search">
 					<span style={{ fontWeight: 500 }}>Model</span>
 				</label>
+
+				{apiConfiguration?.apiProvider === "cline" && (
+					<div style={{ marginBottom: "16px" }}>
+						<div style={{ marginBottom: "8px", fontSize: "12px", fontWeight: "600" }}>Recommended Models</div>
+						{featuredModels.map((model) => (
+							<FeaturedModelCard
+								key={model.id}
+								modelId={model.id}
+								tags={model.tags}
+								description={model.description}
+								colorClass={model.colorClass}
+								isSelected={selectedModelId === model.id}
+								onClick={() => {
+									handleModelChange(model.id)
+									setIsDropdownVisible(false)
+								}}
+							/>
+						))}
+						<div
+							style={{
+								marginTop: "12px",
+								marginBottom: "12px",
+								borderTop: "1px solid var(--vscode-widget-border)",
+							}}></div>
+						<div style={{ marginBottom: "8px", fontSize: "12px", fontWeight: "600" }}>All Models</div>
+					</div>
+				)}
+
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="model-search"
