@@ -47,12 +47,12 @@ import {
 	sambanovaDefaultModelId,
 	doubaoModels,
 	doubaoDefaultModelId,
-} from "../../../../src/shared/api"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
-import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
-import VSCodeButtonLink from "../common/VSCodeButtonLink"
+} from "@shared/api"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { vscode } from "@/utils/vscode"
+import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
+import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 
@@ -1246,7 +1246,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							style={{
 								fontSize: "12px",
 								marginTop: "5px",
-								color: "var(--vscode-charts-green)",
+								color: "var(--vscode-descriptionForeground)",
 							}}>
 							Extended thinking is available for models as Sonnet-3-7, o3-mini, Deepseek R1, etc. More info on{" "}
 							<VSCodeLink

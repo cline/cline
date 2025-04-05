@@ -1,7 +1,18 @@
 # Changelog
 
+## [3.9.1]
+
+-   Add Gemini 2.5 Pro Preview 03-25 to Google Provider
+
+## [3.9.0]
+
+-   Add Enable extended thinking for LiteLLM provider (Thanks @jorgegarciarey!)
+-   Add a tab for configuring local MCP Servers
+-   Fix issue with DeepSeek API provider token counting + context management
+-   Fix issues with checkpoints hanging under certain conditions
+
 ## [3.8.6]
- 
+
 -   Add UI for adding remote servers
 -   Add Mentions Feature Guide and update related documentation
 -   Fix bug where menu would open in sidebar and open tab
@@ -230,8 +241,8 @@
 ## [3.1.0]
 
 -   Added checkpoints: Snapshots of workspace are automatically created whenever Cline uses a tool
-    -   Compare changes: Hover over any tool use to see a diff between the snapshot and current workspace state
-    -   Restore options: Choose to restore just the task state, just the workspace files, or both
+-   Compare changes: Hover over any tool use to see a diff between the snapshot and current workspace state
+-   Restore options: Choose to restore just the task state, just the workspace files, or both
 -   New 'See new changes' button appears after task completion, providing an overview of all workspace changes
 -   Task header now shows disk space usage with a delete button to help manage snapshot storage
 
@@ -413,10 +424,10 @@
 ## [1.8.0]
 
 -   You can now use '@' in the textarea to add context!
-    -   @url: Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Claude the latest docs!
-    -   @problems: Add workspace errors and warnings for Claude to fix, no more back-and-forth about debugging
-    -   @file: Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
-    -   @folder: Adds folder's files all at once to speed up your workflow even more
+-   @url: Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Claude the latest docs!
+-   @problems: Add workspace errors and warnings for Claude to fix, no more back-and-forth about debugging
+-   @file: Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
+-   @folder: Adds folder's files all at once to speed up your workflow even more
 
 ## [1.7.0]
 

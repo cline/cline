@@ -1,8 +1,8 @@
 import { VSCodeDataGrid, VSCodeDataGridRow, VSCodeDataGridCell } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
-import { TabButton } from "../mcp/McpView"
-import { UsageTransaction, PaymentTransaction } from "../../../../src/shared/ClineAccount"
-import { formatDollars, formatTimestamp } from "../../utils/format"
+import { TabButton } from "../mcp/configuration/McpConfigurationView"
+import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
+import { formatDollars, formatTimestamp } from "@/utils/format"
 
 interface CreditsHistoryTableProps {
 	isLoading: boolean

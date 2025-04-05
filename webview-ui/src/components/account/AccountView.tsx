@@ -1,13 +1,13 @@
 import { VSCodeButton, VSCodeDivider, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
-import { useFirebaseAuth } from "../../context/FirebaseAuthContext"
-import { vscode } from "../../utils/vscode"
+import { useFirebaseAuth } from "@/context/FirebaseAuthContext"
+import { vscode } from "@/utils/vscode"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 import CountUp from "react-countup"
 import CreditsHistoryTable from "./CreditsHistoryTable"
-import { UsageTransaction, PaymentTransaction } from "../../../../src/shared/ClineAccount"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 type AccountViewProps = {
 	onDone: () => void
