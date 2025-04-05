@@ -1,7 +1,7 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { vscode } from "@/utils/vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import ServerRow from "./server-row/ServerRow"
+import ServersToggleList from "./ServersToggleList"
 const InstalledServersView = () => {
 	const { mcpServers: servers } = useExtensionState()
 
@@ -29,31 +29,7 @@ const InstalledServersView = () => {
 				</VSCodeLink>
 			</div>
 
-			{servers.length > 0 ? (
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						gap: "10px",
-					}}>
-					{servers.map((server) => (
-						<ServerRow key={server.name} server={server} />
-					))}
-				</div>
-			) : (
-				<div
-					style={{
-						display: "flex",
-						flexDirection: "column",
-						alignItems: "center",
-						gap: "12px",
-						marginTop: 20,
-						marginBottom: 20,
-						color: "var(--vscode-descriptionForeground)",
-					}}>
-					No MCP servers installed
-				</div>
-			)}
+			<ServersToggleList servers={servers} />
 
 			{/* Settings Section */}
 			<div style={{ marginBottom: "20px", marginTop: 10 }}>
