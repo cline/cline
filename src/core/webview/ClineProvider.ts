@@ -115,6 +115,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 		McpServerManager.getInstance(this.context, this)
 			.then((hub) => {
 				this.mcpHub = hub
+				this.mcpHub.registerClient()
 			})
 			.catch((error) => {
 				this.outputChannel.appendLine(`Failed to initialize MCP Hub: ${error}`)
@@ -221,7 +222,7 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 
 		this.workspaceTracker?.dispose()
 		this.workspaceTracker = undefined
-		this.mcpHub?.dispose()
+		await this.mcpHub?.unregisterClient()
 		this.mcpHub = undefined
 		this.customModesManager?.dispose()
 		this.outputChannel.appendLine("Disposed all disposables")
