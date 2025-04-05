@@ -47,7 +47,7 @@ import {
 	sambanovaDefaultModelId,
 	doubaoModels,
 	doubaoDefaultModelId,
-  liteLlmModelInfoSaneDefaults
+	liteLlmModelInfoSaneDefaults,
 } from "@shared/api"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
