@@ -17,7 +17,7 @@ import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import { useExtensionState } from "../../../../../../context/ExtensionStateContext"
 
-const ServerRow = ({ server }: { server: McpServer }) => {
+const ServerRow = ({ server, isExpandable = true }: { server: McpServer; isExpandable?: boolean }) => {
 	const { mcpMarketplaceCatalog, autoApprovalSettings } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
@@ -35,7 +35,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 	}
 
 	const handleRowClick = () => {
-		if (!server.error) {
+		if (!server.error && isExpandable) {
 			setIsExpanded(!isExpanded)
 		}
 	}
@@ -104,12 +104,13 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 					alignItems: "center",
 					padding: "8px",
 					background: "var(--vscode-textCodeBlock-background)",
-					cursor: server.error ? "default" : "pointer",
+
+					cursor: server.error ? "default" : isExpandable ? "pointer" : "default",
 					borderRadius: isExpanded || server.error ? "4px 4px 0 0" : "4px",
 					opacity: server.disabled ? 0.6 : 1,
 				}}
 				onClick={handleRowClick}>
-				{!server.error && (
+				{!server.error && isExpandable && (
 					<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`} style={{ marginRight: "8px" }} />
 				)}
 				<span
