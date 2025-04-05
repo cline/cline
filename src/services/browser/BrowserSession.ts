@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import * as fs from "fs/promises"
 import * as path from "path"
+import { exec, spawn } from "child_process"
 import { Browser, Page, ScreenshotOptions, TimeoutError, launch, connect } from "puppeteer-core"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
@@ -148,10 +149,6 @@ export class BrowserSession {
 				throw new Error("Could not find Chrome installation on this system")
 			}
 			console.info("chrome installation", installation)
-
-			// Use Node's child_process to spawn Chrome as a detached process
-			// This ensures the browser won't be terminated when VSCode exits
-			const { spawn } = require("child_process")
 
 			// Prepare the command arguments
 			const args = [`--remote-debugging-port=${DEBUG_PORT}`, "--disable-notifications", "chrome://newtab"]
@@ -352,22 +349,16 @@ export class BrowserSession {
 			if (process.platform === "win32") {
 				// Windows: Use taskkill to forcefully terminate Chrome processes
 				await new Promise<void>((resolve, reject) => {
-					const { exec } = require("child_process")
-					exec("taskkill /F /IM chrome.exe /T", (error: Error) => {
-						// We don't reject on error because it's expected if no Chrome is running
-						resolve()
-					})
+					exec("taskkill /F /IM chrome.exe /T", () => resolve() )
 				})
 			} else if (process.platform === "darwin") {
 				// macOS: Use pkill to terminate Chrome processes
 				await new Promise<void>((resolve) => {
-					const { exec } = require("child_process")
 					exec('pkill -x "Google Chrome"', () => resolve())
 				})
 			} else {
 				// Linux: Use pkill for Chrome and chromium
 				await new Promise<void>((resolve) => {
-					const { exec } = require("child_process")
 					exec('pkill -f "chrome|chromium"', () => resolve())
 				})
 			}
