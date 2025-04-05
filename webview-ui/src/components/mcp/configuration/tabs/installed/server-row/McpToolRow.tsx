@@ -1,7 +1,11 @@
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { McpTool } from "@shared/mcp"
 import { vscode } from "@/utils/vscode"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import React, { useLayoutEffect, useRef } from "react"
+import { provideVSCodeDesignSystem, vsCodeCheckbox } from "@vscode/webview-ui-toolkit"
+
+// Register the VS Code design system and components
+provideVSCodeDesignSystem().register(vsCodeCheckbox())
 
 type McpToolRowProps = {
 	tool: McpTool
@@ -11,10 +15,10 @@ type McpToolRowProps = {
 const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 
-	// Accept the event object
-	const handleAutoApproveChange = (event: any) => {
+	// Handle checkbox change event
+	const handleAutoApproveChange = (event: Event) => {
 		// Only proceed if the event was triggered by a direct user interaction
-		if (!serverName || !event.isTrusted) return
+		if (!serverName || !(event as any).isTrusted) return
 
 		vscode.postMessage({
 			type: "toggleToolAutoApprove",
@@ -38,9 +42,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 					<span style={{ fontWeight: 500 }}>{tool.name}</span>
 				</div>
 				{serverName && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
-					<VSCodeCheckbox checked={tool.autoApprove} onChange={handleAutoApproveChange} data-tool={tool.name}>
-						Auto-approve
-					</VSCodeCheckbox>
+					<VsCodeCheckbox checked={!!tool.autoApprove} onChange={handleAutoApproveChange} toolName={tool.name} />
 				)}
 			</div>
 			{tool.description && (
@@ -119,6 +121,43 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 				)}
 		</div>
 	)
+}
+
+const VsCodeCheckbox = ({
+	checked,
+	onChange,
+	toolName,
+}: {
+	checked: boolean
+	onChange: (e: Event) => void
+	toolName: string
+}) => {
+	const checkboxRef = useRef<any>(null)
+
+	useLayoutEffect(() => {
+		const checkbox = checkboxRef.current
+		if (!checkbox) return
+
+		const handleChange = (e: Event) => {
+			if (!(e as any).isTrusted) return
+			onChange(e)
+		}
+
+		checkbox.addEventListener("change", handleChange)
+		return () => checkbox.removeEventListener("change", handleChange)
+	}, [onChange])
+
+	useLayoutEffect(() => {
+		if (!checkboxRef.current) return
+		checkboxRef.current.checked = checked
+	}, [checked])
+
+	// Use type assertion to bypass TypeScript's JSX element validation
+	return React.createElement("vscode-checkbox", {
+		ref: checkboxRef,
+		"data-tool": toolName,
+		children: "Auto-approve",
+	})
 }
 
 export default McpToolRow
