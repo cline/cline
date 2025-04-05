@@ -618,10 +618,10 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 								<div className="font-bold">{t("prompts:tools.title")}</div>
 								{findModeBySlug(mode, customModes) && (
 									<Button
-											variant="ghost"
-											size="icon"
-											onClick={() => setIsToolsEditMode(!isToolsEditMode)}
-											title={
+										variant="ghost"
+										size="icon"
+										onClick={() => setIsToolsEditMode(!isToolsEditMode)}
+										title={
 											isToolsEditMode
 												? t("prompts:tools.doneEditing")
 												: t("prompts:tools.editTools")
@@ -798,7 +798,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 												// Open or create an empty file
 												vscode.postMessage({
 													type: "openFile",
-													text: `./.clinerules-${currentMode.slug}`,
+													text: `./.roorules-${currentMode.slug}`,
 													values: {
 														create: true,
 														content: "",
@@ -935,7 +935,7 @@ const PromptsView = ({ onDone }: PromptsViewProps) => {
 										onClick={() =>
 											vscode.postMessage({
 												type: "openFile",
-												text: "./.clinerules",
+												text: "./.roorules",
 												values: {
 													create: true,
 													content: "",

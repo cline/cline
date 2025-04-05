@@ -36,12 +36,12 @@
 		"title": "Moda özgü özel talimatlar (isteğe bağlı)",
 		"resetToDefault": "Varsayılana sıfırla",
 		"description": "{{modeName}} modu için özel davranış yönergeleri ekleyin.",
-		"loadFromFile": "{{mode}} moduna özgü özel talimatlar ayrıca çalışma alanınızdaki <span>.clinerules-{{slug}}</span> adresinden yüklenebilir."
+		"loadFromFile": "{{mode}} moduna özgü özel talimatlar ayrıca çalışma alanınızdaki <span>.roorules-{{slug}}</span> adresinden yüklenebilir (.clinerules-{{slug}} kullanımdan kaldırılmıştır ve yakında çalışmayı durduracaktır)."
 	},
 	"globalCustomInstructions": {
 		"title": "Tüm Modlar için Özel Talimatlar",
 		"description": "Bu talimatlar tüm modlara uygulanır. Aşağıdaki moda özgü talimatlarla geliştirilebilen temel davranış seti sağlarlar.\nRoo'nun editörünüzün görüntüleme dilinden ({{language}}) farklı bir dilde düşünmesini ve konuşmasını istiyorsanız, burada belirtebilirsiniz.",
-		"loadFromFile": "Talimatlar ayrıca çalışma alanınızdaki <span>.clinerules</span> adresinden de yüklenebilir."
+		"loadFromFile": "Talimatlar ayrıca çalışma alanınızdaki <span>.roorules</span> adresinden de yüklenebilir (.clinerules kullanımdan kaldırılmıştır ve yakında çalışmayı durduracaktır)."
 	},
 	"systemPrompt": {
 		"preview": "Sistem promptunu önizle",

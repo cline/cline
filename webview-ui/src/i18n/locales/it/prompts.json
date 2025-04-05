@@ -36,12 +36,12 @@
 		"title": "Istruzioni personalizzate specifiche per la modalità (opzionale)",
 		"resetToDefault": "Ripristina predefiniti",
 		"description": "Aggiungi linee guida comportamentali specifiche per la modalità {{modeName}}.",
-		"loadFromFile": "Le istruzioni personalizzate specifiche per la modalità {{mode}} possono essere caricate anche da <span>.clinerules-{{slug}}</span> nel tuo spazio di lavoro."
+		"loadFromFile": "Le istruzioni personalizzate specifiche per la modalità {{mode}} possono essere caricate anche da <span>.roorules-{{slug}}</span> nel tuo spazio di lavoro (.clinerules-{{slug}} è obsoleto e smetterà di funzionare presto)."
 	},
 	"globalCustomInstructions": {
 		"title": "Istruzioni personalizzate per tutte le modalità",
 		"description": "Queste istruzioni si applicano a tutte le modalità. Forniscono un insieme base di comportamenti che possono essere migliorati dalle istruzioni specifiche per modalità qui sotto.\nSe desideri che Roo pensi e parli in una lingua diversa dalla lingua di visualizzazione del tuo editor ({{language}}), puoi specificarlo qui.",
-		"loadFromFile": "Le istruzioni possono essere caricate anche da <span>.clinerules</span> nel tuo spazio di lavoro."
+		"loadFromFile": "Le istruzioni possono essere caricate anche da <span>.roorules</span> nel tuo spazio di lavoro (.clinerules è obsoleto e smetterà di funzionare presto)."
 	},
 	"systemPrompt": {
 		"preview": "Anteprima prompt di sistema",

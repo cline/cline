@@ -36,12 +36,12 @@
 		"title": "Niestandardowe instrukcje dla trybu (opcjonalne)",
 		"resetToDefault": "Przywróć domyślne",
 		"description": "Dodaj wytyczne dotyczące zachowania specyficzne dla trybu {{modeName}}.",
-		"loadFromFile": "Niestandardowe instrukcje dla trybu {{modeName}} mogą być również ładowane z .clinerules-{{modeSlug}} w Twoim obszarze roboczym."
+		"loadFromFile": "Niestandardowe instrukcje dla trybu {{modeName}} mogą być również ładowane z <span>.roorules-{{modeSlug}}</span> w Twoim obszarze roboczym (.clinerules-{{modeSlug}} jest przestarzały i wkrótce przestanie działać)."
 	},
 	"globalCustomInstructions": {
 		"title": "Niestandardowe instrukcje dla wszystkich trybów",
 		"description": "Te instrukcje dotyczą wszystkich trybów. Zapewniają podstawowy zestaw zachowań, które mogą być rozszerzone przez instrukcje specyficzne dla trybów poniżej.\nJeśli chcesz, aby Roo myślał i mówił w języku innym niż język wyświetlania Twojego edytora ({{language}}), możesz to określić tutaj.",
-		"loadFromFile": "Instrukcje mogą być również ładowane z .clinerules w Twoim obszarze roboczym."
+		"loadFromFile": "Instrukcje mogą być również ładowane z <span>.roorules</span> w Twoim obszarze roboczym (.clinerules jest przestarzały i wkrótce przestanie działać)."
 	},
 	"systemPrompt": {
 		"preview": "Podgląd podpowiedzi systemowej",

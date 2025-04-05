@@ -17,17 +17,16 @@ async function safeReadFile(filePath: string): Promise<string> {
 }
 
 export async function loadRuleFiles(cwd: string): Promise<string> {
-	const ruleFiles = [".clinerules", ".cursorrules", ".windsurfrules"]
-	let combinedRules = ""
+	const ruleFiles = [".roorules", ".clinerules"]
 
 	for (const file of ruleFiles) {
 		const content = await safeReadFile(path.join(cwd, file))
 		if (content) {
-			combinedRules += `\n# Rules from ${file}:\n${content}\n`
+			return `\n# Rules from ${file}:\n${content}\n`
 		}
 	}
 
-	return combinedRules
+	return ""
 }
 
 export async function addCustomInstructions(
@@ -41,9 +40,19 @@ export async function addCustomInstructions(
 
 	// Load mode-specific rules if mode is provided
 	let modeRuleContent = ""
+	let usedRuleFile = ""
 	if (mode) {
-		const modeRuleFile = `.clinerules-${mode}`
-		modeRuleContent = await safeReadFile(path.join(cwd, modeRuleFile))
+		const rooModeRuleFile = `.roorules-${mode}`
+		modeRuleContent = await safeReadFile(path.join(cwd, rooModeRuleFile))
+		if (modeRuleContent) {
+			usedRuleFile = rooModeRuleFile
+		} else {
+			const clineModeRuleFile = `.clinerules-${mode}`
+			modeRuleContent = await safeReadFile(path.join(cwd, clineModeRuleFile))
+			if (modeRuleContent) {
+				usedRuleFile = clineModeRuleFile
+			}
+		}
 	}
 
 	// Add language preference if provided
@@ -69,8 +78,7 @@ export async function addCustomInstructions(
 
 	// Add mode-specific rules first if they exist
 	if (modeRuleContent && modeRuleContent.trim()) {
-		const modeRuleFile = `.clinerules-${mode}`
-		rules.push(`# Rules from ${modeRuleFile}:\n${modeRuleContent}`)
+		rules.push(`# Rules from ${usedRuleFile}:\n${modeRuleContent}`)
 	}
 
 	if (options.rooIgnoreInstructions) {

@@ -246,18 +246,16 @@ describe("ApiConfigManager", () => {
 		// Click the select component to open the dropdown
 		const selectButton = screen.getByTestId("select-component")
 		fireEvent.click(selectButton)
-		
+
 		// Find all command items and click the one with "Another Config"
-		const commandItems = document.querySelectorAll('.command-item')
+		const commandItems = document.querySelectorAll(".command-item")
 		// Find the item with "Another Config" text
-		const anotherConfigItem = Array.from(commandItems).find(
-			item => item.textContent?.includes("Another Config")
-		)
-		
+		const anotherConfigItem = Array.from(commandItems).find((item) => item.textContent?.includes("Another Config"))
+
 		if (!anotherConfigItem) {
 			throw new Error("Could not find 'Another Config' option")
 		}
-		
+
 		fireEvent.click(anotherConfigItem)
 
 		expect(mockOnSelectConfig).toHaveBeenCalledWith("Another Config")

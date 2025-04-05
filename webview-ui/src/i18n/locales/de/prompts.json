@@ -36,12 +36,12 @@
 		"title": "Modusspezifische benutzerdefinierte Anweisungen (optional)",
 		"resetToDefault": "Auf Standardwerte zurücksetzen",
 		"description": "Fügen Sie verhaltensspezifische Richtlinien für den Modus {{modeName}} hinzu.",
-		"loadFromFile": "Benutzerdefinierte Anweisungen für den Modus {{mode}} können auch aus <span>.clinerules-{{slug}}</span> in deinem Arbeitsbereich geladen werden."
+		"loadFromFile": "Benutzerdefinierte Anweisungen für den Modus {{mode}} können auch aus <span>.roorules-{{slug}}</span> in deinem Arbeitsbereich geladen werden (.clinerules-{{slug}} ist veraltet und wird bald nicht mehr funktionieren)."
 	},
 	"globalCustomInstructions": {
 		"title": "Benutzerdefinierte Anweisungen für alle Modi",
 		"description": "Diese Anweisungen gelten für alle Modi. Sie bieten einen grundlegenden Satz von Verhaltensweisen, die durch modusspezifische Anweisungen unten erweitert werden können.\nWenn du möchtest, dass Roo in einer anderen Sprache als deiner Editor-Anzeigesprache ({{language}}) denkt und spricht, kannst du das hier angeben.",
-		"loadFromFile": "Anweisungen können auch aus <span>.clinerules</span> in deinem Arbeitsbereich geladen werden."
+		"loadFromFile": "Anweisungen können auch aus <span>.roorules</span> in deinem Arbeitsbereich geladen werden (.clinerules ist veraltet und wird bald nicht mehr funktionieren)."
 	},
 	"systemPrompt": {
 		"preview": "System-Prompt Vorschau",
