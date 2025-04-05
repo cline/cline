@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.10.0
+
+-   9d5772c: Add import path aliasing to the webview
+-   2193847: Add Support for Bytedance Doubao
+-   cc2f8e7: fix: Prevent duplicate BOM
+-   8ad21f2: factor out servers list
+-   894fa35: adding gemini 2.5 pro preview
+-   7c5a082: make ServerRow not optionally not expandable
+-   7d48898: Update import aliases in webview
+
 ## [3.9.1]
 
 -   Add Gemini 2.5 Pro Preview 03-25 to Google Provider
