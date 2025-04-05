@@ -3,25 +3,25 @@
 		"save": "保存",
 		"done": "完成",
 		"cancel": "取消",
-		"reset": "重置",
+		"reset": "恢复默认设置",
 		"select": "选择"
 	},
 	"header": {
 		"title": "设置",
 		"saveButtonTooltip": "保存更改",
-		"nothingChangedTooltip": "没有更改",
-		"doneButtonTooltip": "丢弃未保存的更改并关闭设置面板"
+		"nothingChangedTooltip": "暂无更改",
+		"doneButtonTooltip": "放弃未保存的更改并关闭设置面板"
 	},
 	"unsavedChangesDialog": {
 		"title": "未保存的更改",
-		"description": "是否丢弃更改并继续？",
+		"description": "是否放弃更改并继续？",
 		"cancelButton": "取消",
-		"discardButton": "丢弃更改"
+		"discardButton": "放弃更改"
 	},
 	"sections": {
 		"providers": "提供商",
 		"autoApprove": "自动批准",
-		"browser": "浏览器 / 计算机使用",
+		"browser": "浏览器交互设置",
 		"checkpoints": "检查点",
 		"notifications": "通知",
 		"contextManagement": "上下文管理",
@@ -34,49 +34,49 @@
 	"autoApprove": {
 		"description": "允许 Roo 自动执行操作而无需批准。只有在您完全信任 AI 并了解相关安全风险的情况下才启用这些设置。",
 		"readOnly": {
-			"label": "始终批准只读操作",
-			"description": "启用后，Roo 将自动查看目录内容并读取文件，无需点击批准按钮。",
+			"label": "自动批准只读操作",
+			"description": "启用后，Roo 将自动浏览目录和读取文件内容，无需人工确认。",
 			"outsideWorkspace": {
 				"label": "包含工作区外的文件",
 				"description": "允许 Roo 读取当前工作区外的文件，无需批准。"
 			}
 		},
 		"write": {
-			"label": "始终批准写入操作",
-			"description": "自动创建和编辑文件而无需批准",
-			"delayLabel": "写入后延迟以允许诊断检测潜在问题",
+			"label": "自动批准写入操作",
+			"description": "自动创建和编辑文件，无需二次确认",
+			"delayLabel": "延迟一段时间再自动批准写入，可以在期间检查模型输出是否有问题",
 			"outsideWorkspace": {
 				"label": "包含工作区外的文件",
 				"description": "允许 Roo 创建和编辑当前工作区外的文件，无需批准。"
 			}
 		},
 		"browser": {
-			"label": "始终批准浏览器操作",
+			"label": "自动批准浏览器操作",
 			"description": "自动执行浏览器操作而无需批准",
-			"note": "注意：仅当模型支持计算机使用时适用"
+			"note": "注意：仅当模型支持计算机功能调用时适用"
 		},
 		"retry": {
-			"label": "始终重试失败的 API 请求",
+			"label": "自动重试失败的 API 请求",
 			"description": "当服务器返回错误响应时自动重试失败的 API 请求",
 			"delayLabel": "重试请求前的延迟"
 		},
 		"mcp": {
-			"label": "始终批准 MCP 工具",
-			"description": "在 MCP 服务器视图中启用单个 MCP 工具的自动批准（需要此设置和工具的\"始终允许\"复选框）"
+			"label": "自动批准 MCP 服务调用",
+			"description": "允许自动调用MCP服务而无需批准"
 		},
 		"modeSwitch": {
-			"label": "始终批准模式切换",
+			"label": "自动批准模式切换",
 			"description": "自动在不同模式之间切换而无需批准"
 		},
 		"subtasks": {
-			"label": "始终批准子任务的创建和完成",
+			"label": "自动批准子任务的创建和完成",
 			"description": "允许创建和完成子任务而无需批准"
 		},
 		"execute": {
-			"label": "始终批准允许的执行操作",
-			"description": "自动执行允许的终端命令而无需批准",
-			"allowedCommands": "允许的自动执行命令",
-			"allowedCommandsDescription": "当\"始终批准执行操作\"启用时可以自动执行的命令前缀。添加 * 以允许所有命令（谨慎使用）。",
+			"label": "自动批准命令行操作",
+			"description": "自动执行白名单中的命令而无需批准",
+			"allowedCommands": "命令白名单",
+			"allowedCommandsDescription": "当\"自动批准命令行操作\"启用时可以自动执行的命令前缀。添加 * 以允许所有命令（谨慎使用）。",
 			"commandPlaceholder": "输入命令前缀（例如 'git '）",
 			"addButton": "添加"
 		}
@@ -84,8 +84,8 @@
 	"providers": {
 		"configProfile": "配置文件",
 		"providerDocumentation": "{{provider}} 文档",
-		"description": "保存不同的 API 配置以快速切换提供商和设置。",
-		"apiProvider": "API 提供商",
+		"description": "保存多组API配置便于快速切换",
+		"apiProvider": "API提供商",
 		"model": "模型",
 		"nameEmpty": "名称不能为空",
 		"nameExists": "已存在同名的配置文件",
@@ -95,12 +95,12 @@
 		"addProfile": "添加配置文件",
 		"renameProfile": "重命名配置文件",
 		"newProfile": "新建配置文件",
-		"enterProfileName": "输入新配置文件名称",
-		"createProfile": "创建配置文件",
+		"enterProfileName": "输入新配置名称",
+		"createProfile": "创建配置",
 		"cannotDeleteOnlyProfile": "无法删除唯一的配置文件",
 		"vscodeLmDescription": "VS Code 语言模型 API 允许您运行由其他 VS Code 扩展（包括但不限于 GitHub Copilot）提供的模型。最简单的方法是从 VS Code 市场安装 Copilot 和 Copilot Chat 扩展。",
-		"awsCustomArnUse": "输入您要使用的模型的有效 AWS Bedrock ARN。格式示例：",
-		"awsCustomArnDesc": "确保 ARN 中的区域与您上面选择的 AWS 区域匹配。",
+		"awsCustomArnUse": "请输入有效的 AWS Bedrock ARN（Amazon资源名称），格式示例：",
+		"awsCustomArnDesc": "请确保ARN中的区域与上方选择的AWS区域一致。",
 		"openRouterApiKey": "OpenRouter API 密钥",
 		"getOpenRouterApiKey": "获取 OpenRouter API 密钥",
 		"apiKeyStorageNotice": "API 密钥安全存储在 VSCode 的密钥存储中",
@@ -109,7 +109,7 @@
 		"getGlamaApiKey": "获取 Glama API 密钥",
 		"requestyApiKey": "Requesty API 密钥",
 		"getRequestyApiKey": "获取 Requesty API 密钥",
-		"openRouterTransformsText": "将提示和消息链压缩到上下文大小 (<a>OpenRouter 转换</a>)",
+		"openRouterTransformsText": "自动压缩提示词和消息链到上下文长度限制内 (<a>OpenRouter转换</a>)",
 		"anthropicApiKey": "Anthropic API 密钥",
 		"getAnthropicApiKey": "获取 Anthropic API 密钥",
 		"deepSeekApiKey": "DeepSeek API 密钥",
@@ -128,19 +128,19 @@
 		"awsProfileName": "AWS 配置文件名称",
 		"awsAccessKey": "AWS 访问密钥",
 		"awsSecretKey": "AWS 密钥",
-		"awsSessionToken": "AWS 会话令牌",
+		"awsSessionToken": "AWS 会话Token",
 		"awsRegion": "AWS 区域",
 		"awsCrossRegion": "使用跨区域推理",
 		"enablePromptCaching": "启用提示缓存",
-		"enablePromptCachingTitle": "启用提示缓存以提高支持的模型的性能并降低成本。",
-		"cacheUsageNote": "注意：如果您没有看到缓存使用情况，请尝试选择其他模型，然后重新选择您想要的模型。",
+		"enablePromptCachingTitle": "开启提示缓存可提升性能并节省成本",
+		"cacheUsageNote": "提示：若未显示缓存使用情况，请切换模型后重新选择",
 		"vscodeLmModel": "VSCode LM 模型",
 		"vscodeLmWarning": "注意：这是一个非常实验性的集成，提供商支持会有所不同。如果您收到有关不支持模型的错误，则这是提供商方面的问题。",
 		"googleCloudSetup": {
 			"title": "要使用 Google Cloud Vertex AI，您需要：",
-			"step1": "1. 创建 Google Cloud 账户，启用 Vertex AI API 并启用所需的 Claude 模型。",
-			"step2": "2. 安装 Google Cloud CLI 并配置应用程序默认凭证。",
-			"step3": "3. 或创建具有凭证的服务账户。"
+			"step1": "1. 注册Google Cloud账号并启用Vertex AI API",
+			"step2": "2. 安装配置Google Cloud CLI工具",
+			"step3": "3. 创建服务账号获取凭证"
 		},
 		"googleCloudCredentials": "Google Cloud 凭证",
 		"googleCloudKeyFile": "Google Cloud 密钥文件路径",
@@ -172,25 +172,25 @@
 			"providerRouting": {
 				"title": "OpenRouter 提供商路由",
 				"description": "OpenRouter 将请求路由到适合您模型的最佳可用提供商。默认情况下，请求会在顶级提供商之间进行负载均衡以最大化正常运行时间。但是，您可以为此模型选择特定的提供商。",
-				"learnMore": "了解更多关于提供商路由的信息"
+				"learnMore": "了解更多"
 			}
 		},
 		"customModel": {
-			"capabilities": "配置您的自定义 OpenAI 兼容模型的功能和定价。在指定模型功能时要小心，因为它们会影响 Roo Code 的性能。",
+			"capabilities": "自定义模型配置注意事项：<br>• 确保兼容OpenAI接口规范<br>• 错误配置可能导致功能异常<br>• 价格参数影响费用统计",
 			"maxTokens": {
-				"label": "最大输出令牌数",
-				"description": "模型在响应中可以生成的最大令牌数。（指定 -1 允许服务器设置最大令牌数。）"
+				"label": "最大输出Token数",
+				"description": "模型在响应中可以生成的最大Token数。（指定 -1 允许服务器设置最大Token数。）"
 			},
 			"contextWindow": {
 				"label": "上下文窗口大小",
-				"description": "模型可以处理的总令牌数（输入 + 输出）。"
+				"description": "模型可以处理的总Token数（输入 + 输出）。"
 			},
 			"imageSupport": {
 				"label": "图像支持",
 				"description": "此模型是否能够处理和理解图像？"
 			},
 			"computerUse": {
-				"label": "计算机使用",
+				"label": "计算机功能调用",
 				"description": "此模型是否能够与浏览器交互？（例如 Claude 3.7 Sonnet）。"
 			},
 			"promptCache": {
@@ -200,19 +200,19 @@
 			"pricing": {
 				"input": {
 					"label": "输入价格",
-					"description": "输入/提示中每百万令牌的成本。这会影响向模型发送上下文和指令的成本。"
+					"description": "输入/提示中每百万Token的成本。这会影响向模型发送上下文和指令的成本。"
 				},
 				"output": {
 					"label": "输出价格",
-					"description": "模型响应中每百万令牌的成本。这会影响生成内容和补全的成本。"
+					"description": "模型响应中每百万Token的成本。这会影响生成内容和补全的成本。"
 				},
 				"cacheReads": {
 					"label": "缓存读取价格",
-					"description": "从缓存读取每百万令牌的成本。这是检索缓存响应时收取的费用。"
+					"description": "从缓存读取每百万Token的成本。这是检索缓存响应时收取的费用。"
 				},
 				"cacheWrites": {
 					"label": "缓存写入价格",
-					"description": "向缓存写入每百万令牌的成本。这是首次缓存提示时收取的费用。"
+					"description": "向缓存写入每百万Token的成本。这是首次缓存提示时收取的费用。"
 				}
 			},
 			"resetDefaults": "重置为默认值"
@@ -221,7 +221,7 @@
 	"browser": {
 		"enable": {
 			"label": "启用浏览器工具",
-			"description": "启用后，Roo 可以在使用支持计算机使用的模型时使用浏览器与网站交互。"
+			"description": "启用后，若模型支持计算机功能调用，Roo 可以使用浏览器与网站交互。"
 		},
 		"viewport": {
 			"label": "视口大小",
@@ -235,7 +235,7 @@
 		},
 		"screenshotQuality": {
 			"label": "截图质量",
-			"description": "调整浏览器截图的 WebP 质量。更高的值提供更清晰的截图，但会增加 token 使用量。"
+			"description": "调整浏览器的截图质量。更高的值提供更清晰的截图，但会增加 token 消耗。"
 		},
 		"remote": {
 			"label": "使用远程浏览器连接",
@@ -249,12 +249,12 @@
 	"checkpoints": {
 		"enable": {
 			"label": "启用自动检查点",
-			"description": "启用后，Roo 将在任务执行期间自动创建检查点，使审查更改或返回到早期状态变得容易。"
+			"description": "开启后自动创建任务检查点，方便回溯修改"
 		}
 	},
 	"notifications": {
 		"sound": {
-			"label": "启用音效",
+			"label": "启用声音通知",
 			"description": "启用后，Roo 将为通知和事件播放音效。",
 			"volumeLabel": "音量"
 		},
@@ -265,14 +265,14 @@
 		}
 	},
 	"contextManagement": {
-		"description": "控制在 AI 的上下文窗口中包含哪些信息，影响 token 使用和响应质量",
+		"description": "管理AI上下文信息（影响token用量和回答质量）",
 		"openTabs": {
-			"label": "打开标签上下文限制",
-			"description": "在上下文中包含的 VSCode 打开标签的最大数量。较高的值提供更多上下文，但会增加 token 使用量。"
+			"label": "标签页数量限制",
+			"description": "允许纳入上下文的最大标签页数（数值越大消耗token越多）"
 		},
 		"workspaceFiles": {
-			"label": "工作区文件上下文限制",
-			"description": "在当前工作目录详细信息中包含的最大文件数。较高的值提供更多上下文，但会增加 token 使用量。"
+			"label": "工作区文件限制",
+			"description": "允许纳入上下文的最大文件数（值越大消耗token越多）"
 		},
 		"rooignore": {
 			"label": "在列表和搜索中显示 .rooignore 文件",
@@ -280,7 +280,7 @@
 		},
 		"maxReadFile": {
 			"label": "文件读取自动截断阈值",
-			"description": "当模型未指定起始/结束值时，Roo 读取的行数。如果此数值小于文件总行数，Roo 将生成代码定义的行号索引。特殊情况：-1 指示 Roo 读取整个文件（不创建索引），0 指示不读取任何行并仅提供行索引以获得最小上下文。较低的值可最小化初始上下文使用，允许后续精确的行范围读取。显式指定起始/结束的请求不受此设置限制。",
+			"description": "自动读取文件行数设置：-1=完整读取 0=仅生成行号索引，较小值可节省token，支持后续使用行号进行读取。",
 			"lines": "行",
 			"always_full_read": "始终读取整个文件"
 		}
@@ -291,18 +291,18 @@
 			"description": "执行命令时在终端输出中包含的最大行数。超过时将从中间删除行，节省 token。"
 		},
 		"shellIntegrationTimeout": {
-			"label": "终端 Shell 集成超时",
+			"label": "终端初始化等待时间",
 			"description": "执行命令前等待 Shell 集成初始化的最长时间。对于 Shell 启动时间较长的用户，如果在终端中看到\"Shell Integration Unavailable\"错误，可能需要增加此值。"
 		}
 	},
 	"advanced": {
 		"rateLimit": {
-			"label": "速率限制",
-			"description": "API 请求之间的最小时间。"
+			"label": "请求频率限制",
+			"description": "设置API请求的最小间隔时间"
 		},
 		"diff": {
-			"label": "启用通过差异编辑",
-			"description": "启用后，Roo 将能够更快地编辑文件，并将自动拒绝截断的完整文件写入。与最新的 Claude 3.7 Sonnet 模型配合最佳。",
+			"label": "启用diff更新",
+			"description": "启用后，Roo 将能够通过差异算法写入，避免模型输出完整文件，以降低Token消耗。与最新的 Claude 3.7 Sonnet 模型配合最佳。",
 			"strategy": {
 				"label": "Diff 策略",
 				"options": {
@@ -318,43 +318,43 @@
 			},
 			"matchPrecision": {
 				"label": "匹配精度",
-				"description": "此滑块控制应用差异时代码部分必须匹配的精确度。较低的值允许更灵活的匹配，但会增加错误替换的风险。极其谨慎地使用低于 100% 的值。"
+				"description": "控制代码匹配的精确程度。数值越低匹配越宽松（容错率高但风险大），建议保持100%以确保安全。"
 			}
 		}
 	},
 	"experimental": {
 		"warning": "⚠️",
 		"DIFF_STRATEGY_UNIFIED": {
-			"name": "使用实验性统一差异策略",
-			"description": "启用实验性统一差异策略。此策略可能减少由模型错误引起的重试次数，但可能导致意外行为或不正确的编辑。仅在您了解风险并愿意仔细审查所有更改时才启用。"
+			"name": "启用diff更新工具",
+			"description": "可减少因模型错误导致的重复尝试，但可能引发意外操作。启用前请确保理解风险并会仔细检查所有修改。"
 		},
 		"SEARCH_AND_REPLACE": {
-			"name": "使用实验性搜索和替换工具",
+			"name": "启用搜索和替换工具",
 			"description": "启用实验性搜索和替换工具，允许 Roo 在一个请求中替换搜索词的多个实例。"
 		},
 		"INSERT_BLOCK": {
-			"name": "使用实验性插入内容工具",
-			"description": "启用实验性插入内容工具，允许 Roo 在特定行号插入内容，无需创建差异。"
+			"name": "启用插入内容工具",
+			"description": "允许 Roo 在特定行号插入内容，无需处理差异。"
 		},
 		"POWER_STEERING": {
-			"name": "使用实验性\"动力转向\"模式",
-			"description": "启用后，Roo 将更频繁地提醒模型关于其当前模式定义的详细信息。这将导致对角色定义和自定义指令的更强遵守，但每条消息将使用更多 token。"
+			"name": "启用增强导向模式",
+			"description": "开启后，Roo 将更频繁地向模型推送当前模式定义的详细信息，从而强化对角色设定和自定义指令的遵循力度。注意：此模式会提升每条消息的 token 消耗量。"
 		},
 		"MULTI_SEARCH_AND_REPLACE": {
-			"name": "使用实验性多块差异工具",
-			"description": "启用后，Roo 将使用多块差异工具。这将尝试在一个请求中更新文件中的多个代码块。"
+			"name": "允许批量搜索和替换",
+			"description": "启用后，Roo 将尝试在一个请求中进行批量搜索和替换。"
 		}
 	},
 	"temperature": {
 		"useCustom": "使用自定义温度",
-		"description": "控制模型响应中的随机性。",
-		"rangeDescription": "较高的值使输出更随机，较低的值使其更确定性。"
+		"description": "控制模型响应的随机性",
+		"rangeDescription": "值越高回答越多样，值越低越保守"
 	},
 	"modelInfo": {
 		"supportsImages": "支持图像",
 		"noImages": "不支持图像",
-		"supportsComputerUse": "支持计算机使用",
-		"noComputerUse": "不支持计算机使用",
+		"supportsComputerUse": "支持计算机功能调用",
+		"noComputerUse": "不支持计算机功能调用",
 		"supportsPromptCache": "支持提示缓存",
 		"noPromptCache": "不支持提示缓存",
 		"maxOutput": "最大输出",
@@ -363,8 +363,8 @@
 		"cacheReadsPrice": "缓存读取价格",
 		"cacheWritesPrice": "缓存写入价格",
 		"enableStreaming": "启用流式传输",
-		"enableR1Format": "启用R1模型传参",
-		"enableR1FormatTips": "当使用QWQ等类R1模型时需启用，防止报400错误",
+		"enableR1Format": "启用 R1 模型参数",
+		"enableR1FormatTips": "使用 QWQ 等 R1 系列模型时必须启用，避免出现 400 错误",
 		"useAzure": "使用 Azure 服务",
 		"azureApiVersion": "设置 Azure API 版本",
 		"gemini": {
@@ -374,7 +374,7 @@
 		}
 	},
 	"modelPicker": {
-		"automaticFetch": "扩展程序会自动获取 <serviceLink>{{serviceName}}</serviceLink> 上可用的最新模型列表。如果您不确定选择哪个模型，Roo Code 与 <defaultModelLink>{{defaultModelId}}</defaultModelLink> 配合最佳。您还可以搜索\"free\"以查找当前可用的免费选项。",
+		"automaticFetch": "自动获取 <serviceLink>{{serviceName}}</serviceLink> 上可用的最新模型列表。如果您不确定选择哪个模型，Roo Code 与 <defaultModelLink>{{defaultModelId}}</defaultModelLink> 配合最佳。您还可以搜索\"free\"以查找当前可用的免费选项。",
 		"label": "模型",
 		"searchPlaceholder": "搜索",
 		"noMatchFound": "未找到匹配项",
@@ -384,8 +384,8 @@
 		"feedback": "如果您有任何问题或反馈，请随时在 <githubLink>github.com/RooVetGit/Roo-Code</githubLink> 上提出问题或加入 <redditLink>reddit.com/r/RooCode</redditLink> 或 <discordLink>discord.gg/roocode</discordLink>",
 		"version": "Roo Code v{{version}}",
 		"telemetry": {
-			"label": "允许匿名错误和使用情况报告",
-			"description": "通过发送匿名使用数据和错误报告来帮助改进 Roo Code。绝不会发送代码、提示或个人信息。有关更多详细信息，请参阅我们的隐私政策。"
+			"label": "允许匿名数据收集",
+			"description": "匿名收集错误报告和使用数据（不含代码/提示/个人信息），详情见隐私政策"
 		},
 		"settings": {
 			"import": "导入",
@@ -394,8 +394,8 @@
 		}
 	},
 	"thinkingBudget": {
-		"maxTokens": "最大 tokens",
-		"maxThinkingTokens": "最大思考 tokens"
+		"maxTokens": "最大Token数",
+		"maxThinkingTokens": "最大思考Token数"
 	},
 	"validation": {
 		"apiKey": "您必须提供有效的 API 密钥。",
@@ -408,14 +408,14 @@
 			"invalidFormat": "ARN 格式无效。请检查格式要求。",
 			"regionMismatch": "警告：您的 ARN 中的区域 ({{arnRegion}}) 与您选择的区域 ({{region}}) 不匹配。这可能会导致访问问题。提供程序将使用 ARN 中的区域。"
 		},
-		"modelAvailability": "您提供的模型 ID ({{modelId}}) 不可用。请选择其他模型。"
+		"modelAvailability": "模型ID {{modelId}} 不可用，请重新选择"
 	},
 	"placeholders": {
 		"apiKey": "请输入 API 密钥...",
 		"profileName": "请输入配置文件名称",
 		"accessKey": "请输入访问密钥...",
 		"secretKey": "请输入密钥...",
-		"sessionToken": "请输入会话令牌...",
+		"sessionToken": "请输入会话Token...",
 		"credentialsJson": "请输入凭证 JSON...",
 		"keyFilePath": "请输入密钥文件路径...",
 		"projectId": "请输入项目 ID...",
