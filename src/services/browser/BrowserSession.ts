@@ -221,6 +221,20 @@ export class BrowserSession {
 				return
 			} catch (error) {
 				console.error("Failed to launch remote browser, falling back to local mode:", error)
+				
+				// Capture error telemetry
+				if (this.taskId) {
+					telemetryService.captureBrowserError(
+						this.taskId,
+						"remote_browser_launch_error",
+						error instanceof Error ? error.message : String(error),
+						{
+							isRemote: true,
+							remoteBrowserHost: this.browserSettings.remoteBrowserHost
+						}
+					)
+				}
+				
 				await this.launchLocalBrowser()
 			}
 		} else {
@@ -286,6 +300,20 @@ export class BrowserSession {
 				return
 			} catch (error) {
 				console.log(`Failed to connect using cached endpoint: ${error}`)
+				
+				// Capture error telemetry
+				if (this.taskId) {
+					telemetryService.captureBrowserError(
+						this.taskId,
+						"cached_endpoint_connection_error",
+						error instanceof Error ? error.message : String(error),
+						{
+							isRemote: true,
+							endpoint: browserWSEndpoint
+						}
+					)
+				}
+				
 				// Clear the cached endpoint since it's no longer valid
 				this.cachedWebSocketEndpoint = undefined
 				// User wants to give up after one reconnection attempt
@@ -324,6 +352,19 @@ export class BrowserSession {
 				return
 			} catch (error) {
 				console.log(`Failed to connect to remote browser: ${error}`)
+				
+				// Capture error telemetry
+				if (this.taskId) {
+					telemetryService.captureBrowserError(
+						this.taskId,
+						"remote_host_connection_error",
+						error instanceof Error ? error.message : String(error),
+						{
+							isRemote: true,
+							remoteBrowserHost
+						}
+					)
+				}
 			}
 		}
 
@@ -436,8 +477,23 @@ export class BrowserSession {
 		try {
 			await action(this.page)
 		} catch (err) {
+			const errorMessage = err instanceof Error ? err.message : String(err);
+			
 			if (!(err instanceof TimeoutError)) {
-				logs.push(`[Error] ${err.toString()}`)
+				logs.push(`[Error] ${errorMessage}`)
+				
+				// Capture error telemetry
+				if (this.taskId) {
+					telemetryService.captureBrowserError(
+						this.taskId,
+						"browser_action_error",
+						errorMessage,
+						{
+							isRemote: this.isConnectedToRemote,
+							action: this.browserActions[this.browserActions.length - 1]
+						}
+					)
+				}
 			}
 		}
 
@@ -474,6 +530,18 @@ export class BrowserSession {
 		}
 
 		if (!screenshotBase64) {
+			// Capture error telemetry
+			if (this.taskId) {
+				telemetryService.captureBrowserError(
+					this.taskId,
+					"screenshot_error",
+					"Failed to take screenshot",
+					{
+						isRemote: this.isConnectedToRemote,
+						action: this.browserActions[this.browserActions.length - 1]
+					}
+				)
+			}
 			throw new Error("Failed to take screenshot.")
 		}
 
