@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## [3.11.7] - 2025-04-04
+
+- Improve file tool context formatting and diff error guidance
+- Improve zh-TW localization (thanks @PeterDaveHello!)
+- Implement reference counting for McpHub disposal
+- Update buttons to be more consistent (thanks @kyle-apex!)
+- Improve zh-CN localization (thanks @System233!)
+
 ## [3.11.6] - 2025-04-04
 
 - Add the gemini 2.5 pro preview model with upper bound pricing
