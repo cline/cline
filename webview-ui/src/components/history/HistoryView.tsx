@@ -3,8 +3,8 @@ import { DeleteTaskDialog } from "./DeleteTaskDialog"
 import { BatchDeleteTaskDialog } from "./BatchDeleteTaskDialog"
 import prettyBytes from "pretty-bytes"
 import { Virtuoso } from "react-virtuoso"
+
 import {
-	VSCodeButton,
 	VSCodeTextField,
 	VSCodeRadioGroup,
 	VSCodeRadio,
@@ -76,8 +76,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				<div className="flex justify-between items-center">
 					<h3 className="text-vscode-foreground m-0">{t("history:history")}</h3>
 					<div className="flex gap-2">
-						<VSCodeButton
-							appearance={isSelectionMode ? "primary" : "secondary"}
+						<Button
+							variant={isSelectionMode ? "default" : "secondary"}
 							onClick={toggleSelectionMode}
 							title={
 								isSelectionMode
@@ -88,8 +88,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								className={`codicon ${isSelectionMode ? "codicon-check-all" : "codicon-checklist"} mr-1`}
 							/>
 							{isSelectionMode ? t("history:exitSelection") : t("history:selectionMode")}
-						</VSCodeButton>
-						<VSCodeButton onClick={onDone}>{t("history:done")}</VSCodeButton>
+						</Button>
+						<Button onClick={onDone}>{t("history:done")}</Button>
 					</div>
 				</div>
 				<div className="flex flex-col gap-2">
@@ -427,12 +427,12 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 						{t("history:selectedItems", { selected: selectedTaskIds.length, total: tasks.length })}
 					</div>
 					<div className="flex gap-2">
-						<VSCodeButton appearance="secondary" onClick={() => setSelectedTaskIds([])}>
+						<Button variant="secondary" onClick={() => setSelectedTaskIds([])}>
 							{t("history:clearSelection")}
-						</VSCodeButton>
-						<VSCodeButton appearance="primary" onClick={handleBatchDelete}>
+						</Button>
+						<Button variant="default" onClick={handleBatchDelete}>
 							{t("history:deleteSelected")}
-						</VSCodeButton>
+						</Button>
 					</div>
 				</div>
 			)}
