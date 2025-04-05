@@ -67,9 +67,11 @@ export interface WebviewMessage {
 		| "optionsResponse"
 		| "requestTotalTasksSize"
 		| "taskFeedback"
+		| "getRelativePaths" // Handles single and multiple URI resolution
 		| "searchFiles"
 	// | "relaunchChromeDebugMode"
 	text?: string
+	uris?: string[] // Used for getRelativePaths
 	disabled?: boolean
 	askResponse?: ClineAskResponse
 	apiConfiguration?: ApiConfiguration
