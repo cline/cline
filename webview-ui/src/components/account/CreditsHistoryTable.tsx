@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react"
 import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Pagination, Spinner } from "@heroui/react"
-import { TabButton } from "../mcp/McpView"
-import { UsageTransaction, PaymentTransaction } from "../../../../src/shared/ClineAccount"
-import { formatDollars, formatTimestamp } from "../../utils/format"
+import { TabButton } from "../mcp/configuration/McpConfigurationView"
+import { UsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
+import { formatDollars, formatTimestamp } from "@/utils/format"
 
 interface CreditsHistoryTableProps {
 	isLoading: boolean

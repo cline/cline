@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useEvent } from "react-use"
-import { ExtensionMessage } from "../../src/shared/ExtensionMessage"
+import { Providers } from "./Providers"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
 import SettingsView from "./components/settings/SettingsView"
@@ -8,8 +9,7 @@ import WelcomeView from "./components/welcome/WelcomeView"
 import AccountView from "./components/account/AccountView"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { vscode } from "./utils/vscode"
-import McpView from "./components/mcp/McpView"
-import { Providers } from "./Providers"
+import McpView from "./components/mcp/configuration/McpConfigurationView"
 
 const AppContent = () => {
 	const { didHydrateState, showWelcome, shouldShowAnnouncement, telemetrySetting, vscMachineId } = useExtensionState()

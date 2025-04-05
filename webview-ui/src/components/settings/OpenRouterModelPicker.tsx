@@ -1,15 +1,15 @@
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import { openRouterDefaultModelId } from "../../../../src/shared/api"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
+import { openRouterDefaultModelId } from "@shared/api"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { vscode } from "@/utils/vscode"
 import { highlight } from "../history/HistoryView"
-import { DropdownContainer, ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 
 export interface OpenRouterModelPickerProps {
@@ -87,7 +87,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	}, [searchableItems])
 
 	const modelSearchResults = useMemo(() => {
-		let results: { id: string; html: string }[] = searchTerm
+		const results: { id: string; html: string }[] = searchTerm
 			? highlight(fuse.search(searchTerm), "model-item-highlight")
 			: searchableItems
 		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
