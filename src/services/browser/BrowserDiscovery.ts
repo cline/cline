@@ -43,7 +43,6 @@ export async function isPortOpen(host: string, port: number, timeout = 1000): Pr
  */
 export async function tryConnect(ipAddress: string): Promise<{ endpoint: string; ip: string } | null> {
 	try {
-		console.info(`Trying to connect to Chrome at: http://${ipAddress}:9222/json/version`)
 		const response = await axios.get(`http://${ipAddress}:9222/json/version`, { timeout: 1000 })
 		const data = response.data
 		return { endpoint: data.webSocketDebuggerUrl, ip: ipAddress }
@@ -53,19 +52,16 @@ export async function tryConnect(ipAddress: string): Promise<{ endpoint: string;
 }
 
 /**
- * Discover Chrome instances on the network
- * Simplified to only check localhost
+ * Discover Chrome instances (localhost only)
  */
 export async function discoverChromeInstances(): Promise<string | null> {
 	// Only try localhost
 	const ipAddresses = ["localhost", "127.0.0.1"]
-	console.info("Checking for Chrome on localhost")
 
 	// Try connecting to each IP address
 	for (const ip of ipAddresses) {
 		const connection = await tryConnect(ip)
 		if (connection) {
-			console.info(`Successfully connected to Chrome at: ${connection.ip}`)
 			return `http://${connection.ip}:9222`
 		}
 	}
