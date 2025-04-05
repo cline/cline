@@ -41,11 +41,9 @@ export interface ExtensionMessage {
 		| "userCreditsPayments"
 		| "totalTasksSize"
 		| "addToInput"
-		| "relativePathResponse" // Added for drag-and-drop file path response
-		| "relativePathsResponse" // New: For batch response
+		| "relativePathsResponse" // Handles single and multiple path responses
 	text?: string
-	relativePath?: string // Added for drag-and-drop file path response
-	paths?: (string | null)[] // Added for relativePathsResponse
+	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:
 		| "chatButtonClicked"
 		| "mcpButtonClicked"

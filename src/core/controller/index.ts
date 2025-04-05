@@ -661,42 +661,6 @@ export class Controller {
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
 			}
-			case "getRelativePath": {
-				if (message.uri) {
-					try {
-						const fileUri = vscode.Uri.parse(message.uri, true) // Use strict parsing
-						// Use asRelativePath which handles finding the correct workspace folder
-						const relativePath = vscode.workspace.asRelativePath(fileUri, false)
-
-						// Ensure it's not an absolute path (which happens if the file is outside the workspace)
-						if (path.isAbsolute(relativePath)) {
-							console.warn(`Dropped file ${relativePath} is outside the workspace.`)
-							// Optionally send back the absolute path or an empty string/error
-							// For now, let's send back the original URI's fsPath as a fallback
-							await this.postMessageToWebview({
-								type: "relativePathResponse",
-								relativePath: fileUri.fsPath, // Send fsPath as fallback
-							})
-						} else {
-							// Prepend leading slash and normalize to forward slashes
-							const formattedPath = "/" + relativePath.replace(/\\/g, "/")
-							// Send the calculated relative path back
-							await this.postMessageToWebview({
-								type: "relativePathResponse",
-								relativePath: formattedPath,
-							})
-						}
-					} catch (error) {
-						console.error("Error calculating relative path:", error)
-						// Optionally send an error message back to the webview
-						await this.postMessageToWebview({
-							type: "relativePathResponse",
-							error: `Failed to get relative path: ${error instanceof Error ? error.message : String(error)}`,
-						})
-					}
-				}
-				break
-			}
 			case "getRelativePaths": {
 				if (message.uris && message.uris.length > 0) {
 					const resolvedPaths = await Promise.all(
