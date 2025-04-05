@@ -1,12 +1,10 @@
-import { VSCodeButton, VSCodeDivider, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useState } from "react"
-import { useEvent } from "react-use"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { validateApiConfiguration } from "../../utils/validate"
-import { vscode } from "../../utils/vscode"
-import ApiOptions from "../settings/ApiOptions"
-import ClineLogoWhite from "../../assets/ClineLogoWhite"
+import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useEffect, useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { validateApiConfiguration } from "@/utils/validate"
+import { vscode } from "@/utils/vscode"
+import ApiOptions from "@/components/settings/ApiOptions"
+import ClineLogoWhite from "@/assets/ClineLogoWhite"
 
 const WelcomeView = () => {
 	const { apiConfiguration } = useExtensionState()

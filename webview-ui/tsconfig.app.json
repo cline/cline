@@ -18,7 +18,17 @@
 		/* Linting */
 		"strict": true,
 		"noFallthroughCasesInSwitch": true,
-		"noUncheckedSideEffectImports": true
+		"noUncheckedSideEffectImports": true,
+
+		/* Aliasing */
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["src/*"],
+			"@components/*": ["src/components/*"],
+			"@context/*": ["src/context/*"],
+			"@shared/*": ["../src/shared/*"],
+			"@utils/*": ["src/utils/*"]
+		}
 	},
 	"include": ["src"],
 	"exclude": ["src/**/__tests__/**"]
