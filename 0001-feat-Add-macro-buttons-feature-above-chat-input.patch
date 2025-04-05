@@ -1,0 +1,128 @@
+From a25a136426620ab7bbf14fa4b0def11e54029b9e Mon Sep 17 00:00:00 2001
+From: Bart van den Heuvel <bart@zokahn.com>
+Date: Sat, 5 Apr 2025 13:55:42 +0200
+Subject: [PATCH] feat: Add macro buttons feature above chat input
+
+Implements customizable macro buttons that allow quick access to frequently used prompts.
+- Created MacroButtons component
+- Integrated with existing MacroManager
+- Added buttons above the chat input area
+- Connected to ExtensionStateContext for state management
+
+Addresses issue #2692
+---
+ webview-ui/src/components/chat/ChatView.tsx   |  7 +-
+ .../src/components/chat/MacroButtons.tsx      | 69 +++++++++++++++++++
+ 2 files changed, 75 insertions(+), 1 deletion(-)
+ create mode 100644 webview-ui/src/components/chat/MacroButtons.tsx
+
+diff --git a/webview-ui/src/components/chat/ChatView.tsx b/webview-ui/src/components/chat/ChatView.tsx
+index a8dfca88..a172cfa4 100644
+--- a/webview-ui/src/components/chat/ChatView.tsx
++++ b/webview-ui/src/components/chat/ChatView.tsx
+@@ -27,6 +27,7 @@ import ChatRow from "@/components/chat/ChatRow"
+ import ChatTextArea from "@/components/chat/ChatTextArea"
+ import TaskHeader from "@/components/chat/TaskHeader"
+ import TelemetryBanner from "@/components/common/TelemetryBanner"
++import MacroButtons from "./MacroButtons"
+ 
+ interface ChatViewProps {
+ 	isHidden: boolean
+@@ -38,7 +39,7 @@ interface ChatViewProps {
+ export const MAX_IMAGES_PER_MESSAGE = 20 // Anthropic limits to 20 images
+ 
+ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
+-	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting } = useExtensionState()
++	const { version, clineMessages: messages, taskHistory, apiConfiguration, telemetrySetting, macroButtons } = useExtensionState()
+ 
+ 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
+ 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
+@@ -935,6 +936,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
+ 					)}
+ 				</>
+ 			)}
++			<MacroButtons
++				macroButtons={macroButtons}
++				isInputDisabled={textAreaDisabled}
++			/>
+ 			<ChatTextArea
+ 				ref={textAreaRef}
+ 				inputValue={inputValue}
+diff --git a/webview-ui/src/components/chat/MacroButtons.tsx b/webview-ui/src/components/chat/MacroButtons.tsx
+new file mode 100644
+index 00000000..4403d68b
+--- /dev/null
++++ b/webview-ui/src/components/chat/MacroButtons.tsx
+@@ -0,0 +1,69 @@
++import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
++import { MacroButton as MacroButtonType } from "../../../../src/shared/ExtensionMessage"
++import { vscode } from "../../utils/vscode"
++
++interface MacroButtonsProps {
++  macroButtons?: MacroButtonType[]
++  isInputDisabled: boolean
++}
++
++const MacroButtons = ({ macroButtons, isInputDisabled }: MacroButtonsProps) => {
++  if (!macroButtons || macroButtons.length === 0) {
++    return null
++  }
++
++  const handleMacroClick = (action: string) => {
++    vscode.postMessage({
++      type: "invoke",
++      invoke: "sendMessage",
++      text: action,
++    })
++  }
++
++  const openMacroManager = () => {
++    vscode.postMessage({
++      type: "action",
++      action: "manageMacrosClicked",
++    })
++  }
++
++  return (
++    <div style={{
++      display: "flex",
++      flexWrap: "wrap",
++      gap: "8px",
++      marginBottom: "8px",
++      padding: "0 8px",
++      maxWidth: "100%",
++      overflow: "hidden"
++    }}>
++      {macroButtons.map((macro) => (
++        <VSCodeButton
++          key={macro.id}
++          appearance="secondary"
++          disabled={isInputDisabled}
++          title={macro.action}
++          onClick={() => handleMacroClick(macro.action)}
++          style={{
++            maxWidth: "150px",
++            overflow: "hidden",
++            textOverflow: "ellipsis",
++            whiteSpace: "nowrap"
++          }}
++        >
++          {macro.label}
++        </VSCodeButton>
++      ))}
++      <VSCodeButton
++        appearance="secondary"
++        disabled={isInputDisabled}
++        title="Manage Macros"
++        onClick={openMacroManager}
++      >
++        Manage
++      </VSCodeButton>
++    </div>
++  )
++}
++
++export default MacroButtons
+-- 
+2.47.1
+

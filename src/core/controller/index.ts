@@ -33,6 +33,7 @@ import { searchCommits } from "../../utils/git"
 import { getTotalTasksSize } from "../../utils/storage"
 import { Task } from "../task"
 import { openMention } from "../mentions"
+import { initializeMacros } from "./macros"
 import {
 	getAllExtensionState,
 	getGlobalState,
@@ -59,6 +60,7 @@ export class Controller {
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	accountService?: ClineAccountService
+	private macrosHandler?: ReturnType<typeof initializeMacros>
 	private latestAnnouncementId = "march-22-2025" // update to some unique identifier when we add a new announcement
 	private webviewProviderRef: WeakRef<WebviewProvider>
 
@@ -73,6 +75,11 @@ export class Controller {
 		this.workspaceTracker = new WorkspaceTracker(this)
 		this.mcpHub = new McpHub(this)
 		this.accountService = new ClineAccountService(this)
+		this.macrosHandler = initializeMacros(
+			this.context,
+			(message) => this.postMessageToWebview(message),
+			(state) => updateGlobalState(this.context, "macroButtons", state.macroButtons),
+		)
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath, this.outputChannel).catch((error) => {

@@ -5,6 +5,7 @@ import { ChatSettings } from "./ChatSettings"
 import { UserInfo } from "./UserInfo"
 import { ChatContent } from "./ChatContent"
 import { TelemetrySetting } from "./TelemetrySetting"
+import { MacroButton } from "./ExtensionMessage"
 
 export interface WebviewMessage {
 	type:
@@ -68,6 +69,9 @@ export interface WebviewMessage {
 		| "requestTotalTasksSize"
 		| "taskFeedback"
 		| "searchFiles"
+		| "addToInput"
+		| "action"
+		| "updateMacroButtons"
 	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
@@ -100,6 +104,9 @@ export interface WebviewMessage {
 	feedbackType?: TaskFeedbackType
 	mentionsRequestId?: string
 	query?: string
+	// For macro buttons
+	macroButtons?: MacroButton[]
+	action?: "manageMacrosClicked" | string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
