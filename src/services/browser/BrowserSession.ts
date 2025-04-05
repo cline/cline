@@ -198,14 +198,6 @@ export class BrowserSession {
 		this.taskId = taskId
 	}
 
-	/**
-	 * Update browser settings at runtime
-	 * @param newSettings The new browser settings to apply
-	 */
-	updateBrowserSettings(newSettings: BrowserSettings): void {
-		this.browserSettings = newSettings
-	}
-
 	async launchBrowser() {
 		if (this.browser) {
 			await this.closeBrowser() // this may happen when the model launches a browser again after having used it already before
