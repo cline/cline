@@ -26,7 +26,6 @@ export interface BrowserConnectionInfo {
 	isConnected: boolean
 	isRemote: boolean
 	host?: string
-	isHeadless: boolean
 }
 
 const DEBUG_PORT = 9222 // Chrome's default debugging port
@@ -64,7 +63,6 @@ export class BrowserSession {
 			isConnected: !!this.browser,
 			isRemote: this.isConnectedToRemote,
 			host: this.isConnectedToRemote ? this.browserSettings.remoteBrowserHost : undefined,
-			isHeadless: !this.isConnectedToRemote, // Local is always headless, remote is always non-headless
 		}
 	}
 
@@ -132,9 +130,6 @@ export class BrowserSession {
 
 			// Wait a moment for Chrome to fully shut down
 			await new Promise((resolve) => setTimeout(resolve, 500))
-
-			// Remote connections are always non-headless
-			// Don't add headless flag for remote connections
 
 			// Instead of using any default flags, use a minimal set to ensure session persistence
 			// This closely mimics running "google-chrome-stable --remote-debugging-port=9222" from the CLI
@@ -221,7 +216,7 @@ export class BrowserSession {
 				return
 			} catch (error) {
 				console.error("Failed to launch remote browser, falling back to local mode:", error)
-				
+
 				// Capture error telemetry
 				if (this.taskId) {
 					telemetryService.captureBrowserError(
@@ -230,11 +225,11 @@ export class BrowserSession {
 						error instanceof Error ? error.message : String(error),
 						{
 							isRemote: true,
-							remoteBrowserHost: this.browserSettings.remoteBrowserHost
-						}
+							remoteBrowserHost: this.browserSettings.remoteBrowserHost,
+						},
 					)
 				}
-				
+
 				await this.launchLocalBrowser()
 			}
 		} else {
@@ -300,7 +295,7 @@ export class BrowserSession {
 				return
 			} catch (error) {
 				console.log(`Failed to connect using cached endpoint: ${error}`)
-				
+
 				// Capture error telemetry
 				if (this.taskId) {
 					telemetryService.captureBrowserError(
@@ -309,11 +304,11 @@ export class BrowserSession {
 						error instanceof Error ? error.message : String(error),
 						{
 							isRemote: true,
-							endpoint: browserWSEndpoint
-						}
+							endpoint: browserWSEndpoint,
+						},
 					)
 				}
-				
+
 				// Clear the cached endpoint since it's no longer valid
 				this.cachedWebSocketEndpoint = undefined
 				// User wants to give up after one reconnection attempt
@@ -352,7 +347,7 @@ export class BrowserSession {
 				return
 			} catch (error) {
 				console.log(`Failed to connect to remote browser: ${error}`)
-				
+
 				// Capture error telemetry
 				if (this.taskId) {
 					telemetryService.captureBrowserError(
@@ -361,8 +356,8 @@ export class BrowserSession {
 						error instanceof Error ? error.message : String(error),
 						{
 							isRemote: true,
-							remoteBrowserHost
-						}
+							remoteBrowserHost,
+						},
 					)
 				}
 			}
@@ -477,22 +472,17 @@ export class BrowserSession {
 		try {
 			await action(this.page)
 		} catch (err) {
-			const errorMessage = err instanceof Error ? err.message : String(err);
-			
+			const errorMessage = err instanceof Error ? err.message : String(err)
+
 			if (!(err instanceof TimeoutError)) {
 				logs.push(`[Error] ${errorMessage}`)
-				
+
 				// Capture error telemetry
 				if (this.taskId) {
-					telemetryService.captureBrowserError(
-						this.taskId,
-						"browser_action_error",
-						errorMessage,
-						{
-							isRemote: this.isConnectedToRemote,
-							action: this.browserActions[this.browserActions.length - 1]
-						}
-					)
+					telemetryService.captureBrowserError(this.taskId, "browser_action_error", errorMessage, {
+						isRemote: this.isConnectedToRemote,
+						action: this.browserActions[this.browserActions.length - 1],
+					})
 				}
 			}
 		}
@@ -532,15 +522,10 @@ export class BrowserSession {
 		if (!screenshotBase64) {
 			// Capture error telemetry
 			if (this.taskId) {
-				telemetryService.captureBrowserError(
-					this.taskId,
-					"screenshot_error",
-					"Failed to take screenshot",
-					{
-						isRemote: this.isConnectedToRemote,
-						action: this.browserActions[this.browserActions.length - 1]
-					}
-				)
+				telemetryService.captureBrowserError(this.taskId, "screenshot_error", "Failed to take screenshot", {
+					isRemote: this.isConnectedToRemote,
+					action: this.browserActions[this.browserActions.length - 1],
+				})
 			}
 			throw new Error("Failed to take screenshot.")
 		}

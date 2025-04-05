@@ -474,7 +474,6 @@ class PostHogClient {
 			properties: {
 				taskId,
 				viewport: browserSettings.viewport,
-				headless: browserSettings.headless,
 				isRemote: !!browserSettings.remoteBrowserEnabled,
 				remoteBrowserHost: browserSettings.remoteBrowserHost,
 				timestamp: new Date().toISOString(),
@@ -523,7 +522,7 @@ class PostHogClient {
 			url?: string
 			isRemote?: boolean
 			[key: string]: any
-		}
+		},
 	) {
 		this.capture({
 			event: PostHogClient.EVENTS.TASK.BROWSER_ERROR,

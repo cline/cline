@@ -311,7 +311,6 @@ export class Controller {
 							isConnected: connectionInfo.isConnected,
 							isRemote: connectionInfo.isRemote,
 							host: connectionInfo.host,
-							isHeadless: connectionInfo.isHeadless,
 						})
 					} else {
 						// If no active browser session, just return the settings
@@ -321,7 +320,6 @@ export class Controller {
 							isConnected: false,
 							isRemote: !!browserSettings.remoteBrowserEnabled,
 							host: browserSettings.remoteBrowserHost,
-							isHeadless: !!browserSettings.headless,
 						})
 					}
 				} catch (error) {
@@ -330,7 +328,6 @@ export class Controller {
 						type: "browserConnectionInfo",
 						isConnected: false,
 						isRemote: false,
-						isHeadless: true,
 					})
 				}
 				break

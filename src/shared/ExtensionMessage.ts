@@ -92,7 +92,6 @@ export interface ExtensionMessage {
 	isConnected?: boolean
 	isRemote?: boolean
 	host?: string
-	isHeadless?: boolean
 	addRemoteServerResult?: {
 		success: boolean
 		serverName: string
@@ -225,7 +224,6 @@ export interface BrowserConnectionInfo {
 	isConnected: boolean
 	isRemote: boolean
 	host?: string
-	isHeadless: boolean
 }
 
 export interface ClineAskUseMcpServer {

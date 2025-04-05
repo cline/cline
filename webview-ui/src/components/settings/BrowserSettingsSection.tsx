@@ -250,9 +250,6 @@ export const BrowserSettingsSection: React.FC = () => {
 					Set the size of the browser viewport for screenshots and interactions.
 				</p>
 			</div>
-			{/* Headless mode is now automatically determined: 
-			    - Local connections always use headless mode
-			    - Remote connections always use non-headless mode */}
 
 			<div style={{ marginBottom: 15 }}>
 				<div style={{ marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>

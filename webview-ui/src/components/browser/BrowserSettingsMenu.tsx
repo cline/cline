@@ -8,7 +8,6 @@ interface ConnectionInfo {
 	isConnected: boolean
 	isRemote: boolean
 	host?: string
-	isHeadless: boolean
 }
 
 export const BrowserSettingsMenu = () => {
@@ -19,7 +18,6 @@ export const BrowserSettingsMenu = () => {
 		isConnected: false,
 		isRemote: !!browserSettings.remoteBrowserEnabled,
 		host: browserSettings.remoteBrowserHost,
-		isHeadless: !!browserSettings.headless,
 	})
 	const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -38,7 +36,6 @@ export const BrowserSettingsMenu = () => {
 					isConnected: message.isConnected,
 					isRemote: message.isRemote,
 					host: message.host,
-					isHeadless: message.isHeadless,
 				})
 			}
 		}
@@ -47,7 +44,7 @@ export const BrowserSettingsMenu = () => {
 		return () => {
 			window.removeEventListener("message", handleMessage)
 		}
-	}, [browserSettings.remoteBrowserHost, browserSettings.remoteBrowserEnabled, browserSettings.headless])
+	}, [browserSettings.remoteBrowserHost, browserSettings.remoteBrowserEnabled])
 
 	// Close popover when clicking outside
 	useEffect(() => {
