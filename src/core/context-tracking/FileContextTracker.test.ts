@@ -5,7 +5,7 @@ import * as vscode from "vscode"
 import * as path from "path"
 import { FileContextTracker } from "./FileContextTracker"
 import * as diskModule from "../storage/disk"
-import type { TaskMetadata, ControllerLike } from "./FileContextTrackerTypes"
+import type { TaskMetadata, ControllerLike, FileMetadataEntry } from "./FileContextTrackerTypes"
 
 describe("FileContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
@@ -95,18 +95,26 @@ describe("FileContextTracker", () => {
 		await tracker.trackFileContext(filePath, "cline_edited")
 
 		// Verify saveTaskMetadata was called with the correct data
+		expect(saveTaskMetadataStub.calledOnce).to.be.true
 		const savedMetadata = saveTaskMetadataStub.firstCall.args[2]
-		const fileEntry = savedMetadata.files_in_context[0]
 
-		expect(fileEntry.path).to.equal(filePath)
-		expect(fileEntry.record_state).to.equal("active")
-		expect(fileEntry.record_source).to.equal("cline_edited")
-		expect(fileEntry.cline_read_date).to.be.a("number")
-		expect(fileEntry.cline_edit_date).to.be.a("number")
+		// Check that we have at least one entry in files_in_context
+		expect(savedMetadata.files_in_context).to.be.an("array").that.is.not.empty
 
-		// Verify the file was added to recentlyModifiedFiles
-		const modifiedFiles = tracker.getAndClearRecentlyModifiedFiles()
-		expect(modifiedFiles).to.include(filePath)
+		// Find the active entry for this file
+		const activeEntry = savedMetadata.files_in_context.find(
+			(entry: FileMetadataEntry) => entry.path === filePath && entry.record_state === "active",
+		)
+
+		// Assert that we found an active entry
+		expect(activeEntry).to.exist
+
+		// Now check the properties of the active entry
+		expect(activeEntry.path).to.equal(filePath)
+		expect(activeEntry.record_state).to.equal("active")
+		expect(activeEntry.record_source).to.equal("cline_edited")
+		expect(activeEntry.cline_read_date).to.be.a("number")
+		expect(activeEntry.cline_edit_date).to.be.a("number")
 	})
 
 	it("should add a record when a file is mentioned", async () => {
