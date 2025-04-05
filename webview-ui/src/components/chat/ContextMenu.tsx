@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions } from "@/utils/context-mentions"
+import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions, SearchResult } from "@/utils/context-mentions"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
 
 interface ContextMenuProps {

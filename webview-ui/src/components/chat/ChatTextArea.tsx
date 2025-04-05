@@ -259,42 +259,39 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			}
 		}, [selectedType, searchQuery])
 
-		const handleMessage = useCallback(
-			(event: MessageEvent) => {
-				const message: ExtensionMessage = event.data
-				switch (message.type) {
-					case "commitSearchResults": {
-						const commits =
-							message.commits?.map((commit: any) => ({
-								type: ContextMenuOptionType.Git,
-								value: commit.hash,
-								label: commit.subject,
-								description: `${commit.shortHash} by ${commit.author} on ${commit.date}`,
-							})) || []
-						setGitCommits(commits)
-						break
-					}
-					case "relativePathsResponse": {
-						// New case for batch response
-						const validPaths = message.paths?.filter((path): path is string => !!path) || []
-						if (validPaths.length > 0) {
-							setPendingInsertions((prev) => [...prev, ...validPaths])
-						}
-						break
-					}
-
-					case "fileSearchResults": {
-						// Only update results if they match the current query or if there's no mentionsRequestId - better UX
-						if (!message.mentionsRequestId || message.mentionsRequestId === currentSearchQueryRef.current) {
-							setFileSearchResults(message.results || [])
-							setSearchLoading(false)
-						}
-						break
-					}
+		const handleMessage = useCallback((event: MessageEvent) => {
+			const message: ExtensionMessage = event.data
+			switch (message.type) {
+				case "commitSearchResults": {
+					const commits =
+						message.commits?.map((commit: any) => ({
+							type: ContextMenuOptionType.Git,
+							value: commit.hash,
+							label: commit.subject,
+							description: `${commit.shortHash} by ${commit.author} on ${commit.date}`,
+						})) || []
+					setGitCommits(commits)
+					break
 				}
-			},
-			[setInputValue],
-		)
+				case "relativePathsResponse": {
+					// New case for batch response
+					const validPaths = message.paths?.filter((path): path is string => !!path) || []
+					if (validPaths.length > 0) {
+						setPendingInsertions((prev) => [...prev, ...validPaths])
+					}
+					break
+				}
+
+				case "fileSearchResults": {
+					// Only update results if they match the current query or if there's no mentionsRequestId - better UX
+					if (!message.mentionsRequestId || message.mentionsRequestId === currentSearchQueryRef.current) {
+						setFileSearchResults(message.results || [])
+						setSearchLoading(false)
+					}
+					break
+				}
+			}
+		}, [])
 
 		useEvent("message", handleMessage)
 
