@@ -36,6 +36,12 @@ const ACTION_METADATA: {
 			"Allows execution of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
 	},
 	{
+		id: "executeAllCommands",
+		label: "Execute All commands",
+		shortName: "AllCommands",
+		description: "Allows execution of all terminal commands. Use at your own risk.",
+	},
+	{
 		id: "useBrowser",
 		label: "Use the browser",
 		shortName: "Browser",
@@ -79,6 +85,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 			const newActions = {
 				...autoApprovalSettings.actions,
 				[actionId]: value,
+			}
+
+			// If disabling executeCommands, also disable executeAllCommands
+			if (actionId === "executeCommands" && !value && newActions.executeAllCommands) {
+				newActions.executeAllCommands = false
 			}
 
 			// Check if this will result in any enabled actions
@@ -220,26 +231,33 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						Auto-approve allows Cline to perform the following actions without asking for permission. Please use with
 						caution and only enable if you understand the risks.
 					</div>
-					{ACTION_METADATA.map((action) => (
-						<div key={action.id} style={{ margin: "6px 0" }}>
-							<VSCodeCheckbox
-								checked={autoApprovalSettings.actions[action.id]}
-								onChange={(e) => {
-									const checked = (e.target as HTMLInputElement).checked
-									updateAction(action.id, checked)
-								}}>
-								{action.label}
-							</VSCodeCheckbox>
-							<div
-								style={{
-									marginLeft: "28px",
-									color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
-									fontSize: "12px",
-								}}>
-								{action.description}
+					{ACTION_METADATA.map((action) => {
+						// Only show executeAllCommands option if executeCommands is enabled
+						if (action.id === "executeAllCommands" && !autoApprovalSettings.actions.executeCommands) {
+							return null
+						}
+
+						return (
+							<div key={action.id} style={{ margin: "6px 0" }}>
+								<VSCodeCheckbox
+									checked={autoApprovalSettings.actions[action.id]}
+									onChange={(e) => {
+										const checked = (e.target as HTMLInputElement).checked
+										updateAction(action.id, checked)
+									}}>
+									{action.label}
+								</VSCodeCheckbox>
+								<div
+									style={{
+										marginLeft: "28px",
+										color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
+										fontSize: "12px",
+									}}>
+									{action.description}
+								</div>
 							</div>
-						</div>
-					))}
+						)
+					})}
 					<div
 						style={{
 							height: "0.5px",
