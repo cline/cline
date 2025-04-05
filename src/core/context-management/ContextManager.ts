@@ -438,7 +438,7 @@ export class ContextManager {
 		// fileReadIndices: { fileName => [outerIndex, EditType, searchText, replaceText] }
 		// messageFilePaths: { outerIndex => [fileRead1, fileRead2, ..] }
 		// searchText in fileReadIndices is only required for file mention file-reads since there can be more than one file in the text
-		// searchText will be the empty string "" in the case that it's not required
+		// searchText will be the empty string "" in the case that it's not required, for non-file mentions
 		// messageFilePaths is only used for file mentions as there can be multiple files read in the same text chunk
 
 		// for all text blocks per file, has info for updating the block
@@ -452,33 +452,37 @@ export class ContextManager {
 
 			if (this.contextHistoryUpdates.has(i)) {
 				const innerTuple = this.contextHistoryUpdates.get(i)
-				const editType = innerTuple[0]
 
-				if (editType === EditType.FILE_MENTION) {
-					const innerMap = innerTuple[1]
+				if (innerTuple) {
+					// safety check
+					const editType = innerTuple[0]
 
-					const blockIndex = 1 // file mention blocks assumed to be at index 1
-					const blockUpdates = innerMap.get(blockIndex)
+					if (editType === EditType.FILE_MENTION) {
+						const innerMap = innerTuple[1]
 
-					// if we have updated this text previously, we want to check whether the lists of files in the metadata are the same
-					if (blockUpdates && blockUpdates.length > 0) {
-						// the first list indicates the files we have replaced in this text, second list indicates all unique files in this text
-						// if they are equal then we have replaced all the files in this text already, and can ignore further processing
-						if (
-							blockUpdates[blockUpdates.length - 1][3][0].length ===
-							blockUpdates[blockUpdates.length - 1][3][1].length
-						) {
-							continue
+						const blockIndex = 1 // file mention blocks assumed to be at index 1
+						const blockUpdates = innerMap.get(blockIndex)
+
+						// if we have updated this text previously, we want to check whether the lists of files in the metadata are the same
+						if (blockUpdates && blockUpdates.length > 0) {
+							// the first list indicates the files we have replaced in this text, second list indicates all unique files in this text
+							// if they are equal then we have replaced all the files in this text already, and can ignore further processing
+							if (
+								blockUpdates[blockUpdates.length - 1][3][0].length ===
+								blockUpdates[blockUpdates.length - 1][3][1].length
+							) {
+								continue
+							}
+							// otherwise there are still file reads here we can overwrite, so still need to process this text chunk
+							// to do so we need to keep track of which files we've already replaced so we don't replace them again
+							else {
+								thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
+							}
 						}
-						// otherwise there are still file reads here we can overwrite, so still need to process this text chunk
-						// to do so we need to keep track of which files we've already replaced so we don't replace them again
-						else {
-							thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
-						}
+					} else {
+						// for all other cases we can assume that we dont need to check this again
+						continue
 					}
-				} else {
-					// for all other cases we can assume that we dont need to check this again
-					continue
 				}
 			}
 
@@ -503,7 +507,7 @@ export class ContextManager {
 						}
 					}
 
-					// currently we will search over all other blocks
+					// file mentions can happen in most other user message blocks
 					if (!foundNormalFileRead) {
 						if (message.content.length > 1) {
 							const secondBlock = message.content[1]
@@ -512,7 +516,7 @@ export class ContextManager {
 									i,
 									secondBlock.text,
 									fileReadIndices,
-									thisExistingFileReads,
+									thisExistingFileReads, // file reads we've already replaced in this text in the latest version of this updated text
 								)
 								if (hasFileRead) {
 									messageFilePaths.set(i, filePaths) // all file paths in this string
@@ -547,7 +551,7 @@ export class ContextManager {
 			foundMatch = true
 
 			const filePath = match[1]
-			filePaths.push(filePath) // we will record all unique paths in this text
+			filePaths.push(filePath) // we will record all unique paths from file mentions in this text
 
 			// we can assume that thisExistingFileReads does not have many entries
 			if (thisExistingFileReads.indexOf(filePath) === -1) {
@@ -628,7 +632,7 @@ export class ContextManager {
 		const fileMentionUpdates = new Map<number, [string, string[]]>()
 
 		for (const [filePath, indices] of fileReadIndices.entries()) {
-			// Only process if there are multiple reads of the same file
+			// Only process if there are multiple reads of the same file, else we will want to keep the latest read of the file
 			if (indices.length > 1) {
 				// Process all but the last index, as we will keep that instance of the file read
 				for (let i = 0; i < indices.length - 1; i++) {
@@ -711,6 +715,7 @@ export class ContextManager {
 		}
 
 		// apply file mention updates to contextHistoryUpdates
+		// in fileMentionUpdates, filePathsUpdated includes all the file paths which are updated in the latest version of this altered text
 		for (const [messageIndex, [updatedText, filePathsUpdated]] of fileMentionUpdates.entries()) {
 			let innerTuple = this.contextHistoryUpdates.get(messageIndex)
 			let innerMap: Map<number, ContextUpdate[]>
@@ -727,8 +732,14 @@ export class ContextManager {
 
 			// filePathsUpdated includes changes done previously to this timestamp, and right now
 			if (messageFilePaths.has(messageIndex)) {
-				updates.push([timestamp, "text", [updatedText], [filePathsUpdated, messageFilePaths.get(messageIndex)]])
-				innerMap.set(blockIndex, updates)
+				const allFileReads = messageFilePaths.get(messageIndex)
+				if (allFileReads) {
+					// safety check
+					// we gather all the file reads possible in this text from messageFilePaths
+					// filePathsUpdated from fileMentionUpdates stores all the files reads we have replaced now & previously
+					updates.push([timestamp, "text", [updatedText], [filePathsUpdated, allFileReads]])
+					innerMap.set(blockIndex, updates)
+				}
 			}
 		}
 
@@ -755,7 +766,8 @@ export class ContextManager {
 				continue
 			}
 
-			// `hasExistingAlterations` will also include the alterations we just made
+			// hasExistingAlterations checks whether the outer idnex has any changes
+			// hasExistingAlterations will also include the alterations we just made
 			const hasExistingAlterations = this.contextHistoryUpdates.has(i)
 			const hasNewAlterations = uniqueFileReadIndices.has(i)
 
@@ -768,7 +780,7 @@ export class ContextManager {
 						// true if we just altered it, or it was altered before
 						if (hasExistingAlterations) {
 							const innerTuple = this.contextHistoryUpdates.get(i)
-							const updates = innerTuple?.[1].get(blockIndex)
+							const updates = innerTuple?.[1].get(blockIndex) // updated text for this inner index
 
 							if (updates && updates.length > 0) {
 								// exists if we have an update for the message at this index
@@ -788,6 +800,7 @@ export class ContextManager {
 
 									totalCharCount += originalTextLength
 								} else {
+									// meaning there was an update to this text previously, but we didnt just alter it
 									totalCharCount += latestUpdate[2][0].length
 								}
 							} else {
@@ -795,7 +808,7 @@ export class ContextManager {
 								totalCharCount += block.text.length
 							}
 						} else {
-							// reach here if there's no alterations for this outer index
+							// reach here if there's no alterations for this outer index, meaning each inner index wont have any changes either
 							totalCharCount += block.text.length
 						}
 					} else if (block.type === "image" && block.source) {
