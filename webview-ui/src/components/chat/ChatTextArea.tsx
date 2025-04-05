@@ -3,9 +3,9 @@ import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, us
 import DynamicTextArea from "react-textarea-autosize"
 import { useClickAway, useEvent, useWindowSize } from "react-use"
 import styled from "styled-components"
-import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptions,
@@ -13,17 +13,17 @@ import {
 	removeMention,
 	shouldShowContextMenu,
 	SearchResult,
-} from "../../utils/context-mentions"
-import { useMetaKeyDetection, useShortcut } from "../../utils/hooks"
-import { validateApiConfiguration, validateModelId } from "../../utils/validate"
-import { vscode } from "../../utils/vscode"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import Thumbnails from "../common/Thumbnails"
-import Tooltip from "../common/Tooltip"
-import ApiOptions, { normalizeApiConfiguration } from "../settings/ApiOptions"
-import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
-import ContextMenu from "./ContextMenu"
-import { ChatSettings } from "../../../../src/shared/ChatSettings"
+} from "@/utils/context-mentions"
+import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
+import { validateApiConfiguration, validateModelId } from "@/utils/validate"
+import { vscode } from "@/utils/vscode"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import Thumbnails from "@/components/common/Thumbnails"
+import Tooltip from "@/components/common/Tooltip"
+import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
+import { MAX_IMAGES_PER_MESSAGE } from "@/components/chat/ChatView"
+import ContextMenu from "@/components/chat/ContextMenu"
+import { ChatSettings } from "@shared/ChatSettings"
 
 interface ChatTextAreaProps {
 	inputValue: string

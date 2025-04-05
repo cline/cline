@@ -1,4 +1,4 @@
-import { mentionRegex } from "../../../src/shared/context-mentions"
+import { mentionRegex } from "@shared/context-mentions"
 import { Fzf } from "fzf"
 import * as path from "path"
 

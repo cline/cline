@@ -2,9 +2,9 @@ import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vsc
 import React, { useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import styled from "styled-components"
-import { BROWSER_VIEWPORT_PRESETS } from "../../../../src/shared/BrowserSettings"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
+import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { vscode } from "@/utils/vscode"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 
 interface BrowserSettingsMenuProps {

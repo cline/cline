@@ -45,12 +45,12 @@ import {
 	xaiModels,
 	sambanovaModels,
 	sambanovaDefaultModelId,
-} from "../../../../src/shared/api"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
-import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
-import VSCodeButtonLink from "../common/VSCodeButtonLink"
+} from "@shared/api"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { vscode } from "@/utils/vscode"
+import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
+import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 
@@ -635,7 +635,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 											awsBedrockUsePromptCache: isChecked,
 										})
 									}}>
-									Use prompt caching (Beta)
+									Use prompt caching
 								</VSCodeCheckbox>
 							</>
 						)}
@@ -1205,6 +1205,24 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder={"e.g. gpt-4"}>
 						<span style={{ fontWeight: 500 }}>Model ID</span>
 					</VSCodeTextField>
+
+					<>
+						<ThinkingBudgetSlider apiConfiguration={apiConfiguration} setApiConfiguration={setApiConfiguration} />
+						<p
+							style={{
+								fontSize: "12px",
+								marginTop: "5px",
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							Extended thinking is available for models as Sonnet-3-7, o3-mini, Deepseek R1, etc. More info on{" "}
+							<VSCodeLink
+								href="https://docs.litellm.ai/docs/reasoning_content"
+								style={{ display: "inline", fontSize: "inherit" }}>
+								thinking mode configuration
+							</VSCodeLink>
+						</p>
+					</>
+
 					<p
 						style={{
 							fontSize: "12px",
