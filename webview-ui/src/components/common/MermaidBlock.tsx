@@ -174,7 +174,10 @@ async function svgToPng(svgEl: SVGElement): Promise<string> {
 
 	const serializer = new XMLSerializer()
 	const svgString = serializer.serializeToString(svgClone)
-	const svgDataUrl = "data:image/svg+xml;base64," + btoa(decodeURIComponent(encodeURIComponent(svgString)))
+	const encoder = new TextEncoder()
+	const bytes = encoder.encode(svgString)
+	const base64 = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""))
+	const svgDataUrl = `data:image/svg+xml;base64,${base64}`
 
 	return new Promise((resolve, reject) => {
 		const img = new Image()
