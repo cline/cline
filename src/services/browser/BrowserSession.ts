@@ -349,7 +349,7 @@ export class BrowserSession {
 			if (process.platform === "win32") {
 				// Windows: Use taskkill to forcefully terminate Chrome processes
 				await new Promise<void>((resolve, reject) => {
-					exec("taskkill /F /IM chrome.exe /T", () => resolve() )
+					exec("taskkill /F /IM chrome.exe /T", () => resolve())
 				})
 			} else if (process.platform === "darwin") {
 				// macOS: Use pkill to terminate Chrome processes
@@ -490,7 +490,6 @@ export class BrowserSession {
 	}
 
 	async navigateToUrl(url: string): Promise<BrowserActionResult> {
-		// Track this action for telemetry
 		this.browserActions.push(`navigate: url`)
 
 		return this.doAction(async (page) => {
@@ -538,7 +537,6 @@ export class BrowserSession {
 	}
 
 	async click(coordinate: string): Promise<BrowserActionResult> {
-		// Track this action for telemetry
 		this.browserActions.push(`click: coordinate`)
 
 		const [x, y] = coordinate.split(",").map(Number)
@@ -574,7 +572,6 @@ export class BrowserSession {
 	}
 
 	async type(text: string): Promise<BrowserActionResult> {
-		// Track this action for telemetry
 		this.browserActions.push(`type:${text.length} chars`)
 
 		return this.doAction(async (page) => {
@@ -583,7 +580,6 @@ export class BrowserSession {
 	}
 
 	async scrollDown(): Promise<BrowserActionResult> {
-		// Track this action for telemetry
 		this.browserActions.push("scrollDown")
 
 		return this.doAction(async (page) => {
@@ -598,7 +594,6 @@ export class BrowserSession {
 	}
 
 	async scrollUp(): Promise<BrowserActionResult> {
-		// Track this action for telemetry
 		this.browserActions.push("scrollUp")
 
 		return this.doAction(async (page) => {
