@@ -3,26 +3,27 @@ import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, us
 import DynamicTextArea from "react-textarea-autosize"
 import { useClickAway, useEvent, useWindowSize } from "react-use"
 import styled from "styled-components"
-import { mentionRegex, mentionRegexGlobal } from "../../../../src/shared/context-mentions"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
-import { useExtensionState } from "../../context/ExtensionStateContext"
+import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import {
 	ContextMenuOptionType,
 	getContextMenuOptions,
 	insertMention,
 	removeMention,
 	shouldShowContextMenu,
-} from "../../utils/context-mentions"
-import { useMetaKeyDetection, useShortcut } from "../../utils/hooks"
-import { validateApiConfiguration, validateModelId } from "../../utils/validate"
-import { vscode } from "../../utils/vscode"
-import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
-import Thumbnails from "../common/Thumbnails"
-import Tooltip from "../common/Tooltip"
-import ApiOptions, { normalizeApiConfiguration } from "../settings/ApiOptions"
-import { MAX_IMAGES_PER_MESSAGE } from "./ChatView"
-import ContextMenu from "./ContextMenu"
-import { ChatSettings } from "../../../../src/shared/ChatSettings"
+	SearchResult,
+} from "@/utils/context-mentions"
+import { useMetaKeyDetection, useShortcut } from "@/utils/hooks"
+import { validateApiConfiguration, validateModelId } from "@/utils/validate"
+import { vscode } from "@/utils/vscode"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import Thumbnails from "@/components/common/Thumbnails"
+import Tooltip from "@/components/common/Tooltip"
+import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/ApiOptions"
+import { MAX_IMAGES_PER_MESSAGE } from "@/components/chat/ChatView"
+import ContextMenu from "@/components/chat/ContextMenu"
+import { ChatSettings } from "@shared/ChatSettings"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -238,7 +239,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [arrowPosition, setArrowPosition] = useState(0)
 		const [menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
-
+		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
+		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
 
 		// Add a ref to track previous menu state
@@ -266,6 +268,15 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							description: `${commit.shortHash} by ${commit.author} on ${commit.date}`,
 						})) || []
 					setGitCommits(commits)
+					break
+				}
+
+				case "fileSearchResults": {
+					// Only update results if they match the current query or if there's no mentionsRequestId - better UX
+					if (!message.mentionsRequestId || message.mentionsRequestId === currentSearchQueryRef.current) {
+						setFileSearchResults(message.results || [])
+						setSearchLoading(false)
+					}
 					break
 				}
 			}
@@ -372,7 +383,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						event.preventDefault()
 						setSelectedMenuIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
-							const options = getContextMenuOptions(searchQuery, selectedType, queryItems)
+							const options = getContextMenuOptions(searchQuery, selectedType, queryItems, fileSearchResults)
 							const optionsLength = options.length
 
 							if (optionsLength === 0) return prevIndex
@@ -398,7 +409,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					}
 					if ((event.key === "Enter" || event.key === "Tab") && selectedMenuIndex !== -1) {
 						event.preventDefault()
-						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems)[selectedMenuIndex]
+						const selectedOption = getContextMenuOptions(searchQuery, selectedType, queryItems, fileSearchResults)[
+							selectedMenuIndex
+						]
 						if (
 							selectedOption &&
 							selectedOption.type !== ContextMenuOptionType.URL &&
@@ -465,6 +478,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setInputValue,
 				justDeletedSpaceAfterMention,
 				queryItems,
+				fileSearchResults,
 			],
 		)
 
@@ -474,6 +488,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				setIntendedCursorPosition(null) // Reset the state
 			}
 		}, [inputValue, intendedCursorPosition])
+
+		const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+		const currentSearchQueryRef = useRef<string>("")
 
 		const handleInputChange = useCallback(
 			(e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -488,17 +506,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					const lastAtIndex = newValue.lastIndexOf("@", newCursorPosition - 1)
 					const query = newValue.slice(lastAtIndex + 1, newCursorPosition)
 					setSearchQuery(query)
-					if (query.length > 0) {
+					currentSearchQueryRef.current = query
+
+					if (query.length > 0 && !selectedType) {
 						setSelectedMenuIndex(0)
+
+						// Clear any existing timeout
+						if (searchTimeoutRef.current) {
+							clearTimeout(searchTimeoutRef.current)
+						}
+
+						setSearchLoading(true)
+
+						// Set a timeout to debounce the search requests
+						searchTimeoutRef.current = setTimeout(() => {
+							vscode.postMessage({
+								type: "searchFiles",
+								query: query,
+								mentionsRequestId: query,
+							})
+						}, 200) // 200ms debounce
 					} else {
 						setSelectedMenuIndex(3) // Set to "File" option by default
 					}
 				} else {
 					setSearchQuery("")
 					setSelectedMenuIndex(-1)
+					setFileSearchResults([])
 				}
 			},
-			[setInputValue],
+			[setInputValue, setFileSearchResults, selectedType],
 		)
 
 		useEffect(() => {
@@ -900,6 +937,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								setSelectedIndex={setSelectedMenuIndex}
 								selectedType={selectedType}
 								queryItems={queryItems}
+								dynamicSearchResults={fileSearchResults}
+								isLoading={searchLoading}
 							/>
 						</div>
 					)}

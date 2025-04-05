@@ -1,5 +1,5 @@
-import { ApiConfiguration, openRouterDefaultModelId } from "../../../src/shared/api"
-import { ModelInfo } from "../../../src/shared/api"
+import { ApiConfiguration, openRouterDefaultModelId, ModelInfo } from "@shared/api"
+
 export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): string | undefined {
 	if (apiConfiguration) {
 		switch (apiConfiguration.apiProvider) {
@@ -45,6 +45,11 @@ export function validateApiConfiguration(apiConfiguration?: ApiConfiguration): s
 				break
 			case "qwen":
 				if (!apiConfiguration.qwenApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
+			case "doubao":
+				if (!apiConfiguration.doubaoApiKey) {
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break

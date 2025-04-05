@@ -1,5 +1,5 @@
 import { memo, useState } from "react"
-import { anthropicModels, ApiConfiguration } from "../../../../src/shared/api"
+import { anthropicModels, ApiConfiguration } from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 
