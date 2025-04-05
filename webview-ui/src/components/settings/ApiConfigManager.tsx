@@ -1,20 +1,26 @@
 import { memo, useEffect, useRef, useState } from "react"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { ChevronsUpDown, Check, X } from "lucide-react"
 
 import { ApiConfigMeta } from "../../../../src/shared/ExtensionMessage"
 
 import { useAppTranslation } from "@/i18n/TranslationContext"
+import { cn } from "@/lib/utils"
 import {
 	Button,
 	Input,
 	Dialog,
 	DialogContent,
 	DialogTitle,
-	Select,
-	SelectTrigger,
-	SelectValue,
-	SelectContent,
-	SelectItem,
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
 } from "@/components/ui"
 
 interface ApiConfigManagerProps {
@@ -41,8 +47,11 @@ const ApiConfigManager = ({
 	const [inputValue, setInputValue] = useState("")
 	const [newProfileName, setNewProfileName] = useState("")
 	const [error, setError] = useState<string | null>(null)
+	const [open, setOpen] = useState(false)
+	const [searchValue, setSearchValue] = useState("")
 	const inputRef = useRef<any>(null)
 	const newProfileInputRef = useRef<any>(null)
+	const searchInputRef = useRef<HTMLInputElement>(null)
 
 	const validateName = (name: string, isNewProfile: boolean): string | null => {
 		const trimmed = name.trim()
@@ -95,7 +104,30 @@ const ApiConfigManager = ({
 	useEffect(() => {
 		resetCreateState()
 		resetRenameState()
+		// Reset search value when current profile changes
+		setTimeout(() => setSearchValue(""), 100)
 	}, [currentApiConfigName])
+
+	const onOpenChange = (open: boolean) => {
+		setOpen(open)
+
+		// Reset search when closing the popover
+		if (!open) {
+			setTimeout(() => setSearchValue(""), 100)
+		}
+	}
+
+	const onClearSearch = () => {
+		setSearchValue("")
+		searchInputRef.current?.focus()
+	}
+
+	const handleSelectConfig = (configName: string) => {
+		if (!configName) return
+
+		setOpen(false)
+		onSelectConfig(configName)
+	}
 
 	const handleAdd = () => {
 		resetCreateState()
@@ -206,18 +238,76 @@ const ApiConfigManager = ({
 			) : (
 				<>
 					<div className="flex items-center gap-1">
-						<Select value={currentApiConfigName} onValueChange={onSelectConfig}>
-							<SelectTrigger className="grow">
-								<SelectValue placeholder={t("settings:common.select")} />
-							</SelectTrigger>
-							<SelectContent>
-								{listApiConfigMeta.map((config) => (
-									<SelectItem key={config.name} value={config.name}>
-										{config.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						<Popover open={open} onOpenChange={onOpenChange}>
+							<PopoverTrigger asChild>
+								<Button
+									variant="combobox"
+									role="combobox"
+									aria-expanded={open}
+									className="grow justify-between"
+									// Use select-component data-testid for test compatibility
+									data-testid="select-component">
+									<div>{currentApiConfigName || t("settings:common.select")}</div>
+									<ChevronsUpDown className="opacity-50" />
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]">
+								<Command>
+									<div className="relative">
+										<CommandInput
+											ref={searchInputRef}
+											value={searchValue}
+											onValueChange={setSearchValue}
+											placeholder={t("settings:providers.searchPlaceholder")}
+											className="h-9 mr-4"
+											data-testid="profile-search-input"
+										/>
+										{searchValue.length > 0 && (
+											<div className="absolute right-2 top-0 bottom-0 flex items-center justify-center">
+												<X
+													className="text-vscode-input-foreground opacity-50 hover:opacity-100 size-4 p-0.5 cursor-pointer"
+													onClick={onClearSearch}
+												/>
+											</div>
+										)}
+									</div>
+									<CommandList>
+										<CommandEmpty>
+											{searchValue && (
+												<div className="py-2 px-1 text-sm">
+													{t("settings:providers.noMatchFound")}
+												</div>
+											)}
+										</CommandEmpty>
+										<CommandGroup>
+											{listApiConfigMeta
+												.filter((config) =>
+													searchValue
+														? config.name.toLowerCase().includes(searchValue.toLowerCase())
+														: true,
+												)
+												.map((config) => (
+													<CommandItem
+														key={config.name}
+														value={config.name}
+														onSelect={handleSelectConfig}
+														data-testid={`profile-option-${config.name}`}>
+														{config.name}
+														<Check
+															className={cn(
+																"size-4 p-0.5 ml-auto",
+																config.name === currentApiConfigName
+																	? "opacity-100"
+																	: "opacity-0",
+															)}
+														/>
+													</CommandItem>
+												))}
+										</CommandGroup>
+									</CommandList>
+								</Command>
+							</PopoverContent>
+						</Popover>
 						<Button
 							variant="ghost"
 							size="icon"

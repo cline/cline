@@ -98,6 +98,8 @@
 		"enterProfileName": "Profil adını girin",
 		"createProfile": "Profil oluştur",
 		"cannotDeleteOnlyProfile": "Yalnızca tek profili silemezsiniz",
+		"searchPlaceholder": "Profilleri ara",
+		"noMatchFound": "Eşleşen profil bulunamadı",
 		"vscodeLmDescription": "VS Code Dil Modeli API'si, diğer VS Code uzantıları tarafından sağlanan modelleri çalıştırmanıza olanak tanır (GitHub Copilot dahil ancak bunlarla sınırlı değildir). Başlamanın en kolay yolu, VS Code Marketplace'ten Copilot ve Copilot Chat uzantılarını yüklemektir.",
 		"awsCustomArnUse": "Kullanmak istediğiniz model için geçerli bir AWS Bedrock ARN'si girin. Format örnekleri:",
 		"awsCustomArnDesc": "ARN içindeki bölgenin yukarıda seçilen AWS Bölgesiyle eşleştiğinden emin olun.",

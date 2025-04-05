@@ -98,6 +98,8 @@
 		"enterProfileName": "Nhập tên hồ sơ",
 		"createProfile": "Tạo hồ sơ",
 		"cannotDeleteOnlyProfile": "Không thể xóa hồ sơ duy nhất",
+		"searchPlaceholder": "Tìm kiếm hồ sơ",
+		"noMatchFound": "Không tìm thấy hồ sơ phù hợp",
 		"vscodeLmDescription": "API Mô hình Ngôn ngữ VS Code cho phép bạn chạy các mô hình được cung cấp bởi các tiện ích mở rộng khác của VS Code (bao gồm nhưng không giới hạn ở GitHub Copilot). Cách dễ nhất để bắt đầu là cài đặt các tiện ích mở rộng Copilot và Copilot Chat từ VS Code Marketplace.",
 		"awsCustomArnUse": "Nhập một ARN AWS Bedrock hợp lệ cho mô hình bạn muốn sử dụng. Ví dụ về định dạng:",
 		"awsCustomArnDesc": "Đảm bảo rằng vùng trong ARN khớp với vùng AWS đã chọn ở trên.",

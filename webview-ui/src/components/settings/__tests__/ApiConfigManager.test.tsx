@@ -42,6 +42,34 @@ jest.mock("@/components/ui", () => ({
 			data-testid={dataTestId}
 		/>
 	),
+	// New components for searchable dropdown
+	Popover: ({ children, open, onOpenChange }: any) => (
+		<div className="popover" style={{ position: "relative" }}>
+			{children}
+			{open && <div className="popover-content" style={{ position: "absolute", top: "100%", left: 0 }}></div>}
+		</div>
+	),
+	PopoverTrigger: ({ children, asChild }: any) => <div className="popover-trigger">{children}</div>,
+	PopoverContent: ({ children, className }: any) => <div className="popover-content">{children}</div>,
+	Command: ({ children }: any) => <div className="command">{children}</div>,
+	CommandInput: ({ value, onValueChange, placeholder, className, "data-testid": dataTestId, ref }: any) => (
+		<input
+			value={value}
+			onChange={(e) => onValueChange(e.target.value)}
+			placeholder={placeholder}
+			className={className}
+			data-testid={dataTestId}
+		/>
+	),
+	CommandList: ({ children }: any) => <div className="command-list">{children}</div>,
+	CommandEmpty: ({ children }: any) => (children ? <div className="command-empty">{children}</div> : null),
+	CommandGroup: ({ children }: any) => <div className="command-group">{children}</div>,
+	CommandItem: ({ children, value, onSelect }: any) => (
+		<div className="command-item" onClick={() => onSelect(value)} data-value={value}>
+			{children}
+		</div>
+	),
+	// Keep old components for backward compatibility
 	Select: ({ children, value, onValueChange }: any) => (
 		<select
 			value={value}
@@ -215,8 +243,22 @@ describe("ApiConfigManager", () => {
 	it("allows selecting a different config", () => {
 		render(<ApiConfigManager {...defaultProps} />)
 
-		const select = screen.getByTestId("select-component")
-		fireEvent.change(select, { target: { value: "Another Config" } })
+		// Click the select component to open the dropdown
+		const selectButton = screen.getByTestId("select-component")
+		fireEvent.click(selectButton)
+		
+		// Find all command items and click the one with "Another Config"
+		const commandItems = document.querySelectorAll('.command-item')
+		// Find the item with "Another Config" text
+		const anotherConfigItem = Array.from(commandItems).find(
+			item => item.textContent?.includes("Another Config")
+		)
+		
+		if (!anotherConfigItem) {
+			throw new Error("Could not find 'Another Config' option")
+		}
+		
+		fireEvent.click(anotherConfigItem)
 
 		expect(mockOnSelectConfig).toHaveBeenCalledWith("Another Config")
 	})

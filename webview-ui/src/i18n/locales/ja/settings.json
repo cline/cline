@@ -98,6 +98,8 @@
 		"enterProfileName": "プロファイル名を入力",
 		"createProfile": "プロファイルを作成",
 		"cannotDeleteOnlyProfile": "唯一のプロファイルは削除できません",
+		"searchPlaceholder": "プロファイルを検索",
+		"noMatchFound": "一致するプロファイルが見つかりません",
 		"vscodeLmDescription": "VS Code言語モデルAPIを使用すると、他のVS Code拡張機能（GitHub Copilotなど）が提供するモデルを実行できます。最も簡単な方法は、VS Code MarketplaceからCopilotおよびCopilot Chat拡張機能をインストールすることです。",
 		"awsCustomArnUse": "使用したいモデルの有効なAWS Bedrock ARNを入力してください。形式の例:",
 		"awsCustomArnDesc": "ARN内のリージョンが上で選択したAWSリージョンと一致していることを確認してください。",

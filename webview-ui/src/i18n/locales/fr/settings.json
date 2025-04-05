@@ -98,6 +98,8 @@
 		"enterProfileName": "Entrez le nom du profil",
 		"createProfile": "Créer un profil",
 		"cannotDeleteOnlyProfile": "Impossible de supprimer le seul profil",
+		"searchPlaceholder": "Rechercher des profils",
+		"noMatchFound": "Aucun profil correspondant trouvé",
 		"vscodeLmDescription": "L'API du modèle de langage VS Code vous permet d'exécuter des modèles fournis par d'autres extensions VS Code (y compris, mais sans s'y limiter, GitHub Copilot). Le moyen le plus simple de commencer est d'installer les extensions Copilot et Copilot Chat depuis le VS Code Marketplace.",
 		"awsCustomArnUse": "Entrez un ARN AWS Bedrock valide pour le modèle que vous souhaitez utiliser. Exemples de format :",
 		"awsCustomArnDesc": "Assurez-vous que la région dans l'ARN correspond à la région AWS sélectionnée ci-dessus.",
