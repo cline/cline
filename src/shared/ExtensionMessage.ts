@@ -9,6 +9,7 @@ import { MemoryBankSettings } from "./MemoryBankSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadResponse } from "./mcp"
 import { TelemetrySetting } from "./TelemetrySetting"
+import type { BalanceResponse, UsageTransaction, PaymentTransaction } from "../shared/ClineAccount"
 
 // webview will hold state
 export interface ExtensionMessage {
@@ -35,7 +36,13 @@ export interface ExtensionMessage {
 		| "openGraphData"
 		| "isImageUrlResult"
 		| "didUpdateSettings"
+		| "addRemoteServerResult"
+		| "userCreditsBalance"
+		| "userCreditsUsage"
+		| "userCreditsPayments"
 		| "totalTasksSize"
+		| "addToInput"
+		| "fileSearchResults"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -45,6 +52,7 @@ export interface ExtensionMessage {
 		| "didBecomeVisible"
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
+		| "accountButtonClicked"
 	invoke?: Invoke
 	state?: ExtensionState
 	images?: string[]
@@ -71,7 +79,21 @@ export interface ExtensionMessage {
 	}
 	url?: string
 	isImage?: boolean
+	userCreditsBalance?: BalanceResponse
+	userCreditsUsage?: UsageTransaction[]
+	userCreditsPayments?: PaymentTransaction[]
 	totalTasksSize?: number | null
+	mentionsRequestId?: string
+	results?: Array<{
+		path: string
+		type: "file" | "folder"
+		label?: string
+	}>
+	addRemoteServerResult?: {
+		success: boolean
+		serverName: string
+		error?: string
+	}
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -123,7 +145,7 @@ export interface ClineMessage {
 
 export type ClineAsk =
 	| "followup"
-	| "plan_mode_response"
+	| "plan_mode_respond"
 	| "command"
 	| "command_output"
 	| "completion_result"
