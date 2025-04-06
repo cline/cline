@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react"
 import { useEvent } from "react-use"
+import { Providers } from "./Providers"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
 import SettingsView from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
 import AccountView from "./components/account/AccountView"
-import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
-import { FirebaseAuthProvider } from "./context/FirebaseAuthContext"
+import { useExtensionState } from "./context/ExtensionStateContext"
 import { vscode } from "./utils/vscode"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 
@@ -113,11 +113,9 @@ const AppContent = () => {
 
 const App = () => {
 	return (
-		<ExtensionStateContextProvider>
-			<FirebaseAuthProvider>
-				<AppContent />
-			</FirebaseAuthProvider>
-		</ExtensionStateContextProvider>
+		<Providers>
+			<AppContent />
+		</Providers>
 	)
 }
 
