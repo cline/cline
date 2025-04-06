@@ -536,6 +536,10 @@ class PostHogClient {
 				errorMessage,
 				context,
 				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
 	/**
 	 * Records when a user selects an option from AI-generated followup questions
 	 * @param taskId Unique identifier for the task
