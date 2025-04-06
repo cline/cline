@@ -92,7 +92,6 @@ describe("OllamaHandler", () => {
 			const testHandler = new OllamaHandler(options)
 
 			// Replace the createMessage method with one that has a shorter timeout
-			const originalCreateMessage = testHandler.createMessage
 			testHandler.createMessage = async function* (systemPrompt, messages) {
 				try {
 					// Create a promise that rejects after a short timeout
