@@ -554,7 +554,7 @@ export class ContextManager {
 			filePaths.push(filePath) // we will record all unique paths from file mentions in this text
 
 			// we can assume that thisExistingFileReads does not have many entries
-			if (thisExistingFileReads.indexOf(filePath) === -1) {
+			if (!thisExistingFileReads.includes(filePath)) {
 				// meaning we havent already replaced this file read
 
 				const entireMatch = match[0] // The entire matched string
