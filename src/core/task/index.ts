@@ -78,6 +78,7 @@ import {
 	saveClineMessages,
 	GlobalFileNames,
 } from "../storage/disk"
+import { loadMcpDocumentation } from "../prompts/loadMcpDocumentation"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
 
@@ -1453,6 +1454,8 @@ export class Task {
 							return `[${block.name} for '${block.params.question}']`
 						case "plan_mode_respond":
 							return `[${block.name}]`
+						case "load_mcp_documentation":
+							return `[${block.name}]`
 						case "attempt_completion":
 							return `[${block.name}]`
 					}
@@ -2786,6 +2789,28 @@ export class Task {
 						} catch (error) {
 							await handleError("responding to inquiry", error)
 							//
+							break
+						}
+					}
+					case "load_mcp_documentation": {
+						try {
+							if (block.partial) {
+								// shouldn't happen
+								break
+							} else {
+								await this.say("load_mcp_documentation", "", undefined, false)
+
+								const mcpHub = this.controllerRef.deref()?.mcpHub
+								if (!mcpHub) {
+									throw new Error("MCP hub not available")
+								}
+
+								pushToolResult(await loadMcpDocumentation(mcpHub))
+
+								break
+							}
+						} catch (error) {
+							await handleError("loading MCP documentation", error)
 							break
 						}
 					}
