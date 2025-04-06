@@ -46,6 +46,8 @@ const App = () => {
 	const settingsRef = useRef<SettingsViewRef>(null)
 
 	const switchTab = useCallback((newTab: Tab) => {
+		setCurrentSection(undefined)
+
 		if (settingsRef.current?.checkUnsaveChanges) {
 			settingsRef.current.checkUnsaveChanges(() => setTab(newTab))
 		} else {
@@ -53,15 +55,19 @@ const App = () => {
 		}
 	}, [])
 
+	const [currentSection, setCurrentSection] = useState<string | undefined>(undefined)
+
 	const onMessage = useCallback(
 		(e: MessageEvent) => {
 			const message: ExtensionMessage = e.data
 
 			if (message.type === "action" && message.action) {
 				const newTab = tabsByMessageAction[message.action]
+				const section = message.values?.section as string | undefined
 
 				if (newTab) {
 					switchTab(newTab)
+					setCurrentSection(section)
 				}
 			}
 
@@ -104,7 +110,9 @@ const App = () => {
 			{tab === "prompts" && <PromptsView onDone={() => switchTab("chat")} />}
 			{tab === "mcp" && <McpView onDone={() => switchTab("chat")} />}
 			{tab === "history" && <HistoryView onDone={() => switchTab("chat")} />}
-			{tab === "settings" && <SettingsView ref={settingsRef} onDone={() => setTab("chat")} />}
+			{tab === "settings" && (
+				<SettingsView ref={settingsRef} onDone={() => switchTab("chat")} targetSection={currentSection} />
+			)}
 			<ChatView
 				isHidden={tab !== "chat"}
 				showAnnouncement={showAnnouncement}

@@ -94,6 +94,7 @@
 	"checkpoint": {
 		"initial": "初始檢查點",
 		"regular": "檢查點",
+		"initializingWarning": "正在初始化檢查點...如果耗時過長，你可以在<settingsLink>設定</settingsLink>中停用檢查點並重新啟動任務。",
 		"menu": {
 			"viewDiff": "檢視差異",
 			"restore": "還原檢查點",

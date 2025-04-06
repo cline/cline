@@ -94,6 +94,7 @@
 	"checkpoint": {
 		"initial": "Ponto de verificação inicial",
 		"regular": "Ponto de verificação",
+		"initializingWarning": "Ainda inicializando ponto de verificação... Se isso demorar muito, você pode desativar os pontos de verificação nas <settingsLink>configurações</settingsLink> e reiniciar sua tarefa.",
 		"menu": {
 			"viewDiff": "Ver diferenças",
 			"restore": "Restaurar ponto de verificação",

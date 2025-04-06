@@ -94,6 +94,7 @@
 	"checkpoint": {
 		"initial": "初始检查点",
 		"regular": "检查点",
+		"initializingWarning": "正在初始化检查点...如果耗时过长，你可以在<settingsLink>设置</settingsLink>中禁用检查点并重新启动任务。",
 		"menu": {
 			"viewDiff": "查看差异",
 			"restore": "恢复检查点",

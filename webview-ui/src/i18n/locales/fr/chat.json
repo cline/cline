@@ -94,6 +94,7 @@
 	"checkpoint": {
 		"initial": "Point de contrôle initial",
 		"regular": "Point de contrôle",
+		"initializingWarning": "Initialisation du point de contrôle en cours... Si cela prend trop de temps, tu peux désactiver les points de contrôle dans les <settingsLink>paramètres</settingsLink> et redémarrer ta tâche.",
 		"menu": {
 			"viewDiff": "Voir les différences",
 			"restore": "Restaurer le point de contrôle",

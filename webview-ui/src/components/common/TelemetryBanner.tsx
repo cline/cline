@@ -40,7 +40,11 @@ const TelemetryBanner = () => {
 	}
 
 	const handleOpenSettings = () => {
-		window.postMessage({ type: "action", action: "settingsButtonClicked" })
+		window.postMessage({
+			type: "action",
+			action: "settingsButtonClicked",
+			values: { section: "advanced" }, // Link directly to advanced settings with telemetry controls
+		})
 	}
 
 	return (

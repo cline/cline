@@ -78,9 +78,10 @@ type SectionName = (typeof sectionNames)[number]
 
 type SettingsViewProps = {
 	onDone: () => void
+	targetSection?: string
 }
 
-const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone }, ref) => {
+const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, targetSection }, ref) => {
 	const { t } = useAppTranslation()
 
 	const extensionState = useExtensionState()
@@ -315,6 +316,17 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone },
 	)
 
 	const scrollToSection = (ref: React.RefObject<HTMLDivElement>) => ref.current?.scrollIntoView()
+
+	// Scroll to target section when specified
+	useEffect(() => {
+		if (targetSection) {
+			const sectionObj = sections.find((section) => section.id === targetSection)
+			if (sectionObj && sectionObj.ref.current) {
+				// Use setTimeout to ensure the scroll happens after render
+				setTimeout(() => scrollToSection(sectionObj.ref), 500)
+			}
+		}
+	}, [targetSection, sections])
 
 	return (
 		<Tab>

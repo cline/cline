@@ -32,7 +32,7 @@ import { getAllModes } from "../../../../src/shared/modes"
 import TelemetryBanner from "../common/TelemetryBanner"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import removeMd from "remove-markdown"
-
+import { Trans } from "react-i18next"
 interface ChatViewProps {
 	isHidden: boolean
 	showAnnouncement: boolean
@@ -1006,17 +1006,28 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			<div className="flex items-center p-3 my-3 bg-vscode-inputValidation-warningBackground border border-vscode-inputValidation-warningBorder rounded">
 				<span className="codicon codicon-loading codicon-modifier-spin mr-2" />
 				<span className="text-vscode-foreground">
-					Still initializing checkpoint... If this takes too long, you can{" "}
-					<VSCodeLink
-						href="#"
-						onClick={(e) => {
-							e.preventDefault()
-							window.postMessage({ type: "action", action: "settingsButtonClicked" }, "*")
+					<Trans
+						i18nKey="chat:checkpoint.initializingWarning"
+						components={{
+							settingsLink: (
+								<VSCodeLink
+									href="#"
+									onClick={(e) => {
+										e.preventDefault()
+										window.postMessage(
+											{
+												type: "action",
+												action: "settingsButtonClicked",
+												values: { section: "checkpoints" },
+											},
+											"*",
+										)
+									}}
+									className="inline px-0.5"
+								/>
+							),
 						}}
-						className="inline px-0.5">
-						disable checkpoints in settings
-					</VSCodeLink>{" "}
-					and restart your task.
+					/>
 				</span>
 			</div>
 		),

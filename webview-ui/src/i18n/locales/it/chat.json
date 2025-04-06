@@ -97,6 +97,7 @@
 	"checkpoint": {
 		"initial": "Checkpoint iniziale",
 		"regular": "Checkpoint",
+		"initializingWarning": "Inizializzazione del checkpoint in corso... Se questa operazione richiede troppo tempo, puoi disattivare i checkpoint nelle <settingsLink>impostazioni</settingsLink> e riavviare l'attività.",
 		"menu": {
 			"viewDiff": "Visualizza differenze",
 			"restore": "Ripristina checkpoint",

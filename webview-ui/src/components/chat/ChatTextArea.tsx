@@ -1028,7 +1028,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								]}
 								onChange={(value) => {
 									if (value === "settingsButtonClicked") {
-										vscode.postMessage({ type: "loadApiConfiguration", text: value })
+										vscode.postMessage({
+											type: "loadApiConfiguration",
+											text: value,
+											values: { section: "providers" },
+										})
 									} else {
 										vscode.postMessage({ type: "loadApiConfigurationById", text: value })
 									}

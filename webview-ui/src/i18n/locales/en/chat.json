@@ -92,6 +92,7 @@
 	"checkpoint": {
 		"initial": "Initial Checkpoint",
 		"regular": "Checkpoint",
+		"initializingWarning": "Still initializing checkpoint... If this takes too long, you can disable checkpoints in <settingsLink>settings</settingsLink> and restart your task.",
 		"menu": {
 			"viewDiff": "View Diff",
 			"restore": "Restore Checkpoint",

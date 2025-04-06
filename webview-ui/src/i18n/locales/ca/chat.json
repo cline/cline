@@ -94,6 +94,7 @@
 	"checkpoint": {
 		"initial": "Punt de control inicial",
 		"regular": "Punt de control",
+		"initializingWarning": "Encara s'està inicialitzant el punt de control... Si això triga massa, pots desactivar els punts de control a la <settingsLink>configuració</settingsLink> i reiniciar la teva tasca.",
 		"menu": {
 			"viewDiff": "Veure diferències",
 			"restore": "Restaurar punt de control",

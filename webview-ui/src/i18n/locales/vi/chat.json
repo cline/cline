@@ -94,6 +94,7 @@
 	"checkpoint": {
 		"initial": "Điểm kiểm tra ban đầu",
 		"regular": "Điểm kiểm tra",
+		"initializingWarning": "Đang khởi tạo điểm kiểm tra... Nếu quá trình này mất quá nhiều thời gian, bạn có thể vô hiệu hóa điểm kiểm tra trong <settingsLink>cài đặt</settingsLink> và khởi động lại tác vụ của bạn.",
 		"menu": {
 			"viewDiff": "Xem khác biệt",
 			"restore": "Khôi phục điểm kiểm tra",

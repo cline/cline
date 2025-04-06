@@ -94,6 +94,7 @@
 	"checkpoint": {
 		"initial": "Initialer Checkpoint",
 		"regular": "Checkpoint",
+		"initializingWarning": "Checkpoint wird noch initialisiert... Falls dies zu lange dauert, kannst du Checkpoints in den <settingsLink>Einstellungen</settingsLink> deaktivieren und deine Aufgabe neu starten.",
 		"menu": {
 			"viewDiff": "Unterschiede anzeigen",
 			"restore": "Checkpoint wiederherstellen",

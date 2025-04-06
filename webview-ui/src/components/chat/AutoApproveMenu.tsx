@@ -161,7 +161,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	}, [alwaysApproveResubmit, setAlwaysApproveResubmit])
 
 	const handleOpenSettings = useCallback(() => {
-		window.postMessage({ type: "action", action: "settingsButtonClicked" })
+		window.postMessage({
+			type: "action",
+			action: "settingsButtonClicked",
+			values: { section: "autoApprove" },
+		})
 	}, [])
 
 	// Map action IDs to their specific handlers

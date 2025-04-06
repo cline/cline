@@ -94,6 +94,7 @@
 	"checkpoint": {
 		"initial": "初期チェックポイント",
 		"regular": "チェックポイント",
+		"initializingWarning": "チェックポイントの初期化中... 時間がかかりすぎる場合は、<settingsLink>設定</settingsLink>でチェックポイントを無効にしてタスクを再開できます。",
 		"menu": {
 			"viewDiff": "差分を表示",
 			"restore": "チェックポイントを復元",
