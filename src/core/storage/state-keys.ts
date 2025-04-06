@@ -66,3 +66,7 @@ export type GlobalStateKey =
 	| "asksageApiUrl"
 	| "thinkingBudgetTokens"
 	| "planActSeparateModelsSetting"
+	| "openAiConfigs"
+	| "openAiSelectedConfigIndex"
+	| "openAiSelectedConfigIndex_act"
+	| "openAiSelectedConfigIndex_plan"
