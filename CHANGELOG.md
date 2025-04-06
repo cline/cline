@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.9.2]
+
+-   Add recommended models for Cline provider
+-   Add ability to detect when user edits files manually so Cline knows to re-read, leading to reduced diff edit errors
+-   Add improvements to file mention searching for faster searching
+-   Add scoring logic to file mentions to sort and exlcude results based on relevance
+-   Add Support for Bytedance Doubao (Thanks Tunixer!)
+-   Fix to prevent duplicate BOM (Thanks bamps53!)
+
 ## [3.9.1]
 
 -   Add Gemini 2.5 Pro Preview 03-25 to Google Provider
