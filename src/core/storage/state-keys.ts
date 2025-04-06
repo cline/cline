@@ -49,6 +49,7 @@ export type GlobalStateKey =
 	| "autoApprovalSettings"
 	| "browserSettings"
 	| "chatSettings"
+	| "memoryBankSettings"
 	| "vsCodeLmModelSelector"
 	| "userInfo"
 	| "previousModeApiProvider"

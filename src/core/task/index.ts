@@ -33,7 +33,7 @@ import { BrowserSettings } from "../../shared/BrowserSettings"
 import { ChatSettings } from "../../shared/ChatSettings"
 import { combineApiRequests } from "../../shared/combineApiRequests"
 import { combineCommandSequences, COMMAND_REQ_APP_STRING } from "../../shared/combineCommandSequences"
-import { MemoryBankSettings } from "../shared/MemoryBankSettings"
+import { MemoryBankSettings } from "../../shared/MemoryBankSettings"
 import {
 	BrowserAction,
 	BrowserActionResult,

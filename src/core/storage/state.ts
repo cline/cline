@@ -8,6 +8,7 @@ import { HistoryItem } from "../../shared/HistoryItem"
 import { AutoApprovalSettings } from "../../shared/AutoApprovalSettings"
 import { BrowserSettings } from "../../shared/BrowserSettings"
 import { ChatSettings } from "../../shared/ChatSettings"
+import { MemoryBankSettings, DEFAULT_MEMORY_BANK_SETTINGS } from "../../shared/MemoryBankSettings"
 import { TelemetrySetting } from "../../shared/TelemetrySetting"
 import { UserInfo } from "../../shared/UserInfo"
 /*
@@ -98,6 +99,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		autoApprovalSettings,
 		browserSettings,
 		chatSettings,
+		memoryBankSettings,
 		vsCodeLmModelSelector,
 		liteLlmBaseUrl,
 		liteLlmModelId,
@@ -163,6 +165,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "autoApprovalSettings") as Promise<AutoApprovalSettings | undefined>,
 		getGlobalState(context, "browserSettings") as Promise<BrowserSettings | undefined>,
 		getGlobalState(context, "chatSettings") as Promise<ChatSettings | undefined>,
+		getGlobalState(context, "memoryBankSettings") as Promise<MemoryBankSettings | undefined>,
 		getGlobalState(context, "vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 		getGlobalState(context, "liteLlmBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "liteLlmModelId") as Promise<string | undefined>,
@@ -279,6 +282,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 		browserSettings: browserSettings || DEFAULT_BROWSER_SETTINGS,
 		chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
+		memoryBankSettings: memoryBankSettings || DEFAULT_MEMORY_BANK_SETTINGS,
 		userInfo,
 		previousModeApiProvider,
 		previousModeModelId,
