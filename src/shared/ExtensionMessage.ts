@@ -46,6 +46,7 @@ export interface ExtensionMessage {
 		| "detectedChromePath"
 		| "scrollToSettings"
 		| "browserRelaunchResult"
+		| "fileSearchResults"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -92,6 +93,12 @@ export interface ExtensionMessage {
 	isConnected?: boolean
 	isRemote?: boolean
 	host?: string
+	mentionsRequestId?: string
+	results?: Array<{
+		path: string
+		type: "file" | "folder"
+		label?: string
+	}>
 	addRemoteServerResult?: {
 		success: boolean
 		serverName: string

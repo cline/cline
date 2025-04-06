@@ -14,7 +14,6 @@ import { AnthropicHandler } from "../../api/providers/anthropic"
 import { ClineHandler } from "../../api/providers/cline"
 import { OpenRouterHandler } from "../../api/providers/openrouter"
 import { ApiStream } from "../../api/transform/stream"
-import { GlobalFileNames } from "../storage/disk"
 import CheckpointTracker from "../../integrations/checkpoints/CheckpointTracker"
 import { DIFF_VIEW_URI_SCHEME, DiffViewProvider } from "../../integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "../../integrations/misc/export-markdown"
@@ -65,6 +64,7 @@ import { ClineIgnoreController } from ".././ignore/ClineIgnoreController"
 import { parseMentions } from ".././mentions"
 import { formatResponse } from ".././prompts/responses"
 import { addUserInstructions, SYSTEM_PROMPT } from ".././prompts/system"
+import { FileContextTracker } from "../context-tracking/FileContextTracker"
 import {
 	checkIsAnthropicContextWindowError,
 	checkIsOpenRouterContextWindowError,
@@ -76,6 +76,7 @@ import {
 	getSavedClineMessages,
 	saveApiConversationHistory,
 	saveClineMessages,
+	GlobalFileNames,
 } from "../storage/disk"
 
 const cwd = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), "Desktop") // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -116,6 +117,9 @@ export class Task {
 	isInitialized = false
 	isAwaitingPlanResponse = false
 	didRespondToPlanAskBySwitchingMode = false
+
+	// File tracking
+	private fileContextTracker: FileContextTracker
 
 	// streaming
 	isWaitingForFirstChunk = false
@@ -167,6 +171,9 @@ export class Task {
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")
 		}
+
+		// Initialize file context tracker
+		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
 
 		// Now that taskId is initialized, we can build the API handler
 		this.api = buildApiHandler({
@@ -981,6 +988,7 @@ export class Task {
 		this.urlContentFetcher.closeBrowser()
 		await this.browserSession.dispose()
 		this.clineIgnoreController.dispose()
+		this.fileContextTracker.dispose()
 		await this.diffViewProvider.revertChanges() // need to await for when we want to make sure directories/files are reverted before re-starting the task from a checkpoint
 	}
 
@@ -1806,10 +1814,20 @@ export class Task {
 									}
 								}
 
+								// Mark the file as edited by Cline to prevent false "recently modified" warnings
+								this.fileContextTracker.markFileAsEditedByCline(relPath)
+
 								const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
 									await this.diffViewProvider.saveChanges()
 								this.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
+
+								// Track file edit operation
+								await this.fileContextTracker.trackFileContext(relPath, "cline_edited")
+
 								if (userEdits) {
+									// Track file edit operation
+									await this.fileContextTracker.trackFileContext(relPath, "user_edited")
+
 									await this.say(
 										"user_feedback_diff",
 										JSON.stringify({
@@ -1917,6 +1935,10 @@ export class Task {
 								}
 								// now execute the tool like normal
 								const content = await extractTextFromFile(absolutePath)
+
+								// Track file read operation
+								await this.fileContextTracker.trackFileContext(relPath, "read_tool")
+
 								pushToolResult(content)
 
 								break
@@ -2659,6 +2681,9 @@ export class Task {
 									})
 								}
 
+								// Store the number of options for telemetry
+								const options = parsePartialArrayString(optionsRaw || "[]")
+
 								const { text, images } = await this.ask("followup", JSON.stringify(sharedMessage), false)
 
 								// Check if options contains the text response
@@ -2672,9 +2697,11 @@ export class Task {
 											selected: text,
 										} satisfies ClineAskQuestion)
 										await this.saveClineMessagesAndUpdateHistory()
+										telemetryService.captureOptionSelected(this.taskId, options.length, "act")
 									}
 								} else {
 									// Option not selected, send user feedback
+									telemetryService.captureOptionsIgnored(this.taskId, options.length, "act")
 									await this.say("user_feedback", text ?? "", images)
 								}
 
@@ -2715,6 +2742,9 @@ export class Task {
 								// 	})
 								// }
 
+								// Store the number of options for telemetry
+								const options = parsePartialArrayString(optionsRaw || "[]")
+
 								this.isAwaitingPlanResponse = true
 								let { text, images } = await this.ask("plan_mode_respond", JSON.stringify(sharedMessage), false)
 								this.isAwaitingPlanResponse = false
@@ -2735,10 +2765,12 @@ export class Task {
 											selected: text,
 										} satisfies ClinePlanModeResponse)
 										await this.saveClineMessagesAndUpdateHistory()
+										telemetryService.captureOptionSelected(this.taskId, options.length, "plan")
 									}
 								} else {
 									// Option not selected, send user feedback
 									if (text || images?.length) {
+										telemetryService.captureOptionsIgnored(this.taskId, options.length, "plan")
 										await this.say("user_feedback", text ?? "", images)
 									}
 								}
@@ -3361,9 +3393,16 @@ export class Task {
 							block.text.includes("<task>") ||
 							block.text.includes("<user_message>")
 						) {
+							const parsedText = await parseMentions(
+								block.text,
+								cwd,
+								this.urlContentFetcher,
+								this.fileContextTracker,
+							)
+
 							return {
 								...block,
-								text: await parseMentions(block.text, cwd, this.urlContentFetcher),
+								text: parsedText,
 							}
 						}
 					}
@@ -3498,6 +3537,16 @@ export class Task {
 
 		if (terminalDetails) {
 			details += terminalDetails
+		}
+
+		// Add recently modified files section
+		const recentlyModifiedFiles = this.fileContextTracker.getAndClearRecentlyModifiedFiles()
+		if (recentlyModifiedFiles.length > 0) {
+			details +=
+				"\n\n# Recently Modified Files\nThese files have been modified since you last accessed them (file was just edited so you may need to re-read it before editing):"
+			for (const filePath of recentlyModifiedFiles) {
+				details += `\n${filePath}`
+			}
 		}
 
 		// Add current time information with timezone

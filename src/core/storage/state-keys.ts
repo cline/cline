@@ -12,6 +12,7 @@ export type SecretKey =
 	| "requestyApiKey"
 	| "togetherApiKey"
 	| "qwenApiKey"
+	| "doubaoApiKey"
 	| "mistralApiKey"
 	| "liteLlmApiKey"
 	| "authNonce"

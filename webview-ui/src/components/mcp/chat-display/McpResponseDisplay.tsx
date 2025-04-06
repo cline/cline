@@ -2,8 +2,8 @@ import React, { useEffect, useState, useCallback } from "react"
 import LinkPreview from "./LinkPreview"
 import ImagePreview from "./ImagePreview"
 import styled from "styled-components"
-import { CODE_BLOCK_BG_COLOR } from "../../common/CodeBlock"
-import ChatErrorBoundary from "../../chat/ChatErrorBoundary"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
 import { isUrl, isLocalhostUrl, formatUrlForOpening, checkIfImageUrl } from "./utils/mcpRichUtil"
 
 // Maximum number of URLs to process in total, per response

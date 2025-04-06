@@ -86,6 +86,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		togetherApiKey,
 		togetherModelId,
 		qwenApiKey,
+		doubaoApiKey,
 		mistralApiKey,
 		azureApiVersion,
 		openRouterModelId,
@@ -152,6 +153,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getSecret(context, "togetherApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "togetherModelId") as Promise<string | undefined>,
 		getSecret(context, "qwenApiKey") as Promise<string | undefined>,
+		getSecret(context, "doubaoApiKey") as Promise<string | undefined>,
 		getSecret(context, "mistralApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "azureApiVersion") as Promise<string | undefined>,
 		getGlobalState(context, "openRouterModelId") as Promise<string | undefined>,
@@ -265,6 +267,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			togetherModelId,
 			qwenApiKey,
 			qwenApiLine,
+			doubaoApiKey,
 			mistralApiKey,
 			azureApiVersion,
 			openRouterModelId,
@@ -334,6 +337,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		togetherApiKey,
 		togetherModelId,
 		qwenApiKey,
+		doubaoApiKey,
 		mistralApiKey,
 		azureApiVersion,
 		openRouterModelId,
@@ -382,6 +386,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await storeSecret(context, "requestyApiKey", requestyApiKey)
 	await storeSecret(context, "togetherApiKey", togetherApiKey)
 	await storeSecret(context, "qwenApiKey", qwenApiKey)
+	await storeSecret(context, "doubaoApiKey", doubaoApiKey)
 	await storeSecret(context, "mistralApiKey", mistralApiKey)
 	await storeSecret(context, "liteLlmApiKey", liteLlmApiKey)
 	await storeSecret(context, "xaiApiKey", xaiApiKey)
@@ -419,6 +424,7 @@ export async function resetExtensionState(context: vscode.ExtensionContext) {
 		"requestyApiKey",
 		"togetherApiKey",
 		"qwenApiKey",
+		"doubaoApiKey",
 		"mistralApiKey",
 		"clineApiKey",
 		"liteLlmApiKey",

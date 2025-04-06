@@ -1,8 +1,11 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useRef, useState } from "react"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
+import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import React, { useEffect, useRef, useState } from "react"
+import { useClickAway } from "react-use"
 import styled from "styled-components"
+import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { vscode } from "@/utils/vscode"
+import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 
 interface ConnectionInfo {
 	isConnected: boolean

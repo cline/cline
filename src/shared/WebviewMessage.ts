@@ -78,6 +78,8 @@ export interface WebviewMessage {
 		| "getDetectedChromePath"
 		| "detectedChromePath"
 		| "scrollToSettings"
+		| "searchFiles"
+	// | "relaunchChromeDebugMode"
 	text?: string
 	disabled?: boolean
 	askResponse?: ClineAskResponse
@@ -107,6 +109,8 @@ export interface WebviewMessage {
 	customInstructionsSetting?: string
 	// For task feedback
 	feedbackType?: TaskFeedbackType
+	mentionsRequestId?: string
+	query?: string
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

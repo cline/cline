@@ -1,7 +1,7 @@
-import { McpServer } from "../../../../../../../../src/shared/mcp"
-import { DEFAULT_MCP_TIMEOUT_SECONDS } from "../../../../../../../../src/shared/mcp"
+import { McpServer } from "@shared/mcp"
+import { DEFAULT_MCP_TIMEOUT_SECONDS } from "@shared/mcp"
 import { useState } from "react"
-import { vscode } from "../../../../../../utils/vscode"
+import { vscode } from "@/utils/vscode"
 import {
 	VSCodeButton,
 	VSCodeCheckbox,
@@ -11,13 +11,13 @@ import {
 	VSCodePanelTab,
 	VSCodePanelView,
 } from "@vscode/webview-ui-toolkit/react"
-import { getMcpServerDisplayName } from "../../../../../../utils/mcp"
-import DangerButton from "../../../../../common/DangerButton"
+import { getMcpServerDisplayName } from "@/utils/mcp"
+import DangerButton from "@/components/common/DangerButton"
 import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
-import { useExtensionState } from "../../../../../../context/ExtensionStateContext"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
-const ServerRow = ({ server }: { server: McpServer }) => {
+const ServerRow = ({ server, isExpandable = true }: { server: McpServer; isExpandable?: boolean }) => {
 	const { mcpMarketplaceCatalog, autoApprovalSettings } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
@@ -35,7 +35,7 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 	}
 
 	const handleRowClick = () => {
-		if (!server.error) {
+		if (!server.error && isExpandable) {
 			setIsExpanded(!isExpanded)
 		}
 	}
@@ -104,12 +104,13 @@ const ServerRow = ({ server }: { server: McpServer }) => {
 					alignItems: "center",
 					padding: "8px",
 					background: "var(--vscode-textCodeBlock-background)",
-					cursor: server.error ? "default" : "pointer",
+
+					cursor: server.error ? "default" : isExpandable ? "pointer" : "default",
 					borderRadius: isExpanded || server.error ? "4px 4px 0 0" : "4px",
 					opacity: server.disabled ? 0.6 : 1,
 				}}
 				onClick={handleRowClick}>
-				{!server.error && (
+				{!server.error && isExpandable && (
 					<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`} style={{ marginRight: "8px" }} />
 				)}
 				<span
