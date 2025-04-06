@@ -180,7 +180,6 @@ export type ClineSay =
 	| "diff_error"
 	| "deleted_api_reqs"
 	| "clineignore_error"
-	| "checkpoint_created"
 
 export interface ClineSayTool {
 	tool:

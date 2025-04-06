@@ -222,14 +222,6 @@ function createRealisticMessageSequence(baseTimestamp: number, taskPrompt: strin
 		)
 	}
 
-	// Add checkpoint
-	messages.push({
-		ts: getNextTimestamp(),
-		type: "say",
-		say: "checkpoint_created",
-		lastCheckpointHash: commitHash,
-	})
-
 	// Add completion result (all tasks end with this)
 	messages.push({
 		ts: getNextTimestamp(),

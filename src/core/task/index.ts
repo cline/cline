@@ -358,18 +358,6 @@ export class Task {
 					break
 			}
 
-			if (restoreType !== "task") {
-				// Set isCheckpointCheckedOut flag on the message
-				// Find all checkpoint messages before this one
-				const checkpointMessages = this.clineMessages.filter((m) => m.say === "checkpoint_created")
-				const currentMessageIndex = checkpointMessages.findIndex((m) => m.ts === messageTs)
-
-				// Set isCheckpointCheckedOut to false for all checkpoint messages
-				checkpointMessages.forEach((m, i) => {
-					m.isCheckpointCheckedOut = i === currentMessageIndex
-				})
-			}
-
 			await this.saveClineMessagesAndUpdateHistory()
 
 			await this.controllerRef.deref()?.postMessageToWebview({ type: "relinquishControl" })
@@ -427,50 +415,10 @@ export class Task {
 			  }[]
 			| undefined
 
-		try {
-			if (seeNewChangesSinceLastTaskCompletion) {
-				// Get last task completed
-				const lastTaskCompletedMessageCheckpointHash = findLast(
-					this.clineMessages.slice(0, messageIndex),
-					(m) => m.say === "completion_result",
-				)?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
-				// if undefined, then we get diff from beginning of git
-				// if (!lastTaskCompletedMessage) {
-				// 	console.error("No previous task completion message found")
-				// 	return
-				// }
-				// This value *should* always exist
-				const firstCheckpointMessageCheckpointHash = this.clineMessages.find(
-					(m) => m.say === "checkpoint_created",
-				)?.lastCheckpointHash
-
-				const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
-
-				if (!previousCheckpointHash) {
-					vscode.window.showErrorMessage("Unexpected error: No checkpoint hash found")
-					relinquishButton()
-					return
-				}
-
-				// Get changed files between current state and commit
-				changedFiles = await this.checkpointTracker?.getDiffSet(previousCheckpointHash, hash)
-				if (!changedFiles?.length) {
-					vscode.window.showInformationMessage("No changes found")
-					relinquishButton()
-					return
-				}
-			} else {
-				// Get changed files between current state and commit
-				changedFiles = await this.checkpointTracker?.getDiffSet(hash)
-				if (!changedFiles?.length) {
-					vscode.window.showInformationMessage("No changes found")
-					relinquishButton()
-					return
-				}
-			}
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			vscode.window.showErrorMessage("Failed to retrieve diff set: " + errorMessage)
+		// Get changed files between current state and commit
+		changedFiles = await this.checkpointTracker?.getDiffSet(hash)
+		if (!changedFiles?.length) {
+			vscode.window.showInformationMessage("No changes found")
 			relinquishButton()
 			return
 		}
@@ -531,35 +479,6 @@ export class Task {
 
 		// Get last task completed
 		const lastTaskCompletedMessage = findLast(this.clineMessages.slice(0, messageIndex), (m) => m.say === "completion_result")
-
-		try {
-			// Get last task completed
-			const lastTaskCompletedMessageCheckpointHash = lastTaskCompletedMessage?.lastCheckpointHash // ask is only used to relinquish control, its the last say we care about
-			// if undefined, then we get diff from beginning of git
-			// if (!lastTaskCompletedMessage) {
-			// 	console.error("No previous task completion message found")
-			// 	return
-			// }
-			// This value *should* always exist
-			const firstCheckpointMessageCheckpointHash = this.clineMessages.find(
-				(m) => m.say === "checkpoint_created",
-			)?.lastCheckpointHash
-
-			const previousCheckpointHash = lastTaskCompletedMessageCheckpointHash || firstCheckpointMessageCheckpointHash // either use the diff between the first checkpoint and the task completion, or the diff between the latest two task completions
-
-			if (!previousCheckpointHash) {
-				return false
-			}
-
-			// Get count of changed files between current state and commit
-			const changedFilesCount = (await this.checkpointTracker?.getDiffCount(previousCheckpointHash, hash)) || 0
-			if (changedFilesCount > 0) {
-				return true
-			}
-		} catch (error) {
-			console.error("Failed to get diff set:", error)
-			return false
-		}
 
 		return false
 	}
@@ -993,74 +912,39 @@ export class Task {
 	// Checkpoints
 
 	async saveCheckpoint(isAttemptCompletionMessage: boolean = false) {
-		// Set isCheckpointCheckedOut to false for all checkpoint_created messages
-		this.clineMessages.forEach((message) => {
-			if (message.say === "checkpoint_created") {
-				message.isCheckpointCheckedOut = false
-			}
-		})
-
-		if (!isAttemptCompletionMessage) {
-			// For non-attempt completion we just say checkpoints
-			await this.say("checkpoint_created")
-			this.checkpointTracker?.commit().then(async (commitHash) => {
-				const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
-				if (lastCheckpointMessage) {
-					lastCheckpointMessage.lastCheckpointHash = commitHash
-					await this.saveClineMessagesAndUpdateHistory()
+		const commitHash = await this.checkpointTracker?.commit() // silently fails for now
+		if (commitHash) {
+			// Previously we checkpointed every message, but this is excessive and unnecessary.
+			// Start from the end and work backwards until we find a tool use or another message with a hash
+			for (let i = this.clineMessages.length - 1; i >= 0; i--) {
+				const message = this.clineMessages[i]
+				if (message.lastCheckpointHash) {
+					// Found a message with a hash, so we can stop
+					break
 				}
-			}) // silently fails for now
-
-			//
-		} else {
-			// attempt completion requires checkpoint to be sync so that we can present button after attempt_completion
-			const commitHash = await this.checkpointTracker?.commit()
-			// For attempt_completion, find the last completion_result message and set its checkpoint hash. This will be used to present the 'see new changes' button
-			const lastCompletionResultMessage = findLast(
-				this.clineMessages,
-				(m) => m.say === "completion_result" || m.ask === "completion_result",
-			)
-			if (lastCompletionResultMessage) {
-				lastCompletionResultMessage.lastCheckpointHash = commitHash
-				await this.saveClineMessagesAndUpdateHistory()
+				// Update this message with a hash
+				message.lastCheckpointHash = commitHash
+				// We only care about adding the hash to the last tool use (we don't want to add this hash to every prior message ie for tasks pre-checkpoint)
+				const isToolUse =
+					message.say === "tool" ||
+					message.ask === "tool" ||
+					message.say === "command" ||
+					message.ask === "command" ||
+					message.say === "completion_result" ||
+					message.ask === "completion_result" ||
+					message.ask === "followup" ||
+					message.say === "use_mcp_server" ||
+					message.ask === "use_mcp_server" ||
+					message.say === "browser_action" ||
+					message.say === "browser_action_launch" ||
+					message.ask === "browser_action_launch"
+				if (isToolUse) {
+					break
+				}
 			}
+			// Save the updated messages
+			await this.saveClineMessagesAndUpdateHistory()
 		}
-
-		// if (commitHash) {
-
-		// Previously we checkpointed every message, but this is excessive and unnecessary.
-		// // Start from the end and work backwards until we find a tool use or another message with a hash
-		// for (let i = this.clineMessages.length - 1; i >= 0; i--) {
-		// 	const message = this.clineMessages[i]
-		// 	if (message.lastCheckpointHash) {
-		// 		// Found a message with a hash, so we can stop
-		// 		break
-		// 	}
-		// 	// Update this message with a hash
-		// 	message.lastCheckpointHash = commitHash
-
-		// 	// We only care about adding the hash to the last tool use (we don't want to add this hash to every prior message ie for tasks pre-checkpoint)
-		// 	const isToolUse =
-		// 		message.say === "tool" ||
-		// 		message.ask === "tool" ||
-		// 		message.say === "command" ||
-		// 		message.ask === "command" ||
-		// 		message.say === "completion_result" ||
-		// 		message.ask === "completion_result" ||
-		// 		message.ask === "followup" ||
-		// 		message.say === "use_mcp_server" ||
-		// 		message.ask === "use_mcp_server" ||
-		// 		message.say === "browser_action" ||
-		// 		message.say === "browser_action_launch" ||
-		// 		message.ask === "browser_action_launch"
-
-		// 	if (isToolUse) {
-		// 		break
-		// 	}
-		// }
-		// // Save the updated messages
-		// await this.saveClineMessagesAndUpdateHistory()
-		// }
 	}
 
 	// Tools
@@ -3037,12 +2921,6 @@ export class Task {
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
 		const previousApiReqIndex = findLastIndex(this.clineMessages, (m) => m.say === "api_req_started")
 
-		// Save checkpoint if this is the first API request
-		const isFirstRequest = this.clineMessages.filter((m) => m.say === "api_req_started").length === 0
-		if (isFirstRequest) {
-			await this.say("checkpoint_created") // no hash since we need to wait for CheckpointTracker to be initialized
-		}
-
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
 		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
 		await this.say(
@@ -3069,16 +2947,6 @@ export class Task {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				console.error("Failed to initialize checkpoint tracker:", errorMessage)
 				this.checkpointTrackerErrorMessage = errorMessage // will be displayed right away since we saveClineMessages next which posts state to webview
-			}
-		}
-
-		// Now that checkpoint tracker is initialized, update the dummy checkpoint_created message with the commit hash. (This is necessary since we use the API request loading as an opportunity to initialize the checkpoint tracker, which can take some time)
-		if (isFirstRequest) {
-			const commitHash = await this.checkpointTracker?.commit()
-			const lastCheckpointMessage = findLast(this.clineMessages, (m) => m.say === "checkpoint_created")
-			if (lastCheckpointMessage) {
-				lastCheckpointMessage.lastCheckpointHash = commitHash
-				await this.saveClineMessagesAndUpdateHistory()
 			}
 		}
 

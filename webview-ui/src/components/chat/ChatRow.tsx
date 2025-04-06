@@ -17,9 +17,8 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCo
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import { vscode } from "@/utils/vscode"
-import { CheckmarkControl } from "@/components/common/CheckmarkControl"
-import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
-import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { CheckpointControls, CheckpointOverlay } from "@/components/common/CheckpointControls"
+import CodeAccordian, { cleanPathPrefix } from "@/components/common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import Thumbnails from "@/components/common/Thumbnails"
@@ -99,12 +98,10 @@ const ChatRow = memo(
 				// message.ask === "completion_result" ||
 				message.say === "use_mcp_server" ||
 				message.ask === "use_mcp_server")
-
 		if (shouldShowCheckpoints && isLast) {
 			shouldShowCheckpoints =
 				lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
 		}
-
 		const [chatrow, { height }] = useSize(
 			<ChatRowContainer>
 				<ChatRowContent {...props} />
@@ -981,12 +978,6 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 									file.
 								</div>
 							</div>
-						</>
-					)
-				case "checkpoint_created":
-					return (
-						<>
-							<CheckmarkControl messageTs={message.ts} isCheckpointCheckedOut={message.isCheckpointCheckedOut} />
 						</>
 					)
 				case "completion_result":

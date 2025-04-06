@@ -8,9 +8,10 @@ import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { vscode } from "@/utils/vscode"
 import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
-import { CheckpointControls } from "@/components/common/CheckpointControls"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
+import { CheckpointControls, CheckpointOverlay } from "@/components/common/CheckpointControls"
+import { findLast } from "@shared/array"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -230,10 +231,10 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		return launchMessage?.say === "browser_action_launch"
 	}, [messages])
 
-	// const lastCheckpointMessageTs = useMemo(() => {
-	// 	const lastCheckpointMessage = findLast(messages, (m) => m.lastCheckpointHash !== undefined)
-	// 	return lastCheckpointMessage?.ts
-	// }, [messages])
+	const lastCheckpointMessageTs = useMemo(() => {
+		const lastCheckpointMessage = findLast(messages, (m) => m.lastCheckpointHash !== undefined)
+		return lastCheckpointMessage?.ts
+	}, [messages])
 
 	// Find the latest available URL and screenshot
 	const latestState = useMemo(() => {
@@ -317,10 +318,10 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	// Use latest click position while browsing, otherwise use display state
 	const mousePosition = isBrowsing ? latestClickPosition || displayState.mousePosition : displayState.mousePosition
 
-	// let shouldShowCheckpoints = true
-	// if (isLast) {
-	// 	shouldShowCheckpoints = lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
-	// }
+	let shouldShowCheckpoints = true
+	if (isLast) {
+		shouldShowCheckpoints = lastModifiedMessage?.ask === "resume_completed_task" || lastModifiedMessage?.ask === "resume_task"
+	}
 
 	const shouldShowSettings = useMemo(() => {
 		const lastMessage = messages[messages.length - 1]
@@ -452,7 +453,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				</div>
 			)}
 
-			{/* {shouldShowCheckpoints && <CheckpointOverlay messageTs={lastCheckpointMessageTs} />} */}
+			{shouldShowCheckpoints ? <CheckpointOverlay messageTs={lastCheckpointMessageTs} /> : null}
 		</BrowserSessionRowContainer>,
 	)
 
