@@ -26,7 +26,6 @@ interface ExtensionStateContextType extends ExtensionState {
 	setTelemetrySetting: (value: TelemetrySetting) => void
 	setShowAnnouncement: (value: boolean) => void
 	setPlanActSeparateModelsSetting: (value: boolean) => void
-	setRemoteBrowserEnabled: (value: boolean) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -189,14 +188,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				shouldShowAnnouncement: value,
-			})),
-		setRemoteBrowserEnabled: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				browserSettings: {
-					...prevState.browserSettings,
-					remoteBrowserEnabled: value,
-				},
 			})),
 	}
 
