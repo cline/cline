@@ -2,6 +2,8 @@ import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
 import { version as extensionVersion } from "../../../package.json"
 
+import type { TaskFeedbackType } from "../../shared/WebviewMessage"
+
 /**
  * PostHogClient handles telemetry event tracking for the Cline extension
  * Uses PostHog analytics to track user interactions and system events
@@ -18,12 +20,18 @@ class PostHogClient {
 			RESTARTED: "task.restarted",
 			// Tracks when a task is finished, with acceptance or rejection status
 			COMPLETED: "task.completed",
+			// Tracks user feedback on completed tasks
+			FEEDBACK: "task.feedback",
 			// Tracks when a message is sent in a conversation
 			CONVERSATION_TURN: "task.conversation_turn",
 			// Tracks token consumption for cost and usage analysis
 			TOKEN_USAGE: "task.tokens",
 			// Tracks switches between plan and act modes
 			MODE_SWITCH: "task.mode",
+			// Tracks when users select an option from AI-generated followup questions
+			OPTION_SELECTED: "task.option_selected",
+			// Tracks when users type a custom response instead of selecting an option from AI-generated followup questions
+			OPTIONS_IGNORED: "task.options_ignored",
 			// Tracks usage of the git-based checkpoint system (shadow_git_initialized, commit_created, branch_created, branch_deleted_active, branch_deleted_inactive, restored)
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
@@ -32,6 +40,8 @@ class PostHogClient {
 			HISTORICAL_LOADED: "task.historical_loaded",
 			// Tracks when the retry button is clicked for failed operations
 			RETRY_CLICKED: "task.retry_clicked",
+			// Tracks when a diff edit (replace_in_file) operation fails
+			DIFF_EDIT_FAILED: "task.diff_edit_failed",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -234,6 +244,22 @@ class PostHogClient {
 		})
 	}
 
+	/**
+	 * Records user feedback on completed tasks
+	 * @param taskId Unique identifier for the task
+	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
+	 */
+	public captureTaskFeedback(taskId: string, feedbackType: TaskFeedbackType) {
+		console.info("TelemetryService: Capturing task feedback", { taskId, feedbackType })
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.FEEDBACK,
+			properties: {
+				taskId,
+				feedbackType,
+			},
+		})
+	}
+
 	// Tool events
 	/**
 	 * Records when a tool is used during task execution
@@ -378,6 +404,21 @@ class PostHogClient {
 	}
 
 	/**
+	 * Records when a diff edit (replace_in_file) operation fails
+	 * @param taskId Unique identifier for the task
+	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
+	 */
+	public captureDiffEditFailure(taskId: string, errorType?: string) {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.DIFF_EDIT_FAILED,
+			properties: {
+				taskId,
+				errorType,
+			},
+		})
+	}
+
+	/**
 	 * Records when a different model is selected for use
 	 * @param model Name of the selected model
 	 * @param provider Provider of the selected model
@@ -416,6 +457,40 @@ class PostHogClient {
 			event: PostHogClient.EVENTS.TASK.RETRY_CLICKED,
 			properties: {
 				taskId,
+			},
+		})
+	}
+
+	/**
+	 * Records when a user selects an option from AI-generated followup questions
+	 * @param taskId Unique identifier for the task
+	 * @param qty The quantity of options that were presented
+	 * @param mode The mode in which the option was selected ("plan" or "act")
+	 */
+	public captureOptionSelected(taskId: string, qty: number, mode: "plan" | "act") {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.OPTION_SELECTED,
+			properties: {
+				taskId,
+				qty,
+				mode,
+			},
+		})
+	}
+
+	/**
+	 * Records when a user types a custom response instead of selecting one of the AI-generated followup questions
+	 * @param taskId Unique identifier for the task
+	 * @param qty The quantity of options that were presented
+	 * @param mode The mode in which the custom response was provided ("plan" or "act")
+	 */
+	public captureOptionsIgnored(taskId: string, qty: number, mode: "plan" | "act") {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.OPTIONS_IGNORED,
+			properties: {
+				taskId,
+				qty,
+				mode,
 			},
 		})
 	}

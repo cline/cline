@@ -1,5 +1,5 @@
 import { memo, useState } from "react"
-import { anthropicModels, ApiConfiguration } from "../../../../src/shared/api"
+import { anthropicModels, ApiConfiguration } from "@shared/api"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import styled from "styled-components"
 
@@ -123,11 +123,12 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 			{isEnabled && (
 				<>
 					<LabelContainer>
-						<Label>
+						<Label htmlFor="thinking-budget-slider">
 							<strong>Budget:</strong> {localValue.toLocaleString()} tokens
 						</Label>
 					</LabelContainer>
 					<RangeInput
+						id="thinking-budget-slider"
 						type="range"
 						min={MIN_VALID_TOKENS}
 						max={maxSliderValue}
@@ -139,9 +140,16 @@ const ThinkingBudgetSlider = ({ apiConfiguration, setApiConfiguration }: Thinkin
 						$value={localValue}
 						$min={MIN_VALID_TOKENS}
 						$max={maxSliderValue}
+						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
+						aria-valuemin={MIN_VALID_TOKENS}
+						aria-valuemax={maxSliderValue}
+						aria-valuenow={localValue}
+						aria-describedby="thinking-budget-description"
 					/>
 
-					<Description>Higher budgets may allow you to achieve more comprehensive and nuanced reasoning</Description>
+					<Description id="thinking-budget-description">
+						Higher budgets may allow you to achieve more comprehensive and nuanced reasoning
+					</Description>
 				</>
 			)}
 		</Container>

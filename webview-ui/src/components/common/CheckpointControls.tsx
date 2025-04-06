@@ -2,10 +2,10 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useRef, useState } from "react"
 import { useClickAway, useEvent } from "react-use"
 import styled from "styled-components"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
-import { vscode } from "../../utils/vscode"
-import { CODE_BLOCK_BG_COLOR } from "./CodeBlock"
-import { ClineCheckpointRestore } from "../../../../src/shared/WebviewMessage"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
+import { vscode } from "@/utils/vscode"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 
 interface CheckpointOverlayProps {
 	messageTs?: number

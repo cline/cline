@@ -14,7 +14,6 @@
 	},
 	"dependencies": {
 		"@floating-ui/react": "^0.27.4",
-		"@types/dompurify": "^3.0.5",
 		"@vscode/webview-ui-toolkit": "^1.4.0",
 		"debounce": "^2.1.1",
 		"dompurify": "^3.2.4",
@@ -41,6 +40,7 @@
 		"@testing-library/jest-dom": "^6.6.3",
 		"@testing-library/react": "^16.2.0",
 		"@testing-library/user-event": "^14.6.1",
+		"@types/dompurify": "^3.0.5",
 		"@types/jest": "^29.5.14",
 		"@types/node": "^22.13.4",
 		"@types/react": "^18.3.18",
@@ -56,7 +56,7 @@
 		"tailwindcss": "^4.0.12",
 		"typescript": "^5.7.3",
 		"typescript-eslint": "^8.18.2",
-		"vite": "^6.2.3",
+		"vite": "^6.2.5",
 		"vitest": "^3.0.5"
 	}
 }

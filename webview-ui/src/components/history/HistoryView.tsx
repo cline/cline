@@ -1,14 +1,14 @@
 import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from "@vscode/webview-ui-toolkit/react"
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import { vscode } from "../../utils/vscode"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { vscode } from "@/utils/vscode"
 import { Virtuoso } from "react-virtuoso"
 import { memo, useMemo, useState, useEffect, useCallback } from "react"
 import Fuse, { FuseResult } from "fuse.js"
-import { formatLargeNumber } from "../../utils/format"
-import { formatSize } from "../../utils/size"
-import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage"
+import { formatLargeNumber } from "@/utils/format"
+import { formatSize } from "@/utils/format"
+import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { useEvent } from "react-use"
-import DangerButton from "../common/DangerButton"
+import DangerButton from "@/components/common/DangerButton"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -85,7 +85,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	}, [presentableTasks])
 
 	const taskHistorySearchResults = useMemo(() => {
-		let results = searchQuery ? highlight(fuse.search(searchQuery)) : presentableTasks
+		const results = searchQuery ? highlight(fuse.search(searchQuery)) : presentableTasks
 
 		results.sort((a, b) => {
 			switch (sortOption) {

@@ -1,5 +1,45 @@
 # Changelog
 
+## [3.9.2]
+
+-   Add recommended models for Cline provider
+-   Add ability to detect when user edits files manually so Cline knows to re-read, leading to reduced diff edit errors
+-   Add improvements to file mention searching for faster searching
+-   Add scoring logic to file mentions to sort and exlcude results based on relevance
+-   Add Support for Bytedance Doubao (Thanks Tunixer!)
+-   Fix to prevent duplicate BOM (Thanks bamps53!)
+
+## [3.9.1]
+
+-   Add Gemini 2.5 Pro Preview 03-25 to Google Provider
+
+## [3.9.0]
+
+-   Add Enable extended thinking for LiteLLM provider (Thanks @jorgegarciarey!)
+-   Add a tab for configuring local MCP Servers
+-   Fix issue with DeepSeek API provider token counting + context management
+-   Fix issues with checkpoints hanging under certain conditions
+
+## [3.8.6]
+
+-   Add UI for adding remote servers
+-   Add Mentions Feature Guide and update related documentation
+-   Fix bug where menu would open in sidebar and open tab
+-   Fix issue with Cline accounts not showing user info in popout tabs
+-   Fix bug where menu buttons wouldn't open view in sidebar
+
+## [3.8.5]
+
+-   Add support for remote MCP Servers using SSE
+-   Add gemini-2.5-pro-exp-03-25 to Vertex AI (thanks @arri-cc!)
+-   Add access to history, mcp, and new task buttons in popout view
+-   Add task feedback telemetry (thumbs up/down on task completion)
+-   Add toggle disabled for remote servers
+-   Move the MCP Restart and Delete buttons and add an auto-approve all toggle
+-   Update Requestly UX for model selection (thanks @arafatkatze!)
+-   Add escape for html content for gemini when running commands
+-   Improve search and replace edit failure behaviors
+
 ## [3.8.4]
 
 -   Add Sambanova Deepseek-V3-0324
@@ -210,8 +250,8 @@
 ## [3.1.0]
 
 -   Added checkpoints: Snapshots of workspace are automatically created whenever Cline uses a tool
-    -   Compare changes: Hover over any tool use to see a diff between the snapshot and current workspace state
-    -   Restore options: Choose to restore just the task state, just the workspace files, or both
+-   Compare changes: Hover over any tool use to see a diff between the snapshot and current workspace state
+-   Restore options: Choose to restore just the task state, just the workspace files, or both
 -   New 'See new changes' button appears after task completion, providing an overview of all workspace changes
 -   Task header now shows disk space usage with a delete button to help manage snapshot storage
 
@@ -393,10 +433,10 @@
 ## [1.8.0]
 
 -   You can now use '@' in the textarea to add context!
-    -   @url: Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Claude the latest docs!
-    -   @problems: Add workspace errors and warnings for Claude to fix, no more back-and-forth about debugging
-    -   @file: Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
-    -   @folder: Adds folder's files all at once to speed up your workflow even more
+-   @url: Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Claude the latest docs!
+-   @problems: Add workspace errors and warnings for Claude to fix, no more back-and-forth about debugging
+-   @file: Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
+-   @folder: Adds folder's files all at once to speed up your workflow even more
 
 ## [1.7.0]
 
