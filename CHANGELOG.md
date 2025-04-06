@@ -1,20 +1,13 @@
 # Changelog
 
-## 3.10.0
+## [3.9.2]
 
--   24a34bd: adds a file tracking metadata system that monitors files Cline interacts with, detects user edits, and proactively alerts Cline to re-read files before editing to prevent context issues when diff editing
--   a981ec7: recommended models ux for cline provider
--   9d5772c: Add import path aliasing to the webview
--   67cff02: Moved file mention searching from the webview to the backend, using ripgrep for faster searching. Added scoring logic to sort and exlcude results based on relevance. "Searching" indicator added for long-running file searches on older hardware.
--   2193847: Add Support for Bytedance Doubao
--   cc2f8e7: fix: Prevent duplicate BOM
--   075d82f: Telemetry added for when users click AI-generated options/questions, or if they ignore them. Also tracks the number of options that were displayed.
--   d8cdd98: merge conflict fix
--   59dca4f: convert inline style to tailwind css of file `WelcomeView.tsx`
--   8ad21f2: factor out servers list
--   894fa35: adding gemini 2.5 pro preview
--   7c5a082: make ServerRow not optionally not expandable
--   7d48898: Update import aliases in webview
+-   Add recommended models for Cline provider
+-   Add ability to detect when user edits files manually so Cline knows to re-read, leading to reduced diff edit errors
+-   Add improvements to file mention searching for faster searching
+-   Add scoring logic to file mentions to sort and exlcude results based on relevance
+-   Add Support for Bytedance Doubao (Thanks Tunixer!)
+-   Fix to prevent duplicate BOM (Thanks bamps53!)
 
 ## [3.9.1]
 
