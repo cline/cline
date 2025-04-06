@@ -116,8 +116,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		thinkingBudgetTokens,
 		sambanovaApiKey,
 		planActSeparateModelsSettingRaw,
-		remoteBrowserEnabled,
-		remoteBrowserHost,
 	] = await Promise.all([
 		getGlobalState(context, "apiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "apiModelId") as Promise<string | undefined>,
@@ -183,8 +181,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "thinkingBudgetTokens") as Promise<number | undefined>,
 		getSecret(context, "sambanovaApiKey") as Promise<string | undefined>,
 		getGlobalState(context, "planActSeparateModelsSetting") as Promise<boolean | undefined>,
-		getGlobalState(context, "remoteBrowserEnabled") as Promise<boolean | undefined>,
-		getGlobalState(context, "remoteBrowserHost") as Promise<string | undefined>,
 	])
 
 	let apiProvider: ApiProvider
@@ -221,13 +217,6 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		// this is a special case where it's a new state, but we want it to default to different values for existing and new users.
 		// persist so next time state is retrieved it's set to the correct value.
 		await updateGlobalState(context, "planActSeparateModelsSetting", planActSeparateModelsSetting)
-	}
-
-	// Merge browser settings with configuration values
-	const mergedBrowserSettings = {
-		...(browserSettings || DEFAULT_BROWSER_SETTINGS),
-		remoteBrowserEnabled: remoteBrowserEnabled ?? false,
-		remoteBrowserHost: remoteBrowserHost ?? "http://localhost:9222",
 	}
 
 	return {
@@ -288,7 +277,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		customInstructions,
 		taskHistory,
 		autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
-		browserSettings: mergedBrowserSettings,
+		browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
 		chatSettings: chatSettings || DEFAULT_CHAT_SETTINGS,
 		userInfo,
 		previousModeApiProvider,

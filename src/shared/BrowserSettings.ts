@@ -16,7 +16,7 @@ export const DEFAULT_BROWSER_SETTINGS: BrowserSettings = {
 		height: 600,
 	},
 	remoteBrowserEnabled: false,
-	remoteBrowserHost: undefined,
+	remoteBrowserHost: "http://localhost:9222",
 	// chromeType: "chromium",
 }
 

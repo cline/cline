@@ -26,7 +26,6 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		telemetrySetting,
 		setTelemetrySetting,
 		chatSettings,
-		remoteBrowserHost,
 		planActSeparateModelsSetting,
 		setPlanActSeparateModelsSetting,
 	} = useExtensionState()

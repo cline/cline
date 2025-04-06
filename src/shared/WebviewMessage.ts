@@ -35,8 +35,6 @@ export interface WebviewMessage {
 		| "deleteMcpServer"
 		| "autoApprovalSettings"
 		| "browserSettings"
-		| "remoteBrowserHost"
-		| "remoteBrowserEnabled"
 		| "discoverBrowser"
 		| "testBrowserConnection"
 		| "browserConnectionResult"

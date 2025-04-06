@@ -126,20 +126,6 @@ export const BrowserSettingsSection: React.FC = () => {
 	}
 
 	const updateRemoteBrowserEnabled = (enabled: boolean) => {
-		// Update the remoteBrowserEnabled setting
-		vscode.postMessage({
-			type: "remoteBrowserEnabled",
-			bool: enabled,
-		})
-
-		// If disabling, clear the host
-		if (!enabled) {
-			vscode.postMessage({
-				type: "remoteBrowserHost",
-				text: undefined,
-			})
-		}
-
 		// Also update browserSettings to ensure task settings are updated
 		vscode.postMessage({
 			type: "browserSettings",
@@ -153,12 +139,6 @@ export const BrowserSettingsSection: React.FC = () => {
 	}
 
 	const updateRemoteBrowserHost = (host: string | undefined) => {
-		// Update the remoteBrowserHost setting
-		vscode.postMessage({
-			type: "remoteBrowserHost",
-			text: host,
-		})
-
 		// Also update browserSettings to ensure task settings are updated
 		vscode.postMessage({
 			type: "browserSettings",
