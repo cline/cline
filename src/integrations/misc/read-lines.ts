@@ -24,17 +24,24 @@ const outOfRangeError = (filepath: string, n: number) => {
  */
 export function readLines(filepath: string, endLine?: number, startLine?: number): Promise<string> {
 	return new Promise((resolve, reject) => {
-		// Validate input parameters
-		// Check startLine validity if provided
-		if (startLine !== undefined && (startLine < 0 || startLine % 1 !== 0)) {
-			return reject(
-				new RangeError(`Invalid startLine: ${startLine}. Line numbers must be non-negative integers.`),
-			)
+		// Reject if startLine is defined but not a number
+		if (startLine !== undefined && typeof startLine !== "number") {
+			return reject(new RangeError(`Invalid startLine: ${startLine}. Line numbers must be numbers.`))
 		}
 
-		// Check endLine validity if provided
-		if (endLine !== undefined && (endLine < 0 || endLine % 1 !== 0)) {
-			return reject(new RangeError(`Invalid endLine: ${endLine}. Line numbers must be non-negative integers.`))
+		// Force startLine to be an integer and clamp to 0 if negative
+		if (startLine !== undefined) {
+			startLine = Math.max(0, Math.floor(startLine))
+		}
+
+		// Reject if endLine is defined but not a number
+		if (endLine !== undefined && typeof endLine !== "number") {
+			return reject(new RangeError(`Invalid endLine: ${endLine}. Line numbers must be numbers.`))
+		}
+
+		// Force endLine to be an integer
+		if (endLine !== undefined) {
+			endLine = Math.floor(endLine)
 		}
 
 		const effectiveStartLine = startLine === undefined ? 0 : startLine

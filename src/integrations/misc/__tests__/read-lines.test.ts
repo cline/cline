@@ -33,23 +33,21 @@ describe("nthline", () => {
 
 		it("should throw error for negative to_line", async () => {
 			await expect(readLines(testFile, -3)).rejects.toThrow(
-				"Invalid endLine: -3. Line numbers must be non-negative integers.",
+				"startLine (0) must be less than or equal to endLine (-3)",
 			)
 		})
 
-		it("should throw error for negative from_line", async () => {
-			await expect(readLines(testFile, 3, -1)).rejects.toThrow(
-				"Invalid startLine: -1. Line numbers must be non-negative integers.",
-			)
+		it("should handle negative from_line by clamping to 0", async () => {
+			const lines = await readLines(testFile, 3, -1)
+			expect(lines).toEqual(["Line 1", "Line 2", "Line 3", "Line 4"].join("\n"))
 		})
 
-		it("should throw error for non-integer line numbers", async () => {
-			await expect(readLines(testFile, 3, 1.5)).rejects.toThrow(
-				"Invalid startLine: 1.5. Line numbers must be non-negative integers.",
-			)
-			await expect(readLines(testFile, 3.5)).rejects.toThrow(
-				"Invalid endLine: 3.5. Line numbers must be non-negative integers.",
-			)
+		it("should floor non-integer line numbers", async () => {
+			const linesWithNonIntegerStart = await readLines(testFile, 3, 1.5)
+			expect(linesWithNonIntegerStart).toEqual(["Line 2", "Line 3", "Line 4"].join("\n"))
+
+			const linesWithNonIntegerEnd = await readLines(testFile, 3.5)
+			expect(linesWithNonIntegerEnd).toEqual(["Line 1", "Line 2", "Line 3", "Line 4"].join("\n"))
 		})
 
 		it("should throw error when from_line > to_line", async () => {
