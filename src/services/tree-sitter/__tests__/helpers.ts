@@ -5,8 +5,8 @@ import * as path from "path"
 import Parser from "web-tree-sitter"
 import tsxQuery from "../queries/tsx"
 
-// Global debug flag - set to 0 to disable debug logging
-export const DEBUG = 0
+// Global debug flag - read from environment variable or default to 0
+export const DEBUG = process.env.DEBUG ? parseInt(process.env.DEBUG, 10) : 0
 
 // Debug function to conditionally log messages
 export const debugLog = (message: string, ...args: any[]) => {
