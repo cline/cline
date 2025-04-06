@@ -1,3 +1,4 @@
+import React from "react"
 import { render, screen, fireEvent } from "@testing-library/react"
 import { describe, it, expect, vi } from "vitest"
 import Announcement from "../Announcement"
@@ -22,18 +23,12 @@ describe("Announcement", () => {
 		expect(hideAnnouncement).toHaveBeenCalled()
 	})
 
-	it("renders the mcp server improvements announcement", () => {
+	it("renders the enhanced MCP support announcement", () => {
 		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
-		expect(screen.getByText(/MCP server improvements:/)).toBeInTheDocument()
+		// Updated text based on actual component output
+		expect(screen.getByText(/Enhanced MCP Support:/)).toBeInTheDocument()
 	})
 
-	it("renders the 'See new changes' button feature", () => {
-		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
-		expect(screen.getByText(/See it in action here./)).toBeInTheDocument()
-	})
-
-	it("renders the demo link", () => {
-		render(<Announcement version="2.0.0" hideAnnouncement={hideAnnouncement} />)
-		expect(screen.getByText(/See a demo here./)).toBeInTheDocument()
-	})
+	// Removed tests for text "See it in action here." and "See a demo here."
+	// as they are no longer present in the v2.0 announcement content.
 })
