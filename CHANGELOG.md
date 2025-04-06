@@ -2,16 +2,11 @@
 
 ## 3.10.0
 
-### Minor Changes
-
 -   24a34bd: adds a file tracking metadata system that monitors files Cline interacts with, detects user edits, and proactively alerts Cline to re-read files before editing to prevent context issues when diff editing
 -   a981ec7: recommended models ux for cline provider
 -   9d5772c: Add import path aliasing to the webview
 -   67cff02: Moved file mention searching from the webview to the backend, using ripgrep for faster searching. Added scoring logic to sort and exlcude results based on relevance. "Searching" indicator added for long-running file searches on older hardware.
 -   2193847: Add Support for Bytedance Doubao
-
-### Patch Changes
-
 -   cc2f8e7: fix: Prevent duplicate BOM
 -   075d82f: Telemetry added for when users click AI-generated options/questions, or if they ignore them. Also tracks the number of options that were displayed.
 -   d8cdd98: merge conflict fix
