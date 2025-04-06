@@ -173,7 +173,7 @@ export class ContextManager {
 
 					if (needToTruncate) {
 						// go ahead with truncation
-						anyContextUpdates = anyContextUpdates || this.applyStandardContextTruncationNoticeChange(timestamp)
+						anyContextUpdates = this.applyStandardContextTruncationNoticeChange(timestamp) || anyContextUpdates
 
 						// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
 						conversationHistoryDeletedRange = this.getNextTruncationRange(
@@ -541,7 +541,7 @@ export class ContextManager {
 		fileReadIndices: Map<string, [number, number, string, string][]>,
 		thisExistingFileReads: string[],
 	): [boolean, string[]] {
-		const pattern = new RegExp(`<final_file_content path="([^"]*)">([\\s\\S]*?)</final_file_content>`, "g")
+		const pattern = new RegExp(`<file_content path="([^"]*)">([\\s\\S]*?)</file_content>`, "g")
 
 		let foundMatch = false
 		const filePaths: string[] = []
@@ -560,7 +560,7 @@ export class ContextManager {
 				const entireMatch = match[0] // The entire matched string
 
 				// Create the replacement text - keep the tags but replace the content
-				const replacementText = `<final_file_content path="${filePath}">${formatResponse.duplicateFileReadNotice()}</final_file_content>`
+				const replacementText = `<file_content path="${filePath}">${formatResponse.duplicateFileReadNotice()}</file_content>`
 
 				const indices = fileReadIndices.get(filePath) || []
 				indices.push([i, EditType.FILE_MENTION, entireMatch, replacementText])
