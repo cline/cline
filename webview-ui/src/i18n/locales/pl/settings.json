@@ -218,6 +218,10 @@
 				}
 			},
 			"resetDefaults": "Przywróć domyślne"
+		},
+		"rateLimitSeconds": {
+			"label": "Limit szybkości",
+			"description": "Minimalny czas między żądaniami API."
 		}
 	},
 	"browser": {
@@ -298,10 +302,6 @@
 		}
 	},
 	"advanced": {
-		"rateLimit": {
-			"label": "Limit szybkości",
-			"description": "Minimalny czas między żądaniami API."
-		},
 		"diff": {
 			"label": "Włącz edycję przez różnice",
 			"description": "Gdy włączone, Roo będzie w stanie edytować pliki szybciej i automatycznie odrzuci obcięte pełne zapisy plików. Działa najlepiej z najnowszym modelem Claude 3.7 Sonnet.",

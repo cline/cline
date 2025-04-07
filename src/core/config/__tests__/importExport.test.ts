@@ -121,6 +121,7 @@ describe("importExport", () => {
 					},
 				},
 			}
+
 			mockProviderSettingsManager.export.mockResolvedValue(previousProviderProfiles)
 
 			// Mock listConfig
@@ -294,6 +295,9 @@ describe("importExport", () => {
 						id: "test-id",
 					},
 				},
+				migrations: {
+					rateLimitSecondsMigrated: false,
+				},
 			}
 			mockProviderSettingsManager.export.mockResolvedValue(mockProviderProfiles)
 
@@ -345,6 +349,9 @@ describe("importExport", () => {
 						id: "test-id",
 					},
 				},
+				migrations: {
+					rateLimitSecondsMigrated: false,
+				},
 			})
 
 			// Mock global settings
@@ -383,6 +390,9 @@ describe("importExport", () => {
 						apiProvider: "openai" as ProviderName,
 						id: "test-id",
 					},
+				},
+				migrations: {
+					rateLimitSecondsMigrated: false,
 				},
 			})
 

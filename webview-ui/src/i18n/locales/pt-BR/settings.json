@@ -218,6 +218,10 @@
 				}
 			},
 			"resetDefaults": "Restaurar Padrões"
+		},
+		"rateLimitSeconds": {
+			"label": "Limite de taxa",
+			"description": "Tempo mínimo entre requisições de API."
 		}
 	},
 	"browser": {
@@ -298,10 +302,6 @@
 		}
 	},
 	"advanced": {
-		"rateLimit": {
-			"label": "Limite de taxa",
-			"description": "Tempo mínimo entre requisições de API."
-		},
 		"diff": {
 			"label": "Ativar edição através de diffs",
 			"description": "Quando ativado, o Roo poderá editar arquivos mais rapidamente e rejeitará automaticamente escritas completas de arquivos truncados. Funciona melhor com o modelo mais recente Claude 3.7 Sonnet.",

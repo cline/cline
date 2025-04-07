@@ -218,6 +218,10 @@
 				}
 			},
 			"resetDefaults": "重置为默认值"
+		},
+		"rateLimitSeconds": {
+			"label": "请求频率限制",
+			"description": "设置API请求的最小间隔时间"
 		}
 	},
 	"browser": {
@@ -298,10 +302,6 @@
 		}
 	},
 	"advanced": {
-		"rateLimit": {
-			"label": "请求频率限制",
-			"description": "设置API请求的最小间隔时间"
-		},
 		"diff": {
 			"label": "启用diff更新",
 			"description": "启用后，Roo 将能够通过差异算法写入，避免模型输出完整文件，以降低Token消耗。与最新的 Claude 3.7 Sonnet 模型配合最佳。",

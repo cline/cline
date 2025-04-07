@@ -386,6 +386,7 @@ export const providerSettingsSchema = z.object({
 	modelMaxThinkingTokens: z.number().optional(),
 	// Generic
 	includeMaxTokens: z.boolean().optional(),
+	rateLimitSeconds: z.number().optional(),
 	// Fake AI
 	fakeAi: z.unknown().optional(),
 })
@@ -470,6 +471,7 @@ const providerSettingsRecord: ProviderSettingsRecord = {
 	modelMaxThinkingTokens: undefined,
 	// Generic
 	includeMaxTokens: undefined,
+	rateLimitSeconds: undefined,
 	// Fake AI
 	fakeAi: undefined,
 }

@@ -13,6 +13,11 @@ export const providerProfilesSchema = z.object({
 	currentApiConfigName: z.string(),
 	apiConfigs: z.record(z.string(), providerSettingsWithIdSchema),
 	modeApiConfigs: z.record(z.string(), z.string()).optional(),
+	migrations: z
+		.object({
+			rateLimitSecondsMigrated: z.boolean().optional(),
+		})
+		.optional(),
 })
 
 export type ProviderProfiles = z.infer<typeof providerProfilesSchema>
@@ -27,8 +32,16 @@ export class ProviderSettingsManager {
 
 	private readonly defaultProviderProfiles: ProviderProfiles = {
 		currentApiConfigName: "default",
-		apiConfigs: { default: { id: this.defaultConfigId } },
+		apiConfigs: {
+			default: {
+				id: this.defaultConfigId,
+				rateLimitSeconds: 0,
+			},
+		},
 		modeApiConfigs: this.defaultModeApiConfigs,
+		migrations: {
+			rateLimitSecondsMigrated: true, // Mark as migrated on fresh installs
+		},
 	}
 
 	private readonly context: ExtensionContext
@@ -53,7 +66,7 @@ export class ProviderSettingsManager {
 	}
 
 	/**
-	 * Initialize config if it doesn't exist.
+	 * Initialize config if it doesn't exist and run migrations.
 	 */
 	public async initialize() {
 		try {
@@ -75,12 +88,54 @@ export class ProviderSettingsManager {
 					}
 				}
 
+				// Ensure migrations field exists
+				if (!providerProfiles.migrations) {
+					providerProfiles.migrations = { rateLimitSecondsMigrated: false } // Initialize with default values
+					isDirty = true
+				}
+
+				if (!providerProfiles.migrations.rateLimitSecondsMigrated) {
+					await this.migrateRateLimitSeconds(providerProfiles)
+					providerProfiles.migrations.rateLimitSecondsMigrated = true
+					isDirty = true
+				}
+
 				if (isDirty) {
 					await this.store(providerProfiles)
 				}
 			})
 		} catch (error) {
 			throw new Error(`Failed to initialize config: ${error}`)
+		}
+	}
+
+	private async migrateRateLimitSeconds(providerProfiles: ProviderProfiles) {
+		try {
+			let rateLimitSeconds: number | undefined
+
+			try {
+				rateLimitSeconds = await this.context.globalState.get<number>("rateLimitSeconds")
+			} catch (error) {
+				console.error("[MigrateRateLimitSeconds] Error getting global rate limit:", error)
+			}
+
+			if (rateLimitSeconds === undefined) {
+				// Failed to get the existing value, use the default
+				rateLimitSeconds = 0
+			}
+
+			for (const [name, apiConfig] of Object.entries(providerProfiles.apiConfigs)) {
+				if (apiConfig.rateLimitSeconds === undefined) {
+					console.log(
+						`[MigrateRateLimitSeconds] Applying rate limit ${rateLimitSeconds}s to profile: ${name}`,
+					)
+					apiConfig.rateLimitSeconds = rateLimitSeconds
+				}
+			}
+
+			console.log(`[MigrateRateLimitSeconds] migration complete`)
+		} catch (error) {
+			console.error(`[MigrateRateLimitSeconds] Failed to migrate rate limit settings:`, error)
 		}
 	}
 

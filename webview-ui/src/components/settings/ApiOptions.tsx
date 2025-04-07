@@ -52,6 +52,7 @@ import { VSCodeButtonLink } from "../common/VSCodeButtonLink"
 import { ModelInfoView } from "./ModelInfoView"
 import { ModelPicker } from "./ModelPicker"
 import { TemperatureControl } from "./TemperatureControl"
+import { RateLimitSecondsControl } from "./RateLimitSecondsControl"
 import { ApiErrorMessage } from "./ApiErrorMessage"
 import { ThinkingBudget } from "./ThinkingBudget"
 import { R1FormatSetting } from "./R1FormatSetting"
@@ -1623,11 +1624,17 @@ const ApiOptions = ({
 			)}
 
 			{!fromWelcomeView && (
-				<TemperatureControl
-					value={apiConfiguration?.modelTemperature}
-					onChange={handleInputChange("modelTemperature", noTransform)}
-					maxValue={2}
-				/>
+				<>
+					<TemperatureControl
+						value={apiConfiguration?.modelTemperature}
+						onChange={handleInputChange("modelTemperature", noTransform)}
+						maxValue={2}
+					/>
+					<RateLimitSecondsControl
+						value={apiConfiguration.rateLimitSeconds || 0}
+						onChange={(value) => setApiConfigurationField("rateLimitSeconds", value)}
+					/>
+				</>
 			)}
 		</div>
 	)

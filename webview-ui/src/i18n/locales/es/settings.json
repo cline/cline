@@ -218,6 +218,10 @@
 				}
 			},
 			"resetDefaults": "Restablecer valores predeterminados"
+		},
+		"rateLimitSeconds": {
+			"label": "Límite de tasa",
+			"description": "Tiempo mínimo entre solicitudes de API."
 		}
 	},
 	"browser": {
@@ -298,10 +302,6 @@
 		}
 	},
 	"advanced": {
-		"rateLimit": {
-			"label": "Límite de tasa",
-			"description": "Tiempo mínimo entre solicitudes de API."
-		},
 		"diff": {
 			"label": "Habilitar edición a través de diffs",
 			"description": "Cuando está habilitado, Roo podrá editar archivos más rápidamente y rechazará automáticamente escrituras completas de archivos truncados. Funciona mejor con el último modelo Claude 3.7 Sonnet.",

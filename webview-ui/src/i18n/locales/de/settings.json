@@ -218,6 +218,10 @@
 				}
 			},
 			"resetDefaults": "Auf Standardwerte zurücksetzen"
+		},
+		"rateLimitSeconds": {
+			"label": "Ratenbegrenzung",
+			"description": "Minimale Zeit zwischen API-Anfragen."
 		}
 	},
 	"browser": {
@@ -298,10 +302,6 @@
 		}
 	},
 	"advanced": {
-		"rateLimit": {
-			"label": "Ratenbegrenzung",
-			"description": "Minimale Zeit zwischen API-Anfragen."
-		},
 		"diff": {
 			"label": "Bearbeitung durch Diffs aktivieren",
 			"description": "Wenn aktiviert, kann Roo Dateien schneller bearbeiten und lehnt automatisch gekürzte vollständige Dateischreibvorgänge ab. Funktioniert am besten mit dem neuesten Claude 3.7 Sonnet-Modell.",

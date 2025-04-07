@@ -218,6 +218,10 @@
 				}
 			},
 			"resetDefaults": "デフォルトにリセット"
+		},
+		"rateLimitSeconds": {
+			"label": "レート制限",
+			"description": "APIリクエスト間の最小時間。"
 		}
 	},
 	"browser": {
@@ -298,10 +302,6 @@
 		}
 	},
 	"advanced": {
-		"rateLimit": {
-			"label": "レート制限",
-			"description": "APIリクエスト間の最小時間。"
-		},
 		"diff": {
 			"label": "diff経由の編集を有効化",
 			"description": "有効にすると、Rooはファイルをより迅速に編集でき、切り詰められた全ファイル書き込みを自動的に拒否します。最新のClaude 3.7 Sonnetモデルで最良に機能します。",

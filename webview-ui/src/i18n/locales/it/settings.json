@@ -218,6 +218,10 @@
 				}
 			},
 			"resetDefaults": "Ripristina valori predefiniti"
+		},
+		"rateLimitSeconds": {
+			"label": "Limite di frequenza",
+			"description": "Tempo minimo tra le richieste API."
 		}
 	},
 	"browser": {
@@ -298,10 +302,6 @@
 		}
 	},
 	"advanced": {
-		"rateLimit": {
-			"label": "Limite di frequenza",
-			"description": "Tempo minimo tra le richieste API."
-		},
 		"diff": {
 			"label": "Abilita modifica tramite diff",
 			"description": "Quando abilitato, Roo sarà in grado di modificare i file più velocemente e rifiuterà automaticamente scritture di file completi troncati. Funziona meglio con l'ultimo modello Claude 3.7 Sonnet.",

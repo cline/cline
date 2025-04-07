@@ -218,6 +218,10 @@
 				}
 			},
 			"resetDefaults": "重設為預設值"
+		},
+		"rateLimitSeconds": {
+			"label": "速率限制",
+			"description": "API 請求間的最短時間"
 		}
 	},
 	"browser": {
@@ -298,10 +302,6 @@
 		}
 	},
 	"advanced": {
-		"rateLimit": {
-			"label": "速率限制",
-			"description": "API 請求間的最短時間"
-		},
 		"diff": {
 			"label": "透過差異比對編輯",
 			"description": "啟用後，Roo 可更快速地編輯檔案，並自動拒絕不完整的整檔覆寫。搭配最新的 Claude 3.7 Sonnet 模型效果最佳。",

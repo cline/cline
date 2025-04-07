@@ -218,6 +218,10 @@
 				}
 			},
 			"resetDefaults": "Đặt lại về mặc định"
+		},
+		"rateLimitSeconds": {
+			"label": "Giới hạn tốc độ",
+			"description": "Thời gian tối thiểu giữa các yêu cầu API."
 		}
 	},
 	"browser": {
@@ -298,10 +302,6 @@
 		}
 	},
 	"advanced": {
-		"rateLimit": {
-			"label": "Giới hạn tốc độ",
-			"description": "Thời gian tối thiểu giữa các yêu cầu API."
-		},
 		"diff": {
 			"label": "Bật chỉnh sửa qua diff",
 			"description": "Khi được bật, Roo sẽ có thể chỉnh sửa tệp nhanh hơn và sẽ tự động từ chối ghi toàn bộ tệp bị cắt ngắn. Hoạt động tốt nhất với mô hình Claude 3.7 Sonnet mới nhất.",

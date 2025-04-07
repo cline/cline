@@ -218,6 +218,10 @@
 				}
 			},
 			"resetDefaults": "Réinitialiser les valeurs par défaut"
+		},
+		"rateLimitSeconds": {
+			"label": "Limite de débit",
+			"description": "Temps minimum entre les requêtes API."
 		}
 	},
 	"browser": {
@@ -298,10 +302,6 @@
 		}
 	},
 	"advanced": {
-		"rateLimit": {
-			"label": "Limite de débit",
-			"description": "Temps minimum entre les requêtes API."
-		},
 		"diff": {
 			"label": "Activer l'édition via des diffs",
 			"description": "Lorsque cette option est activée, Roo pourra éditer des fichiers plus rapidement et rejettera automatiquement les écritures de fichiers complets tronqués. Fonctionne mieux avec le dernier modèle Claude 3.7 Sonnet.",

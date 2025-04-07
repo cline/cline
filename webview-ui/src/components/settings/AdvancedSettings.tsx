@@ -11,13 +11,11 @@ import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 
 type AdvancedSettingsProps = HTMLAttributes<HTMLDivElement> & {
-	rateLimitSeconds: number
 	diffEnabled?: boolean
 	fuzzyMatchThreshold?: number
-	setCachedStateField: SetCachedStateField<"rateLimitSeconds" | "diffEnabled" | "fuzzyMatchThreshold">
+	setCachedStateField: SetCachedStateField<"diffEnabled" | "fuzzyMatchThreshold">
 }
 export const AdvancedSettings = ({
-	rateLimitSeconds,
 	diffEnabled,
 	fuzzyMatchThreshold,
 	setCachedStateField,
@@ -36,25 +34,6 @@ export const AdvancedSettings = ({
 			</SectionHeader>
 
 			<Section>
-				<div>
-					<div className="flex flex-col gap-2">
-						<span className="font-medium">{t("settings:advanced.rateLimit.label")}</span>
-						<div className="flex items-center gap-2">
-							<Slider
-								min={0}
-								max={60}
-								step={1}
-								value={[rateLimitSeconds]}
-								onValueChange={([value]) => setCachedStateField("rateLimitSeconds", value)}
-							/>
-							<span className="w-10">{rateLimitSeconds}s</span>
-						</div>
-					</div>
-					<div className="text-vscode-descriptionForeground text-sm mt-1">
-						{t("settings:advanced.rateLimit.description")}
-					</div>
-				</div>
-
 				<div>
 					<VSCodeCheckbox
 						checked={diffEnabled}

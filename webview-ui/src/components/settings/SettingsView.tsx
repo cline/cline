@@ -119,7 +119,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		maxOpenTabsContext,
 		maxWorkspaceFiles,
 		mcpEnabled,
-		rateLimitSeconds,
 		requestDelaySeconds,
 		remoteBrowserHost,
 		screenshotQuality,
@@ -241,7 +240,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "mcpEnabled", bool: mcpEnabled })
 			vscode.postMessage({ type: "alwaysApproveResubmit", bool: alwaysApproveResubmit })
 			vscode.postMessage({ type: "requestDelaySeconds", value: requestDelaySeconds })
-			vscode.postMessage({ type: "rateLimitSeconds", value: rateLimitSeconds })
 			vscode.postMessage({ type: "maxOpenTabsContext", value: maxOpenTabsContext })
 			vscode.postMessage({ type: "maxWorkspaceFiles", value: maxWorkspaceFiles ?? 200 })
 			vscode.postMessage({ type: "showRooIgnoredFiles", bool: showRooIgnoredFiles })
@@ -489,7 +487,6 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 
 				<div ref={advancedRef}>
 					<AdvancedSettings
-						rateLimitSeconds={rateLimitSeconds}
 						diffEnabled={diffEnabled}
 						fuzzyMatchThreshold={fuzzyMatchThreshold}
 						setCachedStateField={setCachedStateField}

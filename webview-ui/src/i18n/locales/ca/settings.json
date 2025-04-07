@@ -218,6 +218,10 @@
 				}
 			},
 			"resetDefaults": "Restablir als valors per defecte"
+		},
+		"rateLimitSeconds": {
+			"label": "Límit de freqüència",
+			"description": "Temps mínim entre sol·licituds d'API."
 		}
 	},
 	"browser": {
@@ -298,10 +302,6 @@
 		}
 	},
 	"advanced": {
-		"rateLimit": {
-			"label": "Límit de freqüència",
-			"description": "Temps mínim entre sol·licituds d'API."
-		},
 		"diff": {
 			"label": "Habilitar edició mitjançant diffs",
 			"description": "Quan està habilitat, Roo podrà editar fitxers més ràpidament i rebutjarà automàticament escriptures completes de fitxers truncats. Funciona millor amb l'últim model Claude 3.7 Sonnet.",

@@ -218,6 +218,10 @@
 				}
 			},
 			"resetDefaults": "Reset to Defaults"
+		},
+		"rateLimitSeconds": {
+			"label": "Rate limit",
+			"description": "Minimum time between API requests."
 		}
 	},
 	"browser": {
@@ -298,10 +302,6 @@
 		}
 	},
 	"advanced": {
-		"rateLimit": {
-			"label": "Rate limit",
-			"description": "Minimum time between API requests."
-		},
 		"diff": {
 			"label": "Enable editing through diffs",
 			"description": "When enabled, Roo will be able to edit files more quickly and will automatically reject truncated full-file writes. Works best with the latest Claude 3.7 Sonnet model.",
