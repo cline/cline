@@ -10,13 +10,10 @@ export function parseXml(xmlString: string, stopNodes?: string[]): unknown {
 	const _stopNodes = stopNodes ?? []
 	try {
 		const parser = new XMLParser({
-			// Preserve attribute types (don't convert numbers/booleans)
 			ignoreAttributes: false,
 			attributeNamePrefix: "@_",
-			// Parse numbers and booleans in text nodes
-			parseAttributeValue: true,
-			parseTagValue: true,
-			// Trim whitespace from text nodes
+			parseAttributeValue: false,
+			parseTagValue: false,
 			trimValues: true,
 			stopNodes: _stopNodes,
 		})
