@@ -60,10 +60,7 @@ export class PremHandler implements ApiHandler {
 		return response
 	}
 
-	async *createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-	): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const formattedMessages = messages.map((msg) => ({
 			role: msg.role,
 			content:
@@ -74,7 +71,12 @@ export class PremHandler implements ApiHandler {
 								if ("text" in block && block.text) {
 									return block.text
 								}
-								if ("image_url" in block && typeof block.image_url === "object" && block.image_url && "url" in block.image_url) {
+								if (
+									"image_url" in block &&
+									typeof block.image_url === "object" &&
+									block.image_url &&
+									"url" in block.image_url
+								) {
 									return `<image>${block.image_url.url}</image>`
 								}
 								return ""
@@ -86,10 +88,7 @@ export class PremHandler implements ApiHandler {
 		const payload: PremChatCompletionInput = {
 			project_id: this.projectId,
 			model: this.modelId,
-			messages: [
-				{ role: "system", content: systemPrompt },
-				...formattedMessages,
-			],
+			messages: [{ role: "system", content: systemPrompt }, ...formattedMessages],
 			stream: true,
 			temperature: 0.7,
 		}
