@@ -55,7 +55,7 @@ Cline is your AI assistant that can:
 
 ## Available Tools
 
-For the most up-to-date implementation details, you can view the full source code in the [Cline repository](https://github.com/cline/cline/blob/807a4b36dfe14a18a3e6a0dc39e05594e2fbff4c/src/core/task/index.ts).
+For the most up-to-date implementation details, you can view the full source code in the [Cline repository](https://github.com/cline/cline/blob/main/src/core/task/index.ts).
 
 Cline has access to the following tools for various tasks:
 
