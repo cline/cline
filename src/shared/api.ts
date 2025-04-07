@@ -20,6 +20,7 @@ export type ApiProvider =
 	| "asksage"
 	| "xai"
 	| "sambanova"
+	| "sap-ai-core"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -28,6 +29,7 @@ export interface ApiHandlerOptions {
 	taskId?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
 	liteLlmModelId?: string
+	sapAiCoreModelId?: string
 	liteLlmApiKey?: string
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
@@ -1243,7 +1245,19 @@ export const liteLlmModelInfoSaneDefaults: ModelInfo = {
 	inputPrice: 0,
 	outputPrice: 0,
 }
-
+// SAP AI CORE
+export type SapAiCoreModelId = keyof typeof sapAiCoreModels
+export const sapAiCoreDefaultModelId: SapAiCoreModelId = "gpt-4o"
+export const sapAiCoreModels = {
+	"gpt-4o": {
+		maxTokens: 4096,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.0,
+		outputPrice: 0.0,
+	},
+}
 // AskSage Models
 // https://docs.asksage.ai/
 export type AskSageModelId = keyof typeof askSageModels

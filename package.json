@@ -316,6 +316,7 @@
 		"version-packages": "changeset version"
 	},
 	"devDependencies": {
+		"@sap-ai-sdk/foundation-models": "1.10.0",
 		"@changesets/cli": "^2.27.12",
 		"@types/chai": "^5.0.1",
 		"@types/clone-deep": "^4.0.4",

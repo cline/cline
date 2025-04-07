@@ -47,6 +47,8 @@ import {
 	sambanovaDefaultModelId,
 	doubaoModels,
 	doubaoDefaultModelId,
+	sapAiCoreDefaultModelId,
+	sapAiCoreModels,
 } from "@shared/api"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -194,6 +196,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						minWidth: 130,
 						position: "relative",
 					}}>
+					<VSCodeOption value="sap-ai-core">SAP AI Core</VSCodeOption>
 					<VSCodeOption value="cline">Cline</VSCodeOption>
 					<VSCodeOption value="openrouter">OpenRouter</VSCodeOption>
 					<VSCodeOption value="anthropic">Anthropic</VSCodeOption>
@@ -1272,6 +1275,18 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				</div>
 			)}
 
+			{selectedProvider === "sap-ai-core" && (
+				<div>
+					<VSCodeTextField
+						value={apiConfiguration?.sapAiCoreModelId || ""}
+						style={{ width: "100%" }}
+						onInput={handleInputChange("sapAiCoreModelId")}
+						placeholder={"e.g. gpt-4"}>
+						<span style={{ fontWeight: 500 }}>Model ID</span>
+					</VSCodeTextField>
+				</div>
+			)}
+
 			{selectedProvider === "ollama" && (
 				<div>
 					<VSCodeTextField
@@ -1481,6 +1496,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				selectedProvider !== "vscode-lm" &&
 				selectedProvider !== "litellm" &&
 				selectedProvider !== "requesty" &&
+				selectedProvider !== "sap-ai-core" &&
 				showModelOptions && (
 					<>
 						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
@@ -1779,6 +1795,12 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.liteLlmModelId || "",
 				selectedModelInfo: openAiModelInfoSaneDefaults,
+			}
+		case "sap-ai-core":
+			return {
+				selectedProvider: provider,
+				selectedModelId: apiConfiguration?.sapAiCoreModelId || sapAiCoreDefaultModelId,
+				selectedModelInfo: sapAiCoreModels[sapAiCoreDefaultModelId],
 			}
 		case "xai":
 			return getProviderData(xaiModels, xaiDefaultModelId)

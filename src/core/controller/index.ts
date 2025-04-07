@@ -777,6 +777,9 @@ export class Controller {
 				case "litellm":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.liteLlmModelId)
 					break
+				case "sap-ai-core":
+					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.sapAiCoreModelId)
+					break
 				case "requesty":
 					await updateGlobalState(this.context, "previousModeModelId", apiConfiguration.requestyModelId)
 					break
@@ -817,6 +820,9 @@ export class Controller {
 						break
 					case "litellm":
 						await updateGlobalState(this.context, "liteLlmModelId", newModelId)
+						break
+					case "sap-ai-core":
+						await updateGlobalState(this.context, "sapAiCoreModelId", newModelId)
 						break
 					case "requesty":
 						await updateGlobalState(this.context, "requestyModelId", newModelId)

@@ -101,6 +101,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		vsCodeLmModelSelector,
 		liteLlmBaseUrl,
 		liteLlmModelId,
+		sapAiCoreModelId,
 		userInfo,
 		previousModeApiProvider,
 		previousModeModelId,
@@ -166,6 +167,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 		getGlobalState(context, "vsCodeLmModelSelector") as Promise<vscode.LanguageModelChatSelector | undefined>,
 		getGlobalState(context, "liteLlmBaseUrl") as Promise<string | undefined>,
 		getGlobalState(context, "liteLlmModelId") as Promise<string | undefined>,
+		getGlobalState(context, "sapAiCoreModelId") as Promise<string | undefined>,
 		getGlobalState(context, "userInfo") as Promise<UserInfo | undefined>,
 		getGlobalState(context, "previousModeApiProvider") as Promise<ApiProvider | undefined>,
 		getGlobalState(context, "previousModeModelId") as Promise<string | undefined>,
@@ -267,6 +269,7 @@ export async function getAllExtensionState(context: vscode.ExtensionContext) {
 			thinkingBudgetTokens,
 			liteLlmBaseUrl,
 			liteLlmModelId,
+			sapAiCoreModelId,
 			liteLlmApiKey,
 			asksageApiKey,
 			asksageApiUrl,
@@ -335,6 +338,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 		vsCodeLmModelSelector,
 		liteLlmBaseUrl,
 		liteLlmModelId,
+		sapAiCoreModelId,
 		liteLlmApiKey,
 		qwenApiLine,
 		asksageApiKey,
@@ -386,6 +390,7 @@ export async function updateApiConfiguration(context: vscode.ExtensionContext, a
 	await updateGlobalState(context, "vsCodeLmModelSelector", vsCodeLmModelSelector)
 	await updateGlobalState(context, "liteLlmBaseUrl", liteLlmBaseUrl)
 	await updateGlobalState(context, "liteLlmModelId", liteLlmModelId)
+	await updateGlobalState(context, "sapAiCoreModelId", sapAiCoreModelId)
 	await updateGlobalState(context, "qwenApiLine", qwenApiLine)
 	await updateGlobalState(context, "requestyModelId", requestyModelId)
 	await updateGlobalState(context, "togetherModelId", togetherModelId)
