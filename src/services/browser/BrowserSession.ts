@@ -538,4 +538,17 @@ export class BrowserSession {
 			})
 		})
 	}
+
+	async resize(size: string): Promise<BrowserActionResult> {
+		return this.doAction(async (page) => {
+			const [width, height] = size.split(",").map(Number)
+			const session = await page.createCDPSession()
+			await page.setViewport({ width, height })
+			const { windowId } = await session.send("Browser.getWindowForTarget")
+			await session.send("Browser.setWindowBounds", {
+				bounds: { width, height },
+				windowId,
+			})
+		})
+	}
 }

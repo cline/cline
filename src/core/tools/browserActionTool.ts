@@ -21,6 +21,7 @@ export async function browserActionTool(
 	const url: string | undefined = block.params.url
 	const coordinate: string | undefined = block.params.coordinate
 	const text: string | undefined = block.params.text
+	const size: string | undefined = block.params.size
 	if (!action || !browserActions.includes(action)) {
 		// checking for action to ensure it is complete and valid
 		if (!block.partial) {
@@ -88,6 +89,14 @@ export async function browserActionTool(
 						return
 					}
 				}
+				if (action === "resize") {
+					if (!size) {
+						cline.consecutiveMistakeCount++
+						pushToolResult(await cline.sayAndCreateMissingParamError("browser_action", "size"))
+						await cline.browserSession.closeBrowser()
+						return
+					}
+				}
 				cline.consecutiveMistakeCount = 0
 				await cline.say(
 					"browser_action",
@@ -112,6 +121,9 @@ export async function browserActionTool(
 					case "scroll_up":
 						browserActionResult = await cline.browserSession.scrollUp()
 						break
+					case "resize":
+						browserActionResult = await cline.browserSession.resize(size!)
+						break
 					case "close":
 						browserActionResult = await cline.browserSession.closeBrowser()
 						break
@@ -124,6 +136,7 @@ export async function browserActionTool(
 				case "type":
 				case "scroll_down":
 				case "scroll_up":
+				case "resize":
 					await cline.say("browser_action_result", JSON.stringify(browserActionResult))
 					pushToolResult(
 						formatResponse.toolResult(

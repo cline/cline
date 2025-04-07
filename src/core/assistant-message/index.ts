@@ -60,6 +60,7 @@ export const toolParamNames = [
 	"cwd",
 	"follow_up",
 	"task",
+	"size",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -115,7 +116,7 @@ export interface ListCodeDefinitionNamesToolUse extends ToolUse {
 
 export interface BrowserActionToolUse extends ToolUse {
 	name: "browser_action"
-	params: Partial<Pick<Record<ToolParamName, string>, "action" | "url" | "coordinate" | "text">>
+	params: Partial<Pick<Record<ToolParamName, string>, "action" | "url" | "coordinate" | "text" | "size">>
 }
 
 export interface UseMcpToolToolUse extends ToolUse {
