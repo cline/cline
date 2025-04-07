@@ -19,7 +19,7 @@ const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: R
 			onClick={onClick}
 			style={{
 				cursor: "pointer",
-				color: isFavorite ? "var(--vscode-terminal-ansiYellow)" : "var(--vscode-descriptionForeground)",
+				color: isFavorite ? "var(--vscode-terminal-ansiBlue)" : "var(--vscode-descriptionForeground)",
 				marginLeft: "8px",
 				fontSize: "16px",
 				display: "flex",

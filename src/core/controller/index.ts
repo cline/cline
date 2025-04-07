@@ -716,9 +716,15 @@ export class Controller {
 						? favoritedModelIds.filter((id) => id !== message.modelId)
 						: [...favoritedModelIds, message.modelId]
 
+					// Store current provider before updating favorites
+					//const currentProvider = apiConfiguration.apiProvider
+
 					// Only update the favoritedModelIds property, preserving everything else
 					// including the apiProvider and all model-specific properties
 					await updateGlobalState(this.context, "favoritedModelIds", updatedFavorites)
+
+					// Ensure the provider hasn't changed by explicitly setting it back to what it was
+					//await updateGlobalState(this.context, "apiProvider", currentProvider)
 
 					// Post state to webview without changing any other configuration
 					await this.postStateToWebview()
