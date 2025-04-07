@@ -1744,13 +1744,13 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration): 
 			return getProviderData(askSageModels, askSageDefaultModelId)
 		case "openrouter":
 			return {
-				selectedProvider: "openrouter", // Explicitly set to "openrouter" to avoid provider switching
+				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
 				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
 			}
 		case "cline":
 			return {
-				selectedProvider: "cline", // Explicitly set to "cline" to avoid provider switching
+				selectedProvider: provider,
 				selectedModelId: apiConfiguration?.openRouterModelId || openRouterDefaultModelId,
 				selectedModelInfo: apiConfiguration?.openRouterModelInfo || openRouterDefaultModelInfo,
 			}
