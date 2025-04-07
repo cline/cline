@@ -46,8 +46,10 @@ export interface ExtensionMessage {
 		| "detectedChromePath"
 		| "scrollToSettings"
 		| "browserRelaunchResult"
+		| "relativePathsResponse" // Handles single and multiple path responses
 		| "fileSearchResults"
 	text?: string
+	paths?: (string | null)[] // Used for relativePathsResponse
 	action?:
 		| "chatButtonClicked"
 		| "mcpButtonClicked"
