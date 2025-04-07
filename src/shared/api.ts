@@ -20,6 +20,7 @@ export type ApiProvider =
 	| "asksage"
 	| "xai"
 	| "sambanova"
+	| "prem"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -73,6 +74,10 @@ export interface ApiHandlerOptions {
 	xaiApiKey?: string
 	thinkingBudgetTokens?: number
 	sambanovaApiKey?: string
+	premApiKey?: string
+	premBaseUrl?: string
+	premProjectId?: number
+	premModelId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -1473,3 +1478,20 @@ export const sambanovaModels = {
 		outputPrice: 1.5,
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// Add Prem model info
+export const premModels = {
+	"gpt-4o-mini": {
+		maxTokens: 8192,
+		contextWindow: 32768,
+		supportsImages: true,
+		supportsComputerUse: false,
+		supportsPromptCache: true,
+		inputPrice: 0.0015,
+		outputPrice: 0.002,
+		description: "Prem AI model",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+export type PremModelId = keyof typeof premModels
+export const premDefaultModelId: PremModelId = "gpt-4o-mini"
