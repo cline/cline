@@ -17,7 +17,15 @@ import McpToolRow from "./McpToolRow"
 import McpResourceRow from "./McpResourceRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 
-const ServerRow = ({ server, isExpandable = true }: { server: McpServer; isExpandable?: boolean }) => {
+const ServerRow = ({
+	server,
+	isExpandable = true,
+	hasTrashIcon = true,
+}: {
+	server: McpServer
+	isExpandable?: boolean
+	hasTrashIcon?: boolean
+}) => {
 	const { mcpMarketplaceCatalog, autoApprovalSettings } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
@@ -138,16 +146,18 @@ const ServerRow = ({ server, isExpandable = true }: { server: McpServer; isExpan
 							disabled={server.status === "connecting"}>
 							<span className="codicon codicon-sync"></span>
 						</VSCodeButton>
-						<VSCodeButton
-							appearance="icon"
-							title="Delete Server"
-							onClick={(e) => {
-								e.stopPropagation()
-								handleDelete()
-							}}
-							disabled={isDeleting}>
-							<span className="codicon codicon-trash"></span>
-						</VSCodeButton>
+						{hasTrashIcon && (
+							<VSCodeButton
+								appearance="icon"
+								title="Delete Server"
+								onClick={(e) => {
+									e.stopPropagation()
+									handleDelete()
+								}}
+								disabled={isDeleting}>
+								<span className="codicon codicon-trash"></span>
+							</VSCodeButton>
+						)}
 					</div>
 				)}
 				{/* Toggle Switch */}

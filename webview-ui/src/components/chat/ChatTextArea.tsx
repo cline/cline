@@ -23,6 +23,7 @@ import ApiOptions, { normalizeApiConfiguration } from "@/components/settings/Api
 import { MAX_IMAGES_PER_MESSAGE } from "@/components/chat/ChatView"
 import ContextMenu from "@/components/chat/ContextMenu"
 import { ChatSettings } from "@shared/ChatSettings"
+import ServersToggleModal from "./ServersToggleModal"
 
 interface ChatTextAreaProps {
 	inputValue: string
@@ -83,13 +84,14 @@ const ButtonGroup = styled.div`
 	gap: 4px;
 	flex: 1;
 	min-width: 0;
+	margin-right: 12px;
 `
 
 const ButtonContainer = styled.div`
 	display: flex;
 	align-items: center;
-	gap: 3px;
-	font-size: 10px;
+	gap: 4px;
+	font-size: 12px;
 	white-space: nowrap;
 	min-width: 0;
 	width: 100%;
@@ -1075,7 +1077,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							onClick={handleContextButtonClick}
 							style={{ padding: "0px 0px", height: "20px" }}>
 							<ButtonContainer>
-								<span style={{ fontSize: "13px", marginBottom: 1 }}>@</span>
+								<span className="flex items-center" style={{ fontSize: "14px" }}>
+									@
+								</span>
 								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
 							</ButtonContainer>
 						</VSCodeButton>
@@ -1092,10 +1096,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}}
 							style={{ padding: "0px 0px", height: "20px" }}>
 							<ButtonContainer>
-								<span className="codicon codicon-device-camera" style={{ fontSize: "14px", marginBottom: -3 }} />
+								<span
+									className="codicon codicon-device-camera flex items-center"
+									style={{ fontSize: "14px", marginTop: "3px" }}
+								/>
 								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
 							</ButtonContainer>
 						</VSCodeButton>
+						<ServersToggleModal />
 
 						<ModelContainer ref={modelSelectorRef}>
 							<ModelButtonWrapper ref={buttonRef}>

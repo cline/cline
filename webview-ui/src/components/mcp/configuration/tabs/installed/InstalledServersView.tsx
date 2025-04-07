@@ -29,7 +29,7 @@ const InstalledServersView = () => {
 				</VSCodeLink>
 			</div>
 
-			<ServersToggleList servers={servers} />
+			<ServersToggleList servers={servers} isExpandable={true} hasTrashIcon={false} />
 
 			{/* Settings Section */}
 			<div style={{ marginBottom: "20px", marginTop: 10 }}>
