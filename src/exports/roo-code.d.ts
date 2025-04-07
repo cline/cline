@@ -557,14 +557,12 @@ interface RooCodeAPI extends EventEmitter<RooCodeEvents> {
 	 * @throws Error if the task is not found in the task history.
 	 */
 	resumeTask(taskId: string): Promise<void>
-
 	/**
 	 * Checks if a task with the given ID is in the task history.
 	 * @param taskId The ID of the task to check.
 	 * @returns True if the task is in the task history, false otherwise.
 	 */
 	isTaskInHistory(taskId: string): Promise<boolean>
-
 	/**
 	 * Returns the current task stack.
 	 * @returns An array of task IDs.
