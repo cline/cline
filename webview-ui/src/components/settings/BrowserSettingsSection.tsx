@@ -292,7 +292,8 @@ export const BrowserSettingsSection: React.FC = () => {
 										: "var(--vscode-terminal-ansiRed)",
 									borderRadius: "3px",
 									fontSize: "11px",
-									whiteSpace: "pre",
+									whiteSpace: "pre-wrap",
+									wordBreak: "break-word",
 								}}>
 								{relaunchResult.message}
 							</div>
