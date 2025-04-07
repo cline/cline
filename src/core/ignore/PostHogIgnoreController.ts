@@ -69,8 +69,6 @@ export class PostHogIgnoreController {
             const gitIgnorePath = path.join(this.cwd, '.gitignore')
             const ignorePath = (await fileExistsAtPath(posthogIgnorePath)) ? posthogIgnorePath : gitIgnorePath
 
-            console.log('ignore path:', ignorePath)
-
             if (await fileExistsAtPath(ignorePath)) {
                 const content = await fs.readFile(ignorePath, 'utf8')
                 this.posthogIgnoreContent = content
