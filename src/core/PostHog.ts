@@ -3922,7 +3922,18 @@ export class PostHog {
 
                 const systemPrompt = await ADD_TRACKING_PROMPT()
 
+                const existingTracking = await regexSearchFiles(
+                    cwd,
+                    cwd,
+                    'posthog.capture',
+                    '**',
+                    this.posthogIgnoreController
+                )
+
                 const userPrompt = `
+                Code snippets from some existing capture calls in the codebase which you can use as examples:
+                ${existingTracking.slice(0, 1000)}
+
                 File: ${path.basename(relPath)}
                 \`\`\`
                 ${content}
@@ -3940,13 +3951,15 @@ export class PostHog {
                 const textEncoder = new TextEncoder()
                 await vscode.workspace.fs.writeFile(fileUri, textEncoder.encode(modifiedContent))
 
-                this.say('text', `Successfully added analytics to ${relPath}`)
+                await this.say('text', `Successfully added analytics to ${path.basename(relPath)}`)
 
                 results.push({
                     path: relPath,
                     success: true,
-                    message: `Successfully added analytics to ${relPath}`,
+                    message: `Successfully added analytics to ${path.basename(relPath)}`,
                 })
+
+                // TODO: Deduplicate added events using the doctor
             } catch (error) {
                 this.say('text', `Failed to add analytics to ${relPath}`)
 

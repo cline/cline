@@ -283,7 +283,7 @@ Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]
 # PostHog tools
 
 ## add_tracking
-Description: Request to add PostHog analytics tracking to files.
+Description: This can be used to add posthog.capture() calls to files. You should use this tool whenever you want to add analytics to files.
 Parameters:
 - paths: (required) An array of file paths to add tracking to. These should be relative to the current working directory ${cwd.toPosix()}.
 Usage:

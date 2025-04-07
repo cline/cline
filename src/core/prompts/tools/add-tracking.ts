@@ -8,7 +8,7 @@ Analyze the code and determine what events would be valuable to track based on:
 4. Error cases and edge conditions
 
 General Rules:
-- Event names should be snake_case
+- Event names & properties should follow existing naming conventions if tracking already exists, otherwise use snake_case
 - Include relevant properties that provide context
 - Don't track sensitive information
 - Don't duplicate existing capture calls
