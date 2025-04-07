@@ -206,7 +206,7 @@ export const ChatRowContent = ({
                             marginBottom: '-1.5px',
                         }}
                     ></span>,
-                    <span style={{ color: errorColor, fontWeight: 'bold' }}>PostHog is having trouble...</span>,
+                    <span style={{ color: errorColor, fontWeight: 'bold' }}>Max is having trouble...</span>,
                 ]
             case 'auto_approval_max_req_reached':
                 return [
@@ -478,7 +478,7 @@ export const ChatRowContent = ({
                             <span style={{ fontWeight: 'bold' }}>
                                 {message.type === 'ask'
                                     ? 'Max wants to view the top level files in this directory:'
-                                    : 'PostHog viewed the top level files in this directory:'}
+                                    : 'Max viewed the top level files in this directory:'}
                             </span>
                         </div>
                         <CodeAccordian
@@ -498,7 +498,7 @@ export const ChatRowContent = ({
                             <span style={{ fontWeight: 'bold' }}>
                                 {message.type === 'ask'
                                     ? 'Max wants to recursively view all files in this directory:'
-                                    : 'PostHog recursively viewed all files in this directory:'}
+                                    : 'Max recursively viewed all files in this directory:'}
                             </span>
                         </div>
                         <CodeAccordian
@@ -518,7 +518,7 @@ export const ChatRowContent = ({
                             <span style={{ fontWeight: 'bold' }}>
                                 {message.type === 'ask'
                                     ? 'Max wants to view source code definition names used in this directory:'
-                                    : 'PostHog viewed source code definition names used in this directory:'}
+                                    : 'Max viewed source code definition names used in this directory:'}
                             </span>
                         </div>
                         <CodeAccordian
@@ -923,9 +923,8 @@ export const ChatRowContent = ({
                                     </span>
                                 </div>
                                 <div>
-                                    PostHog tried to access <code>{message.text}</code> which is blocked by the{' '}
-                                    <code>posthogignore_error</code>
-                                    file.
+                                    Max tried to access <code>{message.text}</code> which is blocked by the{' '}
+                                    <code>.posthogignore</code> file file.
                                 </div>
                             </div>
                         </>
@@ -1024,7 +1023,7 @@ export const ChatRowContent = ({
                                     </span>
                                 </div>
                                 <div>
-                                    PostHog won't be able to view the command's output. Please update VSCode (
+                                    Max won't be able to view the command's output. Please update VSCode (
                                     <code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported
                                     shell: zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> →
                                     "Terminal: Select Default Profile").{' '}

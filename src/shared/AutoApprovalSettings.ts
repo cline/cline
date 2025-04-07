@@ -17,7 +17,7 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
         readFiles: true,
         editFiles: false,
         executeCommands: false,
-        useBrowser: false,
+        useBrowser: true,
         useMcp: false,
     },
     maxRequests: 20,
