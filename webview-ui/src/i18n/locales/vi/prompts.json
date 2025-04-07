@@ -36,12 +36,12 @@
 		"title": "Hướng dẫn tùy chỉnh dành riêng cho chế độ (tùy chọn)",
 		"resetToDefault": "Đặt lại về mặc định",
 		"description": "Thêm hướng dẫn hành vi dành riêng cho chế độ {{modeName}}.",
-		"loadFromFile": "Hướng dẫn tùy chỉnh dành riêng cho chế độ {{modeName}} cũng có thể được tải từ <span>.roorules-{{modeSlug}}</span> trong không gian làm việc của bạn (.clinerules-{{modeSlug}} đã lỗi thời và sẽ sớm ngừng hoạt động)."
+		"loadFromFile": "Hướng dẫn tùy chỉnh dành riêng cho chế độ {{modeName}} cũng có thể được tải từ thư mục <span>.roo/rules-{{modeSlug}}/</span> trong không gian làm việc của bạn (.roorules-{{modeSlug}} và .clinerules-{{modeSlug}} đã lỗi thời và sẽ sớm ngừng hoạt động)."
 	},
 	"globalCustomInstructions": {
 		"title": "Hướng dẫn tùy chỉnh cho tất cả các chế độ",
 		"description": "Những hướng dẫn này áp dụng cho tất cả các chế độ. Chúng cung cấp một bộ hành vi cơ bản có thể được nâng cao bởi hướng dẫn dành riêng cho chế độ bên dưới.\nNếu bạn muốn Roo suy nghĩ và nói bằng ngôn ngữ khác với ngôn ngữ hiển thị trình soạn thảo của bạn ({{language}}), bạn có thể chỉ định ở đây.",
-		"loadFromFile": "Hướng dẫn cũng có thể được tải từ <span>.roorules</span> trong không gian làm việc của bạn (.clinerules đã lỗi thời và sẽ sớm ngừng hoạt động)."
+		"loadFromFile": "Hướng dẫn cũng có thể được tải từ thư mục <span>.roo/rules/</span> trong không gian làm việc của bạn (.roorules và .clinerules đã lỗi thời và sẽ sớm ngừng hoạt động)."
 	},
 	"systemPrompt": {
 		"preview": "Xem trước lời nhắc hệ thống",

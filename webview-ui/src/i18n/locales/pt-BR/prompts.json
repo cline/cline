@@ -36,12 +36,12 @@
 		"title": "Instruções personalizadas específicas do modo (opcional)",
 		"resetToDefault": "Restaurar para padrão",
 		"description": "Adicione diretrizes comportamentais específicas para o modo {{modeName}}.",
-		"loadFromFile": "Instruções personalizadas específicas para o modo {{modeName}} também podem ser carregadas de <span>.roorules-{{modeSlug}}</span> no seu espaço de trabalho (.clinerules-{{modeSlug}} está obsoleto e deixará de funcionar em breve)."
+		"loadFromFile": "Instruções personalizadas específicas para o modo {{modeName}} também podem ser carregadas da pasta <span>.roo/rules-{{modeSlug}}/</span> no seu espaço de trabalho (.roorules-{{modeSlug}} e .clinerules-{{modeSlug}} estão obsoletos e deixarão de funcionar em breve)."
 	},
 	"globalCustomInstructions": {
 		"title": "Instruções personalizadas para todos os modos",
 		"description": "Estas instruções se aplicam a todos os modos. Elas fornecem um conjunto base de comportamentos que podem ser aprimorados por instruções específicas do modo abaixo.\nSe você desejar que o Roo pense e fale em um idioma diferente do idioma de exibição do seu editor ({{language}}), você pode especificá-lo aqui.",
-		"loadFromFile": "As instruções também podem ser carregadas de <span>.roorules</span> no seu espaço de trabalho (.clinerules está obsoleto e deixará de funcionar em breve)."
+		"loadFromFile": "As instruções também podem ser carregadas da pasta <span>.roo/rules/</span> no seu espaço de trabalho (.roorules e .clinerules estão obsoletos e deixarão de funcionar em breve)."
 	},
 	"systemPrompt": {
 		"preview": "Visualizar prompt do sistema",
@@ -62,35 +62,35 @@
 		"types": {
 			"ENHANCE": {
 				"label": "Aprimorar Prompt",
-				"description": "Use prompt enhancement to get tailored suggestions or improvements for your inputs. This ensures Roo understands your intent and provides the best possible responses. Available via the ✨ icon in chat."
+				"description": "Use o aprimoramento de prompt para obter sugestões ou melhorias personalizadas para suas entradas. Isso garante que o Roo entenda sua intenção e forneça as melhores respostas possíveis. Disponível através do ícone ✨ no chat."
 			},
 			"EXPLAIN": {
 				"label": "Explicar Código",
-				"description": "Obtenha explicações detalhadas de trechos de código, funções ou arquivos inteiros. Useful for understanding complex code or learning new patterns. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
+				"description": "Obtenha explicações detalhadas de trechos de código, funções ou arquivos inteiros. Útil para entender código complexo ou aprender novos padrões. Disponível nas ações de código (ícone de lâmpada no editor) e no menu de contexto do editor (clique direito no código selecionado)."
 			},
 			"FIX": {
 				"label": "Corrigir Problemas",
-				"description": "Obtenha ajuda para identificar e resolver bugs, erros ou code quality issues. Provides step-by-step guidance for fixing problems. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
+				"description": "Obtenha ajuda para identificar e resolver bugs, erros ou problemas de qualidade de código. Fornece orientação passo a passo para corrigir problemas. Disponível nas ações de código (ícone de lâmpada no editor) e no menu de contexto do editor (clique direito no código selecionado)."
 			},
 			"IMPROVE": {
 				"label": "Melhorar Código",
-				"description": "Receba sugestões para code optimization, better practices e architectural improvements while maintaining functionality. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
+				"description": "Receba sugestões para otimização de código, melhores práticas e melhorias arquitetônicas mantendo a funcionalidade. Disponível nas ações de código (ícone de lâmpada no editor) e no menu de contexto do editor (clique direito no código selecionado)."
 			},
 			"ADD_TO_CONTEXT": {
 				"label": "Adicionar ao Contexto",
-				"description": "Adicione contexto à sua tarefa ou conversa atual. Useful for providing additional information or clarifications. Available in code actions (lightbulb icon in the editor) and the editor context menu (right-click on selected code)."
+				"description": "Adicione contexto à sua tarefa ou conversa atual. Útil para fornecer informações adicionais ou esclarecimentos. Disponível nas ações de código (ícone de lâmpada no editor) e no menu de contexto do editor (clique direito no código selecionado)."
 			},
 			"TERMINAL_ADD_TO_CONTEXT": {
 				"label": "Adicionar Conteúdo do Terminal ao Contexto",
-				"description": "Adicione a saída do terminal à sua tarefa ou conversa atual. Useful for providing command outputs or logs. Available in the terminal context menu (right-click on selected terminal content)."
+				"description": "Adicione a saída do terminal à sua tarefa ou conversa atual. Útil para fornecer saídas de comandos ou logs. Disponível no menu de contexto do terminal (clique direito no conteúdo selecionado do terminal)."
 			},
 			"TERMINAL_FIX": {
 				"label": "Corrigir Comando do Terminal",
-				"description": "Obtenha ajuda para corrigir comandos de terminal que falharam ou precisam de melhorias. Available in the terminal context menu (right-click on selected terminal content)."
+				"description": "Obtenha ajuda para corrigir comandos de terminal que falharam ou precisam de melhorias. Disponível no menu de contexto do terminal (clique direito no conteúdo selecionado do terminal)."
 			},
 			"TERMINAL_EXPLAIN": {
 				"label": "Explicar Comando do Terminal",
-				"description": "Obtenha explicações detalhadas de comandos de terminal e suas saídas. Available in the terminal context menu (right-click on selected terminal content)."
+				"description": "Obtenha explicações detalhadas de comandos de terminal e suas saídas. Disponível no menu de contexto do terminal (clique direito no conteúdo selecionado do terminal)."
 			},
 			"NEW_TASK": {
 				"label": "Iniciar Nova Tarefa",

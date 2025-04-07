@@ -36,12 +36,12 @@
 		"title": "Instruccions personalitzades específiques del mode (opcional)",
 		"resetToDefault": "Restablir a valors predeterminats",
 		"description": "Afegiu directrius de comportament específiques per al mode {{modeName}}.",
-		"loadFromFile": "Les instruccions personalitzades específiques per al mode {{mode}} també es poden carregar des de <span>.roorules-{{slug}}</span> al vostre espai de treball (.clinerules-{{slug}} està obsolet i deixarà de funcionar aviat)."
+		"loadFromFile": "Les instruccions personalitzades específiques per al mode {{mode}} també es poden carregar des de la carpeta <span>.roo/rules-{{slug}}/</span> al vostre espai de treball (.roorules-{{slug}} i .clinerules-{{slug}} estan obsolets i deixaran de funcionar aviat)."
 	},
 	"globalCustomInstructions": {
 		"title": "Instruccions personalitzades per a tots els modes",
 		"description": "Aquestes instruccions s'apliquen a tots els modes. Proporcionen un conjunt bàsic de comportaments que es poden millorar amb instruccions específiques de cada mode a continuació.\nSi voleu que Roo pensi i parli en un idioma diferent al de la visualització del vostre editor ({{language}}), podeu especificar-ho aquí.",
-		"loadFromFile": "Les instruccions també es poden carregar des de <span>.roorules</span> al vostre espai de treball (.clinerules està obsolet i deixarà de funcionar aviat)."
+		"loadFromFile": "Les instruccions també es poden carregar des de la carpeta <span>.roo/rules/</span> al vostre espai de treball (.roorules i .clinerules estan obsolets i deixaran de funcionar aviat)."
 	},
 	"systemPrompt": {
 		"preview": "Previsualització del prompt del sistema",
