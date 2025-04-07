@@ -72,7 +72,7 @@ import { AnthropicHandler } from '../api/providers/anthropic'
 import { LOCK_TEXT_SYMBOL, PostHogIgnoreController } from './ignore/PostHogIgnoreController'
 import { PostHogProvider } from './webview/PostHogProvider'
 import { InkeepHandler } from '../api/providers/inkeep'
-import { ADD_CAPTURE_CALLS_PROMPT } from './prompts/tools/add-tracking'
+import { ADD_CAPTURE_CALLS_PROMPT } from './prompts/tools/add-capture-calls'
 
 const cwd =
     vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), 'Desktop') // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -2686,6 +2686,8 @@ export class PostHog {
                             }
 
                             const pathsString: string | undefined = block.params.paths
+                            const trackingConventions =
+                                block.params.tracking_conventions ?? 'No existing tracking conventions provided'
                             if (!pathsString) {
                                 this.consecutiveMistakeCount++
                                 pushToolResult(await this.sayAndCreateMissingParamError('add_capture_calls', 'paths'))
@@ -2703,7 +2705,7 @@ export class PostHog {
                                 return filePath
                             })
 
-                            const result = await this.addCaptureCallsTool(paths)
+                            const result = await this.addCaptureCallsTool(paths, { trackingConventions })
 
                             pushToolResult(result)
                             break
@@ -3892,7 +3894,10 @@ export class PostHog {
         return `<environment_details>\n${details.trim()}\n</environment_details>`
     }
 
-    async addCaptureCallsTool(paths: string[]): Promise<ToolResponse> {
+    async addCaptureCallsTool(
+        paths: string[],
+        { trackingConventions }: { trackingConventions: string }
+    ): Promise<ToolResponse> {
         const numberOfFiles = paths.length
 
         await this.say('text', `Starting to add analytics to ${numberOfFiles} files...`)
@@ -3920,22 +3925,9 @@ export class PostHog {
                 const textDecoder = new TextDecoder()
                 const content = textDecoder.decode(fileContent)
 
-                const systemPrompt = await ADD_CAPTURE_CALLS_PROMPT()
-
-                const existingTracking = await regexSearchFiles(
-                    cwd,
-                    cwd,
-                    'posthog.capture',
-                    '**',
-                    this.posthogIgnoreController
-                )
-
-                console.log('existingTracking', existingTracking)
+                const systemPrompt = await ADD_CAPTURE_CALLS_PROMPT({ trackingConventions })
 
                 const userPrompt = `
-                Existing capture calls in the codebase:
-                ${existingTracking.slice(0, 1000)}
-
                 File: ${path.basename(relPath)}
                 \`\`\`
                 ${content}

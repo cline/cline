@@ -288,11 +288,15 @@ Usage:
 Description: This can be used to add posthog.capture() calls to files to implement analytics tracking. You should first decide which files you need to add capture calls to, then use this tool to add the capture calls.
 Parameters:
 - paths: (required) An array of file paths to add capture calls to. These should be relative to the current working directory ${cwd.toPosix()}.
+- tracking_conventions (required): A description of existing tracking conversions in the codebase, e.g. event names, properties, etc.
 Usage:
 <add_capture_calls>
 <paths>
 Array of file paths here (e.g. ["src/components/App.tsx", "src/pages/Home.tsx"])
 </paths>
+<tracking_conventions>
+Description of existing tracking conventions here
+</tracking_conventions>
 </add_capture_calls>
 
 # Tool Use Examples
