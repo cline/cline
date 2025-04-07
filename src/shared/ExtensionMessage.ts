@@ -10,6 +10,13 @@ import { McpServer, McpMarketplaceCatalog, McpMarketplaceItem, McpDownloadRespon
 import { TelemetrySetting } from "./TelemetrySetting"
 import type { BalanceResponse, UsageTransaction, PaymentTransaction } from "../shared/ClineAccount"
 
+// MacroButton interface defines the structure of a macro button
+export interface MacroButton {
+	id: string
+	label: string
+	action: string
+}
+
 // webview will hold state
 export interface ExtensionMessage {
 	type:
@@ -42,6 +49,7 @@ export interface ExtensionMessage {
 		| "totalTasksSize"
 		| "addToInput"
 		| "fileSearchResults"
+		| "macroButtonsUpdated"
 	text?: string
 	action?:
 		| "chatButtonClicked"
@@ -52,6 +60,7 @@ export interface ExtensionMessage {
 		| "accountLoginClicked"
 		| "accountLogoutClicked"
 		| "accountButtonClicked"
+		| "manageMacrosClicked"
 	invoke?: Invoke
 	state?: ExtensionState
 	images?: string[]
@@ -93,6 +102,7 @@ export interface ExtensionMessage {
 		serverName: string
 		error?: string
 	}
+	macroButtons?: MacroButton[]
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
@@ -110,6 +120,7 @@ export interface ExtensionState {
 	clineMessages: ClineMessage[]
 	currentTaskItem?: HistoryItem
 	customInstructions?: string
+	macroButtons?: MacroButton[]
 	mcpMarketplaceEnabled?: boolean
 	planActSeparateModelsSetting: boolean
 	platform: Platform
