@@ -215,20 +215,25 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 	)
 }
 
-const Container = styled.div<{ isMenuOpen?: boolean; $isCheckedOut?: boolean }>`
+export const Container = styled.div<{ isMenuOpen?: boolean; $isCheckedOut?: boolean }>`
 	display: flex;
 	align-items: center;
-	padding: 4px 0;
+	padding: 0; // Start with no padding
 	gap: 4px;
 	position: relative;
 	min-width: 0;
-	margin-top: -10px;
-	margin-bottom: -10px;
-	opacity: ${(props) => (props.$isCheckedOut ? 1 : props.isMenuOpen ? 1 : 0.5)};
+	margin: 0; // Start with no margin
+	opacity: 0; // Start hidden
+	max-height: 0; // Start collapsed
+	overflow: hidden; // Clip content when collapsed
+	// Animate opacity, height, margin, and padding
+	transition:
+		opacity 0.2s ease-in-out,
+		max-height 0.3s ease-in-out,
+		margin 0.3s ease-in-out,
+		padding 0.3s ease-in-out;
 
-	&:hover {
-		opacity: 1;
-	}
+	// Hover effect will be controlled by parent ChatRowContainer
 `
 
 const Label = styled.span<{ $isCheckedOut?: boolean }>`

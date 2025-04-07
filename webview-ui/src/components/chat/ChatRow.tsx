@@ -17,7 +17,8 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCo
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import { vscode } from "@/utils/vscode"
-import { CheckmarkControl } from "@/components/common/CheckmarkControl"
+// Import the Container component as well
+import { CheckmarkControl, Container as CheckmarkContainer } from "@/components/common/CheckmarkControl"
 import { CheckpointControls, CheckpointOverlay } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -38,6 +39,16 @@ const ChatRowContainer = styled.div`
 
 	&:hover ${CheckpointControls} {
 		opacity: 1;
+		max-width: 100px; // Allow expansion on hover
+	}
+
+	// Add hover rule for the CheckmarkContainer (the whole checkpoint row)
+	&:hover ${CheckmarkContainer} {
+		opacity: 1;
+		max-height: 50px; // Allow expansion
+		padding: 4px 0; // Restore padding
+		margin-top: -10px; // Restore margin
+		margin-bottom: -10px; // Restore margin
 	}
 `
 
@@ -985,9 +996,8 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 					)
 				case "checkpoint_created":
 					return (
-						<>
-							<CheckmarkControl messageTs={message.ts} isCheckpointCheckedOut={message.isCheckpointCheckedOut} />
-						</>
+						// Render the CheckmarkControl which contains the CheckmarkContainer
+						<CheckmarkControl messageTs={message.ts} isCheckpointCheckedOut={message.isCheckpointCheckedOut} />
 					)
 				case "completion_result":
 					const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
