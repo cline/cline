@@ -40,14 +40,14 @@ const ACTION_METADATA: {
 	{
 		id: "executeCommands",
 		label: "Execute safe commands",
-		shortName: "Commands",
+		shortName: "Safe Commands",
 		description:
 			"Allows execution of safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
 	},
 	{
 		id: "executeAllCommands",
 		label: "Execute All commands",
-		shortName: "AllCommands",
+		shortName: "All Commands",
 		description: "Allows execution of all terminal commands. Use at your own risk.",
 	},
 	{
@@ -71,7 +71,22 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
 	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
-	const enabledActionsList = enabledActions.map((action) => action.shortName).join(", ")
+	const enabledActionsList = (() => {
+		const safeCommandsEnabled = enabledActions.some((action) => action.shortName === "Safe Commands")
+		const allCommandsEnabled = enabledActions.some((action) => action.shortName === "All Commands")
+
+		const otherActions = enabledActions
+			.filter((action) => action.shortName !== "Safe Commands" && action.shortName !== "All Commands")
+			.map((action) => action.shortName)
+
+		if (allCommandsEnabled) {
+			return ["All Commands", ...otherActions].join(", ")
+		} else if (safeCommandsEnabled) {
+			return ["Safe Commands", ...otherActions].join(", ")
+		} else {
+			return otherActions.join(", ")
+		}
+	})()
 	const hasEnabledActions = enabledActions.length > 0
 
 	const updateEnabled = useCallback(
@@ -95,13 +110,25 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 				[actionId]: value,
 			}
 
+			// If disabling executeAllCommands, ensure executeCommands remains disabled
+			if (actionId === "executeAllCommands" && !value) {
+				newActions.executeCommands = false
+			}
+
 			// If disabling executeCommands, also disable executeAllCommands
-			if (actionId === "executeCommands" && !value && newActions.executeAllCommands) {
+			if (actionId === "executeCommands" && !value) {
+				newActions.executeAllCommands = false
+			}
+
+			// Ensure executeAllCommands can't be enabled if executeCommands is disabled
+			if (actionId === "executeAllCommands" && value && !newActions.executeCommands) {
 				newActions.executeAllCommands = false
 			}
 
 			// Check if this will result in any enabled actions
 			const willHaveEnabledActions = Object.values(newActions).some(Boolean)
+
+			console.log(newActions)
 
 			vscode.postMessage({
 				type: "autoApprovalSettings",
