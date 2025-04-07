@@ -3,6 +3,8 @@ export interface AutoApprovalSettings {
 	enabled: boolean
 	// Full trust mode (bypass all approval requirements)
 	fullTrust: boolean
+	// Disable AI from asking follow-up questions
+	disableQuestions: boolean
 	// Individual action permissions
 	actions: {
 		readFiles: boolean // Read files and directories
@@ -19,6 +21,7 @@ export interface AutoApprovalSettings {
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	enabled: false,
 	fullTrust: false,
+	disableQuestions: false,
 	actions: {
 		readFiles: false,
 		editFiles: false,

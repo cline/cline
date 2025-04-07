@@ -261,7 +261,33 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 								color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 								fontSize: "12px",
 							}}>
-							Bypasses all approval checks, including max requests limit and command approval requirements. Use with extreme caution.
+							Bypasses all approval checks, including max requests limit and command approval requirements. Use with
+							extreme caution.
+						</div>
+					</div>
+					<div style={{ margin: "6px 0" }}>
+						<VSCodeCheckbox
+							checked={autoApprovalSettings.disableQuestions}
+							onChange={(e) => {
+								const checked = (e.target as HTMLInputElement).checked
+								vscode.postMessage({
+									type: "autoApprovalSettings",
+									autoApprovalSettings: {
+										...autoApprovalSettings,
+										disableQuestions: checked,
+									},
+								})
+							}}>
+							Disable Questions
+						</VSCodeCheckbox>
+						<div
+							style={{
+								marginLeft: "28px",
+								color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
+								fontSize: "12px",
+							}}>
+							Prevent Cline from asking follow-up questions. When enabled, Cline will proceed with best guesses
+							rather than asking for clarification.
 						</div>
 					</div>
 					<div

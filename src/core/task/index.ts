@@ -1148,7 +1148,7 @@ export class Task {
 			if (this.autoApprovalSettings.fullTrust) {
 				return true
 			}
-			
+
 			switch (toolName) {
 				case "read_file":
 				case "list_files":
@@ -2392,7 +2392,10 @@ export class Task {
 
 								let didAutoApprove = false
 
-								if ((!requiresApproval || this.autoApprovalSettings.fullTrust) && this.shouldAutoApproveTool(block.name)) {
+								if (
+									(!requiresApproval || this.autoApprovalSettings.fullTrust) &&
+									this.shouldAutoApproveTool(block.name)
+								) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "command")
 									await this.say("command", command, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2668,6 +2671,13 @@ export class Task {
 									break
 								}
 								this.consecutiveMistakeCount = 0
+
+								// If questions are disabled, skip asking the user and proceed with best-guess answer
+								if (this.autoApprovalSettings.disableQuestions) {
+									const defaultText = "Proceed with best guess"
+									pushToolResult(formatResponse.toolResult(`<answer>\n${defaultText}\n</answer>`))
+									break
+								}
 
 								if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
 									showSystemNotification({
