@@ -12,19 +12,14 @@ export class TargonHandler implements ApiHandler {
 	constructor(options: ApiHandlerOptions) {
 		this.options = options
 		this.client = new OpenAI({
-			baseURL: "https://api.targon.ai/v1", 
-			apiKey: this.options.targonApiKey,   
+			baseURL: "https://api.targon.ai/v1",
+			apiKey: this.options.targonApiKey,
 		})
 	}
 
-    // should we put anthropic format as message
+	// should we put anthropic format as message
 	async *createMessage(systemPrompt: string, messages: any[]): ApiStream {
-		const stream = await createOpenRouterStream(
-			this.client,
-			systemPrompt,
-			messages,
-			this.getModel(),
-		)
+		const stream = await createOpenRouterStream(this.client, systemPrompt, messages, this.getModel())
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
@@ -37,13 +32,13 @@ export class TargonHandler implements ApiHandler {
 		}
 	}
 
-    getModel(): { id: TargonModelId; info: ModelInfo } {
-        const modelId = (this.options.apiModelId || targonDefaultModelId) as TargonModelId
-        const modelInfo = targonModels[modelId]
-    
-        return {
-            id: modelId,
-            info: modelInfo,
-        }
-    }
+	getModel(): { id: TargonModelId; info: ModelInfo } {
+		const modelId = (this.options.apiModelId || targonDefaultModelId) as TargonModelId
+		const modelInfo = targonModels[modelId]
+
+		return {
+			id: modelId,
+			info: modelInfo,
+		}
+	}
 }
