@@ -10,6 +10,7 @@ import {
 	ContextMenuOptionType,
 	getContextMenuOptions,
 	insertMention,
+	insertMentionDirectly,
 	removeMention,
 	shouldShowContextMenu,
 	SearchResult,
@@ -239,6 +240,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [arrowPosition, setArrowPosition] = useState(0)
 		const [menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<ChatSettings["mode"] | null>(null)
+		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
+
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
@@ -268,6 +271,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							description: `${commit.shortHash} by ${commit.author} on ${commit.date}`,
 						})) || []
 					setGitCommits(commits)
+					break
+				}
+				case "relativePathsResponse": {
+					// New case for batch response
+					const validPaths = message.paths?.filter((path): path is string => !!path) || []
+					if (validPaths.length > 0) {
+						setPendingInsertions((prev) => [...prev, ...validPaths])
+					}
 					break
 				}
 
@@ -482,12 +493,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			],
 		)
 
+		// Effect to set cursor position after state updates
 		useLayoutEffect(() => {
 			if (intendedCursorPosition !== null && textAreaRef.current) {
 				textAreaRef.current.setSelectionRange(intendedCursorPosition, intendedCursorPosition)
-				setIntendedCursorPosition(null) // Reset the state
+				setIntendedCursorPosition(null) // Reset the state after applying
 			}
 		}, [inputValue, intendedCursorPosition])
+
+		useEffect(() => {
+			if (pendingInsertions.length === 0 || !textAreaRef.current) {
+				return
+			}
+
+			const path = pendingInsertions[0]
+			const currentTextArea = textAreaRef.current
+			const currentValue = currentTextArea.value
+			const currentCursorPos =
+				intendedCursorPosition ??
+				(currentTextArea.selectionStart >= 0 ? currentTextArea.selectionStart : currentValue.length)
+
+			const { newValue, mentionIndex } = insertMentionDirectly(currentValue, currentCursorPos, path)
+
+			setInputValue(newValue)
+
+			const newCursorPosition = mentionIndex + path.length + 2
+			setIntendedCursorPosition(newCursorPosition)
+
+			setPendingInsertions((prev) => prev.slice(1))
+		}, [pendingInsertions, setInputValue])
 
 		const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -848,21 +882,63 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const onDrop = async (e: React.DragEvent) => {
 			e.preventDefault()
 
-			const files = Array.from(e.dataTransfer.files)
-			const text = e.dataTransfer.getData("text")
+			// --- 1. VSCode Explorer Drop Handling ---
+			let uris: string[] = []
+			const resourceUrlsData = e.dataTransfer.getData("resourceurls")
+			const vscodeUriListData = e.dataTransfer.getData("application/vnd.code.uri-list")
 
+			// 1a. Try 'resourceurls' first (used for multi-select)
+			if (resourceUrlsData) {
+				try {
+					uris = JSON.parse(resourceUrlsData)
+					uris = uris.map((uri) => decodeURIComponent(uri))
+				} catch (error) {
+					console.error("Failed to parse resourceurls JSON:", error)
+					uris = [] // Reset if parsing failed
+				}
+			}
+
+			// 1b. Fallback to 'application/vnd.code.uri-list' (newline separated)
+			if (uris.length === 0 && vscodeUriListData) {
+				uris = vscodeUriListData.split("\n").map((uri) => uri.trim())
+			}
+
+			// 1c. Filter for valid schemes (file or vscode-file) and non-empty strings
+			const validUris = uris.filter((uri) => uri && (uri.startsWith("vscode-file:") || uri.startsWith("file:")))
+
+			if (validUris.length > 0) {
+				setPendingInsertions([])
+				let initialCursorPos = inputValue.length
+				if (textAreaRef.current) {
+					initialCursorPos = textAreaRef.current.selectionStart
+				}
+				setIntendedCursorPosition(initialCursorPos)
+
+				vscode.postMessage({
+					type: "getRelativePaths",
+					uris: validUris,
+				})
+				return
+			}
+
+			const text = e.dataTransfer.getData("text")
 			if (text) {
 				handleTextDrop(text)
 				return
 			}
 
+			// --- 3. Image Drop Handling ---
+			// Only proceed if it wasn't a VSCode resource or plain text drop
+			const files = Array.from(e.dataTransfer.files)
 			const acceptedTypes = ["png", "jpeg", "webp"]
 			const imageFiles = files.filter((file) => {
 				const [type, subtype] = file.type.split("/")
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (shouldDisableImages || imageFiles.length === 0) return
+			if (shouldDisableImages || imageFiles.length === 0) {
+				return
+			}
 
 			const imageDataArray = await readImageFiles(imageFiles)
 			const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
