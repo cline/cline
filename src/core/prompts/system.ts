@@ -356,6 +356,21 @@ ${
   "assignees": ["octocat"]
 }
 </arguments>
+</use_mcp_tool>
+
+## Example 7: Requesting to use an MCP prompt
+
+<use_mcp_tool>
+<server_name>git-helper</server_name>
+<tool_name>prompts/get</tool_name>
+<arguments>
+{
+  "name": "git-commit",
+  "arguments": {
+    "changes": "Added new user authentication feature with OAuth support"
+  }
+}
+</arguments>
 </use_mcp_tool>`
 		: ""
 }
@@ -421,11 +436,28 @@ ${
 
 					const config = JSON.parse(server.config)
 
+					const prompts = server.prompts
+						?.map((prompt) => {
+							const argsStr =
+								prompt.arguments && prompt.arguments.length > 0
+									? `\n    Arguments: ${prompt.arguments
+											.map(
+												(arg) =>
+													`${arg.name}${arg.required ? " (required)" : ""}: ${arg.description || "No description"}`,
+											)
+											.join(", ")}`
+									: ""
+
+							return `- ${prompt.name}: ${prompt.description || "No description"}${argsStr}`
+						})
+						.join("\n\n")
+
 					return (
 						`## ${server.name} (\`${config.command}${config.args && Array.isArray(config.args) ? ` ${config.args.join(" ")}` : ""}\`)` +
 						(tools ? `\n\n### Available Tools\n${tools}` : "") +
 						(templates ? `\n\n### Resource Templates\n${templates}` : "") +
-						(resources ? `\n\n### Direct Resources\n${resources}` : "")
+						(resources ? `\n\n### Direct Resources\n${resources}` : "") +
+						(prompts ? `\n\n### Available Prompts\n${prompts}` : "")
 					)
 				})
 				.join("\n\n")}`
