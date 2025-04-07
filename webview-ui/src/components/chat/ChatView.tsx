@@ -497,6 +497,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 								textAreaRef.current?.focus()
 							}
 							break
+						case "focusInput":
+							textAreaRef.current?.focus()
+							break
 					}
 					break
 				case "selectedImages":

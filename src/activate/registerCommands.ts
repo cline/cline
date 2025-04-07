@@ -114,6 +114,9 @@ const getCommandsMap = ({ context, outputChannel, provider }: RegisterCommandOpt
 			const { promptForCustomStoragePath } = await import("../shared/storagePathManager")
 			await promptForCustomStoragePath()
 		},
+		"roo-cline.focusInput": () => {
+			provider.postMessageToWebview({ type: "action", action: "focusInput" })
+		},
 	}
 }
 
