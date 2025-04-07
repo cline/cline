@@ -95,6 +95,7 @@ export interface ExtensionState {
     }
     version: string
     vscMachineId: string
+    enableTabAutocomplete: boolean
 }
 
 export interface PostHogMessage {

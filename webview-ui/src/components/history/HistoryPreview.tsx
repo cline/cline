@@ -115,32 +115,6 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
                                 >
                                     {item.task}
                                 </div>
-                                <div
-                                    style={{
-                                        fontSize: '0.85em',
-                                        color: 'var(--vscode-descriptionForeground)',
-                                    }}
-                                >
-                                    <span>
-                                        Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓
-                                        {formatLargeNumber(item.tokensOut || 0)}
-                                    </span>
-                                    {!!item.cacheWrites && (
-                                        <>
-                                            {' • '}
-                                            <span>
-                                                Cache: +{formatLargeNumber(item.cacheWrites || 0)} →{' '}
-                                                {formatLargeNumber(item.cacheReads || 0)}
-                                            </span>
-                                        </>
-                                    )}
-                                    {!!item.totalCost && (
-                                        <>
-                                            {' • '}
-                                            <span>API Cost: ${item.totalCost?.toFixed(4)}</span>
-                                        </>
-                                    )}
-                                </div>
                             </div>
                         </div>
                     ))}

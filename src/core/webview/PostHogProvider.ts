@@ -38,6 +38,7 @@ import { getTotalTasksSize } from '../../utils/storage'
 import { GlobalFileNames } from '../../global-constants'
 import { setTimeout as setTimeoutPromise } from 'node:timers/promises'
 import { downloadTask } from '../../integrations/misc/export-markdown'
+import { getStatusBarStatus, setupStatusBar, StatusBarStatus } from '../../autocomplete/statusBar'
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -112,6 +113,7 @@ type GlobalStateKey =
     | 'asksageApiUrl'
     | 'thinkingBudgetTokens'
     | 'planActSeparateModelsSetting'
+    | 'enableTabAutocomplete'
 
 export class PostHogProvider implements vscode.WebviewViewProvider {
     public static readonly sideBarId = 'posthog.SidebarProvider' // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
@@ -266,6 +268,107 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
 
         // if the extension is starting a new session, clear previous task state
         this.clearTask()
+
+        this.outputChannel.appendLine('Webview view resolved')
+    }
+    async resolveSettingsWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
+        this.outputChannel.appendLine('Resolving webview view')
+        this.view = webviewView
+
+        webviewView.webview.options = {
+            // Allow scripts in the webview
+            enableScripts: true,
+            localResourceRoots: [this.context.extensionUri],
+        }
+
+        webviewView.webview.html =
+            this.context.extensionMode === vscode.ExtensionMode.Development
+                ? await this.getHMRHtmlContent(webviewView.webview)
+                : this.getHtmlContent(webviewView.webview)
+
+        // Sets up an event listener to listen for messages passed from the webview view context
+        // and executes code based on the message that is received
+        this.setWebviewMessageListener(webviewView.webview)
+
+        // Logs show up in bottom panel > Debug Console
+        //console.log("registering listener")
+
+        // Listen for when the panel becomes visible
+        // https://github.com/microsoft/vscode-discussions/discussions/840
+        if ('onDidChangeViewState' in webviewView) {
+            // WebviewView and WebviewPanel have all the same properties except for this visibility listener
+            // panel
+            webviewView.onDidChangeViewState(
+                () => {
+                    if (this.view?.visible) {
+                        this.postMessageToWebview({
+                            type: 'action',
+                            action: 'didBecomeVisible',
+                        })
+                        // Automatically open settings panel when view becomes visible
+                        this.postMessageToWebview({
+                            type: 'action',
+                            action: 'settingsButtonClicked',
+                        })
+                    }
+                },
+                null,
+                this.disposables
+            )
+        } else if ('onDidChangeVisibility' in webviewView) {
+            // sidebar
+            webviewView.onDidChangeVisibility(
+                () => {
+                    if (this.view?.visible) {
+                        this.postMessageToWebview({
+                            type: 'action',
+                            action: 'didBecomeVisible',
+                        })
+                        // Automatically open settings panel when view becomes visible
+                        this.postMessageToWebview({
+                            type: 'action',
+                            action: 'settingsButtonClicked',
+                        })
+                    }
+                },
+                null,
+                this.disposables
+            )
+        }
+
+        // Listen for when the view is disposed
+        // This happens when the user closes the view or when the view is closed programmatically
+        webviewView.onDidDispose(
+            async () => {
+                await this.dispose()
+            },
+            null,
+            this.disposables
+        )
+
+        // Listen for configuration changes
+        vscode.workspace.onDidChangeConfiguration(
+            async (e) => {
+                if (e && e.affectsConfiguration('workbench.colorTheme')) {
+                    // Sends latest theme name to webview
+                    await this.postMessageToWebview({
+                        type: 'theme',
+                        text: JSON.stringify(await getTheme()),
+                    })
+                }
+            },
+            null,
+            this.disposables
+        )
+
+        // if the extension is starting a new session, clear previous task state
+        this.clearTask()
+
+        // Automatically open settings panel when webview is first initialized
+        await this.postMessageToWebview({
+            type: 'action',
+            action: 'settingsButtonClicked',
+        })
 
         this.outputChannel.appendLine('Webview view resolved')
     }
@@ -805,6 +908,11 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
                             await this.updateTelemetrySetting(message.telemetrySetting)
                         }
 
+                        // enable tab autocomplete
+                        if (message.enableTabAutocomplete !== undefined) {
+                            await this.toggleEnableTabAutocomplete(message.enableTabAutocomplete)
+                        }
+
                         // plan act setting
                         await this.updateGlobalState(
                             'planActSeparateModelsSetting',
@@ -837,6 +945,17 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
         await this.updateGlobalState('telemetrySetting', telemetrySetting)
         const isOptedIn = telemetrySetting === 'enabled'
         telemetryService.updateTelemetryState(isOptedIn)
+    }
+
+    async toggleEnableTabAutocomplete(enableTabAutocomplete: boolean) {
+        console.log('toggleEnableTabAutocomplete', enableTabAutocomplete)
+        await this.updateGlobalState('enableTabAutocomplete', enableTabAutocomplete)
+        telemetryService.captureAutocompleteEnabled()
+        if (enableTabAutocomplete) {
+            setupStatusBar(StatusBarStatus.Enabled)
+        } else {
+            setupStatusBar(StatusBarStatus.Disabled)
+        }
     }
 
     async togglePlanActModeWithChatSettings(chatSettings: ChatSettings, chatContent?: ChatContent) {
@@ -1668,6 +1787,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             userInfo,
             telemetrySetting,
             planActSeparateModelsSetting,
+            enableTabAutocomplete,
         } = await this.getState()
 
         return {
@@ -1692,6 +1812,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             telemetrySetting,
             planActSeparateModelsSetting,
             vscMachineId: vscode.env.machineId,
+            enableTabAutocomplete: enableTabAutocomplete ?? false,
         }
     }
 
@@ -1810,6 +1931,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             thinkingBudgetTokens,
             sambanovaApiKey,
             planActSeparateModelsSettingRaw,
+            enableTabAutocomplete,
             inkeepApiKey,
             codestralApiKey,
         ] = await Promise.all([
@@ -1877,6 +1999,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             this.getGlobalState('thinkingBudgetTokens') as Promise<number | undefined>,
             this.getSecret('sambanovaApiKey') as Promise<string | undefined>,
             this.getGlobalState('planActSeparateModelsSetting') as Promise<boolean | undefined>,
+            this.getGlobalState('enableTabAutocomplete') as Promise<boolean | undefined>,
             this.getSecret('inkeepApiKey') as Promise<string | undefined>,
             this.getSecret('codestralApiKey') as Promise<string | undefined>,
         ])
@@ -1991,6 +2114,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             previousModeThinkingBudgetTokens,
             telemetrySetting: telemetrySetting || 'unset',
             planActSeparateModelsSetting,
+            enableTabAutocomplete,
         }
     }
 

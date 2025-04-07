@@ -1305,26 +1305,24 @@ export class PostHog {
     }
 
     shouldAutoApproveTool(toolName: ToolUseName): boolean {
-        if (this.autoApprovalSettings.enabled) {
-            switch (toolName) {
-                case 'read_file':
-                case 'list_files':
-                case 'list_code_definition_names':
-                case 'search_files':
-                case 'search_docs':
-                    return this.autoApprovalSettings.actions.readFiles
-                case 'write_to_file':
-                case 'replace_in_file':
-                case 'add_capture_calls':
-                    return this.autoApprovalSettings.actions.editFiles
-                case 'execute_command':
-                    return this.autoApprovalSettings.actions.executeCommands
-                case 'browser_action':
-                    return this.autoApprovalSettings.actions.useBrowser
-                case 'access_mcp_resource':
-                case 'use_mcp_tool':
-                    return this.autoApprovalSettings.actions.useMcp
-            }
+        switch (toolName) {
+            case 'read_file':
+            case 'list_files':
+            case 'list_code_definition_names':
+            case 'search_files':
+            case 'search_docs':
+                return this.autoApprovalSettings.actions.readFiles
+            case 'write_to_file':
+            case 'replace_in_file':
+            case 'add_capture_calls':
+                return this.autoApprovalSettings.actions.editFiles
+            case 'execute_command':
+                return this.autoApprovalSettings.actions.executeCommands
+            case 'browser_action':
+                return this.autoApprovalSettings.actions.useBrowser
+            case 'access_mcp_resource':
+            case 'use_mcp_tool':
+                return this.autoApprovalSettings.actions.useMcp
         }
         return false
     }
@@ -1718,7 +1716,7 @@ export class PostHog {
                 }
 
                 const showNotificationForApprovalIfAutoApprovalEnabled = (message: string) => {
-                    if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+                    if (this.autoApprovalSettings.enableNotifications) {
                         showSystemNotification({
                             subtitle: 'Approval Required',
                             message,
@@ -1947,7 +1945,7 @@ export class PostHog {
                                 } else {
                                     // If auto-approval is enabled but this tool wasn't auto-approved, send notification
                                     showNotificationForApprovalIfAutoApprovalEnabled(
-                                        `PostHog wants to ${fileExists ? 'edit' : 'create'} ${path.basename(relPath)}`
+                                        `Max wants to ${fileExists ? 'edit' : 'create'} ${path.basename(relPath)}`
                                     )
                                     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
 
@@ -2089,7 +2087,7 @@ export class PostHog {
                                     telemetryService.captureToolUsage(this.taskId, block.name, true, true)
                                 } else {
                                     showNotificationForApprovalIfAutoApprovalEnabled(
-                                        `PostHog wants to read ${path.basename(absolutePath)}`
+                                        `Max wants to read ${path.basename(absolutePath)}`
                                     )
                                     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
                                     const didApprove = await askApproval('tool', completeMessage)
@@ -2163,7 +2161,7 @@ export class PostHog {
                                     telemetryService.captureToolUsage(this.taskId, block.name, true, true)
                                 } else {
                                     showNotificationForApprovalIfAutoApprovalEnabled(
-                                        `PostHog wants to view directory ${path.basename(absolutePath)}/`
+                                        `Max wants to view directory ${path.basename(absolutePath)}/`
                                     )
                                     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
                                     const didApprove = await askApproval('tool', completeMessage)
@@ -2232,7 +2230,7 @@ export class PostHog {
                                     telemetryService.captureToolUsage(this.taskId, block.name, true, true)
                                 } else {
                                     showNotificationForApprovalIfAutoApprovalEnabled(
-                                        `PostHog wants to view source code definitions in ${path.basename(absolutePath)}/`
+                                        `Max wants to view source code definitions in ${path.basename(absolutePath)}/`
                                     )
                                     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
                                     const didApprove = await askApproval('tool', completeMessage)
@@ -2311,7 +2309,7 @@ export class PostHog {
                                     telemetryService.captureToolUsage(this.taskId, block.name, true, true)
                                 } else {
                                     showNotificationForApprovalIfAutoApprovalEnabled(
-                                        `PostHog wants to search files in ${path.basename(absolutePath)}/`
+                                        `Max wants to search files in ${path.basename(absolutePath)}/`
                                     )
                                     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
                                     const didApprove = await askApproval('tool', completeMessage)
@@ -2374,7 +2372,7 @@ export class PostHog {
                                     telemetryService.captureToolUsage(this.taskId, block.name, true, true)
                                 } else {
                                     showNotificationForApprovalIfAutoApprovalEnabled(
-                                        `PostHog wants to search documentation for "${query}"`
+                                        `Max wants to search documentation for "${query}"`
                                     )
                                     this.removeLastPartialMessageIfExistsWithType('say', 'tool')
                                     const didApprove = await askApproval('tool', completeMessage)
@@ -2461,7 +2459,7 @@ export class PostHog {
                                         this.consecutiveAutoApprovedRequestsCount++
                                     } else {
                                         showNotificationForApprovalIfAutoApprovalEnabled(
-                                            `PostHog wants to use a browser and launch ${url}`
+                                            `Max wants to use a browser and launch ${url}`
                                         )
                                         this.removeLastPartialMessageIfExistsWithType('say', 'browser_action_launch')
                                         const didApprove = await askApproval('browser_action_launch', url)
@@ -2630,7 +2628,7 @@ export class PostHog {
                                     didAutoApprove = true
                                 } else {
                                     showNotificationForApprovalIfAutoApprovalEnabled(
-                                        `PostHog wants to execute a command: ${command}`
+                                        `Max wants to execute a command: ${command}`
                                     )
                                     // this.removeLastPartialMessageIfExistsWithType("say", "command")
                                     const didApprove = await askApproval(
@@ -2797,7 +2795,7 @@ export class PostHog {
                                     this.consecutiveAutoApprovedRequestsCount++
                                 } else {
                                     showNotificationForApprovalIfAutoApprovalEnabled(
-                                        `PostHog wants to use ${tool_name} on ${server_name}`
+                                        `Max wants to use ${tool_name} on ${server_name}`
                                     )
                                     this.removeLastPartialMessageIfExistsWithType('say', 'use_mcp_server')
                                     const didApprove = await askApproval('use_mcp_server', completeMessage)
@@ -2891,7 +2889,7 @@ export class PostHog {
                                     this.consecutiveAutoApprovedRequestsCount++
                                 } else {
                                     showNotificationForApprovalIfAutoApprovalEnabled(
-                                        `PostHog wants to access ${uri} on ${server_name}`
+                                        `Max wants to access ${uri} on ${server_name}`
                                     )
                                     this.removeLastPartialMessageIfExistsWithType('say', 'use_mcp_server')
                                     const didApprove = await askApproval('use_mcp_server', completeMessage)
@@ -2948,12 +2946,9 @@ export class PostHog {
                                 }
                                 this.consecutiveMistakeCount = 0
 
-                                if (
-                                    this.autoApprovalSettings.enabled &&
-                                    this.autoApprovalSettings.enableNotifications
-                                ) {
+                                if (this.autoApprovalSettings.enableNotifications) {
                                     showSystemNotification({
-                                        subtitle: 'PostHog has a question...',
+                                        subtitle: 'Max has a question...',
                                         message: question.replace(/\n/g, ' '),
                                     })
                                 }
@@ -3017,13 +3012,6 @@ export class PostHog {
                                     break
                                 }
                                 this.consecutiveMistakeCount = 0
-
-                                // if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
-                                // 	showSystemNotification({
-                                // 		subtitle: "PostHog has a response...",
-                                // 		message: response.replace(/\n/g, " "),
-                                // 	})
-                                // }
 
                                 this.isAwaitingPlanResponse = true
                                 let { text, images } = await this.ask(
@@ -3181,10 +3169,7 @@ export class PostHog {
                                 }
                                 this.consecutiveMistakeCount = 0
 
-                                if (
-                                    this.autoApprovalSettings.enabled &&
-                                    this.autoApprovalSettings.enableNotifications
-                                ) {
+                                if (this.autoApprovalSettings.enableNotifications) {
                                     showSystemNotification({
                                         subtitle: 'Task Completed',
                                         message: result.replace(/\n/g, ' '),
@@ -3308,7 +3293,7 @@ export class PostHog {
         }
 
         if (this.consecutiveMistakeCount >= 3) {
-            if (this.autoApprovalSettings.enabled && this.autoApprovalSettings.enableNotifications) {
+            if (this.autoApprovalSettings.enableNotifications) {
                 showSystemNotification({
                     subtitle: 'Error',
                     message: 'PostHog is having trouble. Would you like to continue the task?',
@@ -3334,10 +3319,7 @@ export class PostHog {
             this.consecutiveMistakeCount = 0
         }
 
-        if (
-            this.autoApprovalSettings.enabled &&
-            this.consecutiveAutoApprovedRequestsCount >= this.autoApprovalSettings.maxRequests
-        ) {
+        if (this.consecutiveAutoApprovedRequestsCount >= this.autoApprovalSettings.maxRequests) {
             if (this.autoApprovalSettings.enableNotifications) {
                 showSystemNotification({
                     subtitle: 'Max Requests Reached',
