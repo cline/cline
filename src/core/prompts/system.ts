@@ -149,15 +149,6 @@ Usage:
 <recursive>true or false (optional)</recursive>
 </list_files>
 
-## search_docs
-Description: Request to search the PostHog documentation for the specified query.
-Parameters:
-- query: (required) The query to search the documentation for.
-Usage:
-<search_docs>
-<query>Your search query here</query>
-</search_docs>
-
 ## list_code_definition_names
 Description: Request to list definition names (classes, functions, methods, etc.) used in source code files at the top level of the specified directory. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.
 Parameters:
@@ -282,16 +273,27 @@ Array of options here (optional), e.g. ["Option 1", "Option 2", "Option 3"]
 
 # PostHog tools
 
-## add_tracking
-Description: This can be used to add posthog.capture() calls to files. You should use this tool whenever you want to add analytics to files.
+You should use available PostHog tools whenever you are making code changes related to PostHog. If an available tool does not exist, you should use the search_docs tool to search documentation and use your existing knowledge about PostHog to make the changes.
+
+## search_docs
+Description: Request to search the PostHog documentation for the specified query.
 Parameters:
-- paths: (required) An array of file paths to add tracking to. These should be relative to the current working directory ${cwd.toPosix()}.
+- query: (required) The query to search the documentation for.
 Usage:
-<add_tracking>
+<search_docs>
+<query>Your search query here</query>
+</search_docs>
+
+## add_capture_calls
+Description: This can be used to add posthog.capture() calls to files to implement analytics tracking. You should first decide which files you need to add capture calls to, then use this tool to add the capture calls.
+Parameters:
+- paths: (required) An array of file paths to add capture calls to. These should be relative to the current working directory ${cwd.toPosix()}.
+Usage:
+<add_capture_calls>
 <paths>
 Array of file paths here (e.g. ["src/components/App.tsx", "src/pages/Home.tsx"])
 </paths>
-</add_tracking>
+</add_capture_calls>
 
 # Tool Use Examples
 

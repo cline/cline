@@ -72,7 +72,7 @@ import { AnthropicHandler } from '../api/providers/anthropic'
 import { LOCK_TEXT_SYMBOL, PostHogIgnoreController } from './ignore/PostHogIgnoreController'
 import { PostHogProvider } from './webview/PostHogProvider'
 import { InkeepHandler } from '../api/providers/inkeep'
-import { ADD_TRACKING_PROMPT } from './prompts/tools/add-tracking'
+import { ADD_CAPTURE_CALLS_PROMPT } from './prompts/tools/add-tracking'
 
 const cwd =
     vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), 'Desktop') // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1315,7 +1315,7 @@ export class PostHog {
                     return this.autoApprovalSettings.actions.readFiles
                 case 'write_to_file':
                 case 'replace_in_file':
-                case 'add_tracking':
+                case 'add_capture_calls':
                     return this.autoApprovalSettings.actions.editFiles
                 case 'execute_command':
                     return this.autoApprovalSettings.actions.executeCommands
@@ -1624,7 +1624,7 @@ export class PostHog {
                             return `[${block.name}]`
                         case 'search_docs':
                             return `[${block.name} for '${block.params.query}']`
-                        case 'add_tracking':
+                        case 'add_capture_calls':
                             try {
                                 const paths = JSON.parse(block.params.paths ?? '')
                                 return `[${block.name} to ${paths.length} files]`
@@ -2678,7 +2678,7 @@ export class PostHog {
                             break
                         }
                     }
-                    case 'add_tracking': {
+                    case 'add_capture_calls': {
                         try {
                             if (block.partial) {
                                 //noop
@@ -2688,7 +2688,7 @@ export class PostHog {
                             const pathsString: string | undefined = block.params.paths
                             if (!pathsString) {
                                 this.consecutiveMistakeCount++
-                                pushToolResult(await this.sayAndCreateMissingParamError('add_tracking', 'paths'))
+                                pushToolResult(await this.sayAndCreateMissingParamError('add_capture_calls', 'paths'))
                                 break
                             }
 
@@ -2703,12 +2703,12 @@ export class PostHog {
                                 return filePath
                             })
 
-                            const result = await this.addTrackingTool(paths)
+                            const result = await this.addCaptureCallsTool(paths)
 
                             pushToolResult(result)
                             break
                         } catch (error) {
-                            await handleError('adding tracking', error)
+                            await handleError('adding capture calls', error)
                             break
                         }
                     }
@@ -3892,12 +3892,14 @@ export class PostHog {
         return `<environment_details>\n${details.trim()}\n</environment_details>`
     }
 
-    async addTrackingTool(paths: string[]): Promise<ToolResponse> {
+    async addCaptureCallsTool(paths: string[]): Promise<ToolResponse> {
         const numberOfFiles = paths.length
 
         await this.say('text', `Starting to add analytics to ${numberOfFiles} files...`)
 
         const results: { path: string; success: boolean; message: string }[] = []
+
+        // TODO: Pull in documentation from inkeep for all file extensions and add to system prompt as context
 
         const processFile = async (relPath: string): Promise<void> => {
             try {
@@ -3918,7 +3920,7 @@ export class PostHog {
                 const textDecoder = new TextDecoder()
                 const content = textDecoder.decode(fileContent)
 
-                const systemPrompt = await ADD_TRACKING_PROMPT()
+                const systemPrompt = await ADD_CAPTURE_CALLS_PROMPT()
 
                 const existingTracking = await regexSearchFiles(
                     cwd,
@@ -3928,8 +3930,10 @@ export class PostHog {
                     this.posthogIgnoreController
                 )
 
+                console.log('existingTracking', existingTracking)
+
                 const userPrompt = `
-                Code snippets from some existing capture calls in the codebase which you can use as examples for naming conventions:
+                Existing capture calls in the codebase:
                 ${existingTracking.slice(0, 1000)}
 
                 File: ${path.basename(relPath)}

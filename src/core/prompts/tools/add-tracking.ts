@@ -1,4 +1,4 @@
-export const ADD_TRACKING_PROMPT =
+export const ADD_CAPTURE_CALLS_PROMPT =
     async () => `You are an analytics implementation expert. Your goal is to analyze code and add appropriate posthog.capture() calls to track key user interactions and important events.
 
 Analyze the code and determine what events would be valuable to track based on:
@@ -8,7 +8,7 @@ Analyze the code and determine what events would be valuable to track based on:
 4. Error cases and edge conditions
 
 General Rules:
-- Event names & properties should follow existing naming conventions if tracking already exists, otherwise use snake_case
+- Event names & properties should follow existing naming conventions if tracking already exists or is provided as context. If multiple conventions exist, use the most common one. Otherwise use snake_case.
 - Include relevant properties that provide context
 - Don't track sensitive information
 - Don't duplicate existing capture calls
