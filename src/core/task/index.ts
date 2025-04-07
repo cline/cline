@@ -1144,6 +1144,11 @@ export class Task {
 
 	shouldAutoApproveTool(toolName: ToolUseName): boolean {
 		if (this.autoApprovalSettings.enabled) {
+			// If fullTrust is enabled, bypass all other checks
+			if (this.autoApprovalSettings.fullTrust) {
+				return true
+			}
+			
 			switch (toolName) {
 				case "read_file":
 				case "list_files":
@@ -2387,7 +2392,7 @@ export class Task {
 
 								let didAutoApprove = false
 
-								if (!requiresApproval && this.shouldAutoApproveTool(block.name)) {
+								if ((!requiresApproval || this.autoApprovalSettings.fullTrust) && this.shouldAutoApproveTool(block.name)) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "command")
 									await this.say("command", command, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -3018,6 +3023,7 @@ export class Task {
 
 		if (
 			this.autoApprovalSettings.enabled &&
+			!this.autoApprovalSettings.fullTrust &&
 			this.consecutiveAutoApprovedRequestsCount >= this.autoApprovalSettings.maxRequests
 		) {
 			if (this.autoApprovalSettings.enableNotifications) {

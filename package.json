@@ -1,6 +1,6 @@
 {
 	"name": "claude-dev",
-	"displayName": "Cline",
+	"displayName": "Piramal Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
 	"version": "3.9.2",
 	"icon": "assets/icons/icon.png",
@@ -46,7 +46,7 @@
 			"activitybar": [
 				{
 					"id": "claude-dev-ActivityBar",
-					"title": "Cline",
+					"title": "Piramal Cline",
 					"icon": "assets/icons/icon.svg"
 				}
 			]
@@ -94,28 +94,28 @@
 			{
 				"command": "cline.openInNewTab",
 				"title": "Open In New Tab",
-				"category": "Cline"
+				"category": "Piramal Cline"
 			},
 			{
 				"command": "cline.dev.createTestTasks",
 				"title": "Create Test Tasks",
-				"category": "Cline",
+				"category": "Piramal Cline",
 				"when": "cline.isDevMode"
 			},
 			{
 				"command": "cline.addToChat",
 				"title": "Add to Cline",
-				"category": "Cline"
+				"category": "Piramal Cline"
 			},
 			{
 				"command": "cline.addTerminalOutputToChat",
 				"title": "Add to Cline",
-				"category": "Cline"
+				"category": "Piramal Cline"
 			},
 			{
 				"command": "cline.fixWithCline",
 				"title": "Fix with Cline",
-				"category": "Cline"
+				"category": "Piramal Cline"
 			}
 		],
 		"menus": {
@@ -198,7 +198,7 @@
 			]
 		},
 		"configuration": {
-			"title": "Cline",
+			"title": "Piramal Cline",
 			"properties": {
 				"cline.vsCodeLmModelSelector": {
 					"type": "object",

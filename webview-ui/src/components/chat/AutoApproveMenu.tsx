@@ -240,6 +240,30 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 							</div>
 						</div>
 					))}
+					<div style={{ margin: "6px 0" }}>
+						<VSCodeCheckbox
+							checked={autoApprovalSettings.fullTrust}
+							onChange={(e) => {
+								const checked = (e.target as HTMLInputElement).checked
+								vscode.postMessage({
+									type: "autoApprovalSettings",
+									autoApprovalSettings: {
+										...autoApprovalSettings,
+										fullTrust: checked,
+									},
+								})
+							}}>
+							Full Trust Mode
+						</VSCodeCheckbox>
+						<div
+							style={{
+								marginLeft: "28px",
+								color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
+								fontSize: "12px",
+							}}>
+							Bypasses all approval checks, including max requests limit and command approval requirements. Use with extreme caution.
+						</div>
+					</div>
 					<div
 						style={{
 							height: "0.5px",
