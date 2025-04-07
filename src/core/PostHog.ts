@@ -28,6 +28,7 @@ import { BrowserSettings } from '../shared/BrowserSettings'
 import { ChatSettings } from '../shared/ChatSettings'
 import { combineApiRequests } from '../shared/combineApiRequests'
 import { combineCommandSequences, COMMAND_REQ_APP_STRING } from '../shared/combineCommandSequences'
+import async from 'async'
 import {
     BrowserAction,
     BrowserActionResult,
@@ -71,6 +72,7 @@ import { AnthropicHandler } from '../api/providers/anthropic'
 import { LOCK_TEXT_SYMBOL, PostHogIgnoreController } from './ignore/PostHogIgnoreController'
 import { PostHogProvider } from './webview/PostHogProvider'
 import { InkeepHandler } from '../api/providers/inkeep'
+import { ADD_CAPTURE_CALLS_PROMPT } from './prompts/tools/add-capture-calls'
 
 const cwd =
     vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath).at(0) ?? path.join(os.homedir(), 'Desktop') // may or may not exist but fs checking existence would immediately ask for permission which would be bad UX, need to come up with a better solution
@@ -1313,6 +1315,7 @@ export class PostHog {
                     return this.autoApprovalSettings.actions.readFiles
                 case 'write_to_file':
                 case 'replace_in_file':
+                case 'add_capture_calls':
                     return this.autoApprovalSettings.actions.editFiles
                 case 'execute_command':
                     return this.autoApprovalSettings.actions.executeCommands
@@ -1621,6 +1624,13 @@ export class PostHog {
                             return `[${block.name}]`
                         case 'search_docs':
                             return `[${block.name} for '${block.params.query}']`
+                        case 'add_capture_calls':
+                            try {
+                                const paths = JSON.parse(block.params.paths ?? '')
+                                return `[${block.name} to ${paths.length} files]`
+                            } catch (error) {
+                                return `[${block.name}]`
+                            }
                     }
                 }
 
@@ -2665,6 +2675,42 @@ export class PostHog {
                         } catch (error) {
                             await handleError('executing command', error)
 
+                            break
+                        }
+                    }
+                    case 'add_capture_calls': {
+                        try {
+                            if (block.partial) {
+                                //noop
+                                break
+                            }
+
+                            const pathsString: string | undefined = block.params.paths
+                            const trackingConventions =
+                                block.params.tracking_conventions ?? 'No existing tracking conventions provided'
+                            if (!pathsString) {
+                                this.consecutiveMistakeCount++
+                                pushToolResult(await this.sayAndCreateMissingParamError('add_capture_calls', 'paths'))
+                                break
+                            }
+
+                            // Parse paths array and normalize each path
+                            const rawPaths = parsePartialArrayString(removeClosingTag('paths', pathsString))
+
+                            // Normalize paths to handle absolute paths starting with '/'
+                            const paths = rawPaths.map((filePath) => {
+                                if (filePath.startsWith('/')) {
+                                    return filePath.substring(1)
+                                }
+                                return filePath
+                            })
+
+                            const result = await this.addCaptureCallsTool(paths, { trackingConventions })
+
+                            pushToolResult(result)
+                            break
+                        } catch (error) {
+                            await handleError('adding capture calls', error)
                             break
                         }
                     }
@@ -3846,5 +3892,83 @@ export class PostHog {
         }
 
         return `<environment_details>\n${details.trim()}\n</environment_details>`
+    }
+
+    async addCaptureCallsTool(
+        paths: string[],
+        { trackingConventions }: { trackingConventions: string }
+    ): Promise<ToolResponse> {
+        const numberOfFiles = paths.length
+
+        await this.say('text', `Starting to add analytics to ${numberOfFiles} files...`)
+
+        const results: { path: string; success: boolean; message: string }[] = []
+
+        // TODO: Pull in documentation from inkeep for all file extensions and add to system prompt as context
+
+        const processFile = async (relPath: string): Promise<void> => {
+            try {
+                const accessAllowed = this.posthogIgnoreController.validateAccess(relPath)
+
+                if (!accessAllowed) {
+                    results.push({
+                        path: relPath,
+                        success: false,
+                        message: `File not accessible: ${relPath}`,
+                    })
+                    return
+                }
+
+                const absolutePath = path.resolve(cwd, relPath)
+                const fileUri = vscode.Uri.file(absolutePath)
+                const fileContent = await vscode.workspace.fs.readFile(fileUri)
+                const textDecoder = new TextDecoder()
+                const content = textDecoder.decode(fileContent)
+
+                const systemPrompt = await ADD_CAPTURE_CALLS_PROMPT({ trackingConventions })
+
+                const userPrompt = `
+                File: ${path.basename(relPath)}
+                \`\`\`
+                ${content}
+                \`\`\`
+                `
+
+                const apiStream = this.api.createMessage(systemPrompt, [{ role: 'user', content: userPrompt }])
+
+                // Collect the whole response
+                let modifiedContent = ''
+                for await (const chunk of apiStream) {
+                    modifiedContent += chunk.type === 'text' ? chunk.text : ''
+                }
+
+                const textEncoder = new TextEncoder()
+                await vscode.workspace.fs.writeFile(fileUri, textEncoder.encode(modifiedContent))
+
+                await this.say('text', `Successfully added analytics to ${path.basename(relPath)}`)
+
+                results.push({
+                    path: relPath,
+                    success: true,
+                    message: `Successfully added analytics to ${path.basename(relPath)}`,
+                })
+
+                // TODO: Remove duplicate events using the doctor
+            } catch (error) {
+                this.say('text', `Failed to add analytics to ${relPath}`)
+
+                results.push({
+                    path: relPath,
+                    success: false,
+                    message: `Error processing ${relPath}: ${error instanceof Error ? error.message : String(error)}`,
+                })
+            }
+        }
+
+        await async.mapLimit(paths, 5, processFile)
+
+        const result = JSON.stringify(results)
+
+        return result
     }
 }
