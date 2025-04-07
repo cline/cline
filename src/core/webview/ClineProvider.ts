@@ -579,7 +579,26 @@ export class ClineProvider extends EventEmitter<ClineProviderEvents> implements 
 	}
 
 	private async getHMRHtmlContent(webview: vscode.Webview): Promise<string> {
-		const localPort = "5173"
+		// Try to read the port from the file
+		let localPort = "5173" // Default fallback
+		try {
+			const fs = require("fs")
+			const path = require("path")
+			const portFilePath = path.resolve(__dirname, "../.vite-port")
+
+			if (fs.existsSync(portFilePath)) {
+				localPort = fs.readFileSync(portFilePath, "utf8").trim()
+				console.log(`[ClineProvider:Vite] Using Vite server port from ${portFilePath}: ${localPort}`)
+			} else {
+				console.log(
+					`[ClineProvider:Vite] Port file not found at ${portFilePath}, using default port: ${localPort}`,
+				)
+			}
+		} catch (err) {
+			console.error("[ClineProvider:Vite] Failed to read Vite port file:", err)
+			// Continue with default port if file reading fails
+		}
+
 		const localServerUrl = `localhost:${localPort}`
 
 		// Check if local dev server is running.
