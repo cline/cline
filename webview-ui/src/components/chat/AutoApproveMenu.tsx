@@ -1,7 +1,16 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useState } from "react"
+import { useCallback, useState, useEffect } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
+
+const AnimatedSection = styled.div<{ show: boolean }>`
+	max-height: ${(props) => (props.show ? "100px" : "0")};
+	opacity: ${(props) => (props.show ? "1" : "0")};
+	overflow: hidden;
+	transition:
+		max-height 0.2s ease-in-out,
+		opacity 0.2s ease-in-out;
+`
 import { AutoApprovalSettings } from "../../../../src/shared/AutoApprovalSettings"
 import { vscode } from "../../utils/vscode"
 import { getAsVar, VSC_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND, VSC_DESCRIPTION_FOREGROUND } from "../../utils/vscStyles"
@@ -59,6 +68,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
+	const [showExecuteAllCommands, setShowExecuteAllCommands] = useState(false)
+
+	useEffect(() => {
+		setShowExecuteAllCommands(autoApprovalSettings.actions.executeCommands)
+	}, [autoApprovalSettings.actions.executeCommands])
 
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
@@ -232,17 +246,39 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						caution and only enable if you understand the risks.
 					</div>
 					{ACTION_METADATA.map((action) => {
-						// Only show executeAllCommands option if executeCommands is enabled
-						if (action.id === "executeAllCommands" && !autoApprovalSettings.actions.executeCommands) {
-							return null
+						if (action.id === "executeAllCommands") {
+							return (
+								<AnimatedSection key={action.id} show={showExecuteAllCommands}>
+									<div
+										style={{
+											margin: "6px 0",
+											marginLeft: "28px",
+										}}>
+										<VSCodeCheckbox
+											checked={autoApprovalSettings.actions[action.id]}
+											onChange={(e) => {
+												const checked = (e.target as HTMLInputElement).checked
+												updateAction(action.id, checked)
+											}}>
+											{action.label}
+										</VSCodeCheckbox>
+										<div
+											style={{
+												marginLeft: "28px",
+												color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
+												fontSize: "12px",
+											}}>
+											{action.description}
+										</div>
+									</div>
+								</AnimatedSection>
+							)
 						}
-
 						return (
 							<div
 								key={action.id}
 								style={{
 									margin: "6px 0",
-									marginLeft: action.id === "executeAllCommands" ? "28px" : "0",
 								}}>
 								<VSCodeCheckbox
 									checked={autoApprovalSettings.actions[action.id]}
