@@ -288,14 +288,14 @@ Usage:
 Description: This can be used to add posthog.capture() calls to files to implement analytics tracking. You should first decide which files you need to add capture calls to, then use this tool to add the capture calls.
 Parameters:
 - paths: (required) An array of file paths to add capture calls to. These should be relative to the current working directory ${cwd.toPosix()}.
-- tracking_conventions (required): A description of existing tracking conversions in the codebase, e.g. event names, properties, etc.
+- tracking_conventions (required): A description of existing tracking conversions in the codebase, e.g. event and property naming conventions, posthog import conventions, etc.
 Usage:
 <add_capture_calls>
 <paths>
 Array of file paths here (e.g. ["src/components/App.tsx", "src/pages/Home.tsx"])
 </paths>
 <tracking_conventions>
-Description of existing tracking conventions here
+Tracking conventions discovered in the codebase.
 </tracking_conventions>
 </add_capture_calls>
 
@@ -368,6 +368,7 @@ ${
     mcpHub.getMode() !== 'off'
         ? `
 
+
 ## Example 4: Requesting to use an MCP tool
 
 <use_mcp_tool>
@@ -406,6 +407,20 @@ ${
 </use_mcp_tool>`
         : ''
 }
+
+## Example 7: Adding capture calls to a codebase
+
+<add_capture_calls>
+<paths>
+["src/components/Dashboard.tsx", "src/components/Header.tsx", "src/components/Footer.tsx", "src/components/Sidebar.tsx"]
+</paths>
+<tracking_conventions>
+1. Event names follow the pattern "ComponentName Action" (e.g., "DashboardCard DataPresentationForm Changed")
+2. Properties include relevant information about the event (e.g., id, title, form type)
+3. PostHog is imported from "posthog-js"
+4. Capture calls are added to key button interactions and form submissions
+</tracking_conventions>
+</add_capture_calls>
 
 # Tool Use Guidelines
 
