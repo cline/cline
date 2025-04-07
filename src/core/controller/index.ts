@@ -44,6 +44,8 @@ import {
 } from "../storage/state"
 import { WebviewProvider } from "../webview"
 import { GlobalFileNames } from "../storage/disk"
+import { searchWorkspaceFiles } from "../../services/search/file-search"
+import { getWorkspacePath } from "../../utils/path"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -659,6 +661,86 @@ export class Controller {
 				await this.postStateToWebview()
 				this.refreshTotalTasksSize()
 				this.postMessageToWebview({ type: "relinquishControl" })
+				break
+			}
+			case "getRelativePaths": {
+				if (message.uris && message.uris.length > 0) {
+					const resolvedPaths = await Promise.all(
+						message.uris.map(async (uriString) => {
+							try {
+								const fileUri = vscode.Uri.parse(uriString, true)
+								const relativePath = vscode.workspace.asRelativePath(fileUri, false)
+
+								if (path.isAbsolute(relativePath)) {
+									console.warn(`Dropped file ${relativePath} is outside the workspace. Sending original path.`)
+									return fileUri.fsPath.replace(/\\/g, "/")
+								} else {
+									let finalPath = "/" + relativePath.replace(/\\/g, "/")
+									try {
+										const stat = await vscode.workspace.fs.stat(fileUri)
+										if (stat.type === vscode.FileType.Directory) {
+											finalPath += "/"
+										}
+									} catch (statError) {
+										console.error(`Error stating file ${fileUri.fsPath}:`, statError)
+									}
+									return finalPath
+								}
+							} catch (error) {
+								console.error(`Error calculating relative path for ${uriString}:`, error)
+								return null
+							}
+						}),
+					)
+					await this.postMessageToWebview({
+						type: "relativePathsResponse",
+						paths: resolvedPaths,
+					})
+				}
+				break
+			}
+
+			case "searchFiles": {
+				const workspacePath = getWorkspacePath()
+
+				if (!workspacePath) {
+					// Handle case where workspace path is not available
+					await this.postMessageToWebview({
+						type: "fileSearchResults",
+						results: [],
+						mentionsRequestId: message.mentionsRequestId,
+						error: "No workspace path available",
+					})
+					break
+				}
+				try {
+					// Call file search service with query from message
+					const results = await searchWorkspaceFiles(
+						message.query || "",
+						workspacePath,
+						20, // Use default limit, as filtering is now done in the backend
+					)
+
+					// debug logging to be removed
+					//console.log(`controller/index.ts: Search results: ${results.length}`)
+
+					// Send results back to webview
+					await this.postMessageToWebview({
+						type: "fileSearchResults",
+						results,
+						mentionsRequestId: message.mentionsRequestId,
+					})
+				} catch (error) {
+					const errorMessage = error instanceof Error ? error.message : String(error)
+
+					// Send error response to webview
+					await this.postMessageToWebview({
+						type: "fileSearchResults",
+						results: [],
+						error: errorMessage,
+						mentionsRequestId: message.mentionsRequestId,
+					})
+				}
 				break
 			}
 			// Add more switch case statements here as more webview message commands

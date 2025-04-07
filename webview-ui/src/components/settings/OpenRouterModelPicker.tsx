@@ -11,10 +11,30 @@ import { highlight } from "../history/HistoryView"
 import { ModelInfoView, normalizeApiConfiguration } from "./ApiOptions"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
+import FeaturedModelCard from "./FeaturedModelCard"
 
 export interface OpenRouterModelPickerProps {
 	isPopup?: boolean
 }
+
+// Featured models for Cline provider
+const featuredModels = [
+	{
+		id: "anthropic/claude-3.7-sonnet",
+		description: "Leading model for agentic coding",
+		label: "Best",
+	},
+	{
+		id: "google/gemini-2.5-pro-preview-03-25",
+		description: "Large 1M context window, great value",
+		label: "Trending",
+	},
+	{
+		id: "meta-llama/llama-4-maverick",
+		description: "Efficient performance at lower cost",
+		label: "New",
+	},
+]
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }) => {
 	const { apiConfiguration, setApiConfiguration, openRouterModels } = useExtensionState()
@@ -147,7 +167,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 	const showBudgetSlider = useMemo(() => {
 		return (
 			selectedModelId?.toLowerCase().includes("claude-3-7-sonnet") ||
-			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet")
+			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
+			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")
 		)
 	}, [selectedModelId])
 
@@ -165,6 +186,25 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup }
 				<label htmlFor="model-search">
 					<span style={{ fontWeight: 500 }}>Model</span>
 				</label>
+
+				{apiConfiguration?.apiProvider === "cline" && (
+					<div style={{ marginBottom: "6px", marginTop: 4 }}>
+						{featuredModels.map((model) => (
+							<FeaturedModelCard
+								key={model.id}
+								modelId={model.id}
+								description={model.description}
+								label={model.label}
+								isSelected={selectedModelId === model.id}
+								onClick={() => {
+									handleModelChange(model.id)
+									setIsDropdownVisible(false)
+								}}
+							/>
+						))}
+					</div>
+				)}
+
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="model-search"

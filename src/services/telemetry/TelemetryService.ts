@@ -28,6 +28,10 @@ class PostHogClient {
 			TOKEN_USAGE: "task.tokens",
 			// Tracks switches between plan and act modes
 			MODE_SWITCH: "task.mode",
+			// Tracks when users select an option from AI-generated followup questions
+			OPTION_SELECTED: "task.option_selected",
+			// Tracks when users type a custom response instead of selecting an option from AI-generated followup questions
+			OPTIONS_IGNORED: "task.options_ignored",
 			// Tracks usage of the git-based checkpoint system (shadow_git_initialized, commit_created, branch_created, branch_deleted_active, branch_deleted_inactive, restored)
 			CHECKPOINT_USED: "task.checkpoint_used",
 			// Tracks when tools (like file operations, commands) are used
@@ -453,6 +457,40 @@ class PostHogClient {
 			event: PostHogClient.EVENTS.TASK.RETRY_CLICKED,
 			properties: {
 				taskId,
+			},
+		})
+	}
+
+	/**
+	 * Records when a user selects an option from AI-generated followup questions
+	 * @param taskId Unique identifier for the task
+	 * @param qty The quantity of options that were presented
+	 * @param mode The mode in which the option was selected ("plan" or "act")
+	 */
+	public captureOptionSelected(taskId: string, qty: number, mode: "plan" | "act") {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.OPTION_SELECTED,
+			properties: {
+				taskId,
+				qty,
+				mode,
+			},
+		})
+	}
+
+	/**
+	 * Records when a user types a custom response instead of selecting one of the AI-generated followup questions
+	 * @param taskId Unique identifier for the task
+	 * @param qty The quantity of options that were presented
+	 * @param mode The mode in which the custom response was provided ("plan" or "act")
+	 */
+	public captureOptionsIgnored(taskId: string, qty: number, mode: "plan" | "act") {
+		this.capture({
+			event: PostHogClient.EVENTS.TASK.OPTIONS_IGNORED,
+			properties: {
+				taskId,
+				qty,
+				mode,
 			},
 		})
 	}

@@ -384,7 +384,7 @@ export const vertexModels = {
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 1.25,
-		outputPrice: 2.5,
+		outputPrice: 10,
 	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
 		maxTokens: 65_536,
@@ -474,7 +474,7 @@ export const geminiModels = {
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 1.25,
-		outputPrice: 2.5,
+		outputPrice: 10,
 	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
