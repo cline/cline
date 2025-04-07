@@ -1,5 +1,5 @@
 import { VSCodeCheckbox, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useState, useEffect } from "react"
+import { useCallback, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 
@@ -68,12 +68,6 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 	const { autoApprovalSettings } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [isHoveringCollapsibleSection, setIsHoveringCollapsibleSection] = useState(false)
-	const [showExecuteAllCommands, setShowExecuteAllCommands] = useState(false)
-
-	useEffect(() => {
-		setShowExecuteAllCommands(autoApprovalSettings.actions.executeCommands)
-	}, [autoApprovalSettings.actions.executeCommands])
-
 	// Careful not to use partials to mutate since spread operator only does shallow copy
 
 	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
@@ -248,7 +242,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					{ACTION_METADATA.map((action) => {
 						if (action.id === "executeAllCommands") {
 							return (
-								<AnimatedSection key={action.id} show={showExecuteAllCommands}>
+								<AnimatedSection key={action.id} show={autoApprovalSettings.actions.executeCommands}>
 									<div
 										style={{
 											margin: "6px 0",
