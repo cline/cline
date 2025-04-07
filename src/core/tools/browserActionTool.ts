@@ -73,7 +73,7 @@ export async function browserActionTool(
 				await cline.browserSession.launchBrowser()
 				browserActionResult = await cline.browserSession.navigateToUrl(url)
 			} else {
-				if (action === "click") {
+				if (action === "click" || action === "hover") {
 					if (!coordinate) {
 						cline.consecutiveMistakeCount++
 						pushToolResult(await cline.sayAndCreateMissingParamError("browser_action", "coordinate"))
@@ -112,6 +112,9 @@ export async function browserActionTool(
 					case "click":
 						browserActionResult = await cline.browserSession.click(coordinate!)
 						break
+					case "hover":
+						browserActionResult = await cline.browserSession.hover(coordinate!)
+						break
 					case "type":
 						browserActionResult = await cline.browserSession.type(text!)
 						break
@@ -133,6 +136,7 @@ export async function browserActionTool(
 			switch (action) {
 				case "launch":
 				case "click":
+				case "hover":
 				case "type":
 				case "scroll_down":
 				case "scroll_up":

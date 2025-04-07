@@ -15,6 +15,9 @@ Parameters:
     * launch: Launch a new Puppeteer-controlled browser instance at the specified URL. This **must always be the first action**.
         - Use with the \`url\` parameter to provide the URL.
         - Ensure the URL is valid and includes the appropriate protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.)
+    * hover: Move the cursor to a specific x,y coordinate.
+        - Use with the \`coordinate\` parameter to specify the location.
+        - Always move to the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot.
     * click: Click at a specific x,y coordinate.
         - Use with the \`coordinate\` parameter to specify the location.
         - Always click in the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot.
@@ -28,7 +31,7 @@ Parameters:
         - Example: \`<action>close</action>\`
 - url: (optional) Use this for providing the URL for the \`launch\` action.
     * Example: <url>https://example.com</url>
-- coordinate: (optional) The X and Y coordinates for the \`click\` action. Coordinates should be within the **${args.browserViewportSize}** resolution.
+- coordinate: (optional) The X and Y coordinates for the \`click\` and \`hover\` actions. Coordinates should be within the **${args.browserViewportSize}** resolution.
     * Example: <coordinate>450,300</coordinate>
 - size: (optional) The width and height for the \`resize\` action.
     * Example: <size>1280,720</size>
