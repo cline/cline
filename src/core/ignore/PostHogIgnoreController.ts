@@ -58,13 +58,17 @@ export class PostHogIgnoreController {
     }
 
     /**
-     * Load custom patterns from .posthogignore if it exists
+     * Load custom patterns from .posthogignore if it exists - or default to .gitignore if that is present
      */
     private async loadPostHogIgnore(): Promise<void> {
         try {
             // Reset ignore instance to prevent duplicate patterns
             this.ignoreInstance = ignore()
-            const ignorePath = path.join(this.cwd, '.posthogignore')
+
+            const posthogIgnorePath = path.join(this.cwd, '.posthogignore')
+            const gitIgnorePath = path.join(this.cwd, '.gitignore')
+            const ignorePath = (await fileExistsAtPath(posthogIgnorePath)) ? posthogIgnorePath : gitIgnorePath
+
             if (await fileExistsAtPath(ignorePath)) {
                 const content = await fs.readFile(ignorePath, 'utf8')
                 this.posthogIgnoreContent = content
