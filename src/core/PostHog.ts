@@ -2679,7 +2679,6 @@ export class PostHog {
                         }
                     }
                     case 'add_tracking': {
-                        console.log('add_tracking', block.params.paths, block)
                         try {
                             if (block.partial) {
                                 //noop
@@ -2698,9 +2697,8 @@ export class PostHog {
 
                             // Normalize paths to handle absolute paths starting with '/'
                             const paths = rawPaths.map((filePath) => {
-                                // If path starts with '/', treat it as relative to current working directory
                                 if (filePath.startsWith('/')) {
-                                    return filePath.substring(1) // Remove leading slash
+                                    return filePath.substring(1)
                                 }
                                 return filePath
                             })
@@ -3931,7 +3929,7 @@ export class PostHog {
                 )
 
                 const userPrompt = `
-                Code snippets from some existing capture calls in the codebase which you can use as examples:
+                Code snippets from some existing capture calls in the codebase which you can use as examples for naming conventions:
                 ${existingTracking.slice(0, 1000)}
 
                 File: ${path.basename(relPath)}
@@ -3959,7 +3957,7 @@ export class PostHog {
                     message: `Successfully added analytics to ${path.basename(relPath)}`,
                 })
 
-                // TODO: Deduplicate added events using the doctor
+                // TODO: Remove duplicate events using the doctor
             } catch (error) {
                 this.say('text', `Failed to add analytics to ${relPath}`)
 
