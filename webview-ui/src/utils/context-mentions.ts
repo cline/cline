@@ -43,14 +43,18 @@ export function insertMentionDirectly(text: string, position: number, value: str
 export function removeMention(text: string, position: number): { newText: string; newPosition: number } {
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
+
+	// Check if we're at the end of a mention
 	const matchEnd = beforeCursor.match(new RegExp(mentionRegex.source + "$"))
 
 	if (matchEnd) {
-		const newText = text.slice(0, position - matchEnd[0].length) + afterCursor.replace(" ", "")
+		// If we're at the end of a mention, remove it
+		const newText = text.slice(0, position - matchEnd[0].length) + afterCursor.replace(" ", "") // removes the first space after the mention
 		const newPosition = position - matchEnd[0].length
 		return { newText, newPosition }
 	}
 
+	// If we're not at the end of a mention, just return the original text and position
 	return { newText: text, newPosition: position }
 }
 

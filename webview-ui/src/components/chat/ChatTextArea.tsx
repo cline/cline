@@ -499,7 +499,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				textAreaRef.current.setSelectionRange(intendedCursorPosition, intendedCursorPosition)
 				setIntendedCursorPosition(null) // Reset the state after applying
 			}
-		}, [intendedCursorPosition])
+		}, [inputValue, intendedCursorPosition])
 
 		useEffect(() => {
 			if (pendingInsertions.length === 0 || !textAreaRef.current) {
