@@ -49,6 +49,7 @@ const ChatRowContainer = styled.div`
 		padding: 8px 0; // Increase vertical padding more on hover
 		margin-top: -10px; // Restore margin
 		margin-bottom: -10px; // Restore margin
+		transform: translateY(-2px); // Add subtle vertical lift
 	}
 `
 

@@ -226,12 +226,13 @@ export const Container = styled.div<{ isMenuOpen?: boolean; $isCheckedOut?: bool
 	opacity: 0; // Start hidden
 	max-height: 0; // Start collapsed
 	overflow: hidden; // Clip content when collapsed
-	// Animate opacity, height, margin, and padding (much slower/smoother with ease-out)
+	// Animate opacity, height, margin, padding, and transform (slicker cubic-bezier easing)
 	transition:
-		opacity 0.6s ease-out,
-		max-height 0.7s ease-out,
-		margin 0.7s ease-out,
-		padding 0.7s ease-out;
+		opacity 0.4s cubic-bezier(0.25, 0.1, 0.25, 1),
+		max-height 0.5s cubic-bezier(0.25, 0.1, 0.25, 1),
+		margin 0.5s cubic-bezier(0.25, 0.1, 0.25, 1),
+		padding 0.5s cubic-bezier(0.25, 0.1, 0.25, 1),
+		transform 0.5s cubic-bezier(0.25, 0.1, 0.25, 1); // Add transform transition
 
 	// Hover effect will be controlled by parent ChatRowContainer
 `
