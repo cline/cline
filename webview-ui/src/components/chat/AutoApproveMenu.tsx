@@ -72,6 +72,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
 	const enabledActionsList = (() => {
+		// "All Commands" is the only label displayed if both are set
 		const safeCommandsEnabled = enabledActions.some((action) => action.id === "executeSafeCommands")
 		const allCommandsEnabled = enabledActions.some((action) => action.id === "executeAllCommands")
 
@@ -252,6 +253,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					{ACTION_METADATA.map((action) => {
 						if (action.id === "executeAllCommands") {
 							return (
+								// Option to make the "Approve All" option animate into the menu when "Approve Safe" is enabled
 								<SubOptionAnimateIn key={action.id} show={autoApprovalSettings.actions.executeSafeCommands}>
 									<div
 										style={{
