@@ -32,9 +32,9 @@ jobs:
               if: github.event_name == 'workflow_dispatch'
               uses: morfien101/actions-authorized-user@4a3cfbf0bcb3cafe4a71710a278920c5d94bb38b
               with:
-                username: ${{ github.actor }}
-                team: "deployer"
-                github_token: ${{ secrets.GITHUB_TOKEN }}
+                  username: ${{ github.actor }}
+                  team: "deployer"
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Check if user is authorized
               if: github.event_name == 'workflow_dispatch'
