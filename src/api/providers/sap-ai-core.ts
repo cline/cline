@@ -155,14 +155,7 @@ export class SapAiCore implements ApiHandler {
 	}
 
 	async mockAiCoreEnvVariable(): Promise<void> {
-		const aiCoreServiceCredentials = {
-			clientid: "sb-0f46bebc-94b0-4fa0-83c0-b1b7b511b53b!b163757|xsuaa_std!b77089",
-			clientsecret: "d845e971-294e-46d3-8ebe-71a7517207e8$2OSdrieVr_EdVTUqcKVEq0YE9huOAkWo2PcCT5LH5zY=",
-			url: "https://yuv2-ai.authentication.sap.hana.ondemand.com",
-			serviceurls: {
-				AI_API_URL: "https://api.ai.internalprod.eu-central-1.aws.ml.hana.ondemand.com",
-			},
-		}
+		const aiCoreServiceCredentials = {}
 		process.env["AICORE_SERVICE_KEY"] = JSON.stringify(aiCoreServiceCredentials)
 	}
 }
