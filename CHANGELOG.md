@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.10.0
+
+### Minor Changes
+
+-   867a697: context management for file reads
+-   73c64d9: Add modal for toggling MCP servers to the chat area
+-   13b6941: Drag and drop of file/folders into cline chat
+
+### Patch Changes
+
+-   dd25195: Fix auto approve state out of sync
+-   35dd137: TS errors
+-   0b95ad3: Reduce system prompt size by letting Cline dynamically load MCP documentation only when needed
+-   95120bb: Feature to open basic settings & scroll a section into view with a highlight animation
+-   95120bb: Disable notifications in browser
+-   95120bb: Features to Relaunch browser in debug, test connection
+-   5212582: Added option to auto-approve all commands
+-   95120bb: Remote browser control via devtools protocol
+-   73c64d9: factor out servers list
+-   d5524e7: Fix tool toggle auto approve
+-   801946f: allow enabling prompt caching for LiteLLM + Claude
+-   95120bb: Added feature to detect installed versions of chromium and display them as a placeholder if not already explicitly configured by the user
+-   95120bb: Fix for headless browser mode
+
 ## [3.9.2]
 
 -   Add recommended models for Cline provider
