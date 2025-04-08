@@ -45,8 +45,8 @@ const ChatRowContainer = styled.div`
 	// Add hover rule for the CheckmarkContainer (the whole checkpoint row)
 	&:hover ${CheckmarkContainer} {
 		opacity: 1;
-		max-height: 100px; // Much larger expansion height
-		padding: 4px 0; // Restore padding
+		max-height: 150px; // Even larger expansion height
+		padding: 8px 0; // Increase vertical padding more on hover
 		margin-top: -10px; // Restore margin
 		margin-bottom: -10px; // Restore margin
 	}
