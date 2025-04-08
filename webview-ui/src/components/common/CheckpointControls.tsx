@@ -176,15 +176,8 @@ export const CheckpointControls = styled.div`
 	display: flex;
 	gap: 6px;
 	opacity: 0;
-	max-width: 0; // Initially take no space
-	overflow: hidden; // Clip content when collapsed
-	white-space: nowrap; // Prevent wrapping during transition
 	background-color: var(--vscode-sideBar-background);
 	padding: 3px 0 3px 3px;
-	transition:
-		opacity 0.9s cubic-bezier(0.4, 0, 0.2, 1),
-		// Smoother timing function
-		max-width 1.2s cubic-bezier(0.4, 0, 0.2, 1); // Smoother timing function
 
 	& > vscode-button,
 	& > div > vscode-button {
