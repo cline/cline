@@ -40,7 +40,7 @@ const ACTION_METADATA: {
 	{
 		id: "editFilesExternally",
 		label: "Edit external files",
-		shortName: "EditExternal",
+		shortName: "Edit (External)",
 		description: "Allows modification of any files on your computer.",
 	},
 	{
@@ -105,7 +105,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 		// Handle file editing labels
 		if (editFilesExternallyEnabled) {
-			labels.push("EditExternal")
+			labels.push("Edit (External)")
 		} else if (editFilesEnabled) {
 			labels.push("Edit")
 		}
