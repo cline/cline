@@ -16,6 +16,7 @@ import { findMatchingResourceOrTemplate } from "../../utils/mcp"
 import { vscode } from "../../utils/vscode"
 import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccordian"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import CommandOutputViewer from "../common/CommandOutputViewer"
 import MarkdownBlock from "../common/MarkdownBlock"
 import { ReasoningBlock } from "./ReasoningBlock"
 import Thumbnails from "../common/Thumbnails"
@@ -917,7 +918,7 @@ export const ChatRowContent = ({
 												className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
 											<span style={{ fontSize: "0.8em" }}>{t("chat:commandOutput")}</span>
 										</div>
-										{isExpanded && <CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />}
+										{isExpanded && <CommandOutputViewer output={output} />}
 									</div>
 								)}
 							</div>
