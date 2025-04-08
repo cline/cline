@@ -9,10 +9,10 @@ import { ExtensionMessage } from '../../../../src/shared/ExtensionMessage'
 import AutocompleteOptions from './AutocompleteOptions'
 import AutoApproveMenu from './AutoApproveMenu'
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from '../../utils/vscStyles'
-import ApiKeyOptions from './ApiKeyOptions'
+import PostHogConfigOptions from './PostHogConfigOptions'
 const { IS_DEV } = process.env
 
-type SettingsTab = 'privacy' | 'rules' | 'api' | 'features' | 'advanced'
+type SettingsTab = 'privacy' | 'rules' | 'api' | 'general' | 'advanced'
 
 const SettingsView = () => {
     const {
@@ -29,7 +29,7 @@ const SettingsView = () => {
     const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
     const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
     const [pendingTabChange, setPendingTabChange] = useState<'plan' | 'act' | null>(null)
-    const [activeTab, setActiveTab] = useState<SettingsTab>('features')
+    const [activeTab, setActiveTab] = useState<SettingsTab>('general')
 
     const handleSubmit = () => {
         vscode.postMessage({
@@ -56,7 +56,7 @@ const SettingsView = () => {
         // uses someVar and anotherVar
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [someVar])
-	If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
+    If we only want to run code once on mount we can use react-use's useEffectOnce or useMount
     */
 
     const handleMessage = useCallback(
@@ -111,7 +111,7 @@ const SettingsView = () => {
         </button>
     )
 
-    const GeneralSettings = () => (
+    const PrivacySettings = () => (
         <>
             <div style={{ marginBottom: 5 }}>
                 <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginBottom: '5px' }}>Telemetry</h3>
@@ -171,7 +171,7 @@ const SettingsView = () => {
     const ApiSettings = () => (
         <>
             <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginBottom: '5px', marginTop: '5px' }}>
-                API Configuration
+                Provider Configuration
             </h3>
             <div
                 style={{
@@ -181,9 +181,6 @@ const SettingsView = () => {
                     opacity: 0.2,
                 }}
             />
-            <div style={{ marginBottom: 15 }}>
-                <ApiKeyOptions />
-            </div>
             <div style={{ marginBottom: 5 }}>
                 <VSCodeCheckbox
                     style={{ marginBottom: '5px' }}
@@ -238,9 +235,21 @@ const SettingsView = () => {
         </>
     )
 
-    const FeaturesSettings = () => (
+    const GeneralSettings = () => (
         <>
-            <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginBottom: '5px' }}>Auto-Approval</h3>
+            <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginBottom: '5px' }}>PostHog Configuration</h3>
+            <div
+                style={{
+                    height: '0.5px',
+                    background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
+                    marginBottom: '15px',
+                    opacity: 0.2,
+                }}
+            />
+            <PostHogConfigOptions />
+            <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginTop: '20px', marginBottom: '5px' }}>
+                Auto-Approval
+            </h3>
             <AutoApproveMenu />
             <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginBottom: '5px', marginTop: '5px' }}>
                 Auto-Complete
@@ -254,17 +263,6 @@ const SettingsView = () => {
                 }}
             />
             <AutocompleteOptions />
-            <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginBottom: '5px', marginTop: '5px' }}>
-                Documentation
-            </h3>
-            <div
-                style={{
-                    height: '0.5px',
-                    background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
-                    marginBottom: '15px',
-                    opacity: 0.2,
-                }}
-            />
         </>
     )
 
@@ -323,8 +321,8 @@ const SettingsView = () => {
                         flexDirection: 'column',
                     }}
                 >
-                    <MenuButton tab="features" label="Features" />
-                    <MenuButton tab="api" label="API Configuration" />
+                    <MenuButton tab="general" label="General" />
+                    <MenuButton tab="api" label="Provider" />
                     <MenuButton tab="rules" label="Rules" />
                     <MenuButton tab="privacy" label="Privacy" />
                     <MenuButton tab="advanced" label="Advanced" />
@@ -340,8 +338,8 @@ const SettingsView = () => {
                 >
                     {activeTab === 'rules' && <RulesSettings />}
                     {activeTab === 'api' && <ApiSettings />}
-                    {activeTab === 'features' && <FeaturesSettings />}
-                    {activeTab === 'privacy' && <GeneralSettings />}
+                    {activeTab === 'general' && <GeneralSettings />}
+                    {activeTab === 'privacy' && <PrivacySettings />}
                     {activeTab === 'advanced' && IS_DEV && <AdvancedSettings />}
 
                     {/* Version info at the bottom */}

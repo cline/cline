@@ -69,7 +69,7 @@ type GlobalStateKey =
     | 'thinkingEnabled'
     | 'planActSeparateModelsSetting'
     | 'enableTabAutocomplete'
-
+    | 'posthogHost'
 export class PostHogProvider implements vscode.WebviewViewProvider {
     public static readonly sideBarId = 'posthog.SidebarProvider' // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
     public static readonly tabPanelId = 'posthog.TabPanelProvider'
@@ -955,9 +955,10 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
     }
 
     async updateApiConfiguration(apiConfiguration: ApiConfiguration) {
-        const { apiProvider, apiModelId, posthogApiKey, thinkingEnabled } = apiConfiguration
+        const { apiProvider, apiModelId, posthogApiKey, thinkingEnabled, posthogHost } = apiConfiguration
         await this.updateGlobalState('apiProvider', apiProvider)
         await this.updateGlobalState('apiModelId', apiModelId)
+        await this.updateGlobalState('posthogHost', posthogHost)
         await this.storeSecret('posthogApiKey', posthogApiKey)
         await this.updateGlobalState('thinkingEnabled', thinkingEnabled)
         if (this.posthog && apiModelId) {
@@ -1365,6 +1366,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             thinkingEnabled,
             planActSeparateModelsSettingRaw,
             enableTabAutocomplete,
+            storedPosthogHost,
         ] = await Promise.all([
             this.getGlobalState('apiProvider') as Promise<ApiProvider | undefined>,
             this.getGlobalState('completionApiProvider') as Promise<CompletionApiProvider | undefined>,
@@ -1384,6 +1386,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             this.getGlobalState('thinkingEnabled') as Promise<boolean | undefined>,
             this.getGlobalState('planActSeparateModelsSetting') as Promise<boolean | undefined>,
             this.getGlobalState('enableTabAutocomplete') as Promise<boolean | undefined>,
+            this.getGlobalState('posthogHost') as Promise<string | undefined>,
         ])
 
         let apiProvider: ApiProvider
@@ -1404,6 +1407,12 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             completionApiProvider = storedCompletionApiProvider
         } else {
             completionApiProvider = 'codestral'
+        }
+        let posthogHost: string
+        if (storedPosthogHost) {
+            posthogHost = storedPosthogHost
+        } else {
+            posthogHost = 'https://us.posthog.com'
         }
 
         // Plan/Act separate models setting is a boolean indicating whether the user wants to use different models for plan and act. Existing users expect this to be enabled, while we want new users to opt in to this being disabled by default.
@@ -1429,6 +1438,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
                 apiProvider,
                 completionApiProvider,
                 apiModelId,
+                posthogHost,
                 posthogApiKey,
                 thinkingEnabled,
             },

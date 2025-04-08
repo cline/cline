@@ -25,7 +25,7 @@ import ChatTextArea from './ChatTextArea'
 import TaskHeader from './TaskHeader'
 import TelemetryBanner from '../common/TelemetryBanner'
 import Intro from './Intro'
-import ApiKeyOptions from '../settings/ApiKeyOptions'
+import PostHogConfigOptions from '../settings/PostHogConfigOptions'
 
 interface ChatViewProps {
     isHidden: boolean
@@ -802,7 +802,7 @@ const ChatView = ({ isHidden, showHistoryView }: ChatViewProps) => {
                     <Intro />
                     {showWelcome && (
                         <div style={{ marginTop: '18px', padding: '0 20px' }}>
-                            <ApiKeyOptions autoSave={false} />
+                            <PostHogConfigOptions />
                         </div>
                     )}
                     {!showWelcome && (
