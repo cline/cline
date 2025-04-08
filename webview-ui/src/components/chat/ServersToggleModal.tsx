@@ -43,7 +43,10 @@ const ServersToggleModal: React.FC = () => {
 					onClick={() => setIsVisible(!isVisible)}
 					style={{ padding: "0px 0px", height: "20px" }}>
 					<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-						<span className="codicon codicon-server flex items-center" style={{ fontSize: "14px" }} />
+						<span
+							className="codicon codicon-server flex items-center"
+							style={{ fontSize: "12.5px", marginBottom: 1 }}
+						/>
 					</div>
 				</VSCodeButton>
 			</div>
@@ -66,8 +69,10 @@ const ServersToggleModal: React.FC = () => {
 						}}
 					/>
 
-					<h3 className="m-0 mb-2.5">MCP Servers</h3>
-					<ServersToggleList servers={mcpServers} isExpandable={false} hasTrashIcon={false} listGap="small" />
+					<div className="m-0 mb-2.5">MCP Servers</div>
+					<div style={{ marginBottom: "-10px" }}>
+						<ServersToggleList servers={mcpServers} isExpandable={false} hasTrashIcon={false} listGap="small" />
+					</div>
 				</div>
 			)}
 		</div>

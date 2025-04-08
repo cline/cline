@@ -86,14 +86,13 @@ const ButtonGroup = styled.div`
 	gap: 4px;
 	flex: 1;
 	min-width: 0;
-	margin-right: 12px;
 `
 
 const ButtonContainer = styled.div`
 	display: flex;
 	align-items: center;
-	gap: 4px;
-	font-size: 12px;
+	gap: 3px;
+	font-size: 10px;
 	white-space: nowrap;
 	min-width: 0;
 	width: 100%;
@@ -1192,7 +1191,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							onClick={handleContextButtonClick}
 							style={{ padding: "0px 0px", height: "20px" }}>
 							<ButtonContainer>
-								<span className="flex items-center" style={{ fontSize: "14px" }}>
+								<span className="flex items-center" style={{ fontSize: "13px", marginBottom: 1 }}>
 									@
 								</span>
 								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Context</span>} */}
@@ -1213,7 +1212,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							<ButtonContainer>
 								<span
 									className="codicon codicon-device-camera flex items-center"
-									style={{ fontSize: "14px", marginTop: "3px" }}
+									style={{ fontSize: "14px", marginBottom: -3 }}
 								/>
 								{/* {showButtonText && <span style={{ fontSize: "10px" }}>Images</span>} */}
 							</ButtonContainer>
