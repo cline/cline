@@ -74,7 +74,7 @@ function formatDirectoryContent(dirPath: string, files: Array<{ filename: string
 		"\n\n" +
 		files
 			.map((file) => {
-				return `# Rules from ${file.filename}:\n${file.content}:`
+				return `# Rules from ${file.filename}:\n${file.content}`
 			})
 			.join("\n\n")
 	)
