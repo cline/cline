@@ -46,7 +46,7 @@ const ACTION_METADATA: {
 	},
 	{
 		id: "executeAllCommands",
-		label: "Execute All commands",
+		label: "Execute all commands",
 		shortName: "All Commands",
 		description: "Allows execution of all terminal commands. Use at your own risk.",
 	},
