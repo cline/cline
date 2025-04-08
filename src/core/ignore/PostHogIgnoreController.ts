@@ -9,19 +9,19 @@ export const LOCK_TEXT_SYMBOL = '\u{1F512}'
 /**
  * Controls LLM access to files by enforcing ignore patterns.
  * Designed to be instantiated once in PostHog.ts and passed to file manipulation services.
- * Uses the 'ignore' library to support standard .gitignore syntax in .posthogignore files.
+ * Uses the 'ignore' library to support standard .gitignore syntax
  */
 export class PostHogIgnoreController {
     private cwd: string
     private ignoreInstance: Ignore
     private disposables: vscode.Disposable[] = []
-    posthogIgnoreContent: string | undefined
+    gitIgnoreContent: string | undefined
 
     constructor(cwd: string) {
         this.cwd = cwd
         this.ignoreInstance = ignore()
-        this.posthogIgnoreContent = undefined
-        // Set up file watcher for .posthogignore
+        this.gitIgnoreContent = undefined
+        // Set up file watcher for .gitignore
         this.setupFileWatcher()
     }
 
@@ -30,26 +30,26 @@ export class PostHogIgnoreController {
      * Must be called after construction and before using the controller
      */
     async initialize(): Promise<void> {
-        await this.loadPostHogIgnore()
+        await this.loadGitIgnore()
     }
 
     /**
-     * Set up the file watcher for .posthogignore changes
+     * Set up the file watcher for .gitignore changes
      */
     private setupFileWatcher(): void {
-        const posthogignorePattern = new vscode.RelativePattern(this.cwd, '.posthogignore')
-        const fileWatcher = vscode.workspace.createFileSystemWatcher(posthogignorePattern)
+        const gitignorePattern = new vscode.RelativePattern(this.cwd, '.gitignore')
+        const fileWatcher = vscode.workspace.createFileSystemWatcher(gitignorePattern)
 
         // Watch for changes and updates
         this.disposables.push(
             fileWatcher.onDidChange(() => {
-                this.loadPostHogIgnore()
+                this.loadGitIgnore()
             }),
             fileWatcher.onDidCreate(() => {
-                this.loadPostHogIgnore()
+                this.loadGitIgnore()
             }),
             fileWatcher.onDidDelete(() => {
-                this.loadPostHogIgnore()
+                this.loadGitIgnore()
             })
         )
 
@@ -58,28 +58,26 @@ export class PostHogIgnoreController {
     }
 
     /**
-     * Load custom patterns from .posthogignore if it exists - or default to .gitignore if that is present
+     * Load patterns from .gitignore
      */
-    private async loadPostHogIgnore(): Promise<void> {
+    private async loadGitIgnore(): Promise<void> {
         try {
             // Reset ignore instance to prevent duplicate patterns
             this.ignoreInstance = ignore()
 
-            const posthogIgnorePath = path.join(this.cwd, '.posthogignore')
             const gitIgnorePath = path.join(this.cwd, '.gitignore')
-            const ignorePath = (await fileExistsAtPath(posthogIgnorePath)) ? posthogIgnorePath : gitIgnorePath
 
-            if (await fileExistsAtPath(ignorePath)) {
-                const content = await fs.readFile(ignorePath, 'utf8')
-                this.posthogIgnoreContent = content
+            if (await fileExistsAtPath(gitIgnorePath)) {
+                const content = await fs.readFile(gitIgnorePath, 'utf8')
+                this.gitIgnoreContent = content
                 this.ignoreInstance.add(content)
-                this.ignoreInstance.add('.posthogignore')
+                this.ignoreInstance.add('.gitignore')
             } else {
-                this.posthogIgnoreContent = undefined
+                this.gitIgnoreContent = undefined
             }
         } catch (error) {
             // Should never happen: reading file failed even though it exists
-            console.error('Unexpected error loading .posthogignore:', error)
+            console.error('Unexpected error loading .gitignore:', error)
         }
     }
 
@@ -89,8 +87,8 @@ export class PostHogIgnoreController {
      * @returns true if file is accessible, false if ignored
      */
     validateAccess(filePath: string): boolean {
-        // Always allow access if .posthogignore does not exist
-        if (!this.posthogIgnoreContent) {
+        // Always allow access if .gitignore does not exist
+        if (!this.gitIgnoreContent) {
             return true
         }
         try {
@@ -113,8 +111,8 @@ export class PostHogIgnoreController {
      * @returns path of file that is being accessed if it is being accessed, undefined if command is allowed
      */
     validateCommand(command: string): string | undefined {
-        // Always allow if no .posthogignore exists
-        if (!this.posthogIgnoreContent) {
+        // Always allow if no .gitignore exists
+        if (!this.gitIgnoreContent) {
             return undefined
         }
 
