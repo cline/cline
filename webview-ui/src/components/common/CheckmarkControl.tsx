@@ -120,8 +120,11 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, index, hov
 	}
 
 	useEvent("message", handleMessage)
-	const shouldShow = hoveredRowIndex === index - 1
-	console.log("shouldShow", shouldShow)
+	const shouldShow = hoveredRowIndex === index - 1 || hoveredRowIndex === index
+
+	if (!shouldShow) {
+		return null
+	}
 	return (
 		<Container isMenuOpen={showRestoreConfirm} $isCheckedOut={isCheckpointCheckedOut} onMouseLeave={handleControlsMouseLeave}>
 			<i
