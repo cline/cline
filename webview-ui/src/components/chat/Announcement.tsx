@@ -43,21 +43,19 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Add to Cline:</b> Right-click selected text in any file or terminal to quickly add context to your current
-					task! Plus, when you see a lightbulb icon, select 'Fix with Cline' to have Cline fix errors in your code.
+					<b>Browser Tool Upgrades:</b> Use your local Chrome browser for session-based browsing, enabling debugging and
+					productivity workflows tied to your actual browser state!
 				</li>
 				<li>
-					<b>Billing Dashboard:</b> Track your remaining credits and transaction history right in the extension with a{" "}
-					<span className="codicon codicon-account" style={accountIconStyle}></span> Cline account!
+					<b>Auto-Approve Commands:</b> New option to automatically approve <b>ALL</b> commands (use at your own risk!)
 				</li>
 				<li>
-					<b>Faster Inference:</b> Cline/OpenRouter users can sort underlying providers used by throughput, price, and
-					latency. Sorting by throughput will output faster generations (at a higher cost).
+					<b>Easily Toggle MCP's:</b> New modal in the chat area to easily enable/disable MCP servers.
 				</li>
 				<li>
-					<b>Enhanced MCP Support:</b> Dynamic image loading with GIF support, and a new delete button to clean up
-					failed servers.
+					Drag and drop files/folders into chat by holding <code>Shift</code> while dragging it into the chat field.
 				</li>
+				<li>Reduces system prompt token size by 30% by dynamically loading MCP documentation only when needed.</li>
 			</ul>
 			{/*<ul style={{ margin: "0 0 8px", paddingLeft: "12px" }}>
 				 <li>
