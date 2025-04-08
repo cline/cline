@@ -234,8 +234,7 @@ Your final result description here
 </attempt_completion>
 
 ## new_task
-Description: Request to create a new task with preloaded context. The user will be presented with a preview of the context and can choose to create a new task or keep chatting in the current conversation. 
-IMPORTANT NOTE: When creating a new task you must ALWAYS include context. 
+Description: Request to create a new task with preloaded context. The user will be presented with a preview of the context and can choose to create a new task or keep chatting in the current conversation. The user may choose to start a new task at any point.
 Parameters:
 - context: (required) The context to preload the new task with. This should include:
   * Comprehensively explain what has been accomplished in the current task - mention specific file names that are relevant
