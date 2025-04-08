@@ -324,6 +324,12 @@ export class Task {
 					) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
 					await this.overwriteApiConversationHistory(newConversationHistory)
 
+					// update the context history state
+					await this.contextManager.truncateContextHistory(
+						message.ts,
+						await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+					)
+
 					// aggregate deleted api reqs info so we don't lose costs/tokens
 					const deletedMessages = this.clineMessages.slice(messageIndex + 1)
 					const deletedApiReqsMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(deletedMessages)))
@@ -855,6 +861,9 @@ export class Task {
 		// This is important in case the user deletes messages without resuming the task first
 		this.apiConversationHistory = await getSavedApiConversationHistory(this.getContext(), this.taskId)
 
+		// load the context history state
+		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.getContext(), this.taskId))
+
 		const lastClineMessage = this.clineMessages
 			.slice()
 			.reverse()
@@ -1252,12 +1261,13 @@ export class Task {
 				preferredLanguageInstructions,
 			)
 		}
-		const contextManagementMetadata = this.contextManager.getNewContextMessagesAndMetadata(
+		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.apiConversationHistory,
 			this.clineMessages,
 			this.api,
 			this.conversationHistoryDeletedRange,
 			previousApiReqIndex,
+			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
 		)
 
 		if (contextManagementMetadata.updatedConversationHistoryDeletedRange) {
