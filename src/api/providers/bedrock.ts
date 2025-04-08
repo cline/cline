@@ -1,4 +1,3 @@
-import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { withRetry } from "../retry"
 import { ApiHandler } from "../"
@@ -40,6 +39,23 @@ export class AwsBedrockHandler implements ApiHandler {
 			return
 		}
 
+		// For Anthropic models, use the AWS Bedrock Runtime client directly
+		yield* this.createAnthropicMessage(systemPrompt, messages, modelId, model)
+	}
+
+	/**
+	 * Creates a message using Anthropic models through AWS Bedrock
+	 */
+	private async *createAnthropicMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		modelId: string,
+		model: { id: BedrockModelId; info: ModelInfo },
+	): ApiStream {
+		// Get Bedrock client with proper credentials
+		const client = await this.getBedrockClient()
+
+		// Determine if reasoning should be enabled
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = modelId.includes("3-7") && budget_tokens !== 0 ? true : false
 
@@ -48,121 +64,195 @@ export class AwsBedrockHandler implements ApiHandler {
 		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
-		// Create anthropic client, using sessions created or renewed after this handler's
-		// initialization, and allowing for session renewal if necessary as well
-		const client = await this.getAnthropicClient()
-
-		const stream = await client.messages.create({
-			model: modelId,
+		// Format the request body for Anthropic models
+		const requestBody = {
+			anthropic_version: "bedrock-2023-05-31",
 			max_tokens: model.info.maxTokens || 8192,
-			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 			temperature: reasoningOn ? undefined : 0,
-			system: [
-				{
-					text: systemPrompt,
-					type: "text",
-					...(this.options.awsBedrockUsePromptCache === true && {
-						cache_control: { type: "ephemeral" },
-					}),
-				},
-			],
-			messages: messages.map((message, index) => {
-				if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-					return {
-						...message,
-						content:
-							typeof message.content === "string"
-								? [
-										{
-											type: "text",
-											text: message.content,
-											...(this.options.awsBedrockUsePromptCache === true && {
-												cache_control: { type: "ephemeral" },
-											}),
-										},
-									]
-								: message.content.map((content, contentIndex) =>
-										contentIndex === message.content.length - 1
-											? {
-													...content,
-													...(this.options.awsBedrockUsePromptCache === true && {
-														cache_control: { type: "ephemeral" },
-													}),
-												}
-											: content,
-									),
-					}
-				}
-				return message
-			}),
-			stream: true,
-		})
+			system: systemPrompt,
+			messages: messages.map((message) => {
+				// Convert message content to the format expected by Bedrock
+				let formattedContent: any[] = []
 
-		for await (const chunk of stream) {
-			switch (chunk.type) {
-				case "message_start":
-					const usage = chunk.message.usage
-					yield {
-						type: "usage",
-						inputTokens: usage.input_tokens || 0,
-						outputTokens: usage.output_tokens || 0,
-						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
-						cacheReadTokens: usage.cache_read_input_tokens || undefined,
-					}
-					break
-				case "message_delta":
-					yield {
-						type: "usage",
-						inputTokens: 0,
-						outputTokens: chunk.usage.output_tokens || 0,
-					}
-					break
-				case "content_block_start":
-					switch (chunk.content_block.type) {
-						case "thinking":
-							yield {
-								type: "reasoning",
-								reasoning: chunk.content_block.thinking || "",
-							}
-							break
-						case "redacted_thinking":
-							// Handle redacted thinking blocks - we still mark it as reasoning
-							// but note that the content is encrypted
-							yield {
-								type: "reasoning",
-								reasoning: "[Redacted thinking block]",
-							}
-							break
-						case "text":
-							if (chunk.index > 0) {
-								yield {
-									type: "text",
-									text: "\n",
+				if (typeof message.content === "string") {
+					formattedContent = [{ type: "text", text: message.content }]
+				} else {
+					formattedContent = message.content
+						.map((item) => {
+							if (item.type === "text") {
+								return { type: "text", text: item.text }
+							} else if (item.type === "image") {
+								// Handle image content
+								let format = "jpeg"
+								if (item.source.media_type) {
+									const formatMatch = item.source.media_type.match(/image\/(\w+)/)
+									if (formatMatch && formatMatch[1]) {
+										format = formatMatch[1]
+									}
+								}
+
+								let imageData: string
+								if (typeof item.source.data === "string") {
+									imageData = item.source.data.replace(/^data:image\/\w+;base64,/, "")
+								} else {
+									// Convert to base64 if needed
+									imageData = Buffer.from(item.source.data as any).toString("base64")
+								}
+
+								return {
+									type: "image",
+									source: {
+										type: "base64",
+										media_type: `image/${format}`,
+										data: imageData,
+									},
 								}
 							}
-							yield {
-								type: "text",
-								text: chunk.content_block.text,
+							return null
+						})
+						.filter(Boolean)
+				}
+
+				return {
+					role: message.role,
+					content: formattedContent,
+				}
+			}),
+			...(reasoningOn && { thinking: { type: "enabled", budget_tokens: budget_tokens } }),
+			...(this.options.awsBedrockUsePromptCache === true && { cache_control: { type: "ephemeral" } }),
+		}
+
+		// Create the command for streaming
+		const command = new InvokeModelWithResponseStreamCommand({
+			modelId: modelId,
+			contentType: "application/json",
+			accept: "application/json",
+			body: JSON.stringify(requestBody),
+		})
+
+		// Execute the streaming request
+		const response = await client.send(command)
+
+		if (response.body) {
+			let isFirstChunk = true
+			let outputTokens = 0
+			let inputTokens = 0
+			let cacheReadTokens = 0
+			let cacheWriteTokens = 0
+
+			for await (const chunk of response.body) {
+				if (chunk.chunk?.bytes) {
+					try {
+						// Parse the response chunk
+						const decodedChunk = new TextDecoder().decode(chunk.chunk.bytes)
+						const parsedChunk = JSON.parse(decodedChunk)
+
+						// Handle different types of chunks based on Anthropic's response format
+						if (parsedChunk.type === "message_start") {
+							// First chunk with usage information
+							if (parsedChunk.message && parsedChunk.message.usage) {
+								const usage = parsedChunk.message.usage
+								inputTokens = usage.input_tokens || 0
+								outputTokens = usage.output_tokens || 0
+								cacheReadTokens = usage.cache_read_input_tokens || 0
+								cacheWriteTokens = usage.cache_creation_input_tokens || 0
+
+								yield {
+									type: "usage",
+									inputTokens: inputTokens,
+									outputTokens: outputTokens,
+									cacheReadTokens: cacheReadTokens,
+									cacheWriteTokens: cacheWriteTokens,
+									totalCost: calculateApiCostOpenAI(
+										model.info,
+										inputTokens,
+										outputTokens,
+										cacheWriteTokens,
+										cacheReadTokens,
+									),
+								}
 							}
-							break
+						} else if (parsedChunk.type === "message_delta") {
+							// Token usage update
+							if (parsedChunk.usage) {
+								const deltaOutputTokens = parsedChunk.usage.output_tokens || 0
+								outputTokens += deltaOutputTokens
+
+								yield {
+									type: "usage",
+									inputTokens: 0,
+									outputTokens: deltaOutputTokens,
+								}
+							}
+						} else if (parsedChunk.type === "content_block_start") {
+							// Content block start
+							if (parsedChunk.content_block) {
+								const contentBlock = parsedChunk.content_block
+
+								if (contentBlock.type === "thinking") {
+									// Reasoning content
+									yield {
+										type: "reasoning",
+										reasoning: contentBlock.thinking || "",
+									}
+								} else if (contentBlock.type === "redacted_thinking") {
+									// Redacted thinking blocks
+									yield {
+										type: "reasoning",
+										reasoning: "[Redacted thinking block]",
+									}
+								} else if (contentBlock.type === "text") {
+									// Text content
+									if (parsedChunk.index > 0) {
+										yield {
+											type: "text",
+											text: "\n",
+										}
+									}
+									yield {
+										type: "text",
+										text: contentBlock.text,
+									}
+								}
+							}
+						} else if (parsedChunk.type === "content_block_delta") {
+							// Content block delta
+							if (parsedChunk.delta) {
+								const delta = parsedChunk.delta
+
+								if (delta.type === "thinking_delta") {
+									// Reasoning delta
+									yield {
+										type: "reasoning",
+										reasoning: delta.thinking,
+									}
+								} else if (delta.type === "text_delta") {
+									// Text delta
+									yield {
+										type: "text",
+										text: delta.text,
+									}
+								}
+							}
+						}
+					} catch (error) {
+						console.error("Error parsing Anthropic response chunk:", error)
+						yield {
+							type: "text",
+							text: `[ERROR] Failed to parse Anthropic response: ${error instanceof Error ? error.message : String(error)}`,
+						}
 					}
-					break
-				case "content_block_delta":
-					switch (chunk.delta.type) {
-						case "thinking_delta":
-							yield {
-								type: "reasoning",
-								reasoning: chunk.delta.thinking,
-							}
-							break
-						case "text_delta":
-							yield {
-								type: "text",
-								text: chunk.delta.text,
-							}
-							break
-					}
-					break
+				}
+			}
+
+			// Final usage report
+			yield {
+				type: "usage",
+				inputTokens: inputTokens,
+				outputTokens: outputTokens,
+				cacheReadTokens: cacheReadTokens,
+				cacheWriteTokens: cacheWriteTokens,
+				totalCost: calculateApiCostOpenAI(model.info, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens),
 			}
 		}
 	}
@@ -232,17 +322,8 @@ export class AwsBedrockHandler implements ApiHandler {
 	/**
 	 * Creates an AnthropicBedrock client with the appropriate credentials
 	 */
-	private async getAnthropicClient(): Promise<AnthropicBedrock> {
-		const credentials = await this.getAwsCredentials()
-
-		// Return an AnthropicBedrock client with the resolved/assumed credentials.
-		return new AnthropicBedrock({
-			awsAccessKey: credentials.accessKeyId,
-			awsSecretKey: credentials.secretAccessKey,
-			awsSessionToken: credentials.sessionToken,
-			awsRegion: this.getRegion(),
-			...(this.options.awsBedrockEndpoint && { baseURL: this.options.awsBedrockEndpoint }),
-		})
+	private async getAnthropicClient(): Promise<BedrockRuntimeClient> {
+		return await this.getBedrockClient()
 	}
 
 	/**

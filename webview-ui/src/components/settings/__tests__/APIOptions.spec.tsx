@@ -1,12 +1,12 @@
 import { render, screen, fireEvent } from "@testing-library/react"
-import { describe, it, expect, vi } from "vitest"
+import { describe, it, expect, vi, beforeEach } from "vitest"
 import ApiOptions from "../ApiOptions"
 import { ExtensionStateContextProvider } from "@/context/ExtensionStateContext"
 
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
-		...actual,
+		...(actual as object),
 		// your mocked methods
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
@@ -25,7 +25,7 @@ describe("ApiOptions Component", () => {
 	const mockPostMessage = vi.fn()
 
 	beforeEach(() => {
-		global.vscode = { postMessage: mockPostMessage } as any
+		;(global as any).vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders Requesty API Key input", () => {
@@ -52,7 +52,7 @@ describe("ApiOptions Component", () => {
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
-		...actual,
+		...(actual as object),
 		// your mocked methods
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
@@ -71,7 +71,7 @@ describe("ApiOptions Component", () => {
 	const mockPostMessage = vi.fn()
 
 	beforeEach(() => {
-		global.vscode = { postMessage: mockPostMessage } as any
+		;(global as any).vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders Together API Key input", () => {
@@ -98,7 +98,7 @@ describe("ApiOptions Component", () => {
 vi.mock("../../../context/ExtensionStateContext", async (importOriginal) => {
 	const actual = await importOriginal()
 	return {
-		...actual,
+		...(actual as object),
 		// your mocked methods
 		useExtensionState: vi.fn(() => ({
 			apiConfiguration: {
@@ -117,7 +117,7 @@ describe("OpenApiInfoOptions", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
-		global.vscode = { postMessage: mockPostMessage }
+		;(global as any).vscode = { postMessage: mockPostMessage }
 	})
 
 	it("renders OpenAI Supports Images input", () => {
