@@ -18,6 +18,7 @@ const AppContent = () => {
 	const [showMcp, setShowMcp] = useState(false)
 	const [showAccount, setShowAccount] = useState(false)
 	const [showAnnouncement, setShowAnnouncement] = useState(false)
+	const [mcpTab, setMcpTab] = useState<"marketplace" | "addRemote" | "installed" | undefined>(undefined)
 
 	const handleMessage = useCallback((e: MessageEvent) => {
 		const message: ExtensionMessage = e.data
@@ -39,6 +40,9 @@ const AppContent = () => {
 					case "mcpButtonClicked":
 						setShowSettings(false)
 						setShowHistory(false)
+						if (message.tab) {
+							setMcpTab(message.tab)
+						}
 						setShowMcp(true)
 						setShowAccount(false)
 						break
@@ -89,7 +93,7 @@ const AppContent = () => {
 				<>
 					{showSettings && <SettingsView onDone={() => setShowSettings(false)} />}
 					{showHistory && <HistoryView onDone={() => setShowHistory(false)} />}
-					{showMcp && <McpView onDone={() => setShowMcp(false)} />}
+					{showMcp && <McpView initialTab={mcpTab} onDone={() => setShowMcp(false)} />}
 					{showAccount && <AccountView onDone={() => setShowAccount(false)} />}
 					{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 					<ChatView

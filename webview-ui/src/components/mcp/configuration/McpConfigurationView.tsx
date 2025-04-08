@@ -9,13 +9,14 @@ import InstalledServersView from "./tabs/installed/InstalledServersView"
 
 type McpViewProps = {
 	onDone: () => void
+	initialTab?: "marketplace" | "addRemote" | "installed"
 }
 
-const McpConfigurationView = ({ onDone }: McpViewProps) => {
+const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 	const { mcpMarketplaceEnabled } = useExtensionState()
-	const [activeTab, setActiveTab] = useState(mcpMarketplaceEnabled ? "marketplace" : "installed")
+	const [activeTab, setActiveTab] = useState(initialTab || (mcpMarketplaceEnabled ? "marketplace" : "installed"))
 
-	const handleTabChange = (tab: string) => {
+	const handleTabChange = (tab: "marketplace" | "addRemote" | "installed") => {
 		setActiveTab(tab)
 	}
 

@@ -95,6 +95,7 @@ export interface ExtensionMessage {
 		serverName: string
 		error?: string
 	}
+	tab?: "marketplace" | "addRemote" | "installed"
 }
 
 export type Invoke = "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"

@@ -84,6 +84,7 @@ export interface WebviewMessage {
 	chatContent?: ChatContent
 	mcpId?: string
 	timeout?: number
+	tab?: "marketplace" | "addRemote" | "installed"
 	// For toggleToolAutoApprove
 	serverName?: string
 	serverUrl?: string
