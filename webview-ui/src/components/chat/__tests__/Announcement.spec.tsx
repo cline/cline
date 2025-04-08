@@ -28,5 +28,4 @@ describe("Announcement", () => {
 		// Updated text based on actual component output
 		expect(screen.getByText(/Enhanced MCP Support:/)).toBeInTheDocument()
 	})
-
 })
