@@ -1583,9 +1583,9 @@ const formatTiers = (tiers: ModelInfo["inputPriceTiers"]): string[] => {
 		const prevLimit = index > 0 ? arr[index - 1].tokenLimit : 0
 		const limitText =
 			tier.tokenLimit === Infinity
-				? `> ${(prevLimit / 1000).toLocaleString()}k` // Assumes sorted and Infinity is last
-				: `<= ${(tier.tokenLimit / 1000).toLocaleString()}k`
-		return `${formatPrice(tier.price)}/M (${limitText} tokens)`
+				? `> ${prevLimit.toLocaleString()}` // Assumes sorted and Infinity is last
+				: `<= ${tier.tokenLimit.toLocaleString()}`
+		return `${formatPrice(tier.price)}/million tokens (${limitText} tokens)`
 	})
 }
 
