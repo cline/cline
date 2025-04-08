@@ -203,8 +203,8 @@ Otherwise, if you have not completed the task and do not need additional informa
 	clineRulesDirectoryInstructions: (cwd: string, content: string) =>
 		`# .clinerules/\n\nThe following is provided by a root-level .clinerules/ directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
 
-	clineRulesFileInstructions: (cwd: string, content: string) =>
-		`# .clinerules\n\nThe following is provided by a root-level .clinerules file where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
+	newTaskContext: (context: string) =>
+		`Cline wants to start a new task with the following context:\n\n${context}\n\nClick "Start New Task" to start a new task with this context preloaded.`,
 }
 
 // to avoid circular dependency
