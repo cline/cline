@@ -2,7 +2,7 @@
 
 ## [3.11.9] - 2025-04-07
 
-- Rate-limit setting updated to be per-profile (thanks @ross!)
+- Rate-limit setting updated to be per-profile (thanks @ross and @olweraltuve!)
 - You can now place multiple rules files in the .roo/rules/ and .roo/rules-{mode}/ folders (thanks @upamune!)
 - Prevent unnecessary autoscroll when buttons appear (thanks @shtse8!)
 - Add Gemini 2.5 Pro Preview to Vertex AI (thanks @nbihan-mediware!)
