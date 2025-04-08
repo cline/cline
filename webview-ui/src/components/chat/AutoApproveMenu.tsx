@@ -78,21 +78,40 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 
 	const enabledActions = ACTION_METADATA.filter((action) => autoApprovalSettings.actions[action.id])
 	const enabledActionsList = (() => {
-		// "All Commands" is the only label displayed if both are set
+		// Handle special cases for command execution and file editing
 		const safeCommandsEnabled = enabledActions.some((action) => action.id === "executeSafeCommands")
 		const allCommandsEnabled = enabledActions.some((action) => action.id === "executeAllCommands")
+		const editFilesEnabled = enabledActions.some((action) => action.id === "editFiles")
+		const editFilesExternallyEnabled = enabledActions.some((action) => action.id === "editFilesExternally")
 
 		const otherActions = enabledActions
-			.filter((action) => action.id !== "executeSafeCommands" && action.id !== "executeAllCommands")
+			.filter(
+				(action) =>
+					action.id !== "executeSafeCommands" &&
+					action.id !== "executeAllCommands" &&
+					action.id !== "editFiles" &&
+					action.id !== "editFilesExternally",
+			)
 			.map((action) => action.shortName)
 
+		const labels = []
+
+		// Handle command execution labels
 		if (allCommandsEnabled) {
-			return ["All Commands", ...otherActions].join(", ")
+			labels.push("All Commands")
 		} else if (safeCommandsEnabled) {
-			return ["Safe Commands", ...otherActions].join(", ")
-		} else {
-			return otherActions.join(", ")
+			labels.push("Safe Commands")
 		}
+
+		// Handle file editing labels
+		if (editFilesExternallyEnabled) {
+			labels.push("EditExternal")
+		} else if (editFilesEnabled) {
+			labels.push("Edit")
+		}
+
+		// Add remaining actions
+		return [...labels, ...otherActions].join(", ")
 	})()
 	const hasEnabledActions = enabledActions.length > 0
 
@@ -257,10 +276,11 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 						caution and only enable if you understand the risks.
 					</div>
 					{ACTION_METADATA.map((action) => {
-						if (action.id === "executeAllCommands") {
+						// Handle both executeAllCommands and editFilesExternally as animated sub-options
+						if (action.id === "executeAllCommands" || action.id === "editFilesExternally") {
+							const parentAction = action.id === "executeAllCommands" ? "executeSafeCommands" : "editFiles"
 							return (
-								// Option to make the "Approve All" option animate into the menu when "Approve Safe" is enabled
-								<SubOptionAnimateIn key={action.id} show={autoApprovalSettings.actions.executeSafeCommands}>
+								<SubOptionAnimateIn key={action.id} show={autoApprovalSettings.actions[parentAction]}>
 									<div
 										style={{
 											margin: "6px 0",
