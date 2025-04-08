@@ -1145,7 +1145,9 @@ export class Task {
 		}
 	}
 
-	shouldAutoApproveTool(toolName: ToolUseName): boolean {
+	// Check if the tool should be auto-approved based on the settings
+	// Returns bool for most tools, tuple for execute_command (and future nested auto appoved settings)
+	shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
 		if (this.autoApprovalSettings.enabled) {
 			switch (toolName) {
 				case "read_file":
@@ -1157,7 +1159,10 @@ export class Task {
 				case "replace_in_file":
 					return this.autoApprovalSettings.actions.editFiles
 				case "execute_command":
-					return this.autoApprovalSettings.actions.executeCommands
+					return [
+						this.autoApprovalSettings.actions.executeSafeCommands,
+						this.autoApprovalSettings.actions.executeAllCommands,
+					]
 				case "browser_action":
 					return this.autoApprovalSettings.actions.useBrowser
 				case "access_mcp_resource":
@@ -2349,7 +2354,7 @@ export class Task {
 					case "execute_command": {
 						let command: string | undefined = block.params.command
 						const requiresApprovalRaw: string | undefined = block.params.requires_approval
-						const requiresApproval = requiresApprovalRaw?.toLowerCase() === "true"
+						const requiresApprovalPerLLM = requiresApprovalRaw?.toLowerCase() === "true"
 
 						try {
 							if (block.partial) {
@@ -2400,7 +2405,17 @@ export class Task {
 
 								let didAutoApprove = false
 
-								if (!requiresApproval && this.shouldAutoApproveTool(block.name)) {
+								// If the model says this command is safe and auto aproval for safe commands is true, execute the command
+								// If the model says the command is risky, but *BOTH* auto approve settings are true, execute the command
+								const autoApproveResult = this.shouldAutoApproveTool(block.name)
+								const [autoApproveSafe, autoApproveAll] = Array.isArray(autoApproveResult)
+									? autoApproveResult
+									: [autoApproveResult, false]
+
+								if (
+									(!requiresApprovalPerLLM && autoApproveSafe) ||
+									(requiresApprovalPerLLM && autoApproveSafe && autoApproveAll)
+								) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "command")
 									await this.say("command", command, undefined, false)
 									this.consecutiveAutoApprovedRequestsCount++
@@ -2413,7 +2428,7 @@ export class Task {
 									const didApprove = await askApproval(
 										"command",
 										command +
-											`${this.shouldAutoApproveTool(block.name) && requiresApproval ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
+											`${this.shouldAutoApproveTool(block.name) && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`, // ugly hack until we refactor combineCommandSequences
 									)
 									if (!didApprove) {
 										break
