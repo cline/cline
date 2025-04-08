@@ -11,9 +11,11 @@ import { useFloating, offset, flip, shift } from "@floating-ui/react"
 interface CheckmarkControlProps {
 	messageTs?: number
 	isCheckpointCheckedOut?: boolean
+	index: number
+	hoveredRowIndex: number | null
 }
 
-export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: CheckmarkControlProps) => {
+export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut, index, hoveredRowIndex }: CheckmarkControlProps) => {
 	const [compareDisabled, setCompareDisabled] = useState(false)
 	const [restoreTaskDisabled, setRestoreTaskDisabled] = useState(false)
 	const [restoreWorkspaceDisabled, setRestoreWorkspaceDisabled] = useState(false)
@@ -118,7 +120,8 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 	}
 
 	useEvent("message", handleMessage)
-
+	const shouldShow = hoveredRowIndex === index - 1
+	console.log("shouldShow", shouldShow)
 	return (
 		<Container isMenuOpen={showRestoreConfirm} $isCheckedOut={isCheckpointCheckedOut} onMouseLeave={handleControlsMouseLeave}>
 			<i

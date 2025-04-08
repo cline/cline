@@ -36,21 +36,21 @@ import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
 	position: relative;
-	transition: background-color 0.2s ease-in-out; // Add transition for smooth background change
 
-	&:hover ${CheckpointControls} {
+	// Always show CheckpointControls
+	${CheckpointControls} {
 		opacity: 1;
-		max-width: 100px; // Allow expansion on hover
+		max-width: 100px;
 	}
 
-	// Add hover rule for the CheckmarkContainer (the whole checkpoint row)
-	&:hover ${CheckmarkContainer} {
+	// Always show CheckmarkContainer expanded styles
+	${CheckmarkContainer} {
 		opacity: 1;
-		max-height: 150px; // Even larger expansion height
-		padding: 8px 0; // Increase vertical padding more on hover
-		margin-top: -10px; // Restore margin
-		margin-bottom: -10px; // Restore margin
-		transform: translateY(-2px); // Add subtle vertical lift
+		max-height: 150px;
+		padding: 8px 0;
+		margin-top: -10px;
+		margin-bottom: -10px;
+		transform: translateY(-2px);
 	}
 `
 
@@ -67,7 +67,10 @@ interface ChatRowProps {
 }
 
 interface ChatRowContentProps
-	extends Omit<ChatRowProps, "onHeightChange" | "rowIndex" | "hoveredRowIndex" | "setHoveredRowIndex"> {}
+	extends Omit<ChatRowProps, "onHeightChange" | "rowIndex" | "hoveredRowIndex" | "setHoveredRowIndex"> {
+	rowIndex: number
+	hoveredRowIndex: number | null
+}
 
 export const ProgressIndicator = () => (
 	<div
@@ -158,7 +161,15 @@ const ChatRow = memo(
 
 export default ChatRow
 
-export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifiedMessage, isLast }: ChatRowContentProps) => {
+export const ChatRowContent = ({
+	message,
+	isExpanded,
+	onToggleExpand,
+	lastModifiedMessage,
+	isLast,
+	rowIndex,
+	hoveredRowIndex,
+}: ChatRowContentProps) => {
 	const { mcpServers, mcpMarketplaceCatalog } = useExtensionState()
 	const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 
@@ -1010,7 +1021,12 @@ export const ChatRowContent = ({ message, isExpanded, onToggleExpand, lastModifi
 				case "checkpoint_created":
 					return (
 						// Render the CheckmarkControl which contains the CheckmarkContainer
-						<CheckmarkControl messageTs={message.ts} isCheckpointCheckedOut={message.isCheckpointCheckedOut} />
+						<CheckmarkControl
+							messageTs={message.ts}
+							isCheckpointCheckedOut={message.isCheckpointCheckedOut}
+							index={rowIndex}
+							hoveredRowIndex={hoveredRowIndex}
+						/>
 					)
 				case "completion_result":
 					const hasChanges = message.text?.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false
