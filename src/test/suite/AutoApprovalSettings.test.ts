@@ -72,11 +72,9 @@ describe("AutoApprovalSettings Terminal Permissions", () => {
 		mockTask.autoApprovalSettings = settingsDisabled
 		mockTask.executeCommandTool.withArgs(safeCommand).resolves([false, "Command is still running in the user's terminal."])
 		mockTask.executeCommandTool.withArgs(unsafeCommand).resolves([false, "Command is still running in the user's terminal."])
-
 		;[safeApproved, safeResult] = await mockTask.executeCommandTool(safeCommand)
 		safeApproved.should.be.false()
 		safeResult.should.containEql("Command is still running in the user's terminal.")
-
 		;[unsafeApproved, unsafeResult] = await mockTask.executeCommandTool(unsafeCommand)
 		unsafeApproved.should.be.false()
 		unsafeResult.should.containEql("Command is still running in the user's terminal.")
