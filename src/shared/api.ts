@@ -1376,9 +1376,61 @@ export const xaiModels = {
 
 // SambaNova
 // https://docs.sambanova.ai/cloud/docs/get-started/supported-models
-export type SambanovaModelId = keyof typeof sambanovaModels
-export const sambanovaDefaultModelId: SambanovaModelId = "Meta-Llama-3.3-70B-Instruct"
-export const sambanovaModels = {
+
+interface SambanovaApiResponse {
+	data: Array<{
+		context_length: number
+		id: string
+		max_completion_tokens: number
+		object: string
+		owned_by: string
+		pricing: {
+			completion: string
+			prompt: string
+		}
+	}>
+}
+
+let sambanovaModelsCache: Record<string, ModelInfo> | null = null
+
+export async function fetchSambanovaModels(): Promise<Record<string, ModelInfo>> {
+	if (sambanovaModelsCache) {
+		return sambanovaModelsCache
+	}
+
+	try {
+		const response = await fetch("https://api.sambanova.ai/v1/models")
+		if (!response.ok) {
+			throw new Error(`Failed to fetch SambaNova models: ${response.statusText}`)
+		}
+
+		const data: SambanovaApiResponse = await response.json()
+		const models: Record<string, ModelInfo> = {}
+
+		for (const model of data.data) {
+			models[model.id] = {
+				maxTokens: model.max_completion_tokens,
+				contextWindow: model.context_length,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: parseFloat(model.pricing.prompt) * 1_000_000, // Convert to per million tokens
+				outputPrice: parseFloat(model.pricing.completion) * 1_000_000, // Convert to per million tokens
+			}
+		}
+
+		sambanovaModelsCache = models
+		return models
+	} catch (error) {
+		console.error("Error fetching SambaNova models:", error)
+		return fallbackSambanovaModels
+	}
+}
+
+export type SambanovaModelId = string
+export const sambanovaDefaultModelId: SambanovaModelId = "DeepSeek-R1"
+
+// Fallback models in case the API is unavailable
+const fallbackSambanovaModels = {
 	"Meta-Llama-3.3-70B-Instruct": {
 		maxTokens: 4096,
 		contextWindow: 128_000,
@@ -1475,4 +1527,17 @@ export const sambanovaModels = {
 		inputPrice: 1.0,
 		outputPrice: 1.5,
 	},
-} as const satisfies Record<string, ModelInfo>
+} satisfies Record<string, ModelInfo>
+
+// Export a proxy that will fetch models on first access
+export const sambanovaModels = new Proxy({} as Record<string, ModelInfo>, {
+	get: (target, prop) => {
+		if (!sambanovaModelsCache) {
+			// Initialize the cache
+			fetchSambanovaModels().catch(console.error)
+			// Return from fallback while loading
+			return (fallbackSambanovaModels as Record<string, ModelInfo>)[prop as string]
+		}
+		return sambanovaModelsCache[prop as string]
+	},
+})
