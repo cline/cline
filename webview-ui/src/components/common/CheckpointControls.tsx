@@ -182,8 +182,9 @@ export const CheckpointControls = styled.div`
 	background-color: var(--vscode-sideBar-background);
 	padding: 3px 0 3px 3px;
 	transition:
-		opacity 0.2s ease-in-out,
-		max-width 0.3s ease-in-out; // Animate both properties
+		opacity 0.9s cubic-bezier(0.4, 0, 0.2, 1),
+		// Smoother timing function
+		max-width 1.2s cubic-bezier(0.4, 0, 0.2, 1); // Smoother timing function
 
 	& > vscode-button,
 	& > div > vscode-button {
