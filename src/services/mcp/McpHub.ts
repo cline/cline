@@ -94,10 +94,6 @@ export class McpHub {
 		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
 	}
 
-	getMode(): McpMode {
-		return vscode.workspace.getConfiguration("cline.mcp").get<McpMode>("mode", "full")
-	}
-
 	async getMcpServersPath(): Promise<string> {
 		const provider = this.controllerRef.deref()
 		if (!provider) {
