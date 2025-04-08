@@ -118,6 +118,16 @@
 				"category": "Cline"
 			}
 		],
+		"keybindings": [
+			{
+				"command": "cline.addToChat",
+				"key": "cmd+'",
+				"mac": "cmd+'",
+				"win": "ctrl+'",
+				"linux": "ctrl+'",
+				"when": "editorHasSelection"
+			}
+		],
 		"menus": {
 			"view/title": [
 				{

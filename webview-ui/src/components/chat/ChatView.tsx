@@ -457,12 +457,15 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				case "addToInput":
 					setInputValue((prevValue) => {
 						const newText = message.text ?? ""
-						return prevValue ? `${prevValue}\n${newText}` : newText
+						const newTextWithNewline = newText + "\n"
+						return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
 					})
 					// Add scroll to bottom after state update
+					// Auto focus the input and start the cursor on a new linefor easy typing
 					setTimeout(() => {
 						if (textAreaRef.current) {
 							textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
+							textAreaRef.current.focus()
 						}
 					}, 0)
 					break
