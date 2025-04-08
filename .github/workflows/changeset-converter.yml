@@ -30,7 +30,7 @@ jobs:
             - name: Check user for team affiliation
               id: team_check
               if: github.event_name == 'workflow_dispatch'
-              uses: morfien101/actions-authorized-user@v3
+              uses: morfien101/actions-authorized-user@4a3cfbf0bcb3cafe4a71710a278920c5d94bb38b
               with:
                 username: ${{ github.actor }}
                 team: "deployer"
