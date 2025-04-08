@@ -1134,6 +1134,8 @@ export class Task {
 		}
 	}
 
+	// Check if the tool should be auto-approved based on the settings
+	// Returns bool for most tools, tuple for execute_command (and future nested auto appoved settings)
 	shouldAutoApproveTool(toolName: ToolUseName): any {
 		if (this.autoApprovalSettings.enabled) {
 			switch (toolName) {
@@ -2368,9 +2370,13 @@ export class Task {
 
 								let didAutoApprove = false
 
+								// If the model says this command is safe and auto aproval for safe commands is true, execute the command
+								// If the model says the command is risky, but *BOTH* auto approve settings are true, execute the command
 								if (
 									(!requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name)[0]) ||
-									(requiresApprovalPerLLM && this.shouldAutoApproveTool(block.name)[1])
+									(requiresApprovalPerLLM &&
+										this.shouldAutoApproveTool(block.name)[0] &&
+										this.shouldAutoApproveTool(block.name)[1])
 								) {
 									this.removeLastPartialMessageIfExistsWithType("ask", "command")
 									await this.say("command", command, undefined, false)
