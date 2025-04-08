@@ -61,7 +61,7 @@ export class Controller {
 	workspaceTracker?: WorkspaceTracker
 	mcpHub?: McpHub
 	accountService?: ClineAccountService
-	private latestAnnouncementId = "march-22-2025" // update to some unique identifier when we add a new announcement
+	private latestAnnouncementId = "april-7-2025" // update to some unique identifier when we add a new announcement
 	private webviewProviderRef: WeakRef<WebviewProvider>
 
 	constructor(
