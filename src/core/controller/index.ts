@@ -718,11 +718,8 @@ export class Controller {
 
 					await updateGlobalState(this.context, "favoritedModelIds", updatedFavorites)
 
-					// Determine if the model is being favorited or unfavorited
-					const isFavorited = !favoritedModelIds.includes(message.modelId)
-
 					// Capture telemetry for model favorite toggle
-					console.log("Toggling model favorite status:", message.modelId, "isFavorited:", isFavorited)
+					const isFavorited = !favoritedModelIds.includes(message.modelId)
 					telemetryService.captureModelFavoritesUsage(message.modelId, isFavorited)
 
 					// Post state to webview without changing any other configuration
