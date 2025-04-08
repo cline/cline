@@ -10,7 +10,7 @@ interface AutoApproveMenuProps {
 	style?: React.CSSProperties
 }
 
-const AnimatedSection = styled.div<{ show: boolean }>`
+const SubOptionAnimateIn = styled.div<{ show: boolean }>`
 	max-height: ${(props) => (props.show ? "100px" : "0")};
 	opacity: ${(props) => (props.show ? "1" : "0")};
 	overflow: hidden;
@@ -252,7 +252,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 					{ACTION_METADATA.map((action) => {
 						if (action.id === "executeAllCommands") {
 							return (
-								<AnimatedSection key={action.id} show={autoApprovalSettings.actions.executeSafeCommands}>
+								<SubOptionAnimateIn key={action.id} show={autoApprovalSettings.actions.executeSafeCommands}>
 									<div
 										style={{
 											margin: "6px 0",
@@ -275,7 +275,7 @@ const AutoApproveMenu = ({ style }: AutoApproveMenuProps) => {
 											{action.description}
 										</div>
 									</div>
-								</AnimatedSection>
+								</SubOptionAnimateIn>
 							)
 						}
 						return (
