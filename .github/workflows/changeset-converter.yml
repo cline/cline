@@ -22,7 +22,7 @@ jobs:
                 github.event.pull_request.base.ref == 'main' &&
                 github.actor != 'github-actions'
             )
-        runs-on: ubuntu-latestx`
+        runs-on: ubuntu-latest`
         permissions:
             contents: write
             pull-requests: write
