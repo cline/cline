@@ -14,7 +14,7 @@ import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from '../../utils/vscStyle
 import PostHogConfigOptions from './PostHogConfigOptions'
 const { IS_DEV } = process.env
 
-type SettingsTab = 'privacy' | 'rules' | 'api' | 'features' | 'advanced'
+type SettingsTab = 'privacy' | 'rules' | 'api' | 'general' | 'advanced'
 
 const SettingsView = () => {
     const {
@@ -32,7 +32,7 @@ const SettingsView = () => {
     const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
     const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
     const [pendingTabChange, setPendingTabChange] = useState<'plan' | 'act' | null>(null)
-    const [activeTab, setActiveTab] = useState<SettingsTab>('features')
+    const [activeTab, setActiveTab] = useState<SettingsTab>('general')
 
     const handleSubmit = () => {
         const apiValidationResult = validateApiConfiguration(apiConfiguration)
@@ -123,7 +123,7 @@ const SettingsView = () => {
         </button>
     )
 
-    const GeneralSettings = () => (
+    const PrivacySettings = () => (
         <>
             <div style={{ marginBottom: 5 }}>
                 <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginBottom: '5px' }}>Telemetry</h3>
@@ -257,7 +257,7 @@ const SettingsView = () => {
         </>
     )
 
-    const FeaturesSettings = () => (
+    const GeneralSettings = () => (
         <>
             <h3 style={{ color: 'var(--vscode-foreground)', margin: 0, marginBottom: '5px' }}>PostHog Configuration</h3>
             <div
@@ -355,8 +355,8 @@ const SettingsView = () => {
                         flexDirection: 'column',
                     }}
                 >
-                    <MenuButton tab="features" label="Features" />
-                    <MenuButton tab="api" label="API Configuration" />
+                    <MenuButton tab="general" label="General" />
+                    <MenuButton tab="api" label="Provider Configuration" />
                     <MenuButton tab="rules" label="Rules" />
                     <MenuButton tab="privacy" label="Privacy" />
                     <MenuButton tab="advanced" label="Advanced" />
@@ -372,8 +372,8 @@ const SettingsView = () => {
                 >
                     {activeTab === 'rules' && <RulesSettings />}
                     {activeTab === 'api' && <ApiSettings />}
-                    {activeTab === 'features' && <FeaturesSettings />}
-                    {activeTab === 'privacy' && <GeneralSettings />}
+                    {activeTab === 'general' && <GeneralSettings />}
+                    {activeTab === 'privacy' && <PrivacySettings />}
                     {activeTab === 'advanced' && IS_DEV && <AdvancedSettings />}
 
                     {/* Version info at the bottom */}

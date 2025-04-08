@@ -90,10 +90,11 @@ export const ExtensionStateContextProvider: React.FC<{
                           config.xaiApiKey,
                           config.sambanovaApiKey,
                           config.codestralApiKey,
-                          config.posthogPersonalApiKey,
                       ].some((key) => key !== undefined)
                     : false
-                setShowWelcome(!hasKey)
+
+                const hasPersonalApiKey = config?.posthogPersonalApiKey !== undefined
+                setShowWelcome(!hasKey || !hasPersonalApiKey)
                 setDidHydrateState(true)
                 break
             }

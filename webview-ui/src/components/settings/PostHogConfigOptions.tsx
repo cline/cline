@@ -1,13 +1,14 @@
 import { VSCodeButton, VSCodeTextField, VSCodeRadioGroup, VSCodeRadio } from '@vscode/webview-ui-toolkit/react'
 import { memo, useState } from 'react'
-import { ApiConfiguration } from '../../../../src/shared/api'
 import { useExtensionState } from '../../context/ExtensionStateContext'
 import VSCodeButtonLink from '../common/VSCodeButtonLink'
 
 const PostHogConfigOptions = () => {
-    const [personalApiKey, setPersonalApiKey] = useState('')
-    const [cloud, setCloud] = useState<'us' | 'eu'>('us')
     const { apiConfiguration, setApiConfiguration } = useExtensionState()
+    const [personalApiKey, setPersonalApiKey] = useState(apiConfiguration?.posthogPersonalApiKey)
+    const [cloud, setCloud] = useState<'us' | 'eu'>(
+        apiConfiguration?.posthogHost === 'https://eu.posthog.com' ? 'eu' : 'us'
+    )
 
     const handleSubmit = () => {
         setApiConfiguration({
@@ -52,7 +53,7 @@ const PostHogConfigOptions = () => {
                     </VSCodeButton>
                 ) : (
                     <VSCodeButtonLink
-                        href="https://app.posthog.com/settings/user-api-keys?preset=zapier"
+                        href="https://app.posthog.com/settings/user-api-keys?preset=editor"
                         style={{ marginTop: 10, width: '100%' }}
                     >
                         Create a PostHog personal API key

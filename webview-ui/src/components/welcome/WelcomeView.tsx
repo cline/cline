@@ -28,8 +28,6 @@ const WelcomeView = () => {
 
     const hasPersonalApiKey = !!apiConfiguration?.posthogPersonalApiKey
 
-    console.log('hasPersonalApiKey', hasPersonalApiKey)
-
     return (
         <div
             style={{
