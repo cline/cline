@@ -5,7 +5,8 @@ export interface AutoApprovalSettings {
 	actions: {
 		readFiles: boolean // Read files and directories
 		editFiles: boolean // Edit files
-		executeCommands: boolean // Execute safe commands
+		executeSafeCommands: boolean // Execute safe commands
+		executeAllCommands: boolean // Execute all commands
 		useBrowser: boolean // Use browser
 		useMcp: boolean // Use MCP servers
 	}
@@ -19,7 +20,8 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	actions: {
 		readFiles: false,
 		editFiles: false,
-		executeCommands: false,
+		executeSafeCommands: false,
+		executeAllCommands: false,
 		useBrowser: false,
 		useMcp: false,
 	},

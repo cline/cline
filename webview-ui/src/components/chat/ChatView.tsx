@@ -224,6 +224,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						case "mcp_server_response":
 						case "completion_result":
 						case "tool":
+						case "load_mcp_documentation":
 							break
 					}
 					break

@@ -43,7 +43,9 @@ import {
 	updateGlobalState,
 } from "../storage/state"
 import { WebviewProvider } from "../webview"
+import { BrowserSession } from "../../services/browser/BrowserSession"
 import { GlobalFileNames } from "../storage/disk"
+import { discoverChromeInstances } from "../../services/browser/BrowserDiscovery"
 import { searchWorkspaceFiles } from "../../services/search/file-search"
 import { getWorkspacePath } from "../../utils/path"
 
@@ -279,12 +281,135 @@ export class Controller {
 				break
 			case "browserSettings":
 				if (message.browserSettings) {
+					// remoteBrowserEnabled now means "enable remote browser connection"
+					// commenting out since this is being done in BrowserSettingsSection updateRemoteBrowserEnabled
+					// if (!message.browserSettings.remoteBrowserEnabled) {
+					// 	// If disabling remote browser connection, clear the remoteBrowserHost
+					// 	message.browserSettings.remoteBrowserHost = undefined
+					// }
 					await updateGlobalState(this.context, "browserSettings", message.browserSettings)
 					if (this.task) {
 						this.task.browserSettings = message.browserSettings
 						this.task.browserSession.browserSettings = message.browserSettings
 					}
 					await this.postStateToWebview()
+				}
+				break
+			case "getBrowserConnectionInfo":
+				try {
+					// Get the current browser session from Cline if it exists
+					if (this.task?.browserSession) {
+						const connectionInfo = this.task.browserSession.getConnectionInfo()
+						await this.postMessageToWebview({
+							type: "browserConnectionInfo",
+							isConnected: connectionInfo.isConnected,
+							isRemote: connectionInfo.isRemote,
+							host: connectionInfo.host,
+						})
+					} else {
+						// If no active browser session, just return the settings
+						const { browserSettings } = await getAllExtensionState(this.context)
+						await this.postMessageToWebview({
+							type: "browserConnectionInfo",
+							isConnected: false,
+							isRemote: !!browserSettings.remoteBrowserEnabled,
+							host: browserSettings.remoteBrowserHost,
+						})
+					}
+				} catch (error) {
+					console.error("Error getting browser connection info:", error)
+					await this.postMessageToWebview({
+						type: "browserConnectionInfo",
+						isConnected: false,
+						isRemote: false,
+					})
+				}
+				break
+			case "testBrowserConnection":
+				try {
+					const { browserSettings } = await getAllExtensionState(this.context)
+					const browserSession = new BrowserSession(this.context, browserSettings)
+					// If no text is provided, try auto-discovery
+					if (!message.text) {
+						try {
+							const discoveredHost = await discoverChromeInstances()
+							if (discoveredHost) {
+								// Test the connection to the discovered host
+								const result = await browserSession.testConnection(discoveredHost)
+								// Send the result back to the webview
+								await this.postMessageToWebview({
+									type: "browserConnectionResult",
+									success: result.success,
+									text: `Auto-discovered and tested connection to Chrome at ${discoveredHost}: ${result.message}`,
+									endpoint: result.endpoint,
+								})
+							} else {
+								await this.postMessageToWebview({
+									type: "browserConnectionResult",
+									success: false,
+									text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+								})
+							}
+						} catch (error) {
+							await this.postMessageToWebview({
+								type: "browserConnectionResult",
+								success: false,
+								text: `Error during auto-discovery: ${error instanceof Error ? error.message : String(error)}`,
+							})
+						}
+					} else {
+						// Test the provided URL
+						const result = await browserSession.testConnection(message.text)
+
+						// Send the result back to the webview
+						await this.postMessageToWebview({
+							type: "browserConnectionResult",
+							success: result.success,
+							text: result.message,
+							endpoint: result.endpoint,
+						})
+					}
+				} catch (error) {
+					await this.postMessageToWebview({
+						type: "browserConnectionResult",
+						success: false,
+						text: `Error testing connection: ${error instanceof Error ? error.message : String(error)}`,
+					})
+				}
+				break
+			case "discoverBrowser":
+				try {
+					const discoveredHost = await discoverChromeInstances()
+
+					if (discoveredHost) {
+						// Don't update the remoteBrowserHost state when auto-discovering
+						// This way we don't override the user's preference
+
+						// Test the connection to get the endpoint
+						const { browserSettings } = await getAllExtensionState(this.context)
+						const browserSession = new BrowserSession(this.context, browserSettings)
+						const result = await browserSession.testConnection(discoveredHost)
+
+						// Send the result back to the webview
+						await this.postMessageToWebview({
+							type: "browserConnectionResult",
+							success: true,
+							text: `Successfully discovered and connected to Chrome at ${discoveredHost}`,
+							endpoint: result.endpoint,
+						})
+					} else {
+						await this.postMessageToWebview({
+							type: "browserConnectionResult",
+							success: false,
+							text: "No Chrome instances found on the network. Make sure Chrome is running with remote debugging enabled (--remote-debugging-port=9222).",
+						})
+					}
+				} catch (error) {
+					await this.postMessageToWebview({
+						type: "browserConnectionResult",
+						success: false,
+						text: `Error discovering browser: ${error instanceof Error ? error.message : String(error)}`,
+					})
 				}
 				break
 			case "togglePlanActMode":
@@ -299,11 +424,11 @@ export class Controller {
 					text: message.text,
 				})
 				break
-			// case "relaunchChromeDebugMode":
-			// 	if (this.task) {
-			// 		this.task.browserSession.relaunchChromeDebugMode()
-			// 	}
-			// 	break
+			case "relaunchChromeDebugMode":
+				const { browserSettings } = await getAllExtensionState(this.context)
+				const browserSession = new BrowserSession(this.context, browserSettings)
+				await browserSession.relaunchChromeDebugMode(this)
+				break
 			case "askResponse":
 				this.task?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 				break
@@ -472,14 +597,7 @@ export class Controller {
 						await this.togglePlanActModeWithChatSettings({ mode: "act" })
 					}
 
-					// 2. Enable MCP settings if disabled
-					// Enable MCP mode if disabled
-					const mcpConfig = vscode.workspace.getConfiguration("cline.mcp")
-					if (mcpConfig.get<string>("mode") !== "full") {
-						await mcpConfig.update("mode", "full", true)
-					}
-
-					// 3. download MCP
+					// 2. download MCP
 					await this.downloadMcp(message.mcpId)
 				}
 				break
@@ -623,6 +741,13 @@ export class Controller {
 				})
 				break
 			}
+			case "scrollToSettings": {
+				await this.postMessageToWebview({
+					type: "scrollToSettings",
+					text: message.text,
+				})
+				break
+			}
 			case "telemetrySetting": {
 				if (message.telemetrySetting) {
 					await this.updateTelemetrySetting(message.telemetrySetting)
@@ -663,6 +788,21 @@ export class Controller {
 				this.postMessageToWebview({ type: "relinquishControl" })
 				break
 			}
+			case "getDetectedChromePath": {
+				try {
+					const { browserSettings } = await getAllExtensionState(this.context)
+					const browserSession = new BrowserSession(this.context, browserSettings)
+					const { path, isBundled } = await browserSession.getDetectedChromePath()
+					await this.postMessageToWebview({
+						type: "detectedChromePath",
+						text: path,
+						isBundled,
+					})
+				} catch (error) {
+					console.error("Error getting detected Chrome path:", error)
+				}
+				break
+			}
 			case "getRelativePaths": {
 				if (message.uris && message.uris.length > 0) {
 					const resolvedPaths = await Promise.all(
@@ -699,7 +839,6 @@ export class Controller {
 				}
 				break
 			}
-
 			case "searchFiles": {
 				const workspacePath = getWorkspacePath()
 
@@ -1220,6 +1359,7 @@ export class Controller {
 
 			// Create task with context from README and added guidelines for MCP server installation
 			const task = `Set up the MCP server from ${mcpDetails.githubUrl} while adhering to these MCP server installation rules:
+- Start by loading the MCP documentation.
 - Use "${mcpDetails.mcpId}" as the server name in cline_mcp_settings.json.
 - Create the directory for the new MCP server before starting installation.
 - Use commands aligned with the user's shell and operating system best practices.
