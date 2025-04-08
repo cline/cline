@@ -3656,9 +3656,8 @@ export class Task {
 		const lastApiReqTotalTokens = lastApiReqMessage ? getTotalTokensFromApiReqMessage(lastApiReqMessage) : 0
 		const usagePercentage = Math.round((lastApiReqTotalTokens / contextWindow) * 100)
 
-		details += "\n\n# Context Window Usage"
-		details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${contextWindow.toLocaleString()} tokens (${usagePercentage}%)`
-		details += `\nModel: ${this.api.getModel().id} (${(contextWindow / 1000).toLocaleString()}K context window)`
+		details += "\n# Context Window Usage"
+		details += `\n${lastApiReqTotalTokens.toLocaleString()} / (${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
 
 		details += "\n\n# Current Mode"
 		if (this.chatSettings.mode === "plan") {
