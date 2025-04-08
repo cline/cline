@@ -82,14 +82,21 @@ export type ApiConfiguration = ApiHandlerOptions & {
 
 // Models
 
+interface PriceTier {
+	tokenLimit: number // Upper limit (inclusive) of *input* tokens for this price. Use Infinity for the highest tier.
+	price: number // Price per million tokens for this tier.
+}
+
 export interface ModelInfo {
 	maxTokens?: number
 	contextWindow?: number
 	supportsImages?: boolean
 	supportsComputerUse?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
-	inputPrice?: number
-	outputPrice?: number
+	inputPrice?: number // Keep for non-tiered input models
+	inputPriceTiers?: PriceTier[] // Add for tiered input pricing
+	outputPrice?: number // Keep for non-tiered output models
+	outputPriceTiers?: PriceTier[] // Add for tiered output pricing
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
@@ -384,8 +391,16 @@ export const vertexModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 1.25,
-		outputPrice: 10,
+		// inputPrice: 1.25, // Removed
+		// outputPrice: 10, // Removed
+		inputPriceTiers: [
+			{ tokenLimit: 200000, price: 1.25 }, // Input price for <= 200k input tokens
+			{ tokenLimit: Infinity, price: 2.5 }, // Input price for > 200k input tokens
+		],
+		outputPriceTiers: [
+			{ tokenLimit: 200000, price: 10.0 }, // Output price for <= 200k input tokens
+			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
+		],
 	},
 	"gemini-2.0-flash-thinking-exp-01-21": {
 		maxTokens: 65_536,
@@ -474,8 +489,16 @@ export const geminiModels = {
 		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
-		inputPrice: 1.25,
-		outputPrice: 10,
+		// inputPrice: 1.25, // Removed
+		// outputPrice: 10, // Removed
+		inputPriceTiers: [
+			{ tokenLimit: 200000, price: 1.25 }, // Input price for <= 200k input tokens
+			{ tokenLimit: Infinity, price: 2.5 }, // Input price for > 200k input tokens
+		],
+		outputPriceTiers: [
+			{ tokenLimit: 200000, price: 10.0 }, // Output price for <= 200k input tokens
+			{ tokenLimit: Infinity, price: 15.0 }, // Output price for > 200k input tokens
+		],
 	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
