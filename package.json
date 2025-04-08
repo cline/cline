@@ -214,21 +214,6 @@
 					},
 					"description": "Settings for VSCode Language Model API"
 				},
-				"cline.mcp.mode": {
-					"type": "string",
-					"enum": [
-						"full",
-						"server-use-only",
-						"off"
-					],
-					"enumDescriptions": [
-						"Enable all MCP functionality (server use and build instructions)",
-						"Enable MCP server use only (excludes instructions about building MCP servers)",
-						"Disable all MCP functionality"
-					],
-					"default": "full",
-					"description": "Controls MCP inclusion in prompts, reduces token usage if you only need access to certain functionality."
-				},
 				"cline.enableCheckpoints": {
 					"type": "boolean",
 					"default": true,
@@ -364,6 +349,7 @@
 		"axios": "^1.8.2",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
+		"chrome-launcher": "^1.1.2",
 		"clone-deep": "^4.0.1",
 		"default-shell": "^2.2.0",
 		"diff": "^5.2.0",
