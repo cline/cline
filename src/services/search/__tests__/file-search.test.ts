@@ -1,37 +1,33 @@
-import { describe, it } from "mocha"
-import should from "should"
-import sinon from "sinon"
+import { describe, it, beforeEach, afterEach, expect, vi } from "vitest"
 import { Readable } from "stream"
 import type { FzfResultItem } from "fzf"
 import * as childProcess from "child_process"
 import * as vscode from "vscode"
 import * as fs from "fs"
-import * as path from "path"
-import * as fileSearch from "../../../services/search/file-search"
-import * as ripgrep from "../../../services/ripgrep"
+import * as fileSearch from "../file-search"
+import * as ripgrep from "../../ripgrep"
 
 describe("File Search", function () {
-	let sandbox: sinon.SinonSandbox
-	let spawnStub: sinon.SinonStub
+	let spawnStub: ReturnType<typeof vi.fn>
 
 	beforeEach(function () {
-		sandbox = sinon.createSandbox()
-		spawnStub = sandbox.stub()
+		vi.resetAllMocks()
+		spawnStub = vi.fn()
 
 		// Create a wrapper function that matches the signature of childProcess.spawn
 		const spawnWrapper: typeof childProcess.spawn = function (command, options) {
 			return spawnStub(command, options)
 		}
 
-		sandbox.stub(fileSearch, "getSpawnFunction").returns(spawnWrapper)
-		// Use replaceGetter instead of stub().value() for non-configurable properties
-		sandbox.replaceGetter(vscode.env, "appRoot", () => "mock/app/root")
-		sandbox.stub(fs.promises, "lstat").resolves({ isDirectory: () => false } as fs.Stats)
-		sandbox.stub(ripgrep, "getBinPath").resolves("mock/ripgrep/path")
+		vi.spyOn(fileSearch, "getSpawnFunction").mockReturnValue(spawnWrapper)
+		// Mock vscode.env.appRoot
+		vi.spyOn(vscode.env, "appRoot", "get").mockReturnValue("mock/app/root")
+		vi.spyOn(fs.promises, "lstat").mockResolvedValue({ isDirectory: () => false } as fs.Stats)
+		vi.spyOn(ripgrep, "getBinPath").mockResolvedValue("mock/ripgrep/path")
 	})
 
 	afterEach(function () {
-		sandbox.restore()
+		vi.restoreAllMocks()
 	})
 
 	describe("executeRipgrepForFiles", function () {
@@ -52,10 +48,10 @@ describe("File Search", function () {
 				},
 			})
 
-			spawnStub.returns({
+			spawnStub.mockReturnValue({
 				stdout: mockStdout,
 				stderr: mockStderr,
-				on: sinon.stub().returns({}),
+				on: vi.fn().mockReturnValue({}),
 			} as unknown as childProcess.ChildProcess)
 
 			// Instead of stubbing path functions, we'll stub the executeRipgrepForFiles function
@@ -69,30 +65,34 @@ describe("File Search", function () {
 			]
 
 			// Create a new stub for executeRipgrepForFiles
-			sandbox.stub(fileSearch, "executeRipgrepForFiles").resolves(expectedResult)
+			vi.spyOn(fileSearch, "executeRipgrepForFiles").mockResolvedValue(expectedResult)
 
 			const result = await fileSearch.executeRipgrepForFiles("mock/path", "/workspace", 5000)
 
-			should(result).be.an.Array()
+			expect(result).toBeInstanceOf(Array)
 			// Don't assert on the exact length as it may vary
 
 			const files = result.filter((item) => item.type === "file")
 			const folders = result.filter((item) => item.type === "folder")
 
 			// Verify we have at least the expected files and folders
-			should(files.length).be.greaterThanOrEqual(3)
-			should(folders.length).be.greaterThanOrEqual(2)
+			expect(files.length).toBeGreaterThanOrEqual(3)
+			expect(folders.length).toBeGreaterThanOrEqual(2)
 
-			should(files[0]).have.properties({
-				path: "file1.txt",
-				type: "file",
-				label: "file1.txt",
-			})
+			expect(files[0]).toEqual(
+				expect.objectContaining({
+					path: "file1.txt",
+					type: "file",
+					label: "file1.txt",
+				}),
+			)
 
-			should(folders).containDeep([
-				{ path: "folder1", type: "folder", label: "folder1" },
-				{ path: "folder1/subfolder", type: "folder", label: "subfolder" },
-			])
+			expect(folders).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ path: "folder1", type: "folder", label: "folder1" }),
+					expect.objectContaining({ path: "folder1/subfolder", type: "folder", label: "subfolder" }),
+				]),
+			)
 		})
 
 		it("should handle errors from ripgrep", async function () {
@@ -112,7 +112,7 @@ describe("File Search", function () {
 				},
 			})
 
-			spawnStub.returns({
+			spawnStub.mockReturnValue({
 				stdout: mockStdout,
 				stderr: mockStderr,
 				on: function (event: string, callback: Function) {
@@ -123,7 +123,7 @@ describe("File Search", function () {
 				},
 			} as unknown as childProcess.ChildProcess)
 
-			await should(fileSearch.executeRipgrepForFiles("mock/path", "/workspace", 5000)).be.rejectedWith(
+			await expect(fileSearch.executeRipgrepForFiles("mock/path", "/workspace", 5000)).rejects.toThrow(
 				`ripgrep process error: ${mockError}`,
 			)
 		})
@@ -139,14 +139,19 @@ describe("File Search", function () {
 
 			// Directly stub the searchWorkspaceFiles function for this test
 			// This avoids issues with the executeRipgrepForFiles function
-			const searchStub = sandbox.stub(fileSearch, "searchWorkspaceFiles")
-			searchStub.withArgs("", "/workspace", 2).resolves(mockItems.slice(0, 2))
+			const searchStub = vi.spyOn(fileSearch, "searchWorkspaceFiles")
+			searchStub.mockImplementation(async (query, workspacePath, limit) => {
+				if (query === "" && workspacePath === "/workspace" && limit === 2) {
+					return mockItems.slice(0, 2)
+				}
+				return []
+			})
 
 			const result = await fileSearch.searchWorkspaceFiles("", "/workspace", 2)
 
-			should(result).be.an.Array()
-			should(result).have.length(2)
-			should(result).deepEqual(mockItems.slice(0, 2))
+			expect(result).toBeInstanceOf(Array)
+			expect(result).toHaveLength(2)
+			expect(result).toEqual(mockItems.slice(0, 2))
 		})
 
 		it("should apply fuzzy matching for non-empty query", async function () {
@@ -156,19 +161,19 @@ describe("File Search", function () {
 				{ path: "file2.js", type: "file", label: "file2.js" },
 			]
 
-			sandbox.stub(fileSearch, "executeRipgrepForFiles").resolves(mockItems)
+			vi.spyOn(fileSearch, "executeRipgrepForFiles").mockResolvedValue(mockItems)
 			const fzfStub = {
-				find: sinon.stub().returns([{ item: mockItems[1], score: 0 }]),
+				find: vi.fn().mockReturnValue([{ item: mockItems[1], score: 0 }]),
 			}
 			// Create a mock for the fzf module
 			const fzfModuleStub = {
-				Fzf: sinon.stub().returns(fzfStub),
-				byLengthAsc: sinon.stub(),
+				Fzf: vi.fn().mockReturnValue(fzfStub),
+				byLengthAsc: vi.fn(),
 			}
 
 			// Use a more reliable approach to mock dynamic imports
 			// This replaces the actual implementation of searchWorkspaceFiles to avoid the dynamic import
-			sandbox.stub(fileSearch, "searchWorkspaceFiles").callsFake(async (query, workspacePath, limit) => {
+			vi.spyOn(fileSearch, "searchWorkspaceFiles").mockImplementation(async (query, workspacePath, limit) => {
 				if (!query.trim()) {
 					return mockItems.slice(0, limit)
 				}
@@ -179,13 +184,15 @@ describe("File Search", function () {
 
 			const result = await fileSearch.searchWorkspaceFiles("imp", "/workspace", 2)
 
-			should(result).be.an.Array()
-			should(result).have.length(1)
-			should(result[0]).have.properties({
-				path: "folder1/important.js",
-				type: "file",
-				label: "important.js",
-			})
+			expect(result).toBeInstanceOf(Array)
+			expect(result).toHaveLength(1)
+			expect(result[0]).toEqual(
+				expect.objectContaining({
+					path: "folder1/important.js",
+					type: "file",
+					label: "important.js",
+				}),
+			)
 		})
 	})
 
@@ -196,7 +203,7 @@ describe("File Search", function () {
 
 			const result = fileSearch.OrderbyMatchScore(mockItemA, mockItemB)
 
-			should(result).be.lessThan(0)
+			expect(result).toBeLessThan(0)
 		})
 	})
 })

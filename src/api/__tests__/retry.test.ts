@@ -1,6 +1,5 @@
-import { describe, it } from "mocha"
-import "should"
-import { withRetry } from "./retry"
+import { describe, it, expect } from "vitest"
+import { withRetry } from "../retry"
 
 describe("Retry Decorator", () => {
 	describe("withRetry", () => {
@@ -20,8 +19,8 @@ describe("Retry Decorator", () => {
 				result.push(value)
 			}
 
-			callCount.should.equal(1)
-			result.should.deepEqual(["success"])
+			expect(callCount).toBe(1)
+			expect(result).toEqual(["success"])
 		})
 
 		it("should retry on rate limit (429) error", async () => {
@@ -45,8 +44,8 @@ describe("Retry Decorator", () => {
 				result.push(value)
 			}
 
-			callCount.should.equal(2)
-			result.should.deepEqual(["success after retry"])
+			expect(callCount).toBe(2)
+			expect(result).toEqual(["success after retry"])
 		})
 
 		it("should not retry on non-rate-limit errors", async () => {
@@ -66,8 +65,8 @@ describe("Retry Decorator", () => {
 				}
 				throw new Error("Should have thrown")
 			} catch (error: any) {
-				error.message.should.equal("Regular error")
-				callCount.should.equal(1)
+				expect(error.message).toBe("Regular error")
+				expect(callCount).toBe(1)
 			}
 		})
 
@@ -95,9 +94,9 @@ describe("Retry Decorator", () => {
 			}
 
 			const duration = Date.now() - startTime
-			duration.should.be.approximately(10, 10) // Allow 10ms variance
-			callCount.should.equal(2)
-			result.should.deepEqual(["success after retry"])
+			expect(duration).toBeCloseTo(10, -1) // Allow 10ms variance
+			expect(callCount).toBe(2)
+			expect(result).toEqual(["success after retry"])
 		})
 
 		it("should respect retry-after header with Unix timestamp", async () => {
@@ -126,9 +125,9 @@ describe("Retry Decorator", () => {
 			}
 
 			const duration = Date.now() - startTime
-			duration.should.be.approximately(10, 10) // Allow 10ms variance
-			callCount.should.equal(2)
-			result.should.deepEqual(["success after retry"])
+			expect(duration).toBeCloseTo(10, -1) // Allow 10ms variance
+			expect(callCount).toBe(2)
+			expect(result).toEqual(["success after retry"])
 		})
 
 		it("should use exponential backoff when no retry-after header", async () => {
@@ -155,9 +154,9 @@ describe("Retry Decorator", () => {
 
 			const duration = Date.now() - startTime
 			// First retry should be after baseDelay (10ms)
-			duration.should.be.approximately(10, 10)
-			callCount.should.equal(2)
-			result.should.deepEqual(["success after retry"])
+			expect(duration).toBeCloseTo(10, -1)
+			expect(callCount).toBe(2)
+			expect(result).toEqual(["success after retry"])
 		})
 
 		it("should respect maxDelay", async () => {
@@ -184,9 +183,9 @@ describe("Retry Decorator", () => {
 
 			const duration = Date.now() - startTime
 			// Both retries should be capped at maxDelay (10ms each)
-			duration.should.be.approximately(20, 20)
-			callCount.should.equal(3)
-			result.should.deepEqual(["success after retries"])
+			expect(duration).toBeCloseTo(20, -1)
+			expect(callCount).toBe(3)
+			expect(result).toEqual(["success after retries"])
 		})
 
 		it("should throw after maxRetries attempts", async () => {
@@ -208,8 +207,8 @@ describe("Retry Decorator", () => {
 				}
 				throw new Error("Should have thrown")
 			} catch (error: any) {
-				error.message.should.equal("Rate limit exceeded")
-				callCount.should.equal(2) // Initial attempt + 1 retry
+				expect(error.message).toBe("Rate limit exceeded")
+				expect(callCount).toBe(2) // Initial attempt + 1 retry
 			}
 		})
 	})
