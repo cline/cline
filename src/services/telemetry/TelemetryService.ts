@@ -65,6 +65,8 @@ class PostHogClient {
 			PLAN_MODE_TOGGLED: "ui.plan_mode_toggled",
 			// Tracks when action mode is toggled on
 			ACT_MODE_TOGGLED: "ui.act_mode_toggled",
+			// Tracks when users use the "favorite" button in the model picker
+			MODEL_FAVORITE_TOGGLED: "ui.model_favorite_toggled",
 		},
 	}
 
@@ -491,6 +493,21 @@ class PostHogClient {
 				taskId,
 				qty,
 				mode,
+			},
+		})
+	}
+
+	/**
+	 * Records when the user uses the model favorite button in the model picker
+	 * @param model The name of the model the user has interacted with
+	 * @param isFavorited Whether the model is being favorited (true) or unfavorited (false)
+	 */
+	public captureModelFavoritesUsage(model: string, isFavorited: boolean) {
+		this.capture({
+			event: PostHogClient.EVENTS.UI.MODEL_FAVORITE_TOGGLED,
+			properties: {
+				model,
+				isFavorited,
 			},
 		})
 	}
