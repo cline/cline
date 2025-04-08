@@ -1395,23 +1395,23 @@ export class PostHog {
             }
         }
 
-        const posthogIgnoreContent = this.posthogIgnoreController.posthogIgnoreContent
-        let posthogIgnoreInstructions: string | undefined
-        if (posthogIgnoreContent) {
-            posthogIgnoreInstructions = `# .posthogignore\n\n(The following is provided by a root-level .posthogignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${posthogIgnoreContent}\n.posthogignore`
+        const gitIgnoreContent = this.posthogIgnoreController.gitIgnoreContent
+        let gitIgnoreInstructions: string | undefined
+        if (gitIgnoreContent) {
+            gitIgnoreInstructions = `# .gitignore\n\n(The following is provided by a root-level .gitignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${gitIgnoreContent}\n.gitignore`
         }
 
         if (
             settingsCustomInstructions ||
             posthogRulesFileInstructions ||
-            posthogIgnoreInstructions ||
+            gitIgnoreInstructions ||
             preferredLanguageInstructions
         ) {
             // altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
             systemPrompt += addUserInstructions(
                 settingsCustomInstructions,
                 posthogRulesFileInstructions,
-                posthogIgnoreInstructions,
+                gitIgnoreInstructions,
                 preferredLanguageInstructions
             )
         }
