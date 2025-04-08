@@ -1080,7 +1080,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 	async *attemptApiRequest(previousApiReqIndex: number, retryAttempt: number = 0): ApiStream {
 		let mcpHub: McpHub | undefined
 
-		const { mcpEnabled, alwaysApproveResubmit, requestDelaySeconds, rateLimitSeconds } =
+		const { apiConfiguration, mcpEnabled, alwaysApproveResubmit, requestDelaySeconds } =
 			(await this.providerRef.deref()?.getState()) ?? {}
 
 		let rateLimitDelay = 0
@@ -1089,7 +1089,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 		if (this.lastApiRequestTime) {
 			const now = Date.now()
 			const timeSinceLastRequest = now - this.lastApiRequestTime
-			const rateLimit = rateLimitSeconds || 0
+			const rateLimit = apiConfiguration?.rateLimitSeconds || 0
 			rateLimitDelay = Math.ceil(Math.max(0, rateLimit * 1000 - timeSinceLastRequest) / 1000)
 		}
 

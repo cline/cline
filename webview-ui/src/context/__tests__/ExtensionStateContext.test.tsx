@@ -193,7 +193,6 @@ describe("mergeExtensionState", () => {
 			checkpointStorage: "task",
 			writeDelayMs: 1000,
 			requestDelaySeconds: 5,
-			rateLimitSeconds: 0,
 			mode: "default",
 			experiments: {} as Record<ExperimentId, boolean>,
 			customModes: [],

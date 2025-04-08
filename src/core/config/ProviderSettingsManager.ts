@@ -32,12 +32,7 @@ export class ProviderSettingsManager {
 
 	private readonly defaultProviderProfiles: ProviderProfiles = {
 		currentApiConfigName: "default",
-		apiConfigs: {
-			default: {
-				id: this.defaultConfigId,
-				rateLimitSeconds: 0,
-			},
-		},
+		apiConfigs: { default: { id: this.defaultConfigId } },
 		modeApiConfigs: this.defaultModeApiConfigs,
 		migrations: {
 			rateLimitSecondsMigrated: true, // Mark as migrated on fresh installs

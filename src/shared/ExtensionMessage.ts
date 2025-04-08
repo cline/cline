@@ -153,7 +153,6 @@ export type ExtensionState = Pick<
 	// | "maxReadFileLine" // Optional in GlobalSettings, required here.
 	| "terminalOutputLineLimit"
 	| "terminalShellIntegrationTimeout"
-	// | "rateLimitSeconds" // Optional in GlobalSettings, required here.
 	| "diffEnabled"
 	| "fuzzyMatchThreshold"
 	// | "experiments" // Optional in GlobalSettings, required here.
@@ -187,7 +186,6 @@ export type ExtensionState = Pick<
 	showRooIgnoredFiles: boolean // Whether to show .rooignore'd files in listings
 	maxReadFileLine: number // Maximum number of lines to read from a file before truncating
 
-	rateLimitSeconds: number // Minimum time between successive requests (0 = disabled).
 	experiments: Record<ExperimentId, boolean> // Map of experiment IDs to their enabled state
 
 	mcpEnabled: boolean

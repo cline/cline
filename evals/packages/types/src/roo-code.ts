@@ -518,7 +518,6 @@ export const globalSettingsSchema = z.object({
 	terminalOutputLineLimit: z.number().optional(),
 	terminalShellIntegrationTimeout: z.number().optional(),
 
-	rateLimitSeconds: z.number().optional(),
 	diffEnabled: z.boolean().optional(),
 	fuzzyMatchThreshold: z.number().optional(),
 	experiments: experimentsSchema.optional(),
@@ -588,7 +587,6 @@ const globalSettingsRecord: GlobalSettingsRecord = {
 	terminalOutputLineLimit: undefined,
 	terminalShellIntegrationTimeout: undefined,
 
-	rateLimitSeconds: undefined,
 	diffEnabled: undefined,
 	fuzzyMatchThreshold: undefined,
 	experiments: undefined,

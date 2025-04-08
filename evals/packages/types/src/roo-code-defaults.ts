@@ -59,7 +59,6 @@ export const rooCodeDefaults: RooCodeSettings = {
 	terminalOutputLineLimit: 500,
 	terminalShellIntegrationTimeout: 15000,
 
-	rateLimitSeconds: 0,
 	diffEnabled: true,
 	fuzzyMatchThreshold: 1.0,
 	experiments: {
