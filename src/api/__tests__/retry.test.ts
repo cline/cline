@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, assert } from "vitest"
 import { withRetry } from "../retry"
 
 describe("Retry Decorator", () => {
@@ -94,7 +94,7 @@ describe("Retry Decorator", () => {
 			}
 
 			const duration = Date.now() - startTime
-			expect(duration).toBeCloseTo(10, -1) // Allow 10ms variance
+			assert.closeTo(duration, 10, 10, "duration should be 10 ± 10ms")
 			expect(callCount).toBe(2)
 			expect(result).toEqual(["success after retry"])
 		})
@@ -125,7 +125,7 @@ describe("Retry Decorator", () => {
 			}
 
 			const duration = Date.now() - startTime
-			expect(duration).toBeCloseTo(10, -1) // Allow 10ms variance
+			assert.closeTo(duration, 10, 10, "duration should be 10 ± 10ms")
 			expect(callCount).toBe(2)
 			expect(result).toEqual(["success after retry"])
 		})
@@ -154,7 +154,7 @@ describe("Retry Decorator", () => {
 
 			const duration = Date.now() - startTime
 			// First retry should be after baseDelay (10ms)
-			expect(duration).toBeCloseTo(10, -1)
+			assert.closeTo(duration, 10, 10, "duration should be 10 ± 10ms")
 			expect(callCount).toBe(2)
 			expect(result).toEqual(["success after retry"])
 		})
@@ -183,7 +183,7 @@ describe("Retry Decorator", () => {
 
 			const duration = Date.now() - startTime
 			// Both retries should be capped at maxDelay (10ms each)
-			expect(duration).toBeCloseTo(20, -1)
+			assert.closeTo(duration, 20, 10, "duration should be 20 ± 10ms")
 			expect(callCount).toBe(3)
 			expect(result).toEqual(["success after retries"])
 		})

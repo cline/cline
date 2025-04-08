@@ -1,5 +1,5 @@
-import * as fs from "fs/promises"
 import { describe, it, expect, afterAll } from "vitest"
+import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
 import { createDirectoriesForFile, fileExistsAtPath, isDirectory } from "../fs"

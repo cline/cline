@@ -81,7 +81,7 @@ describe("FileContextTracker", () => {
 		expect(fileEntry.path).toBe(filePath)
 		expect(fileEntry.record_state).toBe("active")
 		expect(fileEntry.record_source).toBe("read_tool")
-		expect(typeof fileEntry.cline_read_date).toBe("number")
+		expect(fileEntry.cline_read_date).toBeTypeOf("number")
 		expect(fileEntry.cline_edit_date).toBeNull()
 	})
 
@@ -110,8 +110,8 @@ describe("FileContextTracker", () => {
 		expect(activeEntry.path).toBe(filePath)
 		expect(activeEntry.record_state).toBe("active")
 		expect(activeEntry.record_source).toBe("cline_edited")
-		expect(typeof activeEntry.cline_read_date).toBe("number")
-		expect(typeof activeEntry.cline_edit_date).toBe("number")
+		expect(activeEntry.cline_read_date).toBeTypeOf("number")
+		expect(activeEntry.cline_edit_date).toBeTypeOf("number")
 	})
 
 	it("should add a record when a file is mentioned", async () => {
@@ -126,7 +126,7 @@ describe("FileContextTracker", () => {
 		expect(fileEntry.path).toBe(filePath)
 		expect(fileEntry.record_state).toBe("active")
 		expect(fileEntry.record_source).toBe("file_mentioned")
-		expect(typeof fileEntry.cline_read_date).toBe("number")
+		expect(fileEntry.cline_read_date).toBeTypeOf("number")
 		expect(fileEntry.cline_edit_date).toBeNull()
 	})
 
@@ -142,7 +142,7 @@ describe("FileContextTracker", () => {
 		expect(fileEntry.path).toBe(filePath)
 		expect(fileEntry.record_state).toBe("active")
 		expect(fileEntry.record_source).toBe("user_edited")
-		expect(typeof fileEntry.user_edit_date).toBe("number")
+		expect(fileEntry.user_edit_date).toBeTypeOf("number")
 
 		// Verify the file was added to recentlyModifiedFiles
 		const modifiedFiles = tracker.getAndClearRecentlyModifiedFiles()

@@ -1,13 +1,12 @@
+import { describe, it, afterAll, expect } from "vitest"
 import { readFile } from "fs/promises"
-import { describe, it, after } from "mocha"
 import path from "path"
-import "should"
 import * as vscode from "vscode"
 
 const packagePath = path.join(__dirname, "..", "..", "package.json")
 
 describe("Cline Extension", () => {
-	after(() => {
+	afterAll(() => {
 		vscode.window.showInformationMessage("All tests done!")
 	})
 
@@ -16,7 +15,7 @@ describe("Cline Extension", () => {
 		const id = packageJSON.publisher + "." + packageJSON.name
 		const clineExtensionApi = vscode.extensions.getExtension(id)
 
-		clineExtensionApi?.id.should.equal(id)
+		expect(clineExtensionApi?.id).toBe(id)
 	})
 
 	it("should successfully execute the plus button command", async () => {
@@ -46,8 +45,8 @@ describe("Cline Extension", () => {
 		`
 
 		// Verify panel exists
-		should.exist(panel)
-		panel.visible.should.be.true()
+		expect(panel).toBeDefined()
+		expect(panel.visible).toBe(true)
 
 		// Clean up
 		panel.dispose()
@@ -83,7 +82,7 @@ describe("Cline Extension", () => {
 
 		// Wait for message
 		const message = await messagePromise
-		message.should.equal("test-message")
+		expect(message).toBe("test-message")
 
 		// Clean up
 		panel.dispose()

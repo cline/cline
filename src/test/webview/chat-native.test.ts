@@ -1,7 +1,7 @@
+import { describe, it, beforeEach, afterEach, expect } from "vitest"
 import * as vscode from "vscode"
-import { describe, it, beforeEach, afterEach } from "mocha"
-import { strict as assert } from "assert"
 import { join } from "path"
+
 describe("Chat Integration Tests", () => {
 	let panel: vscode.WebviewPanel
 	let disposables: vscode.Disposable[] = []
@@ -76,8 +76,8 @@ describe("Chat Integration Tests", () => {
 
 		// Verify message was sent
 		const message = await messagePromise
-		assert.equal(message.type, "newTask")
-		assert.equal(message.text, "Create a hello world app")
+		expect(message.type).toBe("newTask")
+		expect(message.text).toBe("Create a hello world app")
 	})
 
 	it("should toggle between plan and act modes", async () => {
@@ -95,7 +95,7 @@ describe("Chat Integration Tests", () => {
 
 		// Verify mode changed
 		const stateChange = await stateChangePromise
-		assert.equal(stateChange.chatSettings.mode, "act")
+		expect(stateChange.chatSettings.mode).toBe("act")
 	})
 
 	it("should toggle between plan and act modes with messages", async () => {
@@ -113,8 +113,8 @@ describe("Chat Integration Tests", () => {
 
 		// Verify mode changed
 		const stateChange = await stateChangePromise
-		assert.equal(stateChange.chatSettings.mode, "act")
-		assert.equal(stateChange.chatContent.message, "message test")
+		expect(stateChange.chatSettings.mode).toBe("act")
+		expect(stateChange.chatContent.message).toBe("message test")
 	})
 
 	it("should handle tool approval flow", async () => {
@@ -135,7 +135,7 @@ describe("Chat Integration Tests", () => {
 
 		// Verify approval was sent
 		const response = await approvalPromise
-		assert.equal(response.type, "askResponse")
-		assert.equal(response.askResponse, "yesButtonClicked")
+		expect(response.type).toBe("askResponse")
+		expect(response.askResponse).toBe("yesButtonClicked")
 	})
 })
