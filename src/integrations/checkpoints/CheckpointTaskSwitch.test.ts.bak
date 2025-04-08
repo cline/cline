@@ -96,7 +96,6 @@ describe("Checkpoint Task Switching", () => {
             shadowGitConfigWorkTree: env.tempDir,
             tokensIn: 0,
             tokensOut: 0,
-            totalCost: 0,
         }
         await CheckpointTracker.deleteCheckpoints(taskId2, historyItem, env.globalStoragePath)
 

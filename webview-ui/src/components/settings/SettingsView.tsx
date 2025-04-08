@@ -1,16 +1,15 @@
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from '@vscode/webview-ui-toolkit/react'
 import { memo, useCallback, useEffect, useState } from 'react'
 import { useExtensionState } from '../../context/ExtensionStateContext'
-import { validateApiConfiguration, validateModelId } from '../../utils/validate'
 import { vscode } from '../../utils/vscode'
 import ApiOptions from './ApiOptions'
 import { TabButton } from '../mcp/McpView'
 import { useEvent } from 'react-use'
 import { ExtensionMessage } from '../../../../src/shared/ExtensionMessage'
-import DocumentationOptions from './DocumentationOptions'
 import AutocompleteOptions from './AutocompleteOptions'
 import AutoApproveMenu from './AutoApproveMenu'
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from '../../utils/vscStyles'
+import ApiKeyOptions from './ApiKeyOptions'
 const { IS_DEV } = process.env
 
 type SettingsTab = 'privacy' | 'rules' | 'api' | 'features' | 'advanced'
@@ -21,7 +20,6 @@ const SettingsView = () => {
         version,
         customInstructions,
         setCustomInstructions,
-        openRouterModels,
         telemetrySetting,
         setTelemetrySetting,
         chatSettings,
@@ -34,21 +32,12 @@ const SettingsView = () => {
     const [activeTab, setActiveTab] = useState<SettingsTab>('features')
 
     const handleSubmit = () => {
-        const apiValidationResult = validateApiConfiguration(apiConfiguration)
-        const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
-
-        let apiConfigurationToSubmit = apiConfiguration
-        if (!(apiValidationResult && modelIdValidationResult)) {
-            // if the api configuration is invalid, we don't save it
-            apiConfigurationToSubmit = undefined
-        }
-
         vscode.postMessage({
             type: 'updateSettings',
             planActSeparateModelsSetting,
             customInstructionsSetting: customInstructions,
             telemetrySetting,
-            apiConfiguration: apiConfigurationToSubmit,
+            apiConfiguration: apiConfiguration,
         })
     }
 
@@ -192,6 +181,9 @@ const SettingsView = () => {
                     opacity: 0.2,
                 }}
             />
+            <div style={{ marginBottom: 15 }}>
+                <ApiKeyOptions />
+            </div>
             <div style={{ marginBottom: 5 }}>
                 <VSCodeCheckbox
                     style={{ marginBottom: '5px' }}
@@ -237,21 +229,11 @@ const SettingsView = () => {
                         </TabButton>
                     </div>
                     <div style={{ marginBottom: -12 }}>
-                        <ApiOptions
-                            key={chatSettings.mode}
-                            showModelOptions={true}
-                            apiErrorMessage={apiErrorMessage}
-                            modelIdErrorMessage={modelIdErrorMessage}
-                        />
+                        <ApiOptions key={chatSettings.mode} modelIdErrorMessage={modelIdErrorMessage} />
                     </div>
                 </div>
             ) : (
-                <ApiOptions
-                    key={'single'}
-                    showModelOptions={true}
-                    apiErrorMessage={apiErrorMessage}
-                    modelIdErrorMessage={modelIdErrorMessage}
-                />
+                <ApiOptions key={'single'} modelIdErrorMessage={modelIdErrorMessage} />
             )}
         </>
     )
@@ -283,7 +265,6 @@ const SettingsView = () => {
                     opacity: 0.2,
                 }}
             />
-            <DocumentationOptions />
         </>
     )
 

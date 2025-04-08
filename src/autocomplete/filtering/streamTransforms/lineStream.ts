@@ -1,6 +1,6 @@
 import { distance } from 'fastest-levenshtein'
-import { LineStream } from '../../util/stream'
 import { DiffLine } from '../../types'
+import { LineStream } from '../../../api/utils/stream'
 
 export type LineFilter = (args: { lines: LineStream; fullStop: () => void }) => LineStream
 

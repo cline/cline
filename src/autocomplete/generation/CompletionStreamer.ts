@@ -1,4 +1,4 @@
-import { CompletionApiHandler } from '../../api'
+import { PostHogApiProvider } from '../../api/provider'
 import { StreamTransformPipeline } from '../filtering/streamTransforms/StreamTransformPipeline'
 import { CompletionOptions } from '../types'
 import { AutocompleteHelperVars } from '../util/AutocompleteHelperVars'
@@ -15,7 +15,7 @@ export class CompletionStreamer {
 
     async *streamCompletionWithFilters(
         token: AbortSignal,
-        completionApiHandler: CompletionApiHandler,
+        completionApiHandler: PostHogApiProvider,
         prefix: string,
         suffix: string,
         multiline: boolean,
@@ -26,7 +26,7 @@ export class CompletionStreamer {
         const generator = this.generatorReuseManager.getGenerator(
             prefix,
             (abortSignal: AbortSignal) =>
-                completionApiHandler.streamFim(prefix, suffix, abortSignal, completionOptions),
+                completionApiHandler.streamFim(prefix, suffix, completionOptions?.stop ?? [], abortSignal),
             multiline
         )
 

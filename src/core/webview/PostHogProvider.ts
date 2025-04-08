@@ -7,7 +7,6 @@ import os from 'os'
 import pWaitFor from 'p-wait-for'
 import * as path from 'path'
 import * as vscode from 'vscode'
-import { buildApiHandler } from '../../api'
 import { openFile, openImage } from '../../integrations/misc/open-file'
 import { fetchOpenGraphData, isImageUrl } from '../../integrations/misc/link-preview'
 import { selectImages } from '../../integrations/misc/process-images'
@@ -15,7 +14,13 @@ import { getTheme } from '../../integrations/theme/getTheme'
 import WorkspaceTracker from '../../integrations/workspace/WorkspaceTracker'
 import { McpHub } from '../../services/mcp/McpHub'
 import { UserInfo } from '../../shared/UserInfo'
-import { ApiConfiguration, ApiProvider, CompletionApiProvider, ModelInfo } from '../../shared/api'
+import {
+    anthropicDefaultModelId,
+    ApiConfiguration,
+    ApiProvider,
+    CompletionApiProvider,
+    ModelInfo,
+} from '../../shared/api'
 import { findLast } from '../../shared/array'
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from '../../shared/AutoApprovalSettings'
 import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from '../../shared/BrowserSettings'
@@ -37,81 +42,31 @@ import CheckpointTracker from '../../integrations/checkpoints/CheckpointTracker'
 import { getTotalTasksSize } from '../../utils/storage'
 import { GlobalFileNames } from '../../global-constants'
 import { setTimeout as setTimeoutPromise } from 'node:timers/promises'
-import { downloadTask } from '../../integrations/misc/export-markdown'
 import { getStatusBarStatus, setupStatusBar, StatusBarStatus } from '../../autocomplete/statusBar'
-
+import { PostHogApiProvider } from '../../api/provider'
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
 
 https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/customSidebarViewProvider.ts
 */
 
-type SecretKey =
-    | 'apiKey'
-    | 'openRouterApiKey'
-    | 'awsAccessKey'
-    | 'awsSecretKey'
-    | 'awsSessionToken'
-    | 'openAiApiKey'
-    | 'geminiApiKey'
-    | 'openAiNativeApiKey'
-    | 'deepSeekApiKey'
-    | 'requestyApiKey'
-    | 'togetherApiKey'
-    | 'qwenApiKey'
-    | 'mistralApiKey'
-    | 'liteLlmApiKey'
-    | 'authNonce'
-    | 'asksageApiKey'
-    | 'xaiApiKey'
-    | 'sambanovaApiKey'
-    | 'inkeepApiKey'
-    | 'codestralApiKey'
+type SecretKey = 'posthogApiKey'
 type GlobalStateKey =
     | 'apiProvider'
     | 'completionApiProvider'
     | 'apiModelId'
-    | 'awsRegion'
-    | 'awsUseCrossRegionInference'
-    | 'awsBedrockUsePromptCache'
-    | 'awsBedrockEndpoint'
-    | 'awsProfile'
-    | 'awsUseProfile'
-    | 'vertexProjectId'
-    | 'vertexRegion'
     | 'customInstructions'
     | 'taskHistory'
-    | 'openAiBaseUrl'
-    | 'openAiModelId'
-    | 'openAiModelInfo'
-    | 'ollamaModelId'
-    | 'ollamaBaseUrl'
-    | 'ollamaApiOptionsCtxNum'
-    | 'lmStudioModelId'
-    | 'lmStudioBaseUrl'
-    | 'anthropicBaseUrl'
-    | 'azureApiVersion'
-    | 'openRouterModelId'
-    | 'openRouterModelInfo'
-    | 'openRouterProviderSorting'
     | 'autoApprovalSettings'
     | 'browserSettings'
     | 'chatSettings'
-    | 'vsCodeLmModelSelector'
     | 'userInfo'
     | 'previousModeApiProvider'
     | 'previousModeModelId'
-    | 'previousModeThinkingBudgetTokens'
-    | 'previousModeVsCodeLmModelSelector'
+    | 'previousModeThinkingEnabled'
     | 'previousModeModelInfo'
-    | 'liteLlmBaseUrl'
-    | 'liteLlmModelId'
-    | 'qwenApiLine'
-    | 'requestyModelId'
-    | 'togetherModelId'
     | 'telemetrySetting'
-    | 'asksageApiUrl'
-    | 'thinkingBudgetTokens'
+    | 'thinkingEnabled'
     | 'planActSeparateModelsSetting'
     | 'enableTabAutocomplete'
 
@@ -579,33 +534,6 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
                                 text: JSON.stringify(theme),
                             })
                         )
-                        // post last cached models in case the call to endpoint fails
-                        this.readOpenRouterModels().then((openRouterModels) => {
-                            if (openRouterModels) {
-                                this.postMessageToWebview({
-                                    type: 'openRouterModels',
-                                    openRouterModels,
-                                })
-                            }
-                        })
-                        // gui relies on model info to be up-to-date to provide the most accurate pricing, so we need to fetch the latest details on launch.
-                        // we do this for all users since many users switch between api providers and if they were to switch back to openrouter it would be showing outdated model info if we hadn't retrieved the latest at this point
-                        // (see normalizeApiConfiguration > openrouter)
-                        // Prefetch OpenRouter models
-
-                        this.refreshOpenRouterModels().then(async (openRouterModels) => {
-                            if (openRouterModels) {
-                                // update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-                                const { apiConfiguration } = await this.getState()
-                                if (apiConfiguration.openRouterModelId) {
-                                    await this.updateGlobalState(
-                                        'openRouterModelInfo',
-                                        openRouterModels[apiConfiguration.openRouterModelId]
-                                    )
-                                    await this.postStateToWebview()
-                                }
-                            }
-                        })
 
                         // If user already opted in to telemetry, enable telemetry service
                         this.getStateToPostToWebview().then((state) => {
@@ -681,52 +609,14 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
                             images,
                         })
                         break
-                    case 'exportCurrentTask':
-                        const currentTaskId = this.posthog?.taskId
-                        if (currentTaskId) {
-                            this.exportTaskWithId(currentTaskId)
-                        }
-                        break
                     case 'showTaskWithId':
                         this.showTaskWithId(message.text!)
                         break
                     case 'deleteTaskWithId':
                         this.deleteTaskWithId(message.text!)
                         break
-                    case 'exportTaskWithId':
-                        this.exportTaskWithId(message.text!)
-                        break
                     case 'resetState':
                         await this.resetState()
-                        break
-                    case 'requestOllamaModels':
-                        const ollamaModels = await this.getOllamaModels(message.text)
-                        this.postMessageToWebview({
-                            type: 'ollamaModels',
-                            ollamaModels,
-                        })
-                        break
-                    case 'requestLmStudioModels':
-                        const lmStudioModels = await this.getLmStudioModels(message.text)
-                        this.postMessageToWebview({
-                            type: 'lmStudioModels',
-                            lmStudioModels,
-                        })
-                        break
-                    case 'requestVsCodeLmModels':
-                        const vsCodeLmModels = await this.getVsCodeLmModels()
-                        this.postMessageToWebview({ type: 'vsCodeLmModels', vsCodeLmModels })
-                        break
-                    case 'refreshOpenRouterModels':
-                        await this.refreshOpenRouterModels()
-                        break
-                    case 'refreshOpenAiModels':
-                        const { apiConfiguration } = await this.getState()
-                        const openAiModels = await this.getOpenAiModels(
-                            apiConfiguration.openAiBaseUrl,
-                            apiConfiguration.openAiApiKey
-                        )
-                        this.postMessageToWebview({ type: 'openAiModels', openAiModels })
                         break
                     case 'openImage':
                         openImage(message.text!)
@@ -970,8 +860,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             previousModeApiProvider: newApiProvider,
             previousModeModelId: newModelId,
             previousModeModelInfo: newModelInfo,
-            previousModeVsCodeLmModelSelector: newVsCodeLmModelSelector,
-            previousModeThinkingBudgetTokens: newThinkingBudgetTokens,
+            previousModeThinkingEnabled: thinkingEnabled,
             planActSeparateModelsSetting,
         } = await this.getState()
 
@@ -980,90 +869,30 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
         if (shouldSwitchModel) {
             // Save the last model used in this mode
             await this.updateGlobalState('previousModeApiProvider', apiConfiguration.apiProvider)
-            await this.updateGlobalState('previousModeThinkingBudgetTokens', apiConfiguration.thinkingBudgetTokens)
+            await this.updateGlobalState('previousModeThinkingEnabled', apiConfiguration.thinkingEnabled)
             switch (apiConfiguration.apiProvider) {
                 case 'anthropic':
-                case 'bedrock':
-                case 'vertex':
-                case 'gemini':
-                case 'asksage':
-                case 'openai-native':
-                case 'qwen':
-                case 'deepseek':
                     await this.updateGlobalState('previousModeModelId', apiConfiguration.apiModelId)
-                    break
-                case 'openrouter':
-                    await this.updateGlobalState('previousModeModelId', apiConfiguration.openRouterModelId)
-                    await this.updateGlobalState('previousModeModelInfo', apiConfiguration.openRouterModelInfo)
-                    break
-                case 'vscode-lm':
-                    // Important we don't set modelId to this, as it's an object not string (webview expects model id to be a string)
-                    await this.updateGlobalState(
-                        'previousModeVsCodeLmModelSelector',
-                        apiConfiguration.vsCodeLmModelSelector
-                    )
-                    break
-                case 'openai':
-                    await this.updateGlobalState('previousModeModelId', apiConfiguration.openAiModelId)
-                    await this.updateGlobalState('previousModeModelInfo', apiConfiguration.openAiModelInfo)
-                    break
-                case 'ollama':
-                    await this.updateGlobalState('previousModeModelId', apiConfiguration.ollamaModelId)
-                    break
-                case 'lmstudio':
-                    await this.updateGlobalState('previousModeModelId', apiConfiguration.lmStudioModelId)
-                    break
-                case 'litellm':
-                    await this.updateGlobalState('previousModeModelId', apiConfiguration.liteLlmModelId)
-                    break
-                case 'requesty':
-                    await this.updateGlobalState('previousModeModelId', apiConfiguration.requestyModelId)
                     break
             }
 
             // Restore the model used in previous mode
-            if (newApiProvider || newModelId || newThinkingBudgetTokens !== undefined || newVsCodeLmModelSelector) {
+            if (newApiProvider || newModelId || thinkingEnabled !== undefined) {
                 await this.updateGlobalState('apiProvider', newApiProvider)
-                await this.updateGlobalState('thinkingBudgetTokens', newThinkingBudgetTokens)
+                await this.updateGlobalState('thinkingEnabled', thinkingEnabled)
                 switch (newApiProvider) {
                     case 'anthropic':
-                    case 'bedrock':
-                    case 'vertex':
-                    case 'gemini':
-                    case 'asksage':
-                    case 'openai-native':
-                    case 'qwen':
-                    case 'deepseek':
                         await this.updateGlobalState('apiModelId', newModelId)
-                        break
-                    case 'openrouter':
-                        await this.updateGlobalState('openRouterModelId', newModelId)
-                        await this.updateGlobalState('openRouterModelInfo', newModelInfo)
-                        break
-                    case 'vscode-lm':
-                        await this.updateGlobalState('vsCodeLmModelSelector', newVsCodeLmModelSelector)
-                        break
-                    case 'openai':
-                        await this.updateGlobalState('openAiModelId', newModelId)
-                        await this.updateGlobalState('openAiModelInfo', newModelInfo)
-                        break
-                    case 'ollama':
-                        await this.updateGlobalState('ollamaModelId', newModelId)
-                        break
-                    case 'lmstudio':
-                        await this.updateGlobalState('lmStudioModelId', newModelId)
-                        break
-                    case 'litellm':
-                        await this.updateGlobalState('liteLlmModelId', newModelId)
-                        break
-                    case 'requesty':
-                        await this.updateGlobalState('requestyModelId', newModelId)
                         break
                 }
 
                 if (this.posthog) {
                     const { apiConfiguration: updatedApiConfiguration } = await this.getState()
-                    this.posthog.api = buildApiHandler(updatedApiConfiguration)
+                    this.posthog.api = new PostHogApiProvider(
+                        updatedApiConfiguration.apiModelId,
+                        updatedApiConfiguration.posthogApiKey,
+                        updatedApiConfiguration.thinkingEnabled
+                    )
                 }
             }
         }
@@ -1126,110 +955,13 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
     }
 
     async updateApiConfiguration(apiConfiguration: ApiConfiguration) {
-        const {
-            apiProvider,
-            apiModelId,
-            apiKey,
-            openRouterApiKey,
-            awsAccessKey,
-            awsSecretKey,
-            awsSessionToken,
-            awsRegion,
-            awsUseCrossRegionInference,
-            awsBedrockUsePromptCache,
-            awsBedrockEndpoint,
-            awsProfile,
-            awsUseProfile,
-            vertexProjectId,
-            vertexRegion,
-            openAiBaseUrl,
-            openAiApiKey,
-            openAiModelId,
-            openAiModelInfo,
-            ollamaModelId,
-            ollamaBaseUrl,
-            ollamaApiOptionsCtxNum,
-            lmStudioModelId,
-            lmStudioBaseUrl,
-            anthropicBaseUrl,
-            geminiApiKey,
-            openAiNativeApiKey,
-            deepSeekApiKey,
-            requestyApiKey,
-            requestyModelId,
-            togetherApiKey,
-            togetherModelId,
-            qwenApiKey,
-            mistralApiKey,
-            azureApiVersion,
-            openRouterModelId,
-            openRouterModelInfo,
-            openRouterProviderSorting,
-            vsCodeLmModelSelector,
-            liteLlmBaseUrl,
-            liteLlmModelId,
-            liteLlmApiKey,
-            qwenApiLine,
-            asksageApiKey,
-            asksageApiUrl,
-            xaiApiKey,
-            thinkingBudgetTokens,
-            sambanovaApiKey,
-            inkeepApiKey,
-            codestralApiKey,
-        } = apiConfiguration
+        const { apiProvider, apiModelId, posthogApiKey, thinkingEnabled } = apiConfiguration
         await this.updateGlobalState('apiProvider', apiProvider)
         await this.updateGlobalState('apiModelId', apiModelId)
-        await this.storeSecret('apiKey', apiKey)
-        await this.storeSecret('openRouterApiKey', openRouterApiKey)
-        await this.storeSecret('awsAccessKey', awsAccessKey)
-        await this.storeSecret('awsSecretKey', awsSecretKey)
-        await this.storeSecret('awsSessionToken', awsSessionToken)
-        await this.updateGlobalState('awsRegion', awsRegion)
-        await this.updateGlobalState('awsUseCrossRegionInference', awsUseCrossRegionInference)
-        await this.updateGlobalState('awsBedrockUsePromptCache', awsBedrockUsePromptCache)
-        await this.updateGlobalState('awsBedrockEndpoint', awsBedrockEndpoint)
-        await this.updateGlobalState('awsProfile', awsProfile)
-        await this.updateGlobalState('awsUseProfile', awsUseProfile)
-        await this.updateGlobalState('vertexProjectId', vertexProjectId)
-        await this.updateGlobalState('vertexRegion', vertexRegion)
-        await this.updateGlobalState('openAiBaseUrl', openAiBaseUrl)
-        await this.storeSecret('openAiApiKey', openAiApiKey)
-        await this.updateGlobalState('openAiModelId', openAiModelId)
-        await this.updateGlobalState('openAiModelInfo', openAiModelInfo)
-        await this.updateGlobalState('ollamaModelId', ollamaModelId)
-        await this.updateGlobalState('ollamaBaseUrl', ollamaBaseUrl)
-        await this.updateGlobalState('ollamaApiOptionsCtxNum', ollamaApiOptionsCtxNum)
-        await this.updateGlobalState('lmStudioModelId', lmStudioModelId)
-        await this.updateGlobalState('lmStudioBaseUrl', lmStudioBaseUrl)
-        await this.updateGlobalState('anthropicBaseUrl', anthropicBaseUrl)
-        await this.storeSecret('geminiApiKey', geminiApiKey)
-        await this.storeSecret('openAiNativeApiKey', openAiNativeApiKey)
-        await this.storeSecret('deepSeekApiKey', deepSeekApiKey)
-        await this.storeSecret('requestyApiKey', requestyApiKey)
-        await this.storeSecret('togetherApiKey', togetherApiKey)
-        await this.storeSecret('qwenApiKey', qwenApiKey)
-        await this.storeSecret('mistralApiKey', mistralApiKey)
-        await this.storeSecret('liteLlmApiKey', liteLlmApiKey)
-        await this.storeSecret('xaiApiKey', xaiApiKey)
-        await this.updateGlobalState('azureApiVersion', azureApiVersion)
-        await this.updateGlobalState('openRouterModelId', openRouterModelId)
-        await this.updateGlobalState('openRouterModelInfo', openRouterModelInfo)
-        await this.updateGlobalState('openRouterProviderSorting', openRouterProviderSorting)
-        await this.updateGlobalState('vsCodeLmModelSelector', vsCodeLmModelSelector)
-        await this.updateGlobalState('liteLlmBaseUrl', liteLlmBaseUrl)
-        await this.updateGlobalState('liteLlmModelId', liteLlmModelId)
-        await this.updateGlobalState('qwenApiLine', qwenApiLine)
-        await this.updateGlobalState('requestyModelId', requestyModelId)
-        await this.updateGlobalState('togetherModelId', togetherModelId)
-        await this.storeSecret('asksageApiKey', asksageApiKey)
-        await this.updateGlobalState('asksageApiUrl', asksageApiUrl)
-        await this.updateGlobalState('thinkingBudgetTokens', thinkingBudgetTokens)
-        await this.storeSecret('sambanovaApiKey', sambanovaApiKey)
-        await this.storeSecret('inkeepApiKey', inkeepApiKey)
-        await this.storeSecret('codestralApiKey', codestralApiKey)
-        if (this.posthog) {
-            this.posthog.api = buildApiHandler(apiConfiguration)
+        await this.storeSecret('posthogApiKey', posthogApiKey)
+        await this.updateGlobalState('thinkingEnabled', thinkingEnabled)
+        if (this.posthog && apiModelId) {
+            this.posthog.api = new PostHogApiProvider(apiModelId, posthogApiKey)
         }
     }
 
@@ -1286,255 +1018,6 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
         const settingsDir = path.join(this.context.globalStorageUri.fsPath, 'settings')
         await fs.mkdir(settingsDir, { recursive: true })
         return settingsDir
-    }
-
-    // VSCode LM API
-
-    private async getVsCodeLmModels() {
-        try {
-            const models = await vscode.lm.selectChatModels({})
-            return models || []
-        } catch (error) {
-            console.error('Error fetching VS Code LM models:', error)
-            return []
-        }
-    }
-
-    // Ollama
-
-    async getOllamaModels(baseUrl?: string) {
-        try {
-            if (!baseUrl) {
-                baseUrl = 'http://localhost:11434'
-            }
-            if (!URL.canParse(baseUrl)) {
-                return []
-            }
-            const response = await axios.get(`${baseUrl}/api/tags`)
-            const modelsArray = response.data?.models?.map((model: any) => model.name) || []
-            const models = [...new Set<string>(modelsArray)]
-            return models
-        } catch (error) {
-            return []
-        }
-    }
-
-    // LM Studio
-
-    async getLmStudioModels(baseUrl?: string) {
-        try {
-            if (!baseUrl) {
-                baseUrl = 'http://localhost:1234'
-            }
-            if (!URL.canParse(baseUrl)) {
-                return []
-            }
-            const response = await axios.get(`${baseUrl}/v1/models`)
-            const modelsArray = response.data?.data?.map((model: any) => model.id) || []
-            const models = [...new Set<string>(modelsArray)]
-            return models
-        } catch (error) {
-            return []
-        }
-    }
-
-    // OpenAi
-
-    async getOpenAiModels(baseUrl?: string, apiKey?: string) {
-        try {
-            if (!baseUrl) {
-                return []
-            }
-
-            if (!URL.canParse(baseUrl)) {
-                return []
-            }
-
-            const config: Record<string, any> = {}
-            if (apiKey) {
-                config['headers'] = { Authorization: `Bearer ${apiKey}` }
-            }
-
-            const response = await axios.get(`${baseUrl}/models`, config)
-            const modelsArray = response.data?.data?.map((model: any) => model.id) || []
-            const models = [...new Set<string>(modelsArray)]
-            return models
-        } catch (error) {
-            return []
-        }
-    }
-
-    // OpenRouter
-
-    async handleOpenRouterCallback(code: string) {
-        let apiKey: string
-        try {
-            const response = await axios.post('https://openrouter.ai/api/v1/auth/keys', { code })
-            if (response.data && response.data.key) {
-                apiKey = response.data.key
-            } else {
-                throw new Error('Invalid response from OpenRouter API')
-            }
-        } catch (error) {
-            console.error('Error exchanging code for API key:', error)
-            throw error
-        }
-
-        const openrouter: ApiProvider = 'openrouter'
-        await this.updateGlobalState('apiProvider', openrouter)
-        await this.storeSecret('openRouterApiKey', apiKey)
-        await this.postStateToWebview()
-        if (this.posthog) {
-            this.posthog.api = buildApiHandler({
-                apiProvider: openrouter,
-                openRouterApiKey: apiKey,
-            })
-        }
-        // await this.postMessageToWebview({ type: "action", action: "settingsButtonClicked" }) // bad ux if user is on welcome
-    }
-
-    private async ensureCacheDirectoryExists(): Promise<string> {
-        const cacheDir = path.join(this.context.globalStorageUri.fsPath, 'cache')
-        await fs.mkdir(cacheDir, { recursive: true })
-        return cacheDir
-    }
-
-    async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
-        const openRouterModelsFilePath = path.join(
-            await this.ensureCacheDirectoryExists(),
-            GlobalFileNames.openRouterModels
-        )
-        const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
-        if (fileExists) {
-            const fileContents = await fs.readFile(openRouterModelsFilePath, 'utf8')
-            return JSON.parse(fileContents)
-        }
-        return undefined
-    }
-
-    async refreshOpenRouterModels() {
-        const openRouterModelsFilePath = path.join(
-            await this.ensureCacheDirectoryExists(),
-            GlobalFileNames.openRouterModels
-        )
-
-        let models: Record<string, ModelInfo> = {}
-        try {
-            const response = await axios.get('https://openrouter.ai/api/v1/models')
-            /*
-            {
-                "id": "anthropic/claude-3.5-sonnet",
-                "name": "Anthropic: Claude 3.5 Sonnet",
-                "created": 1718841600,
-                "description": "Claude 3.5 Sonnet delivers better-than-Opus capabilities, faster-than-Sonnet speeds, at the same Sonnet prices. Sonnet is particularly good at:\n\n- Coding: Autonomously writes, edits, and runs code with reasoning and troubleshooting\n- Data science: Augments human data science expertise; navigates unstructured data while using multiple tools for insights\n- Visual processing: excelling at interpreting charts, graphs, and images, accurately transcribing text to derive insights beyond just the text alone\n- Agentic tasks: exceptional tool use, making it great at agentic tasks (i.e. complex, multi-step problem solving tasks that require engaging with other systems)\n\n#multimodal",
-                "context_length": 200000,
-                "architecture": {
-                    "modality": "text+image-\u003Etext",
-                    "tokenizer": "Claude",
-                    "instruct_type": null
-                },
-                "pricing": {
-                    "prompt": "0.000003",
-                    "completion": "0.000015",
-                    "image": "0.0048",
-                    "request": "0"
-                },
-                "top_provider": {
-                    "context_length": 200000,
-                    "max_completion_tokens": 8192,
-                    "is_moderated": true
-                },
-                "per_request_limits": null
-            },
-            */
-            if (response.data?.data) {
-                const rawModels = response.data.data
-                const parsePrice = (price: any) => {
-                    if (price) {
-                        return parseFloat(price) * 1_000_000
-                    }
-                    return undefined
-                }
-                for (const rawModel of rawModels) {
-                    const modelInfo: ModelInfo = {
-                        maxTokens: rawModel.top_provider?.max_completion_tokens,
-                        contextWindow: rawModel.context_length,
-                        supportsImages: rawModel.architecture?.modality?.includes('image'),
-                        supportsPromptCache: false,
-                        inputPrice: parsePrice(rawModel.pricing?.prompt),
-                        outputPrice: parsePrice(rawModel.pricing?.completion),
-                        description: rawModel.description,
-                    }
-
-                    switch (rawModel.id) {
-                        case 'anthropic/claude-3-7-sonnet':
-                        case 'anthropic/claude-3-7-sonnet:beta':
-                        case 'anthropic/claude-3.7-sonnet':
-                        case 'anthropic/claude-3.7-sonnet:beta':
-                        case 'anthropic/claude-3.7-sonnet:thinking':
-                        case 'anthropic/claude-3.5-sonnet':
-                        case 'anthropic/claude-3.5-sonnet:beta':
-                            // NOTE: this needs to be synced with api.ts/openrouter default model info
-                            modelInfo.supportsComputerUse = true
-                            modelInfo.supportsPromptCache = true
-                            modelInfo.cacheWritesPrice = 3.75
-                            modelInfo.cacheReadsPrice = 0.3
-                            break
-                        case 'anthropic/claude-3.5-sonnet-20240620':
-                        case 'anthropic/claude-3.5-sonnet-20240620:beta':
-                            modelInfo.supportsPromptCache = true
-                            modelInfo.cacheWritesPrice = 3.75
-                            modelInfo.cacheReadsPrice = 0.3
-                            break
-                        case 'anthropic/claude-3-5-haiku':
-                        case 'anthropic/claude-3-5-haiku:beta':
-                        case 'anthropic/claude-3-5-haiku-20241022':
-                        case 'anthropic/claude-3-5-haiku-20241022:beta':
-                        case 'anthropic/claude-3.5-haiku':
-                        case 'anthropic/claude-3.5-haiku:beta':
-                        case 'anthropic/claude-3.5-haiku-20241022':
-                        case 'anthropic/claude-3.5-haiku-20241022:beta':
-                            modelInfo.supportsPromptCache = true
-                            modelInfo.cacheWritesPrice = 1.25
-                            modelInfo.cacheReadsPrice = 0.1
-                            break
-                        case 'anthropic/claude-3-opus':
-                        case 'anthropic/claude-3-opus:beta':
-                            modelInfo.supportsPromptCache = true
-                            modelInfo.cacheWritesPrice = 18.75
-                            modelInfo.cacheReadsPrice = 1.5
-                            break
-                        case 'anthropic/claude-3-haiku':
-                        case 'anthropic/claude-3-haiku:beta':
-                            modelInfo.supportsPromptCache = true
-                            modelInfo.cacheWritesPrice = 0.3
-                            modelInfo.cacheReadsPrice = 0.03
-                            break
-                        case 'deepseek/deepseek-chat':
-                            modelInfo.supportsPromptCache = true
-                            // see api.ts/deepSeekModels for more info
-                            modelInfo.inputPrice = 0
-                            modelInfo.cacheWritesPrice = 0.14
-                            modelInfo.cacheReadsPrice = 0.014
-                            break
-                    }
-
-                    models[rawModel.id] = modelInfo
-                }
-            } else {
-                console.error('Invalid response from OpenRouter API')
-            }
-            await fs.writeFile(openRouterModelsFilePath, JSON.stringify(models))
-            console.log('OpenRouter models fetched and saved', models)
-        } catch (error) {
-            console.error('Error fetching OpenRouter models:', error)
-        }
-
-        await this.postMessageToWebview({
-            type: 'openRouterModels',
-            openRouterModels: models,
-        })
-        return models
     }
 
     // Context menus and code actions
@@ -1678,11 +1161,6 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             type: 'action',
             action: 'chatButtonClicked',
         })
-    }
-
-    async exportTaskWithId(id: string) {
-        const { historyItem, apiConversationHistory } = await this.getTaskWithId(id)
-        await downloadTask(historyItem.ts, apiConversationHistory)
     }
 
     async deleteAllTaskHistory() {
@@ -1871,137 +1349,41 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
         const [
             storedApiProvider,
             storedCompletionApiProvider,
-            apiModelId,
-            apiKey,
-            openRouterApiKey,
-            awsAccessKey,
-            awsSecretKey,
-            awsSessionToken,
-            awsRegion,
-            awsUseCrossRegionInference,
-            awsBedrockUsePromptCache,
-            awsBedrockEndpoint,
-            awsProfile,
-            awsUseProfile,
-            vertexProjectId,
-            vertexRegion,
-            openAiBaseUrl,
-            openAiApiKey,
-            openAiModelId,
-            openAiModelInfo,
-            ollamaModelId,
-            ollamaBaseUrl,
-            ollamaApiOptionsCtxNum,
-            lmStudioModelId,
-            lmStudioBaseUrl,
-            anthropicBaseUrl,
-            geminiApiKey,
-            openAiNativeApiKey,
-            deepSeekApiKey,
-            requestyApiKey,
-            requestyModelId,
-            togetherApiKey,
-            togetherModelId,
-            qwenApiKey,
-            mistralApiKey,
-            azureApiVersion,
-            openRouterModelId,
-            openRouterModelInfo,
-            openRouterProviderSorting,
+            storedApiModelId,
+            posthogApiKey,
             customInstructions,
             taskHistory,
             autoApprovalSettings,
             browserSettings,
             chatSettings,
-            vsCodeLmModelSelector,
-            liteLlmBaseUrl,
-            liteLlmModelId,
             userInfo,
             previousModeApiProvider,
             previousModeModelId,
             previousModeModelInfo,
-            previousModeVsCodeLmModelSelector,
-            previousModeThinkingBudgetTokens,
-            qwenApiLine,
-            liteLlmApiKey,
+            previousModeThinkingEnabled,
             telemetrySetting,
-            asksageApiKey,
-            asksageApiUrl,
-            xaiApiKey,
-            thinkingBudgetTokens,
-            sambanovaApiKey,
+            thinkingEnabled,
             planActSeparateModelsSettingRaw,
             enableTabAutocomplete,
-            inkeepApiKey,
-            codestralApiKey,
         ] = await Promise.all([
             this.getGlobalState('apiProvider') as Promise<ApiProvider | undefined>,
             this.getGlobalState('completionApiProvider') as Promise<CompletionApiProvider | undefined>,
             this.getGlobalState('apiModelId') as Promise<string | undefined>,
-            this.getSecret('apiKey') as Promise<string | undefined>,
-            this.getSecret('openRouterApiKey') as Promise<string | undefined>,
-            this.getSecret('awsAccessKey') as Promise<string | undefined>,
-            this.getSecret('awsSecretKey') as Promise<string | undefined>,
-            this.getSecret('awsSessionToken') as Promise<string | undefined>,
-            this.getGlobalState('awsRegion') as Promise<string | undefined>,
-            this.getGlobalState('awsUseCrossRegionInference') as Promise<boolean | undefined>,
-            this.getGlobalState('awsBedrockUsePromptCache') as Promise<boolean | undefined>,
-            this.getGlobalState('awsBedrockEndpoint') as Promise<string | undefined>,
-            this.getGlobalState('awsProfile') as Promise<string | undefined>,
-            this.getGlobalState('awsUseProfile') as Promise<boolean | undefined>,
-            this.getGlobalState('vertexProjectId') as Promise<string | undefined>,
-            this.getGlobalState('vertexRegion') as Promise<string | undefined>,
-            this.getGlobalState('openAiBaseUrl') as Promise<string | undefined>,
-            this.getSecret('openAiApiKey') as Promise<string | undefined>,
-            this.getGlobalState('openAiModelId') as Promise<string | undefined>,
-            this.getGlobalState('openAiModelInfo') as Promise<ModelInfo | undefined>,
-            this.getGlobalState('ollamaModelId') as Promise<string | undefined>,
-            this.getGlobalState('ollamaBaseUrl') as Promise<string | undefined>,
-            this.getGlobalState('ollamaApiOptionsCtxNum') as Promise<string | undefined>,
-            this.getGlobalState('lmStudioModelId') as Promise<string | undefined>,
-            this.getGlobalState('lmStudioBaseUrl') as Promise<string | undefined>,
-            this.getGlobalState('anthropicBaseUrl') as Promise<string | undefined>,
-            this.getSecret('geminiApiKey') as Promise<string | undefined>,
-            this.getSecret('openAiNativeApiKey') as Promise<string | undefined>,
-            this.getSecret('deepSeekApiKey') as Promise<string | undefined>,
-            this.getSecret('requestyApiKey') as Promise<string | undefined>,
-            this.getGlobalState('requestyModelId') as Promise<string | undefined>,
-            this.getSecret('togetherApiKey') as Promise<string | undefined>,
-            this.getGlobalState('togetherModelId') as Promise<string | undefined>,
-            this.getSecret('qwenApiKey') as Promise<string | undefined>,
-            this.getSecret('mistralApiKey') as Promise<string | undefined>,
-            this.getGlobalState('azureApiVersion') as Promise<string | undefined>,
-            this.getGlobalState('openRouterModelId') as Promise<string | undefined>,
-            this.getGlobalState('openRouterModelInfo') as Promise<ModelInfo | undefined>,
-            this.getGlobalState('openRouterProviderSorting') as Promise<string | undefined>,
+            this.getSecret('posthogApiKey') as Promise<string | undefined>,
             this.getGlobalState('customInstructions') as Promise<string | undefined>,
             this.getGlobalState('taskHistory') as Promise<HistoryItem[] | undefined>,
             this.getGlobalState('autoApprovalSettings') as Promise<AutoApprovalSettings | undefined>,
             this.getGlobalState('browserSettings') as Promise<BrowserSettings | undefined>,
             this.getGlobalState('chatSettings') as Promise<ChatSettings | undefined>,
-            this.getGlobalState('vsCodeLmModelSelector') as Promise<vscode.LanguageModelChatSelector | undefined>,
-            this.getGlobalState('liteLlmBaseUrl') as Promise<string | undefined>,
-            this.getGlobalState('liteLlmModelId') as Promise<string | undefined>,
             this.getGlobalState('userInfo') as Promise<UserInfo | undefined>,
             this.getGlobalState('previousModeApiProvider') as Promise<ApiProvider | undefined>,
             this.getGlobalState('previousModeModelId') as Promise<string | undefined>,
             this.getGlobalState('previousModeModelInfo') as Promise<ModelInfo | undefined>,
-            this.getGlobalState('previousModeVsCodeLmModelSelector') as Promise<
-                vscode.LanguageModelChatSelector | undefined
-            >,
-            this.getGlobalState('previousModeThinkingBudgetTokens') as Promise<number | undefined>,
-            this.getGlobalState('qwenApiLine') as Promise<string | undefined>,
-            this.getSecret('liteLlmApiKey') as Promise<string | undefined>,
+            this.getGlobalState('previousModeThinkingEnabled') as Promise<boolean | undefined>,
             this.getGlobalState('telemetrySetting') as Promise<TelemetrySetting | undefined>,
-            this.getSecret('asksageApiKey') as Promise<string | undefined>,
-            this.getGlobalState('asksageApiUrl') as Promise<string | undefined>,
-            this.getSecret('xaiApiKey') as Promise<string | undefined>,
-            this.getGlobalState('thinkingBudgetTokens') as Promise<number | undefined>,
-            this.getSecret('sambanovaApiKey') as Promise<string | undefined>,
+            this.getGlobalState('thinkingEnabled') as Promise<boolean | undefined>,
             this.getGlobalState('planActSeparateModelsSetting') as Promise<boolean | undefined>,
             this.getGlobalState('enableTabAutocomplete') as Promise<boolean | undefined>,
-            this.getSecret('inkeepApiKey') as Promise<string | undefined>,
-            this.getSecret('codestralApiKey') as Promise<string | undefined>,
         ])
 
         let apiProvider: ApiProvider
@@ -2009,13 +1391,13 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             apiProvider = storedApiProvider
         } else {
             // Either new user or legacy user that doesn't have the apiProvider stored in state
-            // (If they're using OpenRouter or Bedrock, then apiProvider state will exist)
-            if (apiKey) {
-                apiProvider = 'anthropic'
-            } else {
-                // New users should default to openrouter, since they've opted to use an API key instead of signing in
-                apiProvider = 'openrouter'
-            }
+            apiProvider = 'anthropic'
+        }
+        let apiModelId: string
+        if (storedApiModelId) {
+            apiModelId = storedApiModelId
+        } else {
+            apiModelId = anthropicDefaultModelId
         }
         let completionApiProvider: CompletionApiProvider
         if (storedCompletionApiProvider) {
@@ -2023,10 +1405,6 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
         } else {
             completionApiProvider = 'codestral'
         }
-
-        const o3MiniReasoningEffort = vscode.workspace
-            .getConfiguration('posthog.modelSettings.o3Mini')
-            .get('reasoningEffort', 'medium')
 
         // Plan/Act separate models setting is a boolean indicating whether the user wants to use different models for plan and act. Existing users expect this to be enabled, while we want new users to opt in to this being disabled by default.
         // On win11 state sometimes initializes as empty string instead of undefined
@@ -2051,55 +1429,8 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
                 apiProvider,
                 completionApiProvider,
                 apiModelId,
-                apiKey,
-                openRouterApiKey,
-                awsAccessKey,
-                awsSecretKey,
-                awsSessionToken,
-                awsRegion,
-                awsUseCrossRegionInference,
-                awsBedrockUsePromptCache,
-                awsBedrockEndpoint,
-                awsProfile,
-                awsUseProfile,
-                vertexProjectId,
-                vertexRegion,
-                openAiBaseUrl,
-                openAiApiKey,
-                openAiModelId,
-                openAiModelInfo,
-                ollamaModelId,
-                ollamaBaseUrl,
-                ollamaApiOptionsCtxNum,
-                lmStudioModelId,
-                lmStudioBaseUrl,
-                anthropicBaseUrl,
-                geminiApiKey,
-                openAiNativeApiKey,
-                deepSeekApiKey,
-                requestyApiKey,
-                requestyModelId,
-                togetherApiKey,
-                togetherModelId,
-                qwenApiKey,
-                qwenApiLine,
-                mistralApiKey,
-                azureApiVersion,
-                openRouterModelId,
-                openRouterModelInfo,
-                openRouterProviderSorting,
-                vsCodeLmModelSelector,
-                o3MiniReasoningEffort,
-                thinkingBudgetTokens,
-                liteLlmBaseUrl,
-                liteLlmModelId,
-                liteLlmApiKey,
-                asksageApiKey,
-                asksageApiUrl,
-                xaiApiKey,
-                sambanovaApiKey,
-                inkeepApiKey,
-                codestralApiKey,
+                posthogApiKey,
+                thinkingEnabled,
             },
             customInstructions,
             taskHistory,
@@ -2110,8 +1441,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
             previousModeApiProvider,
             previousModeModelId,
             previousModeModelInfo,
-            previousModeVsCodeLmModelSelector,
-            previousModeThinkingBudgetTokens,
+            previousModeThinkingEnabled,
             telemetrySetting: telemetrySetting || 'unset',
             planActSeparateModelsSetting,
             enableTabAutocomplete,
@@ -2138,16 +1468,6 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
 
     async getGlobalState(key: GlobalStateKey) {
         return await this.context.globalState.get(key)
-    }
-
-    // workspace
-
-    private async updateWorkspaceState(key: string, value: any) {
-        await this.context.workspaceState.update(key, value)
-    }
-
-    private async getWorkspaceState(key: string) {
-        return await this.context.workspaceState.get(key)
     }
 
     // private async clearState() {
@@ -2228,27 +1548,7 @@ export class PostHogProvider implements vscode.WebviewViewProvider {
         for (const key of this.context.globalState.keys()) {
             await this.context.globalState.update(key, undefined)
         }
-        const secretKeys: SecretKey[] = [
-            'apiKey',
-            'openRouterApiKey',
-            'awsAccessKey',
-            'awsSecretKey',
-            'awsSessionToken',
-            'openAiApiKey',
-            'geminiApiKey',
-            'openAiNativeApiKey',
-            'deepSeekApiKey',
-            'requestyApiKey',
-            'togetherApiKey',
-            'qwenApiKey',
-            'mistralApiKey',
-            'liteLlmApiKey',
-            'asksageApiKey',
-            'xaiApiKey',
-            'sambanovaApiKey',
-            'inkeepApiKey',
-            'codestralApiKey',
-        ]
+        const secretKeys: SecretKey[] = ['posthogApiKey']
         for (const key of secretKeys) {
             await this.storeSecret(key, undefined)
         }

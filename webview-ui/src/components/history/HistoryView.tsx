@@ -91,16 +91,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
             switch (sortOption) {
                 case 'oldest':
                     return a.ts - b.ts
-                case 'mostExpensive':
-                    return (b.totalCost || 0) - (a.totalCost || 0)
-                case 'mostTokens':
-                    return (
-                        (b.tokensIn || 0) +
-                        (b.tokensOut || 0) +
-                        (b.cacheWrites || 0) +
-                        (b.cacheReads || 0) -
-                        ((a.tokensIn || 0) + (a.tokensOut || 0) + (a.cacheWrites || 0) + (a.cacheReads || 0))
-                    )
                 case 'mostRelevant':
                     // NOTE: you must never sort directly on object since it will cause members to be reordered
                     return searchQuery ? 0 : b.ts - a.ts // Keep fuse order if searching, otherwise sort by newest
@@ -175,7 +165,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
                     >
                         <VSCodeTextField
                             style={{ width: '100%' }}
-                            placeholder="Fuzzy search history..."
+                            placeholder="Search history..."
                             value={searchQuery}
                             onInput={(e) => {
                                 const newValue = (e.target as HTMLInputElement)?.value
@@ -217,8 +207,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
                         >
                             <VSCodeRadio value="newest">Newest</VSCodeRadio>
                             <VSCodeRadio value="oldest">Oldest</VSCodeRadio>
-                            <VSCodeRadio value="mostExpensive">Most Expensive</VSCodeRadio>
-                            <VSCodeRadio value="mostTokens">Most Tokens</VSCodeRadio>
                             <VSCodeRadio
                                 value="mostRelevant"
                                 disabled={!searchQuery}
@@ -310,7 +298,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
                                                 }}
                                             >
                                                 <span className="codicon codicon-trash"></span>
-                                                {formatSize(item.size)}
                                             </div>
                                         </VSCodeButton>
                                     </div>
@@ -330,167 +317,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
                                             __html: item.task,
                                         }}
                                     />
-                                    <div
-                                        style={{
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '4px',
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                            }}
-                                        >
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '4px',
-                                                    flexWrap: 'wrap',
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        fontWeight: 500,
-                                                        color: 'var(--vscode-descriptionForeground)',
-                                                    }}
-                                                >
-                                                    Tokens:
-                                                </span>
-                                                <span
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '3px',
-                                                        color: 'var(--vscode-descriptionForeground)',
-                                                    }}
-                                                >
-                                                    <i
-                                                        className="codicon codicon-arrow-up"
-                                                        style={{
-                                                            fontSize: '12px',
-                                                            fontWeight: 'bold',
-                                                            marginBottom: '-2px',
-                                                        }}
-                                                    />
-                                                    {formatLargeNumber(item.tokensIn || 0)}
-                                                </span>
-                                                <span
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '3px',
-                                                        color: 'var(--vscode-descriptionForeground)',
-                                                    }}
-                                                >
-                                                    <i
-                                                        className="codicon codicon-arrow-down"
-                                                        style={{
-                                                            fontSize: '12px',
-                                                            fontWeight: 'bold',
-                                                            marginBottom: '-2px',
-                                                        }}
-                                                    />
-                                                    {formatLargeNumber(item.tokensOut || 0)}
-                                                </span>
-                                            </div>
-                                            {!item.totalCost && <ExportButton itemId={item.id} />}
-                                        </div>
-
-                                        {!!item.cacheWrites && (
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '4px',
-                                                    flexWrap: 'wrap',
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        fontWeight: 500,
-                                                        color: 'var(--vscode-descriptionForeground)',
-                                                    }}
-                                                >
-                                                    Cache:
-                                                </span>
-                                                <span
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '3px',
-                                                        color: 'var(--vscode-descriptionForeground)',
-                                                    }}
-                                                >
-                                                    <i
-                                                        className="codicon codicon-database"
-                                                        style={{
-                                                            fontSize: '12px',
-                                                            fontWeight: 'bold',
-                                                            marginBottom: '-1px',
-                                                        }}
-                                                    />
-                                                    +{formatLargeNumber(item.cacheWrites || 0)}
-                                                </span>
-                                                <span
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '3px',
-                                                        color: 'var(--vscode-descriptionForeground)',
-                                                    }}
-                                                >
-                                                    <i
-                                                        className="codicon codicon-arrow-right"
-                                                        style={{
-                                                            fontSize: '12px',
-                                                            fontWeight: 'bold',
-                                                            marginBottom: 0,
-                                                        }}
-                                                    />
-                                                    {formatLargeNumber(item.cacheReads || 0)}
-                                                </span>
-                                            </div>
-                                        )}
-                                        {!!item.totalCost && (
-                                            <div
-                                                style={{
-                                                    display: 'flex',
-                                                    justifyContent: 'space-between',
-                                                    alignItems: 'center',
-                                                    marginTop: -2,
-                                                }}
-                                            >
-                                                <div
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '4px',
-                                                    }}
-                                                >
-                                                    <span
-                                                        style={{
-                                                            fontWeight: 500,
-                                                            color: 'var(--vscode-descriptionForeground)',
-                                                        }}
-                                                    >
-                                                        API Cost:
-                                                    </span>
-                                                    <span
-                                                        style={{
-                                                            color: 'var(--vscode-descriptionForeground)',
-                                                        }}
-                                                    >
-                                                        ${item.totalCost?.toFixed(4)}
-                                                    </span>
-                                                </div>
-                                                <ExportButton itemId={item.id} />
-                                            </div>
-                                        )}
-                                    </div>
                                 </div>
                             </div>
                         )}
@@ -517,19 +343,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
         </>
     )
 }
-
-const ExportButton = ({ itemId }: { itemId: string }) => (
-    <VSCodeButton
-        className="export-button"
-        appearance="icon"
-        onClick={(e) => {
-            e.stopPropagation()
-            vscode.postMessage({ type: 'exportTaskWithId', text: itemId })
-        }}
-    >
-        <div style={{ fontSize: '11px', fontWeight: 500, opacity: 1 }}>EXPORT</div>
-    </VSCodeButton>
-)
 
 // https://gist.github.com/evenfrost/1ba123656ded32fb7a0cd4651efd4db0
 export const highlight = (

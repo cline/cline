@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useExtensionState } from '../../context/ExtensionStateContext'
-import { HedgehogBuddy } from '../welcome/HedgehogBuddy.tsx/HedgehogBuddy'
+import { HedgehogBuddy } from '../HedgehogBuddy.tsx/HedgehogBuddy'
 import { uuid } from '../../utils/utils'
 
 const HEADLINES = [

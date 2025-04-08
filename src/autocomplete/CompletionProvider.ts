@@ -19,8 +19,8 @@ import * as URI from 'uri-js'
 import { processSingleLineCompletion } from './util/processSingleLineCompletion.js'
 import { AutocompleteLoggingService } from './util/AutocompleteLoggingService.js'
 import { getStatusBarStatus, setupStatusBar, StatusBarStatus, stopStatusBarLoading } from './statusBar.js'
-import { CompletionApiHandler } from '../api/index.js'
 import { getAllSnippets } from './snippets/index.js'
+import { PostHogApiProvider } from '../api/provider.js'
 
 // Errors that can be expected on occasion even during normal functioning should not be shown.
 // Not worth disrupting the user to tell them that a single autocomplete request didn't go through
@@ -29,9 +29,6 @@ const ERRORS_TO_IGNORE = [
     'unexpected server status',
     'operation was aborted',
 ]
-
-export const AUTOCOMPLETE_PROVIDER = 'mistral'
-export const AUTOCOMPLETE_MODEL = 'codestral-latest'
 
 export const DEFAULT_AUTOCOMPLETE_OPTS: TabAutocompleteOptions = {
     disable: false,
@@ -66,9 +63,9 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
     private contextRetrievalService: ContextRetrievalService
     private recentlyVisitedRanges: RecentlyVisitedRangesService
     private recentlyEditedTracker = new RecentlyEditedTracker()
-    private getCompletionApiProvider: () => Promise<CompletionApiHandler>
+    private getCompletionApiProvider: () => Promise<PostHogApiProvider>
 
-    constructor(context: vscode.ExtensionContext, completionApiProviderPromise: () => Promise<CompletionApiHandler>) {
+    constructor(context: vscode.ExtensionContext, completionApiProviderPromise: () => Promise<PostHogApiProvider>) {
         this.context = context
         this.completionStreamer = new CompletionStreamer(this.onError.bind(this))
         this.contextRetrievalService = new ContextRetrievalService()
@@ -112,7 +109,7 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
     }
 
     private async _provideInlineCompletionItems(
-        completionApiProvider: CompletionApiHandler,
+        completionApiProvider: PostHogApiProvider,
         input: AutocompleteInput,
         token: AbortSignal | undefined
     ): Promise<AutocompleteOutcome | undefined> {
@@ -130,7 +127,7 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
                 return undefined
             }
 
-            const helper = await AutocompleteHelperVars.create(input, options, AUTOCOMPLETE_MODEL)
+            const helper = await AutocompleteHelperVars.create(input, options, completionApiProvider.model)
 
             if (await shouldPrefilter(helper)) {
                 return undefined
@@ -188,7 +185,7 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
                       completion,
                       prefix: helper.prunedPrefix,
                       suffix: helper.prunedSuffix,
-                      model: AUTOCOMPLETE_MODEL,
+                      model: completionApiProvider.model,
                   })
                 : completion
 
@@ -204,8 +201,7 @@ export class CompletionProvider implements vscode.InlineCompletionItemProvider {
                 prefix,
                 suffix,
                 prompt,
-                modelProvider: AUTOCOMPLETE_PROVIDER,
-                modelName: AUTOCOMPLETE_MODEL,
+                modelName: completionApiProvider.model,
                 completionOptions,
                 cacheHit: false,
                 filepath: helper.filepath,

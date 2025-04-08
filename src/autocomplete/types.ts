@@ -1,17 +1,4 @@
 import Parser from 'web-tree-sitter'
-import { AutocompleteLanguageInfo } from './constants/AutocompleteLanguageInfo'
-import {
-    ChatCompletion,
-    ChatCompletionChunk,
-    ChatCompletionCreateParamsNonStreaming,
-    ChatCompletionCreateParamsStreaming,
-    Completion,
-    CompletionCreateParamsNonStreaming,
-    CompletionCreateParamsStreaming,
-    CreateEmbeddingResponse,
-    EmbeddingCreateParams,
-    Model,
-} from 'openai/resources/index.mjs'
 
 export interface TabAutocompleteOptions {
     disable: boolean
@@ -179,7 +166,6 @@ export interface AutocompleteOutcome extends TabAutocompleteOptions {
     suffix: string
     prompt: string
     completion: string
-    modelProvider: string
     modelName: string
     completionOptions: any
     cacheHit: boolean
